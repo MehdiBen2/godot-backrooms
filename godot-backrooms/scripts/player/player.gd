@@ -70,6 +70,8 @@ var bob := 0.0
 var walk_sounds: Array[AudioStream] = []
 var sprint_sounds: Array[AudioStream] = []
 var step_player: AudioStreamPlayer
+var heel_player: AudioStreamPlayer        # the low knock under each recorded scuff
+var heel_sound: AudioStream
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/on.mp3")
 var click_off: AudioStream = load("res://audio/off.mp3")
@@ -104,6 +106,10 @@ func _ready() -> void:
 	step_player = AudioStreamPlayer.new()
 	step_player.bus = "Steps"
 	add_child(step_player)
+	heel_player = AudioStreamPlayer.new()
+	heel_player.bus = "Steps"
+	add_child(heel_player)
+	heel_sound = preload("res://scripts/audio/scare_synth.gd").new().render("heel")
 	click_player = AudioStreamPlayer.new()
 	click_player.volume_db = -4.4
 	add_child(click_player)
@@ -236,9 +242,20 @@ func _physics_process(dt: float) -> void:
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
 	cam.fov = BASE_FOV + fov_kick
 
-	if global_position.y < -30.0:   # fell down a pit: back to spawn for now
-		global_position = get_parent().get_node("Level").spawn_pos
-		velocity = Vector3.ZERO
+	# fell down a pit: the picture dissolves into static and you come to at the spawn, no hard cut
+	if global_position.y < -30.0 and not Death.respawn_busy:
+		Death.respawn_transition(_back_to_spawn)
+
+# Something heavy landed nearby (the bacteria's footfalls in a chase): the view dips with the floor
+func jolt(amount: float) -> void:
+	land_dip = maxf(land_dip, clampf(amount, 0.0, 1.0) * 0.035)
+
+func _back_to_spawn() -> void:
+	global_position = get_parent().get_node("Level").spawn_pos
+	velocity = Vector3.ZERO
+	land_dip = 0.0
+	was_airborne = false
+	air_time = 0.0
 
 # ---- held flashlight (models/flashlight.glb in the right hand, like the web viewmodel) ----
 const FLASH_LENGTH := 0.27
@@ -265,15 +282,6 @@ func _build_flashlight_view() -> void:
 	holder.position = FLASH_POS
 	holder.rotation = FLASH_ROT
 	cam.add_child(holder)
-	# Glove + sleeve: fist around the handle, forearm angling back
-	var glove := Color(0.24, 0.145, 0.07)
-	var sleeve := Color(0.4, 0.35, 0.11)
-	var hand := Node3D.new()
-	hand.add_child(_box(Vector3(0.075, 0.07, 0.085), Vector3(0, -0.005, 0.045), glove))
-	hand.add_child(_box(Vector3(0.02, 0.022, 0.06), Vector3(-0.04, 0.02, 0.035), glove, Vector3(0, -0.3, 0)))
-	hand.add_child(_box(Vector3(0.085, 0.08, 0.05), Vector3(0.005, -0.012, 0.115), sleeve))
-	hand.add_child(_box(Vector3(0.095, 0.09, 0.42), Vector3(0.02, -0.03, 0.34), sleeve, Vector3(0.1, -0.06, 0)))
-	holder.add_child(hand)
 	var scene: PackedScene = load("res://models/flashlight.glb")
 	var inner: Node3D = scene.instantiate()
 	var wrap := Node3D.new()
@@ -404,9 +412,19 @@ func _footstep(sprint: bool, crouch: bool, intensity: float) -> void:
 	step_player.stream = list[idx]
 	step_player.volume_linear = level * randf_range(0.85, 1.1) * intensity
 	step_player.pitch_scale = (0.92 if crouch else 1.0) * randf_range(0.96, 1.04)
+	# the recorded scuffs are all top end: a heel knock underneath gives the step its weight, more of it
+	# when you run, hardly any creeping. The two feet never land quite alike.
+	foot = -foot
+	heel_player.stream = heel_sound
+	heel_player.volume_linear = level * (0.45 if sprint else (0.15 if crouch else 0.32)) * randf_range(0.8, 1.1) * intensity
+	heel_player.pitch_scale = randf_range(0.9, 1.1) * (0.96 if foot < 0.0 else 1.02) * (0.9 if sprint else 1.0)
+	var au := get_parent().get_node_or_null("Audio")
+	if au != null:
+		au.step_foot(foot)
 	var bus := AudioServer.get_bus_index("Steps")
 	if bus >= 0:
 		var lp := AudioServer.get_bus_effect(bus, 0) as AudioEffectLowPassFilter
 		var want := 2500.0 if crouch else 12000.0
 		if lp and lp.cutoff_hz != want: lp.cutoff_hz = want      # only on change: re-setting it clicks
 	step_player.play()
+	heel_player.play()

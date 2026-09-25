@@ -4,8 +4,17 @@ extends RefCounted
 
 const SR := 22050
 
-var cache := {}
+# Shared by every instance and kept across scene reloads (the level is reloaded on each respawn), so a
+# sound is only ever rendered once per session. Guarded: Scares.prewarm_death() renders on a worker thread.
+static var cache := {}
+static var _lock := Mutex.new()
 var rng := RandomNumberGenerator.new()
+
+# Let go of every rendered sound (at quit, so nothing is reported as leaked)
+static func clear_cache() -> void:
+	_lock.lock()
+	cache.clear()
+	_lock.unlock()
 
 func _init() -> void:
 	rng.randomize()
@@ -43,8 +52,11 @@ func _noise_lp(n: int, cutoff: float) -> PackedFloat32Array:
 
 func render(name: String, arg := 0.0) -> AudioStreamWAV:
 	var key := name + str(snappedf(arg, 0.5))
-	if cache.has(key):
-		return cache[key]
+	_lock.lock()
+	var hit: AudioStreamWAV = cache.get(key)
+	_lock.unlock()
+	if hit != null:
+		return hit
 	var w: AudioStreamWAV
 	match name:
 		"thump":       # a heavy footfall: sub sine and a dull noise slap
@@ -88,12 +100,56 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var t := float(i) / SR
 				a[i] = rng.randf_range(-1.0, 1.0) * 0.6 * exp(-t * 6.0) + sin(TAU * 1800.0 * t) * 0.15 * exp(-t * 18.0)
 			w = _wav(a)
-		"knock":       # wood on wood: a mannequin foot
+		"knock":       # wood on wood: a mannequin foot (legacy)
 			var a := _buf(0.32)
 			var nz := _noise_lp(a.size(), 1400.0)
 			for i in a.size():
 				var t := float(i) / SR
 				a[i] = (sin(TAU * 160.0 * t) * exp(-t * 30.0) * 0.6 + sin(TAU * 410.0 * t) * exp(-t * 55.0) * 0.35 + nz[i] * exp(-t * 60.0) * 1.4)
+			w = _wav(a)
+		"mannequin_step": # Rigorous physical simulation of a hollow composite mannequin foot striking carpet over concrete
+			# arg = variant 0..3: each variation has slightly different cavity frequencies, slab damping, and rock times
+			var v_i := int(arg) % 4
+			var a := _buf(0.36)
+			# Sub-slab impact noise and floor resonance
+			var slab := _noise_lp(a.size(), 140.0 + 20.0 * v_i)
+			# Hollow body bandpass: composite limb cavity resonance (380-520 Hz)
+			var shell_f := 390.0 + 35.0 * v_i
+			# Sharp contact tick at high frequencies (heel contact)
+			var tick_nz := _noise_lp(a.size(), 4200.0)
+			# Sub-bass fundamental (structure-borne floor thump into concrete slab)
+			var f0 := 52.0 + 5.0 * v_i
+			
+			for i in a.size():
+				var t := float(i) / SR
+				# 1. Floor slab thump: deep sub sine + damped floor noise
+				var thud := (sin(TAU * (f0 * exp(-t * 24.0) + 26.0) * t) * 0.75 + slab[i] * 2.2) * exp(-t * 18.0) * minf(1.0, t / 0.002)
+				# 2. Hollow shell resonance: damped resonant body modes
+				var shell := (sin(TAU * shell_f * t) * 0.45 + sin(TAU * (shell_f * 1.35) * t) * 0.25) * exp(-t * 42.0) * minf(1.0, t / 0.003)
+				# 3. Initial contact transient: plastic/wood strike on carpet fibers
+				var tick := (tick_nz[i] - slab[i] * 0.5) * 1.6 * exp(-t * 120.0) * minf(1.0, t / 0.001)
+				# 4. Secondary micro-rock/settle: non-articulated rigid sole settles
+				var t_rock := t - (0.038 + 0.004 * v_i)
+				var rock := 0.0
+				if t_rock > 0.0:
+					rock = (sin(TAU * 240.0 * t_rock) * 0.3 + slab[i] * 0.8) * exp(-t_rock * 38.0) * minf(1.0, t_rock / 0.002)
+				a[i] = (thud * 0.75 + shell * 0.55 + tick * 0.45 + rock * 0.35) * 0.85
+			w = _wav(a)
+		"mannequin_creak": # dry stick-slip friction of an unlubricated ball-and-socket joint
+			var v_i := int(arg) % 3
+			var dur := 0.18 + 0.04 * v_i
+			var a := _buf(dur)
+			var band_f := 950.0 + 180.0 * v_i
+			var nz := _noise_lp(a.size(), 2600.0)
+			var ph := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var env := sin(PI * clampf(t / dur, 0.0, 1.0))
+				# micro-slip chatter rate
+				var slip := sin(TAU * (35.0 + 15.0 * sin(t * 28.0)) * t)
+				var gate := 1.0 if slip > 0.1 else 0.15
+				ph += TAU * (band_f + 80.0 * sin(t * 19.0)) / SR
+				a[i] = (sin(ph) * 0.3 + nz[i] * 0.7) * env * gate * 0.45
 			w = _wav(a)
 		"creak":       # a joint under strain
 			var a := _buf(0.9)
@@ -129,14 +185,14 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 					g = 0.0001 * pow(0.045 / 0.0001, t / 0.9)              # exponential ramp up
 				elif t > maxf(1.0, secs - 1.5):
 					g = 0.045 * pow(0.0001 / 0.045, (t - maxf(1.0, secs - 1.5)) / (secs - maxf(1.0, secs - 1.5)))
-				a[i] = sin(TAU * 1000.0 * t) * g * 3.0   # quiet: a tone you feel, not one that hurts
+				a[i] = sin(TAU * 1000.0 * t) * g * 1.8   # quiet: a tone you feel, not one that hurts
 			w = _wav(a)
 		"tinnitus":    # dead silence: high ear ringing while the hum is gone
 			var secs := maxf(1.0, arg)
 			var a := _buf(secs)
 			for i in a.size():
 				var t := float(i) / SR
-				a[i] = sin(TAU * 7400.0 * t) * 0.012 * 3.0 * minf(1.0, t * 4.0) * clampf((secs - t) * 2.0, 0.0, 1.0)
+				a[i] = sin(TAU * 7400.0 * t) * 0.012 * 1.5 * minf(1.0, t * 4.0) * clampf((secs - t) * 2.0, 0.0, 1.0)
 			w = _wav(a)
 		"drone":       # heavy, slow, wrong: a low pulse with a wobble you feel in your chest
 			var secs := maxf(2.0, arg)
@@ -147,7 +203,106 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var wob := 1.0 + 0.4 * sin(TAU * 0.6 * t)
 				a[i] = (sin(TAU * 46.0 * t) + sin(TAU * 48.6 * t)) * 0.28 * env * wob
 			w = _wav(a)
+		"body_fall":   # a body going down on carpet: dead-weight thud, the suit crumpling, then the limbs
+			var a := _buf(1.2)
+			var slap := _noise_lp(a.size(), 480.0)
+			var rustle := _noise_lp(a.size(), 2600.0)
+			var gate := 1.0
+			for i in a.size():
+				var t := float(i) / SR
+				if i % 90 == 0:
+					gate = 1.0 if rng.randf() < 0.45 else 0.25
+				var v := sin(TAU * (58.0 * exp(-t * 5.0) + 30.0) * t) * exp(-t * 5.5)   # the torso: a sub thud
+				v += slap[i] * exp(-t * 16.0) * 2.2
+				v += rustle[i] * gate * 0.55 * exp(-t * 4.5) * minf(1.0, t * 60.0)      # the hazmat suit crumpling
+				var t2 := t - 0.16                                                          # the head / shoulders
+				if t2 > 0.0:
+					v += sin(TAU * 88.0 * t2) * exp(-t2 * 18.0) * 0.45 + slap[i] * exp(-t2 * 24.0) * 1.1
+				var t3 := t - 0.31                                                          # an arm flopping down
+				if t3 > 0.0:
+					v += sin(TAU * 120.0 * t3) * exp(-t3 * 26.0) * 0.18 + rustle[i] * exp(-t3 * 20.0) * 0.5
+				a[i] = v * 0.65
+			w = _wav(a)
+		"howler_step": # THE BACTERIA's footfall (arg = variant 0..3, so no two in a row are the same sound):
+			# the weight coming down, the floor giving under it, the carpet crushed, claws catching the pile
+			var v_i := int(arg)
+			var a := _buf(0.5)
+			var body := _noise_lp(a.size(), 170.0 + 25.0 * v_i)
+			var f0 := 46.0 + 5.0 * v_i
+			var k_hi := 1.0 - exp(-TAU * 2200.0 / SR)
+			var k_lo := 1.0 - exp(-TAU * 700.0 / SR)
+			var hi := 0.0
+			var lo := 0.0
+			var gate := 1.0
+			for i in a.size():
+				var t := float(i) / SR
+				var x := rng.randf_range(-1.0, 1.0)
+				hi += (x - hi) * k_hi
+				lo += (hi - lo) * k_lo
+				if i % 70 == 0:
+					gate = 1.0 if rng.randf() < 0.5 else 0.35
+				var v := body[i] * 3.2 * minf(1.0, t / 0.005) * exp(-t * 15.0)
+				v += sin(TAU * (f0 + 22.0 * exp(-t * 28.0)) * t) * 0.55 * exp(-t * 9.0)
+				var t2 := t - 0.015 - 0.004 * v_i
+				if t2 > 0.0:
+					v += (hi - lo) * gate * 1.9 * minf(1.0, t2 / 0.003) * exp(-t2 * 30.0)   # a 700-2200 Hz band
+				a[i] = v * 0.65
+			w = _wav(a)
+		"howler_drag": # its short, limping leg: the foot lands light and is dragged, claws raking the carpet
+			var a := _buf(0.42)
+			var body := _noise_lp(a.size(), 200.0)
+			var k_hi := 1.0 - exp(-TAU * 2600.0 / SR)
+			var k_lo := 1.0 - exp(-TAU * 500.0 / SR)
+			var hi := 0.0
+			var lo := 0.0
+			var gate := 1.0
+			for i in a.size():
+				var t := float(i) / SR
+				var x := rng.randf_range(-1.0, 1.0)
+				hi += (x - hi) * k_hi
+				lo += (hi - lo) * k_lo
+				if i % 55 == 0:
+					gate = 1.0 if rng.randf() < 0.55 else 0.2
+				var drag := pow(sin(PI * clampf((t - 0.04) / 0.36, 0.0, 1.0)), 1.4)
+				var v := body[i] * 1.8 * minf(1.0, t / 0.005) * exp(-t * 20.0)            # a lighter landing
+				v += (hi - lo) * gate * drag * 1.4
+				a[i] = v * 0.8
+			w = _wav(a)
+		"heel":        # your heel on carpet laid over concrete: the low knock the recorded scuffs lack
+			var a := _buf(0.14)
+			var nz := _noise_lp(a.size(), 380.0)
+			for i in a.size():
+				var t := float(i) / SR
+				a[i] = (nz[i] * 2.6 * exp(-t * 40.0) + sin(TAU * (92.0 + 45.0 * exp(-t * 60.0)) * t) * 0.55 * exp(-t * 32.0)) \
+					* minf(1.0, t / 0.002) * 0.85
+			w = _wav(a)
+		"bone_crack":  # a knuckle / joint cracking under the weight
+			var a := _buf(0.06)
+			var k := 1.0 - exp(-TAU * 2600.0 / SR)
+			var lo := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var x := rng.randf_range(-1.0, 1.0)
+				lo += (x - lo) * k
+				a[i] = (x - lo) * 0.5 * minf(1.0, t / 0.001) * exp(-t * 120.0)   # white minus its low end: a high-pass
+			w = _wav(a)
+		"death_swell": # under the death screen: a low tone sinking and beating slowly, with dark air under it
+			var secs := maxf(4.0, arg)
+			var a := _buf(secs)
+			var air := _noise_lp(a.size(), 320.0)
+			var ph := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var f := 41.0 + 16.0 * exp(-t * 0.5)                      # sinks from ~57 Hz to 41 Hz
+				ph += TAU * f / SR
+				var env := pow(minf(1.0, t / 4.0), 2.0) * clampf((secs - t) / 3.0, 0.0, 1.0)
+				var v := sin(ph) + sin(ph * 1.017) * 0.8 + sin(ph * 1.5) * 0.18   # the 0.7 Hz beat, a faint fifth
+				v += air[i] * 2.2 * (0.6 + 0.4 * sin(TAU * 0.13 * t))
+				a[i] = v * 0.26 * env
+			w = _wav(a)
 		_:
 			w = _wav(_buf(0.1))
+	_lock.lock()
 	cache[key] = w
+	_lock.unlock()
 	return w

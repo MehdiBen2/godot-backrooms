@@ -1,21 +1,32 @@
 extends Node
 ## Death camera + blood-screen overlay (js/game/death.js + grab.js endGrab(dying=true)).
 ##
-## Sequence (same timings as the web game):
+## Sequence:
 ##
 ##   t=0            blood-scream already played by scares.splat() at the snap/bite moment
 ##                  blood-screen image fades in and slides down (opacity 0->0.55, translateY -8%->0)
-##   t=0..1.18s     camera smoothsteps from FPS eye position to 3rd-person (4.2m back, 2.5m up)
-##   t=1.18s..15s   slow 360 deg orbit, eased spin, 0.003 floating drift
+##   t=0..2.2s      the view lifts up out of the body (an arc, not a straight line) and swings round
+##                  into the orbit, turning from wherever it was looking onto the falling body
+##   t=0.85s        the body hits the floor: a heavy thump and a jolt through the camera
+##   t=0.5s..       a slow orbit that never stops, pushing in a little over time, with a dutch tilt and
+##                  a hand-held float. It follows the body's chest (the fall clip moves it) and keeps
+##                  clear of walls and low ceilings: in a tight corridor it pulls in and rises overhead.
+##                  The picture drains of colour and the edges stay dark.
 ##
-## DO NOT call scares.splat() or play any audio here — that is done at the snap/bite moment
-## in mannequin.gd / entity.gd, BEFORE kill_player() is called.
+## DO NOT call scares.splat() here — that is done at the snap/bite moment in mannequin.gd /
+## entity.gd, BEFORE kill_player() is called. The only sound made here is the body landing.
 
-const ORBIT_SECONDS := 14.0
-const PULL_SECONDS  := 1.176   # 1 / 0.85 (JS: progress = timer * 0.85, capped at 1)
+const PULL_SECONDS  := 2.2      # out of the body and round into the orbit
+const ORBIT_LAP     := 28.0     # seconds per slow lap; it keeps turning until you respawn
 const ORBIT_RADIUS  := 4.2
+const ORBIT_RADIUS_END := 3.3   # the slow push-in while you watch
 const ORBIT_HEIGHT  := 2.5
 const BODY_CENTER_Y := 0.35
+const CAM_MARGIN    := 0.4      # kept between the lens and any wall
+const CEIL_MARGIN   := 0.35
+const IMPACT_AT     := 0.85     # the fall clip lands about here
+const DEATH_FOV     := 58.0     # narrower than play: a longer lens for the death shot
+const CELL          := 4.5
 
 var active     := false
 var timer      := 0.0
@@ -35,8 +46,16 @@ var _blood_tween:   Tween       = null
 var _blood_tex:     Texture2D   = null
 
 var _fx: Node = null
+var _scares: Node = null
 var _start_rot := Quaternion.IDENTITY
 var _have_start_rot := false
+var _fov0 := 75.0
+var _focus := Vector3.ZERO      # smoothed point on the body the camera looks at
+var _centre := Vector3.ZERO     # smoothed orbit centre (follows the body across the floor)
+var _orbit_ang := 0.0
+var _radius_now := ORBIT_RADIUS # clearance-limited orbit radius (a spring arm)
+var _trauma := 0.0              # impact shake, squared on smooth noise
+var _landed := false
 
 func _ready() -> void:
 	_fx = load("res://scripts/ui/death_fx.gd").new()
@@ -47,9 +66,14 @@ func _ready() -> void:
 	if _blood_tex == null:
 		push_warning("Death: blood texture failed to load")
 
-func bind(cam: Camera3D, player: Node3D, _scares: Node) -> void:
+# Autoloads only leave the tree when the game quits: drop the synth cache that outlives scene reloads
+func _exit_tree() -> void:
+	preload("res://scripts/audio/scare_synth.gd").clear_cache()
+
+func bind(cam: Camera3D, player: Node3D, scares: Node) -> void:
 	_cam    = cam
 	_player = player
+	_scares = scares
 
 ## Called by Game.kill_player().
 ## cam_start_global: camera world pos at death.
@@ -65,25 +89,32 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	death_pos  = p_pos
 	cam_start  = cam_start_global
 	player_yaw = p_yaw
+	_fov0 = _cam.fov if is_instance_valid(_cam) else 75.0
+	_orbit_ang = 0.0
+	_radius_now = ORBIT_RADIUS
+	_trauma = 0.0
+	_landed = false
+	_focus = p_pos + Vector3(0.0, 1.2, 0.0)
+	_centre = p_pos
 
-	_show_blood_screen()
+	# Nothing attacked you in a psychological collapse: no blood, you just go down
+	var bloody := killer != "PSYCHOLOGICAL COLLAPSE"
+	if bloody:
+		_show_blood_screen()
 	# The killer is right in front of the view: the bite / snap sprays from about there
 	var fwd := Vector3(-sin(p_yaw), 0.0, -cos(p_yaw))
-	if killer != "THE BACTERIA" and killer != "THE MANNEQUIN":   # those two already sprayed at the bite / snap (bite())
+	if bloody and killer != "THE BACTERIA" and killer != "THE MANNEQUIN":   # those two already sprayed at the bite / snap (bite())
 		_fx.feast(cam_start_global + fwd * 0.8, p_pos)
 	_fx.spawn_ragdoll(p_pos, p_yaw)
-	_thud()
+
+# The body hitting the floor: a heavy thump where it lands and a jolt through the camera
+func _land() -> void:
+	_landed = true
+	_trauma = maxf(_trauma, 0.6)
+	if is_instance_valid(_scares):
+		_scares.body_fall()
 
 ## The bacteria's jaws close on you: blood sprays from its mouth and pools on the floor. Called from entity.gd at the bite.
-# The body hitting the floor: a low heavy thump as the fall clip lands
-func _thud() -> void:
-	await get_tree().create_timer(0.85).timeout
-	if not active:
-		return
-	var sc := get_tree().current_scene.get_node_or_null("Scares") if get_tree().current_scene else null
-	if sc != null:
-		sc.heartbeat(1.6)
-
 func bite(mouth: Vector3, victim: Vector3, cam_pos: Vector3) -> void:
 	_fx.feast(mouth, victim)
 	# most of the spray is thrown at you, the rest sprays out
@@ -108,6 +139,7 @@ func stop() -> void:
 	_fx.clear()
 	_cam    = null
 	_player = null
+	_scares = null
 
 # ──────────────────────────────────────── blood-screen overlay ─────────────────
 # Web equivalent: endGrab(dying=true) → blood image fades in 0.7s and slides from
@@ -165,142 +197,233 @@ func _process(delta: float) -> void:
 		active = false
 		return
 	timer += delta
-	# Mirror of death.js updateDeath() ─────────────────────────────────────────
-	#   progress  = min(1, timer * 0.85)
-	#   smooth    = smoothstep(progress)
-	#   orbitT    = max(0, timer - PULL_SECONDS)
-	#   orbitAng  = min(1, orbitT / 14) * TAU
-	#   ease      = min(1, orbitT / 1.5)
-	#   ang       = player_yaw + orbitAng * ease
-	#   orbitPos  = (dp.x + sin*4.2, dp.y + 2.5, dp.z + cos*4.2)
-	#   cam.pos   = lerp(camStart, orbitPos, smooth)
-	var progress  := minf(1.0, timer * 0.85)
-	var sm        := _smoothstep(progress)
-	var orbit_t   := maxf(0.0, timer - PULL_SECONDS)
-	var orbit_ang := minf(1.0, orbit_t / ORBIT_SECONDS) * TAU
-	var spin_in   := minf(1.0, orbit_t / 1.5)
-	var ang       := player_yaw + orbit_ang * spin_in
-	var dp        := death_pos
+	var t := timer
+	var dp := death_pos
+	if not _have_start_rot:
+		_start_rot = _cam.global_transform.basis.get_rotation_quaternion()
+		_have_start_rot = true
 
-	var orbit_pos := Vector3(
-		dp.x + sin(ang) * ORBIT_RADIUS,
-		dp.y + ORBIT_HEIGHT,
-		dp.z + cos(ang) * ORBIT_RADIUS
-	)
-	_cam.global_position = cam_start.lerp(orbit_pos, sm)
+	# The body: its chest follows the fall clip. The camera glides after it rather than locking on.
+	var chest: Vector3 = _fx.body_point(dp + Vector3(0.0, BODY_CENTER_Y, 0.0))
+	_focus = _focus.lerp(chest + Vector3(0.0, 0.1, 0.0), 1.0 - exp(-delta / 0.22))
+	_centre = _centre.lerp(Vector3(chest.x, dp.y, chest.z), 1.0 - exp(-delta / 0.6))
 
-	# Floating drift after 1.2s (JS: sin(timer * 1.5) * 0.003)
-	if timer > 1.2:
-		_cam.global_position.y += sin(timer * 1.5) * 0.003
+	if not _landed and t >= IMPACT_AT:
+		_land()
+	_trauma = maxf(0.0, _trauma - delta * 1.3)
+	var tr2 := _trauma * _trauma
 
-	# Look at body centre — guard against degenerate look_at
-	var body_centre := Vector3(dp.x, dp.y + BODY_CENTER_Y, dp.z)
-	if _cam.global_position.distance_squared_to(body_centre) > 0.0001:
-		# Ease the view from the snapped-head stare round to the body instead of cutting to it
-		var target := Transform3D(Basis.IDENTITY, _cam.global_position).looking_at(body_centre, Vector3.UP).basis.get_rotation_quaternion()
-		if not _have_start_rot:
-			_start_rot = _cam.global_transform.basis.get_rotation_quaternion()
-			_have_start_rot = true
-		_cam.global_transform.basis = Basis(_start_rot.slerp(target, sm))
+	# The orbit: eases into a slow turn that never stops, and pushes in a little while you watch
+	var push := _smoothstep(t / 30.0)
+	_orbit_ang += TAU / ORBIT_LAP * _smoothstep((t - 0.5) / 2.5) * delta
+	var ang := player_yaw + _orbit_ang
+	var dir := Vector3(sin(ang), 0.0, cos(ang))
+	var want_r := lerpf(ORBIT_RADIUS, ORBIT_RADIUS_END, push)
+	# A spring arm: pull in fast when a wall is in the way, ease back out slowly once it clears
+	var room := _clearance(_centre + Vector3(0.0, 1.2, 0.0), dir, want_r)
+	_radius_now += (room - _radius_now) * (1.0 - exp(-delta * (10.0 if room < _radius_now else 1.2)))
+	# boxed in: rise and look down on the body instead of pressing against the wall
+	var cramped := clampf(1.0 - _radius_now / want_r, 0.0, 1.0)
+	var orbit_pos := _centre + dir * _radius_now + Vector3(0.0, ORBIT_HEIGHT + 0.9 * cramped + 0.12 * sin(t * 0.23), 0.0)
+	orbit_pos.y = minf(orbit_pos.y, _ceiling_y(orbit_pos) - CEIL_MARGIN)
+
+	# The lift: an arc that rises up out of the body first, then swings out into the orbit
+	var u := clampf(t / PULL_SECONDS, 0.0, 1.0)
+	var s := lerpf(_smootherstep(u), 1.0 - pow(1.0 - u, 3.0), 0.5)
+	var ctrl := cam_start + Vector3(0.0, 1.0, 0.0)
+	ctrl.y = minf(ctrl.y, maxf(cam_start.y, _ceiling_y(cam_start) - CEIL_MARGIN))
+	var pos := _bezier(cam_start, ctrl, orbit_pos, s)
+
+	# A hand-held float once it settles, and the jolt of the body landing
+	var float_w := _smoothstep((t - 0.8) / 2.0)
+	pos += Vector3(_noise(1.0, t * 0.45), _noise(2.0, t * 0.35) * 0.6, _noise(3.0, t * 0.45)) * 0.05 * float_w
+	pos += Vector3(_noise(4.0, t * 9.0), _noise(5.0, t * 9.0), _noise(6.0, t * 9.0)) * 0.06 * tr2
+	# the ray above only sees walls in front of the lens: also keep it off one running alongside
+	if t > 0.3:
+		pos = _push_off_walls(pos)
+	_cam.global_position = pos
+
+	# Ease the view from wherever it was (the snapped-head stare, the jaws) round onto the body
+	var to := _focus - pos
+	if to.length_squared() > 0.0001 and absf(to.normalized().y) < 0.995:
+		var target := Basis.looking_at(to.normalized(), Vector3.UP).get_rotation_quaternion()
+		var b := Basis(_start_rot.slerp(target, _smoothstep(t / 1.1)))
+		# a slow dutch tilt, a little sway, and the landing's shake
+		var roll := (0.06 + 0.025 * sin(t * 0.31)) * _smoothstep((t - 0.4) / 2.5) \
+			+ _noise(7.0, t * 0.5) * 0.012 * float_w + _noise(8.0, t * 11.0) * 0.05 * tr2
+		var nod := _noise(9.0, t * 0.4) * 0.01 * float_w + _noise(10.0, t * 10.0) * 0.035 * tr2
+		b = b.rotated(b.x.normalized(), nod)
+		b = b.rotated(b.z.normalized(), roll)
+		_cam.global_transform.basis = b
+
+	# A longer lens for the death shot, closing in slowly; a kick when the body lands
+	_cam.fov = lerpf(_fov0, DEATH_FOV - 4.0 * push, _smoothstep(t / PULL_SECONDS)) + 5.0 * tr2
+
+	# The picture drains of colour and the edges stay dark while you look at what is left of you
+	var drain := _smoothstep((t - 0.3) / 4.0)
+	Game.fx_sat = lerpf(1.0, 0.45, drain)
+	Game.fx_contrast = lerpf(1.0, 1.1, drain)
+	Game.fx_fade = maxf(Game.fx_fade, 0.25 * drain)
+
+# How far the camera can back away from `from` along `dir` before a wall (only level geometry counts:
+# the fleeing entity or a survivor walking past must not shove the camera around)
+func _clearance(from: Vector3, dir: Vector3, want: float) -> float:
+	var space := _cam.get_world_3d().direct_space_state
+	if space == null:
+		return want
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * (want + CAM_MARGIN))
+	var skip: Array[RID] = []
+	if _player is CollisionObject3D:
+		skip.append((_player as CollisionObject3D).get_rid())
+	for i in 4:
+		q.exclude = skip
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return want
+		if hit.collider is StaticBody3D:
+			return clampf(from.distance_to(hit.position) - CAM_MARGIN, 0.9, want)
+		skip.append(hit.rid)
+	return want
+
+# Walls are whole grid cells: push the point out of any neighbouring cell it is within CAM_MARGIN of
+func _push_off_walls(p: Vector3) -> Vector3:
+	var lvl = Game.level
+	if lvl == null or not is_instance_valid(lvl):
+		return p
+	var c := Vector2i(roundi(p.x / CELL), roundi(p.z / CELL))
+	var h := CELL * 0.5
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			var n := c + Vector2i(dx, dz)
+			if not lvl.walls.has(n):
+				continue
+			var near := Vector2(clampf(p.x, n.x * CELL - h, n.x * CELL + h), clampf(p.z, n.y * CELL - h, n.y * CELL + h))
+			var away := Vector2(p.x, p.z) - near
+			var gap := away.length()
+			if gap > 0.0001 and gap < CAM_MARGIN:
+				away = away / gap * (CAM_MARGIN - gap)
+				p.x += away.x
+				p.z += away.y
+	return p
+
+# World-space ceiling height over a point (low rooms are only 2.3 m)
+func _ceiling_y(p: Vector3) -> float:
+	var lvl = Game.level
+	if lvl == null or not is_instance_valid(lvl) or not lvl.has_method("ceiling_height"):
+		return INF
+	return lvl.ceiling_height(Vector2i(roundi(p.x / CELL), roundi(p.z / CELL)))
+
+# Smooth pseudo-noise in about -1..1 (a sum of unrelated sines)
+func _noise(seed_v: float, t: float) -> float:
+	return sin(t * 1.7 + seed_v * 4.7) * 0.5 + sin(t * 2.9 + seed_v * 8.1) * 0.3 + sin(t * 4.3 + seed_v * 2.9) * 0.2
+
+func _bezier(a: Vector3, b: Vector3, c: Vector3, s: float) -> Vector3:
+	var r := 1.0 - s
+	return a * (r * r) + b * (2.0 * r * s) + c * (s * s)
 
 func _smoothstep(t: float) -> float:
 	var c := clampf(t, 0.0, 1.0)
 	return c * c * (3.0 - 2.0 * c)
 
+func _smootherstep(t: float) -> float:
+	var c := clampf(t, 0.0, 1.0)
+	return c * c * c * (c * (c * 6.0 - 15.0) + 10.0)
 
-# ──────────────────────────────────────── respawn through static (death.js respawnPlayer) ───
-# The screen dissolves into TV static; only once it is fully covered is the level reloaded (you never
-# see the swap), then the static clears. RESPAWN = { fadeIn 0.35, hold 0.45, fadeOut 0.9 }.
-const RESPAWN_FADE_IN := 0.35
-const RESPAWN_HOLD := 0.45
-const RESPAWN_FADE_OUT := 1.2
-const STATIC_SHADER := """
+
+# ──────────────────────────────────────────────────────── respawn: blur to black, wake up ───
+# The picture softens, drains of colour and a vignette closes in until the screen is black; only then
+# is the level reloaded (you never see the swap). Then it opens again from black like waking up: blurred
+# at first, sharpening as the light comes back. Sound is ducked on the Master bus the whole way.
+const RESPAWN_FADE_IN := 0.7
+const RESPAWN_HOLD := 0.35
+const RESPAWN_FADE_OUT := 1.4
+const RESPAWN_DUCK_DB := -40.0
+const FADE_SHADER := """
 shader_type canvas_item;
-// Plain dark TV snow: fine grain that reshuffles every frame, faint scanlines. Nothing else.
-float hash(vec2 p) {
-	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
-}
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform float progress : hint_range(0.0, 1.0) = 0.0;
 void fragment() {
-	vec2 px = floor(FRAGCOORD.xy * 0.5);
-	float n = hash(px + fract(TIME * 9.7) * 731.0);
-	float v = 0.02 + n * n * 0.42;
-	v *= 0.9 + 0.1 * sin(FRAGCOORD.y * 3.14159);
-	COLOR = vec4(vec3(v), 1.0);
+	float p = progress;
+	vec3 c = textureLod(screen_tex, SCREEN_UV, p * 6.0).rgb;
+	float g = dot(c, vec3(0.299, 0.587, 0.114));
+	c = mix(c, vec3(g), p * 0.85);
+	vec2 d = SCREEN_UV - 0.5;
+	d.x *= SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	float iris = mix(1.6, 0.0, p);
+	c *= 1.0 - smoothstep(iris - 0.45, iris, length(d));
+	c *= 1.0 - smoothstep(0.6, 1.0, p);
+	COLOR = vec4(c, 1.0);
 }
 """
 
-var _static_layer: CanvasLayer = null
-var _static_rect: ColorRect = null
-var _static_audio: AudioStreamPlayer = null
+var _fade_layer: CanvasLayer = null
+var _fade_rect: ColorRect = null
+var _fade_mat: ShaderMaterial = null
 var respawn_busy := false
 
-func _ensure_static_layer() -> void:
-	if _static_layer != null:
+func _ensure_fade_layer() -> void:
+	if _fade_layer != null:
 		return
-	_static_layer = CanvasLayer.new()
-	_static_layer.layer = 100
-	add_child(_static_layer)
-	_static_rect = ColorRect.new()
-	_static_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_static_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_layer = CanvasLayer.new()
+	_fade_layer.layer = 100
+	_fade_layer.visible = false
+	add_child(_fade_layer)
+	_fade_rect = ColorRect.new()
+	_fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sh := Shader.new()
-	sh.code = STATIC_SHADER
-	var mat := ShaderMaterial.new()
-	mat.shader = sh
-	_static_rect.material = mat
-	_static_layer.add_child(_static_rect)
-	_static_audio = AudioStreamPlayer.new()
-	add_child(_static_audio)
+	sh.code = FADE_SHADER
+	_fade_mat = ShaderMaterial.new()
+	_fade_mat.shader = sh
+	_fade_mat.set_shader_parameter("progress", 0.0)
+	_fade_rect.material = _fade_mat
+	_fade_layer.add_child(_fade_rect)
+
+func _set_fade(p: float) -> void:
+	_fade_mat.set_shader_parameter("progress", p)
 
 ## Called once the level is up: compile shaders / pipelines and start loading assets now, so the first
 ## death does not hitch.
 func warmup() -> void:
-	if respawn_busy:      # the level was just reloaded behind the static: leave the static alone
+	if respawn_busy:      # the level was just reloaded behind the fade: leave it alone
 		return
 	ResourceLoader.load_threaded_request("res://models/entities/hazmat.glb")
-	_ensure_static_layer()
-	_static_layer.visible = true
-	_static_rect.modulate.a = 0.004      # drawn for a couple of frames so its pipeline is compiled
+	var sc := get_tree().current_scene.get_node_or_null("Scares") if get_tree().current_scene else null
+	if sc != null:
+		sc.prewarm_death()
+	_ensure_fade_layer()
+	_set_fade(0.0)        # progress 0 is a pass-through: drawn for a moment so its pipeline is compiled
+	_fade_layer.visible = true
 	_fx.warm()
 	await get_tree().create_timer(0.6).timeout
 	if not respawn_busy:
-		_static_rect.modulate.a = 0.0
-		_static_layer.visible = false
+		_fade_layer.visible = false
 
-## Cover the screen with static, run `swap` (reload / reset) behind it, then fade the static out.
+## Fade the screen to black, run `swap` (reload / reset) behind it, then fade back in.
 func respawn_transition(swap: Callable) -> void:
 	if respawn_busy:
 		return
 	respawn_busy = true
-	_ensure_static_layer()
-	_static_layer.visible = true
-	_static_rect.modulate.a = 0.0
-	# sound: the web's staticHit, plus a burst of snow that swells with the picture
-	var scares := get_tree().current_scene.get_node_or_null("Scares") if get_tree().current_scene else null
-	var noise: AudioStream = null
-	if scares != null:
-		scares.play_scare("staticHit", 0.35)
-		noise = scares.synth("static")
-	if noise != null:
-		_static_audio.stream = noise
-		_static_audio.volume_db = -30.0
-		_static_audio.play()
+	_ensure_fade_layer()
+	_set_fade(0.0)
+	_fade_layer.visible = true
+	var bus := AudioServer.get_bus_index("Master")
+	var db0 := AudioServer.get_bus_volume_db(bus)
+	var duck := func(v: float) -> void: AudioServer.set_bus_volume_db(bus, v)
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(_static_rect, "modulate:a", 1.0, RESPAWN_FADE_IN).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tw.tween_property(_static_audio, "volume_db", -6.0, RESPAWN_FADE_IN)
+	tw.tween_method(_set_fade, 0.0, 1.0, RESPAWN_FADE_IN).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_SINE)
+	tw.tween_method(duck, db0, db0 + RESPAWN_DUCK_DB, RESPAWN_FADE_IN).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_SINE)
 	await tw.finished
 	swap.call()
 	# The reload is a heavy frame. Wait until the new level is up and has rendered a few frames, hold,
-	# and only then fade out, so the fade is actually seen instead of being swallowed by the hitch.
+	# and only then fade in, so the fade is actually seen instead of being swallowed by the hitch.
 	for i in 8:
 		await get_tree().process_frame
 	await get_tree().create_timer(RESPAWN_HOLD).timeout
 	var tw2 := create_tween().set_parallel(true)
-	tw2.tween_property(_static_rect, "modulate:a", 0.0, RESPAWN_FADE_OUT).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tw2.tween_property(_static_audio, "volume_db", -60.0, RESPAWN_FADE_OUT)
+	tw2.tween_method(_set_fade, 1.0, 0.0, RESPAWN_FADE_OUT).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tw2.tween_method(duck, db0 + RESPAWN_DUCK_DB, db0, RESPAWN_FADE_OUT).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 	await tw2.finished
-	_static_audio.stop()
-	_static_layer.visible = false
+	AudioServer.set_bus_volume_db(bus, db0)
+	_fade_layer.visible = false
 	respawn_busy = false

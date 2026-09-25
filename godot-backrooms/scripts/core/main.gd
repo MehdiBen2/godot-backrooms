@@ -36,9 +36,17 @@ func _unhandled_input(e: InputEvent) -> void:
 		set_paused(not ui.menu.shown)
 	elif ui.menu.shown and e is InputEventMouseButton and e.pressed:
 		set_paused(false)
+		get_viewport().set_input_as_handled()   # the click that closes the menu must not also respawn you
+
+# Alt-tab or a click on another window mid-run: pause, rather than leave you unable to move while
+# it keeps hunting
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and Game.playing and not Game.dead and not ui.menu.shown:
+		set_paused(true)
 
 func set_paused(on: bool, start := false) -> void:
 	Game.playing = not on
 	ui.set_paused(on, start)
 	audio.set_paused(on)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if on else Input.MOUSE_MODE_CAPTURED
+	# the death screen wants the cursor (click to respawn) whether or not the menu was opened over it
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (on or Game.dead) else Input.MOUSE_MODE_CAPTURED

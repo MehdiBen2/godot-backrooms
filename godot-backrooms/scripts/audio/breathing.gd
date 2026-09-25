@@ -51,6 +51,9 @@ func _approach(cur: float, target: float, up: float, down: float, dt: float) -> 
 	return cur + (target - cur) * minf(1.0, dt * (up if target > cur else down))
 
 func update(dt: float) -> void:
+	if Game.dead:          # the dead don't breathe: only what last_breath() queued still plays out
+		loudness = 0.0
+		return
 	var sprinting: bool = audio.player.is_sprinting
 	var exhausted: bool = audio.player.exhausted
 	var moving: bool = audio.player.is_moving
@@ -154,6 +157,14 @@ func gasp(strength := 1.0) -> void:
 	b_last_jitter = 1.0
 	b_busy_until = t + 1.1
 	b_next = t + 1.2
+
+# The last breath as you go down: one long, shaking, voiced exhale, and nothing after it
+func last_breath() -> void:
+	queue.clear()
+	var t := _now() + 0.2
+	_phase(t, 1.7, false, 0.6, 0.55, 0.5, 0.8)
+	b_busy_until = t + 1.7
+	b_next = t + 1.8
 
 func sigh(strength := 0.45, shake := 0.0) -> void:
 	var t := maxf(_now() + 0.01, b_busy_until + 0.1)

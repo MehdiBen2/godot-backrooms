@@ -28,6 +28,13 @@ var occluded := false
 var entity_lp: AudioEffectLowPassFilter
 var entity_cut := 20000.0
 var entity_cut_target := 20000.0
+var mannequin_lp: AudioEffectLowPassFilter
+var mannequin_cut := 20000.0
+var mannequin_cut_target := 20000.0
+var _carpet_samples: Array[AudioStream] = []
+var _last_carpet_idx := -1
+var _mq_variant := 0
+var _mq_creak_variant := 0
 var clip_gain := {}
 var glitchers: Array = []                    # [player, next_toggle, base_db]
 var live: Array = []                         # everything scheduled, so stop_all() can silence it
@@ -40,8 +47,22 @@ func _ready() -> void:
 	_make_bus("Entity", "World")
 	entity_lp = AudioEffectLowPassFilter.new()
 	entity_lp.cutoff_hz = 20000.0
-	AudioServer.add_bus_effect(AudioServer.get_bus_index("Entity"), entity_lp)
+	var entity_bus := AudioServer.get_bus_index("Entity")
+	while AudioServer.get_bus_effect_count(entity_bus) > 0:
+		AudioServer.remove_bus_effect(entity_bus, 0)
+	AudioServer.add_bus_effect(entity_bus, entity_lp)
 	_make_bus("Scares", "World")
+	_make_bus("MannequinSteps", "World")
+	mannequin_lp = AudioEffectLowPassFilter.new()
+	mannequin_lp.cutoff_hz = 20000.0
+	var mq_bus := AudioServer.get_bus_index("MannequinSteps")
+	while AudioServer.get_bus_effect_count(mq_bus) > 0:
+		AudioServer.remove_bus_effect(mq_bus, 0)
+	AudioServer.add_bus_effect(mq_bus, mannequin_lp)
+	for i in range(1, 5):
+		var cp_path := "res://audio/carpet_walk_%d.wav" % i
+		if ResourceLoader.exists(cp_path):
+			_carpet_samples.append(load(cp_path))
 	_make_bus("Preacher", "World")
 	voice = AudioStreamPlayer3D.new()
 	voice.bus = "Entity"
@@ -64,6 +85,9 @@ func _process(dt: float) -> void:
 	entity_cut += (entity_cut_target - entity_cut) * (1.0 - exp(-dt / 0.08))
 	if absf(entity_lp.cutoff_hz - entity_cut) > 20.0:
 		entity_lp.cutoff_hz = entity_cut
+	mannequin_cut += (mannequin_cut_target - mannequin_cut) * (1.0 - exp(-dt / 0.06))
+	if absf(mannequin_lp.cutoff_hz - mannequin_cut) > 15.0:
+		mannequin_lp.cutoff_hz = mannequin_cut
 	# preacher glitch variant: the level stutters like a failing circuit
 	for i in range(glitchers.size() - 1, -1, -1):
 		var g: Array = glitchers[i]
@@ -162,9 +186,57 @@ func stop_flatline() -> void:
 	tw.tween_property(p, "volume_db", -80.0, 0.25)
 	tw.tween_callback(p.queue_free)
 
+func flatlining() -> bool:
+	return _flat_player != null and is_instance_valid(_flat_player) and _flat_player.playing
+
 # Dead silence: high ear ringing
 func tinnitus(seconds: float) -> void:
 	_spawn_flat(synth("tinnitus", seconds), 1.0, "Body")
+
+# ------------------------------------------------------------------ death
+const DEATH_SWELL_SECS := 16.0
+const DEATH_FLATLINE_SECS := 8.0
+
+# Your body hitting the floor under the death camera
+func body_fall() -> void:
+	_spawn_flat(synth("body_fall"), 0.9, "Body", rng.randf_range(0.92, 1.04))
+
+# The low tone that sinks in under the death screen
+func death_swell() -> void:
+	_spawn_flat(synth("death_swell", DEATH_SWELL_SECS), 0.55, "Body")
+
+# A death nothing built up to (no grab, no snap): the heart gives a few weak, uneven beats, then stops.
+# A grab or snap already has its flatline running, so this leaves it alone.
+func heart_stop() -> void:
+	if flatlining():
+		return
+	for b in [[0.3, 1.2], [1.15, 0.8], [2.35, 0.45]]:
+		get_tree().create_timer(b[0], false).timeout.connect(heartbeat.bind(b[1]))
+	get_tree().create_timer(3.1, false).timeout.connect(flatline.bind(DEATH_FLATLINE_SECS))
+
+# Render the death sounds on a worker thread now, so the moment you die never hitches on the synthesis.
+# The synth cache is static: this only does real work once per session.
+var _prewarm_task := -1
+
+func prewarm_death() -> void:
+	if _prewarm_task >= 0:
+		return
+	var s := ScareSynth.new()          # its own rng: not shared with the main thread
+	var jobs := [["body_fall", 0.0], ["death_swell", DEATH_SWELL_SECS], ["tinnitus", 6.0],
+		["flatline", DEATH_FLATLINE_SECS], ["flatline", 9.3], ["flatline", 8.3],   # heart_stop, grab, snap
+		["static_hit", 0.0], ["stinger", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
+		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
+		["howler_drag", 0.0], ["bone_crack", 0.0], ["heel", 0.0],
+		["mannequin_step", 0.0], ["mannequin_step", 1.0], ["mannequin_step", 2.0], ["mannequin_step", 3.0],
+		["mannequin_creak", 0.0], ["mannequin_creak", 1.0], ["mannequin_creak", 2.0]]
+	_prewarm_task = WorkerThreadPool.add_task(func():
+		for j in jobs:
+			s.render(j[0], j[1]))
+
+func _exit_tree() -> void:
+	if _prewarm_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_prewarm_task)
+		_prewarm_task = -1
 
 func gasp() -> void:
 	var f := "res://audio/events/freesound_community-male-gasp-%s.mp3" % ("2-103066" if rng.randf() < 0.5 else "3-82554")
@@ -177,11 +249,143 @@ func stop_all() -> void:
 				c.queue_free()
 	glitchers.clear()
 
-# A mannequin footfall: a wooden knock plus a muffled carpet scuff
-func mannequin_step(pos: Vector3, weight := 1.0) -> void:
-	_spawn3d(synth("knock"), pos, 0.9 * weight, "Scares", 4.0, rng.randf_range(0.8, 1.2))
-	if rng.randf() < 0.3:
-		_spawn3d(synth("creak"), pos, 0.35 * weight, "Scares", 4.0, rng.randf_range(0.9, 1.2))
+# THE BACTERIA's footfall (js howlerStep). weight 0..~2: heavier the faster it moves and the closer it
+# is. On the Entity bus, so walls between you muffle it like its voice. It limps: every other foot is
+# the short leg, which lands lighter and is dragged, claws raking the carpet. Now and then a joint cracks.
+var _howler_variant := 0
+
+func howler_step(pos: Vector3, weight: float, dragging := false) -> void:
+	var w := clampf(weight, 0.05, 2.0)
+	var pitch := rng.randf_range(0.94, 1.06) - 0.07 * minf(w, 1.5)
+	if dragging:
+		_spawn3d(synth("howler_drag"), pos, 0.5 + w * 0.7, "Entity", 2.5, pitch)
+	else:
+		# never the same take twice in a row
+		_howler_variant = (_howler_variant + 1 + rng.randi() % 3) % 4
+		_spawn3d(synth("howler_step", _howler_variant), pos, 0.6 + w * 0.9, "Entity", 2.5, pitch)
+	if not dragging and rng.randf() < 0.25 + w * 0.15:
+		var crack := _spawn3d(synth("bone_crack"), pos + Vector3(0.0, 2.0, 0.0), 0.35 * w, "Entity", 2.5, rng.randf_range(0.8, 1.4))
+		crack.stop()
+		get_tree().create_timer(0.03 + rng.randf() * 0.05, false).timeout.connect(crack.play)
+
+# A mannequin footfall: physically modeled contact on carpet over concrete slab.
+# Calculates physical rear pinna head-shadow (HRTF) filtering so player can accurately tell
+# when footsteps are behind them, plus alternating left/right bipedal foot placement.
+func mannequin_step(pos: Vector3, weight := 1.0, is_left := false, mannequin_node: Node3D = null) -> void:
+	if player == null:
+		return
+	var cam: Camera3D = player.get_node_or_null("Camera3D")
+	if cam == null:
+		return
+		
+	var cam_pos := cam.global_position
+	var to_step := pos - cam_pos
+	var dist := to_step.length()
+	var dir := to_step / maxf(dist, 0.001)
+	
+	# Head-relative orientation:
+	# In Godot, -cam.global_transform.basis.z is camera forward, basis.x is camera right
+	var cam_forward := -cam.global_transform.basis.z.normalized()
+	var fwd_dot := cam_forward.dot(dir)
+	
+	# Physics: Pinna (outer ear) head shadow effect.
+	# Direct sound from behind is shielded by the ear pinnae and skull:
+	# Front (fwd_dot >= 0.2): full high frequency line of sight.
+	# Rear (fwd_dot < 0.2 down to -1.0): high frequencies above 3.2-3.8 kHz are blocked.
+	var rear_factor := clampf((-fwd_dot + 0.15) / 1.15, 0.0, 1.0)
+	
+	# Wall occlusion (obstacles between ears and foot):
+	var audio_node = get_parent().get_node_or_null("Audio")
+	var walls: int = audio_node.walls_between(cam_pos, pos) if audio_node != null else 0
+	var occl_factor := clampf(walls / 3.0, 0.0, 1.0)
+	var wall_cutoff := lerpf(20000.0, 700.0, sqrt(occl_factor))
+	
+	# Pinna shadow cutoff: 20000 Hz in front -> 3200 Hz directly behind
+	var pinna_cutoff := lerpf(20000.0, 3200.0, rear_factor)
+	mannequin_cut_target = minf(wall_cutoff, pinna_cutoff)
+	mannequin_cut = mannequin_cut_target
+	mannequin_lp.cutoff_hz = mannequin_cut
+	
+	# Direct sound volume reduction when behind (pinna shadowing attenuation)
+	var rear_gain := 1.0 - 0.22 * rear_factor
+	if occl_factor > 0.0:
+		rear_gain *= (1.0 - 0.5 * occl_factor)
+		
+	# Binaural panning strength: increase when behind for razor-sharp spatial localization
+	var pan_str := lerpf(1.0, 1.35, rear_factor)
+	
+	# ---------------- LAYER 1: Real Carpet Scuff & Fiber Compression
+	if not _carpet_samples.is_empty():
+		var idx := rng.randi() % _carpet_samples.size()
+		if _carpet_samples.size() > 1 and idx == _last_carpet_idx:
+			idx = (idx + 1) % _carpet_samples.size()
+		_last_carpet_idx = idx
+		
+		var cp := AudioStreamPlayer3D.new()
+		cp.stream = _carpet_samples[idx]
+		cp.bus = "MannequinSteps"
+		cp.unit_size = 2.4
+		cp.max_distance = 60.0
+		cp.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		# Pitched down (0.80-0.88): heavy flat sole instead of rolling shoe
+		cp.pitch_scale = rng.randf_range(0.80, 0.88)
+		cp.panning_strength = pan_str
+		cp.volume_db = linear_to_db(maxf(0.65 * weight * rear_gain, 0.0001))
+		add_child(cp)
+		cp.global_position = pos
+		cp.finished.connect(cp.queue_free)
+		cp.play()
+		
+	# ---------------- LAYER 2: Heavy Floor Slab Thud + Hollow Shell Resonance
+	_mq_variant = (_mq_variant + 1 + rng.randi() % 3) % 4
+	var sp := AudioStreamPlayer3D.new()
+	sp.stream = synth("mannequin_step", _mq_variant)
+	sp.bus = "MannequinSteps"
+	sp.unit_size = 3.0
+	sp.max_distance = 60.0
+	sp.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	sp.pitch_scale = rng.randf_range(0.94, 1.06)
+	sp.panning_strength = pan_str
+	sp.volume_db = linear_to_db(maxf(0.95 * weight * rear_gain, 0.0001))
+	add_child(sp)
+	sp.global_position = pos
+	sp.finished.connect(sp.queue_free)
+	sp.play()
+	
+	# ---------------- LAYER 3: Low-Frequency Slab Vibration (Close Proximity)
+	# When stalking within 4.2m, the physical weight radiates through the floor slab
+	if dist < 4.2:
+		var close_k := 1.0 - (dist / 4.2)
+		var vp := AudioStreamPlayer3D.new()
+		vp.stream = synth("heel")
+		vp.bus = "MannequinSteps"
+		vp.unit_size = 3.5
+		vp.max_distance = 30.0
+		vp.pitch_scale = rng.randf_range(0.82, 0.95)
+		vp.panning_strength = pan_str
+		vp.volume_db = linear_to_db(maxf(0.75 * close_k * weight * rear_gain, 0.0001))
+		add_child(vp)
+		vp.global_position = pos
+		vp.finished.connect(vp.queue_free)
+		vp.play()
+		
+	# ---------------- LAYER 4: Mechanical Joint Stick-Slip Friction
+	# On ~35% of steps, the dry unlubricated joint groans slightly as the leg locks into place
+	if rng.randf() < 0.35:
+		_mq_creak_variant = (_mq_creak_variant + 1) % 3
+		var cr := AudioStreamPlayer3D.new()
+		cr.stream = synth("mannequin_creak", _mq_creak_variant)
+		cr.bus = "MannequinSteps"
+		cr.unit_size = 2.0
+		cr.max_distance = 45.0
+		cr.pitch_scale = rng.randf_range(0.92, 1.12)
+		cr.panning_strength = pan_str
+		cr.volume_db = linear_to_db(maxf(0.35 * weight * rear_gain, 0.0001))
+		add_child(cr)
+		cr.global_position = pos + Vector3(0.0, 0.75, 0.0)
+		cr.finished.connect(cr.queue_free)
+		cr.stop()
+		get_tree().create_timer(0.025 + rng.randf() * 0.03, false).timeout.connect(cr.play)
 
 # ------------------------------------------------------------------ preacher (scares2.js)
 const PREACHER_NAMES := [

@@ -47,6 +47,8 @@ var _floor_col: GPUParticlesCollisionBox3D = null
 var _ragdoll: Node3D = null
 var _ragdoll_t := 0.0
 var _clip_played := false
+var _skel: Skeleton3D = null     # the body's skeleton, so the death camera can follow the chest
+var _chest := -1
 var _drop_mesh: SphereMesh = null
 var _drop_mat: StandardMaterial3D = null
 
@@ -314,6 +316,27 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 	_ragdoll.global_position = pos
 	_ragdoll.rotation.y = yaw
 	_ragdoll_t = 0.0
+	# the chest bone (Mixamo rig; humanoid names too, in case the import retargets it)
+	_skel = null
+	_chest = -1
+	for s in root.find_children("*", "Skeleton3D", true, false):
+		for bone in ["Spine1", "Chest", "Spine", "Hips"]:
+			var i := (s as Skeleton3D).find_bone(bone)
+			if i >= 0:
+				_skel = s
+				_chest = i
+				break
+		if _skel != null:
+			break
+
+## Where the body's chest is right now (it moves as the fall clip plays), for the death camera to
+## look at. Falls back to the tipping body's position, then to `fallback`.
+func body_point(fallback: Vector3) -> Vector3:
+	if _skel != null and is_instance_valid(_skel) and _chest >= 0:
+		return _skel.global_transform * _skel.get_bone_global_pose(_chest).origin
+	if _ragdoll != null and is_instance_valid(_ragdoll):
+		return _ragdoll.global_position + _ragdoll.global_basis.y * 0.9 + Vector3(0.0, 0.25, 0.0)
+	return fallback
 
 func clear() -> void:
 	for mi in _decals:
@@ -328,6 +351,8 @@ func clear() -> void:
 	if _ragdoll != null and is_instance_valid(_ragdoll):
 		_ragdoll.queue_free()
 	_ragdoll = null
+	_skel = null
+	_chest = -1
 	if _floor_col != null and is_instance_valid(_floor_col):
 		_floor_col.queue_free()
 	_floor_col = null

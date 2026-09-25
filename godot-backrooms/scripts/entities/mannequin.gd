@@ -611,16 +611,27 @@ func update_real(delta: float) -> void:
 		hunt.stepped = true
 		var now := Time.get_ticks_msec() / 1000.0
 		var dd := Vector2(tgt.x - np.x, tgt.z - np.z).length()
-		if now - last_step_sound > 0.24 and dd < 25.0:
+		if now - last_step_sound > 0.22 and dd < 28.0:
 			last_step_sound = now
-			var close := maxf(0.0, 1.0 - dd / 25.0)
-			scares.mannequin_step(Vector3(np.x, 0.1, np.z), (0.35 + close * 0.95) * LOUDNESS)
+			var close := maxf(0.0, 1.0 - dd / 28.0)
+			# Physics: Alternating left and right bipedal feet with accurate hip width & forward stride
+			# flip > 0 (odd step_idx) swings left leg forward; even swings right leg forward
+			var is_left := (hunt.step_idx % 2 == 1)
+			var foot_side := 1.0 if is_left else -1.0 # In model coordinates, +X is left
+			var side_dir := real_node.global_transform.basis.x.normalized()
+			var fwd_dir := -real_node.global_transform.basis.z.normalized()
+			# Hip width separation is ~0.34m (offset +-0.17m from center), landing foot planted forward ~0.28m
+			var foot_pos := np + side_dir * (foot_side * 0.17) + fwd_dir * 0.28
+			foot_pos.y = 0.05
+			var step_weight := (0.45 + close * 0.95) * LOUDNESS
+			scares.mannequin_step(foot_pos, step_weight, is_left, real_node)
 	if hunt.step_t >= hunt.dur:
 		hunt.move_to = null
 		begin_step(tgt)
 	# it reaches you while you weren't looking
 	var reach := Vector2(tgt.x - np.x, tgt.z - np.z).length()
-	if reach < KILL_DISTANCE and _is_behind(np) and not player.dead and player.spawn_grace <= 0.0 and not killed:
+	# not while the bacteria has you (frozen): two death sequences would fight over the camera
+	if reach < KILL_DISTANCE and _is_behind(np) and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not killed:
 		killed = true
 		start_snap()
 
@@ -734,10 +745,11 @@ func update_snap(delta: float) -> void:
 		var c1 := 2.2
 		var e := 1.0 + (c1 + 1.0) * pow(x - 1.0, 3.0) + c1 * pow(x - 1.0, 2.0)
 		player.rotation.y = snap_yaw0 + snap_delta * e + _snap_noise(1.0, t) * 0.09 * tr2
-		cam.rotation.x = clampf(snap_pitch0 + (snap_pitch_t - snap_pitch0) * e + _snap_noise(2.0, t) * 0.07 * tr2 - 0.05 * smooth(a / 2.0), -1.4, 1.4)
-		# head cranked over at a wrong angle, then lolling
+		cam.rotation.x = clampf(snap_pitch0 + (snap_pitch_t - snap_pitch0) * e + _snap_noise(2.0, t) * 0.07 * tr2, -1.4, 1.4)
+		# head cranked over at a wrong angle, then lolling. The view holds its height and keeps staring
+		# into its face: no sinking, the death camera lifts away from right here
 		roll = 0.34 * e + 0.06 * smooth(a / 1.8) + sin(a * 2.4) * 0.03 * smooth(a / 0.6)
-		cam.position = snap_cam_pos + Vector3(0.0, -0.5 * smooth(a / 2.4), 0.0) + Vector3(_snap_noise(3.0, t), _snap_noise(4.0, t), _snap_noise(5.0, t)) * 0.05 * tr2
+		cam.position = snap_cam_pos + Vector3(_snap_noise(3.0, t), _snap_noise(4.0, t), _snap_noise(5.0, t)) * 0.05 * tr2
 	cam.rotation.z = roll + _snap_noise(6.0, t) * 0.12 * tr2
 	if not snapped and t >= SNAP_AT:
 		snapped = true
@@ -781,7 +793,7 @@ func update_snap(delta: float) -> void:
 		scares.heartbeat(1.5 + dread)
 	if t >= SNAP_TOTAL:
 		snap_active = false
-		cam.rotation.z = 0.0
+		# the head stays lolled over: the death camera eases the view round from there
 		if snap_light != null:
 			snap_light.queue_free()
 			snap_light = null

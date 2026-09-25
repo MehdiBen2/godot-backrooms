@@ -57,8 +57,14 @@ var main: Node
 var _overlay: CanvasLayer = null
 var _overlay_root: Control = null
 var _death_box_inner: VBoxContainer = null
+var _death_box_anchor: Control = null
+var _respawn_box: Control = null
 var _tag_dot: ColorRect = null
 var _death_t := 0.0
+
+# The death shot plays for this long before a click or key respawns you, so the button you were
+# mashing when it got you doesn't skip it
+const RESPAWN_READY := 1.6
 
 func _font(spacing: float) -> FontVariation:
 	var fv := FontVariation.new()
@@ -85,10 +91,15 @@ func _process(dt: float) -> void:
 		# #death-screen transition: opacity 0.5s ease-out
 		if _overlay_root:
 			_overlay_root.modulate.a = clampf(_death_t / 0.5, 0.0, 1.0)
-		# .death-box animation: deathIn 1.2s ease-out both (fade + translateY 8px -> 0)
+		# .death-box animation: deathIn 1.2s ease-out (fade + translateY 8px -> 0), a beat after the hit
 		if _death_box_inner:
-			var p := clampf(_death_t / 1.2, 0.0, 1.0)
+			var p := 1.0 - pow(1.0 - clampf((_death_t - 0.25) / 1.2, 0.0, 1.0), 3.0)
 			_death_box_inner.modulate.a = p
+			_death_box_anchor.position.y = 8.0 * (1.0 - p)
+		# the respawn prompt only shows once a click will be taken, then breathes slowly
+		if _respawn_box:
+			var r := clampf((_death_t - RESPAWN_READY) / 0.6, 0.0, 1.0)
+			_respawn_box.modulate.a = r * (0.75 + 0.25 * cos((_death_t - RESPAWN_READY) * 2.2))
 		# .death-tag i blink: 1.1s steps(1) infinite (50% on, 50% off)
 		if _tag_dot:
 			_tag_dot.visible = fmod(_death_t, 1.1) < 0.55
@@ -112,16 +123,33 @@ func kill_player(reason: String) -> void:
 	if dead:
 		return
 	dead = true
+	# a grab or snap has already closed the edges in; anything else kills you out of nowhere
+	var sudden := fx_fade < 0.5
 	fx_reset(true)
 	fx_fade_release = true
+	if sudden:
+		# it lands as a blow: a shock burst, and the edges slam shut, then open on the body
+		fx_shock = 1.0
+		fx_fade = 0.75
 	death_reason = reason if reason != "" else "THE BACKROOMS"
 	_death_t = 0.0
 	glitch = 1.0
-	var sc: Node = get_tree().current_scene.get_node_or_null("Scares") if get_tree().current_scene else null
+	var scene := get_tree().current_scene
+	var sc: Node = scene.get_node_or_null("Scares") if scene else null
 	if sc != null:
 		sc.play_scare("staticHit", 1.2)
 		sc.tinnitus(6.0)
 		sc.startle(0.9)
+		sc.death_swell()
+		sc.heart_stop()          # a grab / snap already has its flatline going: then this does nothing
+	# every death, not only the grab: the world settles into a dull, distant muffle until the respawn,
+	# and you stop breathing (a broken neck doesn't even get the last breath out)
+	var au: Node = scene.get_node_or_null("Audio") if scene else null
+	if au != null:
+		au.set_dread(0.0)
+		au.set_muffled(true)
+		if death_reason != "THE MANNEQUIN":
+			au.breathing.last_breath()
 	if player:
 		player.set("dead", true)
 		# the held flashlight and hand belong to the first-person view: gone once the death camera pulls out
@@ -137,7 +165,7 @@ func kill_player(reason: String) -> void:
 			var xf := cam.global_transform
 			cam.top_level = true   # detach from player transform so orbit works in world space
 			cam.global_transform = xf
-		Death.bind(cam, player, get_parent().get_node_or_null("Scares"))
+		Death.bind(cam, player, sc)
 		Death.start(reason, player.global_position, cam_world, player.rotation.y)
 	_build_overlay()
 	player_died.emit(reason)
@@ -207,6 +235,7 @@ func _build_overlay() -> void:
 	death_box_anchor.set_anchors_preset(Control.PRESET_FULL_RECT)
 	death_box_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay_root.add_child(death_box_anchor)
+	_death_box_anchor = death_box_anchor
 
 	_death_box_inner = VBoxContainer.new()
 	# bottom-left corner at (8vw, 86vh); grows up and right so the whole box stays on screen
@@ -278,7 +307,9 @@ func _build_overlay() -> void:
 	var respawn_box := VBoxContainer.new()
 	respawn_box.add_theme_constant_override("separation", 4)
 	respawn_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	respawn_box.modulate.a = 0.0
 	_death_box_inner.add_child(respawn_box)
+	_respawn_box = respawn_box
 
 	var respawn_label := Label.new()
 	respawn_label.text = "CLICK OR PRESS SPACE TO RESPAWN"
@@ -295,13 +326,13 @@ func _build_overlay() -> void:
 	respawn_box.add_child(respawn_line)
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not dead:
+	if not dead or not playing:     # the pause menu is open over the death screen: it has the input
 		return
-	if _death_t < 0.25:
+	if _death_t < RESPAWN_READY:
 		return
 	if e is InputEventMouseButton and e.pressed:
 		_respawn()
-	elif e is InputEventKey and e.pressed:
+	elif e is InputEventKey and e.pressed and not e.echo:
 		if e.keycode == KEY_SPACE or e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER:
 			_respawn()
 
@@ -338,6 +369,8 @@ func restart() -> void:
 		_overlay = null
 		_overlay_root = null
 		_death_box_inner = null
+		_death_box_anchor = null
+		_respawn_box = null
 		_tag_dot = null
 	if Death:
 		Death.stop()

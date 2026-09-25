@@ -38,10 +38,14 @@ var room_size := 0.35          # smoothed measurements of the space around the l
 var room_target := 0.35
 var occl_timer := 0.0
 var steps_lp: AudioEffectLowPassFilter
+var steps_rev: AudioEffectReverb      # your footsteps in the room around you (follows the room measure)
+var steps_pan: AudioEffectPanner      # left foot, right foot
 var world_cutoff := 16000.0
 var world_cutoff_target := 16000.0
 var world_tc := 0.3
-var muffled := false
+var muffled := false            # dead: the world stays dull until you respawn
+var world_dread := 0.0          # 0..1 while held: the world slowly closes in
+var world_vol := 1.0
 var paused := false
 var pops_enabled := true
 
@@ -91,6 +95,18 @@ func _ready() -> void:
 
 # ---------------------------------------------------------------- buses
 func _setup_buses() -> void:
+	# The scene is reloaded on every respawn, but the AudioServer keeps its buses. Without this each
+	# reload stacked a fresh World/Body/Steps/Ambience bus on top of the old ones: sounds kept playing
+	# through the OLD buses, whose filters were still stuck where the death left them (muffled to
+	# nothing). Start from a clean slate, keeping only the player's footstep volume.
+	var steps_vol := -1.0
+	var old_steps := AudioServer.get_bus_index("Steps")
+	if old_steps >= 0:
+		steps_vol = AudioServer.get_bus_volume_linear(old_steps)
+	for i in range(AudioServer.bus_count - 1, 0, -1):
+		AudioServer.remove_bus(i)
+	while AudioServer.get_bus_effect_count(0) > 0:
+		AudioServer.remove_bus_effect(0, 0)
 	var master := AudioServer.get_bus_index("Master")
 	var comp := AudioEffectCompressor.new()
 	comp.threshold = -10.0
@@ -125,7 +141,21 @@ func _setup_buses() -> void:
 	AudioServer.set_bus_volume_linear(body_idx, 0.7)
 	steps_lp = AudioEffectLowPassFilter.new()
 	steps_lp.cutoff_hz = 20000.0
-	AudioServer.add_bus_effect(steps_idx, steps_lp)
+	AudioServer.add_bus_effect(steps_idx, steps_lp)          # effect 0: player.gd reads it for the crouch muffle
+	# The recorded steps are dry. Give them the same space as everything else: a tight slap in a corridor,
+	# a longer tail across a big hall (kept drier than the World bus: they're right under you)
+	steps_rev = AudioEffectReverb.new()
+	steps_rev.room_size = 0.35
+	steps_rev.damping = 0.8
+	steps_rev.spread = 0.6
+	steps_rev.dry = 1.0
+	steps_rev.wet = 0.08
+	steps_rev.predelay_msec = 12.0
+	AudioServer.add_bus_effect(steps_idx, steps_rev)
+	steps_pan = AudioEffectPanner.new()
+	AudioServer.add_bus_effect(steps_idx, steps_pan)
+	if steps_vol >= 0.0:
+		AudioServer.set_bus_volume_linear(steps_idx, steps_vol)
 
 func stream(name: String) -> AudioStreamWAV:
 	if not streams.has(name):
@@ -232,23 +262,37 @@ func _on_land(strength: float) -> void:
 	_play("land_thud.wav", "Body", s)
 
 # ---------------------------------------------------------------- pause / muffle
-# The grab / a blackout: the whole world goes dull and far away (260 Hz), quickly in, slowly out
+# While something has hold of you (0..1): the world slowly closes in, dulling and ducking a little at
+# a time. It never goes silent, you still hear everything, just as if from underwater.
+func set_dread(v: float) -> void:
+	world_dread = clampf(v, 0.0, 1.0)
+
+# Dead: the world settles into a dull, distant muffle and stays there until the respawn
 func set_muffled(on: bool) -> void:
 	muffled = on
-	world_tc = 0.06 if on else 0.28
-	world_cutoff_target = 260.0 if on else (750.0 if paused else 16000.0)
+	world_tc = 0.5 if on else 0.28
 
 func set_paused(on: bool) -> void:
 	paused = on
-	if muffled:
-		return
-	world_cutoff_target = 750.0 if on else 16000.0
 	if not on: hum_notice(0.4)
+
+# Where the world filter should sit right now
+func _world_cutoff_goal() -> float:
+	var open_hz := 750.0 if paused else 16000.0
+	if muffled:
+		return 900.0
+	# an exponential glide from open down to a dull 2.2 kHz as the dread builds
+	return open_hz * pow(2200.0 / 16000.0, world_dread)
 
 # ---------------------------------------------------------------- frame
 func _process(dt: float) -> void:
 	# world filter: menu = soft lowpass, otherwise open
+	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
+	# the duck: a little quieter while held, a little more once dead (never below 60%)
+	var vol_goal := 0.6 if muffled else 1.0 - 0.3 * world_dread
+	world_vol += (vol_goal - world_vol) * (1.0 - exp(-dt / 0.4))
+	AudioServer.set_bus_volume_linear(world_idx, 0.5 * world_vol)
 	# Only touch the filter when the cutoff actually moves: re-setting it every frame resets
 	# the filter state and clicks
 	if absf(world_lp.cutoff_hz - world_cutoff) > 5.0:
@@ -324,3 +368,11 @@ func _update_room(dt: float) -> void:
 		world_rev.room_size = room_size
 		world_rev.wet = 0.08 + 0.22 * room_size
 		world_rev.damping = 0.85 - 0.25 * room_size
+		steps_rev.room_size = room_size
+		steps_rev.wet = 0.05 + 0.16 * room_size
+		steps_rev.damping = 0.88 - 0.25 * room_size
+
+# Which foot came down (-1 left, 1 right): a slight pan, like the web game's +-0.06
+func step_foot(side: float) -> void:
+	if steps_pan != null:
+		steps_pan.pan = side * 0.07

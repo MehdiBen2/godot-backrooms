@@ -9,6 +9,8 @@ extends Node3D
 ## Dev keys: F10 summon it in front of you, F4 send it to stalk you.
 
 const GridNav := preload("res://scripts/world/grid_nav.gd")
+const EntityRig := preload("res://scripts/entities/entity_rig.gd")
+const EntityGrab := preload("res://scripts/entities/entity_grab.gd")
 const CELL := 4.5
 
 # ENTITY config (js/config.js)
@@ -51,8 +53,6 @@ const FLEE_SPEED := 9.5
 const RESPAWN_MIN_CELLS := 18
 const SPAWN_GRACE := 8.0
 const MODEL_HEIGHT := 4.6
-const MODEL_YAW := -PI / 2.0
-const SKIN := Color("15120e")
 const KILL_DISTANCE := 1.35
 
 var level: Node
@@ -62,29 +62,14 @@ var mannequin: Node                    # optional: it bolts from THE MANNEQUIN
 var nav
 var n := 0
 
-# ---- model / animation
-var visual: Node3D
-var skel: Skeleton3D
-var bones := {}                        # role -> bone index
-var pose := {}
-var pose_t := {}
-var phase := 0.0
-var anim_time := 0.0
-var anim_state := ""
-var step_len := 1.4
-var clock := 0.0                      # free-running animation time (noise, breathing)
-var glitch := {}                      # a limb/head briefly twisting to a wrong angle
-var glitch_timer := 2.0
-var head_yaw := 0.0                   # head turn relative to the body (jerks toward what it watches)
-var head_yaw_goal := 0.0
-var head_hop := 0.0
+# ---- model / animation (entity_rig.gd)
+var rig: EntityRig
 var peek_amt := 0.0                   # 0 hidden behind the corner .. 1 leaned out watching you
 var peek_mode := "hide"
 var peek_timer := 0.0
 var peek_step := 0.0
 var peek_gaze := 0.0                  # how long it has been in your view while peeking
 var peek_count := 0
-var rest_bones_ready := false
 
 # ---- navigation
 var flow := PackedInt32Array()
@@ -133,8 +118,7 @@ var think_timer := 0.0
 var voice_state := ""
 var voice_timer := 3.0
 var occl_timer := 0.0
-var grab_t := -1.0
-var grab_base := Vector3.ZERO
+var grab: EntityGrab                  # the grab-and-eat kill sequence (entity_grab.gd)
 
 # ---- stalking
 var stalk_cooldown := STALK_COOLDOWN * 0.5
@@ -146,8 +130,7 @@ var stalk_moves := 0
 var stalk_hide := Vector3.ZERO
 var stalk_peek := Vector3.ZERO
 var stalk_side := Vector3.ZERO
-var peek_lean := 0.0
-var peek_lean_target := 0.0
+var peek_lean_target := 0.0            # the rig leans the body out past the corner by this
 
 var rng := RandomNumberGenerator.new()
 
@@ -163,309 +146,28 @@ func _ready() -> void:
 	var sp: Array = level.level_data.get("entity", [n - 12, 18])
 	global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
 	_build_model()
+	grab = EntityGrab.new(self)
 	set_goal(global_position.x, global_position.z)
 	pick_spot(3, 18)
 
 # ================================================================= model
+# The body and its procedural animation live in entity_rig.gd; its footfalls come back here as sound
 func _build_model() -> void:
-	visual = Node3D.new()
-	add_child(visual)
-	var packed := load("res://models/entities/howler.glb") as PackedScene
-	if packed == null:
-		_build_fallback()
-		return
-	var root: Node3D = packed.instantiate()
-	visual.add_child(root)
-	var box := AABB()
-	var first := true
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var t := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null and p != visual:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		var b := t * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
-	if box.size.y <= 0.0:
-		_build_fallback()
-		return
-	var sc := MODEL_HEIGHT / box.size.y
-	var c := box.get_center()
-	var rot := Basis(Vector3.UP, MODEL_YAW) * Basis.from_scale(Vector3(sc, sc, sc))
-	root.transform = Transform3D(rot, rot * Vector3(-c.x, -box.position.y, -c.z))
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = SKIN
-	mat.roughness = 0.85
-	mat.metallic = 0.0
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		mi.material_override = mat
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		mi.extra_cull_margin = 8.0
-	var sks := root.find_children("*", "Skeleton3D", true, false)
-	if not sks.is_empty():
-		skel = sks[0]
-		_find_bones()
-	for k in ["hunch", "crouch", "neck", "head_pitch", "head_roll", "look", "reach_a", "reach_b", "out_a", "out_b", "elbow_a", "elbow_b", "claw", "still"]:
-		pose[k] = 0.0
-		pose_t[k] = 0.0
+	rig = EntityRig.new()
+	add_child(rig)
+	rig.build(self, MODEL_HEIGHT)
+	rig.stepped.connect(_on_step)
 
-# Stick-figure placeholder if the model fails to load
-func _build_fallback() -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = SKIN
-	var spine := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.08; cyl.bottom_radius = 0.08; cyl.height = 2.6
-	spine.mesh = cyl
-	spine.material_override = mat
-	spine.position.y = 1.3
-	visual.add_child(spine)
-
-func _find_bones() -> void:
-	for i in skel.get_bone_count():
-		var nm := skel.get_bone_name(i).to_lower()
-		var side := ""
-		if nm.contains(" r_") or nm.ends_with(" r"): side = "r"
-		elif nm.contains(" l_") or nm.ends_with(" l"): side = "l"
-		if nm.begins_with("chest"): bones["chest"] = i
-		elif nm.begins_with("hip"): bones["hip"] = i
-		elif nm.begins_with("neck"): bones["neck"] = i
-		elif nm.begins_with("head"): bones["head"] = i
-		elif nm.begins_with("upper arm") and side != "": bones["arm_" + side] = i
-		elif nm.begins_with("lower arm") and side != "": bones["fore_" + side] = i
-		elif nm.begins_with("upper leg") and side != "": bones["thigh_" + side] = i
-		elif nm.begins_with("lower leg") and side != "": bones["shin_" + side] = i
-		elif nm.begins_with("foot") and side != "": bones["foot_" + side] = i
-		elif nm.contains("finger") and side != "":
-			if not bones.has("fingers_" + side): bones["fingers_" + side] = []
-			bones["fingers_" + side].append(i)
-
-# Extra rotation of `bone` about an axis given in the entity's own space (x right, y up, z forward)
-func _turn(bone: int, axis: Vector3, angle: float) -> void:
-	if bone < 0 or absf(angle) < 0.0001:
-		return
-	var to_skel := skel.global_transform.basis.orthonormalized().inverse() * global_transform.basis
-	var ax := (to_skel * axis).normalized()
-	var g := skel.get_bone_global_pose(bone)
-	var parent := skel.get_bone_parent(bone)
-	var pg := skel.get_bone_global_pose(parent) if parent >= 0 else Transform3D.IDENTITY
-	var new_basis := Basis(ax, angle) * g.basis
-	var local := pg.basis.inverse() * new_basis
-	skel.set_bone_pose_rotation(bone, local.get_rotation_quaternion())
-
-func _b(role: String) -> int:
-	return bones.get(role, -1)
-
-# The pose it's aiming for, from its state and what it's doing (js poseTargets)
-func _pose_targets(st: String, run: float, moving: bool) -> void:
-	var P := pose_t
-	P.hunch = 0.35 + run * 0.15; P.crouch = 0.0; P.neck = 0.1; P.head_pitch = -0.1; P.head_roll = 0.0
-	P.look = 1.0; P.still = 0.0; P.claw = 0.3
-	P.reach_a = 0.15; P.reach_b = 0.15; P.out_a = 0.06; P.out_b = 0.06; P.elbow_a = 0.25; P.elbow_b = 0.25
-	if st == "roam" or st == "investigate" or st == "search":
-		if not moving:
-			# standing: listening. Head cocked, arms dead still
-			P.hunch = 0.45
-			P.head_roll = 0.45 * signf(sin(anim_time * 0.37 + 1.0))
-			P.reach_a = 0.2; P.reach_b = 0.1
-		if st == "investigate":
-			# nose first: low, head forward and down, sniffing, hands raised a little
-			P.hunch = 0.6; P.crouch = 0.12; P.head_pitch = -0.3
-			P.reach_a = 0.4; P.reach_b = 0.4; P.elbow_a = 0.5; P.elbow_b = 0.5
-		elif st == "search":
-			P.hunch = 0.55; P.crouch = 0.08; P.reach_a = 0.35; P.reach_b = 0.25
-			P.elbow_a = 0.45; P.elbow_b = 0.45; P.claw = 0.5
-		if staring > 0.0:
-			# being looked at: it freezes solid and its head slowly tips over as it stares back
-			P.still = 1.0; P.hunch = 0.5
-			P.head_roll = minf(1.2, 0.3 + anim_time * 0.35) * (1.0 if head_yaw >= 0.0 else -1.0)
-			P.reach_a = 0.2; P.reach_b = 0.2
-	elif st == "chase":
-		P.hunch = 1.0; P.crouch = 0.22; P.neck = 0.25; P.head_pitch = 0.0; P.claw = 0.8
-		P.reach_a = 1.05; P.reach_b = 1.05; P.out_a = 0.22; P.out_b = 0.22; P.elbow_a = 0.55; P.elbow_b = 0.55
-		if lunge_windup > 0.0:
-			P.hunch = 0.45; P.crouch = 0.35; P.claw = 1.0
-			P.reach_a = 1.9; P.reach_b = 1.9; P.out_a = 0.6; P.out_b = 0.6; P.elbow_a = 0.2; P.elbow_b = 0.2
-		elif lunge > 0.0:
-			P.hunch = 1.25; P.crouch = 0.1; P.claw = 1.0
-			P.reach_a = 1.55; P.reach_b = 1.55; P.out_a = 0.3; P.out_b = 0.3; P.elbow_a = 0.0; P.elbow_b = 0.0
-	elif st == "screech":
-		# rears back with its maw to the ceiling, then snaps it down at you and howls
-		var thrown := anim_time < 0.4
-		P.hunch = -0.5 if thrown else -0.1; P.crouch = 0.15; P.neck = 0.35 if thrown else 0.3
-		P.head_pitch = 1.0 if thrown else 0.0; P.look = 0.0 if thrown else 1.0; P.claw = 1.2
-		P.reach_a = 0.65; P.reach_b = 0.65; P.out_a = 1.3; P.out_b = 1.3; P.elbow_a = 0.95; P.elbow_b = 0.95
-	elif st == "stalk":
-		# low behind the corner, one hand gripping the wall's edge, the head tipped almost flat
-		P.still = 1.0; P.hunch = 0.3; P.crouch = 0.45; P.neck = 0.2; P.head_pitch = 0.0; P.claw = 0.9
-		var peek_side := -1.0 if peek_lean > 0.02 else 1.0
-		P.head_roll = -1.4 * peek_side * lerpf(0.35, 1.0, peek_amt)
-		var grip := "a" if peek_side > 0.0 else "b"
-		var other := "b" if grip == "a" else "a"
-		P["reach_" + grip] = 0.6; P["out_" + grip] = 0.85; P["elbow_" + grip] = 0.95
-		P["reach_" + other] = 0.05; P["out_" + other] = 0.0; P["elbow_" + other] = 0.15
-	elif st == "flee":
-		P.hunch = 1.1; P.crouch = 0.4; P.neck = 0.35; P.head_pitch = 0.1; P.look = 0.0; P.claw = 0.2
-		P.reach_a = -0.55; P.reach_b = -0.55; P.out_a = 0.25; P.out_b = 0.25; P.elbow_a = 0.8; P.elbow_b = 0.8
-	elif st == "stunned":
-		P.hunch = -0.45; P.crouch = 0.3; P.neck = 0.4; P.head_pitch = 0.6; P.look = 0.0; P.claw = 1.2
-		P.reach_a = 0.9; P.reach_b = -0.3; P.out_a = 0.7; P.out_b = 0.7
-
-# Smooth pseudo-noise, about -1..1 (sums of sines). Fresh random numbers every frame would just vibrate.
-func _noise(seed_v: float, t: float) -> float:
-	return sin(t * 1.7 + seed_v * 4.1) * 0.5 + sin(t * 3.3 + seed_v * 7.7) * 0.3 + sin(t * 7.9 + seed_v * 2.3) * 0.2
-
-func _glitch_turn(role: String, g_angle: float) -> void:
-	if glitch.is_empty() or glitch.bone != role:
-		return
-	var axes := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
-	_turn(_b(role), axes[glitch.axis], g_angle)
-
-func animate(delta: float, move_speed: float, st: String) -> void:
-	if st != anim_state:
-		anim_state = st
-		anim_time = 0.0
-	anim_time += delta
-	clock += delta
-	if skel == null:
-		return
-	var moving := move_speed > 0.25
-	var run := clampf(move_speed / CHASE_SPEED, 0.0, 1.0)
-	if moving:
-		phase += TAU * move_speed * delta / (2.0 * step_len)
-	_pose_targets(st, run, moving)
-	var rate := 12.0 if (st == "chase" or st == "screech" or st == "stunned") else (2.5 if st == "stalk" else 5.0)
-	for k in pose:
-		pose[k] = lerpf(pose[k], pose_t[k], 1.0 - exp(-rate * delta))
-	peek_lean += (peek_lean_target - peek_lean) * minf(1.0, delta * 4.0)
-	skel.reset_bone_poses()
-
-	var w := 0.0 if not moving else clampf(move_speed / 1.5, 0.3, 1.0)
-	var alive: float = 1.0 - pose.still * 0.85             # how much it breathes and sways
-	# twitching: how much the joints shiver. Frozen while staring (tiny tremor), violent when hurt
-	var twitch := 0.35
-	match st:
-		"chase", "screech":
-			twitch = 1.0
-		"flee":
-			twitch = 0.8
-		"stunned":
-			twitch = 1.8
-		"stalk":
-			twitch = 0.15
-	if staring > 0.0:
-		twitch = 0.08
-	var tj := clock * 9.0
-
-	# glitches: now and then one limb or the head twists to a wrong angle for a moment
-	glitch_timer -= delta
-	if glitch_timer <= 0.0:
-		glitch_timer = (1.5 if (st == "chase" or st == "flee") else (5.0 if st == "stalk" else 3.0)) + rng.randf() * 4.0
-		var pool: Array = ["head"] if st == "stalk" else ["arm_l", "arm_r", "fore_l", "fore_r", "head", "neck"]
-		glitch = {"bone": pool[rng.randi() % pool.size()], "axis": rng.randi() % 3,
-			"angle": (-1.0 if rng.randf() < 0.5 else 1.0) * (0.6 + rng.randf() * 0.9), "t": 0.18 + rng.randf() * 0.3}
-		glitch["total"] = glitch.t
-	var g_angle := 0.0
-	if not glitch.is_empty():
-		glitch.t -= delta
-		if glitch.t <= 0.0:
-			glitch = {}
-		else:
-			g_angle = glitch.angle * minf(1.0, minf((glitch.total - glitch.t) / 0.06, glitch.t / 0.1))
-
-	var right := Vector3.RIGHT
-	var fwd := Vector3.BACK
-	var up := Vector3.UP
-
-	# ---- where the head wants to look: at you when it hunts, stalks or stares, else scanning
-	var to_p := player.global_position - global_position
-	var dist := Vector2(to_p.x, to_p.z).length()
-	var slow_head: bool = st == "stalk" or staring > 0.0
-	var interested: bool = st == "chase" or st == "screech" or st == "stalk" or st == "stunned" or staring > 0.0 \
-		or (seen_target and dist < 20.0 and st != "flee")
-	var look_rel := 0.0
-	if pose.look > 0.4:
-		if interested:
-			# turned further than a neck should
-			look_rel = clampf(wrapf(atan2(to_p.x, to_p.z) - yaw, -PI, PI), -2.3, 2.3)
-		else:
-			look_rel = sin(clock * 0.35) * 0.55 + (0.5 if moving else 0.0) * sin(clock * 0.9)
-	head_hop -= delta
-	if head_hop <= 0.0:
-		# it snaps in hops, not a smooth pan; stalking and staring it barely twitches at all
-		if slow_head:
-			head_hop = rng.randf_range(1.2, 3.5)
-		elif interested:
-			head_hop = rng.randf_range(0.15, 0.5)
-		else:
-			head_hop = rng.randf_range(0.6, 1.5)
-		head_yaw_goal = look_rel + rng.randf_range(-0.18, 0.18) * (0.3 if slow_head else 1.0)
-		if not slow_head and rng.randf() < 0.2:
-			head_yaw_goal += rng.randf_range(-0.5, 0.5)            # a wrong little overshoot
-	else:
-		head_yaw_goal = lerpf(head_yaw_goal, look_rel, minf(1.0, delta * (0.8 if slow_head else 3.0)))
-	head_yaw += (head_yaw_goal - head_yaw) * (1.0 - exp(-(4.0 if slow_head else 22.0) * delta))
-
-	# ---- spine: hunch, a heaving breath, a lopsided twist with the stride
-	var breath: float = sin(clock * (1.4 + pose.hunch * 3.0)) * 0.06 * alive
-	var sway: float = sin(clock * 1.1) * 0.03 * alive
-	var thrash := 1.0 if st == "stunned" else 0.0
-	_turn(_b("hip"), up, sin(phase) * 0.12 * w)
-	_turn(_b("hip"), fwd, sin(phase) * 0.05 * w)
-	_turn(_b("chest"), right, pose.hunch * 0.45 + breath + sway + _noise(1.0, tj) * 0.1 * twitch + thrash * _noise(3.0, clock * 14.0) * 0.3)
-	_turn(_b("chest"), up, -sin(phase) * 0.12 * w)
-	_turn(_b("chest"), fwd, peek_lean * 0.6 + sin(phase) * 0.06 * w + 0.05 * alive)
-	# ---- neck and head: the maw stays aimed where it looks however far it is folded over
-	var fold: float = pose.hunch * 0.45 + pose.neck * 0.5
-	_turn(_b("neck"), right, pose.neck * 0.5 + _noise(30.0, tj) * 0.1 * twitch)
-	_turn(_b("neck"), up, head_yaw * 0.35)
-	_turn(_b("neck"), fwd, pose.head_roll * 0.25)
-	_turn(_b("head"), right, pose.head_pitch * 0.6 - fold * pose.look * 0.75 + _noise(31.0, tj) * 0.2 * twitch)
-	_turn(_b("head"), up, head_yaw * 0.65)
-	_turn(_b("head"), fwd, pose.head_roll * 0.75 + _noise(32.0, tj) * 0.15 * twitch)
-	_glitch_turn("neck", g_angle)
-	_glitch_turn("head", g_angle)
-
-	# ---- legs: it limps, one long stride and one short dragging one, knees bent when it stalks
-	for side in ["l", "r"]:
-		var ph := phase + (0.0 if side == "l" else PI)
-		var limp := 1.0 if side == "l" else 0.55
-		var swing := sin(ph) * (0.35 + run * 0.35) * w * limp
-		var knee: float = maxf(0.0, -cos(ph)) * (0.6 if side == "l" else 0.3) * w + pose.crouch * 0.7
-		_turn(_b("thigh_" + side), right, -swing - pose.crouch * 0.5)
-		_turn(_b("shin_" + side), right, knee)
-		_turn(_b("foot_" + side), right, swing * 0.3 - (0.12 if (side == "r" and moving) else 0.0))
-
-	# ---- arms: a loose pendulum when it walks; running, alternating claws, each a beat out of step
-	var clawing := (1.0 if (st == "chase" and lunge <= 0.0 and lunge_windup <= 0.0) else 0.0) * maxf(w, 0.4 * run)
-	for side in ["a", "b"]:
-		var arm_side := "l" if side == "a" else "r"
-		var sgn := 1.0 if arm_side == "l" else -1.0
-		var seed_v := 10.0 if side == "a" else 20.0
-		var ph2 := phase + (PI if arm_side == "l" else 0.0)
-		var hang := sin(ph2) * 0.3 * w * (1.0 - clawing)
-		var claw_swing := sin(ph2) * 0.4 * clawing
-		var reach: float = pose["reach_" + side] + hang + claw_swing + _noise(seed_v, tj) * 0.15 * twitch \
-			+ thrash * _noise(seed_v, clock * 12.0) * 0.9
-		var out: float = pose["out_" + side] + sin(clock * 0.9 + (0.0 if side == "a" else 2.0)) * 0.04 * alive
-		var elbow: float = pose["elbow_" + side] + maxf(0.0, -sin(ph2)) * clawing * 0.9 \
-			+ sin(ph2 + 1.0) * 0.25 * w * (1.0 - clawing) + _noise(seed_v + 3.0, tj) * 0.25 * twitch
-		_turn(_b("arm_" + arm_side), right, -(reach * 0.9))
-		_turn(_b("arm_" + arm_side), fwd, sgn * out * 0.6)
-		_turn(_b("fore_" + arm_side), right, -(elbow * 0.9 + reach * 0.2))
-		_glitch_turn("arm_" + arm_side, g_angle * sgn)
-		_glitch_turn("fore_" + arm_side, g_angle * sgn)
-		# fingers curl into a claw and ripple like a spider's legs
-		var fingers: Array = bones.get("fingers_" + arm_side, [])
-		for i in fingers.size():
-			var curl: float = (sin(clock * (2.5 if st == "stalk" else 5.0) + float(i) * 1.7) * 0.3 * (0.4 + alive * 0.6) + pose.claw) * 0.6
-			_turn(fingers[i], right, -curl)
-	# crouch sinks the whole body; a breathing bob and the step bounce ride on top
-	visual.position.y = -pose.crouch * 0.5 + absf(sin(phase)) * 0.06 * w + breath * 0.15
+# A footfall from the rig's gait: heavy and near when it hunts, a faint creep when it stalks
+func _on_step(weight: float, dragging: bool) -> void:
+	var d := global_position.distance_to(player.global_position)
+	if d < 34.0:
+		scares.howler_step(global_position, weight * LOUDNESS, dragging)
+	# close behind you in a chase you feel each one land: the floor jolts under your feet
+	if state == "chase" and d < 12.0 and not player.dead:
+		var k := (1.0 - d / 12.0) * (1.0 - d / 12.0)
+		player.jolt(k * weight * (0.5 if dragging else 1.0))
+		Game.fx_shock = maxf(Game.fx_shock, 0.12 * k)
 
 # ================================================================= navigation
 func blocked(cx: int, cz: int) -> bool:
@@ -946,7 +648,7 @@ func _update_peek(dt: float) -> void:
 				_peek_retreat()
 		"watch":
 			# unblinking, with a tiny creep forward and back
-			peek_amt = clampf(0.98 + sin(clock * 1.3) * 0.04, 0.0, 1.0)
+			peek_amt = clampf(0.98 + sin(rig.clock * 1.3) * 0.04, 0.0, 1.0)
 			if peek_gaze > 0.5 + 0.3 * peek_count:
 				_peek_retreat()
 			elif peek_timer <= 0.0:
@@ -1199,8 +901,8 @@ func move(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if not Game.playing:
 		return
-	if grab_t >= 0.0:
-		_update_grab(delta)
+	if grab.active():
+		grab.update(delta)
 		return
 	if not is_finite(global_position.x) or not is_finite(global_position.z):
 		relocate()
@@ -1213,7 +915,7 @@ func _physics_process(delta: float) -> void:
 			awareness = 1.0
 			set_state("chase")
 			set_goal(last_known.x, last_known.z)
-		animate(delta, 0.0, "stunned")
+		rig.animate(delta, 0.0, "stunned")
 		vocalize(delta, "stunned")
 		rotation.y = yaw
 		update_fear(delta)
@@ -1226,7 +928,7 @@ func _physics_process(delta: float) -> void:
 		think(dt)
 	move(delta)
 	rotation.y = yaw
-	animate(delta, speed_now, state)
+	rig.animate(delta, speed_now, state)
 	vocalize(delta, state)
 	update_fear(delta)
 
@@ -1253,7 +955,9 @@ func update_fear(delta: float) -> void:
 		if heart_timer > 1.0:
 			scares.heartbeat(1.5)
 			heart_timer = 0.0
-		if player.sanity <= 0.0 and not player.dead:
+		# not while something else already has hold of you (the mannequin's snap): it would cut that short
+		# and two scripts would fight over the camera
+		if player.sanity <= 0.0 and not player.dead and not player.frozen:
 			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
 	# fear channel for the post shader: terror, sanity and darkness
 	var tremor := 0.25 * terror if (near and rng.randf() < 0.2) else 0.0
@@ -1263,176 +967,9 @@ func update_fear(delta: float) -> void:
 	var target_fear := minf(1.0, maxf(maxf(terror * 0.85 + tremor, psych), Game.event_fear))
 	Game.fear += (target_fear - Game.fear) * minf(1.0, delta * 6.0)
 
-	if dist < KILL_DISTANCE and not player.dead and player.spawn_grace <= 0.0 and grab_t < 0.0 and stun_timer <= 0.0:
-		_start_grab()
-
-# The grab (js/game/grab.js): it doesn't just kill you, it seizes you, hauls you up and eats you,
-# and the camera is yours to watch it happen, helpless.
-#   0.0 - 0.5s  snatch  it snaps onto you; the view whips down to its FEET, FOV punch
-#   0.5 - 2.9s  held    you are lifted while the view slowly climbs its body toward the head; the view
-#                       rolls, breathes, smears and warps; heartbeat slows, the world muffles, a quiet
-#                       flatline rises
-#   2.9 - 3.4s  bite    the camera is dragged into its jaws; screaming + blood splatter, blood sprays
-#                       through the level and stains the floor and walls
-#   3.4 - 5.0s  fade    the edges close in to black
-#   5.0s        death   the normal death sequence takes over (ragdoll, death camera, respawn)
-const GRAB_SNATCH := 0.5
-const GRAB_CLIMB_START := 0.4
-const GRAB_CLIMB_END := 2.9
-const GRAB_BITE_AT := 2.9
-const GRAB_FLATLINE_AT := 1.7
-const GRAB_FADE_AT := 3.5
-const GRAB_TOTAL := 5.0
-const GRAB_HOLD := 1.1                # metres between it and you
-const GRAB_LIFT := 1.35               # metres you are raised
-const GRAB_BASE_FOV := 75.0
-
-var grab_pos := Vector3.ZERO
-var grab_head_y := 3.9
-var grab_beat := 0.0
-var grab_flat := false
-var grab_bitten := false
-var grab_dir := Vector3.FORWARD
-var grab_eye := 1.7
-
-func _gsmooth(x: float) -> float:
-	var c := clampf(x, 0.0, 1.0)
-	return c * c * (3.0 - 2.0 * c)
-
-func _audio() -> Node:
-	return get_parent().get_node_or_null("Audio")
-
-# The entity has you: called from the collision check instead of an instant death
-func _start_grab() -> void:
-	grab_t = 0.0
-	grab_beat = 0.0
-	grab_flat = false
-	grab_bitten = false
-	player.frozen = true
-	player.velocity = Vector3.ZERO
-	grab_base = player.global_position
-	grab_eye = (player.cam as Camera3D).position.y
-	# it stands right at you, facing you
-	var d := Vector3(player.global_position.x - global_position.x, 0.0, player.global_position.z - global_position.z)
-	grab_dir = d.normalized() if d.length() > 0.001 else Vector3.FORWARD
-	grab_pos = Vector3(player.global_position.x - grab_dir.x * GRAB_HOLD, global_position.y, player.global_position.z - grab_dir.z * GRAB_HOLD)
-	# where its head is (its model is big): the view climbs there
-	grab_head_y = maxf(1.5, MODEL_HEIGHT * 0.85)
-	yaw = atan2(grab_dir.x, grab_dir.z)
-	rotation.y = yaw
-	vel = Vector3.ZERO
-	stun_timer = 0.0
-	var a := _audio()
-	if a != null:
-		a.set_muffled(true)
-	scares.startle(1.0)
-	scares.play_scare("staticHit", 1.0)
-	scares.heartbeat(1.8)
-	Game.fx_reset()
-	Death.grab_begin()
-
-func _update_grab(delta: float) -> void:
-	grab_t += delta
-	var t := grab_t
-	var cam: Camera3D = player.cam
-	var p := grab_base
-
-	# the entity holds its pose: a strike animation, planted in front of you; it rears back to bite
-	var rearing := t > GRAB_BITE_AT - 0.35 and t < GRAB_BITE_AT
-	lunge_windup = 0.1 if rearing else 0.0
-	lunge = 0.0 if rearing else 0.1
-	global_position = global_position.lerp(grab_pos, minf(1.0, delta * 14.0))
-	yaw = atan2(grab_dir.x, grab_dir.z)
-	rotation.y = yaw
-	animate(delta, 0.0, "chase")
-	var e := global_position
-
-	# camera: you are lifted off the floor and dragged toward it
-	var rise := _gsmooth((t - 0.3) / 1.5)
-	var bite := _gsmooth((t - GRAB_BITE_AT) / 0.4)
-	var lift := GRAB_LIFT * rise + sin(t * 2.2) * 0.05 * rise
-	var shake := 0.012 + 0.05 * _gsmooth((t - 0.5) / 2.0) + 0.16 * bite * (1.0 if t < GRAB_FADE_AT else 0.3)
-	# ...and on the bite straight into its mouth, at the top of its head height
-	var pull := 0.22 * rise + 0.6 * bite
-	var mouth_y := e.y + grab_head_y * 0.86
-	var base_y := p.y + grab_eye + lift
-	var jit := Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * shake
-	var cam_pos := Vector3(
-		p.x + (e.x - p.x) * pull + jit.x,
-		base_y + (mouth_y - base_y) * bite + jit.y,
-		p.z + (e.z - p.z) * pull + jit.z)
-
-	# what it looks at: down at its feet on the snatch, then up its body to the head, then the jaws
-	var climb := _gsmooth((t - GRAB_CLIMB_START) / (GRAB_CLIMB_END - GRAB_CLIMB_START))
-	var look_y := e.y + 0.1 + (grab_head_y - 0.1) * climb
-	var to := Vector3(e.x, look_y, e.z) - cam_pos
-	var basis_now: Basis = cam.global_transform.basis.orthonormalized()
-	if to.length_squared() > 0.0001:
-		var want := Basis.looking_at(to.normalized(), Vector3.UP)
-		basis_now = basis_now.slerp(want, _gsmooth(t / 0.18))
-	# rolling and swaying as it shakes you, tipping further the longer it holds
-	var roll := (sin(t * 5.3) * 0.05 + sin(t * 11.0) * 0.02) * _gsmooth((t - 0.4) / 0.8) \
-		+ 0.32 * _gsmooth((t - 0.8) / 2.6) + sin(t * 27.0) * 0.06 * bite
-	cam.global_transform = Transform3D(basis_now.rotated(basis_now.z, roll), cam_pos)
-
-	# FOV: a punch on impact, a slow warp with each heartbeat, a jolt on the bite
-	cam.fov = GRAB_BASE_FOV + 20.0 * exp(-t * 6.0) + 22.0 * _gsmooth((t - 0.5) / 2.2) \
-		+ sin(t * 8.0) * 3.0 * _gsmooth((t - 0.5) / 1.0) + 14.0 * bite
-
-	# screen distortion: smear, colour bleed, wobble, and the existing static/glitch pass
-	var k := _gsmooth((t - 0.3) / 2.6)
-	Game.fx_blur = k * 3.2 + bite * 2.0
-	Game.fx_contrast = 1.0 + 0.35 * k
-	Game.fx_sat = 1.0 - 0.5 * k + 0.6 * bite
-	Game.fx_hue = sin(t * 9.0) * 14.0 * k - 8.0 * bite
-	Game.fx_zoom = 1.03 + 0.05 * k + sin(t * 7.0) * 0.012 * k + 0.05 * bite
-	Game.fx_skew = sin(t * 13.0) * 1.6 * k
-	Game.glitch = minf(1.0, 0.5 + k)
-	Game.fear = 1.0
-
-	# the bite: screaming and blood splatter, blood on the glass
-	if not grab_bitten and t >= GRAB_BITE_AT:
-		grab_bitten = true
-		scares.splat()
-		scares.startle(1.0)
-		Death.bite(Vector3(e.x + grab_dir.x * 0.4, e.y + grab_head_y * 0.8, e.z + grab_dir.z * 0.4), p, cam_pos)
-	if grab_bitten:
-		# blood keeps raining from where you hang, and every drop that lands leaves a stain
-		if randf() < delta * 14.0:
-			Death.bite_drop(Vector3(p.x + randf_range(-0.3, 0.3), cam_pos.y - 0.4, p.z + randf_range(-0.3, 0.3)),
-				Vector3(randf_range(-0.3, 0.3), 0.0, randf_range(-0.3, 0.3)), randf_range(0.02, 0.05))
-		if t < GRAB_BITE_AT + 1.2 and randf() < delta * 10.0:
-			Death.bite_drop(Vector3(e.x, e.y + grab_head_y * 0.8, e.z),
-				Vector3(randf_range(-2.5, 2.5), randf_range(1.0, 4.0), randf_range(-2.5, 2.5)), randf_range(0.02, 0.05))
-
-	# heartbeat slows down as it goes on, until the flatline
-	grab_beat -= delta
-	if grab_beat <= 0.0 and t < GRAB_BITE_AT:
-		grab_beat = 0.55 + 0.9 * _gsmooth(t / GRAB_FADE_AT)
-		scares.heartbeat(1.7 - 0.7 * _gsmooth(t / GRAB_FADE_AT))
-	if not grab_flat and t >= GRAB_FLATLINE_AT:
-		grab_flat = true
-		scares.flatline(GRAB_TOTAL - GRAB_FLATLINE_AT + 6.0)
-
-	# the edges close in
-	if t > GRAB_FADE_AT:
-		Game.fx_fade = _gsmooth((t - GRAB_FADE_AT) / (GRAB_TOTAL - GRAB_FADE_AT))
-
-	if t >= GRAB_TOTAL:
-		_end_grab()
-
-# Put the screen back to normal and hand over to the death sequence (js endGrab(true) + killPlayer)
-func _end_grab() -> void:
-	grab_t = -1.0
-	lunge = 0.0
-	lunge_windup = 0.0
-	var cam: Camera3D = player.cam
-	cam.fov = GRAB_BASE_FOV
-	var a := _audio()
-	if a != null:
-		a.set_muffled(false)
-	Game.kill_player("THE BACTERIA")
-	run_away()   # it has fed: it bolts away from the body (it keeps running while you lie there)
+	# frozen = the mannequin is already snapping your neck, or a survivor's blow has you stunned
+	if dist < KILL_DISTANCE and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not grab.active() and stun_timer <= 0.0:
+		grab.start()
 
 # ================================================================= public API (dev / other systems)
 func relocate() -> void:
