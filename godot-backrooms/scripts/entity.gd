@@ -1086,38 +1086,114 @@ func update_fear(delta: float) -> void:
 	if dist < KILL_DISTANCE and not player.dead and player.spawn_grace <= 0.0 and grab_t < 0.0 and stun_timer <= 0.0:
 		_start_grab()
 
-# Simplified grab (death.js / grab.js): it takes hold, the view is dragged onto its face, then the end
+# The grab (js/game/grab.js): it seizes you, hauls you up and eats you while you watch.
+#   0.0-0.5s snatch  view whips down to its feet, FOV punch
+#   0.5-2.9s held    you are lifted, the view climbs its body toward the head, rolling and shaking
+#   2.9-3.4s bite    camera dragged into its jaws; scream + blood splat
+#   3.5-5.0s fade    edges close to black, then the death camera takes over
+const GRAB_CLIMB_START := 0.4
+const GRAB_BITE_AT := 2.9
+const GRAB_FLATLINE_AT := 1.7
+const GRAB_FADE_AT := 3.5
+const GRAB_TOTAL := 5.0
+const GRAB_HOLD := 1.1
+const GRAB_LIFT := 1.35
+const GRAB_BASE_FOV := 75.0
+
+var grab_pos := Vector3.ZERO
+var grab_head_y := 3.9
+var grab_beat := 0.0
+var grab_flat := false
+var grab_bitten := false
+var grab_dir := Vector3.FORWARD
+
+func _gsmooth(x: float) -> float:
+	var c := clampf(x, 0.0, 1.0)
+	return c * c * (3.0 - 2.0 * c)
+
 func _start_grab() -> void:
 	grab_t = 0.0
+	grab_beat = 0.0
+	grab_flat = false
+	grab_bitten = false
 	player.frozen = true
+	player.velocity = Vector3.ZERO
 	grab_base = player.global_position
-	scares.entity_call("scream", global_position + Vector3(0, 2.4, 0), true)
-	scares.startle(1.0)
-	Game.add_glitch(0.8)
-	yaw = atan2(player.global_position.x - global_position.x, player.global_position.z - global_position.z)
+	# It stands right at you, facing you
+	var d := Vector3(player.global_position.x - global_position.x, 0.0, player.global_position.z - global_position.z)
+	grab_dir = d.normalized() if d.length() > 0.001 else Vector3.FORWARD
+	grab_pos = Vector3(player.global_position.x - grab_dir.x * GRAB_HOLD, global_position.y, player.global_position.z - grab_dir.z * GRAB_HOLD)
+	grab_head_y = maxf(1.5, MODEL_HEIGHT * 0.85)
+	yaw = atan2(grab_dir.x, grab_dir.z)
 	rotation.y = yaw
 	vel = Vector3.ZERO
+	scares.entity_call("scream", global_position + Vector3(0, 2.4, 0), true)
+	scares.startle(1.0)
+	scares.play_scare("staticHit", 1.0)
+	scares.heartbeat(1.8)
+	Game.add_glitch(0.8)
 
 func _update_grab(delta: float) -> void:
 	grab_t += delta
-	var head := global_position + Vector3(0, 2.6, 0)
-	# the view whips up to its maw
-	var to: Vector3 = head - player.cam.global_position
-	var want_yaw := atan2(-to.x, -to.z)
-	player.rotation.y = lerp_angle(player.rotation.y, want_yaw, minf(1.0, delta * 8.0))
-	var flat := Vector2(to.x, to.z).length()
-	player.cam.rotation.x = lerpf(player.cam.rotation.x, clampf(atan2(to.y, flat), -1.4, 1.4), minf(1.0, delta * 8.0))
-	player.cam.rotation.z = sin(grab_t * 31.0) * 0.03 * minf(1.0, grab_t)
-	Game.add_glitch(0.5)
+	var t := grab_t
+	var p := grab_base
+	global_position = global_position.lerp(grab_pos, minf(1.0, delta * 14.0))
+	yaw = atan2(grab_dir.x, grab_dir.z)
+	rotation.y = yaw
+	var e := global_position
+
+	# Camera: you are lifted off the floor and dragged toward it
+	var rise := _gsmooth((t - 0.3) / 1.5)
+	var bite := _gsmooth((t - GRAB_BITE_AT) / 0.4)
+	var lift := GRAB_LIFT * rise + sin(t * 2.2) * 0.05 * rise
+	var shake := 0.012 + 0.05 * _gsmooth((t - 0.5) / 2.0) + 0.16 * bite * (1.0 if t < GRAB_FADE_AT else 0.3)
+	var pull := 0.22 * rise + 0.6 * bite
+	var mouth_y := e.y + grab_head_y * 0.86
+	var base_y := p.y + 1.7 + lift
+	var jitter := Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * shake
+	player.cam.global_position = Vector3(
+		p.x + (e.x - p.x) * pull,
+		base_y + (mouth_y - base_y) * bite,
+		p.z + (e.z - p.z) * pull) + jitter
+
+	# It looks at its feet on the snatch, then up its body to the head, then the jaws
+	var climb := _gsmooth((t - GRAB_CLIMB_START) / (GRAB_BITE_AT - GRAB_CLIMB_START))
+	var look_at_pos := Vector3(e.x, e.y + 0.1 + (grab_head_y - 0.1) * climb, e.z)
+	var cam: Camera3D = player.cam
+	var to: Vector3 = look_at_pos - cam.global_position
+	if to.length_squared() > 0.0001:
+		var want: Basis = Basis.looking_at(to.normalized(), Vector3.UP)
+		var cur: Basis = cam.global_transform.basis.orthonormalized()
+		var whip := _gsmooth(t / 0.18)
+		var b: Basis = cur.slerp(want, whip)
+		# roll and sway as it shakes you, tipping further the longer it holds
+		var roll := (sin(t * 5.3) * 0.05 + sin(t * 11.0) * 0.02) * _gsmooth((t - 0.4) / 0.8) 			+ 0.32 * _gsmooth((t - 0.8) / 2.6) + sin(t * 27.0) * 0.06 * bite
+		player.cam.global_transform = Transform3D(b.rotated(b.z, roll), cam.global_position)
+
+	# FOV: punch on impact, slow warp, jolt on the bite
+	player.cam.fov = GRAB_BASE_FOV + 20.0 * exp(-t * 6.0) + 22.0 * _gsmooth((t - 0.5) / 2.2) 		+ sin(t * 8.0) * 3.0 * _gsmooth((t - 0.5) / 1.0) + 14.0 * bite
+	Game.add_glitch(minf(1.0, 0.5 + _gsmooth((t - 0.3) / 2.6)))
 	Game.fear = 1.0
-	if int(grab_t * 4.0) != int((grab_t - delta) * 4.0):
-		scares.heartbeat(1.8)
+
+	# The bite: screaming and blood splatter
+	if not grab_bitten and t >= GRAB_BITE_AT:
+		grab_bitten = true
+		scares.splat()
+		scares.startle(1.0)
+
+	# Heartbeat slows down until the flatline
+	grab_beat -= delta
+	if grab_beat <= 0.0 and t < GRAB_BITE_AT:
+		grab_beat = 0.55 + 0.9 * _gsmooth(t / GRAB_FADE_AT)
+		scares.heartbeat(1.7 - 0.7 * _gsmooth(t / GRAB_FADE_AT))
+	if not grab_flat and t >= GRAB_FLATLINE_AT:
+		grab_flat = true
+		scares.flatline(GRAB_TOTAL - GRAB_FLATLINE_AT + 6.0)
+
 	animate(delta, 0.0, "screech")
-	if grab_t > 1.8:
+	if t >= GRAB_TOTAL:
 		grab_t = -1.0
-		player.cam.rotation.z = 0.0
-		scares.splat()                 # blood scream + wet impact (web: audio.playBloodSplat())
-		scares.play_scare("staticHit", 1.1)
+		player.cam.fov = GRAB_BASE_FOV
 		Game.kill_player("THE BACTERIA")
 
 # ================================================================= public API (dev / other systems)

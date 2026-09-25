@@ -1,15 +1,15 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene format=3 uid="uid://b8n6gm7hee1ui"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/level_builder.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/ui.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/audio.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/scares.gd" id="6"]
-[ext_resource type="Script" path="res://scripts/events.gd" id="7"]
-[ext_resource type="Script" path="res://scripts/entity.gd" id="8"]
-[ext_resource type="Script" path="res://scripts/mannequin.gd" id="9"]
-[ext_resource type="Script" path="res://scripts/mimic.gd" id="10"]
+[ext_resource type="Script" uid="uid://cvhu4qn102r7g" path="res://scripts/main.gd" id="1"]
+[ext_resource type="Script" uid="uid://bojolqjic8c2d" path="res://scripts/level_builder.gd" id="2"]
+[ext_resource type="Script" uid="uid://0yh5h0v8kl7n" path="res://scripts/player.gd" id="3"]
+[ext_resource type="Script" uid="uid://cvol0lguexsfi" path="res://scripts/ui.gd" id="4"]
+[ext_resource type="Script" uid="uid://dpfqti8l1dvnm" path="res://scripts/audio.gd" id="5"]
+[ext_resource type="Script" uid="uid://dvu80x1hro761" path="res://scripts/scares.gd" id="6"]
+[ext_resource type="Script" uid="uid://bsirki1gb6k53" path="res://scripts/events.gd" id="7"]
+[ext_resource type="Script" uid="uid://cfnpkyqdwt7ig" path="res://scripts/entity.gd" id="8"]
+[ext_resource type="Script" uid="uid://hiucucacxs3e" path="res://scripts/mannequin.gd" id="9"]
+[ext_resource type="Script" uid="uid://cael5vy4v6327" path="res://scripts/mimic.gd" id="10"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -30,79 +30,71 @@ ssao_light_affect = 0.4
 ssao_ao_channel_affect = 0.6
 glow_enabled = true
 glow_intensity = 0.6
-glow_strength = 1.0
-glow_bloom = 0.0
-glow_blend_mode = 1
 glow_hdr_threshold = 1.3
 glow_hdr_scale = 1.5
 fog_enabled = true
 fog_light_color = Color(0.059, 0.043, 0.02, 1)
 fog_density = 0.03
-fog_sky_affect = 1.0
 
 [sub_resource type="CapsuleShape3D" id="Capsule"]
 radius = 0.42
 height = 1.8
 
-[node name="Main" type="Node3D"]
+[node name="Main" type="Node3D" unique_id=1055255111]
 script = ExtResource("1")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=2037707313]
 environment = SubResource("Env")
 
-[node name="Level" type="Node3D" parent="."]
+[node name="Level" type="Node3D" parent="." unique_id=1158679704]
 script = ExtResource("2")
 
-[node name="Player" type="CharacterBody3D" parent="."]
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1728280785]
 script = ExtResource("3")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player" unique_id=404526155]
 shape = SubResource("Capsule")
 
-[node name="Camera3D" type="Camera3D" parent="Player"]
+[node name="Camera3D" type="Camera3D" parent="Player" unique_id=597345044]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
 current = true
-fov = 75.0
-near = 0.05
 far = 200.0
 
-[node name="Flashlight" type="SpotLight3D" parent="Player/Camera3D"]
+[node name="Flashlight" type="SpotLight3D" parent="Player/Camera3D" unique_id=1789189779]
 light_color = Color(1, 0.96, 0.88, 1)
 light_energy = 6.5
-spot_range = 35.0
-spot_angle = 23.0
-spot_attenuation = 1.0
-spot_angle_attenuation = 1.3
 shadow_enabled = true
 shadow_bias = 0.04
 shadow_blur = 1.2
+spot_range = 35.0
+spot_angle = 23.0
+spot_angle_attenuation = 1.3
 
-[node name="Spill" type="SpotLight3D" parent="Player/Camera3D/Flashlight"]
+[node name="Spill" type="SpotLight3D" parent="Player/Camera3D/Flashlight" unique_id=128432427]
 light_color = Color(1, 0.94, 0.84, 1)
 light_energy = 2.0
 spot_range = 20.0
-spot_angle = 58.0
 spot_attenuation = 1.1
+spot_angle = 58.0
 spot_angle_attenuation = 1.1
-shadow_enabled = false
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=950530890]
 script = ExtResource("4")
 
-[node name="Audio" type="Node" parent="."]
+[node name="Audio" type="Node" parent="." unique_id=1865301442]
 script = ExtResource("5")
 
-[node name="Scares" type="Node" parent="."]
+[node name="Scares" type="Node" parent="." unique_id=1407280418]
 script = ExtResource("6")
 
-[node name="Events" type="Node" parent="."]
+[node name="Events" type="Node" parent="." unique_id=1340524531]
 script = ExtResource("7")
 
-[node name="Entity" type="Node3D" parent="."]
+[node name="Entity" type="Node3D" parent="." unique_id=1986912767]
 script = ExtResource("8")
 
-[node name="Mannequin" type="Node3D" parent="."]
+[node name="Mannequin" type="Node3D" parent="." unique_id=2079996699]
 script = ExtResource("9")
 
-[node name="Mimic" type="Node3D" parent="."]
+[node name="Mimic" type="Node3D" parent="." unique_id=2109186444]
 script = ExtResource("10")

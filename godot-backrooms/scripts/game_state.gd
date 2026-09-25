@@ -56,9 +56,7 @@ func _process(dt: float) -> void:
 		# .death-box animation: deathIn 1.2s ease-out both (fade + translateY 8px -> 0)
 		if _death_box_inner:
 			var p := clampf(_death_t / 1.2, 0.0, 1.0)
-			var ease_p := 1.0 - (1.0 - p) * (1.0 - p)
 			_death_box_inner.modulate.a = p
-			_death_box_inner.position.y = (1.0 - ease_p) * 8.0
 		# .death-tag i blink: 1.1s steps(1) infinite (50% on, 50% off)
 		if _tag_dot:
 			_tag_dot.visible = fmod(_death_t, 1.1) < 0.55
@@ -163,16 +161,18 @@ func _build_overlay() -> void:
 
 	# 3. .death-box: left 8vw, bottom 14vh
 	var death_box_anchor := Control.new()
-	death_box_anchor.anchor_left = 0.08
-	death_box_anchor.anchor_top = 0.86
-	death_box_anchor.anchor_right = 0.08
-	death_box_anchor.anchor_bottom = 0.86
-	death_box_anchor.grow_horizontal = Control.GROW_DIRECTION_END
-	death_box_anchor.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	death_box_anchor.set_anchors_preset(Control.PRESET_FULL_RECT)
 	death_box_anchor.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_overlay_root.add_child(death_box_anchor)
 
 	_death_box_inner = VBoxContainer.new()
+	# bottom-left corner at (8vw, 86vh); grows up and right so the whole box stays on screen
+	_death_box_inner.anchor_left = 0.08
+	_death_box_inner.anchor_right = 0.08
+	_death_box_inner.anchor_top = 0.86
+	_death_box_inner.anchor_bottom = 0.86
+	_death_box_inner.grow_horizontal = Control.GROW_DIRECTION_END
+	_death_box_inner.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_death_box_inner.add_theme_constant_override("separation", 6)
 	_death_box_inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_death_box_inner.modulate.a = 0.0
@@ -281,4 +281,3 @@ func restart() -> void:
 	if Death:
 		Death.stop()
 	get_tree().reload_current_scene()
-
