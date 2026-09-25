@@ -64,6 +64,7 @@ func start() -> void:
 	e.rotation.y = e.yaw
 	e.vel = Vector3.ZERO
 	e.stun_timer = 0.0
+	e.scares.gasp()
 	e.scares.startle(1.0)
 	e.scares.play_scare("staticHit", 1.0)
 	e.scares.heartbeat(1.8)
@@ -144,14 +145,14 @@ func update(delta: float) -> void:
 			Death.bite_drop(Vector3(ep.x, ep.y + head_y * 0.8, ep.z),
 				Vector3(randf_range(-2.5, 2.5), randf_range(1.0, 4.0), randf_range(-2.5, 2.5)), randf_range(0.02, 0.05))
 
-	# heartbeat slows down as it goes on, until the flatline
+	# heartbeat slows down as it goes on, until the flatline: once the line starts, the heart has stopped
 	beat -= delta
-	if beat <= 0.0 and t < BITE_AT:
+	if beat <= 0.0 and t < FLATLINE_AT:
 		beat = 0.55 + 0.9 * _smooth(t / FADE_AT)
 		scares.heartbeat(1.7 - 0.7 * _smooth(t / FADE_AT))
 	if not flat and t >= FLATLINE_AT:
 		flat = true
-		scares.flatline(TOTAL - FLATLINE_AT + 6.0)
+		scares.flatline()
 
 	# the world closes in a little at a time (never silent), the heartbeat and flatline carry on
 	var au: Node = e.get_parent().get_node_or_null("Audio")

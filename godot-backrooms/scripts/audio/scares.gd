@@ -42,6 +42,8 @@ var player: Node3D
 var _blood_scream_stream: AudioStream = null  # tithuh-blood-the-screaming, loaded once
 var _body_fall_stream: AudioStream = preload("res://audio/player/body_fall.mp3")
 var _gridoff_stream: AudioStream = null
+var _gasp_streams: Array[AudioStream] = []
+var _last_gasp_time := -10.0
 
 func _ready() -> void:
 	rng.randomize()
@@ -79,6 +81,17 @@ func _ready() -> void:
 		_gridoff_stream = load("res://sounds/events/gridoff/gridoff.mp3")
 	elif ResourceLoader.exists("res://audio/events/gridoff.mp3"):
 		_gridoff_stream = load("res://audio/events/gridoff.mp3")
+	# Preload male gasp audio samples for when the player gets caught by entities
+	for p in [
+		"res://audio/events/freesound_community-male-gasp-2-103066.mp3",
+		"res://audio/events/freesound_community-male-gasp-3-82554.mp3",
+		"res://sounds/player/gasp/freesound_community-male-gasp-2-103066.mp3",
+		"res://sounds/player/gasp/freesound_community-male-gasp-3-82554.mp3"
+	]:
+		if ResourceLoader.exists(p):
+			var st: AudioStream = load(p)
+			if st != null and not _gasp_streams.has(st):
+				_gasp_streams.append(st)
 
 func _make_bus(name: String, send: String) -> void:
 	if AudioServer.get_bus_index(name) >= 0:
@@ -191,15 +204,32 @@ func splat() -> void:
 
 var _flat_player: AudioStreamPlayer = null
 
-# The long monitor tone of a heart that has stopped (on the Body bus: not muffled with the world)
-func flatline(seconds: float) -> void:
-	stop_flatline()
-	_flat_player = _spawn_flat(synth("flatline", seconds), 1.0, "Body")
+# The monitor's flat tone of a heart that has stopped. ONE player per life: it is started once and after
+# that only its level moves (the grab / snap bring it up, death settles it down to a quiet hold). Never
+# a second copy: two of the same 1 kHz tone beat against each other and it sounds like it restarts.
+const FLATLINE_GAIN := 1.0        # as the heart stops (grab, snap)
+const FLATLINE_HOLD_GAIN := 0.5   # dead: a thin line under the muffle until the respawn, not an alarm
+var _flat_tween: Tween
+
+func flatline(gain := FLATLINE_GAIN, fade := 0.9) -> void:
+	if not flatlining():
+		_flat_player = _spawn_flat(synth("flatline_loop"), 1.0, "Body")
+		_flat_player.volume_db = -60.0
+	if _flat_tween != null and _flat_tween.is_valid():
+		_flat_tween.kill()
+	# a tween in dB is an exponential ramp in level: the tone swells in the way the old one did
+	_flat_tween = create_tween()
+	_flat_tween.tween_property(_flat_player, "volume_db", linear_to_db(gain), fade)
+
+func flatline_hold(fade := 1.5) -> void:
+	flatline(FLATLINE_HOLD_GAIN, fade)
 
 func stop_flatline() -> void:
 	if _flat_player == null or not is_instance_valid(_flat_player):
 		_flat_player = null
 		return
+	if _flat_tween != null and _flat_tween.is_valid():
+		_flat_tween.kill()
 	var p := _flat_player
 	_flat_player = null
 	var tw := create_tween()
@@ -214,7 +244,6 @@ func tinnitus(seconds: float) -> void:
 	_spawn_flat(synth("tinnitus", seconds), 1.0, "Body")
 
 # ------------------------------------------------------------------ death
-const FLATLINE_HOLD_GAIN := 0.5   # quiet: a thin line under the muffle, not an alarm
 
 # Your body hitting the floor under the death camera (thekids15 body-fall recording). `from` skips
 # into the file, so the death camera can line its thud up with the frame the body lands on.
@@ -225,24 +254,11 @@ func body_fall(from := 0.0) -> void:
 	if from > 0.0:
 		p.play(from)
 
-# Dead: the monitor's flat tone just holds, quiet and steady, under the muffle until you respawn. It
-# fades in over whatever flatline was already sounding (the grab's, the snap's), so there's no seam.
-func flatline_hold(fade := 1.2) -> void:
-	var old := _flat_player
-	var p := _spawn_flat(synth("flatline_loop"), FLATLINE_HOLD_GAIN, "Body")
-	p.volume_db = -60.0
-	create_tween().tween_property(p, "volume_db", linear_to_db(FLATLINE_HOLD_GAIN), fade)
-	_flat_player = p
-	if old != null and is_instance_valid(old):
-		var tw := create_tween()
-		tw.tween_property(old, "volume_db", -80.0, fade)
-		tw.tween_callback(old.queue_free)
-
-# At death: a grab or snap already stopped the heart, so its flatline just settles into the held one.
-# A death nothing built up to gets a few weak, uneven beats first, then the line.
+# At death: a grab or snap already stopped the heart, so its flatline (the same player) just settles
+# down to the quiet hold. A death nothing built up to gets a few weak, uneven beats first, then the line.
 func heart_stop() -> void:
 	if flatlining():
-		flatline_hold()
+		flatline_hold(2.0)
 		return
 	for b in [[0.3, 1.2], [1.15, 0.8], [2.35, 0.45]]:
 		get_tree().create_timer(b[0], false).timeout.connect(heartbeat.bind(b[1]))
@@ -256,7 +272,7 @@ func prewarm_death() -> void:
 	if _prewarm_task >= 0:
 		return
 	var s := ScareSynth.new()          # its own rng: not shared with the main thread
-	var jobs := [["flatline_loop", 0.0], ["flatline", 9.3], ["flatline", 8.3],   # the held line, grab, snap
+	var jobs := [["flatline_loop", 0.0],
 		["static_hit", 0.0], ["stinger", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
 		["howler_drag", 0.0], ["bone_crack", 0.0], ["heel", 0.0],
@@ -271,9 +287,33 @@ func _exit_tree() -> void:
 		WorkerThreadPool.wait_for_task_completion(_prewarm_task)
 		_prewarm_task = -1
 
-func gasp() -> void:
-	var f := "res://audio/events/freesound_community-male-gasp-%s.mp3" % ("2-103066" if rng.randf() < 0.5 else "3-82554")
-	_spawn_flat(load(f), 1.6, "Body")
+func gasp(volume_mult := 1.0) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_gasp_time < 0.35:
+		return
+	_last_gasp_time = now
+
+	if _gasp_streams.is_empty():
+		for p in [
+			"res://audio/events/freesound_community-male-gasp-2-103066.mp3",
+			"res://audio/events/freesound_community-male-gasp-3-82554.mp3",
+			"res://sounds/player/gasp/freesound_community-male-gasp-2-103066.mp3",
+			"res://sounds/player/gasp/freesound_community-male-gasp-3-82554.mp3"
+		]:
+			if ResourceLoader.exists(p):
+				var st: AudioStream = load(p)
+				if st != null and not _gasp_streams.has(st):
+					_gasp_streams.append(st)
+
+	if not _gasp_streams.is_empty():
+		var stream: AudioStream = _gasp_streams[rng.randi() % _gasp_streams.size()]
+		var pitch := rng.randf_range(0.96, 1.04)
+		_spawn_flat(stream, 3.2 * volume_mult, "Body", pitch)
+
+	# Involuntary gasp reflects in the respiratory simulation
+	var au: Node = get_parent().get_node_or_null("Audio")
+	if au != null and au.get("breathing") != null:
+		au.breathing.gasp(1.0)
 
 func stop_all() -> void:
 	for c in get_children():

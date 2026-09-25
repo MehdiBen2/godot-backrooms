@@ -290,7 +290,9 @@ func set_paused(on: bool) -> void:
 func _world_cutoff_goal() -> float:
 	var open_hz := 750.0 if paused else 16000.0
 	if muffled:
-		return open_hz          # the master bus muffles everything once you're dead (see _process)
+		# the master bus muffles everything once you're dead (see _process); the world filter just holds
+		# where it is, so it can't open back up for a moment while the master one is still closing
+		return minf(open_hz, world_cutoff)
 	# an exponential glide from open down to a dull 2.2 kHz as the dread builds
 	return open_hz * pow(2200.0 / 16000.0, world_dread)
 

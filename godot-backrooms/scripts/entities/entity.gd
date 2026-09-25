@@ -948,20 +948,23 @@ func update_fear(delta: float) -> void:
 	Game.terror = terror
 	if near:
 		player.sanity = maxf(0.0, player.sanity - 15.0 * terror * delta)
+		# while something has hold of you (the mannequin's snap) it owns your heart: no proximity
+		# crackle or heartbeat running over its flatline
 		static_timer -= delta
-		if static_timer <= 0.0:
+		if static_timer <= 0.0 and not player.frozen:
 			scares.entity_static()
 			static_timer = 0.12 + rng.randf() * (0.9 - 0.7 * terror)
 		# heart_timer is also driven below while adrenaline has you running out of range
 		heart_timer += delta * (1.5 + terror * 2.5 + player.adrenaline * 1.2)
 		if heart_timer > 1.0:
-			scares.heartbeat(1.5)
+			if not player.frozen:
+				scares.heartbeat(1.5)
 			heart_timer = 0.0
 		# not while something else already has hold of you (the mannequin's snap): it would cut that short
 		# and two scripts would fight over the camera
 		if player.sanity <= 0.0 and not player.dead and not player.frozen:
 			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
-	elif player.adrenaline > 0.05:
+	elif player.adrenaline > 0.05 and not player.dead:
 		# out of range but still running on it: the heart keeps pounding in your ears
 		heart_timer += delta * (1.5 + player.adrenaline * 1.5)
 		if heart_timer > 1.0:

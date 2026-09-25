@@ -487,3 +487,10 @@ func _footstep(sprint: bool, crouch: bool, intensity: float) -> void:
 		if lp and lp.cutoff_hz != want: lp.cutoff_hz = want      # only on change: re-setting it clicks
 	step_player.play()
 	heel_player.play()
+
+## Player gasps in fright (e.g. when seized or startled by an entity)
+func gasp() -> void:
+	var sc: Node = get_parent().get_node_or_null("Scares")
+	if sc != null and sc.has_method("gasp"):
+		sc.gasp()
+

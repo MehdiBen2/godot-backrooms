@@ -9,7 +9,7 @@ uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.12;
 uniform float chroma_amt = 0.0028;
 uniform float grain = 0.038;
-uniform float dirt_amt = 0.16;
+uniform float dirt_amt = 0.32;
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
 uniform float fear = 0.0;      // psychological: sanity, darkness, events
@@ -131,10 +131,13 @@ void fragment() {
 	dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
 	vec3 dirt_rgb = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
 
-	vec3 local_light = textureLod(screen_tex, uvg, 4.0).rgb;
+	vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
 	vec3 scene_light = textureLod(screen_tex, vec2(0.5), 6.0).rgb;
-	float light_on_lens = max(dot(local_light, vec3(0.299, 0.587, 0.114)) - 0.35, 0.0) * 1.1;
-	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.1, 1.05, 0.9);
+	float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
+	float luma_scene = dot(scene_light, vec3(0.299, 0.587, 0.114));
+	float ambient_glass = clamp(luma_scene * 2.5, 0.0, 1.0) * 0.09;
+	float light_on_lens = ambient_glass + smoothstep(0.06, 0.55, luma_local) * 0.70 + smoothstep(0.08, 0.50, luma_scene) * 0.30;
+	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.15, 1.08, 0.88);
 
 	// Optical lens glare: subtle horizontal streak & gentle ghosts when looking at bright lights
 	if (glare_amt > 0.01) {

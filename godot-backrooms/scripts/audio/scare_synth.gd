@@ -175,18 +175,6 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var t := float(i) / SR
 				a[i] = nz[i] * 2.4 * exp(-t * 9.0) + sin(TAU * 50.0 * t) * exp(-t * 12.0) * 0.7
 			w = _wav(a)
-		"flatline":    # the long monitor tone of a heart that has stopped (rises, holds, fades)
-			var secs := maxf(1.0, arg)
-			var a := _buf(secs)
-			for i in a.size():
-				var t := float(i) / SR
-				var g := 0.045
-				if t < 0.9:
-					g = 0.0001 * pow(0.045 / 0.0001, t / 0.9)              # exponential ramp up
-				elif t > maxf(1.0, secs - 1.5):
-					g = 0.045 * pow(0.0001 / 0.045, (t - maxf(1.0, secs - 1.5)) / (secs - maxf(1.0, secs - 1.5)))
-				a[i] = sin(TAU * 1000.0 * t) * g * 1.8   # quiet: a tone you feel, not one that hurts
-			w = _wav(a)
 		"tinnitus":    # dead silence: high ear ringing while the hum is gone
 			var secs := maxf(1.0, arg)
 			var a := _buf(secs)

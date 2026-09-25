@@ -755,7 +755,7 @@ func update_snap(delta: float) -> void:
 		snapped = true
 		scares.splat()
 		scares.startle(1.0)
-		scares.flatline(SNAP_TOTAL - SNAP_AT + 6.0)
+		scares.flatline()
 		Game.add_glitch(1.0)
 		# blood sprays from its face and splatters the glass
 		var mouth := real_node.position + Vector3(0, HEIGHT * 0.9, 0)

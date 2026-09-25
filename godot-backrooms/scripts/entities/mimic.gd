@@ -384,11 +384,12 @@ func hit_player() -> void:
 	player.health = maxf(0.0, player.health - HIT_DAMAGE)
 	player.frozen = true
 	Game.add_glitch(1.0)
+	scares.gasp()
+	if player.health <= 0.0:
+		Game.kill_player("A SURVIVOR")    # the death plays the hit itself: don't stack a second one
+		return
 	scares.startle(0.9)
 	scares.play_scare("staticHit", 1.0)
-	if player.health <= 0.0:
-		Game.kill_player("A SURVIVOR")
-		return
 	get_tree().create_timer(HIT_STUN).timeout.connect(func():
 		if not Game.dead:
 			player.frozen = false)
