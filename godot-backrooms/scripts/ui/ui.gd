@@ -339,6 +339,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("fx_static", Game.fx_static)
 		post_mat.set_shader_parameter("fx_warp", Game.fx_warp)
 		post_mat.set_shader_parameter("exhaust", 0.8 if (player and player.get("exhausted")) else 0.0)
+		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 	rec_dot.visible = fmod(t, 1.2) < 0.6
 	var s := int(t)
 	time_label.text = "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]

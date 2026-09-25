@@ -138,10 +138,8 @@ func kill_player(reason: String) -> void:
 	var sc: Node = scene.get_node_or_null("Scares") if scene else null
 	if sc != null:
 		sc.play_scare("staticHit", 1.2)
-		sc.tinnitus(6.0)
 		sc.startle(0.9)
-		sc.death_swell()
-		sc.heart_stop()          # a grab / snap already has its flatline going: then this does nothing
+		sc.heart_stop()          # ends in a quiet flatline that holds until the respawn
 	# every death, not only the grab: the world settles into a dull, distant muffle until the respawn,
 	# and you stop breathing (a broken neck doesn't even get the last breath out)
 	var au: Node = scene.get_node_or_null("Audio") if scene else null

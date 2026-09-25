@@ -49,6 +49,9 @@ var _ragdoll_t := 0.0
 var _clip_played := false
 var _skel: Skeleton3D = null     # the body's skeleton, so the death camera can follow the chest
 var _chest := -1
+var _clip: Animation = null      # the fall clip being played
+## Seconds after spawn_ragdoll() at which the body's back hits the floor (read off the fall itself)
+var contact_time := 0.85
 var _drop_mesh: SphereMesh = null
 var _drop_mat: StandardMaterial3D = null
 
@@ -271,6 +274,8 @@ func warm() -> void:
 	_ensure_floor_collider(at)
 	_emit(at, Vector3.UP, 6, 0.3, 0.5, 1.0, 20.0, 0.01, 0.015, Color(0.2, 0.0, 0.01), 0.1)
 	await get_tree().create_timer(0.7).timeout
+	if get_parent().active:      # died inside the warm-up window: the blood and the body are real now
+		return
 	clear()
 	floor_y = 0.0
 
@@ -302,12 +307,14 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 		root.transform = Transform3D(flip * Basis.from_scale(Vector3(sc, sc, sc)), flip * (Vector3(-c.x, -box.position.y, -c.z) * sc))
 	# hazmat.glb ships a 'death' clip that does the falling; play it once and hold the last frame
 	_clip_played = false
+	_clip = null
 	for ap in root.find_children("*", "AnimationPlayer", true, false):
 		var player := ap as AnimationPlayer
 		player.stop()
 		for a in player.get_animation_list():
 			if String(a).to_lower().contains("death"):
-				player.get_animation(a).loop_mode = Animation.LOOP_NONE
+				_clip = player.get_animation(a)
+				_clip.loop_mode = Animation.LOOP_NONE
 				player.play(a)
 				_clip_played = true
 				break
@@ -328,6 +335,67 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 				break
 		if _skel != null:
 			break
+	contact_time = _find_contact()
+
+# When does the body hit the floor? The clip first drops it to its knees, then it slams down flat on its
+# back: that slam is the moment. Read the upper back's height straight off the clip's bone tracks, find
+# where it comes down within 5% of where it finally rests, then the instant that drop stops dead (no
+# guessing a fixed time, so it stays right if the clip changes). Without the clip, time the procedural topple the same way.
+func _find_contact() -> float:
+	if _clip == null or _skel == null:
+		var k := 0.0
+		var t := 0.0
+		while k < 1.0 and t < 5.0:
+			k = minf(1.0, k + (1.0 / 120.0) * (0.6 + k * 3.0))   # the same curve as _process's topple
+			t += 1.0 / 120.0
+		return t
+	var back := -1
+	for b in ["Spine2", "UpperChest", "Spine1", "Chest", "Spine", "Hips"]:
+		back = _skel.find_bone(b)
+		if back >= 0:
+			break
+	if back < 0:
+		return 0.85
+	var tracks := {}
+	for i in _clip.get_track_count():
+		var bone := _skel.find_bone(String(_clip.track_get_path(i)).get_slice(":", 1))
+		if bone < 0:
+			continue
+		if not tracks.has(bone):
+			tracks[bone] = {}
+		match _clip.track_get_type(i):
+			Animation.TYPE_POSITION_3D: tracks[bone]["pos"] = i
+			Animation.TYPE_ROTATION_3D: tracks[bone]["rot"] = i
+			Animation.TYPE_SCALE_3D: tracks[bone]["scl"] = i
+	var h0 := _clip_height(back, tracks, 0.0)
+	var h_end := _clip_height(back, tracks, _clip.length)
+	if h0 - h_end < 0.05:
+		return 0.85
+	var dt := 1.0 / 120.0
+	var t := 0.0
+	while t < _clip.length and _clip_height(back, tracks, t) > h_end + 0.05 * (h0 - h_end):
+		t += dt
+	# ...and the impact itself is where that last drop stops dead (still falling faster than 0.3 m/s: not yet)
+	while t < _clip.length and (_clip_height(back, tracks, t) - _clip_height(back, tracks, t + dt)) / dt > 0.3:
+		t += dt
+	return minf(t, _clip.length)
+
+# World height of a bone at time t of the clip, chaining the parents' track poses
+func _clip_height(bone: int, tracks: Dictionary, t: float) -> float:
+	var x := Transform3D.IDENTITY
+	var b := bone
+	while b >= 0:
+		var rest := _skel.get_bone_rest(b)
+		var p := rest.origin
+		var q := rest.basis.get_rotation_quaternion()
+		var sc := rest.basis.get_scale()
+		var tr: Dictionary = tracks.get(b, {})
+		if tr.has("pos"): p = _clip.position_track_interpolate(tr.pos, t)
+		if tr.has("rot"): q = _clip.rotation_track_interpolate(tr.rot, t)
+		if tr.has("scl"): sc = _clip.scale_track_interpolate(tr.scl, t)
+		x = Transform3D(Basis(q).scaled(sc), p) * x
+		b = _skel.get_bone_parent(b)
+	return (_skel.global_transform * x).origin.y      # world up, whatever the import's armature rotation
 
 ## Where the body's chest is right now (it moves as the fall clip plays), for the death camera to
 ## look at. Falls back to the tipping body's position, then to `fallback`.

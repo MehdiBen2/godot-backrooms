@@ -29,6 +29,7 @@ var b_hold_cd := 0.0
 var b_calm_time := 10.0
 var b_sigh_timer := 20.0
 var b_was_exhausted := false
+var b_adr_was := false
 
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
@@ -66,13 +67,22 @@ func update(dt: float) -> void:
 	b_debt = _approach(b_debt, stamina_debt, 1.2, 0.09, dt)
 	var e := clamp01(0.3 * b_drive + 0.8 * b_debt)
 	if moving: e = maxf(e, 0.05)
+	# adrenaline: stamina is free but the lungs aren't - hard, fast, open-mouthed panting
+	var adr: float = audio.player.adrenaline
+	e = maxf(e, adr * (0.85 if moving else 0.6))
 	b_exertion = e
 
 	var raw_terror := clamp01(terror)
 	b_terror = _approach(b_terror, raw_terror, 4.0, 1.2, dt)
 	b_anxiety = _approach(b_anxiety, clamp01(anxiety), 0.5, 0.25, dt)
 
-	if b_was_exhausted and not exhausted: sigh()
+	if b_was_exhausted and not exhausted and not audio.player.adr_active: sigh()
+	# the rush hits: one sharp gasp, and no holding your breath while it lasts
+	var adr_on: bool = audio.player.adr_active
+	if adr_on and not b_adr_was:
+		b_holding = false
+		gasp(1.0)
+	b_adr_was = adr_on
 	b_was_exhausted = exhausted
 
 	# startle: entity first comes into range after a quiet spell
@@ -84,7 +94,7 @@ func update(dt: float) -> void:
 	b_hold_cd = maxf(0.0, b_hold_cd - dt)
 	var still := (not moving) or crouching
 	if not b_holding:
-		if b_terror > 0.45 and still and not sprinting and b_exertion < 0.6 and b_hold_cd == 0.0:
+		if b_terror > 0.45 and still and not sprinting and b_exertion < 0.6 and b_hold_cd == 0.0 and not adr_on:
 			b_holding = true
 			b_hold_time = (4.0 if crouching else 2.5) + randf() * 2.5
 	else:

@@ -10,12 +10,20 @@ extends Node
 ##
 ## Also owns a sparse layer of far-off events (muffled thumps behind walls) so the silence between
 ## beds is never truly empty.
+##
+## Proximity: the nearest live threat (the entity, an awake mannequin, a spawned mimic) pushes the bed
+## louder, lower and more open the closer it gets, with fewer walls in between counting for more.
+## On top of that every bed drifts on its own: slow random wanders in level and pitch, sudden swells
+## and moments where the tape sags out of tune, so it never settles into something you stop hearing.
 
 const BASE := 0.1                      # AmbientSystem.BASE_VOLUME
 const FADE_IN := 4.0
 const FADE_OUT := 5.0
 const KILL_FADE := 3.0                 # crossfade when the mood changes mid-track
 const SWITCH_GAP := 45.0               # min seconds between mood switches
+const NEAR_RANGE := {"Entity": 38.0, "Mannequin": 22.0, "Mimic": 26.0}
+const NEAR_BOOST := 1.8                # extra level at point-blank (x2.8 overall)
+const NEAR_PITCH := 0.08               # how far the bed drops in pitch as it closes in
 # tension = the mood each bed suits; gain = level trim between the recordings (tune by ear)
 const TRACKS := [
 	{"file": "ambient1.mp3", "tension": 0.15, "gain": 1.0},
@@ -40,6 +48,14 @@ var lfo := 0.0
 var gap_timer := 10.0
 var switch_cd := 0.0
 var event_timer := 30.0
+var near := 0.0                        # 0..1 smoothed closeness of the nearest threat
+var near_target := 0.0
+var near_timer := 0.0
+var swell := 0.0                       # a sudden surge in level, decays on its own
+var swell_timer := 12.0
+var sag := 0.0                         # a moment where the bed drags out of tune
+var sag_target := 0.0
+var sag_timer := 20.0
 
 func _ready() -> void:
 	rng.randomize()
@@ -63,6 +79,7 @@ func _target_tension() -> float:
 	var t := maxf(Game.fear, Game.presence * 0.8)
 	t = maxf(t, dark * 0.5)
 	t = maxf(t, (1.0 - player.sanity / 100.0) * 0.8)
+	t = maxf(t, near * 0.95)
 	if player.grid_down:
 		t = maxf(t, 0.7)
 	return clampf(t, 0.0, 1.0)
@@ -117,7 +134,8 @@ func _start(i: int) -> void:
 	p.volume_linear = 0.0
 	add_child(p)
 	p.play(from)
-	voices.append({"p": p, "idx": i, "t": 0.0, "left": len - from, "gain": TRACKS[i].gain, "dying": false, "dying_t": 0.0})
+	voices.append({"p": p, "idx": i, "t": 0.0, "left": len - from, "gain": TRACKS[i].gain, "dying": false, "dying_t": 0.0,
+		"dv": 1.0, "dv_to": 1.0, "dp": 1.0, "dp_to": 1.0, "drift_t": 0.0})
 	recent.append(i)
 	if recent.size() > 2:
 		recent.pop_front()
@@ -130,7 +148,7 @@ func _schedule(dt: float) -> void:
 		if not v.dying:
 			current = v
 	if current == null:
-		gap_timer -= dt
+		gap_timer -= dt * (1.0 + 6.0 * near)
 		if gap_timer <= 0.0:
 			var i := _pick()
 			if i >= 0:
@@ -145,10 +163,13 @@ func _schedule(dt: float) -> void:
 
 # ---------------------------------------------------------------- playback
 func _update_voices(dt: float) -> void:
-	var duck_target := 0.35 if Game.hunted else 1.0        # make room for the entity's feet and voice
+	var duck_target := 0.8 if Game.hunted else 1.0         # a little room for the entity's feet and voice
+	if player.dead:
+		duck_target = 0.0                                    # dead: the beds (their wind and air) drain away
 	duck += (duck_target - duck) * (1.0 - exp(-dt / (0.6 if duck_target < duck else 3.0)))
-	var mood := 0.55 + 0.9 * tension
+	var mood := (0.55 + 0.9 * tension) * (1.0 + NEAR_BOOST * near * near) * (1.0 + swell)
 	var pitch: float = 1.0 - 0.05 * (1.0 - player.sanity / 100.0)   # the bed sags out of tune as you lose it
+	pitch *= (1.0 - NEAR_PITCH * near) * (1.0 - sag)
 	var strongest := 0.0
 	var i := voices.size() - 1
 	while i >= 0:
@@ -164,13 +185,69 @@ func _update_voices(dt: float) -> void:
 			p.queue_free()
 			voices.remove_at(i)
 			if voices.is_empty():
-				gap_timer = (60.0 + rng.randf() * 60.0) * (1.0 - 0.6 * tension)
+				gap_timer = (8.0 + rng.randf() * 18.0) * (1.0 - 0.6 * tension)
 		else:
-			p.volume_linear = fade * v.gain * BASE * mood * duck * audio.vol.ambient * audio.vol.master
-			p.pitch_scale = pitch
+			_drift(v, dt)
+			p.volume_linear = fade * v.gain * v.dv * BASE * mood * duck * audio.vol.ambient * audio.vol.master
+			p.pitch_scale = maxf(0.5, pitch * v.dp)
 			strongest = maxf(strongest, fade)
 		i -= 1
 	audio.hum_user_target = 1.0 - 0.7 * strongest         # the synthesized hum sinks under a recorded bed
+
+# Each bed wanders on its own: a new level / pitch goal every few seconds, eased into slowly
+func _drift(v: Dictionary, dt: float) -> void:
+	v.drift_t -= dt
+	if v.drift_t <= 0.0:
+		v.drift_t = 3.0 + rng.randf() * 6.0
+		v.dv_to = rng.randf_range(0.55, 1.3)
+		v.dp_to = rng.randf_range(0.94, 1.03) if rng.randf() < 0.8 else rng.randf_range(0.86, 0.94)
+	var k := 1.0 - exp(-dt / 2.5)
+	v.dv += (v.dv_to - v.dv) * k
+	v.dp += (v.dp_to - v.dp) * k
+
+# Sudden swells and pitch sags; both come more often the closer something is
+func _update_moods(dt: float) -> void:
+	swell_timer -= dt * (1.0 + 3.0 * near)
+	if swell_timer <= 0.0:
+		swell_timer = 10.0 + rng.randf() * 25.0
+		swell = maxf(swell, rng.randf_range(0.4, 1.0) * (1.0 + near))
+	swell *= exp(-dt / 1.8)
+	sag_timer -= dt * (1.0 + 2.0 * near + 1.5 * tension)
+	if sag_timer <= 0.0:
+		sag_timer = 15.0 + rng.randf() * 30.0
+		sag_target = rng.randf_range(0.04, 0.12)
+	sag += (sag_target - sag) * (1.0 - exp(-dt / (1.2 if sag_target > sag else 3.0)))
+	if sag_target > 0.0 and absf(sag - sag_target) < 0.005:
+		sag_target = 0.0                     # hit the bottom: drift back into tune
+
+# Nearest live threat, 0..1, cheaper walls-between check a few times a second
+func _update_near(dt: float) -> void:
+	near_timer -= dt
+	if near_timer <= 0.0:
+		near_timer = 0.2
+		near_target = 0.0
+		var root := get_tree().current_scene
+		if root != null and not player.dead and Game.playing:
+			var pp: Vector3 = player.global_position
+			for key in NEAR_RANGE:
+				var at = _threat_pos(root.get_node_or_null(key))
+				if at == null:
+					continue
+				var d := pp.distance_to(at)
+				var n := clampf(1.0 - d / NEAR_RANGE[key], 0.0, 1.0)
+				if n > 0.0:
+					n *= pow(0.75, mini(audio.walls_between(pp, at), 3))
+				near_target = maxf(near_target, n)
+	near += (near_target - near) * (1.0 - exp(-dt / (0.8 if near_target > near else 3.0)))
+
+func _threat_pos(n: Node):
+	if n == null:
+		return null
+	if n.name == "Mannequin":
+		return n.real_node.global_position if n.awake and n.real_node != null else null
+	if n.name == "Mimic":
+		return n.body.global_position if n.spawned and n.body != null else null
+	return n.global_position
 
 # Darker in tight corridors, at low sanity and in a blackout; a slow swell keeps it from sitting still
 func _update_filter(dt: float) -> void:
@@ -180,6 +257,7 @@ func _update_filter(dt: float) -> void:
 	var calm: float = 1.0 - clampf(Game.presence * 1.5, 0.0, 1.0)    # a chase drains sanity fast: don't muffle it
 	target *= lerpf(1.0, 0.45, (1.0 - player.sanity / 100.0) * calm)
 	target *= 1.0 + 0.12 * sin(lfo * 0.35)
+	target = lerpf(target, maxf(target, 9000.0), near)     # it opens up as the thing closes in
 	if player.grid_down:
 		target = minf(target, 1400.0)
 	if Game.hunted:
@@ -216,6 +294,8 @@ func _update_events(dt: float) -> void:
 		return
 
 func _process(dt: float) -> void:
+	_update_near(dt)
+	_update_moods(dt)
 	tension += (_target_tension() - tension) * (1.0 - exp(-dt / 2.5))
 	_update_filter(dt)
 	_schedule(dt)

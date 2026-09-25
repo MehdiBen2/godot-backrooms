@@ -20,6 +20,16 @@ const LEAN_SPRINT := 0.018
 var sens := 0.0022        # set from the menu's Mouse Sens slider
 const SPRINT_SECONDS := 30.0
 const STAMINA_REGEN := 18.0
+# Adrenaline (ADRENALINE in js/config.js): hunted by the bacteria up close, you get a burst of speed
+# and endless sprint to break away, then a crash
+const ADR_RANGE := 22.0          # metres: it must be chasing you from at least this close
+const ADR_BOOST := 0.5           # +50% movement speed
+const ADR_RAMP := 0.35           # seconds to reach full strength
+const ADR_MAX_TIME := 10.0       # longest a burst can last
+const ADR_AFTERGLOW := 3.5       # seconds it lingers after the chase ends
+const ADR_CRASH_STAMINA := 25.0  # stamina you're left with when it fades
+const ADR_COOLDOWN := 22.0       # seconds before it can kick in again
+const ADR_FOV := 9.0             # extra field of view at full strength (degrees)
 
 @onready var cam: Camera3D = $Camera3D
 @onready var flash: SpotLight3D = $Camera3D/Flashlight
@@ -31,6 +41,8 @@ signal landed(strength: float)
 signal battery_died
 signal dead_click
 signal contact_click(off: bool)
+signal adrenaline_started
+signal adrenaline_faded
 
 var is_sprinting := false
 var is_moving := false
@@ -66,6 +78,11 @@ const BATTERY_CRIT := 10.0
 var stamina := 100.0
 var exhausted := false
 var rest_timer := 0.0
+var adrenaline := 0.0          # 0..1 strength of the burst, eased in and out
+var adr_active := false
+var adr_time := 0.0
+var adr_glow := 0.0
+var adr_cooldown := 0.0
 var bob := 0.0
 var walk_sounds: Array[AudioStream] = []
 var sprint_sounds: Array[AudioStream] = []
@@ -135,6 +152,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _physics_process(dt: float) -> void:
 	spawn_grace = maxf(0.0, spawn_grace - dt)
 	if dead or frozen:
+		if adrenaline > 0.0 or adr_active: end_adrenaline()
 		velocity.x = 0.0
 		velocity.z = 0.0
 		is_moving = false
@@ -151,13 +169,18 @@ func _physics_process(dt: float) -> void:
 	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
 	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
 	var moving := dir != Vector2.ZERO
-	var sprint := _key(KEY_SHIFT) and not crouch and moving and not exhausted and stamina > 0.0
+	var rush := adrenaline > 0.5 and adr_active     # sprint is free during a burst
+	var sprint := _key(KEY_SHIFT) and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
 
 	# Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
-	if sprint:
+	if rush:
+		exhausted = false
+		stamina = maxf(stamina, 60.0)
+		rest_timer = 0.6
+	elif sprint:
 		stamina = maxf(0.0, stamina - dt * 100.0 / SPRINT_SECONDS)
 		rest_timer = 0.6
 		if stamina <= 0.0: exhausted = true
@@ -171,6 +194,7 @@ func _physics_process(dt: float) -> void:
 	shape.position.y = (eye + 0.1) / 2.0
 
 	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT if crouch else 1.0))
+	speed *= 1.0 + ADR_BOOST * adrenaline
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	var rate := ACCEL_AIR
 	if is_on_floor():
@@ -240,7 +264,7 @@ func _physics_process(dt: float) -> void:
 	# FOV: 75 base, +2.5 sprinting, +2 in the air (web updateFov)
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
-	cam.fov = BASE_FOV + fov_kick
+	cam.fov = BASE_FOV + fov_kick + ADR_FOV * adrenaline
 
 	# fell down a pit: the picture dissolves into static and you come to at the spawn, no hard cut
 	if global_position.y < -30.0 and not Death.respawn_busy:
@@ -250,7 +274,42 @@ func _physics_process(dt: float) -> void:
 func jolt(amount: float) -> void:
 	land_dip = maxf(land_dip, clampf(amount, 0.0, 1.0) * 0.035)
 
+# Adrenaline: the bacteria calls this every frame with whether it is hunting you close by
+func update_adrenaline(dt: float, hunted: bool) -> void:
+	if dead or frozen: hunted = false
+	adr_cooldown = maxf(0.0, adr_cooldown - dt)
+	if not adr_active and hunted and adr_cooldown <= 0.0:
+		adr_active = true
+		adr_time = 0.0
+		adr_glow = ADR_AFTERGLOW
+		Game.fx_shock = maxf(Game.fx_shock, 0.7)     # the jolt as it hits: the picture punches in
+		var sc := get_parent().get_node_or_null("Scares")
+		if sc != null:
+			sc.startle(0.35)
+			sc.heartbeat(1.6)
+		adrenaline_started.emit()
+	if adr_active:
+		adr_time += dt
+		adr_glow = ADR_AFTERGLOW if hunted else adr_glow - dt
+		if adr_time > ADR_MAX_TIME or adr_glow <= 0.0 or dead:
+			adr_active = false
+			adr_cooldown = ADR_COOLDOWN
+			if not dead:
+				stamina = minf(stamina, ADR_CRASH_STAMINA)
+				rest_timer = 2.5
+				adrenaline_faded.emit()
+	var target := 1.0 if adr_active else 0.0
+	var rate := 1.0 / ADR_RAMP if target > adrenaline else 1.0 / 1.5
+	adrenaline = move_toward(adrenaline, target, rate * dt)
+
+# Drop straight out of adrenaline (death, grab, respawn): no crash, no cooldown
+func end_adrenaline() -> void:
+	adr_active = false
+	adr_cooldown = 0.0
+	adrenaline = 0.0
+
 func _back_to_spawn() -> void:
+	end_adrenaline()
 	global_position = get_parent().get_node("Level").spawn_pos
 	velocity = Vector3.ZERO
 	land_dip = 0.0

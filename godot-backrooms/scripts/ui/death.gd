@@ -7,7 +7,9 @@ extends Node
 ##                  blood-screen image fades in and slides down (opacity 0->0.55, translateY -8%->0)
 ##   t=0..2.2s      the view lifts up out of the body (an arc, not a straight line) and swings round
 ##                  into the orbit, turning from wherever it was looking onto the falling body
-##   t=0.85s        the body hits the floor: a heavy thump and a jolt through the camera
+##   ~2.2s          the body slams down on its back (the moment is read off the fall clip, see
+##                  death_fx.contact_time): the body-fall recording's thud lands on that frame, and a
+##                  jolt goes through the camera
 ##   t=0.5s..       a slow orbit that never stops, pushing in a little over time, with a dutch tilt and
 ##                  a hand-held float. It follows the body's chest (the fall clip moves it) and keeps
 ##                  clear of walls and low ceilings: in a tight corridor it pulls in and rises overhead.
@@ -24,7 +26,7 @@ const ORBIT_HEIGHT  := 2.5
 const BODY_CENTER_Y := 0.35
 const CAM_MARGIN    := 0.4      # kept between the lens and any wall
 const CEIL_MARGIN   := 0.35
-const IMPACT_AT     := 0.85     # the fall clip lands about here
+const FALL_ONSET    := 0.24     # body_fall.mp3: the thud hits 0.24 s in (the rustle of going down comes first)
 const DEATH_FOV     := 58.0     # narrower than play: a longer lens for the death shot
 const CELL          := 4.5
 
@@ -56,6 +58,7 @@ var _orbit_ang := 0.0
 var _radius_now := ORBIT_RADIUS # clearance-limited orbit radius (a spring arm)
 var _trauma := 0.0              # impact shake, squared on smooth noise
 var _landed := false
+var _fall_sounded := false
 
 func _ready() -> void:
 	_fx = load("res://scripts/ui/death_fx.gd").new()
@@ -94,6 +97,7 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	_radius_now = ORBIT_RADIUS
 	_trauma = 0.0
 	_landed = false
+	_fall_sounded = false
 	_focus = p_pos + Vector3(0.0, 1.2, 0.0)
 	_centre = p_pos
 
@@ -107,12 +111,10 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 		_fx.feast(cam_start_global + fwd * 0.8, p_pos)
 	_fx.spawn_ragdoll(p_pos, p_yaw)
 
-# The body hitting the floor: a heavy thump where it lands and a jolt through the camera
+# The body hitting the floor: the camera takes the jolt (the sound was started FALL_ONSET earlier)
 func _land() -> void:
 	_landed = true
 	_trauma = maxf(_trauma, 0.6)
-	if is_instance_valid(_scares):
-		_scares.body_fall()
 
 ## The bacteria's jaws close on you: blood sprays from its mouth and pools on the floor. Called from entity.gd at the bite.
 func bite(mouth: Vector3, victim: Vector3, cam_pos: Vector3) -> void:
@@ -208,7 +210,15 @@ func _process(delta: float) -> void:
 	_focus = _focus.lerp(chest + Vector3(0.0, 0.1, 0.0), 1.0 - exp(-delta / 0.22))
 	_centre = _centre.lerp(Vector3(chest.x, dp.y, chest.z), 1.0 - exp(-delta / 0.6))
 
-	if not _landed and t >= IMPACT_AT:
+	# The body-fall recording, timed off the fall clip itself (_fx.contact_time: the instant its back
+	# meets the floor). It starts FALL_ONSET early so its thud lands on that exact frame; any frame of
+	# lateness is skipped into the file rather than heard late.
+	var fall_at: float = _fx.contact_time - FALL_ONSET
+	if not _fall_sounded and t >= fall_at:
+		_fall_sounded = true
+		if is_instance_valid(_scares):
+			_scares.body_fall(t - fall_at)
+	if not _landed and t >= _fx.contact_time:
 		_land()
 	_trauma = maxf(0.0, _trauma - delta * 1.3)
 	var tr2 := _trauma * _trauma

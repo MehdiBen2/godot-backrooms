@@ -943,6 +943,7 @@ func update_fear(delta: float) -> void:
 	var presence := 0.0 if player.dead else maxf(0.0, 1.0 - dist / 30.0)
 	Game.presence += (minf(1.0, presence * (1.3 if hunting else 1.0)) * LOUDNESS - Game.presence) * minf(1.0, delta * 2.0)
 	Game.hunted = hunting and dist < 40.0
+	player.update_adrenaline(delta, hunting and dist < player.ADR_RANGE)
 	var terror := (1.0 - dist / TERROR_DISTANCE) if near else 0.0
 	Game.terror = terror
 	if near:
@@ -951,7 +952,8 @@ func update_fear(delta: float) -> void:
 		if static_timer <= 0.0:
 			scares.entity_static()
 			static_timer = 0.12 + rng.randf() * (0.9 - 0.7 * terror)
-		heart_timer += delta * (1.5 + terror * 2.5)
+		# heart_timer is also driven below while adrenaline has you running out of range
+		heart_timer += delta * (1.5 + terror * 2.5 + player.adrenaline * 1.2)
 		if heart_timer > 1.0:
 			scares.heartbeat(1.5)
 			heart_timer = 0.0
@@ -959,6 +961,12 @@ func update_fear(delta: float) -> void:
 		# and two scripts would fight over the camera
 		if player.sanity <= 0.0 and not player.dead and not player.frozen:
 			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
+	elif player.adrenaline > 0.05:
+		# out of range but still running on it: the heart keeps pounding in your ears
+		heart_timer += delta * (1.5 + player.adrenaline * 1.5)
+		if heart_timer > 1.0:
+			scares.heartbeat(1.2 * player.adrenaline + 0.3)
+			heart_timer = 0.0
 	# fear channel for the post shader: terror, sanity and darkness
 	var tremor := 0.25 * terror if (near and rng.randf() < 0.2) else 0.0
 	var sanity_fear: float = (100.0 - player.sanity) / 100.0 * 0.6

@@ -46,6 +46,8 @@ var world_tc := 0.3
 var muffled := false            # dead: the world stays dull until you respawn
 var world_dread := 0.0          # 0..1 while held: the world slowly closes in
 var world_vol := 1.0
+var master_lp: AudioEffectLowPassFilter   # dead: EVERYTHING goes dull and far away, not just the world
+var master_cut := 20000.0
 var paused := false
 var pops_enabled := true
 
@@ -114,6 +116,9 @@ func _setup_buses() -> void:
 	comp.attack_us = 4000.0
 	comp.release_ms = 200.0
 	AudioServer.add_bus_effect(master, comp)
+	master_lp = AudioEffectLowPassFilter.new()
+	master_lp.cutoff_hz = 20000.0
+	AudioServer.add_bus_effect(master, master_lp)
 
 	for n in ["World", "Body", "Steps"]:
 		AudioServer.add_bus()
@@ -280,7 +285,7 @@ func set_paused(on: bool) -> void:
 func _world_cutoff_goal() -> float:
 	var open_hz := 750.0 if paused else 16000.0
 	if muffled:
-		return 900.0
+		return open_hz          # the master bus muffles everything once you're dead (see _process)
 	# an exponential glide from open down to a dull 2.2 kHz as the dread builds
 	return open_hz * pow(2200.0 / 16000.0, world_dread)
 
@@ -297,6 +302,11 @@ func _process(dt: float) -> void:
 	# the filter state and clicks
 	if absf(world_lp.cutoff_hz - world_cutoff) > 5.0:
 		world_lp.cutoff_hz = world_cutoff
+	# dead: every bus (world, entity, your body, the scares) through one dull muffle, as if underwater.
+	# 1.1 kHz leaves the 1 kHz flatline tone just through it
+	master_cut += ((1100.0 if muffled else 20000.0) - master_cut) * (1.0 - exp(-dt / world_tc))
+	if absf(master_lp.cutoff_hz - master_cut) > 5.0:
+		master_lp.cutoff_hz = master_cut
 	if not paused:
 		breathing.update(dt)
 	occl_timer -= dt

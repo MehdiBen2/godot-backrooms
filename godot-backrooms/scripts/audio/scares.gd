@@ -40,6 +40,7 @@ var glitchers: Array = []                    # [player, next_toggle, base_db]
 var live: Array = []                         # everything scheduled, so stop_all() can silence it
 var player: Node3D
 var _blood_scream_stream: AudioStream = null  # tithuh-blood-the-screaming, loaded once
+var _body_fall_stream: AudioStream = preload("res://audio/player/body_fall.mp3")
 
 func _ready() -> void:
 	rng.randomize()
@@ -194,25 +195,39 @@ func tinnitus(seconds: float) -> void:
 	_spawn_flat(synth("tinnitus", seconds), 1.0, "Body")
 
 # ------------------------------------------------------------------ death
-const DEATH_SWELL_SECS := 16.0
-const DEATH_FLATLINE_SECS := 8.0
+const FLATLINE_HOLD_GAIN := 0.5   # quiet: a thin line under the muffle, not an alarm
 
-# Your body hitting the floor under the death camera
-func body_fall() -> void:
-	_spawn_flat(synth("body_fall"), 0.9, "Body", rng.randf_range(0.92, 1.04))
+# Your body hitting the floor under the death camera (thekids15 body-fall recording). `from` skips
+# into the file, so the death camera can line its thud up with the frame the body lands on.
+func body_fall(from := 0.0) -> void:
+	if _body_fall_stream == null:
+		return
+	var p := _spawn_flat(_body_fall_stream, 1.0, "Body")
+	if from > 0.0:
+		p.play(from)
 
-# The low tone that sinks in under the death screen
-func death_swell() -> void:
-	_spawn_flat(synth("death_swell", DEATH_SWELL_SECS), 0.55, "Body")
+# Dead: the monitor's flat tone just holds, quiet and steady, under the muffle until you respawn. It
+# fades in over whatever flatline was already sounding (the grab's, the snap's), so there's no seam.
+func flatline_hold(fade := 1.2) -> void:
+	var old := _flat_player
+	var p := _spawn_flat(synth("flatline_loop"), FLATLINE_HOLD_GAIN, "Body")
+	p.volume_db = -60.0
+	create_tween().tween_property(p, "volume_db", linear_to_db(FLATLINE_HOLD_GAIN), fade)
+	_flat_player = p
+	if old != null and is_instance_valid(old):
+		var tw := create_tween()
+		tw.tween_property(old, "volume_db", -80.0, fade)
+		tw.tween_callback(old.queue_free)
 
-# A death nothing built up to (no grab, no snap): the heart gives a few weak, uneven beats, then stops.
-# A grab or snap already has its flatline running, so this leaves it alone.
+# At death: a grab or snap already stopped the heart, so its flatline just settles into the held one.
+# A death nothing built up to gets a few weak, uneven beats first, then the line.
 func heart_stop() -> void:
 	if flatlining():
+		flatline_hold()
 		return
 	for b in [[0.3, 1.2], [1.15, 0.8], [2.35, 0.45]]:
 		get_tree().create_timer(b[0], false).timeout.connect(heartbeat.bind(b[1]))
-	get_tree().create_timer(3.1, false).timeout.connect(flatline.bind(DEATH_FLATLINE_SECS))
+	get_tree().create_timer(3.1, false).timeout.connect(flatline_hold.bind(0.9))
 
 # Render the death sounds on a worker thread now, so the moment you die never hitches on the synthesis.
 # The synth cache is static: this only does real work once per session.
@@ -222,8 +237,7 @@ func prewarm_death() -> void:
 	if _prewarm_task >= 0:
 		return
 	var s := ScareSynth.new()          # its own rng: not shared with the main thread
-	var jobs := [["body_fall", 0.0], ["death_swell", DEATH_SWELL_SECS], ["tinnitus", 6.0],
-		["flatline", DEATH_FLATLINE_SECS], ["flatline", 9.3], ["flatline", 8.3],   # heart_stop, grab, snap
+	var jobs := [["flatline_loop", 0.0], ["flatline", 9.3], ["flatline", 8.3],   # the held line, grab, snap
 		["static_hit", 0.0], ["stinger", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
 		["howler_drag", 0.0], ["bone_crack", 0.0], ["heel", 0.0],
@@ -271,7 +285,7 @@ func howler_step(pos: Vector3, weight: float, dragging := false) -> void:
 # A mannequin footfall: physically modeled contact on carpet over concrete slab.
 # Calculates physical rear pinna head-shadow (HRTF) filtering so player can accurately tell
 # when footsteps are behind them, plus alternating left/right bipedal foot placement.
-func mannequin_step(pos: Vector3, weight := 1.0, is_left := false, mannequin_node: Node3D = null) -> void:
+func mannequin_step(pos: Vector3, weight := 1.0, _is_left := false, _mannequin_node: Node3D = null) -> void:
 	if player == null:
 		return
 	var cam: Camera3D = player.get_node_or_null("Camera3D")

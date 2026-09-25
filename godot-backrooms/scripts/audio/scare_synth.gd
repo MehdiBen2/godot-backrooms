@@ -203,26 +203,6 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var wob := 1.0 + 0.4 * sin(TAU * 0.6 * t)
 				a[i] = (sin(TAU * 46.0 * t) + sin(TAU * 48.6 * t)) * 0.28 * env * wob
 			w = _wav(a)
-		"body_fall":   # a body going down on carpet: dead-weight thud, the suit crumpling, then the limbs
-			var a := _buf(1.2)
-			var slap := _noise_lp(a.size(), 480.0)
-			var rustle := _noise_lp(a.size(), 2600.0)
-			var gate := 1.0
-			for i in a.size():
-				var t := float(i) / SR
-				if i % 90 == 0:
-					gate = 1.0 if rng.randf() < 0.45 else 0.25
-				var v := sin(TAU * (58.0 * exp(-t * 5.0) + 30.0) * t) * exp(-t * 5.5)   # the torso: a sub thud
-				v += slap[i] * exp(-t * 16.0) * 2.2
-				v += rustle[i] * gate * 0.55 * exp(-t * 4.5) * minf(1.0, t * 60.0)      # the hazmat suit crumpling
-				var t2 := t - 0.16                                                          # the head / shoulders
-				if t2 > 0.0:
-					v += sin(TAU * 88.0 * t2) * exp(-t2 * 18.0) * 0.45 + slap[i] * exp(-t2 * 24.0) * 1.1
-				var t3 := t - 0.31                                                          # an arm flopping down
-				if t3 > 0.0:
-					v += sin(TAU * 120.0 * t3) * exp(-t3 * 26.0) * 0.18 + rustle[i] * exp(-t3 * 20.0) * 0.5
-				a[i] = v * 0.65
-			w = _wav(a)
 		"howler_step": # THE BACTERIA's footfall (arg = variant 0..3, so no two in a row are the same sound):
 			# the weight coming down, the floor giving under it, the carpet crushed, claws catching the pile
 			var v_i := int(arg)
@@ -286,20 +266,11 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				lo += (x - lo) * k
 				a[i] = (x - lo) * 0.5 * minf(1.0, t / 0.001) * exp(-t * 120.0)   # white minus its low end: a high-pass
 			w = _wav(a)
-		"death_swell": # under the death screen: a low tone sinking and beating slowly, with dark air under it
-			var secs := maxf(4.0, arg)
-			var a := _buf(secs)
-			var air := _noise_lp(a.size(), 320.0)
-			var ph := 0.0
+		"flatline_loop": # the flatline's steady middle, looped: exactly 1000 whole cycles in one second, so no seam
+			var a := _buf(1.0)
 			for i in a.size():
-				var t := float(i) / SR
-				var f := 41.0 + 16.0 * exp(-t * 0.5)                      # sinks from ~57 Hz to 41 Hz
-				ph += TAU * f / SR
-				var env := pow(minf(1.0, t / 4.0), 2.0) * clampf((secs - t) / 3.0, 0.0, 1.0)
-				var v := sin(ph) + sin(ph * 1.017) * 0.8 + sin(ph * 1.5) * 0.18   # the 0.7 Hz beat, a faint fifth
-				v += air[i] * 2.2 * (0.6 + 0.4 * sin(TAU * 0.13 * t))
-				a[i] = v * 0.26 * env
-			w = _wav(a)
+				a[i] = sin(TAU * 1000.0 * float(i) / SR) * 0.081
+			w = _wav(a, true)
 		_:
 			w = _wav(_buf(0.1))
 	_lock.lock()

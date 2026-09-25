@@ -14,6 +14,7 @@ uniform float threat = 0.0;    // entity proximity 0..1, smoothed
 uniform float glitch = 0.0;    // tape damage from events and scares
 uniform float pulse = 0.0;     // heartbeat envelope 0..1
 uniform float exhaust = 0.0;
+uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
 // Grab / snap screen work (the web's CSS filter + transform on the canvas, and #grab-fade)
 uniform float fx_blur = 0.0;      // px
 uniform float fx_contrast = 1.0;
@@ -102,8 +103,9 @@ void fragment() {
 	}
 
 	// Tunnel vision: the periphery smears toward the centre as the entity closes in
+	// (and harder on adrenaline: the edges streak past as you run, only the way out stays sharp)
 	float periph = smoothstep(0.18, 0.72, length((uv - 0.5) * vec2(aspect * 0.75, 1.0)));
-	float tunnel = threat * (0.7 + 0.3 * pulse);
+	float tunnel = max(threat * (0.7 + 0.3 * pulse), adrenaline * (0.8 + 0.4 * pulse));
 	if (tunnel > 0.01) {
 		vec2 to_c = (vec2(0.5) - uvg) * 0.045 * tunnel * periph;
 		vec3 acc = col;
@@ -194,6 +196,17 @@ void fragment() {
 		fa = mix(fa, 1.0, smoothstep(0.68, 1.0, rr));
 		vec3 fcol = mix(vec3(0.157, 0.0, 0.0), vec3(0.059, 0.0, 0.0), smoothstep(0.12, 0.68, rr)) * (1.0 - smoothstep(0.68, 1.0, rr));
 		col = mix(col, fcol, fa * fx_fade);
+	}
+
+	// adrenaline (body.adrenaline::after): red creeping in at the edges, throbbing ~80 bpm and
+	// kicking with each heartbeat; the centre gets a touch hotter and punchier
+	if (adrenaline > 0.002) {
+		float ar = length((SCREEN_UV - 0.5) * vec2(aspect * 0.8, 1.0)) / 0.8;
+		float throb = 0.55 + 0.45 * (0.5 + 0.5 * sin(TIME * 8.3776)) + 0.35 * pulse;
+		float red = smoothstep(0.45, 1.0, ar) * 0.38 * throb * adrenaline;
+		col = mix(col, vec3(0.59, 0.04, 0.04), clamp(red, 0.0, 0.8));
+		float c_amt = adrenaline * (1.0 - smoothstep(0.2, 0.7, ar));
+		col = mix(col, (col - 0.5) * 1.12 + 0.5, c_amt * 0.6);
 	}
 
 	vec2 fc = FRAGCOORD.xy;

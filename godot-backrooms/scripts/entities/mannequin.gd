@@ -616,14 +616,14 @@ func update_real(delta: float) -> void:
 			var close := maxf(0.0, 1.0 - dd / 28.0)
 			# Physics: Alternating left and right bipedal feet with accurate hip width & forward stride
 			# flip > 0 (odd step_idx) swings left leg forward; even swings right leg forward
-			var is_left := (hunt.step_idx % 2 == 1)
-			var foot_side := 1.0 if is_left else -1.0 # In model coordinates, +X is left
+			var is_left: bool = (int(hunt.step_idx) % 2 == 1)
+			var foot_side: float = 1.0 if is_left else -1.0 # In model coordinates, +X is left
 			var side_dir := real_node.global_transform.basis.x.normalized()
 			var fwd_dir := -real_node.global_transform.basis.z.normalized()
 			# Hip width separation is ~0.34m (offset +-0.17m from center), landing foot planted forward ~0.28m
-			var foot_pos := np + side_dir * (foot_side * 0.17) + fwd_dir * 0.28
+			var foot_pos: Vector3 = np + side_dir * (foot_side * 0.17) + fwd_dir * 0.28
 			foot_pos.y = 0.05
-			var step_weight := (0.45 + close * 0.95) * LOUDNESS
+			var step_weight: float = (0.45 + close * 0.95) * LOUDNESS
 			scares.mannequin_step(foot_pos, step_weight, is_left, real_node)
 	if hunt.step_t >= hunt.dur:
 		hunt.move_to = null
