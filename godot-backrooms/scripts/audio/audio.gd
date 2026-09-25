@@ -1,0 +1,326 @@
+extends Node
+## Port of the web game's audio engine (js/audio/*.js) to Godot.
+##
+## Bus layout mirrors core.js:
+##   World  = worldTrim (x0.5) + lowpass 16 kHz (750 Hz while paused, 260 Hz blacked out) + small
+##            absorptive-room reverb  <- hum, drone, ambience, one-shots
+##   Body   = x0.7, never muffled     <- your own breathing, jump, landing
+##   Steps  = lowpass per footstep    <- recorded carpet footfalls, straight to master
+##   Master = limiter (-10 dB, 6:1)
+##
+## The synthesized sounds (ballast hum, breaths, clicks, pops, drone) are pre-rendered from the
+## same filter chains by tools/gen_audio.py; audio/scales.json holds the level each file was
+## stored at, so playback gain here = the web game's gain.
+
+const HUM_VOLUME := 0.1              # AUDIO.humVolume
+const HUM_HABITUATED := 0.45         # AUDIO.humHabituatedLevel
+const HUM_HABIT_TIME := 14.0         # AUDIO.humHabituationTime
+const DRONE_BASE := 0.2
+const SLOT_GAIN := 0.3               # per-fixture hum voice gain
+
+var level: Node
+var player: Node
+var ui: Node
+
+var scales := {}
+var streams := {}
+var vol := {"master": 1.0, "footsteps": 1.0, "hum": 1.0, "breathing": 1.0, "ambient": 1.0}
+
+# --- buses
+var world_idx := 0
+var body_idx := 0
+var steps_idx := 0
+var world_lp: AudioEffectLowPassFilter
+var world_rev: AudioEffectReverb
+var nav
+var room_timer := 0.0
+var room_size := 0.35          # smoothed measurements of the space around the listener
+var room_target := 0.35
+var occl_timer := 0.0
+var steps_lp: AudioEffectLowPassFilter
+var world_cutoff := 16000.0
+var world_cutoff_target := 16000.0
+var world_tc := 0.3
+var muffled := false
+var paused := false
+var pops_enabled := true
+
+# --- hum
+var voices: Array[AudioStreamPlayer3D] = []
+var voice_gain: Array[float] = []
+var diffuse: AudioStreamPlayer
+var drone: AudioStreamPlayer
+var drone_swell := 0.0
+var hum_attention := 1.0
+var hum_mix := 0.0
+var hum_user := 1.0
+var hum_user_target := 1.0
+
+# --- breathing model (breathing.js)
+
+const Breathing := preload("res://scripts/audio/breathing.gd")
+var breathing := Breathing.new()
+var one_shots: Array[AudioStreamPlayer] = []
+
+func now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+func _ready() -> void:
+	level = get_parent().get_node("Level")
+	player = get_parent().get_node("Player")
+	ui = get_parent().get_node("UI")
+	scales = JSON.parse_string(FileAccess.get_file_as_string("res://audio/scales.json"))
+	_setup_buses()
+	_setup_hum()
+	breathing.audio = self
+	breathing.setup()
+	for i in 6:
+		var p := AudioStreamPlayer.new()
+		add_child(p)
+		one_shots.append(p)
+	level.fixture_event.connect(_on_fixture_event)
+	level.slot_assigned.connect(func(_i): hum_notice(0.12))   # walking under a new light draws the ear back
+	player.jumped.connect(_on_jump)
+	player.landed.connect(_on_land)
+	player.battery_died.connect(func(): _play_world("battery_dead.wav"))
+	player.dead_click.connect(func(): _play_world("battery_dead_click.wav"))
+	player.contact_click.connect(func(off: bool): _play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
+	var amb := Node.new()
+	amb.set_script(preload("res://scripts/audio/ambience.gd"))
+	add_child(amb)
+
+# ---------------------------------------------------------------- buses
+func _setup_buses() -> void:
+	var master := AudioServer.get_bus_index("Master")
+	var comp := AudioEffectCompressor.new()
+	comp.threshold = -10.0
+	comp.ratio = 6.0
+	comp.attack_us = 4000.0
+	comp.release_ms = 200.0
+	AudioServer.add_bus_effect(master, comp)
+
+	for n in ["World", "Body", "Steps"]:
+		AudioServer.add_bus()
+		var idx := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(idx, n)
+		AudioServer.set_bus_send(idx, "Master")
+	world_idx = AudioServer.get_bus_index("World")
+	body_idx = AudioServer.get_bus_index("Body")
+	steps_idx = AudioServer.get_bus_index("Steps")
+
+	# World: small absorptive room (dropped ceiling + damp carpet = short dark tail), then the muffle filter
+	var rev := AudioEffectReverb.new()
+	world_rev = rev
+	rev.room_size = 0.35
+	rev.damping = 0.75
+	rev.spread = 1.0
+	rev.hipass = 0.0
+	rev.dry = 1.0
+	rev.wet = 0.14
+	AudioServer.add_bus_effect(world_idx, rev)
+	world_lp = AudioEffectLowPassFilter.new()
+	world_lp.cutoff_hz = 16000.0
+	AudioServer.add_bus_effect(world_idx, world_lp)
+	AudioServer.set_bus_volume_linear(world_idx, 0.5)          # worldTrim
+	AudioServer.set_bus_volume_linear(body_idx, 0.7)
+	steps_lp = AudioEffectLowPassFilter.new()
+	steps_lp.cutoff_hz = 20000.0
+	AudioServer.add_bus_effect(steps_idx, steps_lp)
+
+func stream(name: String) -> AudioStreamWAV:
+	if not streams.has(name):
+		streams[name] = load("res://audio/" + name)
+	return streams[name]
+
+func loop_stream(name: String) -> AudioStreamWAV:
+	# Looping is set in the .import files (edit/loop_mode=Forward, uncompressed). Never compute
+	# loop points from data.size(): with compressed imports that cut the loop mid-file and ticked.
+	return stream(name)
+
+# ---------------------------------------------------------------- hum
+func _setup_hum() -> void:
+	for i in level.POOL_SIZE:
+		var p := AudioStreamPlayer3D.new()
+		p.stream = loop_stream("hum_voice.wav")
+		p.bus = "World"
+		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		p.unit_size = 1.6
+		p.max_distance = 40.0
+		p.volume_db = -80.0
+		add_child(p)
+		p.play(randf() * 15.0)          # decorrelated, like the per-voice delay lines
+		voices.append(p)
+		voice_gain.append(0.0)
+	diffuse = AudioStreamPlayer.new()
+	diffuse.stream = loop_stream("hum_diffuse.wav")
+	diffuse.bus = "World"
+	diffuse.volume_db = -80.0
+	add_child(diffuse)
+	diffuse.play()
+	drone = AudioStreamPlayer.new()
+	drone.stream = loop_stream("drone.wav")
+	drone.bus = "World"
+	drone.volume_linear = DRONE_BASE / float(scales.get("drone.wav", 1.0))     # sub-bass dread drone (fear swells it)
+	add_child(drone)
+	drone.play()
+
+func hum_notice(amount := 0.3) -> void:
+	hum_attention = minf(1.0, hum_attention + amount)
+
+func _update_hum(dt: float) -> void:
+	# HumDirector: habituation, masking by breathing, dread, menu dimming
+	hum_attention += (HUM_HABITUATED - hum_attention) * minf(1.0, dt / HUM_HABIT_TIME)
+	var masking := 1.0 - 0.55 * breathing.loudness - (0.2 if player.is_sprinting else 0.0)
+	var dread: float = 1.0 - 0.6 * Game.terror - 0.15 * Game.presence     # the hum shrinks away as it closes in
+	var menu := 0.4 if paused else 1.0
+	var target := maxf(0.0, hum_attention * masking * dread * menu)
+	hum_mix += (target - hum_mix) * (1.0 - exp(-dt / 0.35))
+	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
+	var mix: float = hum_mix * HUM_VOLUME * hum_user * vol.hum
+	var comp := 1.0 / float(scales["hum_voice.wav"])
+	for i in voices.size():
+		var lvl: float = level.slot_level(i)
+		var p := voices[i]
+		if lvl > 0.004: p.global_position = level.slot_position(i)
+		# inverse-distance falloff: Godot's model is half the web panner's at the reference distance
+		var want := lvl * SLOT_GAIN * mix * comp * 2.0 * (1.0 - 0.6 * float(p.get_meta("occl", 0.0)))
+		voice_gain[i] += (want - voice_gain[i]) * (1.0 - exp(-dt / 0.03))
+		p.volume_linear = voice_gain[i]
+	diffuse.volume_linear = mix / float(scales["hum_diffuse.wav"])
+	# dread drone: swells with the entity's presence and the run's overall fear, up to 3x
+	var swell := clampf(maxf(Game.presence, Game.fear * 0.7), 0.0, 1.0)
+	drone_swell += (swell - drone_swell) * (1.0 - exp(-dt / 1.2))
+	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) / float(scales.get("drone.wav", 1.0))
+
+# ---------------------------------------------------------------- tube pops
+func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
+	if not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
+	var name := "tube_restrike.wav" if restrike else "tube_drop.wav"
+	var p := AudioStreamPlayer3D.new()
+	p.stream = stream(name)
+	p.bus = "World"
+	p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	p.unit_size = 1.6
+	p.max_distance = 40.0
+	p.volume_linear = hum_mix * HUM_VOLUME * hum_user * 2.0 * 1.0
+	add_child(p)
+	p.global_position = f.light_pos
+	occlude(p, true)
+	p.finished.connect(p.queue_free)
+	p.play()
+	hum_notice(0.15 if restrike else 0.25)
+
+# ---------------------------------------------------------------- one-shots
+func _play(name: String, bus: String, linear: float, pitch := 1.0) -> void:
+	for p in one_shots:
+		if not p.playing:
+			p.stream = stream(name)
+			p.bus = bus
+			p.volume_linear = linear / float(scales.get(name, 1.0))
+			p.pitch_scale = pitch
+			p.play()
+			return
+
+func _play_world(name: String) -> void:
+	_play(name, "World", 1.0)
+
+func _on_jump() -> void:
+	_play("jump.wav", "Body", 1.0)
+
+func _on_land(strength: float) -> void:
+	var s := minf(1.0, 0.4 + strength * 0.6)
+	_play("land_thud.wav", "Body", s)
+
+# ---------------------------------------------------------------- pause / muffle
+# The grab / a blackout: the whole world goes dull and far away (260 Hz), quickly in, slowly out
+func set_muffled(on: bool) -> void:
+	muffled = on
+	world_tc = 0.06 if on else 0.28
+	world_cutoff_target = 260.0 if on else (750.0 if paused else 16000.0)
+
+func set_paused(on: bool) -> void:
+	paused = on
+	if muffled:
+		return
+	world_cutoff_target = 750.0 if on else 16000.0
+	if not on: hum_notice(0.4)
+
+# ---------------------------------------------------------------- frame
+func _process(dt: float) -> void:
+	# world filter: menu = soft lowpass, otherwise open
+	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
+	# Only touch the filter when the cutoff actually moves: re-setting it every frame resets
+	# the filter state and clicks
+	if absf(world_lp.cutoff_hz - world_cutoff) > 5.0:
+		world_lp.cutoff_hz = world_cutoff
+	if not paused:
+		breathing.update(dt)
+	occl_timer -= dt
+	_update_hum(dt)
+	if occl_timer <= 0.0: occl_timer = 0.1
+	_update_room(dt)
+	breathing.play_queue()
+
+# ---------------------------------------------------------------- wall occlusion
+# Godot has no geometry occlusion, so count the wall cells between a source and the listener on the
+# level grid (the same map the entity's muffle uses). Each wall thickens the muffle: the per-player
+# attenuation filter drops from open air (~20 kHz) toward a dull thud, and the level falls a little.
+func _grid():
+	if nav == null and level.size > 0:
+		nav = preload("res://scripts/world/grid_nav.gd").new(level)
+	return nav
+
+func walls_between(a: Vector3, b: Vector3) -> int:
+	var g = _grid()
+	if g == null: return 0
+	var dx := b.x - a.x
+	var dz := b.z - a.z
+	var steps := ceili(sqrt(dx * dx + dz * dz) / 0.75)
+	var count := 0
+	var last := Vector2i(1 << 30, 1 << 30)
+	for i in range(1, steps):
+		var t := float(i) / steps
+		var c := Vector2i(g.cell(a.x + dx * t), g.cell(a.z + dz * t))
+		if c != last and level.walls.has(c):
+			count += 1
+		last = c
+	return count
+
+# 0 = clear line, 1 = fully boxed in. Stored on the player so update_hum can scale its gain.
+func occlude(p: AudioStreamPlayer3D, instant := false) -> void:
+	var o := clampf(walls_between(player.global_position, p.global_position) / 3.0, 0.0, 1.0)
+	if Game.hunted: o = minf(o, 0.3)          # it is coming for you: never lose it behind a corner
+	p.set_meta("occl", o)
+	p.attenuation_filter_cutoff_hz = lerpf(20000.0, 650.0, sqrt(o))
+	p.attenuation_filter_db = -24.0
+	if instant: p.volume_linear *= 1.0 - 0.6 * o
+
+# ---------------------------------------------------------------- per-area reverb
+# Fire eight rays across the grid to measure the space around the listener. Tight corridors give a
+# short, dry, dark tail; big open halls and tall ceilings give a longer, wetter, more open one.
+func _measure_room() -> float:
+	var g = _grid()
+	if g == null: return 0.35
+	var p: Vector3 = player.global_position
+	var total := 0.0
+	for i in 8:
+		var a := i * TAU / 8.0
+		var d := 1.0
+		while d < 36.0 and g.open_at(p.x + sin(a) * d, p.z + cos(a) * d):
+			d += 1.5
+		total += d
+	var mean := total / 8.0                                   # ~4 in a corridor, 30+ in a hall
+	var ceil_h: float = level.ceiling_height(Vector2i(g.cell(p.x), g.cell(p.z)))
+	return clampf(0.15 + mean / 45.0 + (ceil_h - level.WALL_H) / 40.0, 0.15, 0.95)
+
+func _update_room(dt: float) -> void:
+	room_timer -= dt
+	if room_timer <= 0.0:
+		room_timer = 0.25
+		room_target = _measure_room()
+	room_size += (room_target - room_size) * (1.0 - exp(-dt / 1.5))
+	# only write when it has moved: re-setting reverb parameters every frame can zipper
+	if absf(world_rev.room_size - room_size) > 0.01:
+		world_rev.room_size = room_size
+		world_rev.wet = 0.08 + 0.22 * room_size
+		world_rev.damping = 0.85 - 0.25 * room_size
