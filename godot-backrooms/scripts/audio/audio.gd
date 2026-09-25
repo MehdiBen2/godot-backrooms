@@ -266,6 +266,11 @@ func _on_land(strength: float) -> void:
 	var s := minf(1.0, 0.4 + strength * 0.6)
 	_play("land_thud.wav", "Body", s)
 
+func play_grid_off(pos := Vector3.INF) -> void:
+	var scares = get_parent().get_node_or_null("Scares")
+	if scares and scares.has_method("grid_off"):
+		scares.grid_off(pos)
+
 # ---------------------------------------------------------------- pause / muffle
 # While something has hold of you (0..1): the world slowly closes in, dulling and ducking a little at
 # a time. It never goes silent, you still hear everything, just as if from underwater.

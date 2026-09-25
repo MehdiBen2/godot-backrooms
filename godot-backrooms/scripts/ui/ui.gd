@@ -46,6 +46,8 @@ func _ready() -> void:
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/post.gdshader")
+	if ResourceLoader.exists("res://textures/lens_dirt.png"):
+		mat.set_shader_parameter("lens_dirt_tex", load("res://textures/lens_dirt.png"))
 	post.material = mat
 	post_mat = mat
 	post_layer.add_child(post)

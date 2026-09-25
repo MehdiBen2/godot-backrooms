@@ -29,6 +29,11 @@ const CEIL_MARGIN   := 0.35
 const FALL_ONSET    := 0.24     # body_fall.mp3: the thud hits 0.24 s in (the rustle of going down comes first)
 const DEATH_FOV     := 58.0     # narrower than play: a longer lens for the death shot
 const CELL          := 4.5
+# A faint pool of light over the body so a death in the dark never cuts to pure black
+const BODY_LIGHT_ENERGY := 0.55
+const BODY_LIGHT_RANGE  := 4.5
+const BODY_LIGHT_HEIGHT := 1.6
+const BODY_LIGHT_COLOR  := Color(1.0, 0.82, 0.62)   # dim, warm, like a dying bulb
 
 var active     := false
 var timer      := 0.0
@@ -59,6 +64,7 @@ var _radius_now := ORBIT_RADIUS # clearance-limited orbit radius (a spring arm)
 var _trauma := 0.0              # impact shake, squared on smooth noise
 var _landed := false
 var _fall_sounded := false
+var _body_light: OmniLight3D = null
 
 func _ready() -> void:
 	_fx = load("res://scripts/ui/death_fx.gd").new()
@@ -110,6 +116,24 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	if bloody and killer != "THE BACTERIA" and killer != "THE MANNEQUIN":   # those two already sprayed at the bite / snap (bite())
 		_fx.feast(cam_start_global + fwd * 0.8, p_pos)
 	_fx.spawn_ragdoll(p_pos, p_yaw)
+	if killer == "THE BACTERIA":
+		_add_body_light(p_pos)
+
+func _add_body_light(p_pos: Vector3) -> void:
+	_remove_body_light()
+	_body_light = OmniLight3D.new()
+	_body_light.light_color = BODY_LIGHT_COLOR
+	_body_light.light_energy = 0.0
+	_body_light.omni_range = BODY_LIGHT_RANGE
+	_body_light.omni_attenuation = 1.4
+	_body_light.shadow_enabled = false
+	add_child(_body_light)
+	_body_light.global_position = p_pos + Vector3(0.0, BODY_LIGHT_HEIGHT, 0.0)
+
+func _remove_body_light() -> void:
+	if _body_light != null and is_instance_valid(_body_light):
+		_body_light.queue_free()
+	_body_light = null
 
 # The body hitting the floor: the camera takes the jolt (the sound was started FALL_ONSET earlier)
 func _land() -> void:
@@ -138,6 +162,7 @@ func stop() -> void:
 	active = false
 	timer  = 0.0
 	_hide_blood_screen()
+	_remove_body_light()
 	_fx.clear()
 	_cam    = null
 	_player = null
@@ -209,6 +234,12 @@ func _process(delta: float) -> void:
 	var chest: Vector3 = _fx.body_point(dp + Vector3(0.0, BODY_CENTER_Y, 0.0))
 	_focus = _focus.lerp(chest + Vector3(0.0, 0.1, 0.0), 1.0 - exp(-delta / 0.22))
 	_centre = _centre.lerp(Vector3(chest.x, dp.y, chest.z), 1.0 - exp(-delta / 0.6))
+
+	# The light over the body: comes up as the camera lifts out, follows the chest, and never holds quite still
+	if _body_light != null and is_instance_valid(_body_light):
+		var flick := 1.0 + 0.06 * _noise(11.0, t * 3.0) + (-0.35 if randf() < delta * 0.6 else 0.0)
+		_body_light.light_energy = BODY_LIGHT_ENERGY * _smoothstep((t - 0.2) / 1.6) * flick
+		_body_light.global_position = Vector3(_focus.x, dp.y + BODY_LIGHT_HEIGHT, _focus.z)
 
 	# The body-fall recording, timed off the fall clip itself (_fx.contact_time: the instant its back
 	# meets the floor). It starts FALL_ONSET early so its thud lands on that exact frame; any frame of

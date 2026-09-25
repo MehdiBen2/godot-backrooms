@@ -41,6 +41,7 @@ var live: Array = []                         # everything scheduled, so stop_all
 var player: Node3D
 var _blood_scream_stream: AudioStream = null  # tithuh-blood-the-screaming, loaded once
 var _body_fall_stream: AudioStream = preload("res://audio/player/body_fall.mp3")
+var _gridoff_stream: AudioStream = null
 
 func _ready() -> void:
 	rng.randomize()
@@ -73,6 +74,11 @@ func _ready() -> void:
 	# Preload blood-scream sample so splat() never calls load() on the hot path
 	if ResourceLoader.exists("res://audio/entity/blood_scream.mp3"):
 		_blood_scream_stream = load("res://audio/entity/blood_scream.mp3")
+	# Preload grid-off sample so grid_off() never hits load() on the hot path
+	if ResourceLoader.exists("res://sounds/events/gridoff/gridoff.mp3"):
+		_gridoff_stream = load("res://sounds/events/gridoff/gridoff.mp3")
+	elif ResourceLoader.exists("res://audio/events/gridoff.mp3"):
+		_gridoff_stream = load("res://audio/events/gridoff.mp3")
 
 func _make_bus(name: String, send: String) -> void:
 	if AudioServer.get_bus_index(name) >= 0:
@@ -108,7 +114,7 @@ func synth(name: String, arg := 0.0) -> AudioStreamWAV:
 	return _synth.render(name, arg)
 
 # ------------------------------------------------------------------ playback
-func _spawn3d(stream: AudioStream, pos: Vector3, linear: float, bus := "Scares", ref := 5.0, pitch := 1.0) -> AudioStreamPlayer3D:
+func _spawn3d(stream: AudioStream, pos: Vector3, linear: float, bus := "Scares", ref := 5.0, pitch := 1.0, occlude := true) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream
 	p.bus = bus
@@ -119,7 +125,8 @@ func _spawn3d(stream: AudioStream, pos: Vector3, linear: float, bus := "Scares",
 	p.pitch_scale = pitch
 	add_child(p)
 	p.global_position = pos
-	get_parent().get_node("Audio").occlude(p, true)       # walls between you and it muffle it
+	if occlude:
+		get_parent().get_node("Audio").occlude(p, true)       # walls between you and it muffle it
 	p.finished.connect(p.queue_free)
 	p.play()
 	return p
@@ -149,9 +156,21 @@ func play_scare(name: String, a = null, b = null) -> void:
 			_spawn_flat(synth("drone", float(a) if a != null else 14.0), 0.9)
 		"staticHit":
 			_spawn_flat(synth("static_hit"), 0.7 * (float(a) if a != null else 1.0))
+		"gridOff", "gridoff":
+			var pos: Vector3 = a if a is Vector3 else Vector3.INF
+			grid_off(pos)
 
-func grid_off(pos: Vector3) -> void:
-	_spawn3d(load("res://audio/events/gridoff.mp3"), pos, 1.4, "Scares", 8.0)
+func grid_off(pos := Vector3.INF) -> void:
+	if not pos.is_finite():
+		pos = player.global_position + Vector3(18.0, 2.4, 0.0) if player else Vector3(18.0, 2.4, 0.0)
+	if _gridoff_stream == null:
+		if ResourceLoader.exists("res://sounds/events/gridoff/gridoff.mp3"):
+			_gridoff_stream = load("res://sounds/events/gridoff/gridoff.mp3")
+		elif ResourceLoader.exists("res://audio/events/gridoff.mp3"):
+			_gridoff_stream = load("res://audio/events/gridoff.mp3")
+	if _gridoff_stream != null:
+		# Mirror web scares.js: ref=12, volume=2.0, non-occluded (reverberant distant sound carries through walls)
+		_spawn3d(_gridoff_stream, pos, 2.0, "Scares", 12.0, 1.0, false)
 
 func heartbeat(strength := 1.0) -> void:
 	_spawn_flat(synth("heartbeat"), clampf(0.45 * strength, 0.05, 1.2), "Body")

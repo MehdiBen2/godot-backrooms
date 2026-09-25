@@ -16,14 +16,14 @@ const PIT_DEPTH := 14.0
 
 # LIGHTING / ATMOSPHERE (config.js)
 const LIGHT_RANGE := 20.0
-const LIGHT_ENERGY := 2.4           # tuned for Godot 4 PBR lighting
-const LIGHT_COLOR := Color(1.0, 0.953, 0.859)
+const LIGHT_ENERGY := 2.2           # tuned for Godot 4 PBR lighting
+const LIGHT_COLOR := Color(1.0, 0.93, 0.78)
 const BURNT_CHANCE := 0.16
 const FLICKER_CHANCE := 0.24
-const POOL_SIZE := 8
-const SELECT_RADIUS := 22.0
-const FADE_START := 14.0
-const LIT_DIFFUSER := Color(2.2, 2.1, 1.85)
+const POOL_SIZE := 12
+const SELECT_RADIUS := 26.0
+const FADE_START := 18.0
+const LIT_DIFFUSER := Color(2.1, 1.95, 1.65)
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const FOG_DENSITY := 0.075
 const FOG_LIT_SCALE := 0.5
@@ -32,7 +32,7 @@ const AMBIENT_MIN := 0.3
 const BOUNCE_RADIUS := 7.0
 const BOUNCE_FULL := 1.3
 const ADAPT := 1.6
-const FOG_COLOR := Color("0f0b05")
+const FOG_COLOR := Color("141108")
 const FOG_COLOR_DARK := Color("020201")
 
 @export var level_index := 0
@@ -135,16 +135,16 @@ func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMater
 	m.albedo_color = tint
 	m.normal_enabled = true
 	m.normal_texture = load("res://textures/%s_normal.webp" % tex)
-	m.roughness = 1.0
+	m.roughness = 0.88
 	m.roughness_texture = load("res://textures/%s_rough.webp" % tex)
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.webp" % tex)
-	m.ao_light_affect = 0.9
+	m.ao_light_affect = 0.85
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = per_metre
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	m.metallic_specular = 0.15
+	m.metallic_specular = 0.35
 	return m
 
 # Wallpaper: generated at wall height (baseboard, grime, ceiling contact shadow baked in).
@@ -152,16 +152,16 @@ func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMater
 func _wall_material(prefix: String, height: float, world: bool) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load("res://textures/%s_color.png" % prefix)
-	m.albedo_color = Color(1.0, 0.97, 0.86)
+	m.albedo_color = Color(1.0, 0.98, 0.88)
 	m.normal_enabled = true
 	m.normal_texture = load("res://textures/%s_normal.png" % prefix)
-	m.normal_scale = 0.9
+	m.normal_scale = 0.95
 	m.roughness_texture = load("res://textures/%s_rough.png" % prefix)
-	m.roughness = 1.0
+	m.roughness = 0.95
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.png" % prefix)
-	m.ao_light_affect = 0.9
-	m.metallic_specular = 0.2
+	m.ao_light_affect = 0.85
+	m.metallic_specular = 0.28
 	if world:
 		m.uv1_triplanar = true
 		m.uv1_world_triplanar = true
@@ -214,17 +214,23 @@ func _build_surfaces() -> void:
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true)
 
-	# Polished tile rooms: glossy, 74% opaque, with mirrored fixtures showing through
+	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
 		var tm := StandardMaterial3D.new()
-		tm.albedo_texture = load("res://textures/floor_tile.png")
-		tm.albedo_color = Color(1, 1, 1, 0.74)
-		tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		tm.roughness = 0.1
-		tm.metallic = 0.15
+		tm.albedo_texture = load("res://textures/tiles_color.png")
+		tm.normal_enabled = true
+		tm.normal_texture = load("res://textures/tiles_normal.png")
+		tm.normal_scale = 1.0
+		tm.roughness = 1.0
+		tm.roughness_texture = load("res://textures/tiles_rough.png")
+		tm.ao_enabled = true
+		tm.ao_texture = load("res://textures/tiles_ao.png")
+		tm.ao_light_affect = 0.85
+		tm.metallic = 0.02
+		tm.metallic_specular = 0.55
 		tm.uv1_triplanar = true
 		tm.uv1_world_triplanar = true
-		tm.uv1_scale = Vector3(0.5, 0.5, 0.5)
+		tm.uv1_scale = Vector3(1.0 / 2.25, 1.0 / 2.25, 1.0 / 2.25)
 		tm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
@@ -663,10 +669,12 @@ func _build_floor_reflections() -> void:
 	add_child(mmi)
 	for o in [-2.2, 2.2]:
 		var l := OmniLight3D.new()
-		l.light_color = Color("fff1cf")
+		l.light_color = Color(1.0, 0.94, 0.80)
 		l.omni_range = 24.0
-		l.omni_attenuation = 1.4
-		l.light_energy = LIGHT_ENERGY * 2.6 / 1.5 * 0.6
+		l.omni_attenuation = 1.3
+		l.light_energy = LIGHT_ENERGY * 1.5
+		l.shadow_enabled = true
+		l.shadow_bias = 0.03
 		l.position = Vector3(cx, WALL_H - 0.6, cz + o * CELL)
 		add_child(l)
 
@@ -824,6 +832,9 @@ func _update_atmosphere(delta: float) -> void:
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
 	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
+	if env.volumetric_fog_enabled:
+		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
+		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
 
 func _process(delta: float) -> void:
 	if player == null or pool.is_empty(): return

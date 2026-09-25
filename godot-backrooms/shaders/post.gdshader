@@ -4,11 +4,14 @@ shader_type canvas_item;
 // bright areas, stage grade, shadow lift, vignette, scanlines and grain.
 // Tone mapping (ACES) and bloom come from the Godot environment.
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
-uniform vec3 grade = vec3(1.04, 1.01, 0.89);
-uniform float distortion = 0.26;
-uniform float chroma_amt = 0.002;
-uniform float grain = 0.045;
-uniform float dirt_amt = 0.35;
+uniform sampler2D lens_dirt_tex : filter_linear, repeat_disable;
+uniform vec3 grade = vec3(1.07, 1.03, 0.88);
+uniform float distortion = 0.12;
+uniform float chroma_amt = 0.0028;
+uniform float grain = 0.038;
+uniform float dirt_amt = 0.16;
+uniform float halation_amt = 0.08;
+uniform float glare_amt = 0.35;
 uniform float fear = 0.0;      // psychological: sanity, darkness, events
 uniform float threat = 0.0;    // entity proximity 0..1, smoothed
 uniform float glitch = 0.0;    // tape damage from events and scares
@@ -78,9 +81,13 @@ void fragment() {
 	jitter += band * (hash12(vec2(row, tick + 7.0)) - 0.5) * (0.003 + glitch * 0.008);
 	vec2 shift = vec2(0.5 + jitter, 0.5);
 
-	vec2 uvr = p * (f + chroma * r2); uvr.x /= aspect; uvr = clamp(uvr + shift, 0.0, 1.0);
+	// Subtle, realistic lateral chromatic aberration (increases smoothly with radial distance)
+	float dist_r = sqrt(r2);
+	vec2 ca_dir = (dist_r > 0.0001) ? (p / dist_r) : vec2(0.0);
+	float ca_disp = (dist_r * 0.55 + r2 * 0.8) * chroma;
+	vec2 uvr = (p * f + ca_dir * ca_disp); uvr.x /= aspect; uvr = clamp(uvr + shift, 0.0, 1.0);
 	vec2 uvg = p * f;                     uvg.x /= aspect; uvg = clamp(uvg + shift, 0.0, 1.0);
-	vec2 uvb = p * (f - chroma * r2); uvb.x /= aspect; uvb = clamp(uvb + shift, 0.0, 1.0);
+	vec2 uvb = (p * f - ca_dir * ca_disp); uvb.x /= aspect; uvb = clamp(uvb + shift, 0.0, 1.0);
 	vec3 col = vec3(texture(screen_tex, uvr).r, texture(screen_tex, uvg).g, texture(screen_tex, uvb).b);
 
 	// grab blur: a ring of taps whose radius is the CSS blur() px
@@ -119,18 +126,63 @@ void fragment() {
 	vec3 bled = max(vec3(dot(col, vec3(0.299, 0.587, 0.114))) + cs - vec3(dot(cs, vec3(0.299, 0.587, 0.114))), 0.0);
 	col = mix(col, bled, clamp(0.4 + threat * 0.6 + glitch, 0.0, 1.0));
 
-	// Lens dirt: smudges and specks that only show where bright light scatters through them
-	vec2 dp = vec2(uv.x * aspect, uv.y);
-	float dn = vnoise(dp * 3.0 + 7.0) * 0.55 + vnoise(dp * 8.0 + 2.0) * 0.3 + vnoise(dp * 24.0) * 0.15;
-	float dirt = smoothstep(0.52, 0.84, dn) * 0.7;
-	vec3 glow = textureLod(screen_tex, uvg, 5.0).rgb;
-	col += dirt * max(glow - 0.15, 0.0) * dirt_amt * vec3(1.0, 0.94, 0.8);
+	// Realistic camera lens dirt (specks, smudges, water rings, and dust motes illuminated by bright lights)
+	vec2 dirt_uv = uv;
+	dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
+	vec3 dirt_rgb = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
+
+	vec3 local_light = textureLod(screen_tex, uvg, 4.0).rgb;
+	vec3 scene_light = textureLod(screen_tex, vec2(0.5), 6.0).rgb;
+	float light_on_lens = max(dot(local_light, vec3(0.299, 0.587, 0.114)) - 0.35, 0.0) * 1.1;
+	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.1, 1.05, 0.9);
+
+	// Optical lens glare: subtle horizontal streak & gentle ghosts when looking at bright lights
+	if (glare_amt > 0.01) {
+		// Anamorphic horizontal glare streak across the lens
+		vec3 glare_streak = vec3(0.0);
+		vec2 s_dir = vec2(px * 14.0, 0.0);
+		for (int i = -4; i <= 4; i++) {
+			if (i == 0) continue;
+			float fi = float(i);
+			vec2 suv = clamp(uvg + s_dir * fi, 0.0, 1.0);
+			vec3 sc = textureLod(screen_tex, suv, 3.0).rgb;
+			float sl = dot(sc, vec3(0.299, 0.587, 0.114));
+			if (sl > 0.68) {
+				float weight = exp(-abs(fi) * 0.45);
+				glare_streak += sc * (sl - 0.68) * weight;
+			}
+		}
+		col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt;
+
+		// Gentle lens flare ghosts
+		vec2 ghost_vec = vec2(0.5) - uvg;
+		vec3 ghosts = vec3(0.0);
+		for (int i = 1; i <= 2; i++) {
+			float g_scale = float(i) * 0.5;
+			vec2 guv = clamp(uvg + ghost_vec * g_scale, 0.0, 1.0);
+			vec3 gc = textureLod(screen_tex, guv, 3.5).rgb;
+			float gl = dot(gc, vec3(0.299, 0.587, 0.114));
+			if (gl > 0.78) {
+				float g_dist = length(guv - 0.5);
+				vec3 g_tint = mix(vec3(0.75, 0.9, 1.15), vec3(1.15, 0.95, 0.7), float(i) * 0.5);
+				ghosts += gc * (gl - 0.78) * g_tint * (1.0 - smoothstep(0.0, 0.6, g_dist));
+			}
+		}
+		col += ghosts * 0.04 * glare_amt;
+	}
+
+	// Lens halation: subtle diffusion around direct bulb elements
+	vec3 bloom_sample = textureLod(screen_tex, uvg, 3.5).rgb;
+	float bloom_luma = dot(bloom_sample, vec3(0.299, 0.587, 0.114));
+	if (bloom_luma > 0.60) {
+		col += bloom_sample * vec3(1.12, 0.98, 0.75) * (bloom_luma - 0.60) * halation_amt;
+	}
 
 	col *= grade;
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
 	float sat = clamp(0.92 - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
 	col = mix(vec3(luma), col, sat);                        // colour drains with fear
-	col = col * 0.985 + vec3(0.005, 0.004, 0.002);          // lifted amber-black shadows
+	col = col * 0.965 + vec3(0.015, 0.012, 0.005);          // lifted amber-black shadows matching camcorder tape
 	// grab colour work: contrast, saturation, hue rotation (CSS filter equivalents)
 	if (fx_contrast != 1.0 || fx_sat != 1.0 || fx_hue != 0.0) {
 		col = (col - 0.5) * fx_contrast + 0.5;
@@ -210,8 +262,8 @@ void fragment() {
 	}
 
 	vec2 fc = FRAGCOORD.xy;
-	col *= 0.97 + 0.03 * sin(fc.y * 2.094);                 // scanlines
+	col *= 0.98 + 0.02 * sin(fc.y * 1.57);                 // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
-	col += g * (grain + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.1 - luma);                        // grain, heavier in the shadows
+	col += g * (grain + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
