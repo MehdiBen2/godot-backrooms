@@ -2,14 +2,16 @@ extends Node
 ## Co-op over WebSocket (autoload: Net). One PC hosts a local WebSocket server; `cloudflared tunnel`
 ## exposes it as a public wss:// URL that the others paste into JOIN. Cloudflare tunnels only carry
 ## HTTP/WebSocket (no UDP), which is why this is WebSocketMultiplayerPeer and not ENet.
-## Every survivor sends position / look / torch at 15 Hz; the host also sets which level everyone is on.
-## The entities still run locally on each machine (not synced yet).
+## Every survivor sends a timestamped snapshot (position, look, speed, torch...) 20 times a second;
+## the others draw it with snapshot interpolation (snap_buffer.gd). The host runs THE BACTERIA and the
+## event director for everyone and sets which level everyone is on.
 
 signal status_changed(text: String)
 signal tunnel_url_changed(url: String)
 
-const PORT := 8910
-const SEND_INTERVAL := 1.0 / 15.0
+const DEFAULT_PORT := 8910
+const SEND_INTERVAL := 1.0 / 20.0
+const HELLO_TIMEOUT := 6.0       # no hello from the host by then: we are on different game versions
 const NAME_MAX := 16
 const MAX_PLAYERS := 8
 const CLOUDFLARED_PATHS := [
@@ -22,8 +24,12 @@ const PEER_COLORS := [
 ]
 
 var hosting := false
+var PORT := DEFAULT_PORT        # --port=N overrides it (two copies on one PC)
+var _hello_wait := -1.0
 var status := "OFFLINE"
 var tunnel_url := ""
+var debug := false               # --net-debug: print what the entity is doing on this machine
+var _dbg_t := 0.0
 var launch_name := ""           # --player-name= from the launcher
 var names := {}                 # peer id -> callsign ("" until they send one)
 var remotes := {}               # peer id -> RemotePlayer
@@ -41,13 +47,22 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	# The launcher passes --join=<host or tunnel link> and --player-name=<name>
 	var join_to := ""
-	for a in OS.get_cmdline_args():
+	var host_mode := ""
+	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if a.begins_with("--join="):
 			join_to = a.substr(7)
 		elif a.begins_with("--player-name="):
 			launch_name = a.substr(14).strip_edges().left(NAME_MAX).to_upper()
+		elif a == "--host" or a == "--host-local":       # open the lobby straight away (-local: no tunnel)
+			host_mode = a
+		elif a.begins_with("--port="):
+			PORT = int(a.substr(7))
+		elif a == "--net-debug":
+			debug = true
 	if join_to != "":
 		join.call_deferred(join_to)
+	elif host_mode != "":
+		host.call_deferred(host_mode == "--host-local")
 
 func _exit_tree() -> void:
 	_stop_tunnel()
@@ -57,7 +72,7 @@ func is_online() -> bool:
 	var p := multiplayer.multiplayer_peer
 	return p != null and not (p is OfflineMultiplayerPeer) and p.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
-func host() -> void:
+func host(local_only := false) -> void:
 	leave()
 	var peer := WebSocketMultiplayerPeer.new()
 	var err := peer.create_server(PORT)
@@ -67,7 +82,8 @@ func host() -> void:
 	multiplayer.multiplayer_peer = peer
 	hosting = true
 	_set_status("LOBBY OPEN ON PORT %d // STARTING TUNNEL..." % PORT)
-	_start_tunnel()
+	if not local_only:
+		_start_tunnel()
 
 func join(address: String) -> void:
 	var url := normalize_url(address)
@@ -128,7 +144,7 @@ static func normalize_url(addr: String) -> String:
 	elif scheme == "ws" or scheme == "http":
 		tls = false
 	if not tls and not a.get_slice("/", 0).contains(":"):
-		a += ":%d" % PORT
+		a += ":%d" % DEFAULT_PORT
 	return ("wss://" if tls else "ws://") + a
 
 # ---- connection events ----------------------------------------------------------------
@@ -152,6 +168,7 @@ func _on_peer_disconnected(id: int) -> void:
 	_update_count()
 
 func _on_connected() -> void:
+	_hello_wait = HELLO_TIMEOUT
 	_set_status("CONNECTED // %d SURVIVOR(S)" % (multiplayer.get_peers().size() + 1))
 
 func _on_connection_failed() -> void:
@@ -177,6 +194,8 @@ func _update_count() -> void:
 func _hello(callsign: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	names[id] = callsign.strip_edges().left(NAME_MAX).to_upper()
+	if id == 1:
+		_hello_wait = -1.0
 	var r: Node = remotes.get(id)
 	if r:
 		r.set_label(label_for(id))
@@ -187,10 +206,58 @@ func _level(idx: int) -> void:
 		Game.change_level(idx)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _state(pos: Vector3, yaw: float, pitch: float, crouch: bool, torch: bool, dead: bool) -> void:
+func _state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	var r: Node = _ensure_remote(id)
-	r.apply_state(pos, yaw, pitch, crouch, torch, dead)
+	r.push_state(t, pos, yaw, pitch, spd, flags, level)
+
+## Snapshot clock: simulated time of the physics step the position comes from. Wall time would be off
+## by up to a frame (several physics steps run back to back in one frame), which shows as stutter.
+static func clock() -> float:
+	return Engine.get_physics_frames() / float(Engine.physics_ticks_per_second)
+
+# ---- monsters and events: the host's PC decides, everyone else follows ----------------------
+func id_of(node: Node) -> int:
+	for id in remotes:
+		if remotes[id] == node:
+			return id
+	return 0
+
+func _scene_node(node_name: String) -> Node:
+	if Game.main != null and is_instance_valid(Game.main):
+		return Game.main.get_node_or_null(node_name)
+	return null
+
+func send_entity(m: Array) -> void:
+	if hosting and is_online() and not multiplayer.get_peers().is_empty():
+		_entity.rpc(clock(), m)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _entity(t: float, m: Array) -> void:
+	var ent := _scene_node("Entity")
+	if ent != null and ent.has_method("net_apply"):
+		ent.net_apply(t, m)
+
+## Host: an event just started (or was stopped): everyone gets the same scare at the same moment
+func send_event(event_name: String) -> void:
+	if hosting and is_online() and not multiplayer.get_peers().is_empty():
+		_event.rpc(event_name)
+
+func send_stop_events() -> void:
+	if hosting and is_online() and not multiplayer.get_peers().is_empty():
+		_stop_events.rpc()
+
+@rpc("authority", "call_remote", "reliable")
+func _event(event_name: String) -> void:
+	var ev := _scene_node("Events")
+	if ev != null:
+		ev.run_event(event_name)
+
+@rpc("authority", "call_remote", "reliable")
+func _stop_events() -> void:
+	var ev := _scene_node("Events")
+	if ev != null:
+		ev.stop_all()
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:
@@ -213,16 +280,40 @@ func _clear_remotes() -> void:
 func _process(dt: float) -> void:
 	if not is_online():
 		return
+	if _hello_wait > 0.0:
+		_hello_wait -= dt
+		if _hello_wait <= 0.0:
+			leave()
+			_set_status("THE HOST RUNS A DIFFERENT VERSION // BOTH OF YOU: UPDATE IN THE LAUNCHER")
+			return
+	if debug:
+		_dbg_t -= dt
+		if _dbg_t <= 0.0:
+			_dbg_t = 2.0
+			var ent := _scene_node("Entity")
+			if ent != null:
+				printerr("NETDBG ", "HOST" if hosting else "GUEST", " peers=", multiplayer.get_peers().size(), " remotes=", remotes.size(),
+					" entity=(%.1f,%.1f) state=%s puppet=%s" % [ent.global_position.x, ent.global_position.z, ent.state, ent.puppet],
+					" me=", Game.player.global_position if Game.player else Vector3.ZERO, " sees=", remotes.values().map(func(r): return r.global_position))
+	if debug:
+		_measure(dt)
+
+# Snapshots go out from the physics step, where positions are set: 20 per second on a fixed grid
+func _send_state(dt: float) -> void:
 	_send_t -= dt
 	if _send_t > 0.0:
 		return
-	_send_t = SEND_INTERVAL
+	_send_t += SEND_INTERVAL
+	if _send_t < -SEND_INTERVAL:
+		_send_t = 0.0                  # fell far behind (hitch): don't burst
 	var p: Node = Game.player
 	if p == null or not is_instance_valid(p):
 		return
 	var cam: Camera3D = p.get_node_or_null("Camera3D")
-	_state.rpc(p.global_position, p.rotation.y, cam.rotation.x if cam else 0.0,
-		bool(p.get("is_crouching")), bool(p.get("flash_on")), bool(p.get("dead")))
+	var v: Vector3 = p.velocity if p is CharacterBody3D else Vector3.ZERO
+	var flags := (1 if p.get("is_crouching") else 0) | (2 if p.get("flash_on") else 0) | (4 if p.get("dead") else 0) | (8 if Game.playing else 0)
+	_state.rpc(clock(), p.global_position, p.rotation.y, cam.rotation.x if cam else 0.0,
+		Vector2(v.x, v.z).length(), flags, Game.level_index)
 
 # ---- cloudflared ------------------------------------------------------------------------------
 func _start_tunnel() -> void:
@@ -273,3 +364,35 @@ func _set_tunnel_url(url: String) -> void:
 func _set_status(text: String) -> void:
 	status = text
 	status_changed.emit(text)
+
+# ---- TEMP TEST
+var _tw := 0.0
+var _stats := []
+var _last := Vector3.INF
+func _physics_process(dt: float) -> void:
+	if not debug or not is_online():
+		return
+	if hosting and Game.player:
+		_tw += dt
+		var c := Vector3(184.5, 0.1, 63.0)
+		Game.player.global_position = c + Vector3(cos(_tw * 1.1), 0, sin(_tw * 1.1)) * 3.6
+
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_INTERNAL_PROCESS:
+		return
+
+var _mt := 0.0
+func _measure(dt: float) -> void:
+	if hosting or remotes.is_empty() or dt <= 0.0:
+		return
+	var r: Node3D = remotes.values()[0]
+	if _last != Vector3.INF:
+		_stats.append(r.global_position.distance_to(_last) / dt)
+	_last = r.global_position
+	if _stats.size() >= 240:
+		var mn := INF; var mx := 0.0; var sum := 0.0; var bad := 0
+		for v in _stats:
+			mn = minf(mn, v); mx = maxf(mx, v); sum += v
+			if absf(v - 3.96) > 1.0: bad += 1
+		printerr("SMOOTH speed mean=%.2f min=%.2f max=%.2f (true 3.96) off_frames=%d/240 fps=%d" % [sum / _stats.size(), mn, mx, bad, Engine.get_frames_per_second()])
+		_stats.clear()

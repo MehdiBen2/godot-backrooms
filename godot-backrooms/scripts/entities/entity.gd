@@ -92,7 +92,22 @@ var last_vel := Vector3.ZERO
 var last_seen_time := 0.0
 var entity_noises: Array = []
 var tgt := {"pos": Vector3.ZERO, "look": Vector3.FORWARD, "moving": false, "sprinting": false,
-	"crouching": false, "torch": false, "lit": 0.0}
+	"crouching": false, "torch": false, "lit": 0.0, "dead": false}
+
+# ---- co-op: the host's PC runs the AI and hunts the nearest living survivor; everyone else gets a
+# puppet that follows the host's broadcast (see Net._entity). Order matters: it is sent as an index.
+const STATES := ["roam", "investigate", "search", "chase", "screech", "stalk", "stunned", "flee"]
+const FOCUS_STICK := 0.8              # squared-distance factor: a new target must be clearly closer to steal it
+var puppet := false                   # this copy only follows the host
+var focus: Node3D                     # the survivor it is aimed at (its head tracks them)
+var net_pos := Vector3.ZERO
+var net_yaw := 0.0
+var net_speed := 0.0
+var net_state := "roam"
+var net_have := false
+var net_buf = preload("res://scripts/net/snap_buffer.gd").new()
+var _net_t := 0.0
+var _peer_dead := {}                  # peer id -> was dead last look (a fresh death near it makes it run off, fed)
 
 # ---- state machine
 var state := "roam"
@@ -276,7 +291,7 @@ func roam_spot() -> bool:
 				options.append(x * n + z)
 	if options.is_empty():
 		return false
-	var who := player.global_position
+	var who: Vector3 = tgt.pos
 	var menace := since_encounter > MENACE_TIME
 	var interest_fresh: bool = roam_clock - interest.at < 70.0
 	var best := -1
@@ -332,14 +347,52 @@ func hear(pos: Vector3, radius: float) -> void:
 	if entity_noises.size() < 16:
 		entity_noises.append({"x": pos.x, "z": pos.z, "r": radius})
 
+# It hunts whoever is closest of every living survivor (this player and each remote one), sticking to its
+# current target unless another is clearly nearer. Everything below reads the result from `tgt`.
 func gather_target() -> void:
-	tgt.pos = player.global_position
-	tgt.moving = player.is_moving
-	tgt.sprinting = player.is_sprinting
-	tgt.crouching = player.is_crouching
-	tgt.torch = player.flash_on and player.battery > 0.0
-	tgt.lit = player.light_level
-	tgt.look = -player.cam.global_transform.basis.z
+	var here := global_position
+	var best: Node3D = null
+	var best_key := INF
+	if not player.dead and Game.playing:
+		best = player
+		best_key = here.distance_squared_to(player.global_position) * (FOCUS_STICK if focus == player else 1.0)
+	for id in Net.remotes:
+		var r: Node3D = Net.remotes[id]
+		if not is_instance_valid(r) or not r.seen or not r.visible or not r.playing:
+			continue
+		if r.dead:
+			# it has fed on this one (the survivor's own copy plays the grab): back off, don't stand over the body
+			if not _peer_dead.get(id, false) and here.distance_to(r.global_position) < 9.0 and not puppet:
+				run_away()
+			_peer_dead[id] = true
+			continue
+		_peer_dead[id] = false
+		var key := here.distance_squared_to(r.global_position) * (FOCUS_STICK if focus == r else 1.0)
+		if key < best_key:
+			best = r
+			best_key = key
+	focus = best
+	tgt.dead = best == null
+	if best == null:
+		return
+	if best == player:
+		tgt.pos = player.global_position
+		tgt.moving = player.is_moving
+		tgt.sprinting = player.is_sprinting
+		tgt.crouching = player.is_crouching
+		tgt.torch = player.flash_on and player.battery > 0.0
+		tgt.lit = player.light_level
+		tgt.look = -player.cam.global_transform.basis.z
+	else:
+		# another survivor: what we can tell from what they send (no light meter, so a torch stands in)
+		tgt.pos = best.target_pos              # newest known spot, not the (slightly delayed) drawn one
+		tgt.moving = best.speed > 0.1
+		tgt.sprinting = best.speed > 3.2
+		tgt.crouching = best.crouching
+		tgt.torch = best.torch_on
+		tgt.lit = 0.6 if best.torch_on else 0.3
+		var cp := cos(best.target_pitch)
+		tgt.look = Vector3(-sin(best.rotation.y) * cp, sin(best.target_pitch), -cos(best.rotation.y) * cp)
 
 # Returns the loudest thing it heard this think, or null
 func perceive(dt: float):
@@ -348,7 +401,7 @@ func perceive(dt: float):
 	var fwd_z := cos(yaw)
 	var best := false
 	var best_score := 0.0
-	if not player.dead:
+	if not tgt.dead:
 		var dx: float = tgt.pos.x - p.x
 		var dz: float = tgt.pos.z - p.z
 		var dist := Vector2(dx, dz).length()
@@ -380,7 +433,7 @@ func perceive(dt: float):
 
 	# Hearing: footsteps while moving, plus queued noises (gunshots)
 	var res := {"heard": null, "score": 0.0}
-	if not player.dead and tgt.moving:
+	if not tgt.dead and tgt.moving:
 		_consider_noise(res, tgt.pos.x, tgt.pos.z, HEAR_SPRINT if tgt.sprinting else (HEAR_CROUCH if tgt.crouching else HEAR_WALK))
 	for nz in entity_noises:
 		_consider_noise(res, nz.x, nz.z, nz.r)
@@ -546,12 +599,12 @@ func _stalk_open(x: int, z: int, anywhere: bool) -> bool:
 	return not blocked(x, z) if anywhere else reach[x * n + z] >= 0
 
 func begin_stalk(teleport := false) -> bool:
-	if player.dead:
+	if tgt.dead:
 		return false
-	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z).length()
+	var d := Vector2(tgt.pos.x - global_position.x, tgt.pos.z - global_position.z).length()
 	if not teleport and d > STALK_MAX_DIST * 3.0:
 		return false
-	if not find_stalk_spot(player.global_position, teleport):
+	if not find_stalk_spot(tgt.pos, teleport):
 		return false
 	if teleport:
 		global_position = stalk_hide
@@ -568,7 +621,7 @@ func begin_stalk(teleport := false) -> bool:
 # Caught: turn and run somewhere far from them and out of their sight.
 # `from` = something else it's running from (THE MANNEQUIN)
 func start_flee(from = null) -> void:
-	var who: Vector3 = from if from != null else player.global_position
+	var who: Vector3 = from if from != null else tgt.pos
 	var watcher: bool = from == null and stalk_active
 	set_state("flee")
 	stalk_active = false
@@ -663,7 +716,7 @@ func _peek_retreat() -> void:
 	peek_timer = rng.randf_range(2.5, 5.0)
 
 func think_stalk(dt: float) -> void:
-	if not stalk_active or player.dead:
+	if not stalk_active or tgt.dead:
 		end_flee()
 		return
 	var p := global_position
@@ -788,7 +841,7 @@ func think(dt: float) -> void:
 	# Being watched: look straight at it from a distance and it stops dead and stares back
 	staring = maxf(0.0, staring - dt)
 	stare_cooldown -= dt
-	if (state == "roam" or state == "search" or state == "investigate") and staring <= 0.0 and stare_cooldown <= 0.0 and not player.dead:
+	if (state == "roam" or state == "search" or state == "investigate") and staring <= 0.0 and stare_cooldown <= 0.0 and not tgt.dead:
 		var dx: float = p.x - tgt.pos.x
 		var dz: float = p.z - tgt.pos.z
 		var d2 := Vector2(dx, dz).length()
@@ -899,7 +952,15 @@ func move(delta: float) -> void:
 
 # ================================================================= per frame
 func _physics_process(delta: float) -> void:
-	if not Game.playing:
+	var online := Net.is_online()
+	puppet = online and not Net.hosting
+	# in co-op it keeps hunting even while this player has the menu open: the others are still in the game
+	if not Game.playing and not online:
+		return
+	if online and not puppet:
+		_net_send(delta)
+	if puppet:
+		_puppet_step(delta)
 		return
 	if grab.active():
 		grab.update(delta)
@@ -936,6 +997,8 @@ func _physics_process(delta: float) -> void:
 var static_timer := 0.0
 
 func update_fear(delta: float) -> void:
+	if not Game.playing:
+		return                       # menu open (co-op): nothing may hurt you from there
 	var dist := global_position.distance_to(player.global_position)
 	var near: bool = dist < TERROR_DISTANCE and not player.dead
 	var hunting := state == "chase" or state == "screech"
@@ -980,6 +1043,53 @@ func update_fear(delta: float) -> void:
 	# frozen = the mannequin is already snapping your neck, or a survivor's blow has you stunned
 	if dist < KILL_DISTANCE and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not grab.active() and stun_timer <= 0.0:
 		grab.start()
+
+# ================================================================= co-op
+# Host: broadcast where it is and what it is doing, 10 times a second
+func _net_send(delta: float) -> void:
+	_net_t -= delta
+	if _net_t > 0.0:
+		return
+	_net_t = 0.05
+	var fid := 0
+	if focus != null and is_instance_valid(focus):
+		fid = multiplayer.get_unique_id() if focus == player else Net.id_of(focus)
+	Net.send_entity([global_position.x, global_position.z, yaw, maxi(0, STATES.find(state)), speed_now,
+		lunge, lunge_windup, peek_amt, staring, seen_target, fid, process_mode != Node.PROCESS_MODE_DISABLED])
+
+# Guest: the host's latest snapshot (Net._entity)
+func net_apply(t: float, m: Array) -> void:
+	net_buf.send_interval = 0.05
+	net_buf.push(t, {"pos": Vector3(m[0], 0.0, m[1]), "yaw": float(m[2]), "speed": float(m[4]), "m": m})
+
+# Guest: glide to the host's entity; the fear, sound and the grab still play here, against this player
+func _puppet_step(delta: float) -> void:
+	if grab.active():
+		grab.update(delta)
+		return
+	var st: Dictionary = net_buf.sample(delta)
+	if not st.is_empty():
+		var m: Array = st.m
+		net_have = true
+		global_position = st.pos
+		yaw = st.yaw
+		net_speed = st.speed
+		net_state = STATES[clampi(int(m[3]), 0, STATES.size() - 1)]
+		lunge = m[5]
+		lunge_windup = m[6]
+		peek_amt = m[7]
+		staring = m[8]
+		seen_target = m[9]
+		focus = player if int(m[10]) == multiplayer.get_unique_id() else Net.remotes.get(int(m[10]))
+		visible = m[11]
+	rotation.y = yaw
+	speed_now = net_speed
+	if net_state != state:
+		set_state(net_state)
+	state_time += delta
+	rig.animate(delta, speed_now, state)
+	vocalize(delta, state)
+	update_fear(delta)
 
 # ================================================================= public API (dev / other systems)
 func relocate() -> void:

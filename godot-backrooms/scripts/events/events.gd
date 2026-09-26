@@ -157,6 +157,7 @@ func reset() -> void:
 	threshold = rng.randf_range(FIRST_MIN, FIRST_MAX)
 
 func stop_all() -> void:
+	Net.send_stop_events()
 	clear_events()
 	tension = 0.0
 	threshold = rng.randf_range(GAP_MIN, GAP_MAX)
@@ -220,6 +221,8 @@ func _process(dt: float) -> void:
 		if not w.fn.call(dt, w.t):
 			watchers.remove_at(i)
 	track_stillness(dt)
+	if Net.is_online() and not Net.hosting:
+		return                        # co-op: the host decides when something happens; we only play what it sends
 	if not director_calm():
 		return
 	if recovery > 0.0:
@@ -280,6 +283,7 @@ func run_event(name: String) -> bool:
 			continue
 		last = name
 		last_at = Game.time
+		Net.send_event(name)          # co-op host: everyone gets it
 		history[name] = Game.time
 		busy_until = Game.time + e.duration
 		recovery = RECOVERY_BASE + RECOVERY_PER_INTENSITY * e.intensity

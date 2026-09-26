@@ -292,7 +292,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_prev_speed = move_speed
 	if skel == null:
 		return
-	var player: Node3D = e.player
+	var player: Node3D = e.focus if is_instance_valid(e.focus) else e.player
 	var to_p := player.global_position - e.global_position
 	var dist := Vector2(to_p.x, to_p.z).length()
 	var close := maxf(0.0, 1.0 - dist / 25.0)

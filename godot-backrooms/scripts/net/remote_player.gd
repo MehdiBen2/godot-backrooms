@@ -20,6 +20,7 @@ var crouching := false
 var torch_on := true
 var dead := false
 var seen := false
+var playing := true              # false while they sit in the menu: the monsters leave them alone
 
 var body: Node3D                # box figure + torch; the torch stays when the model replaces the box
 var figure: Node3D              # the box figure only
@@ -34,7 +35,9 @@ var clips := {}                 # role -> animation name found in the model
 var _role := ""
 var _walk := 0.0
 var _speed := 0.0
+var speed := 0.0                # m/s, smoothed; read by the entity's senses
 var _fall := 0.0
+var buf = preload("res://scripts/net/snap_buffer.gd").new()
 
 func _ready() -> void:
 	body = Node3D.new()
@@ -184,31 +187,34 @@ func _anim_speed() -> float:
 		"crouch_walk": return clampf(_speed / 1.4, 0.5, 2.0)
 	return 1.0
 
-func apply_state(pos: Vector3, yaw: float, pitch: float, crouch: bool, torch: bool, is_dead: bool) -> void:
-	target_pos = pos
-	target_yaw = yaw
-	target_pitch = pitch
-	crouching = crouch
-	torch_on = torch
-	dead = is_dead
-	if not seen:
-		seen = true
-		global_position = pos
-		rotation.y = yaw
-		visible = true
+## A snapshot from the network: sender clock t (s), feet position, facing, look pitch, ground speed
+func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
+	buf.push(t, {"pos": pos, "yaw": yaw, "pitch": pitch, "speed": spd, "flags": flags, "level": level})
 
 func _process(dt: float) -> void:
-	if not seen:
+	var st := buf.sample(dt)
+	if st.is_empty():
 		return
+	var flags: int = st.flags
+	crouching = flags & 1 != 0
+	torch_on = flags & 2 != 0
+	dead = flags & 4 != 0
+	playing = flags & 8 != 0
+	# a survivor still loading another level (level change, respawn) isn't in our world yet
+	visible = int(st.level) == Game.level_index
+	global_position = st.pos
+	rotation.y = st.yaw
+	target_pos = buf.latest().pos
+	target_yaw = st.yaw
+	target_pitch = st.pitch
+	if not seen:
+		seen = true
+	# their own speed, as measured on their machine: animations match what they are really doing
+	_speed = st.speed
+	speed = _speed
 	var k := minf(1.0, dt * SMOOTH)
-	var prev := global_position
-	global_position = global_position.lerp(target_pos, k)
-	rotation.y += wrapf(target_yaw - rotation.y, -PI, PI) * k
-
-	var moved := Vector2(global_position.x - prev.x, global_position.z - prev.z).length()
-	_speed += ((moved / dt if dt > 0.0 else 0.0) - _speed) * minf(1.0, dt * 10.0)
 	light.rotation.x = target_pitch
-	light.visible = torch_on and not dead
+	light.visible = torch_on and not dead and visible
 
 	if anim != null:
 		_play(_pick_role(_speed > MOVING_ABOVE, _speed > SPRINT_ABOVE))
