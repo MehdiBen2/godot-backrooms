@@ -66,6 +66,7 @@ var _orbit_ang := 0.0
 var _radius_now := ORBIT_RADIUS # clearance-limited orbit radius (a spring arm)
 var _trauma := 0.0              # impact shake, squared on smooth noise
 var _landed := false
+var _land_t := -1.0            # seconds since the body hit the floor (drives the thump), -1 before
 var _fall_sounded := false
 var _body_light: OmniLight3D = null
 
@@ -108,6 +109,7 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	_radius_now = ORBIT_RADIUS
 	_trauma = 0.0
 	_landed = false
+	_land_t = -1.0
 	_fall_sounded = false
 	_focus = p_pos + Vector3(0.0, 1.2, 0.0)
 	_centre = p_pos
@@ -143,7 +145,8 @@ func _remove_body_light() -> void:
 # The body hitting the floor: the camera takes the jolt (the sound was started FALL_ONSET earlier)
 func _land() -> void:
 	_landed = true
-	_trauma = maxf(_trauma, 0.6)
+	_trauma = maxf(_trauma, 0.75)
+	_land_t = 0.0
 
 ## The bacteria's jaws close on you: blood sprays from its mouth and pools on the floor. Called from entity.gd at the bite.
 func bite(mouth: Vector3, victim: Vector3, cam_pos: Vector3) -> void:
@@ -284,6 +287,10 @@ func _process(delta: float) -> void:
 	var float_w := _smoothstep((t - 0.8) / 2.0)
 	pos += Vector3(_noise(1.0, t * 0.45), _noise(2.0, t * 0.35) * 0.6, _noise(3.0, t * 0.45)) * 0.05 * float_w
 	pos += Vector3(_noise(4.0, t * 9.0), _noise(5.0, t * 9.0), _noise(6.0, t * 9.0)) * 0.06 * tr2
+	# the thump: one quick damped bounce down and back, under the noise
+	if _land_t >= 0.0:
+		_land_t += delta
+		pos.y += sin(_land_t * 26.0) * exp(-_land_t * 7.0) * -0.035
 	# the ray above only sees walls in front of the lens: also keep it off one running alongside
 	if t > 0.3:
 		pos = _push_off_walls(pos)
