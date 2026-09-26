@@ -13,6 +13,7 @@ func _ready() -> void:
 	Game.dead = false
 	Death.warmup.call_deferred()
 	ui.apply_settings()
+	Gfx.apply_scene(self)
 	$Entity.mannequin = $Mannequin
 	$Events.mimic = $Mimic
 	if Game.respawned:

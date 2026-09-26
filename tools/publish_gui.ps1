@@ -64,7 +64,8 @@ $timer.Add_Tick({
     if ($script:proc -and $script:proc.HasExited) {
         $timer.Stop()
         $btn.Enabled = $true; $btn.Text = "PUBLISH"
-        if ($script:proc.ExitCode -eq 0) {
+        $published = (Test-Path $log) -and ((Get-Content $log -Raw) -match "Published v")
+        if ($published -or $script:proc.ExitCode -eq 0) {
             $out.AppendText("`r`n`r`nDONE. Your friend's launcher will offer the update on its next start.")
             $ver.Text = Get-NextVersion
         } else {
@@ -91,6 +92,7 @@ $btn.Add_Click({
     $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\publish.ps1`" -Version $v -Notes `"$n`""
     $script:proc = Start-Process powershell -ArgumentList $args -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $log -RedirectStandardError $err
+    $null = $script:proc.Handle          # PS 5.1 only keeps ExitCode if the handle is cached
     $timer.Start()
 })
 

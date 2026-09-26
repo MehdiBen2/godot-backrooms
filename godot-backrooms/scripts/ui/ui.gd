@@ -50,6 +50,7 @@ func _ready() -> void:
 		mat.set_shader_parameter("lens_dirt_tex", load("res://textures/lens_dirt.png"))
 	post.material = mat
 	post_mat = mat
+	Gfx.register_post(mat)
 	post_layer.add_child(post)
 	get_parent().add_child.call_deferred(post_layer)
 

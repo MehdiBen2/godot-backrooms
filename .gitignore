@@ -1,3 +1,8 @@
 
 # Exported builds (too large for git; published via GitHub Releases)
 build/
+
+# Exported launcher binaries (too large for git; send the exe directly)
+launcher/*.exe
+launcher/*.pck
+launcher/_dev_install/

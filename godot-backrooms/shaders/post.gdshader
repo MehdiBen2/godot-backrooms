@@ -19,6 +19,7 @@ uniform float pulse = 0.0;     // heartbeat envelope 0..1
 uniform float exhaust = 0.0;
 uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
 uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (scares.gd)
+uniform int post_quality = 2;      // 0 low (no lens glare / dirt / halation), 1 medium, 2 full
 uniform float insanity = 0.0;     // 0..1 low sanity: swimming blur, double vision, sagging edges
 // Grab / snap screen work (the web's CSS filter + transform on the canvas, and #grab-fade)
 uniform float fx_blur = 0.0;      // px
@@ -151,10 +152,10 @@ void fragment() {
 	float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
 	// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
 	float light_on_lens = smoothstep(0.58, 0.95, luma_local);
-	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.10, 1.05, 0.90);
+	if (post_quality >= 1) col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.10, 1.05, 0.90);
 
 	// Optical lens glare: subtle horizontal streak & gentle ghosts when looking at bright lights
-	if (glare_amt > 0.01) {
+	if (post_quality >= 2 && glare_amt > 0.01) {
 		// Anamorphic horizontal glare streak across the lens
 		vec3 glare_streak = vec3(0.0);
 		vec2 s_dir = vec2(px * 14.0, 0.0);
@@ -191,7 +192,7 @@ void fragment() {
 	// Lens halation: subtle diffusion around direct bulb elements
 	vec3 bloom_sample = textureLod(screen_tex, uvg, 3.5).rgb;
 	float bloom_luma = dot(bloom_sample, vec3(0.299, 0.587, 0.114));
-	if (bloom_luma > 0.60) {
+	if (post_quality >= 1 && bloom_luma > 0.60) {
 		col += bloom_sample * vec3(1.12, 0.98, 0.75) * (bloom_luma - 0.60) * halation_amt;
 	}
 

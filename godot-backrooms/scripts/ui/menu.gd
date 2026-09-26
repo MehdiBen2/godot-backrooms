@@ -261,7 +261,7 @@ func _build() -> void:
 	var nav := HBoxContainer.new()
 	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_theme_constant_override("separation", 28)
-	for n in ["multiplayer", "settings", "controls"]:
+	for n in ["multiplayer", "graphics", "settings", "controls"]:
 		var b := _link_button(n)
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
@@ -292,9 +292,11 @@ func _build() -> void:
 	pv.add_child(head)
 	pv.add_child(_spacer(20))
 	sections["multiplayer"] = _build_multiplayer()
+	sections["graphics"] = _build_graphics()
 	sections["settings"] = _build_settings()
 	sections["controls"] = _build_controls()
 	pv.add_child(sections["multiplayer"])
+	pv.add_child(sections["graphics"])
 	pv.add_child(sections["settings"])
 	pv.add_child(sections["controls"])
 
@@ -395,8 +397,8 @@ func _hint(text: String) -> Label:
 func _build_multiplayer() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
-	v.add_child(_section_title("HOST FROM THIS PC", true))
-	v.add_child(_hint("Opens a lobby here and starts a Cloudflare tunnel (needs cloudflared installed). Send the link below to your friends."))
+	v.add_child(_section_title("HOST A GAME", true))
+	v.add_child(_hint("Start a game and send the link to your friends."))
 	var host_row := HBoxContainer.new()
 	host_row.add_theme_constant_override("separation", 22)
 	var host_btn := _link_button("host game")
@@ -443,6 +445,105 @@ func _build_multiplayer() -> Control:
 func _do_join() -> void:
 	mp_addr.release_focus()
 	Net.join(mp_addr.text)
+
+# ---- graphics section (scripts/core/graphics.gd) ------------------------------------------
+var gfx_refresh: Array[Callable] = []
+var gfx_preset_buttons := {}
+var gfx_note: Label
+var gfx_scale_slider: HSlider
+
+func _opt_index(opts: Array, key: String) -> int:
+	for i in opts.size():
+		if opts[i][0] == Gfx.s.get(key):
+			return i
+	return 0
+
+func _padded(c: Control, v := 5) -> Control:
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_top", v)
+	m.add_theme_constant_override("margin_bottom", v)
+	m.add_child(c)
+	return m
+
+# One setting: the value is a link that steps to the next option on each click
+func _cycle_row(title: String, key: String, opts: Array) -> Control:
+	var b := _link_button("")
+	b.custom_minimum_size = Vector2(96, 0)
+	b.pressed.connect(func(): Gfx.set_value(key, opts[(_opt_index(opts, key) + 1) % opts.size()][0]))
+	gfx_refresh.append(func(): b.text = str(opts[_opt_index(opts, key)][1]).to_upper())
+	return _gfx_row(title, b)
+
+func _gfx_row(title: String, value: Control) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var n := _label(title.to_upper(), 12, Color(0.9, 0.882, 0.804, 0.75), 2)
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(n)
+	row.add_child(value)
+	return _padded(row)
+
+func _build_graphics() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.add_child(_section_title("QUALITY PRESET", true))
+	var presets := HBoxContainer.new()
+	presets.add_theme_constant_override("separation", 20)
+	for n in Gfx.ORDER:
+		var b := _link_button(n)
+		b.pressed.connect(func(): Gfx.set_preset(n))
+		presets.add_child(b)
+		gfx_preset_buttons[n] = b
+	v.add_child(_padded(presets, 8))
+	gfx_note = _label("", 11, Color(0.9, 0.882, 0.804, 0.45))
+	gfx_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	gfx_note.custom_minimum_size = Vector2(300, 0)
+	v.add_child(gfx_note)
+
+	v.add_child(_section_title("DISPLAY"))
+	var sl := _slider_row("Render scale", 50, 100, int(Gfx.s.scale), func(x: int): Gfx.set_value("scale", x))
+	gfx_scale_slider = sl.find_children("*", "HSlider", true, false)[0]
+	v.add_child(sl)
+	var fs := _link_button("")
+	fs.custom_minimum_size = Vector2(96, 0)
+	fs.pressed.connect(func(): Gfx.set_fullscreen(DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN))
+	gfx_refresh.append(func(): fs.text = "ON" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "OFF")
+	v.add_child(_gfx_row("Fullscreen", fs))
+	var off_on := [[false, "Off"], [true, "On"]]
+	v.add_child(_cycle_row("VSync", "vsync", off_on))
+	v.add_child(_cycle_row("FPS limit", "fps", [[0, "Unlimited"], [30, "30"], [60, "60"], [120, "120"], [144, "144"]]))
+
+	v.add_child(_section_title("IMAGE"))
+	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))
+	v.add_child(_cycle_row("Edge smoothing (FXAA)", "fxaa", off_on))
+	v.add_child(_cycle_row("Texture filtering", "aniso", [[0, "Off"], [2, "2x"], [4, "4x"], [8, "8x"], [16, "16x"]]))
+	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
+	v.add_child(_cycle_row("Bloom", "glow", off_on))
+
+	v.add_child(_section_title("LIGHTING"))
+	var quality := [[0, "Off"], [1, "Low"], [2, "Medium"], [3, "High"]]
+	v.add_child(_cycle_row("Shadows", "shadows", quality))
+	v.add_child(_cycle_row("Ambient occlusion", "ssao", quality))
+	v.add_child(_cycle_row("Global illumination", "ssil", off_on))
+	v.add_child(_cycle_row("Reflections", "ssr", off_on))
+	v.add_child(_cycle_row("Volumetric fog", "vfog", quality))
+	Gfx.changed.connect(_gfx_sync)
+	_gfx_sync()
+	return v
+
+func _gfx_sync() -> void:
+	for c in gfx_refresh:
+		c.call()
+	for n in gfx_preset_buttons:
+		var b: Button = gfx_preset_buttons[n]
+		var active: bool = Gfx.preset == n
+		b.add_theme_stylebox_override("normal", _underline(RED if active else Color(0.9, 0.882, 0.804, 0.25)))
+		b.add_theme_color_override("font_color", Color.WHITE if active else Color(0.9, 0.882, 0.804, 0.7))
+	if gfx_scale_slider and int(gfx_scale_slider.value) != int(Gfx.s.scale):
+		gfx_scale_slider.value = Gfx.s.scale
+	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for weak PCs. Ultra adds global illumination and the sharpest shadows."
+	if Gfx.compat:
+		note = "Compatibility renderer: ambient occlusion, reflections, global illumination and volumetric fog are unavailable on this PC."
+	gfx_note.text = note
 
 # ---- controls section --------------------------------------------------------------
 func _kbd(text: String) -> Control:

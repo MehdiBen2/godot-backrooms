@@ -13,12 +13,15 @@ config_version=5
 config/name="Backrooms Launcher"
 run/main_scene="res://launcher.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/image="res://splash.png"
 
 [display]
 
-window/size/viewport_width=720
-window/size/viewport_height=420
+window/size/viewport_width=960
+window/size/viewport_height=540
 window/size/resizable=false
+window/size/borderless=true
 
 [rendering]
 

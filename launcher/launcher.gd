@@ -22,6 +22,7 @@ var notes := ""
 
 var http_check: HTTPRequest
 var http_dl: HTTPRequest
+var http_notes: HTTPRequest
 var status: Label
 var version_label: Label
 var notes_box: RichTextLabel
@@ -31,6 +32,18 @@ var check_btn: Button
 var name_edit: LineEdit
 var addr_edit: LineEdit
 var config := ConfigFile.new()
+var bg: TextureRect
+var rec_dot: Label
+var status_dot: ColorRect
+var notes_panel: PanelContainer
+var notes_title: Label
+var notes_btn: Button
+var pct_label: Label
+var asset_size := 0        # bytes, from the release data (the CDN often omits Content-Length)
+var _t := 0.0
+
+const BG_PATH := "res://img/background.png"
+const GREEN := Color("7fae72")
 
 # Palette and font match the game's menu (scripts/menu.gd / ui.gd)
 const CREAM := Color("e6e1cd")
@@ -45,9 +58,20 @@ var font: FontFile = load("res://fonts/vcr.ttf")
 func _ready() -> void:
 	config.load(CONFIG_PATH)
 	_build_ui()
+	# fade in, and let the picture drift slowly like a held camera
+	modulate.a = 0.0
+	create_tween().tween_property(self, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	bg.pivot_offset = get_viewport_rect().size / 2.0
+	var drift := create_tween().set_loops()
+	drift.tween_property(bg, "scale", Vector2.ONE * 1.06, 16.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	drift.tween_property(bg, "scale", Vector2.ONE, 16.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	http_check = HTTPRequest.new()
 	add_child(http_check)
+	http_check.max_redirects = 0
 	http_check.request_completed.connect(_on_check_done)
+	http_notes = HTTPRequest.new()
+	add_child(http_notes)
+	http_notes.request_completed.connect(_on_notes_done)
 	http_dl = HTTPRequest.new()
 	add_child(http_dl)
 	http_dl.request_completed.connect(_on_download_done)
@@ -78,36 +102,54 @@ func _read_local_version() -> String:
 # ------------------------------------------------------------------ update check
 
 func check_for_update() -> void:
+	# github.com/<repo>/releases/latest redirects to .../releases/tag/<tag>: the tag comes from that
+	# redirect, which (unlike api.github.com, 60 requests/hour per IP) has no rate limit.
 	_set_state(State.CHECKING)
-	var headers := PackedStringArray(["User-Agent: backrooms-launcher", "Accept: application/vnd.github+json"])
-	var err := http_check.request("https://api.github.com/repos/%s/releases/latest" % REPO, headers)
+	var err := http_check.request("https://github.com/%s/releases/latest" % REPO, PackedStringArray(["User-Agent: backrooms-launcher"]))
 	if err != OK:
 		_go_offline("Could not start the update check.")
 
 
-func _on_check_done(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
+func _on_check_done(result: int, code: int, headers: PackedStringArray, _body: PackedByteArray) -> void:
+	# max_redirects = 0, so the 302 we are after is reported as "redirect limit reached"
+	if result != HTTPRequest.RESULT_SUCCESS and result != HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED:
+		_go_offline("Update check failed: no connection.")
+		return
+	var tag := ""
+	for h in headers:
+		if h.to_lower().begins_with("location:"):
+			var loc := h.substr(9).strip_edges()
+			if "/releases/tag/" in loc:
+				tag = loc.get_slice("/releases/tag/", 1).uri_decode()
+	if tag == "":
+		_go_offline("Update check failed: no release published yet." if code == 302 or code == 404 else "Update check failed: GitHub returned %d." % code)
+		return
+	remote_version = tag
+	asset_url = "https://github.com/%s/releases/download/%s/%s" % [REPO, tag, ASSET_NAME]
+	notes = ""
+	asset_size = 0
+	notes_box.text = ""
+	notes_btn.visible = false
+	_set_state(State.UPDATE if local_version != remote_version else State.READY)
+	# release notes + exact file size: nice to have, so a rate-limited API only costs the notes
+	http_notes.request("https://api.github.com/repos/%s/releases/tags/%s" % [REPO, tag.uri_encode()],
+		PackedStringArray(["User-Agent: backrooms-launcher", "Accept: application/vnd.github+json"]))
+
+
+func _on_notes_done(result: int, code: int, _h: PackedStringArray, body: PackedByteArray) -> void:
 	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
-		var why := "no connection" if result != HTTPRequest.RESULT_SUCCESS else "GitHub returned %d (no release yet, or repo is private)" % code
-		_go_offline("Update check failed: %s." % why)
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
-	if typeof(data) != TYPE_DICTIONARY:
-		_go_offline("Update check returned bad data.")
+	if typeof(data) != TYPE_DICTIONARY or str(data.get("tag_name", "")) != remote_version:
 		return
-	remote_version = str(data.get("tag_name", ""))
 	notes = str(data.get("body", ""))
-	asset_url = ""
 	for a in data.get("assets", []):
 		if a.get("name", "") == ASSET_NAME:
-			asset_url = a.get("browser_download_url", "")
-	if asset_url == "":
-		_go_offline("Latest release has no %s asset." % ASSET_NAME)
-		return
-	notes_box.text = notes if notes != "" else "(no release notes)"
-	if local_version != remote_version:
-		_set_state(State.UPDATE)
-	else:
-		_set_state(State.READY)
+			asset_size = int(a.get("size", 0))
+	notes_box.text = notes
+	notes_btn.visible = notes != ""
+	if state == State.UPDATE and notes != "":
+		notes_panel.visible = true
 
 
 func _go_offline(msg: String) -> void:
@@ -215,7 +257,21 @@ func _save_config() -> void:
 
 func _set_state(s: State) -> void:
 	state = s
-	bar.visible = s == State.DOWNLOADING or s == State.INSTALLING
+	var busy := s == State.DOWNLOADING or s == State.INSTALLING
+	bar.get_parent().modulate.a = 1.0 if busy else 0.0       # invisible, not hidden: no layout jump
+	if s == State.INSTALLING:
+		bar.value = 100.0
+		pct_label.text = "100%"
+	elif s != State.DOWNLOADING:
+		bar.value = 0.0
+		pct_label.text = ""
+	_style_play(s == State.UPDATE)
+	status_dot.color = {
+		State.CHECKING: Color(INK, 0.6), State.READY: GREEN, State.UPDATE: AMBER,
+		State.DOWNLOADING: AMBER, State.INSTALLING: AMBER, State.OFFLINE: REC_RED}[s]
+	if s == State.UPDATE and notes != "":
+		notes_panel.visible = true                            # show what's new when an update waits
+	notes_title.text = "WHAT'S NEW  //  %s" % remote_version if remote_version != "" else "WHAT'S NEW"
 	play_btn.disabled = false
 	check_btn.disabled = s == State.CHECKING or s == State.DOWNLOADING or s == State.INSTALLING
 	version_label.text = "Installed: %s    Latest: %s" % [
@@ -244,12 +300,26 @@ func _set_state(s: State) -> void:
 			play_btn.text = ("Play" if local_version != "" else "Retry").to_upper()
 
 
-func _process(_dt: float) -> void:
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and (e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER) and not play_btn.disabled:
+		_on_play_pressed()
+
+
+func _process(dt: float) -> void:
+	_t += dt
+	rec_dot.modulate.a = 1.0 if fmod(_t, 1.1) < 0.55 else 0.0      # REC light blinks like the game's
 	if state == State.DOWNLOADING:
 		var total := http_dl.get_body_size()
+		if total <= 0:
+			total = asset_size
 		var got := http_dl.get_downloaded_bytes()
-		bar.value = 100.0 * got / total if total > 0 else 0.0
-		status.text = "Downloading %s... %.1f MB" % [remote_version, got / 1048576.0]
+		var frac := clampf(float(got) / total, 0.0, 1.0) if total > 0 else 0.0
+		bar.value = frac * 100.0
+		pct_label.text = "%d%%" % int(frac * 100.0) if total > 0 else "..."
+		if total > 0:
+			status.text = "Downloading %s   %.1f / %.1f MB" % [remote_version, got / 1048576.0, total / 1048576.0]
+		else:
+			status.text = "Downloading %s   %.1f MB" % [remote_version, got / 1048576.0]
 	elif _game_pid > 0 and not _game_running():
 		_game_pid = -1
 		if state != State.CHECKING:
@@ -342,82 +412,269 @@ func _line_edit(placeholder: String, text: String) -> LineEdit:
 	return e
 
 
+func _full(c: Control) -> Control:
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	return c
+
+
+# Vertical gradient texture (top -> bottom) stretched over a rect
+func _fade(colors: PackedColorArray, offsets: PackedFloat32Array) -> TextureRect:
+	var g := Gradient.new()
+	g.offsets = offsets
+	g.colors = colors
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.width = 4
+	gt.height = 256
+	gt.fill_from = Vector2(0, 0)
+	gt.fill_to = Vector2(0, 1)
+	var tr := TextureRect.new()
+	tr.texture = gt
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return tr
+
+
+func _btn_box(fill: Color, border: Color) -> StyleBoxFlat:
+	var sb := _box(fill, border, Vector4(1, 1, 1, 1))
+	sb.content_margin_left = 18
+	sb.content_margin_right = 18
+	sb.content_margin_top = 12
+	sb.content_margin_bottom = 12
+	return sb
+
+
+# The big action button: outlined normally, filled red when an update/install is waiting
+func _style_play(hot: bool) -> void:
+	var fill := Color(RED, 0.9) if hot else Color(0, 0, 0, 0.35)
+	var border := RED if hot else Color(INK, 0.55)
+	play_btn.add_theme_stylebox_override("normal", _btn_box(fill, border))
+	play_btn.add_theme_stylebox_override("hover", _btn_box(Color(RED, 0.95), Color("e0453b")))
+	play_btn.add_theme_stylebox_override("pressed", _btn_box(Color("8f1c16"), RED))
+	play_btn.add_theme_stylebox_override("disabled", _btn_box(Color(0, 0, 0, 0.25), Color(INK, 0.12)))
+
+
+func _spacer_w(w: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size.x = w
+	return c
+
+
+# Minimise / close square in the title bar; the close one goes red on hover
+func _win_button(text: String, close: bool) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.custom_minimum_size = Vector2(34, 26)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_override("font", _font(0))
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_color_override("font_color", Color(INK, 0.65))
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.add_theme_color_override("font_pressed_color", Color.WHITE)
+	var hover := _box(Color(RED, 0.9) if close else Color(INK, 0.14))
+	b.add_theme_stylebox_override("normal", _box(Color(0, 0, 0, 0)))
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("pressed", _box(Color("8f1c16") if close else Color(INK, 0.22)))
+	return b
+
+
 func _build_ui() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color(0.012, 0.012, 0.008)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	var black := ColorRect.new()
+	black.color = Color(0.012, 0.012, 0.008)
+	add_child(_full(black))
 
+	# The frame is very dark, so lift it a little; it drifts slowly like a held camera
+	bg = TextureRect.new()
+	if ResourceLoader.exists(BG_PATH):
+		bg.texture = load(BG_PATH)
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg.modulate = Color(1.8, 1.7, 1.5)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_full(bg))
+
+	# top veil so the HUD text stays readable over the picture
+	var top := _fade(PackedColorArray([Color(0.012, 0.012, 0.008, 0.75), Color(0.012, 0.012, 0.008, 0.0)]), PackedFloat32Array([0.0, 1.0]))
+	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top.offset_bottom = 110
+	add_child(top)
+
+	# bottom strip: the picture fades to near-black behind the controls
+	var strip := _fade(PackedColorArray([
+		Color(0.012, 0.012, 0.008, 0.0), Color(0.012, 0.012, 0.008, 0.72), Color(0.012, 0.012, 0.008, 0.96)]),
+		PackedFloat32Array([0.0, 0.42, 1.0]))
+	strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	strip.offset_top = -318
+	strip.offset_bottom = 0
+	add_child(strip)
+
+	# --- custom title bar: drag anywhere along the top to move the window ---
+	var drag := Control.new()
+	drag.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	drag.offset_bottom = 52
+	drag.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			DisplayServer.window_start_drag())
+	add_child(drag)
+
+	# --- top HUD: REC tag on the left, versions on the right ---
+	var hud := MarginContainer.new()
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_theme_constant_override("margin_left", 40)
+	hud.add_theme_constant_override("margin_right", 40)
+	hud.add_theme_constant_override("margin_top", 26)
+	add_child(_full(hud))
+	var hud_row := HBoxContainer.new()
+	hud_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_row.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	hud_row.add_theme_constant_override("separation", 10)
+	hud.add_child(hud_row)
+	rec_dot = _label("●", 12, REC_RED)
+	hud_row.add_child(rec_dot)
+	hud_row.add_child(_label("ARCHIVAL FOOTAGE // LEVEL 0", 12, Color(INK, 0.6), 4))
+	var hud_gap := Control.new()
+	hud_gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hud_row.add_child(hud_gap)
+	version_label = _label("", 12, Color(INK, 0.55), 3)
+	hud_row.add_child(version_label)
+	hud_row.add_child(_spacer_w(18))
+	var min_btn := _win_button("_", false)
+	min_btn.pressed.connect(func(): DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MINIMIZED))
+	hud_row.add_child(min_btn)
+	var close_btn := _win_button("X", true)
+	close_btn.pressed.connect(func(): get_tree().quit())
+	hud_row.add_child(close_btn)
+
+	# --- release notes card (hidden until asked for, or an update is waiting) ---
+	notes_panel = PanelContainer.new()
+	notes_panel.visible = false
+	notes_panel.anchor_left = 1.0
+	notes_panel.anchor_right = 1.0
+	notes_panel.anchor_top = 0.0
+	notes_panel.anchor_bottom = 1.0
+	notes_panel.offset_left = -400
+	notes_panel.offset_right = -40
+	notes_panel.offset_top = 70
+	notes_panel.offset_bottom = -330
+	var card := _box(Color(0.02, 0.02, 0.015, 0.84), RED, Vector4(2, 0, 0, 0))
+	card.content_margin_left = 20
+	card.content_margin_right = 18
+	card.content_margin_top = 14
+	card.content_margin_bottom = 14
+	notes_panel.add_theme_stylebox_override("panel", card)
+	add_child(notes_panel)
+	var card_box := VBoxContainer.new()
+	card_box.add_theme_constant_override("separation", 8)
+	notes_panel.add_child(card_box)
+	notes_title = _label("WHAT'S NEW", 12, Color(INK, 0.55), 4)
+	card_box.add_child(notes_title)
+	notes_box = RichTextLabel.new()
+	notes_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	notes_box.add_theme_font_override("normal_font", _font(1))
+	notes_box.add_theme_font_size_override("normal_font_size", 14)
+	notes_box.add_theme_color_override("default_color", Color(INK, 0.78))
+	card_box.add_child(notes_box)
+
+	# --- controls, sitting in the strip ---
+	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_theme_constant_override("margin_left", 48)
+	margin.add_theme_constant_override("margin_right", 48)
+	margin.add_theme_constant_override("margin_top", 96)
+	margin.add_theme_constant_override("margin_bottom", 30)
+	strip.add_child(_full(margin))
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
-	box.offset_left = 36
-	box.offset_right = -36
-	box.offset_top = 26
-	box.offset_bottom = -26
 	box.add_theme_constant_override("separation", 12)
-	add_child(box)
+	box.alignment = BoxContainer.ALIGNMENT_END
+	margin.add_child(box)
 
-	# camera-OSD header: red REC dot + tag, like the in-game HUD
-	var tag := HBoxContainer.new()
-	tag.add_theme_constant_override("separation", 8)
-	box.add_child(tag)
-	tag.add_child(_label("●", 12, REC_RED))
-	tag.add_child(_label("ARCHIVAL FOOTAGE // LEVEL 0", 12, Color(INK, 0.55), 4))
-
-	var title := _label("THE BACKROOMS", 34, TITLE, 6)
+	var title := _label("THE BACKROOMS", 52, TITLE, 6)
 	title.add_theme_color_override("font_shadow_color", Color(0.627, 0.078, 0.059, 0.55))
 	title.add_theme_constant_override("shadow_offset_x", 2)
 	box.add_child(title)
 
-	version_label = _label("", 12, Color(INK, 0.5), 3)
-	box.add_child(version_label)
-	box.add_child(_rule())
+	# status line: coloured dot + text, "what's new" on the right
+	var st_row := HBoxContainer.new()
+	st_row.add_theme_constant_override("separation", 10)
+	box.add_child(st_row)
+	var dot_c := CenterContainer.new()
+	status_dot = ColorRect.new()
+	status_dot.custom_minimum_size = Vector2(8, 8)
+	status_dot.color = AMBER
+	dot_c.add_child(status_dot)
+	st_row.add_child(dot_c)
+	status = _label("", 13, Color(INK, 0.85), 2)
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.clip_text = true
+	status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	st_row.add_child(status)
+	notes_btn = _link_button("what's new")
+	notes_btn.visible = false
+	notes_btn.pressed.connect(func(): notes_panel.visible = not notes_panel.visible)
+	st_row.add_child(notes_btn)
 
-	notes_box = RichTextLabel.new()
-	notes_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	notes_box.custom_minimum_size.y = 90
-	notes_box.add_theme_font_override("normal_font", _font(1))
-	notes_box.add_theme_font_size_override("normal_font_size", 14)
-	notes_box.add_theme_color_override("default_color", Color(INK, 0.6))
-	box.add_child(notes_box)
+	# download progress: thick bar + percentage (transparent until a download starts)
+	var bar_row := HBoxContainer.new()
+	bar_row.add_theme_constant_override("separation", 14)
+	bar_row.modulate.a = 0.0
+	box.add_child(bar_row)
+	bar = ProgressBar.new()
+	bar.show_percentage = false
+	bar.max_value = 100.0
+	bar.custom_minimum_size.y = 12
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bar.add_theme_stylebox_override("background", _box(Color(INK, 0.1), Color(INK, 0.25), Vector4(1, 1, 1, 1)))
+	bar.add_theme_stylebox_override("fill", _box(AMBER))
+	bar_row.add_child(bar)
+	pct_label = _label("", 13, AMBER, 2)
+	pct_label.custom_minimum_size.x = 48
+	pct_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	bar_row.add_child(pct_label)
 
 	var mp := HBoxContainer.new()
 	mp.add_theme_constant_override("separation", 14)
 	box.add_child(mp)
 	mp.add_child(_label("CALLSIGN", 12, Color(INK, 0.5), 3))
 	name_edit = _line_edit("UNKNOWN", str(config.get_value("player", "name", "")))
-	name_edit.custom_minimum_size.x = 150
+	name_edit.custom_minimum_size.x = 170
+	name_edit.max_length = 16
+	name_edit.text_submitted.connect(func(_s): name_edit.release_focus())
 	mp.add_child(name_edit)
 	mp.add_child(_label("JOIN", 12, Color(INK, 0.5), 3))
-	addr_edit = _line_edit("HOST:PORT (OPTIONAL)", str(config.get_value("player", "join", "")))
+	addr_edit = _line_edit("PASTE THE HOST'S LINK (OPTIONAL)", str(config.get_value("player", "join", "")))
 	addr_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	addr_edit.text_submitted.connect(func(_s): addr_edit.release_focus())
 	mp.add_child(addr_edit)
 
-	bar = ProgressBar.new()
-	bar.visible = false
-	bar.show_percentage = false
-	bar.custom_minimum_size.y = 3
-	bar.add_theme_stylebox_override("background", _box(Color(INK, 0.12)))
-	bar.add_theme_stylebox_override("fill", _box(AMBER))
-	box.add_child(bar)
-
-	status = _label("", 12, Color(INK, 0.75), 2)
-	box.add_child(status)
-
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 26)
+	row.add_theme_constant_override("separation", 30)
 	box.add_child(row)
-	play_btn = _link_button("Play", 16)
-	play_btn.custom_minimum_size.x = 170
+	play_btn = Button.new()
+	play_btn.focus_mode = Control.FOCUS_NONE
+	play_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	play_btn.custom_minimum_size = Vector2(280, 52)
+	play_btn.add_theme_font_override("font", _font(6))
+	play_btn.add_theme_font_size_override("font_size", 18)
+	play_btn.add_theme_color_override("font_color", CREAM)
+	play_btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	play_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+	play_btn.add_theme_color_override("font_disabled_color", Color(INK, 0.3))
+	_style_play(false)
 	play_btn.pressed.connect(_on_play_pressed)
 	row.add_child(play_btn)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(gap)
 	check_btn = _link_button("Check for updates")
+	check_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	check_btn.pressed.connect(check_for_update)
 	row.add_child(check_btn)
 
-
-func _rule() -> ColorRect:
-	var r := ColorRect.new()
-	r.color = Color(INK, 0.12)
-	r.custom_minimum_size.y = 1
-	return r
+	var frame := Panel.new()
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0), Color(INK, 0.18), Vector4(1, 1, 1, 1)))
+	add_child(_full(frame))
