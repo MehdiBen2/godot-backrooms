@@ -154,13 +154,6 @@ func kill_player(reason: String) -> void:
 			au.breathing.last_breath()
 	if player:
 		player.set("dead", true)
-		# the held flashlight and hand belong to the first-person view: gone once the death camera pulls out
-		var held = player.get("holder")
-		if held is Node3D:
-			(held as Node3D).visible = false
-		var arms = player.get("arms")
-		if arms is Node3D:
-			(arms as Node3D).visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	# Start the death camera sequence (death.gd autoload)
 	if player and Death:

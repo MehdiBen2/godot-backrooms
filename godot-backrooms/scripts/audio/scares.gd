@@ -44,6 +44,7 @@ var _body_fall_stream: AudioStream = preload("res://audio/player/body_fall.mp3")
 var _gridoff_stream: AudioStream = null
 var _gasp_streams: Array[AudioStream] = []
 var _last_gasp_time := -10.0
+var _last_scream_time := -100.0
 
 func _ready() -> void:
 	rng.randomize()
@@ -211,7 +212,11 @@ func startle(amount := 0.5) -> void:
 
 func splat() -> void:
 	# Recorded blood + screaming sample (tithuh-blood-the-screaming-545569 from the web game)
-	if _blood_scream_stream != null:
+	# The bite calls this three times (bite + two rips): the scream sample plays ONCE per death, the
+	# later rips get the synthesized wet hit only, so the scream never stacks or repeats.
+	var now := Time.get_ticks_msec() / 1000.0
+	if _blood_scream_stream != null and now - _last_scream_time > _blood_scream_stream.get_length() + 1.0:
+		_last_scream_time = now
 		_spawn_flat(_blood_scream_stream, 0.9, "Body")
 	else:
 		_spawn_flat(synth("splat"), 0.9, "Body")
@@ -322,7 +327,7 @@ func gasp(volume_mult := 1.0) -> void:
 	if not _gasp_streams.is_empty():
 		var stream: AudioStream = _gasp_streams[rng.randi() % _gasp_streams.size()]
 		var pitch := rng.randf_range(0.96, 1.04)
-		_spawn_flat(stream, 3.2 * volume_mult, "Body", pitch)
+		_spawn_flat(stream, 6.0 * volume_mult, "Body", pitch)
 
 	# Involuntary gasp reflects in the respiratory simulation
 	var au: Node = get_parent().get_node_or_null("Audio")

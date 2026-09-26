@@ -29,7 +29,9 @@ const TRACKS := [
 	{"file": "ambient1.mp3", "tension": 0.15, "gain": 1.0},
 	{"file": "mleckert82-spooky-ambience-212885.mp3", "tension": 0.3, "gain": 1.0},
 	{"file": "dragon-studio-dark-horror-ambient-05-425468.mp3", "tension": 0.5, "gain": 1.0},
+	{"file": "universfield-horror-background-atmosphere-026-30-352879.mp3", "tension": 0.6, "gain": 1.0},
 	{"file": "universfield-creepy-tension-background-30-352872.mp3", "tension": 0.7, "gain": 1.0},
+	{"file": "universfield-dark-horror-soundscape-345814.mp3", "tension": 0.8, "gain": 1.0},
 	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0},
 ]
 
@@ -43,6 +45,7 @@ var rng := RandomNumberGenerator.new()
 
 var tension := 0.0
 var duck := 1.0
+var hush := 1.0                        # set by other systems (mannequin whisper): 1 = bed as normal, near 0 = faded out
 var cutoff := 12000.0
 var lfo := 0.0
 var gap_timer := 10.0
@@ -166,6 +169,7 @@ func _update_voices(dt: float) -> void:
 	var duck_target := 0.8 if Game.hunted else 1.0         # a little room for the entity's feet and voice
 	if player.dead:
 		duck_target = 0.0                                    # dead: the beds (their wind and air) drain away
+	duck_target *= hush                                      # a whisper is taking the room: the bed steps back
 	duck += (duck_target - duck) * (1.0 - exp(-dt / (0.6 if duck_target < duck else 3.0)))
 	var mood := (0.55 + 0.9 * tension) * (1.0 + NEAR_BOOST * near * near) * (1.0 + swell)
 	var pitch: float = 1.0 - 0.05 * (1.0 - player.sanity / 100.0)   # the bed sags out of tune as you lose it

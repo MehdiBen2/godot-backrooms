@@ -588,3 +588,18 @@ func _unhandled_input(e: InputEvent) -> void:
 		toggle_session()
 	elif e.physical_keycode == KEY_F3:
 		peek_now()
+
+# ---------------------------------------------------------------- debug console
+func debug_active() -> bool:
+	return session
+
+func debug_despawn() -> void:
+	session = false
+	spawned = false
+	body.visible = false
+
+func debug_spawn() -> bool:
+	session = true
+	if not spawned:
+		wait = 0.1
+	return true

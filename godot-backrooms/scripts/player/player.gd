@@ -65,7 +65,6 @@ var flash_on := true
 var light_level := 1.0
 var flash_target := Vector3.ZERO
 var flash_flicker := {"timer": 6.0, "active": false, "step": 0.0, "value": 1.0}
-var holder: Node3D
 var dead := false
 var grid_down := false       # power cut: the torch drains slowly
 var spawn_grace := 0.0
@@ -119,8 +118,6 @@ func _ready() -> void:
 		flash_spill.spot_angle_attenuation = 1.1
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
-	_build_flashlight_view()
-	_build_arms_view()
 	step_player = AudioStreamPlayer.new()
 	step_player.bus = "Steps"
 	add_child(step_player)
@@ -317,100 +314,6 @@ func _back_to_spawn() -> void:
 	was_airborne = false
 	air_time = 0.0
 
-# ---- held flashlight (models/flashlight.glb in the right hand, like the web viewmodel) ----
-const FLASH_LENGTH := 0.27
-const FLASH_POS := Vector3(0.2, -0.2, -0.38)
-const FLASH_ROT := Vector3(0.16, 0.14, 0.0)
-const FLASH_LENS := Vector3(0, 0, -0.125)
-
-func _box(size: Vector3, pos: Vector3, color: Color, rot := Vector3.ZERO) -> MeshInstance3D:
-	var m := MeshInstance3D.new()
-	var b := BoxMesh.new()
-	b.size = size
-	m.mesh = b
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.roughness = 0.9
-	m.material_override = mat
-	m.position = pos
-	m.rotation = rot
-	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	return m
-
-func _build_flashlight_view() -> void:
-	holder = Node3D.new()
-	holder.position = FLASH_POS
-	holder.rotation = FLASH_ROT
-	cam.add_child(holder)
-	var scene: PackedScene = load("res://models/flashlight.glb")
-	var inner: Node3D = scene.instantiate()
-	var wrap := Node3D.new()
-	wrap.add_child(inner)
-	holder.add_child(wrap)
-	# Long axis of the file becomes the barrel (-Z), centred on the fist
-	var aabb := _combined_aabb(inner)
-	var size := aabb.size
-	var axis := 0 if (size.x >= size.y and size.x >= size.z) else (1 if size.y >= size.z else 2)
-	var sc := FLASH_LENGTH / size[axis]
-	inner.scale = Vector3.ONE * sc
-	inner.position = -(aabb.position + aabb.size / 2.0) * sc
-	if axis == 0: wrap.rotation.y = PI / 2.0
-	elif axis == 1: wrap.rotation.x = -PI / 2.0
-	for n in inner.find_children("*", "MeshInstance3D", true, false):
-		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		(n as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-
-# ---- first-person hazmat arm (models/player/fp_arms.glb): shown while the torch is put away ----
-const ARMS_POS := Vector3(-0.04, -0.36, -0.07)
-const ARMS_ROT := Vector3(-0.6, PI, 0.0)   # file faces +Z; camera looks down -Z. Pitch drops the elbow out of view
-const ARMS_DROP := 0.35                    # how far below its rest spot the hand hides (m)
-const ARMS_RAISE_TIME := 0.35              # seconds to slide fully in or out
-
-var arms: Node3D
-var arms_raise := 0.0                      # 0 = hidden below the frame, 1 = up in view
-
-func _build_arms_view() -> void:
-	var scene: PackedScene = load("res://models/player/fp_arms.glb")
-	if scene == null: return
-	arms = scene.instantiate()
-	arms.position = ARMS_POS
-	arms.rotation = ARMS_ROT
-	cam.add_child(arms)
-	for n in arms.find_children("*", "MeshInstance3D", true, false):
-		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		(n as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	# Right arm only: both arms share one mesh, so the left one is shrunk away into its shoulder
-	var skel := arms.find_children("*", "Skeleton3D", true, false)
-	if not skel.is_empty():
-		var sk := skel[0] as Skeleton3D
-		var l_arm := sk.find_bone("L_arm_01")
-		if l_arm >= 0: sk.set_bone_pose_scale(l_arm, Vector3.ONE * 0.001)
-	arms_raise = 0.0 if flash_on else 1.0
-	_place_arms()
-
-func _place_arms() -> void:
-	var e := smoothstep(0.0, 1.0, arms_raise)
-	arms.position = ARMS_POS + Vector3(0.0, -ARMS_DROP * (1.0 - e), 0.0)
-	arms.visible = arms_raise > 0.0
-
-func _combined_aabb(root: Node3D) -> AABB:
-	var out := AABB()
-	var first := true
-	for n in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := n as MeshInstance3D
-		var box := mi.global_transform * mi.get_aabb() if mi.is_inside_tree() else _local_aabb(root, mi)
-		out = box if first else out.merge(box)
-		first = false
-	return out
-
-func _local_aabb(root: Node3D, mi: MeshInstance3D) -> AABB:
-	var t := Transform3D.IDENTITY
-	var n: Node = mi
-	while n != null and n != root.get_parent():
-		if n is Node3D: t = (n as Node3D).transform * t
-		n = n.get_parent()
-	return t * mi.get_aabb()
-
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
 	if flash_on:
@@ -435,17 +338,12 @@ func _update_flashlight(dt: float) -> void:
 
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if flash_on else 0.0
 	flash.visible = flash_on
-	# Torch out = torch in hand; switched off it is put away and the bare arm slides up instead
-	holder.visible = flash_on
-	if arms:
-		arms_raise = move_toward(arms_raise, 0.0 if flash_on else 1.0, dt / ARMS_RAISE_TIME)
-		_place_arms()
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
 		flash_spill.visible = flash_on
 
-	# Beam leaves the lens of the held torch and follows the view with natural handheld lag
-	var lens_world := holder.to_global(FLASH_LENS)
+	# No held viewmodel: the beam leaves from the camera and follows the view with natural lag
+	var lens_world := cam.global_position
 	flash.global_position = lens_world
 	var want := cam.global_position - cam.global_transform.basis.z * 16.0
 	flash_target = flash_target.lerp(want, minf(1.0, 14.0 * dt))

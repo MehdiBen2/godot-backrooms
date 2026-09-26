@@ -1038,3 +1038,24 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e.physical_keycode == KEY_F4:
 		gather_target()
 		begin_stalk(true)
+
+# ---------------------------------------------------------------- debug console
+func debug_active() -> bool:
+	return process_mode != Node.PROCESS_MODE_DISABLED
+
+func debug_despawn() -> void:
+	process_mode = Node.PROCESS_MODE_DISABLED
+	visible = false
+
+func debug_spawn() -> bool:
+	process_mode = Node.PROCESS_MODE_INHERIT
+	visible = true
+	var f := -player.global_transform.basis.z
+	var pp := player.global_position
+	for dist in [14.0, 10.0, 7.0]:
+		var p: Vector3 = pp + f * dist
+		if nav.open_at(p.x, p.z) and nav.clear_line(pp.x, pp.z, p.x, p.z):
+			summon(p.x, p.z, pp.x, pp.z)
+			return true
+	relocate()
+	return true

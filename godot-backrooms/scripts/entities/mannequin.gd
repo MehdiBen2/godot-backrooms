@@ -140,6 +140,30 @@ func _top_centroid(mesh: Mesh, xf: Transform3D, b: AABB) -> Vector3:
 		return Vector3(b.get_center().x, b.end.y, b.get_center().z)
 	return sum / cnt
 
+# Centre of the shoulder socket: the flat disc of the arm that sits against the torso is the inner-most
+# slice of the mesh, and its middle (not the top of the arm) is where the joint really is. Swinging
+# the arm about the top of the disc lifts the socket off the torso peg once the arm is raised.
+func _socket_centroid(mesh: Mesh, xf: Transform3D, b: AABB, inner_is_min_x: bool) -> Vector3:
+	var band := maxf(0.01, b.size.x * 0.04)
+	var edge := b.position.x if inner_is_min_x else b.end.x
+	var sum := Vector3.ZERO
+	var cnt := 0
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		var verts = arrays[Mesh.ARRAY_VERTEX]
+		if verts == null:
+			continue
+		for v in verts:
+			var w: Vector3 = xf * v
+			if absf(w.x - edge) <= band:
+				sum += w
+				cnt += 1
+	if cnt == 0:
+		return Vector3.INF
+	var c := sum / cnt
+	c.x = edge
+	return c
+
 func _load_template() -> bool:
 	var packed := load(MODEL) as PackedScene
 	if packed == null:
@@ -190,9 +214,17 @@ func _load_template() -> bool:
 		if pt.kind == "arm" or pt.kind == "leg":
 			pt["side"] = "L" if pt.cx > c.x else "R"
 			if pt.kind == "arm":
+				# how far out from vertical the arm hangs in the model: raised forward, that angle would
+				# spread the hands wide, so the reaching poses can cancel it (pose.align)
+				var out_x: float = (pt.cx - pt.pivot.x) * (1.0 if pt.side == "L" else -1.0)
+				pt["rest_ang"] = atan2(out_x, pt.pivot.y - pt.b.get_center().y)
 				# swing about the inner edge of the shoulder so the joint stays closed against the torso
 				var tx: Vector2 = pt.top_x
 				pt.pivot.x = tx.x if pt.side == "L" else tx.y
+				# and about the middle of the socket disc, so the joint stays on the torso peg
+				var sock := _socket_centroid(pt.mesh, pt.xf, pt.b, pt.side == "L")
+				if sock.is_finite():
+					pt.pivot = sock
 		elif pt.kind == "head" or pt.kind == "eyes":
 			pt["side"] = ""
 			# the head pivot is shared: at the base of the head (set by the head part; eyes copy it)
@@ -235,7 +267,12 @@ func part_transforms(pose: Dictionary) -> Array:
 				var s: String = pt.side
 				var swing: float = pose["arm" + s]
 				var splay: float = pose["splay" + s]
-				var a := _rot_about(pt.pivot, Vector3.BACK, splay * (1.0 if s == "L" else -1.0)) * _rot_about(pt.pivot, Vector3.RIGHT, -swing)
+				var sg := 1.0 if s == "L" else -1.0
+				# align: bring the hanging arm in to vertical BEFORE it is raised, so a forward reach
+				# has the hands in front of the shoulders instead of flung out to the sides
+				var align: float = pose.get("align", 0.0) * float(pt.get("rest_ang", 0.0))
+				var a := _rot_about(pt.pivot, Vector3.BACK, splay * sg) * _rot_about(pt.pivot, Vector3.RIGHT, -swing) \
+					* _rot_about(pt.pivot, Vector3.BACK, -align * sg)
 				t = twist * lean * a * t
 			"leg":
 				var s2: String = pt.side
@@ -363,11 +400,13 @@ func reset() -> void:
 	dealt.remove_at(real_idx)
 	decoys = dealt
 	_build_crowd()
+	_pick_watchers()
 	_build_real(r)
 
 func _build_crowd() -> void:
 	var count := decoys.size()
 	var mms: Array = []
+	crowd_mms = mms
 	for pt in parts:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -383,6 +422,7 @@ func _build_crowd() -> void:
 		var xfs := part_transforms(d.pose)
 		var mode: String = d.pose.get("mode", "stand")
 		var base := mode_base(mode)
+		d["g"] = g * base
 		for j in parts.size():
 			(mms[j] as MultiMesh).set_instance_transform(i, g * base * xfs[j])
 		# they are solid (lying ones stay walk-over-able)
@@ -398,6 +438,7 @@ func _build_crowd() -> void:
 		body.add_child(cs)
 		body.position = Vector3(d.x, 0.0, d.z)
 		add_child(body)
+		d["body"] = body
 
 func _build_real(r: Dictionary) -> void:
 	real_node = Node3D.new()
@@ -495,7 +536,7 @@ func _is_behind(at: Vector3) -> bool:
 	var to := Vector3(at.x - player.global_position.x, 0.0, at.z - player.global_position.z)
 	if to.length() < 0.001:
 		return true
-	return to.normalized().dot(_player_forward()) < -0.25
+	return to.normalized().dot(_player_forward()) < -0.5     # well behind you (over ~120 deg round), never at your side
 
 func begin_step(tgt: Vector3) -> void:
 	# It doesn't come at you from the side: closing in, it aims for the spot right behind you
@@ -648,6 +689,201 @@ func _physics_process(delta: float) -> void:
 		update_snap(delta)
 		return
 	update_real(delta)
+	_update_whisper(delta)
+	_update_presence(delta)
+	_update_watchers(delta)
+
+# ------------------------------------------------------------ presence
+# Being near the real one is felt before it is seen: a heartbeat that quickens as it closes in, and
+# the tubes above you dropping out when it is close and you are not looking its way.
+const HEART_RANGE := 7.0
+const LIGHT_RANGE := 5.0
+var heart_cd := 0.0
+var light_cd := 3.0
+
+func _in_view(at: Vector3) -> bool:
+	var to := Vector3(at.x - player.global_position.x, 0.0, at.z - player.global_position.z)
+	if to.length() < 0.001:
+		return true
+	return to.normalized().dot(_player_forward()) > 0.35
+
+func _update_presence(delta: float) -> void:
+	var d := player.global_position.distance_to(real_node.global_position)
+	if d < HEART_RANGE:
+		heart_cd -= delta
+		if heart_cd <= 0.0:
+			var close := 1.0 - d / HEART_RANGE
+			heart_cd = lerpf(1.3, 0.55, close)
+			scares.heartbeat(0.3 + 0.7 * close)
+	else:
+		heart_cd = 0.0
+	light_cd -= delta
+	if d < LIGHT_RANGE and light_cd <= 0.0 and not _in_view(real_node.global_position):
+		light_cd = rng.randf_range(5.0, 12.0)
+		if rng.randf() < 0.6 and level != null and level.get("lit") != null:
+			var near_f: Array = []
+			for f in level.lit:
+				if f.black <= 0.0 and (f.pos as Vector3).distance_to(player.global_position) < 7.0:
+					near_f.append(f)
+			near_f.sort_custom(func(a, b): return (a.pos as Vector3).distance_squared_to(player.global_position) < (b.pos as Vector3).distance_squared_to(player.global_position))
+			for i in mini(near_f.size(), rng.randi_range(1, 3)):
+				level.cut_fixture(near_f[i], rng.randf_range(0.2, 0.7))
+
+# ------------------------------------------------------------ shuffling decoys
+# Only ever while you are looking away from them. Of the decoys nearest you, ONE creeps toward you
+# a little at a time (the same one, so it really is closing in); the others just trade places with
+# each other. Turn back and the room is not quite as you left it, and you can't say what changed.
+const SHUFFLE_POOL := 10                     # the this-many standing decoys nearest you take part
+const SHUFFLE_RANGE := 16.0
+const STALK_STEP := 0.9
+const STALK_MIN_DIST := 2.2                  # it never crowds closer than this by itself
+var crowd_mms: Array = []
+var shufflers: Array = []                    # {i, seen}: every standing decoy
+var stalker := -1                            # decoy index of the one that creeps toward you
+var shuffle_tick := 0.0
+var shuffle_cd := 4.0
+
+func _pick_watchers() -> void:
+	shufflers.clear()
+	stalker = -1
+	for i in decoys.size():
+		var d: Dictionary = decoys[i]
+		if d.pose.get("mode", "stand") == "stand":
+			shufflers.append({"i": i, "seen": false})
+
+func _head_pos(x: float, z: float) -> Vector3:
+	return Vector3(x, HEIGHT * 0.8, z)
+
+# Move decoy i to (x, z) facing `yaw`: its figure, its collision body and the record the real one avoids
+func _place_decoy(i: int, x: float, z: float, yaw: float) -> void:
+	var d: Dictionary = decoys[i]
+	d.x = x
+	d.z = z
+	d.yaw = yaw
+	d.g = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, 0.0, z))
+	var xfs := part_transforms(d.pose)
+	for j in parts.size():
+		(crowd_mms[j] as MultiMesh).set_instance_transform(i, d.g * xfs[j])
+	var body = d.get("body")
+	if body != null and is_instance_valid(body):
+		(body as Node3D).position = Vector3(x, 0.0, z)
+
+func _update_watchers(delta: float) -> void:
+	shuffle_tick += delta
+	if shuffle_tick < 0.1:
+		return
+	var dt := shuffle_tick
+	shuffle_tick = 0.0
+	var pp := player.global_position
+	var pool := shufflers.duplicate()
+	pool.sort_custom(func(a, b):
+		var da: Dictionary = decoys[a.i]
+		var db: Dictionary = decoys[b.i]
+		return Vector2(da.x - pp.x, da.z - pp.z).length_squared() < Vector2(db.x - pp.x, db.z - pp.z).length_squared())
+	pool = pool.slice(0, SHUFFLE_POOL)
+	# note which of them you have had on screen, and which are off it right now
+	var hidden: Array = []
+	for s in pool:
+		var d: Dictionary = decoys[s.i]
+		if pp.distance_to(Vector3(d.x, 0.0, d.z)) > SHUFFLE_RANGE:
+			continue
+		if player.cam.is_position_in_frustum(_head_pos(d.x, d.z)):
+			s.seen = true
+		elif s.seen:
+			hidden.append(s.i)
+	shuffle_cd -= dt
+	if shuffle_cd > 0.0 or hidden.is_empty():
+		return
+	shuffle_cd = rng.randf_range(3.0, 8.0)
+	# the one that closes in
+	if stalker < 0 or not hidden.has(stalker):
+		if stalker < 0:
+			stalker = hidden[rng.randi() % hidden.size()]
+	if hidden.has(stalker):
+		var d: Dictionary = decoys[stalker]
+		var to := Vector2(pp.x - d.x, pp.z - d.z)
+		var dist := to.length()
+		if dist > STALK_MIN_DIST + STALK_STEP:
+			var step := to / dist * STALK_STEP
+			var np: Vector3 = nav.resolve(Vector3(d.x + step.x, 0.0, d.z + step.y), RADIUS)
+			if _decoy_spot_free(np, stalker) and not player.cam.is_position_in_frustum(_head_pos(np.x, np.z)):
+				_place_decoy(stalker, np.x, np.z, atan2(pp.x - np.x, pp.z - np.z))
+		hidden.erase(stalker)
+	# everyone else just trades places, two or three pairs at a time
+	hidden.shuffle()
+	var pairs := mini(hidden.size() / 2, rng.randi_range(1, 3))
+	for k in pairs:
+		var a: Dictionary = decoys[hidden[k * 2]]
+		var b: Dictionary = decoys[hidden[k * 2 + 1]]
+		var ax: float = a.x
+		var az: float = a.z
+		_place_decoy(hidden[k * 2], b.x, b.z, a.yaw)
+		_place_decoy(hidden[k * 2 + 1], ax, az, b.yaw)
+
+# Clear floor for a decoy: not on top of another decoy, the real one, or you
+func _decoy_spot_free(p: Vector3, self_i: int) -> bool:
+	var mn := RADIUS * 2.2
+	for i in decoys.size():
+		if i == self_i:
+			continue
+		var o: Dictionary = decoys[i]
+		if Vector2(o.x - p.x, o.z - p.z).length() < mn:
+			return false
+	if real_node != null and Vector2(real_node.position.x - p.x, real_node.position.z - p.z).length() < mn:
+		return false
+	return Vector2(player.global_position.x - p.x, player.global_position.z - p.z).length() > 1.5
+
+# ------------------------------------------------------------ whispers
+# Get close to the real one and now and then something whispers right beside one ear. Random gaps,
+# side, pitch, loudness and a random slice of the recording, so it never plays the same way twice.
+const WHISPER_PATH := "res://audio/entity/mannequin_whisper.mp3"
+const WHISPER_RANGE := 7.0
+var whisper_cd := 4.0
+var whisper_stream: AudioStream
+
+func _update_whisper(delta: float) -> void:
+	var d := player.global_position.distance_to(real_node.global_position)
+	if d > WHISPER_RANGE:
+		whisper_cd = maxf(whisper_cd, 3.0)      # a beat of grace after you step into range
+		return
+	whisper_cd -= delta
+	if whisper_cd > 0.0:
+		return
+	whisper_cd = rng.randf_range(6.0, 16.0)
+	if rng.randf() < 0.35:                      # and sometimes it stays quiet
+		return
+	if whisper_stream == null:
+		if not ResourceLoader.exists(WHISPER_PATH):
+			return
+		whisper_stream = load(WHISPER_PATH)
+	var closeness := 1.0 - clampf(d / WHISPER_RANGE, 0.0, 1.0)
+	var right: Vector3 = player.cam.global_transform.basis.x
+	# random side, but about half the time it is the side the real one is actually on: a clue
+	var side := 1.0 if rng.randf() < 0.5 else -1.0
+	var true_side := false
+	var off := real_node.global_position - player.global_position
+	if rng.randf() < 0.5 and absf(off.dot(right)) > 0.6:
+		side = signf(off.dot(right))
+		true_side = true
+	var back: Vector3 = player.cam.global_transform.basis.z
+	var pos: Vector3 = player.cam.global_position + right * side * rng.randf_range(0.5, 1.3) + back * rng.randf_range(0.0, 0.6)
+	var p: AudioStreamPlayer3D = scares._spawn3d(whisper_stream, pos, 0.7 + closeness * 1.1, "Entity", 1.5, rng.randf_range(0.75, 1.1), false)
+	var len := whisper_stream.get_length()
+	p.stop()
+	p.play(rng.randf_range(0.0, maxf(len - 3.0, 0.0)))     # a random slice of it
+	# the music fades out under it, then comes back once the whisper is gone
+	var amb: Node = scares.get_parent().get_node_or_null("Audio/Ambience")
+	if amb != null:
+		amb.hush = 0.05
+		get_tree().create_timer(4.5).timeout.connect(func():
+			if is_instance_valid(amb): amb.hush = 1.0)
+	# it drifts across to the other ear while it whispers
+	var tw := p.create_tween()
+	# a true-side whisper stays on its side; a random one drifts across to the other ear
+	var drift := right * side * (0.3 if true_side else -rng.randf_range(0.8, 2.0))
+	tw.tween_property(p, "global_position", pos + drift, rng.randf_range(1.5, 3.5))
+	tw.parallel().tween_property(p, "volume_db", -40.0, 3.5).set_delay(1.0)
+	tw.tween_callback(p.queue_free)
 
 # ================================================================= the snap
 # It reaches you and you can't move: the view shakes with dread for a second, then your head is
@@ -661,6 +897,14 @@ func start_snap() -> void:
 	snap_beat = 0.6         # start_snap already beats once: 0 would fire a second one next frame
 	player.frozen = true
 	player.velocity = Vector3.ZERO
+	# however it got here, it ends up standing right behind you, so the neck snap is always the same
+	# full turn onto its face and never a clipped half-turn from the side
+	var fwd := _player_forward()
+	var behind: Vector3 = nav.resolve(player.global_position - fwd * 0.95, RADIUS)
+	behind.y = 0.0
+	var to_b := Vector3(behind.x - player.global_position.x, 0.0, behind.z - player.global_position.z)
+	if to_b.length() > 0.4 and to_b.normalized().dot(fwd) < -0.8:
+		real_node.position = behind
 	snap_start = real_node.position
 	snap_cam_pos = player.cam.position
 	snap_cam_pitch = player.cam.rotation.x
@@ -673,6 +917,7 @@ func start_snap() -> void:
 	real_node.rotation.y = real_yaw
 	real_pose = rest_pose()
 	real_pose.armL = 1.45; real_pose.armR = 1.45; real_pose.splayL = 0.1; real_pose.splayR = 0.1; real_pose.lean = 0.08
+	real_pose["align"] = 1.0
 	_apply_pose(real_pose)
 
 # Smooth pseudo-noise in about -1..1 (sum of sines), for the trauma shake
@@ -691,15 +936,14 @@ func update_snap(delta: float) -> void:
 	# it lunges in at the same time, its head ending up right at your eyes
 	if turn_x > 0.0:
 		var k := 1.0 - pow(1.0 - turn_x, 4.0)
-		var to := Vector3(snap_start.x - p.x, 0.0, snap_start.z - p.z)
-		var l := maxf(to.length(), 0.001)
-		var target := Vector3(p.x + to.x / l * 0.75, 0.0, p.z + to.z / l * 0.75)
-		real_node.position = snap_start.lerp(target, k)
-		var tug := sin((t - SNAP_AT) * 38.0) * 0.06 * exp(-(t - SNAP_AT - 0.3) * 1.2) if turn_x >= 1.0 else 0.0
-		var reach := 1.0 + 0.8 * k + tug
+		# it does NOT lunge or lean in: the body stays exactly where it stood behind you, and only the
+		# head tilts and the hands settle, so nothing reads as the figure sliding toward the camera
+		real_node.position = snap_start
+		var reach := 1.0 + 0.25 * k
 		var pose := rest_pose()
-		pose.lean = 0.08 + 0.35 * k; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
+		pose.lean = 0.08; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
 		pose.armL = reach; pose.armR = reach; pose.splayL = 0.1 - 0.3 * k; pose.splayR = 0.1 - 0.3 * k
+		pose["align"] = 1.0
 		real_pose = pose
 		_apply_pose(pose)
 	# ---- camera. Trauma-based shake (Eiserloh, GDC 2016): amplitude = trauma^2 on smooth noise, mostly
@@ -722,7 +966,7 @@ func update_snap(delta: float) -> void:
 		if absf(snap_delta) > PI - 0.2:
 			snap_delta = PI * (1.0 if rng.randf() < 0.5 else -1.0)   # it is right behind you: pick a side
 		var head_h := HEIGHT * 0.92 - (snap_cam_pos.y + p.y)
-		snap_pitch_t = clampf(atan2(head_h, 0.75) + 0.08, -0.6, 1.0)
+		snap_pitch_t = clampf(atan2(head_h, maxf(toh.length(), 0.5)) + 0.08, -0.6, 1.0)
 		snap_trauma = 1.0
 	var roll := 0.0
 	var yaw_add := 0.0
@@ -785,7 +1029,8 @@ func update_snap(delta: float) -> void:
 	var cp := cam.global_position
 	snap_light.global_position = Vector3(cp.x + (hp.x - cp.x) * 0.5, hp.y + 0.25, cp.z + (hp.z - cp.z) * 0.5)
 	snap_light.light_energy = ((5.0 + 3.0 * exp(-(t - SNAP_AT) * 6.0)) * (0.85 + rng.randf() * 0.15) * 0.15) if whip > 0.0 else 0.6 * dread * 0.15
-	cam.fov = player.BASE_FOV - 12.0 * dread * (1.0 - clampf(whip, 0.0, 1.0)) - 4.0 * flinch + 9.0 * exp(-maxf(0.0, t - SNAP_AT) * 9.0) * (1.0 if whip > 0.0 else 0.0)
+	# the lens holds still: narrowing it during the dread read as the camera itself creeping forward
+	cam.fov = player.BASE_FOV - 1.5 * dread * (1.0 - clampf(whip, 0.0, 1.0)) + 3.0 * exp(-maxf(0.0, t - SNAP_AT) * 9.0) * (1.0 if whip > 0.0 else 0.0)
 	# heartbeat quickens toward the snap
 	snap_beat -= delta
 	if snap_beat <= 0.0 and t < SNAP_AT:
@@ -823,3 +1068,19 @@ func warp_to_room() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F2:
 		warp_to_room()
+
+# ---------------------------------------------------------------- debug console
+func debug_active() -> bool:
+	return process_mode != Node.PROCESS_MODE_DISABLED
+
+func debug_despawn() -> void:
+	process_mode = Node.PROCESS_MODE_DISABLED
+	visible = false
+	snap_active = false
+	awake = false
+
+func debug_spawn() -> bool:
+	process_mode = Node.PROCESS_MODE_INHERIT
+	visible = true
+	reset()
+	return true

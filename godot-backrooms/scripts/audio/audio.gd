@@ -92,6 +92,7 @@ func _ready() -> void:
 	player.dead_click.connect(func(): _play_world("battery_dead_click.wav"))
 	player.contact_click.connect(func(off: bool): _play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
 	var amb := Node.new()
+	amb.name = "Ambience"
 	amb.set_script(preload("res://scripts/audio/ambience.gd"))
 	add_child(amb)
 
