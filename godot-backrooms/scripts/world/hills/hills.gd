@@ -194,6 +194,13 @@ func _build_terrain() -> void:
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/hills/terrain.gdshader")
+	var tex := "res://textures/hills/%s/%s_%s.jpg"
+	var sets := {"turf": "Grass001_1K-JPG", "path_a": "Ground085_1K-JPG", "path_b": "Ground109_1K-JPG"}
+	for slot in sets:
+		var folder: String = sets[slot]
+		mat.set_shader_parameter(slot + "_color", load(tex % [folder, folder, "Color"]))
+		mat.set_shader_parameter(slot + "_rough", load(tex % [folder, folder, "Roughness"]))
+		mat.set_shader_parameter(slot + "_ao", load(tex % [folder, folder, "AmbientOcclusion"]))
 	mesh.surface_set_material(0, mat)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
