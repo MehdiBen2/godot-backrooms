@@ -1,10 +1,14 @@
 shader_type spatial;
-// Procedural meadow: patchy greens, dry yellow on crests, dirt on slopes, road from vertex colour.
+// Terrain: dark under the grass, fading to the meadow colours with distance (GodotGrass ground look),
+// with the road, slope dirt and grass-matched lighting on top.
 uniform vec3 grass_a : source_color = vec3(0.16, 0.28, 0.07);
 uniform vec3 grass_b : source_color = vec3(0.36, 0.42, 0.13);
 uniform vec3 dry_col : source_color = vec3(0.5, 0.45, 0.2);
 uniform vec3 dirt_col : source_color = vec3(0.3, 0.22, 0.13);
 uniform vec3 road_col : source_color = vec3(0.24, 0.22, 0.19);
+uniform vec3 under_grass_col : source_color = vec3(0.04, 0.15, 0.01);
+uniform vec3 subsurface_scattering_color : source_color = vec3(1.0, 0.75, 0.1);
+uniform float grass_range = 200.0;
 
 varying vec3 wpos;
 varying float road;
@@ -53,7 +57,18 @@ void fragment() {
 	vec3 col = mix(g, dirt_col * (0.8 + 0.4 * fine), slope);
 	float r = smoothstep(0.25, 0.75, road);
 	col = mix(col, road_col * (0.8 + 0.4 * fine), r);
+	// under the blades the ground reads dark; far beyond the grass tiles it carries the meadow colour
+	float dist = length(wpos.xz - CAMERA_POSITION_WORLD.xz);
+	float far_t = smoothstep(grass_range * 0.15, grass_range * 0.6, dist);
+	vec3 under = under_grass_col * 0.15;
+	col = mix(mix(under, col, far_t), col, max(r, slope));
 	ALBEDO = col;
 	ROUGHNESS = mix(0.95, 0.85, r);
 	SPECULAR = 0.15;
+}
+
+void light() {
+	float diffuse_factor = pow(4.0, dot(NORMAL, LIGHT)) / 4.0; // never drops to 0: fake ambient bounce
+	float sss_factor = max(-dot(VIEW, LIGHT), 0.0) * 0.5;
+	DIFFUSE_LIGHT += (diffuse_factor + sss_factor * subsurface_scattering_color * 0.5) * ATTENUATION * LIGHT_COLOR;
 }

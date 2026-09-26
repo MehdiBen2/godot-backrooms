@@ -6,6 +6,9 @@ func _init() -> void:
 	await create_timer(3.0).timeout
 	var p: Node3D = s.get_children().filter(func(c): return c is CharacterBody3D)[0]
 	p.rotation.y = 0.0
+	p.pitch = 0.0
+	p.cam.rotation.x = 0.0
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	await create_timer(1.0).timeout
 	if OS.get_environment("HIGH") != "":
 		p.global_position = s.sites[0] + Vector3(14, 3, 14)

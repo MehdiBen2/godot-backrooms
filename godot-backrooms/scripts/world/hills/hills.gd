@@ -4,8 +4,10 @@ extends Node3D
 const SIZE := 640.0
 const RES := 320
 const HOUSE_COUNT := 30
-const GRASS_COUNT := 140000
-const GRASS_RADIUS := 85.0
+const TILE_SIZE := 5.0                        # GodotGrass tile LOD: one MultiMesh per tile, re-seated as the player moves
+const GRASS_RADIUS := 200.0
+const GRASS_HIGH := preload("res://models/grass/grass_high.obj")
+const GRASS_LOW := preload("res://models/grass/grass_low.obj")
 const SUN_DIR := Vector3(0.38, 0.27, -0.88)   # toward the sun; it sits low behind the far hills
 
 var noise := FastNoiseLite.new()
@@ -13,6 +15,11 @@ var detail := FastNoiseLite.new()
 var sites: Array[Vector3] = []               # x, terrain height, z of each house pad
 var yaws: Array[float] = []
 var spawn_xz := Vector2.ZERO
+var terrain_tex: ImageTexture
+var grass_mat: ShaderMaterial
+var grass_tiles: Array = []                  # [MultiMeshInstance3D, rest position]
+var prev_tile := Vector2i(1 << 20, 0)
+var player: Node3D
 
 func _ready() -> void:
 	seed(20260926)
@@ -143,6 +150,7 @@ func _build_terrain() -> void:
 	for j in n:
 		for i in n:
 			hs[j * n + i] = height(i * cell - half, j * cell - half)
+	_bake_terrain_texture(hs, n, cell, half)
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
@@ -196,82 +204,108 @@ func _build_terrain() -> void:
 	body.add_child(cs)
 	add_child(body)
 
-# ---- grass -------------------------------------------------------------------
+# ---- grass (GodotGrass port) ---------------------------------------------------
 
-func _tuft_mesh() -> ArrayMesh:
-	var verts := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var idx := PackedInt32Array()
-	for b in 9:
-		var ang := randf() * TAU
-		var off := Vector3(randf_range(-0.16, 0.16), 0.0, randf_range(-0.16, 0.16))
-		var side := Vector3(cos(ang), 0.0, sin(ang))
-		var lean := Vector3(-side.z, 0.0, side.x) * randf_range(-0.1, 0.1)
-		var h := randf_range(0.2, 0.42)
-		var w := randf_range(0.016, 0.026)
-		var base := verts.size()
-		for t in [0.0, 0.55]:
-			var wt: float = w * (1.0 - t * 0.7)
-			var c: Vector3 = off + lean * t * t + Vector3.UP * h * t
-			verts.append(c - side * wt)
-			verts.append(c + side * wt)
-			uvs.append(Vector2(0, t))
-			uvs.append(Vector2(1, t))
-		verts.append(off + lean + Vector3.UP * h)
-		uvs.append(Vector2(0.5, 1.0))
-		idx.append_array([base, base + 1, base + 2, base + 1, base + 3, base + 2, base + 2, base + 3, base + 4])
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = idx
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return mesh
+## R = ground height, G = no-grass mask (road + house pads); sampled by grass.gdshader.
+func _bake_terrain_texture(hs: PackedFloat32Array, n: int, cell: float, half: float) -> void:
+	var img := Image.create(n, n, false, Image.FORMAT_RGF)
+	for j in n:
+		for i in n:
+			var x := i * cell - half
+			var z := j * cell - half
+			var m := road_mask(x, z)
+			for s in sites:
+				var d := Vector2(x - s.x, z - s.z).length()
+				m = maxf(m, 1.0 - smoothstep(6.5, 9.0, d))
+			img.set_pixel(i, j, Color(hs[j * n + i], m, 0.0))
+	terrain_tex = ImageTexture.create_from_image(img)
 
-func _build_grass() -> void:
-	var mesh := _tuft_mesh()
+func _grass_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://shaders/hills/grass.gdshader")
-	mesh.surface_set_material(0, mat)
+	var clump := FastNoiseLite.new()
+	clump.noise_type = FastNoiseLite.TYPE_CELLULAR
+	var clump_tex := NoiseTexture2D.new()
+	clump_tex.width = 256
+	clump_tex.height = 256
+	clump_tex.seamless = true
+	clump_tex.noise = clump
+	var wind := FastNoiseLite.new()
+	wind.noise_type = FastNoiseLite.TYPE_PERLIN
+	wind.frequency = 0.0275
+	wind.fractal_gain = 0.1
+	wind.domain_warp_enabled = true
+	wind.domain_warp_amplitude = 20.0
+	wind.domain_warp_frequency = 0.005
+	var wind_tex := NoiseTexture2D.new()
+	wind_tex.seamless = true
+	wind_tex.noise = wind
+	mat.set_shader_parameter("clump_noise", clump_tex)
+	mat.set_shader_parameter("wind_noise", wind_tex)
+	mat.set_shader_parameter("terrain_data", terrain_tex)
+	mat.set_shader_parameter("terrain_size", SIZE)
+	mat.set_shader_parameter("clumping_factor", 0.5)
+	mat.set_shader_parameter("wind_speed", 1.0)
+	return mat
+
+func _grass_lod(density: float, mesh: Mesh) -> MultiMesh:
+	var row := ceili(TILE_SIZE * lerpf(0.0, 10.0, density))
 	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
 	mm.mesh = mesh
-	var placed: Array[Transform3D] = []
-	var colors: Array[Color] = []
-	var tries := 0
-	while placed.size() < GRASS_COUNT and tries < GRASS_COUNT * 2:
-		tries += 1
-		var r := GRASS_RADIUS * sqrt(randf())
-		var a := randf() * TAU
-		var x := spawn_xz.x + cos(a) * r
-		var z := spawn_xz.y + sin(a) * r
-		if road_mask(x, z) > 0.2:
-			continue
-		var skip := false
-		for s in sites:
-			if absf(s.x - x) < 6.0 and absf(s.z - z) < 6.0:
-				skip = true
-				break
-		if skip:
-			continue
-		var sc := randf_range(0.8, 1.35)
-		var basis := Basis(Vector3.UP, randf() * TAU).scaled(Vector3(sc, sc * randf_range(0.8, 1.3), sc))
-		placed.append(Transform3D(basis, Vector3(x, height(x, z) - 0.03, z)))
-		var v := randf_range(0.75, 1.15)
-		colors.append(Color(v, v * randf_range(0.92, 1.05), v * randf_range(0.8, 1.0)))
-	mm.instance_count = placed.size()
-	for i in placed.size():
-		mm.set_instance_transform(i, placed[i])
-		mm.set_instance_color(i, colors[i])
-	var inst := MultiMeshInstance3D.new()
-	inst.multimesh = mm
-	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	inst.visibility_range_end = GRASS_RADIUS + 12.0
-	inst.visibility_range_end_margin = 10.0
-	inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	add_child(inst)
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.instance_count = row * row
+	# blades are lifted onto the terrain in the shader, so the culling box must span the height range
+	mm.custom_aabb = AABB(Vector3(-TILE_SIZE, -40.0, -TILE_SIZE), Vector3(TILE_SIZE * 2.0, 100.0, TILE_SIZE * 2.0))
+	var jitter := TILE_SIZE / float(row) * 0.5 * 0.9
+	for i in row:
+		for j in row:
+			var p := Vector3(i / float(row) - 0.5, 0.0, j / float(row) - 0.5) * TILE_SIZE
+			p += Vector3(randf_range(-jitter, jitter), 0.0, randf_range(-jitter, jitter))
+			mm.set_instance_transform(i + j * row, Transform3D(Basis(), p))
+	return mm
+
+func _build_grass() -> void:
+	grass_mat = _grass_material()
+	var lods: Array[MultiMesh] = [
+		_grass_lod(1.0, GRASS_HIGH), _grass_lod(0.5, GRASS_HIGH), _grass_lod(0.25, GRASS_LOW),
+		_grass_lod(0.1, GRASS_LOW), _grass_lod(0.02, GRASS_LOW)]
+	var r := int(GRASS_RADIUS)
+	for i in range(-r, r, int(TILE_SIZE)):
+		for j in range(-r, r, int(TILE_SIZE)):
+			var pos := Vector3(i, 0.0, j)
+			var dist := pos.length()
+			if dist > GRASS_RADIUS:
+				continue
+			var inst := MultiMeshInstance3D.new()
+			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # grass shadow maps cost far too much
+			inst.material_override = grass_mat
+			inst.position = pos
+			inst.extra_cull_margin = 1.0
+			if dist < 12.0:
+				inst.multimesh = lods[0]
+			elif dist < 40.0:
+				inst.multimesh = lods[1]
+			elif dist < 70.0:
+				inst.multimesh = lods[2]
+			elif dist < 100.0:
+				inst.multimesh = lods[3]
+			else:
+				inst.multimesh = lods[4]
+			add_child(inst)
+			grass_tiles.append([inst, pos])
+
+func _physics_process(_dt: float) -> void:
+	if player == null or grass_mat == null:
+		return
+	grass_mat.set_shader_parameter("player_position", player.global_position)
+	# re-seat the LOD tiles whenever the player crosses into a new tile
+	var t := Vector2i(floori((player.global_position.x + TILE_SIZE * 0.5) / TILE_SIZE),
+			floori((player.global_position.z + TILE_SIZE * 0.5) / TILE_SIZE))
+	if t != prev_tile:
+		prev_tile = t
+		var off := Vector3(t.x, 0.0, t.y) * TILE_SIZE
+		for d in grass_tiles:
+			d[0].global_position = d[1] + off
 
 # ---- houses & castle ---------------------------------------------------------
 
@@ -369,6 +403,7 @@ func _build_player() -> void:
 	p.set_script(load("res://scripts/world/hills/hills_player.gd"))
 	p.position = Vector3(spawn_xz.x, height(spawn_xz.x, spawn_xz.y) + 1.0, spawn_xz.y)
 	add_child(p)
+	player = p
 
 func _build_hint() -> void:
 	var layer := CanvasLayer.new()
