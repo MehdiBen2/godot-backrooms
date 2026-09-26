@@ -1,20 +1,16 @@
 extends Node3D
-## THE MIMIC (js/game/mimicPeer.js + mimicPeek.js). The web game ties it to a chat session with an
-## LLM; offline it is two behaviours:
+## THE MIMIC (js/game/mimicPeer.js). The web game ties it to a chat session with an
+## LLM; offline it is the survivor look-alike:
 ##
 ##  PEER   a hazmat survivor look-alike that keeps at the edge of your sight. It walks up behind you
 ##         while your back is turned (approach), walks off when you face it (keepAway), sprints away
 ##         if you go at it (flee). During a power cut it CHARGES you in the dark, frozen while you
 ##         look, bolting when you catch it in your light; reaching you hurts and stuns.
-##  PEEK   stand still long enough and its head slides in from the edge of the screen to study
-##         your face, then snaps away and footsteps run off into the dark.
-##
-## The Peer is dormant until a power cut (or F5) starts a "session". The peek is mimic_peek.gd.
-## Dev keys: F5 toggles the Mimic peer, F3 forces a peek.
+## The Peer is dormant until a power cut (or F5) starts a "session".
+## Dev keys: F5 toggles the Mimic peer.
 
 const HazmatFit := preload("res://scripts/entities/hazmat_fit.gd")
 const GridNav := preload("res://scripts/world/grid_nav.gd")
-const MimicPeek := preload("res://scripts/entities/mimic/mimic_peek.gd")
 const SnapBuffer := preload("res://scripts/net/snap_buffer.gd")
 const MODEL := "res://models/player/hazmat.glb"
 const MODEL_HEIGHT := 2.0
@@ -65,7 +61,6 @@ var hit_ready := 0.0
 var body: Node3D
 
 # ---- co-op: the host runs the body (hunting the nearest survivor); guests follow it from snapshots.
-# The peek (its head sliding in at the edge of YOUR screen) stays personal to each player.
 const MODES := ["approach", "keepAway", "flee", "charge"]
 var puppet := false
 var net_buf = SnapBuffer.new()
@@ -76,11 +71,6 @@ var _net_t := 0.0
 var anim: AnimationPlayer
 var body_yaw := 0.0
 
-# ---- peek (mimic_peek.gd)
-var peek: MimicPeek
-var pk_phase: String:
-	get: return peek.phase if peek else "idle"
-
 func _ready() -> void:
 	rng.randomize()
 	level = get_parent().get_node("Level")
@@ -88,8 +78,6 @@ func _ready() -> void:
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
 	_build_body()
-	peek = MimicPeek.new(self)
-	peek.build(player.cam)
 
 func now() -> float:
 	return Time.get_ticks_msec() / 1000.0
@@ -391,8 +379,6 @@ func _physics_process(delta: float) -> void:
 		update_peer(delta)
 		if online:
 			_net_send(delta)
-	if Game.playing and not Game.dead:
-		peek.update(delta)
 
 # ================================================================= co-op
 func _net_send(delta: float) -> void:
@@ -437,20 +423,11 @@ func _puppet_step(delta: float) -> void:
 		elif anim.is_playing():
 			anim.pause()
 
-func peek_now() -> bool:
-	peek.hide()
-	return peek.start()
-
-func peek_hide() -> void:
-	peek.hide()
-
 func _unhandled_input(e: InputEvent) -> void:
 	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	if e.physical_keycode == KEY_F5:
 		toggle_session()
-	elif e.physical_keycode == KEY_F3 and e.shift_pressed:
-		peek_now()
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:

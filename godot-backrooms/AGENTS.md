@@ -29,7 +29,7 @@ One folder per system; a script that grew long is split into files beside it.
 - `player/` - `player.gd` (controller, flashlight, stamina, adrenaline, sanity) with `footsteps.gd`, `torch_model.gd`, `blink.gd`; `heart.gd` (the shared heartbeat every threat feeds).
 - `entities/bacteria/` - THE BACTERIA. Layered scripts, each extending the one before: `bacteria_base.gd` (config, state) -> `bacteria_nav.gd` -> `bacteria_senses.gd` -> `bacteria_stalk.gd` (stalk / flee / lurk) -> `bacteria.gd` (the node's script: brain, movement, voice, kill). Plus `bacteria_rig.gd` (procedural animation), `bacteria_grab.gd` (the kill sequence), `bacteria_net.gd` (co-op).
 - `entities/mannequin/` - `mannequin.gd` with `mannequin_model.gd` (posable parts), `mannequin_crowd.gd` (decoys), `mannequin_snap.gd` (the neck snap).
-- `entities/mimic/` (`mimic.gd`, `mimic_peek.gd`), `entities/watcher/`, `entities/eyes/`.
+- `entities/mimic/` (`mimic.gd`), `entities/watcher/`, `entities/eyes/`.
 - `audio/` - `audio.gd` (builds every game bus, hum, room reverb, wall occlusion), `ambience.gd`, `breathing.gd`, `clip_levels.gd` (loudness matching from `audio/clip_levels.json`); `audio/scares/` - `scares.gd` (one-shots, heart, flatline, gasps) with `scare_synth.gd` (procedural sounds), `creature_voice.gd`, `creature_steps.gd`, `preacher.gd`.
 - `world/level/` - layered like the bacteria: `level_data.gd` -> `level_geometry.gd` -> `level_lighting.gd` -> `level_builder.gd`. `world/props/` (battery pickup, exit), `world/grid_nav.gd`.
 - `events/` - the event director. `net/`, `voice/` - co-op and proximity voice chat.

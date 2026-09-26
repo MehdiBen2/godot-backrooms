@@ -12,7 +12,7 @@ extends CanvasLayer
 ##   health <0-100>             set health
 ##   clear                      wipe this log
 ##
-## Names: bacteria, mannequin, mimic, peek, watcher.
+## Names: bacteria, mannequin, mimic, watcher.
 
 const ENTITIES := {
 	"bacteria": "Entity",
@@ -20,7 +20,7 @@ const ENTITIES := {
 	"mimic": "Mimic",
 	"watcher": "Watcher",
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "peek", "watcher"]
+const ORDER := ["bacteria", "mannequin", "mimic", "watcher"]
 
 var root: Node
 var panel: PanelContainer
@@ -188,20 +188,10 @@ func _node(name: String) -> Node:
 	return root.get_node_or_null(ENTITIES[name])
 
 func _active(name: String) -> bool:
-	if name == "peek":
-		return root.get_node("Mimic").pk_phase != "idle"
 	var n := _node(name)
 	return n != null and n.debug_active()
 
 func _apply(name: String, spawn: bool, kind := "") -> void:
-	if name == "peek":
-		var m: Node = root.get_node("Mimic")
-		if spawn:
-			m.peek_now()
-		else:
-			m.peek_hide()
-		_print("peek %s" % ("started" if spawn else "hidden"))
-		return
 	var n := _node(name)
 	if n == null:
 		_print("[color=orange]%s is not in the scene[/color]" % name)
