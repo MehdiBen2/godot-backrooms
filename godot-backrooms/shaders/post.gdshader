@@ -33,7 +33,7 @@ uniform float fx_flash = 0.0;     // white-hot impact flash (the neck snap)
 uniform float fx_shock = 0.0;
 uniform float fx_blood = 0.0;     // screen turning to blood: red edges, dark runs, slow pulse
 uniform float fx_static = 0.0;    // subtle snow
-uniform float fx_warp = 0.0;      // subtle wobble of the picture     // radial zoom-blur + chroma split burst
+uniform float fx_warp = 0.0;      // subtle wobble of the picture
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -104,7 +104,7 @@ void fragment() {
 		for (int i = 0; i < 8; i++) {
 			float a = float(i) * 0.785398;
 			vec2 o = vec2(cos(a), sin(a)) * blur_px * SCREEN_PIXEL_SIZE * 1.6;
-			acc2 += texture(screen_tex, clamp(uvg + o, 0.0, 1.0)).rgb + texture(screen_tex, clamp(uvg + o * 0.5, 0.0, 1.0)).rgb * 0.0;
+			acc2 += texture(screen_tex, clamp(uvg + o, 0.0, 1.0)).rgb;
 		}
 		col = acc2 / 9.0;
 	}
@@ -141,18 +141,22 @@ void fragment() {
 	vec3 bled = max(vec3(dot(col, vec3(0.299, 0.587, 0.114))) + cs - vec3(dot(cs, vec3(0.299, 0.587, 0.114))), 0.0);
 	col = mix(col, bled, clamp(0.4 + threat * 0.6 + glitch, 0.0, 1.0));
 
-	// Camera lens dirt: subtle dust specks catching direct bright lights only
-	vec2 dirt_uv = uv;
-	dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
-	vec3 raw_dirt = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
-	// Cut off lifted black pedestal so clear lens areas stay 100% transparent with zero milky haze
-	vec3 dirt_rgb = max(raw_dirt - vec3(0.22), vec3(0.0)) * 1.4;
-
-	vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
-	float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
-	// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
-	float light_on_lens = smoothstep(0.58, 0.95, luma_local);
-	if (post_quality >= 1) col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.10, 1.05, 0.90);
+	// Camera lens dirt: subtle dust specks catching direct bright lights only, and lens halation around
+	// the bulbs (both off on the low preset: no extra texture reads at all)
+	if (post_quality >= 1) {
+		vec2 dirt_uv = uv;
+		dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
+		vec3 raw_dirt = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
+		// Cut off lifted black pedestal so clear lens areas stay 100% transparent with zero milky haze
+		vec3 dirt_rgb = max(raw_dirt - vec3(0.22), vec3(0.0)) * 1.4;
+		vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
+		float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
+		// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
+		col += dirt_rgb * smoothstep(0.58, 0.95, luma_local) * dirt_amt * vec3(1.10, 1.05, 0.90);
+		if (luma_local > 0.60) {
+			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - 0.60) * halation_amt;
+		}
+	}
 
 	// Optical lens glare: subtle horizontal streak & gentle ghosts when looking at bright lights
 	if (post_quality >= 2 && glare_amt > 0.01) {
@@ -187,13 +191,6 @@ void fragment() {
 			}
 		}
 		col += ghosts * 0.04 * glare_amt;
-	}
-
-	// Lens halation: subtle diffusion around direct bulb elements
-	vec3 bloom_sample = textureLod(screen_tex, uvg, 3.5).rgb;
-	float bloom_luma = dot(bloom_sample, vec3(0.299, 0.587, 0.114));
-	if (post_quality >= 1 && bloom_luma > 0.60) {
-		col += bloom_sample * vec3(1.12, 0.98, 0.75) * (bloom_luma - 0.60) * halation_amt;
 	}
 
 	col *= grade;

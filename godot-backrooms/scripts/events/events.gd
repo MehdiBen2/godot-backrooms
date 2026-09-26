@@ -4,7 +4,8 @@ extends Node
 ## walk in the dark or have low sanity), then a weighted pick among events that are off cooldown
 ## and pass their own when()/score(). Events use later() / watch() / on_clear().
 ##
-## Dev keys: F6 random event, F7 power cut, F8 preacher whisper, F9 stop all events.
+## Dev keys: F1 random event, F6 mannequin room + bacteria, F7 power cut, F8 preacher whisper,
+## F9 stop all events, F12 tilt drift.
 
 const GridNav := preload("res://scripts/world/grid_nav.gd")
 
@@ -71,6 +72,13 @@ func _define_events() -> void:
 		"when": func(c): return c.since_last > 60.0,
 		"score": func(c): return 1.0 + minf(1.0, c.still / 10.0),
 		"run": func(): _event_preacher(-1)})
+	define({"name": "wallKnock", "weight": 1.6, "cooldown": 240.0, "duration": 9.0, "intensity": 0.45,
+		"when": func(c): return c.since_last > 30.0,
+		"score": func(c): return (1.4 if c.still > 3.0 else 1.0) * (1.3 if c.dark else 1.0),
+		"run": _event_wall_knock})
+	define({"name": "breathBehind", "weight": 1.0, "cooldown": 420.0, "duration": 6.0, "intensity": 0.6,
+		"when": func(c): return c.still > 2.0 and c.dark and c.sanity < 80.0,
+		"run": _event_breath_behind})
 
 # ---------------------------------------------------------------- tools for events
 func later(seconds: float, fn: Callable) -> void:
@@ -294,7 +302,7 @@ func run_event(name: String) -> bool:
 	return false
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not (e is InputEventKey and e.pressed and not e.echo):
+	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	match e.physical_keycode:
 		KEY_F1: print("event: ", trigger_random(true))
@@ -334,7 +342,8 @@ func _event_power_cut() -> void:
 	show_banner("GRID FLUCTUATION // MAIN BALLAST")
 	later(2.5, hide_banner)
 
-	# pre-flicker warning across ~2 s
+	# pre-flicker warning across ~2 s: the tubes round you stutter and pop, the whole grid browns out
+	later(0.2, func(): level.disturb(player.global_position, 28.0, 0.9))
 	var dim := Color(0.25, 0.25, 0.18)
 	for i in range(1, 7):
 		later(i * 0.35, func(): level.set_tint(dim if i % 2 == 0 else Color.WHITE))
@@ -398,3 +407,61 @@ func _event_preacher(forced: int) -> Dictionary:
 			scares.heartbeat(0.4)
 			haunt(0.4))
 	return {"variant": variant, "name": scares.PREACHER_NAMES[variant], "dist": corridor.dist}
+
+# ---------------------------------------------------------------- knocking in the walls
+# Three knocks inside a wall behind you. A pause. Then three more, harder, from a wall nearer to you.
+func _event_wall_knock() -> void:
+	var first := _wall_face_behind(9.0, 16.0)
+	if not first.is_finite():
+		first = sound_spot(12.0)
+	var second := _wall_face_behind(4.0, 8.0)
+	if not second.is_finite():
+		second = first.lerp(player.global_position + Vector3(0.0, 1.3, 0.0), 0.5)
+	haunt(0.35)
+	for i in 3:
+		later(i * 0.42, func(): scares.knock(first, 0.9))
+	later(3.2, func(): haunt(0.55))
+	for i in 3:
+		later(3.2 + i * 0.3, func(): scares.knock(second, 1.4))
+
+# A wall face (the side of a wall cell that looks into an open cell) min_d..max_d from you, behind you
+# if there is one: where the knocking comes from
+func _wall_face_behind(min_d: float, max_d: float) -> Vector3:
+	var p := player.global_position
+	var fwd := -player.global_transform.basis.z
+	var cell := GridNav.CELL
+	var cx := GridNav.cell(p.x)
+	var cz := GridNav.cell(p.z)
+	var r := ceili(max_d / cell) + 1
+	var best := Vector3.INF
+	var best_score := -INF
+	for x in range(cx - r, cx + r + 1):
+		for z in range(cz - r, cz + r + 1):
+			if not nav.is_wall(x, z):
+				continue
+			for o in GridNav.NEIGHBOURS:
+				if nav.blocked(x + o.x, z + o.y):
+					continue
+				var face := Vector3(x * cell + o.x * cell * 0.5, p.y + 1.3, z * cell + o.y * cell * 0.5)
+				var d := Vector2(face.x - p.x, face.z - p.z).length()
+				if d < min_d or d > max_d:
+					continue
+				var behind := -Vector2(fwd.x, fwd.z).normalized().dot(Vector2(face.x - p.x, face.z - p.z) / d)
+				var score := behind + rng.randf() * 0.5
+				if score > best_score:
+					best_score = score
+					best = face
+	return best
+
+# ---------------------------------------------------------------- something breathing behind you
+# Standing still in the dark: one wet breath right at the back of your neck. Turn round: nothing there.
+func _event_breath_behind() -> void:
+	var back := player.global_transform.basis.z
+	var pos := player.global_position + Vector3(0.0, 1.55, 0.0) + back * 0.7
+	scares.breath_behind(pos)
+	later(1.2, func():
+		haunt(0.8)
+		Game.add_glitch(0.25)
+		if Game.heart != null:
+			Game.heart.feed("breath", 0.85))
+

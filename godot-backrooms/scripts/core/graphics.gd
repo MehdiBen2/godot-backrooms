@@ -3,21 +3,31 @@ extends Node
 ## user://graphics.cfg and applied at startup. The first launch picks a preset from the GPU:
 ## integrated / unknown -> Low or Medium, discrete -> High. Ultra adds the extras (4x MSAA,
 ## global illumination, full-size AO, high-res volumetric fog, 8K shadows, 16x filtering).
+##
+## The biggest costs in this game are the tube lights around you (level_lighting.gd keeps a pool of
+## them following you) and their shadows: `lights` is how many are lit at once and `light_shadows` how
+## many of the nearest cast shadows (each one is six shadow renders a frame). `smooth` runs the physics
+## (and so the camera) at the display's refresh rate instead of 60 Hz, so a 144 Hz screen moves at 144.
 
 signal changed
 
 const PATH := "user://graphics.cfg"
 const ORDER := ["low", "medium", "high", "ultra"]
+const SMOOTH_MAX_HZ := 165
 
 const PRESETS := {
 	"low": {"scale": 60, "msaa": 0, "fxaa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
-		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60},
+		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60,
+		"lights": 6, "light_shadows": 0, "smooth": false},
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
-		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0},
+		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
+		"lights": 8, "light_shadows": 2, "smooth": false},
 	"high": {"scale": 100, "msaa": 2, "fxaa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
-		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0},
+		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
+		"lights": 12, "light_shadows": 4, "smooth": true},
 	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
-		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0},
+		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
+		"lights": 12, "light_shadows": 8, "smooth": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)
@@ -54,6 +64,10 @@ func set_fullscreen(on: bool) -> void:
 	_save()
 	changed.emit()
 
+## How many one-shot particles an effect should use, as a fraction of its full count
+func particle_scale() -> float:
+	return [0.45, 0.75, 1.0][clampi(int(s.get("post", 2)), 0, 2)]
+
 ## ui.gd hands over the post-process material so quality changes can reach it
 func register_post(mat: ShaderMaterial) -> void:
 	post_mat = mat
@@ -76,8 +90,11 @@ func apply_scene(root: Node = null) -> void:
 		e.ssr_enabled = s.ssr and not compat
 		e.glow_enabled = s.glow
 		e.volumetric_fog_enabled = s.vfog > 0 and not compat
-	# only lights that cast shadows in the scene file / level builder are switched; the rest stay off
+	# only lights that cast shadows in the scene file / level builder are switched; the rest stay off.
+	# The tube-light pool manages its own (level_lighting.gd reads `lights` / `light_shadows`).
 	for l in root.find_children("*", "Light3D", true, false):
+		if l.has_meta("gfx_managed"):
+			continue
 		if not l.has_meta("gfx_shadow"):
 			l.set_meta("gfx_shadow", l.shadow_enabled)
 		l.shadow_enabled = l.get_meta("gfx_shadow") and s.shadows > 0
@@ -114,8 +131,20 @@ func apply() -> void:
 
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if s.vsync else DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = s.fps
+	Engine.physics_ticks_per_second = physics_hz()
 	apply_scene()
 	changed.emit()
+
+## Physics (and camera) rate: 60 Hz, or with `smooth` the display's refresh rate (the FPS cap if lower)
+func physics_hz() -> int:
+	if not s.get("smooth", false):
+		return 60
+	var hz := roundi(DisplayServer.screen_get_refresh_rate())
+	if hz <= 0:
+		hz = 60
+	if int(s.fps) > 0:
+		hz = mini(hz, int(s.fps))
+	return clampi(hz, 60, SMOOTH_MAX_HZ)
 
 func _apply_post() -> void:
 	if post_mat == null:
@@ -143,8 +172,8 @@ func _auto_preset() -> String:
 	if compat:
 		return "low"
 	match RenderingServer.get_video_adapter_type():
-		1: return "low"          # integrated GPU
-		2: return "high"         # discrete GPU
+		RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU: return "low"
+		RenderingDevice.DEVICE_TYPE_DISCRETE_GPU: return "high"
 	return "medium"
 
 func _load() -> void:

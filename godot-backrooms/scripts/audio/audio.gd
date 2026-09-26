@@ -1,22 +1,37 @@
 extends Node
 ## Port of the web game's audio engine (js/audio/*.js) to Godot.
 ##
-## Bus layout mirrors core.js:
-##   World  = worldTrim (x0.5) + lowpass 16 kHz (750 Hz while paused, 260 Hz blacked out) + small
-##            absorptive-room reverb  <- hum, drone, ambience, one-shots
-##   Body   = x0.7, never muffled     <- your own breathing, jump, landing
-##   Steps  = lowpass per footstep    <- recorded carpet footfalls, straight to master
-##   Master = limiter (-10 dB, 6:1)
+## Bus layout mirrors core.js (every game bus is built here, see _setup_buses):
+##   World    = worldTrim (x0.5) + lowpass 16 kHz (750 Hz while paused) + a room reverb that follows
+##              the space around you  <- hum, drone, one-shots, and the buses below that send to it
+##     Ambience        = high-pass + low-pass (ambience.gd darkens it)   <- the recorded beds
+##     Entity          = low-pass, walls between you and THE BACTERIA    <- its voice, breath, feet
+##     Scares          = plain                                           <- stingers, thumps, whispers
+##     MannequinSteps  = low-pass, head shadow + walls                   <- the mannequin's footfalls
+##     Preacher        = rebuilt per variant (preacher.gd)
+##   Body     = x0.7, never muffled     <- your own breathing, gasps, heartbeat, jump, landing
+##   Steps    = lowpass + reverb + pan  <- your footfalls, straight to master
+##   Master   = compressor (-10 dB, 6:1) + the death muffle low-pass
 ##
 ## The synthesized sounds (ballast hum, breaths, clicks, pops, drone) are pre-rendered from the
 ## same filter chains by tools/gen_audio.py; audio/scales.json holds the level each file was
 ## stored at, so playback gain here = the web game's gain.
+
+const GridNav := preload("res://scripts/world/grid_nav.gd")
+const Breathing := preload("res://scripts/audio/breathing.gd")
 
 const HUM_VOLUME := 0.1              # AUDIO.humVolume
 const HUM_HABITUATED := 0.45         # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0         # AUDIO.humHabituationTime
 const DRONE_BASE := 0.2
 const SLOT_GAIN := 0.3               # per-fixture hum voice gain
+const ONE_SHOTS := 8
+
+# Every bus the game owns. The scene is reloaded on each respawn but the AudioServer keeps its buses,
+# so these are torn down and rebuilt on every load. ONLY these: voice chat's capture bus and its
+# per-speaker buses (the Voice autoload) live across reloads, and deleting them killed the microphone
+# after the first death.
+const GAME_BUSES := ["World", "Body", "Steps", "Ambience", "Entity", "Scares", "MannequinSteps", "Preacher"]
 
 var level: Node
 var player: Node
@@ -32,11 +47,10 @@ var body_idx := 0
 var steps_idx := 0
 var world_lp: AudioEffectLowPassFilter
 var world_rev: AudioEffectReverb
-var nav
+var nav: GridNav
 var room_timer := 0.0
 var room_size := 0.35          # smoothed measurements of the space around the listener
 var room_target := 0.35
-var occl_timer := 0.0
 var steps_lp: AudioEffectLowPassFilter
 var steps_rev: AudioEffectReverb      # your footsteps in the room around you (follows the room measure)
 var steps_pan: AudioEffectPanner      # left foot, right foot
@@ -62,14 +76,9 @@ var hum_mix := 0.0
 var hum_user := 1.0
 var hum_user_target := 1.0
 
-# --- breathing model (breathing.js)
-
-const Breathing := preload("res://scripts/audio/breathing.gd")
+# --- your breathing (breathing.gd)
 var breathing := Breathing.new()
 var one_shots: Array[AudioStreamPlayer] = []
-
-func now() -> float:
-	return Time.get_ticks_msec() / 1000.0
 
 func _ready() -> void:
 	level = get_parent().get_node("Level")
@@ -80,7 +89,7 @@ func _ready() -> void:
 	_setup_hum()
 	breathing.audio = self
 	breathing.setup()
-	for i in 6:
+	for i in ONE_SHOTS:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		one_shots.append(p)
@@ -88,9 +97,9 @@ func _ready() -> void:
 	level.slot_assigned.connect(func(_i): hum_notice(0.12))   # walking under a new light draws the ear back
 	player.jumped.connect(_on_jump)
 	player.landed.connect(_on_land)
-	player.battery_died.connect(func(): _play_world("battery_dead.wav"))
-	player.dead_click.connect(func(): _play_world("battery_dead_click.wav"))
-	player.contact_click.connect(func(off: bool): _play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
+	player.battery_died.connect(func(): play_world("battery_dead.wav"))
+	player.dead_click.connect(func(): play_world("battery_dead_click.wav"))
+	player.contact_click.connect(func(off: bool): play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
 	var amb := Node.new()
 	amb.name = "Ambience"
 	amb.set_script(preload("res://scripts/audio/ambience.gd"))
@@ -98,56 +107,47 @@ func _ready() -> void:
 
 # ---------------------------------------------------------------- buses
 func _setup_buses() -> void:
-	# The scene is reloaded on every respawn, but the AudioServer keeps its buses. Without this each
-	# reload stacked a fresh World/Body/Steps/Ambience bus on top of the old ones: sounds kept playing
-	# through the OLD buses, whose filters were still stuck where the death left them (muffled to
-	# nothing). Start from a clean slate, keeping only the player's footstep volume.
 	var steps_vol := -1.0
 	var old_steps := AudioServer.get_bus_index("Steps")
 	if old_steps >= 0:
 		steps_vol = AudioServer.get_bus_volume_linear(old_steps)
 	for i in range(AudioServer.bus_count - 1, 0, -1):
-		AudioServer.remove_bus(i)
+		if AudioServer.get_bus_name(i) in GAME_BUSES:
+			AudioServer.remove_bus(i)
 	while AudioServer.get_bus_effect_count(0) > 0:
 		AudioServer.remove_bus_effect(0, 0)
-	var master := AudioServer.get_bus_index("Master")
 	var comp := AudioEffectCompressor.new()
 	comp.threshold = -10.0
 	comp.ratio = 6.0
 	comp.attack_us = 4000.0
 	comp.release_ms = 200.0
-	AudioServer.add_bus_effect(master, comp)
+	AudioServer.add_bus_effect(0, comp)
 	master_lp = AudioEffectLowPassFilter.new()
 	master_lp.cutoff_hz = 20000.0
-	AudioServer.add_bus_effect(master, master_lp)
+	AudioServer.add_bus_effect(0, master_lp)
 
-	for n in ["World", "Body", "Steps"]:
-		AudioServer.add_bus()
-		var idx := AudioServer.bus_count - 1
-		AudioServer.set_bus_name(idx, n)
-		AudioServer.set_bus_send(idx, "Master")
-	world_idx = AudioServer.get_bus_index("World")
-	body_idx = AudioServer.get_bus_index("Body")
-	steps_idx = AudioServer.get_bus_index("Steps")
+	world_idx = _add_bus("World", "Master")
+	body_idx = _add_bus("Body", "Master")
+	steps_idx = _add_bus("Steps", "Master")
 
 	# World: small absorptive room (dropped ceiling + damp carpet = short dark tail), then the muffle filter
-	var rev := AudioEffectReverb.new()
-	world_rev = rev
-	rev.room_size = 0.35
-	rev.damping = 0.75
-	rev.spread = 1.0
-	rev.hipass = 0.0
-	rev.dry = 1.0
-	rev.wet = 0.14
-	AudioServer.add_bus_effect(world_idx, rev)
+	world_rev = AudioEffectReverb.new()
+	world_rev.room_size = 0.35
+	world_rev.damping = 0.75
+	world_rev.spread = 1.0
+	world_rev.hipass = 0.0
+	world_rev.dry = 1.0
+	world_rev.wet = 0.14
+	AudioServer.add_bus_effect(world_idx, world_rev)
 	world_lp = AudioEffectLowPassFilter.new()
 	world_lp.cutoff_hz = 16000.0
 	AudioServer.add_bus_effect(world_idx, world_lp)
 	AudioServer.set_bus_volume_linear(world_idx, 0.5)          # worldTrim
 	AudioServer.set_bus_volume_linear(body_idx, 0.7)
+
 	steps_lp = AudioEffectLowPassFilter.new()
 	steps_lp.cutoff_hz = 20000.0
-	AudioServer.add_bus_effect(steps_idx, steps_lp)          # effect 0: player.gd reads it for the crouch muffle
+	AudioServer.add_bus_effect(steps_idx, steps_lp)          # effect 0: footsteps.gd sets it for the crouch muffle
 	# The recorded steps are dry. Give them the same space as everything else: a tight slap in a corridor,
 	# a longer tail across a big hall (kept drier than the World bus: they're right under you)
 	steps_rev = AudioEffectReverb.new()
@@ -163,15 +163,38 @@ func _setup_buses() -> void:
 	if steps_vol >= 0.0:
 		AudioServer.set_bus_volume_linear(steps_idx, steps_vol)
 
-func stream(name: String) -> AudioStreamWAV:
-	if not streams.has(name):
-		streams[name] = load("res://audio/" + name)
-	return streams[name]
+	# Ambience (ambience.gd): effect 0 keeps MP3 rumble out of the drone's sub-bass, effect 1 darkens it
+	var amb := _add_bus("Ambience", "World")
+	var hp := AudioEffectHighPassFilter.new()
+	hp.cutoff_hz = 70.0
+	AudioServer.add_bus_effect(amb, hp)
+	var amb_lp := AudioEffectLowPassFilter.new()
+	amb_lp.cutoff_hz = 12000.0
+	AudioServer.add_bus_effect(amb, amb_lp)
+	# Entity / MannequinSteps: effect 0 is the muffle their owners drive (creature_voice.gd, creature_steps.gd)
+	for bus in ["Entity", "MannequinSteps"]:
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 20000.0
+		AudioServer.add_bus_effect(_add_bus(bus, "World"), lp)
+	_add_bus("Scares", "World")
+	_add_bus("Preacher", "World")
 
-func loop_stream(name: String) -> AudioStreamWAV:
-	# Looping is set in the .import files (edit/loop_mode=Forward, uncompressed). Never compute
-	# loop points from data.size(): with compressed imports that cut the loop mid-file and ticked.
-	return stream(name)
+func _add_bus(bus_name: String, send: String) -> int:
+	AudioServer.add_bus()
+	var idx := AudioServer.bus_count - 1
+	AudioServer.set_bus_name(idx, bus_name)
+	AudioServer.set_bus_send(idx, send)
+	return idx
+
+func stream(file: String) -> AudioStream:
+	if not streams.has(file):
+		streams[file] = load("res://audio/" + file)
+	return streams[file]
+
+# Looping is set in the .import files (edit/loop_mode=Forward, uncompressed). Never compute loop points
+# from data.size(): with compressed imports that cut the loop mid-file and ticked.
+func loop_stream(file: String) -> AudioStream:
+	return stream(file)
 
 # ---------------------------------------------------------------- hum
 func _setup_hum() -> void:
@@ -231,14 +254,14 @@ func _update_hum(dt: float) -> void:
 # ---------------------------------------------------------------- tube pops
 func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
 	if not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
-	var name := "tube_restrike.wav" if restrike else "tube_drop.wav"
+	var file := "tube_restrike.wav" if restrike else "tube_drop.wav"
 	var p := AudioStreamPlayer3D.new()
-	p.stream = stream(name)
+	p.stream = stream(file)
 	p.bus = "World"
 	p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 	p.unit_size = 1.6
 	p.max_distance = 40.0
-	p.volume_linear = hum_mix * HUM_VOLUME * hum_user * 2.0 * 1.0
+	p.volume_linear = hum_mix * HUM_VOLUME * hum_user * 2.0
 	add_child(p)
 	p.global_position = f.light_pos
 	occlude(p, true)
@@ -247,30 +270,25 @@ func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
 	hum_notice(0.15 if restrike else 0.25)
 
 # ---------------------------------------------------------------- one-shots
-func _play(name: String, bus: String, linear: float, pitch := 1.0) -> void:
+func _play(file: String, bus: String, linear: float, pitch := 1.0) -> void:
 	for p in one_shots:
 		if not p.playing:
-			p.stream = stream(name)
+			p.stream = stream(file)
 			p.bus = bus
-			p.volume_linear = linear / float(scales.get(name, 1.0))
+			p.volume_linear = linear / float(scales.get(file, 1.0))
 			p.pitch_scale = pitch
 			p.play()
 			return
 
-func _play_world(name: String) -> void:
-	_play(name, "World", 1.0)
+## A short sound in the world with no position (clicks, the dead battery, a pickup)
+func play_world(file: String) -> void:
+	_play(file, "World", 1.0)
 
 func _on_jump() -> void:
 	_play("jump.wav", "Body", 1.0)
 
 func _on_land(strength: float) -> void:
-	var s := minf(1.0, 0.4 + strength * 0.6)
-	_play("land_thud.wav", "Body", s)
-
-func play_grid_off(pos := Vector3.INF) -> void:
-	var scares = get_parent().get_node_or_null("Scares")
-	if scares and scares.has_method("grid_off"):
-		scares.grid_off(pos)
+	_play("land_thud.wav", "Body", minf(1.0, 0.4 + strength * 0.6))
 
 # ---------------------------------------------------------------- pause / muffle
 # While something has hold of you (0..1): the world slowly closes in, dulling and ducking a little at
@@ -299,7 +317,6 @@ func _world_cutoff_goal() -> float:
 
 # ---------------------------------------------------------------- frame
 func _process(dt: float) -> void:
-	# world filter: menu = soft lowpass, otherwise open
 	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
 	# the duck: a little quieter while held, a little more once dead (never below 60%)
@@ -317,9 +334,7 @@ func _process(dt: float) -> void:
 		master_lp.cutoff_hz = master_cut
 	if not paused:
 		breathing.update(dt)
-	occl_timer -= dt
 	_update_hum(dt)
-	if occl_timer <= 0.0: occl_timer = 0.1
 	_update_room(dt)
 	breathing.play_queue()
 
@@ -327,13 +342,13 @@ func _process(dt: float) -> void:
 # Godot has no geometry occlusion, so count the wall cells between a source and the listener on the
 # level grid (the same map the entity's muffle uses). Each wall thickens the muffle: the per-player
 # attenuation filter drops from open air (~20 kHz) toward a dull thud, and the level falls a little.
-func _grid():
+func grid() -> GridNav:
 	if nav == null and level.size > 0:
-		nav = preload("res://scripts/world/grid_nav.gd").new(level)
+		nav = GridNav.new(level)
 	return nav
 
 func walls_between(a: Vector3, b: Vector3) -> int:
-	var g = _grid()
+	var g := grid()
 	if g == null: return 0
 	var dx := b.x - a.x
 	var dz := b.z - a.z
@@ -342,7 +357,7 @@ func walls_between(a: Vector3, b: Vector3) -> int:
 	var last := Vector2i(1 << 30, 1 << 30)
 	for i in range(1, steps):
 		var t := float(i) / steps
-		var c := Vector2i(g.cell(a.x + dx * t), g.cell(a.z + dz * t))
+		var c := Vector2i(GridNav.cell(a.x + dx * t), GridNav.cell(a.z + dz * t))
 		if c != last and level.walls.has(c):
 			count += 1
 		last = c
@@ -361,7 +376,7 @@ func occlude(p: AudioStreamPlayer3D, instant := false) -> void:
 # Fire eight rays across the grid to measure the space around the listener. Tight corridors give a
 # short, dry, dark tail; big open halls and tall ceilings give a longer, wetter, more open one.
 func _measure_room() -> float:
-	var g = _grid()
+	var g := grid()
 	if g == null: return 0.35
 	var p: Vector3 = player.global_position
 	var total := 0.0
@@ -372,7 +387,7 @@ func _measure_room() -> float:
 			d += 1.5
 		total += d
 	var mean := total / 8.0                                   # ~4 in a corridor, 30+ in a hall
-	var ceil_h: float = level.ceiling_height(Vector2i(g.cell(p.x), g.cell(p.z)))
+	var ceil_h: float = level.ceiling_height(Vector2i(GridNav.cell(p.x), GridNav.cell(p.z)))
 	return clampf(0.15 + mean / 45.0 + (ceil_h - level.WALL_H) / 40.0, 0.15, 0.95)
 
 func _update_room(dt: float) -> void:

@@ -23,6 +23,7 @@ var b_next := 0.0
 var b_last := -1e9
 var b_last_jitter := 1.0
 var b_busy_until := 0.0
+var b_voice_until := 0.0             # a recorded breath (hold_for) owns the lungs until then
 var b_holding := false
 var b_hold_time := 0.0
 var b_hold_cd := 0.0
@@ -160,6 +161,8 @@ func _schedule(loud: float) -> void:
 		b_next = t + period * jitter
 
 func gasp(strength := 1.0) -> void:
+	if _now() < b_voice_until:
+		return                     # a recorded gasp is this breath already: never a second one over it
 	var t := _now() + 0.01
 	_phase(t, 0.34, true, strength, 1.0, 0.25)
 	_phase(t + 0.4, 0.7, false, strength * 0.7, 0.8, 0.4)
@@ -167,6 +170,18 @@ func gasp(strength := 1.0) -> void:
 	b_last_jitter = 1.0
 	b_busy_until = t + 1.1
 	b_next = t + 1.2
+
+## A recorded breath (the startle gasp, scares.gd) is playing for `seconds`: drop what was queued and
+## pick the rhythm up again after it, instead of breathing, or gasping again, on top of it
+func hold_for(seconds: float) -> void:
+	queue.clear()
+	var t := _now() + seconds
+	b_voice_until = maxf(b_voice_until, t)
+	b_busy_until = maxf(b_busy_until, t)
+	b_next = maxf(b_next, t + 0.15)
+	b_last = t
+	b_last_jitter = 1.0
+	b_calm_time = 0.0               # the fright is heard: no second startle gasp for it
 
 # The last breath as you go down: one long, shaking, voiced exhale, and nothing after it
 func last_breath() -> void:

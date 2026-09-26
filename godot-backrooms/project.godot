@@ -21,7 +21,7 @@ config/windows_native_icon="res://icon.ico"
 [autoload]
 
 Game="*res://scripts/core/game_state.gd"
-Death="*res://scripts/ui/death.gd"
+Death="*res://scripts/ui/death/death.gd"
 Net="*res://scripts/net/net.gd"
 Gfx="*res://scripts/core/graphics.gd"
 Voice="*res://scripts/voice/voice.gd"

@@ -1,6 +1,13 @@
 extends CharacterBody3D
 ## First-person controller. Values mirror PLAYER_DEFAULTS / JUMP in the web game.
 ## Movement reads PHYSICAL keys, so WASD works as ZQSD on AZERTY (and any other layout).
+##
+## Its parts live beside it: footsteps.gd (your footfalls), torch_model.gd (the torch in your hand),
+## blink.gd (your eyelids). The flashlight beam, stamina, adrenaline and sanity are here.
+
+const Footsteps := preload("res://scripts/player/footsteps.gd")
+const TorchModel := preload("res://scripts/player/torch_model.gd")
+const Blink := preload("res://scripts/player/blink.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -17,7 +24,6 @@ const COYOTE_TIME := 0.10         # can still jump this long after walking off a
 const JUMP_BUFFER := 0.12         # a press this soon before landing still jumps
 const LEAN_WALK := 0.010          # camera roll into a strafe (rad)
 const LEAN_SPRINT := 0.018
-var sens := 0.0022        # set from the menu's Mouse Sens slider
 const SPRINT_SECONDS := 30.0
 const STAMINA_REGEN := 18.0
 # Adrenaline (ADRENALINE in js/config.js): hunted by the bacteria up close, you get a burst of speed
@@ -30,11 +36,25 @@ const ADR_AFTERGLOW := 3.5       # seconds it lingers after the chase ends
 const ADR_CRASH_STAMINA := 25.0  # stamina you're left with when it fades
 const ADR_COOLDOWN := 22.0       # seconds before it can kick in again
 const ADR_FOV := 9.0             # extra field of view at full strength (degrees)
+# three.js fov is vertical; Godot's default keeps height too (KEEP_HEIGHT)
+const BASE_FOV := 75.0
+const INSANE_BELOW := 60.0     # the picture starts to go and the eyes open below this
+const HURT_SANITY := 30.0      # health starts draining below this
+const CALM_SANITY := 60.0      # health starts coming back above this
+const FLASH_ENERGY_HOTSPOT := 6.5
+const FLASH_ENERGY_SPILL := 2.0
+const BATTERY_DRAIN := 100.0 / 75.0     # % per second while on (75 s of light)
+const BATTERY_LOW := 25.0
+const BATTERY_CRIT := 10.0
 
 @onready var cam: Camera3D = $Camera3D
 @onready var flash: SpotLight3D = $Camera3D/Flashlight
-var flash_spill: SpotLight3D
 @onready var shape: CollisionShape3D = $CollisionShape3D
+var flash_spill: SpotLight3D
+var footsteps: Footsteps
+var torch: TorchModel
+var blink: Blink
+var level: Node
 
 signal jumped
 signal landed(strength: float)
@@ -44,42 +64,36 @@ signal contact_click(off: bool)
 signal adrenaline_started
 signal adrenaline_faded
 
+# settings (menu.gd pushes them in through hud.apply_settings)
+var sens := 0.0022
+var base_fov := BASE_FOV
+var head_bob := 1.0              # 0 = steady camera, 1 = full bob / lean / landing dip
+
 var is_sprinting := false
 var is_moving := false
 var is_crouching := false
 var was_airborne := false
 var air_time := 0.0
 var last_vy := 0.0
-var last_step_time := 0.0
-var foot := 1.0
 var eye := STAND_H
 var was_stepping := false
 var step_triggered := false
 var fov_kick := 0.0
-# three.js fov is vertical; Godot's default keeps height too (KEEP_HEIGHT)
-const BASE_FOV := 75.0
 var health := 100.0
 var sanity := 100.0
 var sanity_lock := -1.0        # >= 0 pins sanity there (debug console)
 var insanity := 0.0            # 0..1 how far gone: blur, double vision, the eyes
 var hurt_tick := 0.0
-const INSANE_BELOW := 60.0     # the picture starts to go and the eyes open below this
-const HURT_SANITY := 30.0      # health starts draining below this
-const CALM_SANITY := 60.0      # health starts coming back above this
 var battery := 100.0          # flashlight battery, %
 var flash_on := true
 var light_level := 1.0
 var flash_target := Vector3.ZERO
 var flash_flicker := {"timer": 6.0, "active": false, "step": 0.0, "value": 1.0}
+var flicker_left := 0.0
 var dead := false
 var grid_down := false       # power cut: the torch drains slowly
 var spawn_grace := 0.0
 var frozen := false          # grabbed / snapped: no input
-const FLASH_ENERGY_HOTSPOT := 6.5
-const FLASH_ENERGY_SPILL := 2.0
-const BATTERY_DRAIN := 100.0 / 75.0     # % per second while on (75 s of light)
-const BATTERY_LOW := 25.0
-const BATTERY_CRIT := 10.0
 var stamina := 100.0
 var exhausted := false
 var rest_timer := 0.0
@@ -89,39 +103,23 @@ var adr_time := 0.0
 var adr_glow := 0.0
 var adr_cooldown := 0.0
 var bob := 0.0
-var walk_sounds: Array[AudioStream] = []
-var sprint_sounds: Array[AudioStream] = []
-var step_player: AudioStreamPlayer
-var heel_player: AudioStreamPlayer        # the low knock under each recorded scuff
-var heel_sound: AudioStream
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/on.mp3")
 var click_off: AudioStream = load("res://audio/off.mp3")
-
 var space_prev := false
 var jump_buffer := 0.0
 var coyote := 0.0
 var land_dip := 0.0
 var lean := 0.0
-
-# Held torch viewmodel (models/flashlight.glb), low-right in view; raised while the torch is on
-const TORCH_LENGTH := 0.27
-const TORCH_POS := Vector3(0.2, -0.2, -0.38)
-const TORCH_ROT := Vector3(0.16, 0.14, 0.0)
-var torch_holder: Node3D
-var torch_raise := 0.0
-var torch_lower := 0.0
+var dark_time := 0.0          # how long you have been in the dark with no light of your own
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	for i in range(1, 5):
-		walk_sounds.append(load("res://audio/carpet_walk_%d.wav" % i))
-		sprint_sounds.append(load("res://audio/carpet_sprint_%d.wav" % i))
+	level = get_parent().get_node_or_null("Level")
 	flash.top_level = true
 	flash.visible = true
-	if flash.has_node("Spill"):
-		flash_spill = flash.get_node("Spill") as SpotLight3D
-	else:
+	flash_spill = flash.get_node_or_null("Spill") as SpotLight3D
+	if flash_spill == null:
 		flash_spill = SpotLight3D.new()
 		flash_spill.name = "Spill"
 		flash_spill.light_color = Color(1.0, 0.94, 0.84, 1.0)
@@ -132,69 +130,20 @@ func _ready() -> void:
 		flash_spill.spot_angle_attenuation = 1.1
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
-	_build_torch_model()
-	step_player = AudioStreamPlayer.new()
-	step_player.bus = "Steps"
-	add_child(step_player)
-	heel_player = AudioStreamPlayer.new()
-	heel_player.bus = "Steps"
-	add_child(heel_player)
-	heel_sound = preload("res://scripts/audio/scare_synth.gd").new().render("heel")
+	torch = TorchModel.new()
+	cam.add_child(torch)
+	if not torch.build():
+		torch.queue_free()
+		torch = null
+	footsteps = Footsteps.new()
+	footsteps.name = "Footsteps"
+	add_child(footsteps)
+	blink = Blink.new()
+	blink.name = "Blink"
+	add_child(blink)
 	click_player = AudioStreamPlayer.new()
 	click_player.volume_db = -4.4
 	add_child(click_player)
-
-func _build_torch_model() -> void:
-	var scn := load("res://models/flashlight.glb") as PackedScene
-	if scn == null: return
-	torch_holder = Node3D.new()
-	torch_holder.position = TORCH_POS
-	torch_holder.rotation = TORCH_ROT
-	torch_holder.visible = false
-	cam.add_child(torch_holder)
-	var wrap := Node3D.new()
-	torch_holder.add_child(wrap)
-	var inner := scn.instantiate() as Node3D
-	wrap.add_child(inner)
-	# Merge the mesh bounds (in wrap space) to find the long axis and centre
-	var box := AABB()
-	var first := true
-	for n in inner.find_children("*", "MeshInstance3D", true, false):
-		var mi := n as MeshInstance3D
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var b := wrap.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
-	if first: return
-	var size := box.size
-	var axis := 0 if (size.x >= size.y and size.x >= size.z) else (1 if size.y >= size.z else 2)
-	var scale_f := TORCH_LENGTH / maxf(0.0001, size[axis])
-	inner.scale = Vector3.ONE * scale_f
-	inner.position = -box.get_center() * scale_f
-	# long axis onto -Z, centred on the fist
-	if axis == 0: wrap.rotation.y = PI / 2.0
-	elif axis == 1: wrap.rotation.x = -PI / 2.0
-
-func _update_torch_model(dt: float) -> void:
-	if torch_holder == null: return
-	var show := flash_on and not dead
-	torch_holder.visible = show
-	if not show:
-		torch_raise = 0.0
-		return
-	torch_raise = minf(1.0, torch_raise + dt * 3.0)
-	torch_lower += ((1.0 if is_sprinting else 0.0) - torch_lower) * minf(1.0, dt * 8.0)
-	var down := (1.0 - torch_raise) * (1.0 - torch_raise)
-	var step := sin(bob) if is_moving else 0.0
-	var breathe := sin(Time.get_ticks_msec() * 0.0016) * 0.003
-	torch_holder.position = Vector3(
-		TORCH_POS.x + step * 0.01 - torch_lower * 0.03,
-		TORCH_POS.y + absf(step) * 0.008 + breathe - down * 0.3 - torch_lower * 0.03,
-		TORCH_POS.z)
-	torch_holder.rotation = Vector3(
-		TORCH_ROT.x - torch_lower * 0.35 + step * 0.01,
-		TORCH_ROT.y + torch_lower * 0.25,
-		TORCH_ROT.z + step * 0.02)
 
 func _key(code: Key) -> bool:
 	return Input.is_physical_key_pressed(code)
@@ -239,20 +188,7 @@ func _physics_process(dt: float) -> void:
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
-
-	# Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
-	if rush:
-		exhausted = false
-		stamina = maxf(stamina, 60.0)
-		rest_timer = 0.6
-	elif sprint:
-		stamina = maxf(0.0, stamina - dt * 100.0 / SPRINT_SECONDS)
-		rest_timer = 0.6
-		if stamina <= 0.0: exhausted = true
-	else:
-		rest_timer = maxf(0.0, rest_timer - dt)
-		if rest_timer == 0.0: stamina = minf(100.0, stamina + STAMINA_REGEN * dt)
-		if exhausted and stamina >= 15.0: exhausted = false
+	_update_stamina(dt, sprint, rush)
 
 	eye = lerpf(eye, CROUCH_H if crouch else STAND_H, minf(1.0, dt * 10.0))
 	(shape.shape as CapsuleShape3D).height = eye + 0.1
@@ -288,17 +224,40 @@ func _physics_process(dt: float) -> void:
 			var strength := minf(1.0, absf(last_vy) / 12.0)
 			landed.emit(strength)
 			land_dip = 0.04 + 0.10 * strength
-			_footstep(true, false, 1.0)
+			footsteps.step(true, false, 1.0)
 		was_airborne = false
 		air_time = 0.0
 	else:
 		was_airborne = true
 		air_time += dt
 	_update_flashlight(dt)
-	_update_torch_model(dt)
+	if torch:
+		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
 	_update_sanity(dt)
+	_update_head(dt, dir, sprint, crouch, moving)
 
-	# Head bob + footfalls: web updateHeadBob. Step lands at the bottom of each bob.
+	# fell down a pit: the picture dissolves into static and you come to at the spawn, no hard cut
+	if global_position.y < -30.0 and not Death.respawn_busy:
+		Death.respawn_transition(_back_to_spawn)
+
+# Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
+func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
+	if rush:
+		exhausted = false
+		stamina = maxf(stamina, 60.0)
+		rest_timer = 0.6
+	elif sprint:
+		stamina = maxf(0.0, stamina - dt * 100.0 / SPRINT_SECONDS)
+		rest_timer = 0.6
+		if stamina <= 0.0: exhausted = true
+	else:
+		rest_timer = maxf(0.0, rest_timer - dt)
+		if rest_timer == 0.0: stamina = minf(100.0, stamina + STAMINA_REGEN * dt)
+		if exhausted and stamina >= 15.0: exhausted = false
+
+# Head bob + footfalls (web updateHeadBob): a step lands at the bottom of each bob. The bob, the lean
+# and the landing dip are scaled by the head-bob setting; the footfalls keep their rhythm regardless.
+func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: bool) -> void:
 	var horiz := Vector2(velocity.x, velocity.z).length()
 	var walking := moving and horiz > 0.3
 	var y := eye
@@ -307,34 +266,33 @@ func _physics_process(dt: float) -> void:
 	elif not walking:
 		if was_stepping:
 			was_stepping = false
-			if not step_triggered: _footstep(false, crouch, 0.5)   # trailing foot comes down softly
+			if not step_triggered: footsteps.step(false, crouch, 0.5)   # trailing foot comes down softly
 		bob += dt * 1.5
-		y = eye + sin(bob) * 0.012
+		y = eye + sin(bob) * 0.012 * head_bob
 	else:
 		was_stepping = true
 		var freq := 12.0 if sprint else (6.0 if crouch else 8.5)
 		bob += dt * freq
 		var b := sin(bob)
-		y = eye + b * (0.07 if sprint else 0.035)
+		y = eye + b * (0.07 if sprint else 0.035) * head_bob
 		if b < -0.85 and not step_triggered:
 			step_triggered = true
-			_footstep(sprint, crouch, 1.0)
+			footsteps.step(sprint, crouch, 1.0)
 		elif b > 0.0:
 			step_triggered = false
 	land_dip *= exp(-dt * 9.0)
-	cam.position = Vector3(0.0, y - land_dip, 0.0)
-	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) if walking else 0.0
+	cam.position = Vector3(0.0, y - land_dip * head_bob, 0.0)
+	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
 	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
 	cam.rotation.z = lean
-
-	# FOV: 75 base, +2.5 sprinting, +2 in the air (web updateFov)
+	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
-	cam.fov = BASE_FOV + fov_kick + ADR_FOV * adrenaline
+	cam.fov = base_fov + fov_kick + ADR_FOV * adrenaline
 
-	# fell down a pit: the picture dissolves into static and you come to at the spawn, no hard cut
-	if global_position.y < -30.0 and not Death.respawn_busy:
-		Death.respawn_transition(_back_to_spawn)
+## How far your footsteps carry right now (the entity's hearing multiplies by this)
+func step_noise() -> float:
+	return footsteps.noise() if footsteps else 1.0
 
 # Something heavy landed nearby (the bacteria's footfalls in a chase): the view dips with the floor
 func jolt(amount: float) -> void:
@@ -376,7 +334,7 @@ func end_adrenaline() -> void:
 
 func _back_to_spawn() -> void:
 	end_adrenaline()
-	global_position = get_parent().get_node("Level").spawn_pos
+	global_position = level.spawn_pos
 	velocity = Vector3.ZERO
 	land_dip = 0.0
 	was_airborne = false
@@ -396,20 +354,16 @@ func _update_flashlight(dt: float) -> void:
 		if randf() < (0.32 if battery < BATTERY_CRIT else 0.10):
 			k *= 0.05 + randf() * 0.45
 	k *= _contact_flicker(dt)
-	# Dynamic dark adaptation: in deep darkness / unlit zones / power outage,
-	# human pupils dilate, making the flashlight beam appear brighter and crisper
+	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := 1.0
-	var level_node := get_parent().get_node_or_null("Level")
-	if level_node and level_node.has_method("tube_light_at"):
-		lvl = level_node.tube_light_at(global_position)
+	if level != null:
+		lvl = level.tube_light_at(global_position)
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
-
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if flash_on else 0.0
 	flash.visible = flash_on
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
 		flash_spill.visible = flash_on
-
 	# The beam leaves from the camera and follows the view with natural lag
 	var lens_world := cam.global_position
 	flash.global_position = lens_world
@@ -418,15 +372,14 @@ func _update_flashlight(dt: float) -> void:
 	if flash_target.distance_to(lens_world) > 0.01:
 		flash.look_at(flash_target, Vector3.UP)
 
-# An event makes the torch stutter for `secs` seconds
+## The torch stutters for `secs` seconds (an event, or something big coming close)
 func trigger_flicker(secs: float) -> void:
 	flash_flicker.timer = 0.0
 	flash_flicker.active = true
 	flash_flicker.step = 0.0
-	flicker_left = secs
+	flicker_left = maxf(flicker_left, secs)
 
-var flicker_left := 0.0
-
+# Loose contact: long steady stretches, then a burst of dropouts
 func _contact_flicker(dt: float) -> float:
 	var fl := flash_flicker
 	fl.timer -= dt
@@ -449,14 +402,12 @@ func _contact_flicker(dt: float) -> float:
 	return fl.value
 
 # ---- sanity: darkness drains it, safe light restores it (web SANITY values) ----
-var dark_time := 0.0          # how long you have been in the dark with no light of your own
-
 # Light is what keeps you sane. Ambient light (the tubes) restores it as before. The torch is a light
 # of your own: with it on you never lose sanity to the dark, and it slowly restores it. With NO light at
 # all (dark area, torch off or dead) sanity drains, and the longer you stay in it the faster it goes.
 func _update_sanity(dt: float) -> void:
-	var ambient: float = get_parent().get_node("Level").tube_light_at(global_position)
-	var torch := flash_on and battery > 0.0
+	var ambient: float = level.tube_light_at(global_position) if level != null else 1.0
+	var torch_lit := flash_on and battery > 0.0
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
 	if sanity_lock >= 0.0:
 		sanity = sanity_lock                      # debug console: `sanity <n>` pins it
@@ -464,7 +415,7 @@ func _update_sanity(dt: float) -> void:
 		var rec := minf(1.0, (light_level - 0.45) / 0.55)
 		sanity = minf(100.0, sanity + 2.2 * (0.4 + 0.6 * rec) * dt)
 		dark_time = 0.0
-	elif torch:
+	elif torch_lit:
 		# your own light: steadies you even in the dark, a little slower than a properly lit room
 		sanity = minf(100.0, sanity + 1.4 * dt)
 		dark_time = maxf(0.0, dark_time - dt * 3.0)
@@ -498,42 +449,8 @@ func _update_mind(dt: float) -> void:
 	elif sanity > CALM_SANITY and health < 100.0:
 		health = minf(100.0, health + 0.8 * dt)
 
-# Recorded carpet footfall (sfx.js footstep): never the same take twice in a row, slight level /
-# pitch / tone variation, quieter and darker when crouching, 180 ms minimum gap.
-var last_step_idx := -1
-
-func _footstep(sprint: bool, crouch: bool, intensity: float) -> void:
-	var t := Time.get_ticks_msec() / 1000.0
-	if t - last_step_time < 0.18: return
-	last_step_time = t
-	var list := sprint_sounds if sprint else walk_sounds
-	var idx := randi() % list.size()
-	while idx == last_step_idx and list.size() > 1: idx = randi() % list.size()
-	last_step_idx = idx
-	var level := 0.05 if crouch else (0.2 if sprint else 0.14)
-	step_player.stream = list[idx]
-	step_player.volume_linear = level * randf_range(0.85, 1.1) * intensity
-	step_player.pitch_scale = (0.92 if crouch else 1.0) * randf_range(0.96, 1.04)
-	# the recorded scuffs are all top end: a heel knock underneath gives the step its weight, more of it
-	# when you run, hardly any creeping. The two feet never land quite alike.
-	foot = -foot
-	heel_player.stream = heel_sound
-	heel_player.volume_linear = level * (0.45 if sprint else (0.15 if crouch else 0.32)) * randf_range(0.8, 1.1) * intensity
-	heel_player.pitch_scale = randf_range(0.9, 1.1) * (0.96 if foot < 0.0 else 1.02) * (0.9 if sprint else 1.0)
-	var au := get_parent().get_node_or_null("Audio")
-	if au != null:
-		au.step_foot(foot)
-	var bus := AudioServer.get_bus_index("Steps")
-	if bus >= 0:
-		var lp := AudioServer.get_bus_effect(bus, 0) as AudioEffectLowPassFilter
-		var want := 2500.0 if crouch else 12000.0
-		if lp and lp.cutoff_hz != want: lp.cutoff_hz = want      # only on change: re-setting it clicks
-	step_player.play()
-	heel_player.play()
-
 ## Player gasps in fright (e.g. when seized or startled by an entity)
 func gasp() -> void:
 	var sc: Node = get_parent().get_node_or_null("Scares")
-	if sc != null and sc.has_method("gasp"):
+	if sc != null:
 		sc.gasp()
-

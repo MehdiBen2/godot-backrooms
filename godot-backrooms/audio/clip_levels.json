@@ -1,0 +1,262 @@
+{
+ "res://audio/player/body_fall.mp3": {
+  "peak": -1.0,
+  "rms": -15.26,
+  "length": 1.512
+ },
+ "res://audio/player/gasp/death.mp3": {
+  "peak": -4.06,
+  "rms": -17.94,
+  "length": 0.936
+ },
+ "res://audio/player/gasp/gasp_2.mp3": {
+  "peak": -11.08,
+  "rms": -23.64,
+  "length": 2.256
+ },
+ "res://audio/player/gasp/gasp_3.mp3": {
+  "peak": -14.29,
+  "rms": -28.2,
+  "length": 2.328
+ },
+ "res://audio/player/gasp/gasp_4.mp3": {
+  "peak": -4.06,
+  "rms": -18.05,
+  "length": 1.896
+ },
+ "res://audio/player/gasp/gasp_5.mp3": {
+  "peak": -11.73,
+  "rms": -26.4,
+  "length": 2.808
+ },
+ "res://audio/player/gasp/gasp_6.mp3": {
+  "peak": -7.25,
+  "rms": -23.25,
+  "length": 2.712
+ },
+ "res://audio/player/gasp/gasp_short_1.mp3": {
+  "peak": -30.0,
+  "rms": -37.84,
+  "length": 0.768
+ },
+ "res://audio/player/gasp/gasp_short_2.mp3": {
+  "peak": -26.05,
+  "rms": -35.06,
+  "length": 0.984
+ },
+ "res://audio/entity/blood_scream.mp3": {
+  "peak": -5.03,
+  "rms": -19.16,
+  "length": 1.698
+ },
+ "res://audio/entity/entity_1.wav": {
+  "peak": -4.98,
+  "rms": -15.72,
+  "length": 2.529
+ },
+ "res://audio/entity/entity_10.wav": {
+  "peak": -8.41,
+  "rms": -21.99,
+  "length": 3.611
+ },
+ "res://audio/entity/entity_11.wav": {
+  "peak": -5.86,
+  "rms": -18.02,
+  "length": 2.245
+ },
+ "res://audio/entity/entity_12.wav": {
+  "peak": -6.49,
+  "rms": -18.33,
+  "length": 3.255
+ },
+ "res://audio/entity/entity_13.wav": {
+  "peak": -4.97,
+  "rms": -16.2,
+  "length": 2.683
+ },
+ "res://audio/entity/entity_14.wav": {
+  "peak": -7.85,
+  "rms": -24.22,
+  "length": 3.389
+ },
+ "res://audio/entity/entity_15.wav": {
+  "peak": -8.48,
+  "rms": -24.08,
+  "length": 3.476
+ },
+ "res://audio/entity/entity_16.wav": {
+  "peak": -5.6,
+  "rms": -19.33,
+  "length": 4.889
+ },
+ "res://audio/entity/entity_17.wav": {
+  "peak": -8.6,
+  "rms": -19.71,
+  "length": 1.606
+ },
+ "res://audio/entity/entity_18.wav": {
+  "peak": -6.57,
+  "rms": -19.6,
+  "length": 3.212
+ },
+ "res://audio/entity/entity_19.wav": {
+  "peak": -5.0,
+  "rms": -16.25,
+  "length": 2.111
+ },
+ "res://audio/entity/entity_2.wav": {
+  "peak": -3.82,
+  "rms": -17.32,
+  "length": 2.63
+ },
+ "res://audio/entity/entity_20.wav": {
+  "peak": -8.34,
+  "rms": -23.92,
+  "length": 3.837
+ },
+ "res://audio/entity/entity_21.wav": {
+  "peak": -5.82,
+  "rms": -18.91,
+  "length": 3.197
+ },
+ "res://audio/entity/entity_22.wav": {
+  "peak": -7.1,
+  "rms": -17.84,
+  "length": 3.375
+ },
+ "res://audio/entity/entity_23.wav": {
+  "peak": -10.71,
+  "rms": -25.54,
+  "length": 3.077
+ },
+ "res://audio/entity/entity_24.wav": {
+  "peak": -5.26,
+  "rms": -21.85,
+  "length": 5.067
+ },
+ "res://audio/entity/entity_25.wav": {
+  "peak": -5.29,
+  "rms": -19.46,
+  "length": 3.913
+ },
+ "res://audio/entity/entity_26.wav": {
+  "peak": -7.22,
+  "rms": -20.0,
+  "length": 4.149
+ },
+ "res://audio/entity/entity_27.wav": {
+  "peak": -6.48,
+  "rms": -17.78,
+  "length": 3.26
+ },
+ "res://audio/entity/entity_28.wav": {
+  "peak": -8.72,
+  "rms": -19.88,
+  "length": 2.726
+ },
+ "res://audio/entity/entity_29.wav": {
+  "peak": -8.54,
+  "rms": -20.56,
+  "length": 2.635
+ },
+ "res://audio/entity/entity_3.wav": {
+  "peak": -6.44,
+  "rms": -17.78,
+  "length": 2.812
+ },
+ "res://audio/entity/entity_30.wav": {
+  "peak": -6.09,
+  "rms": -20.15,
+  "length": 2.029
+ },
+ "res://audio/entity/entity_4.wav": {
+  "peak": -8.34,
+  "rms": -23.75,
+  "length": 3.63
+ },
+ "res://audio/entity/entity_5.wav": {
+  "peak": -6.06,
+  "rms": -20.12,
+  "length": 3.779
+ },
+ "res://audio/entity/entity_6.wav": {
+  "peak": -7.27,
+  "rms": -20.19,
+  "length": 1.99
+ },
+ "res://audio/entity/entity_7.wav": {
+  "peak": -6.74,
+  "rms": -18.59,
+  "length": 1.726
+ },
+ "res://audio/entity/entity_8.wav": {
+  "peak": -6.21,
+  "rms": -19.27,
+  "length": 6.096
+ },
+ "res://audio/entity/entity_9.wav": {
+  "peak": -7.94,
+  "rms": -22.92,
+  "length": 7.317
+ },
+ "res://audio/entity/mannequin_whisper.mp3": {
+  "peak": -12.97,
+  "rms": -30.1,
+  "length": 3.984
+ },
+ "res://audio/entity/scream.mp3": {
+  "peak": 0.0,
+  "rms": -8.29,
+  "length": 8.49
+ },
+ "res://audio/events/gridoff.mp3": {
+  "peak": -0.26,
+  "rms": -24.07,
+  "length": 2.038
+ },
+ "res://audio/events/preacher.mp3": {
+  "peak": -8.56,
+  "rms": -27.89,
+  "length": 6.452
+ },
+ "res://audio/ambients/ambient1.mp3": {
+  "peak": -3.43,
+  "rms": -17.56,
+  "length": 128.064
+ },
+ "res://audio/ambients/dragon-studio-dark-horror-ambient-05-425468.mp3": {
+  "peak": -0.87,
+  "rms": -16.49,
+  "length": 21.72
+ },
+ "res://audio/ambients/hgoliya08-scary-sound-effect-298866.mp3": {
+  "peak": -1.25,
+  "rms": -14.63,
+  "length": 4.056
+ },
+ "res://audio/ambients/mleckert82-spooky-ambience-212885.mp3": {
+  "peak": -1.85,
+  "rms": -19.17,
+  "length": 28.186
+ },
+ "res://audio/ambients/universfield-creepy-tension-background-30-352872.mp3": {
+  "peak": -9.2,
+  "rms": -24.17,
+  "length": 30.072
+ },
+ "res://audio/ambients/universfield-dark-horror-soundscape-345814.mp3": {
+  "peak": -10.4,
+  "rms": -24.2,
+  "length": 69.288
+ },
+ "res://audio/ambients/universfield-horror-background-atmosphere-026-30-352879.mp3": {
+  "peak": -6.76,
+  "rms": -20.53,
+  "length": 30.072
+ },
+ "res://audio/ambients/universfield-horror-background-atmosphere-09-219111.mp3": {
+  "peak": -16.16,
+  "rms": -27.78,
+  "length": 62.52
+ }
+}

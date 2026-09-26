@@ -5,18 +5,25 @@ extends Node
 ## sanity and power cuts. Each track has a tension it suits, so a calm walk gets the quiet beds and
 ## a hunt-in-the-dark gets the heavy ones. Beds crossfade, never repeat back to back, start part-way
 ## in so the long ones stay fresh, and step out of the way while the entity is actually hunting you
-## (you need to hear it). Everything goes through an "Ambience" bus (high-pass + low-pass) that gets
-## darker in tight corridors, at low sanity and during a blackout.
+## (you need to hear it). Everything goes through the "Ambience" bus (high-pass + low-pass, built by
+## audio.gd) that gets darker in tight corridors, at low sanity and during a blackout.
 ##
-## Also owns a sparse layer of far-off events (muffled thumps behind walls) so the silence between
-## beds is never truly empty.
+## The recordings were mastered anywhere from -16 to -28 dB RMS, so each bed is first matched to the
+## same loudness (clip_levels.gd), then trimmed by its `gain`.
+##
+## Also owns a sparse layer of far-off events (muffled thumps behind walls, now and then something
+## worse) so the silence between beds is never truly empty.
 ##
 ## Proximity: the nearest live threat (the entity, an awake mannequin, a spawned mimic) pushes the bed
 ## louder, lower and more open the closer it gets, with fewer walls in between counting for more.
 ## On top of that every bed drifts on its own: slow random wanders in level and pitch, sudden swells
 ## and moments where the tape sags out of tune, so it never settles into something you stop hearing.
 
+const ClipLevels := preload("res://scripts/audio/clip_levels.gd")
+
+const DIR := "res://audio/ambients/"
 const BASE := 0.1                      # AmbientSystem.BASE_VOLUME
+const BED_RMS := -20.0                 # every bed is matched to this loudness before BASE and its trim
 const FADE_IN := 4.0
 const FADE_OUT := 5.0
 const KILL_FADE := 3.0                 # crossfade when the mood changes mid-track
@@ -34,18 +41,22 @@ const TRACKS := [
 	{"file": "universfield-dark-horror-soundscape-345814.mp3", "tension": 0.8, "gain": 1.0},
 	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0},
 ]
+# A far-off event is now and then this instead of footfalls: something that should not be down here
+const DISTANT_STING := "hgoliya08-scary-sound-effect-298866.mp3"
+const STING_CHANCE := 0.18
 
 var audio: Node
 var player: Node
 var lp: AudioEffectLowPassFilter
-var voices: Array = []                 # {p, idx, t, left, gain, dying, dying_t}
+var voices: Array = []                 # {p, idx, t, left, gain, dying, dying_t, drift...}
 var streams := {}
 var recent: Array[int] = []
 var rng := RandomNumberGenerator.new()
 
 var tension := 0.0
 var duck := 1.0
-var hush := 1.0                        # set by other systems (mannequin whisper): 1 = bed as normal, near 0 = faded out
+var hush := 1.0                        # hush_for(): 1 = bed as normal, near 0 = faded out
+var _hush_until := 0.0
 var cutoff := 12000.0
 var lfo := 0.0
 var gap_timer := 10.0
@@ -59,22 +70,25 @@ var swell_timer := 12.0
 var sag := 0.0                         # a moment where the bed drags out of tune
 var sag_target := 0.0
 var sag_timer := 20.0
+var _threats := {}                     # NEAR_RANGE key -> node (looked up once)
 
 func _ready() -> void:
 	rng.randomize()
 	audio = get_parent()
 	player = audio.player
-	AudioServer.add_bus()
-	var idx := AudioServer.bus_count - 1
-	AudioServer.set_bus_name(idx, "Ambience")
-	AudioServer.set_bus_send(idx, "World")
-	var hp := AudioEffectHighPassFilter.new()
-	hp.cutoff_hz = 70.0                # keep MP3 rumble out of the drone's sub-bass
-	AudioServer.add_bus_effect(idx, hp)
-	lp = AudioEffectLowPassFilter.new()
-	lp.cutoff_hz = cutoff
-	AudioServer.add_bus_effect(idx, lp)
+	lp = AudioServer.get_bus_effect(AudioServer.get_bus_index("Ambience"), 1) as AudioEffectLowPassFilter
+	cutoff = lp.cutoff_hz
 	gap_timer = 8.0 + rng.randf() * 8.0
+	var root: Node = audio.get_parent()
+	for key in NEAR_RANGE:
+		_threats[key] = root.get_node_or_null(key)
+
+## Step the bed back to `level` for `seconds` (a whisper or a gasp needs the room). Overlapping requests
+## keep the quietest level and the latest end, so one ending never brings the bed back under another.
+func hush_for(level: float, seconds: float) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	hush = minf(hush, level) if now < _hush_until else level
+	_hush_until = maxf(_hush_until, now + seconds)
 
 # ---------------------------------------------------------------- mood
 func _target_tension() -> float:
@@ -87,9 +101,9 @@ func _target_tension() -> float:
 		t = maxf(t, 0.7)
 	return clampf(t, 0.0, 1.0)
 
-func _stream(i: int) -> AudioStreamMP3:
+func _stream(i: int) -> AudioStream:
 	if not streams.has(i):
-		var path: String = "res://audio/ambients/" + TRACKS[i].file
+		var path: String = DIR + TRACKS[i].file
 		streams[i] = load(path) if ResourceLoader.exists(path) else null    # null until Godot has imported it
 	return streams[i]
 
@@ -137,7 +151,8 @@ func _start(i: int) -> void:
 	p.volume_linear = 0.0
 	add_child(p)
 	p.play(from)
-	voices.append({"p": p, "idx": i, "t": 0.0, "left": len - from, "gain": TRACKS[i].gain, "dying": false, "dying_t": 0.0,
+	var gain: float = TRACKS[i].gain * ClipLevels.gain(DIR + TRACKS[i].file, BED_RMS, -1.0)
+	voices.append({"p": p, "idx": i, "t": 0.0, "left": len - from, "gain": gain, "dying": false, "dying_t": 0.0,
 		"dv": 1.0, "dv_to": 1.0, "dp": 1.0, "dp_to": 1.0, "drift_t": 0.0})
 	recent.append(i)
 	if recent.size() > 2:
@@ -166,6 +181,8 @@ func _schedule(dt: float) -> void:
 
 # ---------------------------------------------------------------- playback
 func _update_voices(dt: float) -> void:
+	if hush < 1.0 and Time.get_ticks_msec() / 1000.0 >= _hush_until:
+		hush = 1.0
 	var duck_target := 0.8 if Game.hunted else 1.0         # a little room for the entity's feet and voice
 	if player.dead:
 		duck_target = 0.0                                    # dead: the beds (their wind and air) drain away
@@ -185,14 +202,14 @@ func _update_voices(dt: float) -> void:
 		if v.dying:
 			v.dying_t += dt
 			fade = minf(fade, maxf(0.0, 1.0 - v.dying_t / KILL_FADE))
-		if fade <= 0.0 and v.t > 0.5 or not p.playing:
+		if (fade <= 0.0 and v.t > 0.5) or not p.playing:
 			p.queue_free()
 			voices.remove_at(i)
 			if voices.is_empty():
 				gap_timer = (8.0 + rng.randf() * 18.0) * (1.0 - 0.6 * tension)
 		else:
 			_drift(v, dt)
-			p.volume_linear = fade * v.gain * v.dv * BASE * mood * duck * audio.vol.ambient * audio.vol.master
+			p.volume_linear = fade * v.gain * v.dv * BASE * mood * duck * audio.vol.ambient
 			p.pitch_scale = maxf(0.5, pitch * v.dp)
 			strongest = maxf(strongest, fade)
 		i -= 1
@@ -230,11 +247,10 @@ func _update_near(dt: float) -> void:
 	if near_timer <= 0.0:
 		near_timer = 0.2
 		near_target = 0.0
-		var root := get_tree().current_scene
-		if root != null and not player.dead and Game.playing:
+		if not player.dead and Game.playing:
 			var pp: Vector3 = player.global_position
 			for key in NEAR_RANGE:
-				var at = _threat_pos(root.get_node_or_null(key))
+				var at = _threat_pos(_threats[key])
 				if at == null:
 					continue
 				var d := pp.distance_to(at)
@@ -245,7 +261,7 @@ func _update_near(dt: float) -> void:
 	near += (near_target - near) * (1.0 - exp(-dt / (0.8 if near_target > near else 3.0)))
 
 func _threat_pos(n: Node):
-	if n == null:
+	if n == null or not is_instance_valid(n) or n.process_mode == Node.PROCESS_MODE_DISABLED:
 		return null
 	if n.name == "Mannequin":
 		return n.real_node.global_position if n.awake and n.real_node != null else null
@@ -278,9 +294,10 @@ func _update_events(dt: float) -> void:
 	event_timer = (30.0 + rng.randf() * 50.0) * (1.0 - 0.5 * tension)
 	if Game.hunted or audio.paused or not Game.playing or player.dead:
 		return
-	var nav = audio._grid()
+	var nav = audio.grid()
 	if nav == null:
 		return
+	var scares: Node = audio.get_parent().get_node("Scares")
 	var pp: Vector3 = player.global_position
 	for tries in 12:
 		var a := rng.randf() * TAU
@@ -289,11 +306,15 @@ func _update_events(dt: float) -> void:
 		var z := pp.z + cos(a) * d
 		if not nav.open_at(x, z):
 			continue
-		var scares := audio.get_parent().get_node("Scares")
-		var n := 1 + rng.randi() % 3
-		for k in n:
-			var at := Vector3(x, pp.y + 0.2, z)
-			get_tree().create_timer(k * (0.4 + rng.randf() * 0.15)).timeout.connect(func():
+		var at := Vector3(x, pp.y + 0.2, z)
+		if rng.randf() < STING_CHANCE * (0.5 + tension) and ResourceLoader.exists(DIR + DISTANT_STING):
+			# something far off that should not be down here, heard through the walls
+			var g := ClipLevels.gain(DIR + DISTANT_STING, -22.0, -6.0)
+			scares.spawn3d(load(DIR + DISTANT_STING), at + Vector3(0.0, 1.0, 0.0), g * 0.9, "Scares", 6.0, rng.randf_range(0.8, 0.95))
+			Game.haunt(0.3)
+			return
+		for k in 1 + rng.randi() % 3:
+			get_tree().create_timer(k * (0.4 + rng.randf() * 0.15), false).timeout.connect(func():
 				scares.play_scare("footThump", at, 0.5))
 		return
 
