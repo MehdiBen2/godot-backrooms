@@ -20,6 +20,7 @@ var crouching := false
 var torch_on := true
 var dead := false
 var seen := false
+var peer_id := 0
 var playing := true              # false while they sit in the menu: the monsters leave them alone
 
 var body: Node3D                # box figure + torch; the torch stays when the model replaces the box
@@ -212,6 +213,8 @@ func _process(dt: float) -> void:
 	# their own speed, as measured on their machine: animations match what they are really doing
 	_speed = st.speed
 	speed = _speed
+	# a green name tag while they talk on voice chat
+	tag.modulate = Color(0.55, 1.0, 0.6) if Voice.is_speaking(peer_id) else Color(0.94, 0.91, 0.75)
 	var k := minf(1.0, dt * SMOOTH)
 	light.rotation.x = target_pitch
 	light.visible = torch_on and not dead and visible

@@ -180,6 +180,16 @@ func _build() -> void:
 	col.add_child(sp3)
 	col.add_child(_label("BUILD 0.1 // TAPE 04", 11, Color(0.9, 0.882, 0.804, 0.3), 3))
 
+	# Credits, bottom right
+	var credits := _label("CREATED BY MehdiBen;)", 13, Color(0.9, 0.882, 0.804, 0.45), 4)
+	credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	add_child(credits)
+	credits.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	credits.offset_left = -420
+	credits.offset_right = -110
+	credits.offset_top = -100
+	credits.offset_bottom = -72
+
 	# Settings / Graphics reuse the in-game menu's panels (same code, same saved settings)
 	settings_menu = load("res://scripts/ui/menu.gd").new()
 	settings_menu.embedded = true

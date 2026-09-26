@@ -24,8 +24,13 @@ Game="*res://scripts/core/game_state.gd"
 Death="*res://scripts/ui/death.gd"
 Net="*res://scripts/net/net.gd"
 Gfx="*res://scripts/core/graphics.gd"
+Voice="*res://scripts/voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+
+[audio]
+
+driver/enable_input=true
 
 [display]
 

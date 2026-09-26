@@ -290,7 +290,7 @@ func _build() -> void:
 	var nav := HBoxContainer.new()
 	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_theme_constant_override("separation", 28)
-	for n in ["multiplayer", "graphics", "settings", "controls"]:
+	for n in ["multiplayer", "voice", "graphics", "settings", "controls"]:
 		var b := _link_button(n)
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
@@ -325,10 +325,12 @@ func _build() -> void:
 	pv.add_child(head)
 	pv.add_child(_spacer(20))
 	sections["multiplayer"] = _build_multiplayer()
+	sections["voice"] = _build_voice()
 	sections["graphics"] = _build_graphics()
 	sections["settings"] = _build_settings()
 	sections["controls"] = _build_controls()
 	pv.add_child(sections["multiplayer"])
+	pv.add_child(sections["voice"])
 	pv.add_child(sections["graphics"])
 	pv.add_child(sections["settings"])
 	pv.add_child(sections["controls"])
@@ -578,6 +580,65 @@ func _gfx_sync() -> void:
 		note = "Compatibility renderer: ambient occlusion, reflections, global illumination and volumetric fog are unavailable on this PC."
 	gfx_note.text = note
 
+# ---- voice section (scripts/voice/voice.gd) ----------------------------------------------------------
+var voice_refresh: Array[Callable] = []
+var voice_meter_bg: ColorRect
+var voice_meter_fill: ColorRect
+var voice_meter_gate: ColorRect
+
+func _voice_row(title: String, get_text: Callable, on_press: Callable) -> Control:
+	var b := _link_button("")
+	b.custom_minimum_size = Vector2(150, 0)
+	b.pressed.connect(on_press)
+	voice_refresh.append(func(): b.text = str(get_text.call()).to_upper())
+	return _gfx_row(title, b)
+
+func _build_voice() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.add_child(_section_title("PROXIMITY VOICE", true))
+	v.add_child(_hint("Players hear you by distance, from where you stand, and walls muffle you. Hold V to talk in push-to-talk."))
+	v.add_child(_padded(Control.new(), 4))
+	v.add_child(_voice_row("Mode", func(): return Voice.MODE_NAMES[Voice.mode], func(): Voice.cycle_mode()))
+	v.add_child(_voice_row("Microphone", func(): return Voice.device_label().left(22), func(): Voice.cycle_device()))
+	v.add_child(_voice_row("Mute microphone", func(): return "ON" if Voice.muted else "OFF", func(): Voice.toggle_mute()))
+	v.add_child(_voice_row("Deafen", func(): return "ON" if Voice.deafened else "OFF", func(): Voice.toggle_deafen()))
+
+	v.add_child(_section_title("MICROPHONE LEVEL"))
+	voice_meter_bg = ColorRect.new()
+	voice_meter_bg.color = Color(0.9, 0.882, 0.804, 0.12)
+	voice_meter_bg.custom_minimum_size = Vector2(300, 10)
+	voice_meter_fill = ColorRect.new()
+	voice_meter_fill.color = Color("7fae72")
+	voice_meter_bg.add_child(voice_meter_fill)
+	voice_meter_gate = ColorRect.new()
+	voice_meter_gate.color = RED
+	voice_meter_gate.size = Vector2(2, 10)
+	voice_meter_bg.add_child(voice_meter_gate)
+	v.add_child(_padded(voice_meter_bg, 8))
+	v.add_child(_hint("The bar turns green while you are transmitting. Voice activity opens when it passes the red line."))
+
+	v.add_child(_section_title("LEVELS"))
+	v.add_child(_slider_row("Sensitivity", 0, 100, Voice.sensitivity, func(x: int): Voice.set_sensitivity(x)))
+	v.add_child(_slider_row("Mic volume", 0, 300, int(Voice.mic_gain * 100.0), func(x: int): Voice.set_gain(x)))
+	v.add_child(_slider_row("Voice volume", 0, 150, int(Voice.voice_volume * 100.0), func(x: int): Voice.set_volume(x)))
+	v.add_child(_voice_row("Hear yourself", func(): return "ON" if Voice.loopback else "OFF", func(): Voice.toggle_loopback()))
+	Voice.changed.connect(_voice_sync)
+	_voice_sync()
+	return v
+
+func _voice_sync() -> void:
+	for c in voice_refresh:
+		c.call()
+
+func _voice_meter_tick() -> void:
+	if voice_meter_bg == null or open_section != "voice":
+		return
+	var w := maxf(voice_meter_bg.size.x, 300.0)
+	voice_meter_fill.size = Vector2(w * Voice.level, 10.0)
+	voice_meter_fill.color = Color("7fae72") if Voice.transmitting else Color(0.9, 0.882, 0.804, 0.45)
+	voice_meter_gate.position = Vector2(w * clampf((Voice.gate_db() + 70.0) / 70.0, 0.0, 1.0), 0.0)
+
 # ---- controls section --------------------------------------------------------------
 func _kbd(text: String) -> Control:
 	var p := PanelContainer.new()
@@ -712,6 +773,7 @@ func _process(dt: float) -> void:
 	if not is_visible_in_tree():
 		return
 	t += dt
+	_voice_meter_tick()
 	var on := fmod(t, 1.1) < 0.55        # animation: blink 1.1s steps(1)
 	tag_dot.color.a = 1.0 if on else 0.0
 	action_cursor.color.a = 1.0 if on else 0.0

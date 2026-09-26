@@ -409,6 +409,7 @@ func _ensure_remote(id: int) -> Node:
 		return remotes[id]
 	var r: Node3D = load("res://scripts/net/remote_player.gd").new()
 	r.color = PEER_COLORS[id % PEER_COLORS.size()]
+	r.peer_id = id
 	add_child(r)      # the autoload outlives level reloads, so peers don't vanish on respawn
 	r.set_label(label_for(id))
 	remotes[id] = r
