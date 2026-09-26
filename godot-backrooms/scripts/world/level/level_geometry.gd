@@ -7,8 +7,8 @@ var wall_mat: StandardMaterial3D
 var tall_wall_mat: StandardMaterial3D
 
 func build_geometry() -> void:
-	wall_mat = _wall_material("wall", WALL_H, true)
-	tall_wall_mat = _wall_material("wall_tall", TALL_H, true)
+	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
+	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
 	_build_surfaces()
 	_build_walls()
 	_build_ceiling_steps()
@@ -16,6 +16,23 @@ func build_geometry() -> void:
 	_build_dirt()
 
 # ---------------------------------------------------------------- materials
+## The .lvl's optional "materials" ({wall, floor, ceiling, tiles} -> a folder in textures/pbr/, picked in the
+## level editor). Null when the slot is unset, so the caller falls back to the Level 0 look.
+func _has_pbr(slot: String) -> bool:
+	var id := str(level_data.get("materials", {}).get(slot, ""))
+	return not id.is_empty() and ResourceLoader.exists("res://textures/pbr/%s/%s.tres" % [id, id])
+
+func _pbr_or(slot: String, _world := false) -> StandardMaterial3D:
+	if not _has_pbr(slot):
+		return null
+	var id := str(level_data.get("materials", {}).get(slot, ""))
+	var m: StandardMaterial3D = (load("res://textures/pbr/%s/%s.tres" % [id, id]) as StandardMaterial3D).duplicate()
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3(0.45, 0.45, 0.45)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return m
+
 func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load("res://textures/%s_color.webp" % tex)
@@ -96,31 +113,40 @@ func _build_surfaces() -> void:
 			floor_cells.append(c)
 			if tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
-	var carpet := _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
-	var ceil_m := _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
+	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
+	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
-		var tm := StandardMaterial3D.new()
-		tm.albedo_texture = load("res://textures/tiles_color.png")
-		tm.normal_enabled = true
-		tm.normal_texture = load("res://textures/tiles_normal.png")
-		tm.normal_scale = 1.0
-		tm.roughness = 1.0
-		tm.roughness_texture = load("res://textures/tiles_rough.png")
-		tm.ao_enabled = true
-		tm.ao_texture = load("res://textures/tiles_ao.png")
-		tm.ao_light_affect = 0.85
-		tm.metallic = 0.02
-		tm.metallic_specular = 0.55
-		tm.uv1_triplanar = true
-		tm.uv1_world_triplanar = true
-		tm.uv1_scale = Vector3(1.0 / 2.25, 1.0 / 2.25, 1.0 / 2.25)
-		tm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		var tm: StandardMaterial3D = _pbr_or("tiles")
+		if tm == null:
+			tm = _default_tile_material()
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
+	_build_floor_collision(floor_cells)
+
+func _default_tile_material() -> StandardMaterial3D:
+	var tm := StandardMaterial3D.new()
+	tm.albedo_texture = load("res://textures/tiles_color.png")
+	tm.normal_enabled = true
+	tm.normal_texture = load("res://textures/tiles_normal.png")
+	tm.normal_scale = 1.0
+	tm.roughness = 1.0
+	tm.roughness_texture = load("res://textures/tiles_rough.png")
+	tm.ao_enabled = true
+	tm.ao_texture = load("res://textures/tiles_ao.png")
+	tm.ao_light_affect = 0.85
+	tm.metallic = 0.02
+	tm.metallic_specular = 0.55
+	tm.uv1_triplanar = true
+	tm.uv1_world_triplanar = true
+	tm.uv1_scale = Vector3(1.0 / 2.25, 1.0 / 2.25, 1.0 / 2.25)
+	tm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return tm
+
+func _build_floor_collision(floor_cells: Array) -> void:
 	# Floor collision: one thin box per cell (pits stay open)
 	var body := StaticBody3D.new()
 	add_child(body)
@@ -222,7 +248,13 @@ func _build_ceiling_steps() -> void:
 		st.generate_tangents()
 		var mi := MeshInstance3D.new()
 		mi.mesh = st.commit()
-		var m := _wall_material("wall" if i == 0 else "wall_tall", b.height, false)
+		var m: StandardMaterial3D
+		if _has_pbr("wall"):
+			m = _pbr_or("wall")
+			m.uv1_triplanar = false        # explicit UVs on the drops
+			m.uv1_scale = Vector3.ONE
+		else:
+			m = _wall_material("wall" if i == 0 else "wall_tall", b.height, false)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED    # seen from whichever cell is taller
 		mi.material_override = m
 		add_child(mi)
