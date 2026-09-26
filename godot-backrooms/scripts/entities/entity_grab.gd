@@ -10,8 +10,8 @@ extends RefCounted
 ##                       dangling sway, Dutch tilt roll, terror tremors; heartbeat slows, flatline rises;
 ##                       flashlight actively tracks and illuminates the creature
 ##   2.6 - 2.9s  rear    it rears back with jaws wide open, preparing to strike
-##   2.9 - 3.4s  bite    it lunges; claws violently rip across the victim, camera dragged into its mouth;
-##                       screams, tearing blood slashes, massive screen trauma & blood stains
+##   2.9 - 3.4s  bite    it lunges; jaws and claws tear into the victim, camera dragged into its mouth;
+##                       3D high-velocity blood spray bursts, fine red mist, flesh chunks, violent trauma shake
 ##   3.4 - 5.0s  fade    life drains, edges close in to black
 ##   5.0s        death   death camera takes over smoothly from the final position
 
@@ -35,63 +35,18 @@ var flat := false
 var bitten := false
 var ripped := false
 var second_rip := false
+var third_rip := false
 var dir := Vector3.FORWARD
 var eye := 1.7
+
+var trauma := 0.0
+var impulse_pitch := 0.0
+var impulse_yaw := 0.0
+var impulse_roll := 0.0
 
 var _start_rot := Quaternion.IDENTITY
 var _start_pos := Vector3.ZERO
 var _start_fov := BASE_FOV
-
-## Procedural claw rake / tear slashes across the player's view
-class ClawSlashOverlay extends Control:
-	var progress := 0.0
-	var alpha := 1.0
-	var pts: Array[PackedVector2Array] = []
-	var flipped := false
-
-	func _init(p_flipped := false) -> void:
-		flipped = p_flipped
-		set_anchors_preset(Control.PRESET_FULL_RECT)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# 4 jagged claw rake lines across the screen
-		var vs := DisplayServer.window_get_size() if DisplayServer.has_method("window_get_size") else Vector2i(1280, 720)
-		var cx := vs.x * (0.42 if flipped else 0.58) + randf_range(-30, 30)
-		var cy := vs.y * 0.45 + randf_range(-25, 25)
-		var angle := (0.42 if not flipped else 2.68) + randf_range(-0.08, 0.08)
-		var fwd := Vector2(cos(angle), sin(angle))
-		var perp := Vector2(-fwd.y, fwd.x)
-		for c in range(-2, 2):
-			var line := PackedVector2Array()
-			var origin := Vector2(cx, cy) + perp * (c * 44.0 + randf_range(-6, 6)) - fwd * randf_range(180, 240)
-			var length := randf_range(400, 560)
-			var steps := 14
-			for s in range(steps + 1):
-				var f := float(s) / float(steps)
-				var pt := origin + fwd * (length * f) + perp * randf_range(-4.0, 4.0)
-				line.append(pt)
-			pts.append(line)
-
-	func _process(delta: float) -> void:
-		progress += delta * 2.6
-		alpha = clampf(1.0 - (progress - 0.4) / 1.5, 0.0, 1.0)
-		queue_redraw()
-		if alpha <= 0.0:
-			queue_free()
-
-	func _draw() -> void:
-		if alpha <= 0.0:
-			return
-		var col_shadow := Color(0.12, 0.01, 0.01, alpha * 0.8)
-		var col_blood := Color(0.75, 0.02, 0.03, alpha * 0.95)
-		var col_flesh := Color(0.95, 0.35, 0.25, alpha * 0.65)
-		var draw_len := minf(1.0, progress * 4.5)
-		for line in pts:
-			var count := maxi(2, int(line.size() * draw_len))
-			var sub_line: PackedVector2Array = line.slice(0, count)
-			if sub_line.size() >= 2:
-				draw_polyline(sub_line, col_shadow, 14.0, true)
-				draw_polyline(sub_line, col_blood, 7.0, true)
-				draw_polyline(sub_line, col_flesh, 2.5, true)
 
 func _init(entity: Node3D) -> void:
 	e = entity
@@ -117,13 +72,133 @@ func _safe_look_basis(dir_to: Vector3, fallback_fwd: Vector3) -> Basis:
 		up = -fallback_fwd if absf(fallback_fwd.dot(fwd)) < 0.9 else Vector3.RIGHT
 	return Basis.looking_at(fwd, up)
 
-func _spawn_claw_slash(flipped: bool) -> void:
-	var overlay := ClawSlashOverlay.new(flipped)
-	var ui: Node = e.get_parent().get_node_or_null("UI")
-	if ui != null:
-		ui.add_child(overlay)
-	else:
-		e.get_tree().current_scene.add_child(overlay)
+## Spawns genuine 3D blood splatter particle bursts exploding toward and past the player's view
+func _spawn_blood_burst(origin: Vector3, to_cam: Vector3, intensity: float = 1.0) -> void:
+	if e == null or not is_instance_valid(e) or not e.is_inside_tree():
+		return
+	var world := e.get_tree().current_scene
+	if world == null:
+		return
+	var dir_norm := (to_cam.normalized() + Vector3(0.0, 0.18, 0.0)).normalized()
+
+	# 1. High-velocity arterial blood spray (elongated droplets flying directly toward/past the camera)
+	var p_spray := GPUParticles3D.new()
+	p_spray.amount = int(120 * intensity)
+	p_spray.lifetime = 0.85
+	p_spray.one_shot = true
+	p_spray.explosiveness = 0.96
+	p_spray.local_coords = false
+	p_spray.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
+
+	var mat_spray := ParticleProcessMaterial.new()
+	mat_spray.direction = dir_norm
+	mat_spray.spread = 58.0
+	mat_spray.initial_velocity_min = 3.6 * intensity
+	mat_spray.initial_velocity_max = 9.2 * intensity
+	mat_spray.gravity = Vector3(0.0, -14.0, 0.0)
+	mat_spray.damping_min = 0.5
+	mat_spray.damping_max = 1.6
+	mat_spray.scale_min = 0.8
+	mat_spray.scale_max = 1.8
+	mat_spray.particle_flag_align_y = true
+	p_spray.process_material = mat_spray
+
+	var cap_mesh := CapsuleMesh.new()
+	cap_mesh.radius = 0.016
+	cap_mesh.height = 0.14
+	cap_mesh.radial_segments = 6
+	cap_mesh.rings = 2
+	var cap_mat := StandardMaterial3D.new()
+	cap_mat.albedo_color = Color(0.24, 0.006, 0.01, 0.96)
+	cap_mat.roughness = 0.08
+	cap_mat.specular = 0.95
+	cap_mat.metallic = 0.05
+	cap_mesh.material = cap_mat
+	p_spray.draw_pass_1 = cap_mesh
+	p_spray.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(p_spray)
+	p_spray.global_position = origin
+	p_spray.emitting = true
+
+	# 2. Fine blood mist / vapor cloud hanging in the flashlight beam
+	var p_mist := GPUParticles3D.new()
+	p_mist.amount = int(60 * intensity)
+	p_mist.lifetime = 0.75
+	p_mist.one_shot = true
+	p_mist.explosiveness = 0.92
+	p_mist.local_coords = false
+	p_mist.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
+
+	var mat_mist := ParticleProcessMaterial.new()
+	mat_mist.direction = dir_norm
+	mat_mist.spread = 82.0
+	mat_mist.initial_velocity_min = 1.8 * intensity
+	mat_mist.initial_velocity_max = 5.4 * intensity
+	mat_mist.gravity = Vector3(0.0, -4.5, 0.0)
+	mat_mist.damping_min = 1.2
+	mat_mist.damping_max = 2.8
+	mat_mist.scale_min = 0.9
+	mat_mist.scale_max = 2.2
+	p_mist.process_material = mat_mist
+
+	var sph_mesh := SphereMesh.new()
+	sph_mesh.radius = 0.024
+	sph_mesh.height = 0.048
+	sph_mesh.radial_segments = 6
+	sph_mesh.rings = 3
+	var sph_mat := StandardMaterial3D.new()
+	sph_mat.albedo_color = Color(0.38, 0.012, 0.018, 0.75)
+	sph_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sph_mat.roughness = 0.15
+	sph_mesh.material = sph_mat
+	p_mist.draw_pass_1 = sph_mesh
+	p_mist.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(p_mist)
+	p_mist.global_position = origin
+	p_mist.emitting = true
+
+	# 3. Dense flesh/blood chunks exploding outward
+	var p_chunks := GPUParticles3D.new()
+	p_chunks.amount = int(25 * intensity)
+	p_chunks.lifetime = 1.1
+	p_chunks.one_shot = true
+	p_chunks.explosiveness = 0.98
+	p_chunks.local_coords = false
+	p_chunks.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
+
+	var mat_chunks := ParticleProcessMaterial.new()
+	mat_chunks.direction = (dir_norm + Vector3(randf_range(-0.4, 0.4), 0.3, randf_range(-0.4, 0.4))).normalized()
+	mat_chunks.spread = 90.0
+	mat_chunks.initial_velocity_min = 2.0 * intensity
+	mat_chunks.initial_velocity_max = 7.5 * intensity
+	mat_chunks.gravity = Vector3(0.0, -18.0, 0.0)
+	mat_chunks.damping_min = 0.4
+	mat_chunks.damping_max = 1.0
+	mat_chunks.scale_min = 0.8
+	mat_chunks.scale_max = 2.0
+	p_chunks.process_material = mat_chunks
+
+	var chunk_mesh := SphereMesh.new()
+	chunk_mesh.radius = 0.032
+	chunk_mesh.height = 0.064
+	chunk_mesh.radial_segments = 5
+	chunk_mesh.rings = 3
+	var chunk_mat := StandardMaterial3D.new()
+	chunk_mat.albedo_color = Color(0.14, 0.003, 0.006, 1.0)
+	chunk_mat.roughness = 0.2
+	chunk_mesh.material = chunk_mat
+	p_chunks.draw_pass_1 = chunk_mesh
+	p_chunks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	world.add_child(p_chunks)
+	p_chunks.global_position = origin
+	p_chunks.emitting = true
+
+	# Auto-free after particles complete
+	e.get_tree().create_timer(1.8).timeout.connect(func() -> void:
+		if is_instance_valid(p_spray): p_spray.queue_free()
+		if is_instance_valid(p_mist): p_mist.queue_free()
+		if is_instance_valid(p_chunks): p_chunks.queue_free()
+	)
 
 # It has you: called from the entity's reach check instead of an instant death
 func start() -> void:
@@ -134,6 +209,11 @@ func start() -> void:
 	bitten = false
 	ripped = false
 	second_rip = false
+	third_rip = false
+	trauma = 0.65
+	impulse_pitch = 0.25
+	impulse_yaw = 0.0
+	impulse_roll = 0.0
 	player.frozen = true
 	player.velocity = Vector3.ZERO
 	base = player.global_position
@@ -204,10 +284,19 @@ func update(delta: float) -> void:
 	var bite := _smooth((t - BITE_AT) / 0.35)
 	var pull := 0.25 * rise + 0.55 * bite
 
-	# Terror tremors and bite impact shake
-	var tremor := 0.01 + 0.035 * _smooth((t - 0.5) / 2.0)
-	var bite_shake := 0.20 * bite * (1.0 if t < FADE_AT else 0.3)
-	var jit := Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * (tremor + bite_shake)
+	# Screen Shake & Trauma Decay
+	if t >= BITE_AT and t < FADE_AT:
+		trauma = maxf(trauma, 0.85)
+	elif t >= FADE_AT:
+		trauma = move_toward(trauma, 0.0, delta * 0.65)
+	else:
+		trauma = move_toward(trauma, 0.08 + 0.14 * rise, delta * 0.4)
+
+	impulse_pitch = move_toward(impulse_pitch, 0.0, delta * 3.8)
+	impulse_yaw = move_toward(impulse_yaw, 0.0, delta * 3.8)
+	impulse_roll = move_toward(impulse_roll, 0.0, delta * 3.8)
+
+	var shake := trauma * trauma
 
 	# Base hanging camera position
 	var hang_pos := Vector3(
@@ -217,7 +306,7 @@ func update(delta: float) -> void:
 	)
 
 	# On bite: violently pulled forward right into the gaping mouth
-	var cam_pos := hang_pos.lerp(mouth_pos, bite * 0.75) + jit
+	var cam_pos := hang_pos.lerp(mouth_pos, bite * 0.75)
 	cam_pos.y = minf(cam_pos.y, max_y)
 
 	# Gaze climbs up its body from feet to head over 0.35s -> 2.5s
@@ -237,21 +326,36 @@ func update(delta: float) -> void:
 	var cur_quat := _start_rot.slerp(target_quat, whip)
 	var b := Basis(cur_quat)
 
-	# Rolling / Dutch tilt as you dangle helplessly, with violent recoil jolts when claws rip in
-	var rip_kick := (0.12 if (ripped and t < BITE_AT + 0.3) else 0.0) - (0.10 if (second_rip and t < BITE_AT + 0.55) else 0.0)
+	# Multi-axis rotational screen trauma shake: high-frequency shudder + directional impulses
+	var s_pitch := (sin(t * 54.0) * 0.14 + sin(t * 112.0) * 0.07 + (randf() - 0.5) * 0.12) * shake + impulse_pitch
+	var s_yaw := (cos(t * 46.0) * 0.12 + sin(t * 94.0) * 0.06 + (randf() - 0.5) * 0.10) * shake + impulse_yaw
+	var s_roll := (sin(t * 38.0) * 0.16 + cos(t * 78.0) * 0.08 + (randf() - 0.5) * 0.14) * shake + impulse_roll
+
+	# Dangling tilt
 	var roll := (sin(t * 3.6) * 0.045 + sin(t * 7.2) * 0.018) * _smooth((t - 0.4) / 0.8) \
-		+ 0.28 * _smooth((t - 0.8) / 2.0) + sin(t * 26.0) * 0.08 * bite + rip_kick
-	b = b.rotated(b.z.normalized(), roll)
+		+ 0.28 * _smooth((t - 0.8) / 2.0)
+
+	b = b.rotated(b.x.normalized(), s_pitch)
+	b = b.rotated(b.y.normalized(), s_yaw)
+	b = b.rotated(b.z.normalized(), s_roll + roll)
 	b = b.orthonormalized()
 
-	cam.global_transform = Transform3D(b, cam_pos)
+	# Positional camera shake displacement in camera space
+	var shake_pos := (
+		b.x * ((randf() - 0.5) * 0.35) +
+		b.y * ((randf() - 0.5) * 0.30) +
+		b.z * ((randf() - 0.5) * 0.24)
+	) * shake
 
-	# FOV: initial whip punch, slow dread dilation, heartbeat throb, bite surge
+	cam.global_transform = Transform3D(b, cam_pos + shake_pos)
+
+	# FOV: initial whip punch, slow dread dilation, heartbeat throb, bite surge, and trauma shake
 	var fov_kick := 18.0 * exp(-t * 6.0)
 	var fov_dread := 18.0 * _smooth((t - 0.5) / 2.2)
 	var fov_pulse := sin(t * 7.5) * 2.2 * _smooth((t - 0.5) / 1.0)
 	var fov_bite := 16.0 * bite
-	cam.fov = _start_fov + fov_kick + fov_dread + fov_pulse + fov_bite
+	var fov_shake := (randf() - 0.5) * 10.0 * shake
+	cam.fov = _start_fov + fov_kick + fov_dread + fov_pulse + fov_bite + fov_shake
 
 	# Flashlight actively tracks look_target so the monster is brightly illuminated
 	var player: Node3D = e.player
@@ -281,20 +385,41 @@ func update(delta: float) -> void:
 		ripped = true
 		scares.splat()
 		scares.startle(1.0)
-		_spawn_claw_slash(false)
+		trauma = 1.0
+		impulse_pitch = -0.45
+		impulse_yaw = randf_range(-0.35, 0.35)
+		impulse_roll = randf_range(-0.3, 0.3)
+		Game.fx_shock = 1.0
+		Game.fx_flash = 0.45
+		Game.fx_blood = 0.95
+		_spawn_blood_burst(mouth_pos, cam_pos - mouth_pos, 1.4)
 		Death.bite(mouth_pos, p, cam_pos)
 
-	if not second_rip and t >= BITE_AT + 0.28:
+	if not second_rip and t >= BITE_AT + 0.24:
 		second_rip = true
-		_spawn_claw_slash(true)
 		scares.splat()
+		trauma = 1.0
+		impulse_pitch = randf_range(-0.25, 0.2)
+		impulse_yaw = randf_range(-0.4, 0.4)
+		impulse_roll = randf_range(-0.35, 0.35)
+		Game.fx_shock = 0.85
+		_spawn_blood_burst(mouth_pos + Vector3(randf_range(-0.12, 0.12), -0.06, randf_range(-0.12, 0.12)), cam_pos - mouth_pos, 1.1)
+
+	if not third_rip and t >= BITE_AT + 0.50:
+		third_rip = true
+		scares.splat()
+		trauma = 0.92
+		impulse_pitch = randf_range(-0.2, 0.2)
+		impulse_yaw = randf_range(-0.3, 0.3)
+		Game.fx_shock = 0.7
+		_spawn_blood_burst(mouth_pos, cam_pos - mouth_pos, 0.85)
 
 	if bitten:
 		# blood keeps raining from where you hang, and every drop that lands leaves a stain
-		if randf() < delta * 15.0:
+		if randf() < delta * 18.0:
 			Death.bite_drop(Vector3(p.x + randf_range(-0.3, 0.3), cam_pos.y - 0.4, p.z + randf_range(-0.3, 0.3)),
 				Vector3(randf_range(-0.3, 0.3), 0.0, randf_range(-0.3, 0.3)), randf_range(0.02, 0.05))
-		if t < BITE_AT + 1.2 and randf() < delta * 12.0:
+		if t < BITE_AT + 1.2 and randf() < delta * 15.0:
 			Death.bite_drop(mouth_pos,
 				Vector3(randf_range(-2.5, 2.5), randf_range(1.0, 4.0), randf_range(-2.5, 2.5)), randf_range(0.02, 0.05))
 
