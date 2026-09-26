@@ -5,10 +5,12 @@ const SIZE := 640.0
 const RES := 320
 const HOUSE_COUNT := 30
 const TILE_SIZE := 5.0                        # GodotGrass tile LOD: one MultiMesh per tile, re-seated as the player moves
-const GRASS_RADIUS := 200.0
+const GRASS_RADIUS := 110.0                   # blades fade out by 105 m (grass.gdshader); the terrain shader carries the rest
 const GRASS_HIGH := preload("res://models/grass/grass_high.obj")
 const GRASS_LOW := preload("res://models/grass/grass_low.obj")
-const SUN_DIR := Vector3(0.38, 0.27, -0.88)   # toward the sun; it sits low behind the far hills
+const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
+const START_HOUR := 11.0
+const TIME_STEP := 0.1                        # the sky / light are refreshed this often (seconds), not every frame
 
 var noise := FastNoiseLite.new()
 var detail := FastNoiseLite.new()
@@ -21,6 +23,12 @@ var grass_tiles: Array = []                  # [MultiMeshInstance3D, rest positi
 var prev_tile := Vector2i(1 << 20, 0)
 var player: Node3D
 var env: Environment
+var sky_mat: ShaderMaterial
+var sun: DirectionalLight3D
+var glass_mat: StandardMaterial3D           # every house window: lit up at night
+var hour := START_HOUR
+var cloud_t := 0.0
+var time_acc := 0.0
 ## true when run as its own scene (own player, HUD hint, environment); false when embedded in the game via hills_portal.gd
 var standalone := true
 
@@ -34,6 +42,7 @@ func _ready() -> void:
 	detail.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	detail.frequency = 0.03
 	detail.seed = 11
+	add_to_group("hills")
 	spawn_xz = Vector2(road_x(40.0), 40.0)
 	_pick_house_sites()
 	_build_environment()
@@ -41,6 +50,7 @@ func _ready() -> void:
 	_build_grass()
 	_build_houses()
 	_build_castle()
+	_apply_time()
 	if standalone:
 		_build_player()
 		_build_hint()
@@ -91,29 +101,26 @@ func _pick_house_sites() -> void:
 		sites.append(Vector3(p.x, h, p.y))
 		yaws.append(roundf(randf() * 24.0) * TAU / 24.0)
 
-# ---- environment: sky, sun, fog ----------------------------------------------
+# ---- environment: sky, sun / moon, fog, day-night cycle ----------------------
 
 func _build_environment() -> void:
-	var sky_mat := ShaderMaterial.new()
+	sky_mat = ShaderMaterial.new()
 	sky_mat.shader = load("res://shaders/hills/sky.gdshader")
-	sky_mat.set_shader_parameter("sun_dir", SUN_DIR.normalized())
+	sky_mat.set_shader_parameter("cloud_cover", 0.55)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
+	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL     # the sky changes all day: refresh its lighting over several frames
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.9
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 1.0
 	env.tonemap_white = 6.0
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.9, 0.74, 0.5)
-	env.fog_light_energy = 1.0
-	env.fog_density = 0.0028
-	env.fog_sun_scatter = 0.7
+	env.fog_sun_scatter = 0.6
 	env.fog_aerial_perspective = 0.45
 	env.fog_sky_affect = 0.15
 	env.ssao_enabled = true
@@ -131,18 +138,90 @@ func _build_environment() -> void:
 		we.environment = env
 		add_child(we)
 
-	var sun := DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.8, 0.52)
-	sun.light_energy = 2.4
+	sun = DirectionalLight3D.new()
 	sun.light_angular_distance = 0.6
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 320.0
+	sun.directional_shadow_max_distance = 250.0
 	sun.directional_shadow_blend_splits = true
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 1.2
 	add_child(sun)
-	sun.look_at_from_position(Vector3.ZERO, -SUN_DIR.normalized(), Vector3.UP)
+
+# palettes for the three looks of the sky: [zenith, mid, horizon, cloud lit, cloud shade]
+const PAL_DAY := [Color(0.16, 0.36, 0.75), Color(0.45, 0.65, 0.9), Color(0.75, 0.85, 0.95), Color(1.0, 0.98, 0.95), Color(0.58, 0.63, 0.72)]
+const PAL_GOLD := [Color(0.22, 0.3, 0.55), Color(0.7, 0.6, 0.62), Color(1.0, 0.62, 0.32), Color(1.0, 0.72, 0.5), Color(0.5, 0.4, 0.48)]
+const PAL_NIGHT := [Color(0.005, 0.012, 0.04), Color(0.015, 0.03, 0.08), Color(0.05, 0.07, 0.13), Color(0.12, 0.15, 0.24), Color(0.02, 0.03, 0.06)]
+
+## Sets the sun / moon, sky palette, fog, ambient and window lights for the current `hour`.
+func _apply_time() -> void:
+	var a := (hour - 6.0) / 12.0 * PI                    # 6:00 sunrise in +X, noon overhead, 18:00 sunset in -X
+	var to_sun := Vector3(cos(a), sin(a), -0.35).normalized()
+	var e := to_sun.y
+	var dw := smoothstep(0.1, 0.4, e)
+	var gw := clampf(1.0 - absf(e - 0.05) / 0.28, 0.0, 1.0)
+	var nw := 1.0 - smoothstep(-0.25, 0.0, e)
+	var tot := maxf(dw + gw + nw, 0.001)
+	dw /= tot
+	gw /= tot
+	nw /= tot
+	var pal: Array[Color] = []
+	for i in 5:
+		pal.append(PAL_DAY[i] * dw + PAL_GOLD[i] * gw + PAL_NIGHT[i] * nw)
+	var dark := 1.0 - smoothstep(-0.18, 0.02, e)         # 0 day .. 1 night, drives stars / moon / lights
+	var day_mix := smoothstep(-0.15, 0.3, e)
+	var sun_col := Color(1.0, 0.5, 0.2).lerp(Color(1.0, 0.96, 0.88), smoothstep(0.0, 0.4, e))
+	sky_mat.set_shader_parameter("sun_dir", to_sun)
+	sky_mat.set_shader_parameter("moon_dir", -to_sun)
+	sky_mat.set_shader_parameter("zenith_col", pal[0])
+	sky_mat.set_shader_parameter("mid_col", pal[1])
+	sky_mat.set_shader_parameter("horizon_col", pal[2])
+	sky_mat.set_shader_parameter("cloud_lit", pal[3])
+	sky_mat.set_shader_parameter("cloud_shade", pal[4])
+	sky_mat.set_shader_parameter("sun_col", sun_col)
+	sky_mat.set_shader_parameter("night", dark)
+	sky_mat.set_shader_parameter("cloud_time", cloud_t)
+	# one light does both jobs: the sun above the horizon, the moon below it (each fades to 0 at the horizon)
+	if e >= 0.0:
+		sun.light_color = sun_col
+		sun.light_energy = 2.6 * smoothstep(0.0, 0.18, e)
+		sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
+	else:
+		sun.light_color = Color(0.55, 0.65, 1.0)
+		sun.light_energy = 0.45 * smoothstep(0.0, 0.18, -e)
+		sun.look_at_from_position(Vector3.ZERO, to_sun, Vector3.UP)
+	env.ambient_light_energy = lerpf(1.7, 1.0, day_mix)  # the night sky is dark blue: lift it so the hills stay readable
+	env.fog_light_color = pal[2].lerp(Color(0.7, 0.75, 0.9), dw * 0.3)
+	env.fog_light_energy = lerpf(0.3, 1.0, day_mix)
+	env.fog_density = 0.0016 + 0.0012 * gw + 0.0014 * nw
+	if glass_mat != null:
+		glass_mat.emission_enabled = dark > 0.05
+		glass_mat.emission_energy_multiplier = 3.0 * dark
+	Game.day_light = 0.12 + 0.88 * smoothstep(-0.08, 0.3, e)
+
+func _process(dt: float) -> void:
+	hour = fposmod(hour + dt * 24.0 / DAY_SECONDS, 24.0)
+	cloud_t += dt * 0.008
+	time_acc += dt
+	if time_acc >= TIME_STEP and sky_mat != null:
+		time_acc = 0.0
+		_apply_time()
+
+## [ and ] step the clock an hour back / forward (handy for looking at night and dusk)
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and (Game.dev_keys or standalone):
+		if e.physical_keycode == KEY_BRACKETRIGHT:
+			hour = fposmod(hour + 1.0, 24.0)
+		elif e.physical_keycode == KEY_BRACKETLEFT:
+			hour = fposmod(hour - 1.0, 24.0)
+
+## What is underfoot at world (x, z): "dirt" on the road and steep slopes, "grass" everywhere else
+func surface_at(x: float, z: float) -> String:
+	if road_mask(x, z) > 0.4:
+		return "dirt"
+	var e := 1.5
+	var slope := Vector2(height(x + e, z) - height(x - e, z), height(x, z + e) - height(x, z - e)).length() / (2.0 * e)
+	return "dirt" if slope > 0.9 else "grass"
 
 # ---- terrain -----------------------------------------------------------------
 
@@ -279,8 +358,8 @@ func _grass_lod(density: float, mesh: Mesh) -> MultiMesh:
 func _build_grass() -> void:
 	grass_mat = _grass_material()
 	var lods: Array[MultiMesh] = [
-		_grass_lod(1.0, GRASS_HIGH), _grass_lod(0.5, GRASS_HIGH), _grass_lod(0.25, GRASS_LOW),
-		_grass_lod(0.1, GRASS_LOW), _grass_lod(0.02, GRASS_LOW)]
+		_grass_lod(0.8, GRASS_HIGH), _grass_lod(0.4, GRASS_HIGH), _grass_lod(0.22, GRASS_LOW),
+		_grass_lod(0.1, GRASS_LOW), _grass_lod(0.05, GRASS_LOW)]
 	var r := int(GRASS_RADIUS)
 	for i in range(-r, r, int(TILE_SIZE)):
 		for j in range(-r, r, int(TILE_SIZE)):
@@ -295,11 +374,11 @@ func _build_grass() -> void:
 			inst.extra_cull_margin = 1.0
 			if dist < 12.0:
 				inst.multimesh = lods[0]
-			elif dist < 40.0:
+			elif dist < 30.0:
 				inst.multimesh = lods[1]
-			elif dist < 70.0:
+			elif dist < 55.0:
 				inst.multimesh = lods[2]
-			elif dist < 100.0:
+			elif dist < 80.0:
 				inst.multimesh = lods[3]
 			else:
 				inst.multimesh = lods[4]
@@ -348,7 +427,10 @@ func _house(pos: Vector3, yaw: float, wall_col: Color) -> void:
 	var wall := _mat(wall_col)
 	var trim := _mat(Color(0.82, 0.78, 0.66))
 	var roof := _mat(Color(0.2, 0.15, 0.11), 0.7)
-	var glass := _mat(Color(0.12, 0.17, 0.22), 0.15)
+	if glass_mat == null:
+		glass_mat = _mat(Color(0.12, 0.17, 0.22), 0.15)
+		glass_mat.emission = Color(1.0, 0.75, 0.4)
+	var glass := glass_mat
 	var w := randf_range(5.6, 7.0)
 	var d := randf_range(6.5, 8.0)
 	var hgt := randf_range(4.6, 5.6)

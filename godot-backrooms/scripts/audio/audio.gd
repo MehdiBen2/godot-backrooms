@@ -49,6 +49,7 @@ var world_lp: AudioEffectLowPassFilter
 var world_rev: AudioEffectReverb
 var nav: GridNav
 var room_timer := 0.0
+var outdoor_mix := 0.0         # 0 = the backrooms .. 1 = the open-air hills level (Game.outdoors), eased
 var room_size := 0.35          # smoothed measurements of the space around the listener
 var room_target := 0.35
 var steps_lp: AudioEffectLowPassFilter
@@ -104,6 +105,10 @@ func _ready() -> void:
 	amb.name = "Ambience"
 	amb.set_script(preload("res://scripts/audio/ambience.gd"))
 	add_child(amb)
+	var out := Node.new()
+	out.name = "Outdoor"
+	out.set_script(preload("res://scripts/audio/outdoor_audio.gd"))
+	add_child(out)
 
 # ---------------------------------------------------------------- buses
 func _setup_buses() -> void:
@@ -256,7 +261,7 @@ func _update_hum(dt: float) -> void:
 	var target := maxf(0.0, hum_attention * masking * dread * menu)
 	hum_mix += (target - hum_mix) * (1.0 - exp(-dt / 0.35))
 	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
-	var mix: float = hum_mix * HUM_VOLUME * hum_user * vol.hum
+	var mix: float = hum_mix * HUM_VOLUME * hum_user * vol.hum * (1.0 - outdoor_mix)     # no fluorescent hum under the sky
 	var comp := 1.0 / float(scales["hum_voice.wav"])
 	for i in voices.size():
 		var lvl: float = level.slot_level(i)
@@ -270,11 +275,11 @@ func _update_hum(dt: float) -> void:
 	# dread drone: swells with the entity's presence and the run's overall fear, up to 3x
 	var swell := clampf(maxf(Game.presence, Game.fear * 0.7), 0.0, 1.0)
 	drone_swell += (swell - drone_swell) * (1.0 - exp(-dt / 1.2))
-	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) / float(scales.get("drone.wav", 1.0))
+	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) * (1.0 - outdoor_mix) / float(scales.get("drone.wav", 1.0))
 
 # ---------------------------------------------------------------- tube pops
 func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
-	if not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
+	if Game.outdoors or not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
 	var file := "tube_restrike.wav" if restrike else "tube_drop.wav"
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream(file)
@@ -338,6 +343,7 @@ func _world_cutoff_goal() -> float:
 
 # ---------------------------------------------------------------- frame
 func _process(dt: float) -> void:
+	outdoor_mix += ((1.0 if Game.outdoors else 0.0) - outdoor_mix) * (1.0 - exp(-dt / 1.0))
 	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
 	# the duck: a little quieter while held, a little more once dead (never below 60%)
@@ -370,7 +376,7 @@ func grid() -> GridNav:
 
 func walls_between(a: Vector3, b: Vector3) -> int:
 	var g := grid()
-	if g == null: return 0
+	if g == null or Game.outdoors: return 0        # open air: nothing between you and the sound
 	var dx := b.x - a.x
 	var dz := b.z - a.z
 	var steps := ceili(sqrt(dx * dx + dz * dz) / 0.75)
@@ -415,16 +421,24 @@ func _update_room(dt: float) -> void:
 	room_timer -= dt
 	if room_timer <= 0.0:
 		room_timer = 0.25
-		room_target = _measure_room()
+		room_target = 0.15 if Game.outdoors else _measure_room()    # the grid measure means nothing under the open sky
 	room_size += (room_target - room_size) * (1.0 - exp(-dt / 1.5))
+	# Outdoors is not an enclosed space: almost no tail at all (short, dark, barely wet), just enough that a
+	# sound is not bone dry. It blends with the indoor measure so crossing over never jumps.
+	var o := outdoor_mix
+	var rs := lerpf(room_size, 0.1, o)
+	var world_wet := lerpf(0.08 + 0.22 * room_size, 0.015, o)
+	var world_damp := lerpf(0.85 - 0.25 * room_size, 0.95, o)
+	var steps_wet := lerpf(0.05 + 0.16 * room_size, 0.01, o)
+	var steps_damp := lerpf(0.88 - 0.25 * room_size, 0.95, o)
 	# only write when it has moved: re-setting reverb parameters every frame can zipper
-	if absf(world_rev.room_size - room_size) > 0.01:
-		world_rev.room_size = room_size
-		world_rev.wet = 0.08 + 0.22 * room_size
-		world_rev.damping = 0.85 - 0.25 * room_size
-		steps_rev.room_size = room_size
-		steps_rev.wet = 0.05 + 0.16 * room_size
-		steps_rev.damping = 0.88 - 0.25 * room_size
+	if absf(world_rev.room_size - rs) > 0.01 or absf(world_rev.wet - world_wet) > 0.004:
+		world_rev.room_size = rs
+		world_rev.wet = world_wet
+		world_rev.damping = world_damp
+		steps_rev.room_size = rs
+		steps_rev.wet = steps_wet
+		steps_rev.damping = steps_damp
 
 # Which foot came down (-1 left, 1 right): a slight pan, like the web game's +-0.06
 func step_foot(side: float) -> void:

@@ -1,0 +1,8 @@
+Outdoor footsteps and ambience (all from opengameart.org):
+- grass/*.ogg   "Footsteps on different surfaces" pack, derived from "footstep-grass.wav" by swuing
+                (https://freesound.org/people/swuing/sounds/38874/), CC BY 3.0 - https://creativecommons.org/licenses/by/3.0/
+- dirt/gravel_*.ogg  from "Gravel Footsteps" by Ali_6868 (https://freesound.org/people/Ali_6868/packs/21608/), CC0
+- dirt/sand_*.ogg    "Fantozzi's Footsteps (Grass/Sand & Stone)", CC0
+- ../ambients/outdoor/forest_day.mp3      "Forest Ambience" by TinyWorlds, CC0
+- ../ambients/outdoor/crickets_night.mp3  "Crickets Ambient Noise - loopable" by Ted Kerr, CC0
+- ../ambients/outdoor/wind_loop.wav       synthesized (tools/make_wind.py)

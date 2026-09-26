@@ -160,6 +160,10 @@ func _start(i: int) -> void:
 	switch_cd = SWITCH_GAP
 
 func _schedule(dt: float) -> void:
+	if audio.outdoor_mix > 0.5:               # under the open sky: let the horror beds fade out and start no new one
+		for v in voices:
+			v.dying = true
+		return
 	switch_cd = maxf(0.0, switch_cd - dt)
 	var current = null
 	for v in voices:
@@ -187,6 +191,7 @@ func _update_voices(dt: float) -> void:
 	if player.dead:
 		duck_target = 0.0                                    # dead: the beds (their wind and air) drain away
 	duck_target *= hush                                      # a whisper is taking the room: the bed steps back
+	duck_target *= 1.0 - audio.outdoor_mix                   # the hills have their own bed (outdoor_audio.gd)
 	duck += (duck_target - duck) * (1.0 - exp(-dt / (0.6 if duck_target < duck else 3.0)))
 	var mood := (0.55 + 0.9 * tension) * (1.0 + NEAR_BOOST * near * near) * (1.0 + swell)
 	var pitch: float = 1.0 - 0.05 * (1.0 - player.sanity / 100.0)   # the bed sags out of tune as you lose it
@@ -272,7 +277,7 @@ func _threat_pos(n: Node):
 # Darker in tight corridors, at low sanity and in a blackout; a slow swell keeps it from sitting still
 func _update_filter(dt: float) -> void:
 	lfo += dt
-	var open := clampf((audio.room_size - 0.15) / 0.6, 0.0, 1.0)
+	var open := maxf(clampf((audio.room_size - 0.15) / 0.6, 0.0, 1.0), audio.outdoor_mix)
 	var target := lerpf(3500.0, 15000.0, open)
 	var calm: float = 1.0 - clampf(Game.presence * 1.5, 0.0, 1.0)    # a chase drains sanity fast: don't muffle it
 	target *= lerpf(1.0, 0.45, (1.0 - player.sanity / 100.0) * calm)
@@ -289,7 +294,7 @@ func _update_filter(dt: float) -> void:
 # ---------------------------------------------------------------- far-off events
 func _update_events(dt: float) -> void:
 	event_timer -= dt
-	if event_timer > 0.0:
+	if event_timer > 0.0 or Game.outdoors:
 		return
 	event_timer = (30.0 + rng.randf() * 50.0) * (1.0 - 0.5 * tension)
 	if Game.hunted or audio.paused or not Game.playing or player.dead:

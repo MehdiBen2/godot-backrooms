@@ -40,6 +40,10 @@ var fx_blink := 0.0           # 0 eyes open .. 1 lids shut (player/blink.gd, dra
 var fx_fade_release := false  # after death the black/red edges clear over 1.8s (endGrab(dying))
 var level_index := 0          # which levels/levels.json entry is loaded (survives the scene reload)
 var level_count := 1
+# The open-air hills level (hills_portal.gd): the tube-light / hum / horror-bed logic is swapped for the sky's.
+var outdoors := false
+var day_light := 1.0          # how bright the outdoors is right now, 0 = moonlit night .. 1 = full day
+
 var respawned := false        # the level was reloaded by a respawn: skip the title screen
 # The F-key shortcuts that summon monsters, fire events and switch levels. On in the editor and debug
 # builds; a released build only has them when launched with --dev, so a stray F-key can't spawn the
@@ -90,6 +94,7 @@ func bind(p: Node, l: Node, m: Node) -> void:
 	player = p
 	level = l
 	main = m
+	outdoors = false          # a fresh scene always starts in the backrooms
 
 func haunt(amount: float) -> void:
 	event_fear = maxf(event_fear, amount)

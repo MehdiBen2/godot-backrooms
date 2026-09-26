@@ -16,6 +16,9 @@ group_uniforms GrassColor;
 uniform vec3 base_color : source_color = vec3(0.04,0.15,0.01);
 uniform vec3 tip_color : source_color = vec3(0.3,0.42,0.09);
 uniform vec3 subsurface_scattering_color : source_color = vec3(0.9,0.7,0.2);
+uniform vec3 far_color : source_color = vec3(0.21, 0.37, 0.06);   // what the terrain shader shows under distant grass
+uniform float fade_start = 75.0;   // blades shrink to nothing between these distances, so the tile edge never pops
+uniform float fade_end = 105.0;
 
 // Source: https://www.shadertoy.com/view/Xt3cDn
 float hash12(vec2 x) {
@@ -76,8 +79,8 @@ void vertex() {
 	VERTEX.x *= mix(0.6, 1.0, hash1);
 	// The further the distance from the camera, the thicker the grass blade will
 	// appear to account for decreasing density with LOD
-	VERTEX.x *= 1.0 + min(ease_in_quartic(0.033*camera_distance), 75.0);
-	VERTEX.y *= height_offset;
+	VERTEX.x *= 1.0 + min(ease_in_quartic(0.033*camera_distance), 5.0);
+	VERTEX.y *= height_offset * (1.0 - smoothstep(fade_start, fade_end, camera_distance));
 	vec3 vertex_model = VERTEX; // Vertex in model space before any rotations are applied
 
 	// --- WIND ---
@@ -138,7 +141,7 @@ void fragment() {
 	ALBEDO = mix(base_color, tip_color, ease_in_quartic(height_factor));
 	ALBEDO *= mix(0.1, 1.0, height_factor*height_factor); // AO
 	// Color becomes more uniform as distance increases
-	ALBEDO = mix(mix(base_color, tip_color, 0.5)*0.5, ALBEDO, fog_factor);
+	ALBEDO = mix(far_color, ALBEDO, fog_factor);
 
 	//AO = mix(0.1, 1.0, height_factor*height_factor); // Note: This looks better but is only visible when shadows are enabled!
 	ROUGHNESS = mix(1.0, 0.4, ease_out_quartic(height_factor));

@@ -388,6 +388,12 @@ func _back_to_spawn() -> void:
 	was_airborne = false
 	air_time = 0.0
 
+## How lit the spot you stand on is: the level's tubes in the backrooms, the sky (day / night cycle) outdoors
+func ambient_light() -> float:
+	if Game.outdoors:
+		return Game.day_light
+	return level.tube_light_at(global_position) if level != null else 1.0
+
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
 	if flash_on:
@@ -403,9 +409,7 @@ func _update_flashlight(dt: float) -> void:
 			k *= 0.05 + randf() * 0.45
 	k *= _contact_flicker(dt)
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
-	var lvl := 1.0
-	if level != null:
-		lvl = level.tube_light_at(global_position)
+	var lvl := ambient_light()
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if flash_on else 0.0
 	flash.visible = flash_on
@@ -454,7 +458,7 @@ func _contact_flicker(dt: float) -> float:
 # of your own: with it on you never lose sanity to the dark, and it slowly restores it. With NO light at
 # all (dark area, torch off or dead) sanity drains, and the longer you stay in it the faster it goes.
 func _update_sanity(dt: float) -> void:
-	var ambient: float = level.tube_light_at(global_position) if level != null else 1.0
+	var ambient := ambient_light()
 	var torch_lit := flash_on and battery > 0.0
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
 	if sanity_lock >= 0.0:

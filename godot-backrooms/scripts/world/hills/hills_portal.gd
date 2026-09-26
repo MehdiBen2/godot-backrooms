@@ -36,6 +36,7 @@ func _enter() -> void:
 	hills.player = player
 	main.add_child(hills)               # first time this builds the terrain, so expect a short hitch
 	in_hills = true
+	Game.outdoors = true
 	return_pos = player.global_position
 	return_yaw = player.rotation.y
 	var we: WorldEnvironment = main.get_node("WorldEnvironment")
@@ -60,6 +61,7 @@ func _leave() -> void:
 	var player: CharacterBody3D = main.get_node("Player")
 	var level: Node3D = main.get_node("Level")
 	in_hills = false
+	Game.outdoors = false
 	main.remove_child(hills)
 	main.get_node("WorldEnvironment").environment = saved_env
 	player.cam.far = saved_far
