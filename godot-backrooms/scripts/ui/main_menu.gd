@@ -7,6 +7,8 @@ const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
 const RED := Color("c4271f")
 const BG_PATH := "res://textures/menu/bg_%d.png"
+const BG_SET := [0, 1, 3, 4, 5, 6, 8, 9, 10]     # the good frames from tools/capture_menu_bg.gd
+const ZOOM := 1.14                      # slow push-in over each frame's lifetime
 const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
 const MUSIC_DB := -24.0                 # quiet bed, not a soundtrack
@@ -49,6 +51,9 @@ var tip_t := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
 var music: AudioStreamPlayer
+var hiss: AudioStreamPlayer
+var settings_menu                       # scripts/ui/menu.gd instance in embedded mode
+var quitting := false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -103,10 +108,9 @@ func _build() -> void:
 	_full(back)
 
 	# The stills, slightly oversized so the slow drift never shows an edge; two layers crossfade
-	var i := 0
-	while ResourceLoader.exists(BG_PATH % i):
-		bg_tex.append(load(BG_PATH % i))
-		i += 1
+	for i in BG_SET:
+		if ResourceLoader.exists(BG_PATH % i):
+			bg_tex.append(load(BG_PATH % i))
 	if bg_tex.is_empty():
 		bg_tex.append(_gradient(PackedColorArray([Color(0.16, 0.13, 0.06), Color(0.05, 0.04, 0.02)]), PackedFloat32Array([0.0, 1.0]), true))
 	bg_root = Control.new()
@@ -119,6 +123,7 @@ func _build() -> void:
 	bg_b.modulate.a = 0.0
 	bg_i = randi() % bg_tex.size()          # start on a different frame each launch
 	bg_a.texture = bg_tex[bg_i]
+	_zoom(bg_a)
 	var drift := create_tween().set_loops()
 	drift.tween_property(bg_root, "position", Vector2(-26, -12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	drift.tween_property(bg_root, "position", Vector2(26, 12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -166,7 +171,7 @@ func _build() -> void:
 	sp2.custom_minimum_size = Vector2(0, 54)
 	col.add_child(sp2)
 
-	for item in [["PLAY", _on_play], ["QUIT", func(): get_tree().quit()]]:
+	for item in [["PLAY", _on_play], ["SETTINGS", _open_panel.bind("settings")], ["GRAPHICS", _open_panel.bind("graphics")], ["QUIT", _on_quit]]:
 		var b := _menu_button(item[0])
 		b.pressed.connect(item[1])
 		col.add_child(b)
@@ -175,6 +180,11 @@ func _build() -> void:
 	sp3.custom_minimum_size = Vector2(0, 40)
 	col.add_child(sp3)
 	col.add_child(_label("BUILD 0.1 // TAPE 04", 11, Color(0.9, 0.882, 0.804, 0.3), 3))
+
+	# Settings / Graphics reuse the in-game menu's panels (same code, same saved settings)
+	settings_menu = load("res://scripts/ui/menu.gd").new()
+	settings_menu.embedded = true
+	add_child(settings_menu)
 
 	# Camcorder lens over everything (text included): fisheye, chroma fringe, tape tear, grain
 	var fx := ColorRect.new()
@@ -197,16 +207,29 @@ func _bg_layer(tex: Texture2D) -> TextureRect:
 	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	bg_root.add_child(r)
 	_full(r)
+	r.pivot_offset = Vector2(960, 470)       # push in toward the far end of the hall, not the centre
 	return r
+
+## Slow push-in, like the camera creeping forward. Lasts as long as the frame is on screen.
+func _zoom(r: TextureRect) -> void:
+	r.scale = Vector2.ONE
+	var tw := create_tween()
+	tw.tween_property(r, "scale", Vector2(ZOOM, ZOOM), BG_HOLD + BG_FADE * 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	r.set_meta("zoom", tw)
 
 func _next_bg() -> void:
 	bg_fading = true
 	var nxt := (bg_i + 1) % bg_tex.size()
 	bg_b.texture = bg_tex[nxt]
+	bg_root.move_child(bg_b, -1)             # the incoming frame fades in on top
+	_zoom(bg_b)
 	var tw := create_tween()
 	tw.tween_property(bg_b, "modulate:a", 1.0, BG_FADE).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(func():
-		bg_a.texture = bg_tex[nxt]
+		if bg_a.has_meta("zoom"): bg_a.get_meta("zoom").kill()
+		var done := bg_a                     # swap roles; the old frame becomes the hidden spare
+		bg_a = bg_b
+		bg_b = done
 		bg_b.modulate.a = 0.0
 		bg_i = nxt
 		bg_timer = 0.0
@@ -346,12 +369,42 @@ func _start_music() -> void:
 	add_child(music)
 	music.play()
 	create_tween().tween_property(music, "volume_db", MUSIC_DB, 4.0)
+	_start_tape()
+
+## Quiet tape hiss under the music, and a tape-stop whir as the menu opens
+func _start_tape() -> void:
+	hiss = AudioStreamPlayer.new()
+	hiss.stream = load("res://audio/tape_hiss.wav")
+	hiss.volume_db = -34.0
+	hiss.finished.connect(hiss.play)         # the file is cross-faded head to tail, so the restart is inaudible
+	add_child(hiss)
+	hiss.play()
+	var stop := AudioStreamPlayer.new()
+	stop.stream = load("res://audio/tape_stop.wav")
+	stop.volume_db = -14.0
+	stop.finished.connect(stop.queue_free)
+	add_child(stop)
+	stop.play()
 
 func _click() -> void:
 	click.pitch_scale = randf_range(0.96, 1.04)
 	click.play()
 
 # ---- play / loading ----------------------------------------------------------------
+func _open_panel(name: String) -> void:
+	settings_menu._on_nav(name)
+
+## Fade to black (picture and music), then exit
+func _on_quit() -> void:
+	if quitting or loading:
+		return
+	quitting = true
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(self, "modulate:a", 0.0, 0.7).set_trans(Tween.TRANS_QUAD)
+	for p in [music, hiss]:
+		if p: tw.tween_property(p, "volume_db", -60.0, 0.7)
+	tw.chain().tween_callback(get_tree().quit)
+
 func _on_play() -> void:
 	if loading:
 		return
@@ -370,6 +423,10 @@ func _finish_loading() -> void:
 	get_tree().change_scene_to_packed(packed)
 
 func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_ESCAPE:
+		settings_menu.close_panel()
+		return
+	if quitting: return
 	if not loading and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		_click()
 		_on_play()

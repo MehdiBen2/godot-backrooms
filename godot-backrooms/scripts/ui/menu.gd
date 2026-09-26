@@ -60,6 +60,7 @@ var next_glitch := 2.5
 var volumes := {"master": 1.0, "footsteps": 1.0, "hum": 1.0, "breathing": 1.0}
 var sensitivity := SENS_DEFAULT
 var callsign := ""
+var embedded := false                   # title-screen mode: only the Settings / Graphics side panel
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -67,6 +68,17 @@ func _ready() -> void:
 	_load()
 	_build()
 	_show_panel("")
+	if embedded:
+		_embed_setup()
+
+## Title-screen mode: keep only the side panel. _build() adds blur, veil, then a margin whose HBox holds
+## the main column and the panel, so hide the first three and push the panel to the right edge.
+func _embed_setup() -> void:
+	get_child(0).visible = false
+	get_child(1).visible = false
+	var layout: HBoxContainer = get_child(2).get_child(0)
+	layout.get_child(0).visible = false
+	layout.alignment = BoxContainer.ALIGNMENT_END
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
