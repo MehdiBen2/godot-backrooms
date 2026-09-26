@@ -51,7 +51,6 @@ var tip_t := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
 var music: AudioStreamPlayer
-var hiss: AudioStreamPlayer
 var settings_menu                       # scripts/ui/menu.gd instance in embedded mode
 var quitting := false
 
@@ -369,22 +368,6 @@ func _start_music() -> void:
 	add_child(music)
 	music.play()
 	create_tween().tween_property(music, "volume_db", MUSIC_DB, 4.0)
-	_start_tape()
-
-## Quiet tape hiss under the music, and a tape-stop whir as the menu opens
-func _start_tape() -> void:
-	hiss = AudioStreamPlayer.new()
-	hiss.stream = load("res://audio/tape_hiss.wav")
-	hiss.volume_db = -34.0
-	hiss.finished.connect(hiss.play)         # the file is cross-faded head to tail, so the restart is inaudible
-	add_child(hiss)
-	hiss.play()
-	var stop := AudioStreamPlayer.new()
-	stop.stream = load("res://audio/tape_stop.wav")
-	stop.volume_db = -14.0
-	stop.finished.connect(stop.queue_free)
-	add_child(stop)
-	stop.play()
 
 func _click() -> void:
 	click.pitch_scale = randf_range(0.96, 1.04)
@@ -401,8 +384,8 @@ func _on_quit() -> void:
 	quitting = true
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(self, "modulate:a", 0.0, 0.7).set_trans(Tween.TRANS_QUAD)
-	for p in [music, hiss]:
-		if p: tw.tween_property(p, "volume_db", -60.0, 0.7)
+	if music:
+		tw.tween_property(music, "volume_db", -60.0, 0.7)
 	tw.chain().tween_callback(get_tree().quit)
 
 func _on_play() -> void:
