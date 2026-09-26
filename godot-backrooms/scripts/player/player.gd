@@ -120,6 +120,7 @@ func _ready() -> void:
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
 	_build_flashlight_view()
+	_build_arms_view()
 	step_player = AudioStreamPlayer.new()
 	step_player.bus = "Steps"
 	add_child(step_player)
@@ -359,6 +360,39 @@ func _build_flashlight_view() -> void:
 		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		(n as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 
+# ---- first-person hazmat arm (models/player/fp_arms.glb): shown while the torch is put away ----
+const ARMS_POS := Vector3(-0.04, -0.36, -0.07)
+const ARMS_ROT := Vector3(-0.6, PI, 0.0)   # file faces +Z; camera looks down -Z. Pitch drops the elbow out of view
+const ARMS_DROP := 0.35                    # how far below its rest spot the hand hides (m)
+const ARMS_RAISE_TIME := 0.35              # seconds to slide fully in or out
+
+var arms: Node3D
+var arms_raise := 0.0                      # 0 = hidden below the frame, 1 = up in view
+
+func _build_arms_view() -> void:
+	var scene: PackedScene = load("res://models/player/fp_arms.glb")
+	if scene == null: return
+	arms = scene.instantiate()
+	arms.position = ARMS_POS
+	arms.rotation = ARMS_ROT
+	cam.add_child(arms)
+	for n in arms.find_children("*", "MeshInstance3D", true, false):
+		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(n as MeshInstance3D).gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	# Right arm only: both arms share one mesh, so the left one is shrunk away into its shoulder
+	var skel := arms.find_children("*", "Skeleton3D", true, false)
+	if not skel.is_empty():
+		var sk := skel[0] as Skeleton3D
+		var l_arm := sk.find_bone("L_arm_01")
+		if l_arm >= 0: sk.set_bone_pose_scale(l_arm, Vector3.ONE * 0.001)
+	arms_raise = 0.0 if flash_on else 1.0
+	_place_arms()
+
+func _place_arms() -> void:
+	var e := smoothstep(0.0, 1.0, arms_raise)
+	arms.position = ARMS_POS + Vector3(0.0, -ARMS_DROP * (1.0 - e), 0.0)
+	arms.visible = arms_raise > 0.0
+
 func _combined_aabb(root: Node3D) -> AABB:
 	var out := AABB()
 	var first := true
@@ -401,6 +435,11 @@ func _update_flashlight(dt: float) -> void:
 
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if flash_on else 0.0
 	flash.visible = flash_on
+	# Torch out = torch in hand; switched off it is put away and the bare arm slides up instead
+	holder.visible = flash_on
+	if arms:
+		arms_raise = move_toward(arms_raise, 0.0 if flash_on else 1.0, dt / ARMS_RAISE_TIME)
+		_place_arms()
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
 		flash_spill.visible = flash_on
