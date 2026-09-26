@@ -83,7 +83,7 @@ func _spawn_batteries() -> void:
 		b.rotation.y = r.randf() * TAU
 		add_child(b)
 
-## Level keys: F1 previous level, F2 next level, F3 teleport to this level's exit.
+## Level keys: F1 previous level, PageDown next level (F2 is the hills portal, hills_portal.gd), F3 teleport to this level's exit.
 ## Also on for editor test launches (--noclip), so they work in a released build.
 func _unhandled_input(e: InputEvent) -> void:
 	if not (Game.dev_keys or Game.noclip) or not (e is InputEventKey and e.pressed and not e.echo):
@@ -91,7 +91,6 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not e.shift_pressed:
 		match e.physical_keycode:
 			KEY_F1: Game.change_level(Game.level_index - 1)
-			KEY_F2: Game.change_level(Game.level_index + 1)
 			KEY_F3: _goto_exit()
 	if not Game.dev_keys:
 		return

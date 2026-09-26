@@ -20,6 +20,9 @@ var grass_mat: ShaderMaterial
 var grass_tiles: Array = []                  # [MultiMeshInstance3D, rest position]
 var prev_tile := Vector2i(1 << 20, 0)
 var player: Node3D
+var env: Environment
+## true when run as its own scene (own player, HUD hint, environment); false when embedded in the game via hills_portal.gd
+var standalone := true
 
 func _ready() -> void:
 	seed(20260926)
@@ -38,8 +41,9 @@ func _ready() -> void:
 	_build_grass()
 	_build_houses()
 	_build_castle()
-	_build_player()
-	_build_hint()
+	if standalone:
+		_build_player()
+		_build_hint()
 
 # ---- height field ------------------------------------------------------------
 
@@ -96,7 +100,7 @@ func _build_environment() -> void:
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -122,9 +126,10 @@ func _build_environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.1
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
+	if standalone:
+		var we := WorldEnvironment.new()
+		we.environment = env
+		add_child(we)
 
 	var sun := DirectionalLight3D.new()
 	sun.light_color = Color(1.0, 0.8, 0.52)
@@ -402,6 +407,9 @@ func _build_castle() -> void:
 	spire.bottom_radius = 5.5
 	spire.height = 12.0
 	_part(root, spire, roof, Vector3(0, 28, 0))
+
+func spawn_position() -> Vector3:
+	return Vector3(spawn_xz.x, height(spawn_xz.x, spawn_xz.y) + 1.0, spawn_xz.y)
 
 # ---- player & hint -----------------------------------------------------------
 
