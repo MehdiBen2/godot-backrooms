@@ -245,7 +245,7 @@ func body_fall(from := 0.0) -> void:
 		p.play(from)
 	# the last breath leaving you as you hit the floor, whatever killed you
 	if _stream(DEATH_VOICE) != null:
-		spawn_flat(_stream(DEATH_VOICE), 1.0, "Body")
+		spawn_flat(_stream(DEATH_VOICE), 1.0, "Voice")
 
 # At death: a grab or snap already stopped the heart, so its flatline (the same player) just settles
 # down to the quiet hold. A death nothing built up to gets a few weak, uneven beats first, then the line.
@@ -296,7 +296,7 @@ func gasp(volume_mult := 1.0) -> void:
 		return
 	_last_gasp = i
 	var g := ClipLevels.gain(GASPS[i], GASP_RMS, GASP_PEAK) * GASP_GAIN * volume_mult
-	spawn_flat(s, g, "Body", rng.randf_range(0.96, 1.04))
+	spawn_flat(s, g, "Voice", rng.randf_range(0.96, 1.04))
 	if breath != null:
 		breath.hold_for(s.get_length() + 0.2)
 	# and the music steps aside for a moment so the gasp is not buried under it

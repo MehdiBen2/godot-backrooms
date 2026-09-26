@@ -31,7 +31,7 @@ const ONE_SHOTS := 8
 # so these are torn down and rebuilt on every load. ONLY these: voice chat's capture bus and its
 # per-speaker buses (the Voice autoload) live across reloads, and deleting them killed the microphone
 # after the first death.
-const GAME_BUSES := ["World", "Body", "Steps", "Ambience", "Entity", "Scares", "MannequinSteps", "Preacher"]
+const GAME_BUSES := ["World", "Body", "Steps", "Ambience", "Entity", "Scares", "MannequinSteps", "Preacher", "Voice"]
 
 var level: Node
 var player: Node
@@ -178,6 +178,27 @@ func _setup_buses() -> void:
 		AudioServer.add_bus_effect(_add_bus(bus, "World"), lp)
 	_add_bus("Scares", "World")
 	_add_bus("Preacher", "World")
+
+	# Voice: the recorded gasps / last breath were taken on a cheap mic (hiss, thin, close). Band-limit them,
+	# add a little grit to mask the noise floor, and put them in a small room so they sit in the world
+	var voice := _add_bus("Voice", "Body")
+	var v_hp := AudioEffectHighPassFilter.new()
+	v_hp.cutoff_hz = 180.0
+	AudioServer.add_bus_effect(voice, v_hp)
+	var v_lp := AudioEffectLowPassFilter.new()
+	v_lp.cutoff_hz = 4800.0
+	AudioServer.add_bus_effect(voice, v_lp)
+	var v_dist := AudioEffectDistortion.new()
+	v_dist.mode = AudioEffectDistortion.MODE_LOFI
+	v_dist.drive = 0.12
+	v_dist.post_gain = -2.0
+	AudioServer.add_bus_effect(voice, v_dist)
+	var v_rev := AudioEffectReverb.new()
+	v_rev.room_size = 0.45
+	v_rev.damping = 0.6
+	v_rev.dry = 0.85
+	v_rev.wet = 0.3
+	AudioServer.add_bus_effect(voice, v_rev)
 
 func _add_bus(bus_name: String, send: String) -> int:
 	AudioServer.add_bus()
