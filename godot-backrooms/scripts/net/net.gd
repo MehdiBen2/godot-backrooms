@@ -295,8 +295,6 @@ func _process(dt: float) -> void:
 				printerr("NETDBG ", "HOST" if hosting else "GUEST", " peers=", multiplayer.get_peers().size(), " remotes=", remotes.size(),
 					" entity=(%.1f,%.1f) state=%s puppet=%s" % [ent.global_position.x, ent.global_position.z, ent.state, ent.puppet],
 					" me=", Game.player.global_position if Game.player else Vector3.ZERO, " sees=", remotes.values().map(func(r): return r.global_position))
-	if debug:
-		_measure(dt)
 
 # Snapshots go out from the physics step, where positions are set: 20 per second on a fixed grid
 func _send_state(dt: float) -> void:
@@ -365,34 +363,8 @@ func _set_status(text: String) -> void:
 	status = text
 	status_changed.emit(text)
 
-# ---- TEMP TEST
-var _tw := 0.0
-var _stats := []
-var _last := Vector3.INF
+# Snapshots are sent from the physics step, on a fixed grid
 func _physics_process(dt: float) -> void:
-	if not debug or not is_online():
+	if not is_online():
 		return
-	if hosting and Game.player:
-		_tw += dt
-		var c := Vector3(184.5, 0.1, 63.0)
-		Game.player.global_position = c + Vector3(cos(_tw * 1.1), 0, sin(_tw * 1.1)) * 3.6
-
-func _notification(what: int) -> void:
-	if what != NOTIFICATION_INTERNAL_PROCESS:
-		return
-
-var _mt := 0.0
-func _measure(dt: float) -> void:
-	if hosting or remotes.is_empty() or dt <= 0.0:
-		return
-	var r: Node3D = remotes.values()[0]
-	if _last != Vector3.INF:
-		_stats.append(r.global_position.distance_to(_last) / dt)
-	_last = r.global_position
-	if _stats.size() >= 240:
-		var mn := INF; var mx := 0.0; var sum := 0.0; var bad := 0
-		for v in _stats:
-			mn = minf(mn, v); mx = maxf(mx, v); sum += v
-			if absf(v - 3.96) > 1.0: bad += 1
-		printerr("SMOOTH speed mean=%.2f min=%.2f max=%.2f (true 3.96) off_frames=%d/240 fps=%d" % [sum / _stats.size(), mn, mx, bad, Engine.get_frames_per_second()])
-		_stats.clear()
+	_send_state(dt)

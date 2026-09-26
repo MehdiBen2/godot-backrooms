@@ -12,10 +12,12 @@ const TELEPORT := 4.0           # metres between two snapshots: it was moved (re
 const MIN_DELAY := 0.07
 const MAX_DELAY := 0.45
 const KEEP := 64
+const SLEW := 0.03              # the drawn clock may run at most 3% fast or slow while it catches up: no visible jumps
 
 var snaps: Array = []           # [{t, pos, yaw, ...}] oldest first
 var send_interval := 0.05
-var _offset := 0.0              # local clock - remote clock, tracked from the fastest recent arrivals
+var _target_off := 0.0          # local clock - remote clock, tracked from the fastest recent arrivals
+var _offset := 0.0              # what we actually use: slews toward _target_off
 var _jitter := 0.02
 var _delay := 0.12
 var _have_offset := false
@@ -26,13 +28,14 @@ static func now() -> float:
 func push(t: float, s: Dictionary) -> void:
 	var sample := now() - t
 	if not _have_offset:
+		_target_off = sample
 		_offset = sample
 		_have_offset = true
-	elif sample < _offset:
-		_offset = sample                                   # a faster packet: less latency than we thought
+	elif sample < _target_off:
+		_target_off = sample                               # a faster packet: less latency than we thought
 	else:
-		_offset += (sample - _offset) * 0.01               # slowly follow a latency rise / clock drift
-	_jitter += (absf(sample - _offset) - _jitter) * 0.1
+		_target_off += (sample - _target_off) * 0.01       # slowly follow a latency rise / clock drift
+	_jitter += (absf(sample - _target_off) - _jitter) * 0.1
 	if not snaps.is_empty() and t <= snaps[-1].t:
 		return                                              # stale or duplicate
 	s.t = t
@@ -48,7 +51,12 @@ func sample(dt: float) -> Dictionary:
 	if snaps.is_empty():
 		return {}
 	var target := clampf(send_interval * 1.5 + _jitter * 2.5 + 0.02, MIN_DELAY, MAX_DELAY)
-	_delay += (target - _delay) * minf(1.0, dt * 0.8)       # ease it so the picture never jumps
+	var step := SLEW * dt
+	_delay += clampf(target - _delay, -step, step)
+	if absf(_target_off - _offset) > 1.0:
+		_offset = _target_off                                # a huge gap (hitch, clock reset): just jump
+	else:
+		_offset += clampf(_target_off - _offset, -step, step)
 	var rt := now() - _offset - _delay                       # the remote moment we are drawing
 	# drop what is too old to be needed (keep one snapshot before rt)
 	while snaps.size() > 2 and snaps[1].t <= rt:
