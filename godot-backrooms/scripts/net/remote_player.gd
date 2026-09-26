@@ -4,6 +4,7 @@ extends Node3D
 ## death clip which holds its last frame. Falls back to a box figure if the model can't load.
 ## Smoothed towards the last state received.
 
+const HazmatFit := preload("res://scripts/entities/hazmat_fit.gd")
 const MODEL := "res://models/player/hazmat.glb"
 const MODEL_HEIGHT := 2.0       # metres: eye / visor level matches the 1.7 m camera in the idle pose
 const SMOOTH := 12.0
@@ -110,26 +111,10 @@ func _load_model() -> void:
 			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role == "death" else Animation.LOOP_LINEAR
 
 	# stand on the floor, centred, MODEL_HEIGHT tall. The file faces +Z, survivors face -Z.
-	var box := AABB()
-	var first := true
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var t := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		var b := t * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
 	model = Node3D.new()
 	add_child(model)
 	model.add_child(root)
-	if box.size.y > 0.0:
-		var sc := MODEL_HEIGHT / box.size.y
-		var c := box.get_center()
-		root.transform = Transform3D(Basis.from_scale(Vector3(sc, sc, sc)), Vector3(-c.x, -box.position.y, -c.z) * sc)
+	root.transform = HazmatFit.fit(root, model, MODEL_HEIGHT)
 	model.rotation.y = PI
 	_tint(root)
 	figure.visible = false

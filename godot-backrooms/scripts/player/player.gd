@@ -176,6 +176,9 @@ func _physics_process(dt: float) -> void:
 		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
+	if Game.noclip:
+		_fly(dt)
+		return
 	var crouch := _key(KEY_C) or _key(KEY_CTRL)
 	var dir := Vector2.ZERO
 	if _key(KEY_W) or _key(KEY_UP): dir.y -= 1
@@ -241,6 +244,23 @@ func _physics_process(dt: float) -> void:
 		Death.respawn_transition(_back_to_spawn)
 
 # Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
+## Noclip (editor test launch): free flight along the camera, straight through walls and floors.
+## WASD move, Space up, C/Ctrl down, Shift fast.
+func _fly(dt: float) -> void:
+	shape.disabled = true
+	var dir := Vector3.ZERO
+	if _key(KEY_W) or _key(KEY_UP): dir.z -= 1
+	if _key(KEY_S) or _key(KEY_DOWN): dir.z += 1
+	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
+	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
+	var wish := cam.global_transform.basis * dir
+	if _key(KEY_SPACE): wish.y += 1.0
+	if _key(KEY_C) or _key(KEY_CTRL): wish.y -= 1.0
+	velocity = Vector3.ZERO
+	is_moving = false
+	is_sprinting = false
+	global_position += wish.normalized() * (18.0 if _key(KEY_SHIFT) else 7.0) * dt
+
 func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
 	if rush:
 		exhausted = false

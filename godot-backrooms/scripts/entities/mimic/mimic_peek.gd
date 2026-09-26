@@ -1,8 +1,9 @@
 extends RefCounted
-## THE MIMIC's peek (js/game/mimicPeek.js). Stand still long enough and a head slides in from the edge
+## THE MIMIC's peek (js/game/mimicPeek.js). Stand still long enough and a hazmat survivor slides in from the edge
 ## of your screen to study your face, then snaps away and footsteps run off into the dark. Whip the
 ## camera round and it bolts from wherever it has got to. Personal to each player (never networked).
 
+const HazmatFit := preload("res://scripts/entities/hazmat_fit.gd")
 const PEEK_COOLDOWN := 600.0
 const PEEK_FIRST_WAIT := 30.0
 const PEEK_STILL := 5.0
@@ -20,6 +21,7 @@ const PEEK_SPOOK_SPEED := 2.6
 var m: Node3D                       # mimic.gd
 var root: Node3D
 var head: Node3D
+var anim: AnimationPlayer
 var phase := "idle"
 var t := 0.0
 var side := 1.0
@@ -40,46 +42,42 @@ func _init(owner: Node3D) -> void:
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
-## The head, parented to the camera: the howler model, pitch black, drawn over everything
+## The head, parented to the camera: the hazmat suit (the survivor the Mimic walks around as), dimmed,
+## drawn over everything, its head at the pivot and the body falling off the edge of the screen
 func build(cam: Camera3D) -> void:
 	root = Node3D.new()
 	root.visible = false
 	cam.add_child(root)
 	head = Node3D.new()
 	root.add_child(head)
-	var packed := load("res://models/entities/howler.glb") as PackedScene
+	var packed := load("res://models/player/hazmat.glb") as PackedScene
 	if packed == null:
 		return
 	var model: Node3D = packed.instantiate()
 	head.add_child(model)
-	var box := AABB()
-	var first := true
+	# the file faces +Z, which is toward the camera: no turn needed. Feet at the origin, then lowered so the head sits at the pivot
+	var fit := HazmatFit.fit(model, head, PEEK_HEIGHT)
+	fit.origin += Vector3(0, -PEEK_HEIGHT * 0.9, 0)
+	model.transform = fit
 	for n in model.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
-		var xf := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null and p != head:
-			if p is Node3D:
-				xf = (p as Node3D).transform * xf
-			p = p.get_parent()
-		var b := xf * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
-	if box.size.y <= 0.0:
-		return
-	var sc := PEEK_HEIGHT / box.size.y
-	var c := box.get_center()
-	var rot := Basis(Vector3.UP, -PI / 2.0) * Basis.from_scale(Vector3(sc, sc, sc))
-	model.transform = Transform3D(rot, rot * Vector3(-c.x, -box.position.y, -c.z) + Vector3(0, -PEEK_HEIGHT * 0.92, 0))
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color.BLACK
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.no_depth_test = true
-	mat.render_priority = 100
-	for n in model.find_children("*", "MeshInstance3D", true, false):
-		(n as MeshInstance3D).material_override = mat
-		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		(n as MeshInstance3D).extra_cull_margin = 16.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.extra_cull_margin = 16.0
+		for i in mi.get_surface_override_material_count():
+			var mat := mi.get_active_material(i)
+			if mat is StandardMaterial3D:
+				var d: StandardMaterial3D = mat.duplicate()
+				d.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+				d.albedo_color = d.albedo_color * Color(0.45, 0.45, 0.45)   # dim, as if seen in the dark
+				d.no_depth_test = true
+				d.render_priority = 100
+				mi.set_surface_override_material(i, d)
+	var aps := model.find_children("*", "AnimationPlayer", true, false)
+	if not aps.is_empty():
+		anim = aps[0]
+		if anim.has_animation("idle"):
+			anim.get_animation("idle").loop_mode = Animation.LOOP_LINEAR
+			anim.play("idle")
 
 # Screen edge at the head's distance: how far out is off screen, how far in is a peek
 func _pose(a: float) -> Vector2:
@@ -119,6 +117,9 @@ func start() -> bool:
 	last_yaw = player.rotation.y
 	last_pitch = player.cam.rotation.x
 	root.visible = true
+	if anim != null and anim.has_animation("idle"):
+		anim.play("idle")   # every visit starts from the first frame
+		anim.seek(0.0, true)
 	# its voice: an entity call from right beside you, on its side
 	var at: Vector3 = player.cam.to_global(Vector3(side * 1.2, 0.0, -0.4))
 	at.y = player.global_position.y + 1.4

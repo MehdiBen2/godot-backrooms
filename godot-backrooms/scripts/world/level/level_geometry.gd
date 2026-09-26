@@ -103,20 +103,29 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 func _build_surfaces() -> void:
 	var carpet_cells := []
 	var tile_cells := []
+	var classic_floor := []
+	var classic_ceil := []
 	var ceil_cells := []
 	var floor_cells := []
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			ceil_cells.append(c)
+			if classic.has(c): classic_ceil.append(c)
+			else: ceil_cells.append(c)
 			if pits.has(c): continue
 			floor_cells.append(c)
-			if tiles.has(c): tile_cells.append(c)
+			if classic.has(c): classic_floor.append(c)
+			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
 	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true)
+	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
+	if not classic_floor.is_empty():
+		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.25, 1.08, 0.5)), false)
+	if not classic_ceil.is_empty():
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(1.15, 1.08, 0.8)), true)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -126,6 +135,14 @@ func _build_surfaces() -> void:
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
 	_build_floor_collision(floor_cells)
+
+func _classic_mat(tex: String, scale: float, tint: Color) -> StandardMaterial3D:
+	var m := _mat(tex, Vector3(scale, scale, scale), tint)
+	m.emission_enabled = true
+	m.emission_texture = m.albedo_texture
+	m.emission = tint
+	m.emission_energy_multiplier = 0.35
+	return m
 
 func _default_tile_material() -> StandardMaterial3D:
 	var tm := StandardMaterial3D.new()

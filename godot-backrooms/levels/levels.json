@@ -1,17 +1,12 @@
 [
   {
-	"id": "level0",
-	"name": "Level 0: The Lobby",
-	"file": "level0.lvl"
+    "file": "level0.lvl",
+    "id": "level0",
+    "name": "Level 0: The Lobby"
   },
   {
-	"id": "level1",
-	"name": "Level 1: Habitable Zone",
-	"file": "level1.lvl"
-  },
-  {
-	"id": "level2",
-	"name": "Level 2: Sector 2",
-	"file": "level2.lvl"
+    "file": "level_1_habitable_zone.lvl",
+    "id": "level_1_habitable_zone",
+    "name": "Level 1: Habitable Zone"
   }
 ]

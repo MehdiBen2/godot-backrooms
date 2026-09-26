@@ -12,10 +12,11 @@ extends Node3D
 ## The Peer is dormant until a power cut (or F5) starts a "session". The peek is mimic_peek.gd.
 ## Dev keys: F5 toggles the Mimic peer, F3 forces a peek.
 
+const HazmatFit := preload("res://scripts/entities/hazmat_fit.gd")
 const GridNav := preload("res://scripts/world/grid_nav.gd")
 const MimicPeek := preload("res://scripts/entities/mimic/mimic_peek.gd")
 const SnapBuffer := preload("res://scripts/net/snap_buffer.gd")
-const MODEL := "res://models/entities/hazmat.glb"
+const MODEL := "res://models/player/hazmat.glb"
 const MODEL_HEIGHT := 2.0
 
 # MIMIC_PEER config
@@ -103,23 +104,7 @@ func _build_body() -> void:
 		return
 	var root: Node3D = packed.instantiate()
 	body.add_child(root)
-	var box := AABB()
-	var first := true
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var t := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null and p != body:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		var b := t * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
-	if box.size.y > 0.0:
-		var sc := MODEL_HEIGHT / box.size.y
-		var c := box.get_center()
-		root.transform = Transform3D(Basis.from_scale(Vector3(sc, sc, sc)), Vector3(-c.x, -box.position.y, -c.z) * sc)
+	root.transform = HazmatFit.fit(root, body, MODEL_HEIGHT)
 	var aps := root.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		anim = aps[0]
@@ -464,7 +449,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e.physical_keycode == KEY_F5:
 		toggle_session()
-	elif e.physical_keycode == KEY_F3:
+	elif e.physical_keycode == KEY_F3 and e.shift_pressed:
 		peek_now()
 
 # ---------------------------------------------------------------- debug console

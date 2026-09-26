@@ -30,6 +30,27 @@ func surface_at(p: Vector3) -> String:
 	return "tile" if tiles.has(cell_of(p)) else "carpet"
 
 # ---------------------------------------------------------------- exit
+## F3: stand the player beside the exit door (on the nearest open cell to it)
+func _goto_exit() -> void:
+	var ex = level_data.get("exit")
+	var p: Node3D = Game.player as Node3D
+	if not (ex is Array) or ex.size() < 2 or p == null:
+		return
+	var c := Vector2i(ex[0], ex[1])
+	var best := c
+	var best_d := 1e9
+	for dx in range(-3, 4):
+		for dz in range(-3, 4):
+			var n := c + Vector2i(dx, dz)
+			if n == c or walls.has(n) or pits.has(n): continue
+			var d := dx * dx + dz * dz
+			if d < best_d:
+				best_d = d
+				best = n
+	p.global_position = Vector3(best.x * CELL, 0.1, best.y * CELL)
+	if p is CharacterBody3D: (p as CharacterBody3D).velocity = Vector3.ZERO
+	p.look_at(Vector3(c.x * CELL, p.global_position.y, c.y * CELL), Vector3.UP)
+
 func _build_exit() -> void:
 	var e = level_data.get("exit")
 	if not (e is Array) or e.size() < 2:
@@ -62,8 +83,17 @@ func _spawn_batteries() -> void:
 		b.rotation.y = r.randf() * TAU
 		add_child(b)
 
+## Level keys: F1 previous level, F2 next level, F3 teleport to this level's exit.
+## Also on for editor test launches (--noclip), so they work in a released build.
 func _unhandled_input(e: InputEvent) -> void:
-	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):
+	if not (Game.dev_keys or Game.noclip) or not (e is InputEventKey and e.pressed and not e.echo):
+		return
+	if not e.shift_pressed:
+		match e.physical_keycode:
+			KEY_F1: Game.change_level(Game.level_index - 1)
+			KEY_F2: Game.change_level(Game.level_index + 1)
+			KEY_F3: _goto_exit()
+	if not Game.dev_keys:
 		return
 	match e.physical_keycode:
 		KEY_PAGEDOWN: Game.change_level(Game.level_index + 1)

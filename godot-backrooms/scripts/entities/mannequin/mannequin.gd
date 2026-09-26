@@ -644,7 +644,7 @@ func warp_to_room() -> void:
 	player.rotation.y = atan2(-(c.x - best.x * CELL), -(c.z - best.y * CELL))
 
 func _unhandled_input(e: InputEvent) -> void:
-	if Game.dev_keys and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F2:
+	if Game.dev_keys and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F2 and e.shift_pressed:
 		warp_to_room()
 
 # ---------------------------------------------------------------- debug console

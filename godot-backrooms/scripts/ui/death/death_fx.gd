@@ -262,7 +262,7 @@ func _process(delta: float) -> void:
 
 ## A hazmat survivor stands where you were and falls onto its back.
 func _hazmat_scene() -> PackedScene:
-	var path := "res://models/entities/hazmat.glb"
+	var path := "res://models/player/hazmat.glb"
 	if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_LOADED:
 		return ResourceLoader.load_threaded_get(path) as PackedScene
 	return load(path) as PackedScene

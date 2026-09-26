@@ -45,6 +45,17 @@ var respawned := false        # the level was reloaded by a respawn: skip the ti
 # bacteria in a player's face.
 var dev_keys := OS.is_debug_build() or OS.get_cmdline_user_args().has("--dev") or OS.get_cmdline_args().has("--dev")
 
+# Level-editor test launch: --test-level=<id from levels.json> boots straight into that level (skipping
+# the title screen) and --noclip lets you fly through walls to look around.
+var test_level := _launch_arg("--test-level=")
+var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
+
+static func _launch_arg(prefix: String) -> String:
+	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
+		if a.begins_with(prefix):
+			return a.substr(prefix.length())
+	return ""
+
 var player: Node
 var level: Node
 var main: Node

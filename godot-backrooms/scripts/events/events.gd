@@ -305,7 +305,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	match e.physical_keycode:
-		KEY_F1: print("event: ", trigger_random(true))
+		KEY_F1: if e.shift_pressed: print("event: ", trigger_random(true))
 		KEY_F6: debug_spawn_hunters()
 		KEY_F7: run_event("powerCut")
 		KEY_F8: run_event("preacherWhisper")
@@ -313,7 +313,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_F12: run_event("tiltDrift")
 
 # DEBUG F6: warp into the mannequin room and drop the bacteria a few metres away, already screeching.
-# Dev keys: F1 random event, F2 mannequin room, F3 mimic peek, F4 bacteria stalk, F5 mimic session,
+# Dev keys: Shift+F1 random event, Shift+F2 mannequin room, Shift+F3 mimic peek (plain F1-F3 change level, see level_builder), F4 bacteria stalk, F5 mimic session,
 # F6 mannequin + bacteria, F7 power cut, F8 preacher, F9 stop all, F10 bacteria in front, F12 tilt drift.
 func debug_spawn_hunters() -> void:
 	var root := get_parent()

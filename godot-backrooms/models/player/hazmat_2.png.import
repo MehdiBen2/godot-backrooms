@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://byr4rmusthvui"
-path="res://.godot/imported/hazmat_Image_0.jpg-cd262db92faf46f939ad0d5d526fba6f.ctex"
+uid="uid://iy8u8yd4atfv"
+path="res://.godot/imported/hazmat_2.png-0ea7c2c1b6193f5fcf45f937ce8a09f0.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "b745a3b87ad4a830c9d094da5f59498e"
+"md5": "38bf2dcbcf8c0955ac3c805ebc8a58c2"
 }
 
 [deps]
 
-source_file="res://models/entities/hazmat_Image_0.jpg"
-dest_files=["res://.godot/imported/hazmat_Image_0.jpg-cd262db92faf46f939ad0d5d526fba6f.ctex"]
+source_file="res://models/player/hazmat_2.png"
+dest_files=["res://.godot/imported/hazmat_2.png-0ea7c2c1b6193f5fcf45f937ce8a09f0.ctex"]
 
 [params]
 

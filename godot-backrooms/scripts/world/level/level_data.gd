@@ -26,6 +26,7 @@ var bright := {}
 var dark := {}
 var dim := {}
 var flicker := {}
+var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
 var spawn_pos := Vector3.ZERO
 var level_data := {}
 var level_meta := {}
@@ -76,7 +77,7 @@ func _parse(d: Dictionary) -> void:
 			elif ch == "O":
 				pits[Vector2i(x, z)] = true
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker"]:
+	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])

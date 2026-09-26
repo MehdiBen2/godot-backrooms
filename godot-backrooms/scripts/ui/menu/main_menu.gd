@@ -61,6 +61,13 @@ func _ready() -> void:
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_start_music()
+	if Game.test_level != "":            # launched from the level editor: skip the title, open that level
+		var levels: Array = load("res://scripts/world/level/level_data.gd").read_index()
+		for i in levels.size():
+			if str(levels[i].get("id", "")) == Game.test_level or str(levels[i].get("file", "")) == Game.test_level:
+				Game.level_index = i
+		Game.test_level = ""
+		_on_play()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:

@@ -18,9 +18,9 @@ const WALL := "#"
 const FLOOR := "."
 const PIT := "O"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
-	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30")}
+	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a")}
 const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
-	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet"}
+	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet", "classic": "Super bright classic backrooms: steady glowing tubes, clear air"}
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505")}
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
@@ -68,6 +68,7 @@ var name_edit: LineEdit
 var name_hint: Label
 var name_mode := ""                  # "new" | "rename" | "dup"
 var delete_dialog: ConfirmationDialog
+var godot_dialog: FileDialog
 var shown: Array = []                # index positions currently shown in the list
 
 func _ready() -> void:
@@ -168,6 +169,10 @@ func _build_ui() -> void:
 	title_label = _label("", 18, CREAM)
 	title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tb.add_child(title_label)
+	var test_b := _button("TEST  F5", _test_level)
+	test_b.tooltip_text = "Save, then open this level in the game with noclip (fly through walls)"
+	test_b.add_theme_color_override("font_color", Color("2fd968"))
+	tb.add_child(test_b)
 	tb.add_child(_button("UNDO", _undo))
 	tb.add_child(_button("FIT", _fit))
 	var save_b := _button("SAVE  Ctrl+S", save)
@@ -306,6 +311,13 @@ func _build_dialogs() -> void:
 	delete_dialog = ConfirmationDialog.new()
 	delete_dialog.confirmed.connect(_delete_current)
 	add_child(delete_dialog)
+	godot_dialog = FileDialog.new()
+	godot_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	godot_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	godot_dialog.use_native_dialog = true
+	godot_dialog.title = "Locate the Godot executable"
+	godot_dialog.file_selected.connect(func(p): _save_godot_path(p); _test_level())
+	add_child(godot_dialog)
 
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
@@ -540,6 +552,36 @@ func _move(d: int) -> void:
 	_refresh_list()
 	_status("Moved to position %d" % j)
 
+# ---------------------------------------------------------------- test play
+const CFG := "user://editor.cfg"
+
+func _godot_path() -> String:
+	var env := OS.get_environment("GODOT_EXE")
+	if env != "": return env
+	var cfg := ConfigFile.new()
+	if cfg.load(CFG) == OK and FileAccess.file_exists(str(cfg.get_value("godot", "path", ""))):
+		return str(cfg.get_value("godot", "path"))
+	if OS.has_feature("editor"):
+		return OS.get_executable_path()        # running from the Godot editor: it is Godot itself
+	return ""
+
+func _save_godot_path(p: String) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("godot", "path", p)
+	cfg.save(CFG)
+
+## Save, then launch the game straight into this level with noclip on
+func _test_level() -> void:
+	if current < 0: return
+	var exe := _godot_path()
+	if exe == "":
+		godot_dialog.popup_centered_ratio(0.6)
+		return
+	save()
+	var args := ["--path", GAME, "--", "--test-level=" + str(index[current].id), "--noclip"]
+	var pid := OS.create_process(exe, args)
+	_status("Testing %s in noclip (WASD, Space up, C down, Shift fast)" % str(index[current].name) if pid > 0 else "Could not start " + exe)
+
 # ---------------------------------------------------------------- save
 func _current_payload() -> Dictionary:
 	var g: Array = []
@@ -747,6 +789,9 @@ func _input(ev: InputEvent) -> void:
 			KEY_Z: _undo()
 			KEY_N: _ask_new()
 			KEY_D: _ask_dup()
+		return
+	if k.keycode == KEY_F5:
+		_test_level()
 		return
 	match k.keycode:
 		KEY_1: _select_tool("base:" + WALL)

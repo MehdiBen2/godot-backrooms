@@ -17,6 +17,7 @@ signal slot_assigned(slot: int)                              # a light came into
 const LIGHT_RANGE := 20.0
 const LIGHT_ENERGY := 2.2           # tuned for Godot 4 PBR lighting
 const LIGHT_COLOR := Color(1.0, 0.93, 0.78)
+const CLASSIC_BOOST := 1.7          # classic-zone tubes are this much brighter
 const BURNT_CHANCE := 0.16
 const FLICKER_CHANCE := 0.24
 const POOL_SIZE := 12
@@ -58,6 +59,8 @@ var bounce := 1.0
 var grid_glow := 0.0
 var zone_amb := 1.0
 var zone_fog := 1.0
+var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
+var base_ambient := -1.0
 
 func build_lighting() -> void:
 	_place_fixtures()
@@ -91,16 +94,17 @@ func _place_fixtures() -> void:
 					too_close = true
 					break
 			if too_close: continue
+			var is_classic := classic.has(c)
 			var is_bright := bright.has(c)
 			var ns := walls.has(Vector2i(x - 1, z)) and walls.has(Vector2i(x + 1, z))
 			var ew := walls.has(Vector2i(x, z - 1)) and walls.has(Vector2i(x, z + 1))
 			var grid_node := x % 3 == 0 and z % 3 == 0
-			if not (ns or ew or grid_node or is_bright): continue
+			if not (ns or ew or grid_node or is_bright or (is_classic and x % 2 == 0 and z % 2 == 0)): continue
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else BURNT_CHANCE)
-			var burnt := (not is_bright) and rng.randf() < chance
-			var flick := (not burnt) and (not is_bright) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)
+			var burnt := not (is_bright or is_classic) and rng.randf() < chance
+			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": PI / 2.0 if ns else 0.0,
-				"burnt": burnt, "bright": is_bright, "flickers": flick, "level": 1.0,
+				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "wanted": false})
 	for f in fx:
@@ -377,7 +381,7 @@ func _update_pool(delta: float) -> void:
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var energy: float = LIGHT_ENERGY * f.level * slot_weight[i] * dist_fade * slot_on[i]
+		var energy: float = LIGHT_ENERGY * (CLASSIC_BOOST if f.classic else 1.0) * f.level * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
 		l.global_position = f.light_pos
 		l.light_energy = energy
@@ -428,6 +432,9 @@ func _update_atmosphere(delta: float) -> void:
 	var zf := 1.0
 	var grid_down: bool = player.get("grid_down") == true
 	grid_glow += ((1.0 if grid_down else 0.0) - grid_glow) * minf(1.0, delta * 0.5)
+	classic_mix += ((1.0 if classic.has(c) else 0.0) - classic_mix) * minf(1.0, delta * 1.5)
+	if base_ambient < 0.0: base_ambient = env.ambient_light_energy
+	env.ambient_light_energy = lerpf(base_ambient, 0.7, classic_mix)     # flat, washed-out fill light
 	if dark.has(c):
 		za = 0.12; zf = 1.35
 	elif dim.has(c):
@@ -435,6 +442,7 @@ func _update_atmosphere(delta: float) -> void:
 	var k := minf(1.0, delta * ADAPT)
 	bounce += (tube_light_at(player.global_position) - bounce) * k
 	zone_amb += (za - zone_amb) * k
+	zf = lerpf(zf, 0.18, classic_mix)                                    # clear air: you see the whole hall
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
 	# power cut: a faint glow so shapes barely read (ATMOSPHERE.gridDownAmbient / gridDownFog)
