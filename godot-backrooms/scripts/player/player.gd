@@ -60,6 +60,12 @@ var fov_kick := 0.0
 const BASE_FOV := 75.0
 var health := 100.0
 var sanity := 100.0
+var sanity_lock := -1.0        # >= 0 pins sanity there (debug console)
+var insanity := 0.0            # 0..1 how far gone: blur, double vision, the eyes
+var hurt_tick := 0.0
+const INSANE_BELOW := 60.0     # the picture starts to go and the eyes open below this
+const HURT_SANITY := 30.0      # health starts draining below this
+const CALM_SANITY := 60.0      # health starts coming back above this
 var battery := 100.0          # flashlight battery, %
 var flash_on := true
 var light_level := 1.0
@@ -98,6 +104,14 @@ var coyote := 0.0
 var land_dip := 0.0
 var lean := 0.0
 
+# Held torch viewmodel (models/flashlight.glb), low-right in view; raised while the torch is on
+const TORCH_LENGTH := 0.27
+const TORCH_POS := Vector3(0.2, -0.2, -0.38)
+const TORCH_ROT := Vector3(0.16, 0.14, 0.0)
+var torch_holder: Node3D
+var torch_raise := 0.0
+var torch_lower := 0.0
+
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	for i in range(1, 5):
@@ -118,6 +132,7 @@ func _ready() -> void:
 		flash_spill.spot_angle_attenuation = 1.1
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
+	_build_torch_model()
 	step_player = AudioStreamPlayer.new()
 	step_player.bus = "Steps"
 	add_child(step_player)
@@ -128,6 +143,58 @@ func _ready() -> void:
 	click_player = AudioStreamPlayer.new()
 	click_player.volume_db = -4.4
 	add_child(click_player)
+
+func _build_torch_model() -> void:
+	var scn := load("res://models/flashlight.glb") as PackedScene
+	if scn == null: return
+	torch_holder = Node3D.new()
+	torch_holder.position = TORCH_POS
+	torch_holder.rotation = TORCH_ROT
+	torch_holder.visible = false
+	cam.add_child(torch_holder)
+	var wrap := Node3D.new()
+	torch_holder.add_child(wrap)
+	var inner := scn.instantiate() as Node3D
+	wrap.add_child(inner)
+	# Merge the mesh bounds (in wrap space) to find the long axis and centre
+	var box := AABB()
+	var first := true
+	for n in inner.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var b := wrap.global_transform.affine_inverse() * mi.global_transform * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	if first: return
+	var size := box.size
+	var axis := 0 if (size.x >= size.y and size.x >= size.z) else (1 if size.y >= size.z else 2)
+	var scale_f := TORCH_LENGTH / maxf(0.0001, size[axis])
+	inner.scale = Vector3.ONE * scale_f
+	inner.position = -box.get_center() * scale_f
+	# long axis onto -Z, centred on the fist
+	if axis == 0: wrap.rotation.y = PI / 2.0
+	elif axis == 1: wrap.rotation.x = -PI / 2.0
+
+func _update_torch_model(dt: float) -> void:
+	if torch_holder == null: return
+	var show := flash_on and not dead
+	torch_holder.visible = show
+	if not show:
+		torch_raise = 0.0
+		return
+	torch_raise = minf(1.0, torch_raise + dt * 3.0)
+	torch_lower += ((1.0 if is_sprinting else 0.0) - torch_lower) * minf(1.0, dt * 8.0)
+	var down := (1.0 - torch_raise) * (1.0 - torch_raise)
+	var step := sin(bob) if is_moving else 0.0
+	var breathe := sin(Time.get_ticks_msec() * 0.0016) * 0.003
+	torch_holder.position = Vector3(
+		TORCH_POS.x + step * 0.01 - torch_lower * 0.03,
+		TORCH_POS.y + absf(step) * 0.008 + breathe - down * 0.3 - torch_lower * 0.03,
+		TORCH_POS.z)
+	torch_holder.rotation = Vector3(
+		TORCH_ROT.x - torch_lower * 0.35 + step * 0.01,
+		TORCH_ROT.y + torch_lower * 0.25,
+		TORCH_ROT.z + step * 0.02)
 
 func _key(code: Key) -> bool:
 	return Input.is_physical_key_pressed(code)
@@ -228,6 +295,7 @@ func _physics_process(dt: float) -> void:
 		was_airborne = true
 		air_time += dt
 	_update_flashlight(dt)
+	_update_torch_model(dt)
 	_update_sanity(dt)
 
 	# Head bob + footfalls: web updateHeadBob. Step lands at the bottom of each bob.
@@ -342,7 +410,7 @@ func _update_flashlight(dt: float) -> void:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
 		flash_spill.visible = flash_on
 
-	# No held viewmodel: the beam leaves from the camera and follows the view with natural lag
+	# The beam leaves from the camera and follows the view with natural lag
 	var lens_world := cam.global_position
 	flash.global_position = lens_world
 	var want := cam.global_position - cam.global_transform.basis.z * 16.0
@@ -381,16 +449,54 @@ func _contact_flicker(dt: float) -> float:
 	return fl.value
 
 # ---- sanity: darkness drains it, safe light restores it (web SANITY values) ----
+var dark_time := 0.0          # how long you have been in the dark with no light of your own
+
+# Light is what keeps you sane. Ambient light (the tubes) restores it as before. The torch is a light
+# of your own: with it on you never lose sanity to the dark, and it slowly restores it. With NO light at
+# all (dark area, torch off or dead) sanity drains, and the longer you stay in it the faster it goes.
 func _update_sanity(dt: float) -> void:
-	var lvl: float = get_parent().get_node("Level").tube_light_at(global_position)
-	if flash_on and battery > 0.0: lvl = minf(1.0, lvl + 0.3)
-	light_level = lerpf(light_level, lvl, minf(1.0, dt * 3.0))
-	if light_level < 0.22:
-		var dark_ratio := 1.0 - light_level / 0.22
-		sanity = maxf(0.0, sanity - (0.8 + dark_ratio * (4.2 - 0.8)) * dt)
+	var ambient: float = get_parent().get_node("Level").tube_light_at(global_position)
+	var torch := flash_on and battery > 0.0
+	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
+	if sanity_lock >= 0.0:
+		sanity = sanity_lock                      # debug console: `sanity <n>` pins it
 	elif light_level >= 0.45:
 		var rec := minf(1.0, (light_level - 0.45) / 0.55)
 		sanity = minf(100.0, sanity + 2.2 * (0.4 + 0.6 * rec) * dt)
+		dark_time = 0.0
+	elif torch:
+		# your own light: steadies you even in the dark, a little slower than a properly lit room
+		sanity = minf(100.0, sanity + 1.4 * dt)
+		dark_time = maxf(0.0, dark_time - dt * 3.0)
+	elif light_level < 0.3:
+		var dark_ratio := 1.0 - light_level / 0.3
+		dark_time += dt
+		var creep := 1.0 + minf(dark_time / 20.0, 1.0)         # doubles over the first 20 s of it
+		sanity = maxf(0.0, sanity - (1.0 + dark_ratio * 4.5) * creep * (1.4 if grid_down else 1.0) * dt)
+	else:
+		dark_time = maxf(0.0, dark_time - dt)                  # dim but not black: neither gain nor loss
+	_update_mind(dt)
+
+# A slipping mind hurts. Below HURT_SANITY the body starts to fail (faster the lower it goes), the
+# picture smears and doubles (insanity, read by the post shader) and the heart runs. Recovering
+# sanity stops the bleed, and health then creeps back once you are properly calm again.
+func _update_mind(dt: float) -> void:
+	var target := clampf((INSANE_BELOW - sanity) / INSANE_BELOW, 0.0, 1.0)
+	insanity += (target - insanity) * minf(1.0, dt * 1.5)
+	if sanity < HURT_SANITY:
+		var sev := 1.0 - sanity / HURT_SANITY
+		health = maxf(0.0, health - (0.6 + 3.0 * sev * sev) * dt)
+		hurt_tick -= dt
+		if hurt_tick <= 0.0:            # a throb of pain with the drain
+			hurt_tick = 2.2 - 1.4 * sev
+			Game.add_glitch(0.12 + 0.25 * sev)
+			Game.beat()
+		if Game.heart != null:
+			Game.heart.feed("mind", 0.25 + 0.5 * sev)
+		if health <= 0.0 and not dead and not frozen:
+			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
+	elif sanity > CALM_SANITY and health < 100.0:
+		health = minf(100.0, health + 0.8 * dt)
 
 # Recorded carpet footfall (sfx.js footstep): never the same take twice in a row, slight level /
 # pitch / tone variation, quieter and darker when crouching, 180 ms minimum gap.

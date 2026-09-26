@@ -934,7 +934,6 @@ func _physics_process(delta: float) -> void:
 
 # ---------------------------------------------------------------- fear, sanity, the kill
 var static_timer := 0.0
-var heart_timer := 0.0
 
 func update_fear(delta: float) -> void:
 	var dist := global_position.distance_to(player.global_position)
@@ -954,22 +953,22 @@ func update_fear(delta: float) -> void:
 		if static_timer <= 0.0 and not player.frozen:
 			scares.entity_static()
 			static_timer = 0.12 + rng.randf() * (0.9 - 0.7 * terror)
-		# heart_timer is also driven below while adrenaline has you running out of range
-		heart_timer += delta * (1.5 + terror * 2.5 + player.adrenaline * 1.2)
-		if heart_timer > 1.0:
-			if not player.frozen:
-				scares.heartbeat(1.5)
-			heart_timer = 0.0
 		# not while something else already has hold of you (the mannequin's snap): it would cut that short
 		# and two scripts would fight over the camera
 		if player.sanity <= 0.0 and not player.dead and not player.frozen:
 			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
-	elif player.adrenaline > 0.05 and not player.dead:
-		# out of range but still running on it: the heart keeps pounding in your ears
-		heart_timer += delta * (1.5 + player.adrenaline * 1.5)
-		if heart_timer > 1.0:
-			scares.heartbeat(1.2 * player.adrenaline + 0.3)
-			heart_timer = 0.0
+	# the heart (heart.gd) does the beating; this only says how scared the entity makes you
+	if Game.heart != null and not player.dead:
+		var lvl := 0.0
+		if near:
+			lvl = 0.6 + 0.4 * terror
+		elif hunting and dist < 40.0:
+			lvl = 0.3 + 0.5 * (1.0 - dist / 40.0)
+		elif stalk_active and state == "stalk":
+			# being stalked: it builds while it watches you from the corner, worst when it leans out
+			lvl = 0.4 + 0.35 * peek_amt
+		if lvl > 0.0:
+			Game.heart.feed("bacteria", lvl)
 	# fear channel for the post shader: terror, sanity and darkness
 	var tremor := 0.25 * terror if (near and rng.randf() < 0.2) else 0.0
 	var sanity_fear: float = (100.0 - player.sanity) / 100.0 * 0.6

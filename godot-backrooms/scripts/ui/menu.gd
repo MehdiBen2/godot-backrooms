@@ -36,6 +36,10 @@ var action_label: Label
 var action_cursor: ColorRect
 var tag_dot: ColorRect
 var name_input: LineEdit
+var mp_addr: LineEdit
+var mp_link: LineEdit
+var mp_status: Label
+var last_address := ""
 var panel: PanelContainer
 var panel_title: Label
 var sections := {}                      # name -> Control
@@ -45,6 +49,7 @@ var t := 0.0
 var blur_mat: ShaderMaterial
 var shown := false
 var fade: Tween
+var click_player: AudioStreamPlayer
 
 var volumes := {"master": 1.0, "footsteps": 1.0, "hum": 1.0, "breathing": 1.0}
 var sensitivity := SENS_DEFAULT
@@ -103,7 +108,18 @@ func _link_button(text: String) -> Button:
 	b.add_theme_stylebox_override("hover", _underline(RED))
 	b.add_theme_stylebox_override("pressed", _underline(RED))
 	b.add_theme_stylebox_override("hover_pressed", _underline(RED))
+	b.pressed.connect(_click)
 	return b
+
+## Soft, dry UI tick: quiet with a touch of pitch variation so repeats don't sound mechanical
+func _click() -> void:
+	if click_player == null:
+		click_player = AudioStreamPlayer.new()
+		click_player.stream = load("res://audio/ui_click.wav")
+		click_player.volume_db = -9.0
+		add_child(click_player)
+	click_player.pitch_scale = randf_range(0.94, 1.06)
+	click_player.play()
 
 func _spacer(h: float) -> Control:
 	var s := Control.new()
@@ -245,7 +261,7 @@ func _build() -> void:
 	var nav := HBoxContainer.new()
 	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_theme_constant_override("separation", 28)
-	for n in ["settings", "controls"]:
+	for n in ["multiplayer", "settings", "controls"]:
 		var b := _link_button(n)
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
@@ -267,7 +283,7 @@ func _build() -> void:
 	panel.add_child(pv)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 0)
-	panel_title = _label("SETTINGS", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
+	panel_title = _label("MULTIPLAYER", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
 	panel_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(panel_title)
 	var close := _link_button("close")
@@ -275,8 +291,10 @@ func _build() -> void:
 	head.add_child(close)
 	pv.add_child(head)
 	pv.add_child(_spacer(20))
+	sections["multiplayer"] = _build_multiplayer()
 	sections["settings"] = _build_settings()
 	sections["controls"] = _build_controls()
+	pv.add_child(sections["multiplayer"])
 	pv.add_child(sections["settings"])
 	pv.add_child(sections["controls"])
 
@@ -349,6 +367,82 @@ func _build_settings() -> Control:
 		_save()
 		settings_changed.emit()))
 	return v
+
+# ---- multiplayer section (scripts/net/net.gd) ------------------------------------------
+func _text_field(placeholder: String, value: String) -> LineEdit:
+	var e := LineEdit.new()
+	e.placeholder_text = placeholder
+	e.text = value
+	e.context_menu_enabled = false
+	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	e.add_theme_font_override("font", _font(1))
+	e.add_theme_font_size_override("font_size", 13)
+	e.add_theme_color_override("font_color", CREAM)
+	e.add_theme_color_override("font_uneditable_color", CREAM)
+	e.add_theme_color_override("font_placeholder_color", Color(0.9, 0.882, 0.804, 0.25))
+	e.add_theme_color_override("caret_color", CREAM)
+	e.add_theme_stylebox_override("normal", _underline(Color(0.9, 0.882, 0.804, 0.3)))
+	e.add_theme_stylebox_override("focus", _underline(RED))
+	e.add_theme_stylebox_override("read_only", _underline(Color(0.9, 0.882, 0.804, 0.3)))
+	return e
+
+func _hint(text: String) -> Label:
+	var l := _label(text, 11, Color(0.9, 0.882, 0.804, 0.45))
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(300, 0)
+	return l
+
+func _build_multiplayer() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.add_child(_section_title("HOST FROM THIS PC", true))
+	v.add_child(_hint("Opens a lobby here and starts a Cloudflare tunnel (needs cloudflared installed). Send the link below to your friends."))
+	var host_row := HBoxContainer.new()
+	host_row.add_theme_constant_override("separation", 22)
+	var host_btn := _link_button("host game")
+	host_btn.pressed.connect(func(): Net.host())
+	var stop_btn := _link_button("disconnect")
+	stop_btn.pressed.connect(func(): Net.leave())
+	host_row.add_child(host_btn)
+	host_row.add_child(stop_btn)
+	v.add_child(host_row)
+
+	var link_row := HBoxContainer.new()
+	link_row.add_theme_constant_override("separation", 12)
+	mp_link = _text_field("LINK APPEARS HERE", Net.tunnel_url)
+	mp_link.editable = false
+	link_row.add_child(mp_link)
+	var copy_btn := _link_button("copy")
+	copy_btn.pressed.connect(func(): DisplayServer.clipboard_set(mp_link.text))
+	link_row.add_child(copy_btn)
+	v.add_child(link_row)
+
+	v.add_child(_section_title("JOIN A GAME"))
+	var join_row := HBoxContainer.new()
+	join_row.add_theme_constant_override("separation", 12)
+	mp_addr = _text_field("PASTE THE HOST'S LINK", last_address)
+	mp_addr.text_changed.connect(func(s: String):
+		last_address = s.strip_edges()
+		_save())
+	mp_addr.text_submitted.connect(func(_s): _do_join())
+	join_row.add_child(mp_addr)
+	var join_btn := _link_button("join")
+	join_btn.pressed.connect(_do_join)
+	join_row.add_child(join_btn)
+	v.add_child(join_row)
+
+	v.add_child(_spacer(6))
+	mp_status = _label(Net.status, 12, Color(0.9, 0.882, 0.804, 0.7), 2)
+	mp_status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	mp_status.custom_minimum_size = Vector2(300, 0)
+	v.add_child(mp_status)
+	Net.status_changed.connect(func(s: String): mp_status.text = s)
+	Net.tunnel_url_changed.connect(func(u: String): mp_link.text = u)
+	return v
+
+func _do_join() -> void:
+	mp_addr.release_focus()
+	Net.join(mp_addr.text)
 
 # ---- controls section --------------------------------------------------------------
 func _kbd(text: String) -> Control:
@@ -437,6 +531,7 @@ func set_text(title: String, sub: String, lore: String, action: String) -> void:
 
 func release_focus_all() -> void:
 	name_input.release_focus()
+	mp_addr.release_focus()
 
 func _on_name_changed(s: String) -> void:
 	var caret := name_input.caret_column
@@ -466,6 +561,7 @@ func _load() -> void:
 		volumes[k] = clampf(float(cf.get_value("volume", k, volumes[k])), 0.0, 1.0)
 	sensitivity = clampi(int(cf.get_value("controls", "sensitivity", SENS_DEFAULT)), SENS_MIN, SENS_MAX)
 	callsign = str(cf.get_value("player", "callsign", ""))
+	last_address = str(cf.get_value("net", "address", ""))
 
 func _save() -> void:
 	var cf := ConfigFile.new()
@@ -473,4 +569,5 @@ func _save() -> void:
 		cf.set_value("volume", k, volumes[k])
 	cf.set_value("controls", "sensitivity", sensitivity)
 	cf.set_value("player", "callsign", callsign)
+	cf.set_value("net", "address", last_address)
 	cf.save(SETTINGS_PATH)

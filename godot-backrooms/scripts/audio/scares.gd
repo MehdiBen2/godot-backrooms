@@ -82,13 +82,24 @@ func _ready() -> void:
 		_gridoff_stream = load("res://sounds/events/gridoff/gridoff.mp3")
 	elif ResourceLoader.exists("res://audio/events/gridoff.mp3"):
 		_gridoff_stream = load("res://audio/events/gridoff.mp3")
-	# Preload male gasp audio samples for when the player gets caught by entities
-	for p in [
+	# Preload the gasp samples for when the player gets caught by entities
+	_load_gasps()
+	if ResourceLoader.exists(DEATH_VOICE_PATH):
+		_death_voice_stream = load(DEATH_VOICE_PATH)
+
+const DEATH_VOICE_PATH := "res://audio/player/gasp/death.mp3"
+var _death_voice_stream: AudioStream = null
+
+func _load_gasps() -> void:
+	var paths: Array = [
 		"res://audio/events/freesound_community-male-gasp-2-103066.mp3",
 		"res://audio/events/freesound_community-male-gasp-3-82554.mp3",
 		"res://sounds/player/gasp/freesound_community-male-gasp-2-103066.mp3",
 		"res://sounds/player/gasp/freesound_community-male-gasp-3-82554.mp3"
-	]:
+	]
+	for i in range(2, 7):          # gasp_1 was removed
+		paths.append("res://audio/player/gasp/gasp_%d.mp3" % i)
+	for p in paths:
 		if ResourceLoader.exists(p):
 			var st: AudioStream = load(p)
 			if st != null and not _gasp_streams.has(st):
@@ -104,8 +115,48 @@ func _make_bus(name: String, send: String) -> void:
 
 var _clock := 0.0
 
+# ---- the player's blink: the lids sweep shut, hold, and open again (Game.fx_blink, drawn by the post
+# shader). Whatever should not survive a blink (the eyes down the corridor) is swapped out at the
+# instant the lids meet: connect to blink_closed.
+signal blink_closed
+const BLINK_CLOSE := 0.17
+const BLINK_HOLD := 0.16
+const BLINK_OPEN := 0.45
+var _blink_t := -1.0
+var _blink_slow := 1.0
+
+func blink(slow := 1.0) -> void:
+	if _blink_t >= 0.0:
+		return
+	_blink_t = 0.0
+	_blink_slow = maxf(0.2, slow)
+
+func blinking() -> bool:
+	return _blink_t >= 0.0
+
+func _update_blink(dt: float) -> void:
+	if _blink_t < 0.0:
+		return
+	var was := _blink_t
+	_blink_t += dt / _blink_slow
+	var t := _blink_t
+	if t < BLINK_CLOSE:
+		var u := t / BLINK_CLOSE
+		Game.fx_blink = u * u * (3.0 - 2.0 * u)
+	elif t < BLINK_CLOSE + BLINK_HOLD:
+		Game.fx_blink = 1.0
+		if was < BLINK_CLOSE:
+			blink_closed.emit()
+	elif t < BLINK_CLOSE + BLINK_HOLD + BLINK_OPEN:
+		var v := (t - BLINK_CLOSE - BLINK_HOLD) / BLINK_OPEN
+		Game.fx_blink = 1.0 - v * v * (3.0 - 2.0 * v)
+	else:
+		Game.fx_blink = 0.0
+		_blink_t = -1.0
+
 func _process(dt: float) -> void:
 	_clock += dt
+	_update_blink(dt)
 	entity_cut += (entity_cut_target - entity_cut) * (1.0 - exp(-dt / 0.08))
 	if absf(entity_lp.cutoff_hz - entity_cut) > 20.0:
 		entity_lp.cutoff_hz = entity_cut
@@ -190,14 +241,28 @@ func grid_off(pos := Vector3.INF) -> void:
 		_spawn3d(_gridoff_stream, pos, 2.0, "Scares", 12.0, 1.0, false)
 
 var _last_beat := -1.0
+var _heart_sample: AudioStream = null
+var _heart_checked := false
+
+# A recorded single lub-dub dropped at one of these paths replaces the synthesized one
+const HEART_SAMPLES := ["res://sounds/player/heartbeat.ogg", "res://sounds/player/heartbeat.wav", "res://sounds/player/heartbeat.mp3"]
+
+func _heart_stream() -> AudioStream:
+	if not _heart_checked:
+		_heart_checked = true
+		for path in HEART_SAMPLES:
+			if ResourceLoader.exists(path):
+				_heart_sample = load(path)
+				break
+	return _heart_sample if _heart_sample != null else synth("heartbeat")
 
 # One heart: two callers asking for a beat in the same instant (the grab and the entity's proximity
 # beat, say) get ONE beat, never a flam that sounds like it stuttered
-func heartbeat(strength := 1.0) -> void:
+func heartbeat(strength := 1.0, pitch := 1.0) -> void:
 	if _clock - _last_beat < 0.3:          # game time, not the wall clock
 		return
 	_last_beat = _clock
-	_spawn_flat(synth("heartbeat"), clampf(0.45 * strength, 0.05, 1.2), "Body")
+	_spawn_flat(_heart_stream(), clampf(0.45 * strength, 0.05, 1.2), "Body", pitch)
 	Game.beat()
 
 # The moment something seizes you: one designed hit instead of a stinger + static burst stacked
@@ -272,6 +337,9 @@ func body_fall(from := 0.0) -> void:
 	var p := _spawn_flat(_body_fall_stream, 1.0, "Body")
 	if from > 0.0:
 		p.play(from)
+	# the last breath leaving you as you hit the floor
+	if _death_voice_stream != null:
+		_spawn_flat(_death_voice_stream, 1.0, "Body")
 
 # At death: a grab or snap already stopped the heart, so its flatline (the same player) just settles
 # down to the quiet hold. A death nothing built up to gets a few weak, uneven beats first, then the line.
@@ -313,21 +381,18 @@ func gasp(volume_mult := 1.0) -> void:
 	_last_gasp_time = now
 
 	if _gasp_streams.is_empty():
-		for p in [
-			"res://audio/events/freesound_community-male-gasp-2-103066.mp3",
-			"res://audio/events/freesound_community-male-gasp-3-82554.mp3",
-			"res://sounds/player/gasp/freesound_community-male-gasp-2-103066.mp3",
-			"res://sounds/player/gasp/freesound_community-male-gasp-3-82554.mp3"
-		]:
-			if ResourceLoader.exists(p):
-				var st: AudioStream = load(p)
-				if st != null and not _gasp_streams.has(st):
-					_gasp_streams.append(st)
+		_load_gasps()
 
 	if not _gasp_streams.is_empty():
 		var stream: AudioStream = _gasp_streams[rng.randi() % _gasp_streams.size()]
 		var pitch := rng.randf_range(0.96, 1.04)
-		_spawn_flat(stream, 6.0 * volume_mult, "Body", pitch)
+		_spawn_flat(stream, 32.0 * volume_mult, "Body", pitch)
+		# and the music steps aside for a moment so the gasp is not buried under it
+		var amb: Node = get_parent().get_node_or_null("Audio/Ambience")
+		if amb != null and volume_mult >= 0.5:
+			amb.hush = 0.25
+			get_tree().create_timer(1.8).timeout.connect(func():
+				if is_instance_valid(amb): amb.hush = 1.0)
 
 	# Involuntary gasp reflects in the respiratory simulation
 	var au: Node = get_parent().get_node_or_null("Audio")

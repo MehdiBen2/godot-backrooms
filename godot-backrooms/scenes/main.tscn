@@ -12,6 +12,8 @@
 [ext_resource type="Script" uid="uid://cael5vy4v6327" path="res://scripts/entities/mimic.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/entities/watcher.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/ui/debug_console.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/player/heart.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/world/eyes.gd" id="14"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -113,6 +115,12 @@ script = ExtResource("10")
 
 [node name="Watcher" type="Node3D" parent="."]
 script = ExtResource("11")
+
+[node name="Eyes" type="Node3D" parent="."]
+script = ExtResource("14")
+
+[node name="Heart" type="Node" parent="."]
+script = ExtResource("13")
 
 [node name="Console" type="CanvasLayer" parent="."]
 script = ExtResource("12")

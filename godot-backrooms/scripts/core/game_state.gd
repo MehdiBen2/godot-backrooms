@@ -21,6 +21,7 @@ var terror := 0.0             # entity proximity only (0..1)
 var fear := 0.0               # everything: terror, sanity, darkness, events
 var presence := 0.0           # 0..1 how near the entity is (drives dread audio)
 var hunted := false
+var heart: Node               # the heartbeat engine (heart.gd): threats feed it, it keeps the beat
 var pulse := 0.0              # heartbeat envelope 0..1 for the tunnel vision
 var dead := false
 var death_reason := ""
@@ -37,13 +38,14 @@ var fx_shock := 0.0
 var fx_blood := 0.0
 var fx_static := 0.0
 var fx_warp := 0.0
+var fx_blink := 0.0           # 0 eyes open .. 1 lids shut (scares.gd blink(), drawn by the post shader)
 var level_index := 0          # which levels/levels.json entry is loaded (survives the scene reload)
 var level_count := 1
 var respawned := false        # the level was reloaded by a respawn: skip the title screen
 var fx_fade_release := false   # after death the black/red edges clear over 1.8s (endGrab(dying))
 
 func fx_reset(keep_fade := false) -> void:
-	fx_blur = 0.0; fx_contrast = 1.0; fx_sat = 1.0; fx_hue = 0.0; fx_zoom = 1.0; fx_skew = 0.0; fx_flash = 0.0; fx_shock = 0.0
+	fx_blur = 0.0; fx_contrast = 1.0; fx_sat = 1.0; fx_hue = 0.0; fx_zoom = 1.0; fx_skew = 0.0; fx_flash = 0.0; fx_shock = 0.0; fx_blink = 0.0
 	if not keep_fade:
 		fx_blood = 0.0; fx_static = 0.0; fx_warp = 0.0
 	if not keep_fade:
@@ -345,6 +347,7 @@ func change_level(idx: int) -> void:
 	if Death.respawn_busy:
 		return
 	level_index = posmod(idx, maxi(level_count, 1))
+	Net.broadcast_level(level_index)      # co-op: the host takes everyone along
 	Death.respawn_transition(restart)
 
 func next_level() -> void:

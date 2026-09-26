@@ -1,11 +1,14 @@
 extends CanvasLayer
-## DEBUG CONSOLE. Press ` (backtick / ~) to open, Esc or ` to close. The game keeps running behind it.
+## DEBUG CONSOLE. Press 1 to open, Esc or 1 to close. The game keeps running behind it.
 ##
 ##   help                       list the commands
 ##   list                       every entity and whether it is active
 ##   spawn <name|all>           bring one in (or all of them)
 ##   despawn <name|all>         send one away (alias: kill)
 ##   tp mannequin               warp to the mannequin room
+##   eyes [n|off|auto|clear]    pairs of eyes far down the corridor: force n pairs, none, back to sanity-driven, or wipe them
+##   sanity <0-100|off>         pin sanity (blur, eyes, health drain all follow); off releases it
+##   health <0-100>             set health
 ##   clear                      wipe this log
 ##
 ## Names: bacteria, mannequin, mimic, peek, watcher.
@@ -64,7 +67,7 @@ func _print(text: String) -> void:
 func _input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):
 		return
-	if e.physical_keycode == KEY_QUOTELEFT:
+	if e.physical_keycode == KEY_1:
 		_toggle(not panel.visible)
 		get_viewport().set_input_as_handled()
 	elif panel.visible and e.physical_keycode == KEY_ESCAPE:
@@ -110,14 +113,14 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("spawn <name|all>   despawn <name|all>   list   tp mannequin   clear")
+			_print("spawn <name|all> [peek|stand]   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   clear")
 			_print("names: " + ", ".join(ORDER))
 		"list":
 			for n in ORDER:
 				var on := _active(n)
 				_print("  %-10s %s" % [n, "[color=lime]active[/color]" if on else "[color=gray]off[/color]"])
 		"spawn":
-			_each(arg, true)
+			_each(arg, true, parts[2] if parts.size() > 2 else "")
 		"despawn", "kill":
 			_each(arg, false)
 		"tp":
@@ -126,25 +129,59 @@ func _submit(line: String) -> void:
 				_print("warped to the mannequin room")
 			else:
 				_print("[color=orange]tp mannequin[/color]")
+		"heart":
+			var h = Game.heart
+			if h == null:
+				_print("[color=orange]no heart[/color]")
+			else:
+				if arg == "off":
+					h.debug_stress = -1.0
+				elif arg.is_valid_float():
+					h.debug_stress = clampf(arg.to_float(), 0.0, 1.0)
+				_print(h.describe())
+		"eyes":
+			var ey: Node = root.get_node("Eyes")
+			if arg == "off":
+				ey.debug_set(0)
+			elif arg == "auto":
+				ey.debug_auto()
+			elif arg == "clear":
+				ey.debug_clear()
+			elif arg.is_valid_int():
+				ey.debug_set(clampi(arg.to_int(), 0, ey.MAX_WATCHERS))
+			_print(ey.describe())
+		"sanity":
+			var pl = root.get_node("Player")
+			if arg == "off":
+				pl.sanity_lock = -1.0
+			elif arg.is_valid_float():
+				pl.sanity_lock = clampf(arg.to_float(), 0.0, 100.0)
+				pl.sanity = pl.sanity_lock
+			_print("sanity %d%s  health %d  insanity %.2f" % [int(pl.sanity), " (pinned)" if pl.sanity_lock >= 0.0 else "", int(pl.health), pl.insanity])
+		"health":
+			var pl2 = root.get_node("Player")
+			if arg.is_valid_float():
+				pl2.health = clampf(arg.to_float(), 0.0, 100.0)
+			_print("health %d" % int(pl2.health))
 		"clear":
 			log_label.clear()
 		_:
 			_print("[color=orange]unknown command: " + cmd + "[/color]")
 
-func _each(arg: String, spawn: bool) -> void:
+func _each(arg: String, spawn: bool, kind := "") -> void:
 	if arg == "":
 		_print("[color=orange]%s what? %s, or all[/color]" % ["spawn" if spawn else "despawn", ", ".join(ORDER)])
 		return
 	if arg == "all":
 		for n in ORDER:
-			_apply(n, spawn)
+			_apply(n, spawn, kind)
 		return
 	if arg == "entity":
 		arg = "bacteria"
 	if not ORDER.has(arg):
 		_print("[color=orange]unknown entity: " + arg + "[/color]")
 		return
-	_apply(arg, spawn)
+	_apply(arg, spawn, kind)
 
 func _node(name: String) -> Node:
 	return root.get_node_or_null(ENTITIES[name])
@@ -155,7 +192,7 @@ func _active(name: String) -> bool:
 	var n := _node(name)
 	return n != null and n.debug_active()
 
-func _apply(name: String, spawn: bool) -> void:
+func _apply(name: String, spawn: bool, kind := "") -> void:
 	if name == "peek":
 		var m: Node = root.get_node("Mimic")
 		if spawn:
@@ -169,7 +206,7 @@ func _apply(name: String, spawn: bool) -> void:
 		_print("[color=orange]%s is not in the scene[/color]" % name)
 		return
 	if spawn:
-		var ok = n.debug_spawn()
+		var ok = n.debug_spawn(kind) if name == "watcher" else n.debug_spawn()
 		if ok == false:
 			_print("[color=orange]%s: no room to spawn here, try another spot[/color]" % name)
 			return

@@ -255,6 +255,9 @@ func update_peer(delta: float) -> void:
 	var to_player := atan2(dx, dz)
 	var watched := watched_by(pos.x, pos.z, VIEW_CONE)
 	var t := now()
+	if Game.heart != null:
+		var near := clampf(1.0 - dist / 12.0, 0.0, 1.0)
+		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - dist / 25.0, 0.0, 1.0), 3.0 * near * near)
 
 	# decide what it is doing
 	var charging: bool = player.grid_down

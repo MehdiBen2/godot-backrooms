@@ -18,6 +18,8 @@ uniform float glitch = 0.0;    // tape damage from events and scares
 uniform float pulse = 0.0;     // heartbeat envelope 0..1
 uniform float exhaust = 0.0;
 uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
+uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (scares.gd)
+uniform float insanity = 0.0;     // 0..1 low sanity: swimming blur, double vision, sagging edges
 // Grab / snap screen work (the web's CSS filter + transform on the canvas, and #grab-fade)
 uniform float fx_blur = 0.0;      // px
 uniform float fx_contrast = 1.0;
@@ -54,6 +56,8 @@ void fragment() {
 	// picture wobble
 	uv.x += fx_warp * sin(uv.y * 38.0 + TIME * 7.0) * sin(uv.y * 11.0 - TIME * 3.1);
 	uv.y += fx_warp * 0.4 * sin(uv.x * 23.0 + TIME * 5.0);
+	// a slipping mind: the whole picture slowly swims
+	uv += insanity * vec2(0.0016 * sin(uv.y * 9.0 + TIME * 1.3), 0.0012 * sin(uv.x * 7.0 - TIME * 1.1));
 
 	// Barrel lens with overscan so the edges never clamp
 	vec2 p = uv - 0.5;
@@ -90,15 +94,25 @@ void fragment() {
 	vec2 uvb = (p * f - ca_dir * ca_disp); uvb.x /= aspect; uvb = clamp(uvb + shift, 0.0, 1.0);
 	vec3 col = vec3(texture(screen_tex, uvr).r, texture(screen_tex, uvg).g, texture(screen_tex, uvb).b);
 
-	// grab blur: a ring of taps whose radius is the CSS blur() px
-	if (fx_blur > 0.02) {
+	// blur: the grab's CSS blur() px, plus the focus of a failing mind breathing in and out
+	float ins_breath = 0.5 + 0.5 * sin(TIME * 0.7 + 1.8 * sin(TIME * 0.31));
+	float ins_px = insanity * (1.2 + 4.2 * ins_breath);
+	float blur_px = fx_blur + ins_px + fx_blink * 7.0;
+	if (blur_px > 0.02) {
 		vec3 acc2 = col;
 		for (int i = 0; i < 8; i++) {
 			float a = float(i) * 0.785398;
-			vec2 o = vec2(cos(a), sin(a)) * fx_blur * SCREEN_PIXEL_SIZE * 1.6;
+			vec2 o = vec2(cos(a), sin(a)) * blur_px * SCREEN_PIXEL_SIZE * 1.6;
 			acc2 += texture(screen_tex, clamp(uvg + o, 0.0, 1.0)).rgb + texture(screen_tex, clamp(uvg + o * 0.5, 0.0, 1.0)).rgb * 0.0;
 		}
 		col = acc2 / 9.0;
+	}
+	// double vision: a ghost of the picture drifts off and back, stronger toward the edges
+	if (insanity > 0.02) {
+		vec2 gd = vec2(sin(TIME * 0.9), cos(TIME * 0.7 + 1.0)) * (0.004 + 0.012 * ins_breath) * insanity;
+		float ge = 0.5 + 0.5 * smoothstep(0.1, 0.7, length(uvg - 0.5));
+		vec3 ghost = texture(screen_tex, clamp(uvg + gd * ge, 0.0, 1.0)).rgb;
+		col = mix(col, ghost, 0.42 * insanity);
 	}
 
 	// shock: radial zoom-blur streaking out from the centre
@@ -201,7 +215,7 @@ void fragment() {
 	}
 
 	vec2 q = (uv - 0.5) * vec2(1.0, 1.15);
-	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12, 0.88 - tunnel * 0.3, length(q));
+	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12 - insanity * 0.08, 0.88 - tunnel * 0.3 - insanity * 0.18, length(q));
 	float edge = 1.0 - vig;
 	col *= mix(0.55 - tunnel * 0.3, 1.0, vig);
 	col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), clamp(edge * (threat * 0.9 + exhaust * 0.6), 0.0, 0.85));
@@ -264,9 +278,25 @@ void fragment() {
 		col = mix(col, (col - 0.5) * 1.12 + 0.5, c_amt * 0.6);
 	}
 
+	// blink: two eyelids sweep in from the top and bottom, each with a bowed edge and a soft dark
+	// penumbra; the lids themselves are drawn pure black at the very end; what is left of the picture blurs and darkens
+	float blink_lids = 0.0;
+	if (fx_blink > 0.002) {
+		float bow = 0.07 * (1.0 - 4.0 * (SCREEN_UV.x - 0.5) * (SCREEN_UV.x - 0.5));
+		float top_edge = fx_blink * 0.5 + bow * fx_blink;
+		float bot_edge = 1.0 - fx_blink * 0.5 - bow * fx_blink * 0.7;
+		float lid_t = 1.0 - smoothstep(top_edge - 0.03, top_edge + 0.01, SCREEN_UV.y);
+		float lid_b = smoothstep(bot_edge - 0.01, bot_edge + 0.03, SCREEN_UV.y);
+		float lids = max(lid_t, lid_b);
+		float pen = (1.0 - smoothstep(top_edge, top_edge + 0.09, SCREEN_UV.y)) + smoothstep(bot_edge - 0.09, bot_edge, SCREEN_UV.y);
+		col *= 1.0 - 0.7 * fx_blink * clamp(pen, 0.0, 1.0);
+		blink_lids = lids;
+	}
+
 	vec2 fc = FRAGCOORD.xy;
 	col *= 0.98 + 0.02 * sin(fc.y * 1.57);                 // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
 	col += g * (grain + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
+	col = mix(col, vec3(0.0), blink_lids);                  // the lids are pure black, over grain and all
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);
 }

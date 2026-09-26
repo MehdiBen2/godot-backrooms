@@ -698,7 +698,6 @@ func _physics_process(delta: float) -> void:
 # the tubes above you dropping out when it is close and you are not looking its way.
 const HEART_RANGE := 7.0
 const LIGHT_RANGE := 5.0
-var heart_cd := 0.0
 var light_cd := 3.0
 
 func _in_view(at: Vector3) -> bool:
@@ -709,14 +708,10 @@ func _in_view(at: Vector3) -> bool:
 
 func _update_presence(delta: float) -> void:
 	var d := player.global_position.distance_to(real_node.global_position)
-	if d < HEART_RANGE:
-		heart_cd -= delta
-		if heart_cd <= 0.0:
-			var close := 1.0 - d / HEART_RANGE
-			heart_cd = lerpf(1.3, 0.55, close)
-			scares.heartbeat(0.3 + 0.7 * close)
-	else:
-		heart_cd = 0.0
+	if d < HEART_RANGE and Game.heart != null:
+		var close := 1.0 - d / HEART_RANGE
+		# staying near it wears your sanity down: up to 4 a second at arm's length
+		Game.heart.feed("mannequin", 0.3 + 0.7 * close, 4.0 * close * close)
 	light_cd -= delta
 	if d < LIGHT_RANGE and light_cd <= 0.0 and not _in_view(real_node.global_position):
 		light_cd = rng.randf_range(5.0, 12.0)

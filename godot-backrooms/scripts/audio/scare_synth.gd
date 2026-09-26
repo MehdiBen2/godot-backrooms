@@ -76,15 +76,33 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				ph += TAU * (520.0 * exp(-t * 2.2) + 45.0) / SR
 				a[i] = (sin(ph) * 0.4 + nz[i] * 1.1) * pow(1.0 - t / 1.8, 1.5) * minf(1.0, t * 30.0)
 			w = _wav(a)
-		"heartbeat":   # lub-dub
-			var a := _buf(0.9)
+		"heartbeat":   # lub-dub: two soft, round sub thumps (808-style falling sine), heavily low-passed
+			var a := _buf(0.75)
+			var hits := [[0.0, 1.0, 62.0, 40.0, 13.0], [0.24, 0.62, 70.0, 46.0, 18.0]]   # at, gain, f start, f end, decay
+			for h in hits:
+				var ph := 0.0
+				var start := int(h[0] * SR)
+				for i in range(start, a.size()):
+					var t := float(i - start) / SR
+					var f: float = h[3] + (h[2] - h[3]) * exp(-t * 28.0)
+					ph += TAU * f / SR
+					var env: float = (1.0 - exp(-t * 160.0)) * exp(-t * h[4])   # ~6 ms attack: no click
+					if env < 0.0005 and t > 0.05:
+						break
+					# a touch of 2nd harmonic so it is still felt on small speakers that cannot play 45 Hz
+					a[i] += (sin(ph) + 0.22 * sin(2.0 * ph)) * env * h[1]
+			# two passes of a ~170 Hz low-pass: round and muffled, like hearing it from inside
+			for _n in 2:
+				var lp := 0.0
+				var k := 1.0 - exp(-TAU * 170.0 / SR)
+				for i in a.size():
+					lp += (a[i] - lp) * k
+					a[i] = lp
+			var peak := 0.0001
+			for v in a:
+				peak = maxf(peak, absf(v))
 			for i in a.size():
-				var t := float(i) / SR
-				var v := sin(TAU * (60.0 - 20.0 * minf(t, 0.2)) * t) * exp(-t * 22.0)
-				var t2 := t - 0.27
-				if t2 > 0.0:
-					v += 0.75 * sin(TAU * (52.0 - 15.0 * minf(t2, 0.2)) * t2) * exp(-t2 * 26.0)
-				a[i] = v * 0.9
+				a[i] = a[i] / peak * 0.9
 			w = _wav(a)
 		"static":      # entity proximity crackle
 			var a := _buf(0.3)
