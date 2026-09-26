@@ -35,6 +35,7 @@ var fx_shock := 0.0
 var fx_blood := 0.0
 var fx_static := 0.0
 var fx_warp := 0.0
+var fx_classic := 0.0         # 0..1 in a Classic zone (set by level_lighting.gd, read by the post shader)
 var fx_blink := 0.0           # 0 eyes open .. 1 lids shut (player/blink.gd, drawn by the post shader)
 var fx_fade_release := false  # after death the black/red edges clear over 1.8s (endGrab(dying))
 var level_index := 0          # which levels/levels.json entry is loaded (survives the scene reload)

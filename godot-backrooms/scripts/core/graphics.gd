@@ -105,6 +105,8 @@ func apply() -> void:
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if (s.scale < 100 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR
 	vp.scaling_3d_scale = clampf(s.scale / 100.0, 0.5, 1.0)
+	vp.use_occlusion_culling = true
+	vp.mesh_lod_threshold = [4.0, 3.0, 1.5, 1.0][clampi(s.shadows, 0, 3)]     # coarser meshes sooner on low presets
 	vp.msaa_3d = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X, 4: Viewport.MSAA_4X}.get(s.msaa, Viewport.MSAA_DISABLED)
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if s.fxaa else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.anisotropic_filtering_level = {0: Viewport.ANISOTROPY_DISABLED, 2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X,

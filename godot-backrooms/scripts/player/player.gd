@@ -111,6 +111,13 @@ var jump_buffer := 0.0
 var coyote := 0.0
 var land_dip := 0.0
 var lean := 0.0
+const TURN_ROLL_MAX := 0.045
+var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
+var turn_roll := 0.0
+var idle_time := 0.0
+var idle_amt := 0.0
+var pitch_off := 0.0          # motion pitch offset currently added onto cam.rotation.x
+var pitch_applied := 0.0
 var dark_time := 0.0          # how long you have been in the dark with no light of your own
 
 func _ready() -> void:
@@ -152,8 +159,10 @@ func _unhandled_input(e: InputEvent) -> void:
 	if dead or frozen: return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-e.relative.x * sens)
-		cam.rotate_x(-e.relative.y * sens)
-		cam.rotation.x = clampf(cam.rotation.x, -1.49, 1.49)
+		turn_accum += -e.relative.x * sens
+		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
+		# so the clamp read back a wrapped angle and let the view flip past straight down
+		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
 	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not flash_on and battery <= 0.0:
@@ -304,7 +313,26 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	cam.position = Vector3(0.0, y - land_dip * head_bob, 0.0)
 	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
 	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
-	cam.rotation.z = lean
+	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
+	var yaw_rate := turn_accum / maxf(dt, 0.0001)
+	turn_accum = 0.0
+	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
+	# idle: after a moment of standing still the view drifts in a slow breathing sway
+	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
+	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
+	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
+	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
+	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob
+	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
+	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
+	var fwd := -velocity.dot(global_transform.basis.z)
+	var pitch_target := -clampf(fwd / SPEED, -1.0, 1.6) * 0.018
+	if not is_on_floor():
+		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
+	pitch_target = (pitch_target + sway_x) * head_bob
+	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
+	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_off, -1.49, 1.49)
+	pitch_applied = pitch_off
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)

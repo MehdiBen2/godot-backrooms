@@ -16,6 +16,7 @@ uniform float fear = 0.0;      // psychological: sanity, darkness, events
 uniform float threat = 0.0;    // entity proximity 0..1, smoothed
 uniform float glitch = 0.0;    // tape damage from events and scares
 uniform float pulse = 0.0;     // heartbeat envelope 0..1
+uniform float classic = 0.0;      // 0..1 standing in a Classic zone: blown-out, soft, clean picture
 uniform float exhaust = 0.0;
 uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
 uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (scares.gd)
@@ -193,6 +194,17 @@ void fragment() {
 		col += ghosts * 0.04 * glare_amt;
 	}
 
+	// Classic zone: light bleeds soft off the bright panels (wide bloom), the picture is overexposed and
+	// washed out with lifted blacks, and the tape/lens dirt goes away (see level_lighting.gd classic_mix)
+	if (classic > 0.001) {
+		vec3 b1 = textureLod(screen_tex, uvg, 3.0).rgb;
+		vec3 b2 = textureLod(screen_tex, uvg, 5.0).rgb;
+		float bl1 = dot(b1, vec3(0.299, 0.587, 0.114));
+		float bl2 = dot(b2, vec3(0.299, 0.587, 0.114));
+		col += (b1 * smoothstep(0.45, 0.95, bl1) * 0.10 + b2 * smoothstep(0.5, 1.0, bl2) * 0.12) * classic * vec3(1.0, 0.96, 0.82);
+		col = mix(col, col * 1.03, classic);
+		col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), 0.08 * classic);   // slightly less saturated, like real fluorescent light
+	}
 	col *= grade;
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
 	float sat = clamp(0.92 - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
@@ -215,7 +227,7 @@ void fragment() {
 	vec2 q = (uv - 0.5) * vec2(1.0, 1.15);
 	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12 - insanity * 0.08, 0.88 - tunnel * 0.3 - insanity * 0.18, length(q));
 	float edge = 1.0 - vig;
-	col *= mix(0.55 - tunnel * 0.3, 1.0, vig);
+	col *= mix(mix(0.55, 0.9, classic) - tunnel * 0.3, 1.0, vig);
 	col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), clamp(edge * (threat * 0.9 + exhaust * 0.6), 0.0, 0.85));
 	col *= 1.0 - edge * exhaust * 0.35;
 	col += band * 0.03 * (0.5 + glitch);
@@ -294,7 +306,7 @@ void fragment() {
 	vec2 fc = FRAGCOORD.xy;
 	col *= 0.98 + 0.02 * sin(fc.y * 1.57);                 // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
-	col += g * (grain + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
+	col += g * (grain * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
 	col = mix(col, vec3(0.0), blink_lids);                  // the lids are pure black, over grain and all
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);
 }

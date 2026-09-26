@@ -123,9 +123,9 @@ func _build_surfaces() -> void:
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true)
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
-		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.25, 1.08, 0.5)), false)
+		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
 	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(1.15, 1.08, 0.8)), true)
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0), true)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -136,12 +136,13 @@ func _build_surfaces() -> void:
 
 	_build_floor_collision(floor_cells)
 
-func _classic_mat(tex: String, scale: float, tint: Color) -> StandardMaterial3D:
+func _classic_mat(tex: String, scale: float, tint: Color, glow := 0.1) -> StandardMaterial3D:
 	var m := _mat(tex, Vector3(scale, scale, scale), tint)
-	m.emission_enabled = true
-	m.emission_texture = m.albedo_texture
-	m.emission = tint
-	m.emission_energy_multiplier = 0.35
+	if glow > 0.0:                      # a faint self-glow only; real brightness comes from the lights
+		m.emission_enabled = true
+		m.emission_texture = m.albedo_texture
+		m.emission = tint
+		m.emission_energy_multiplier = glow
 	return m
 
 func _default_tile_material() -> StandardMaterial3D:
@@ -175,6 +176,32 @@ func _build_floor_collision(floor_cells: Array) -> void:
 		cs.position = Vector3(c.x * CELL, -0.2, c.y * CELL)
 		body.add_child(cs)
 
+## Occlusion culling: every wall block is an occluder, so the renderer skips whatever is hidden behind walls
+## (the rest of a maze is never on screen). One merged mesh: 8 vertices and 12 triangles per block.
+func _build_occluder(groups: Dictionary) -> void:
+	var verts := PackedVector3Array()
+	var idx := PackedInt32Array()
+	var h := CELL / 2.0
+	var tris := [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5]
+	for height in groups.keys():
+		for c: Vector2i in groups[height]:
+			var b := verts.size()
+			var x := c.x * CELL
+			var z := c.y * CELL
+			for y in [0.0, height]:
+				verts.append(Vector3(x - h, y, z - h))
+				verts.append(Vector3(x + h, y, z - h))
+				verts.append(Vector3(x + h, y, z + h))
+				verts.append(Vector3(x - h, y, z + h))
+			# corners 0-3 bottom, 4-7 top (the tri table above indexes them that way)
+			for t in tris: idx.append(b + t)
+	if verts.is_empty(): return
+	var occ := ArrayOccluder3D.new()
+	occ.set_arrays(verts, idx)
+	var oi := OccluderInstance3D.new()
+	oi.occluder = occ
+	add_child(oi)
+
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 func _build_walls() -> void:
@@ -187,6 +214,7 @@ func _build_walls() -> void:
 			if tall.has(c + n): near_tall = true
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
+	_build_occluder(groups)
 	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat}
 	var body := StaticBody3D.new()
 	add_child(body)

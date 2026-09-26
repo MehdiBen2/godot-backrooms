@@ -55,6 +55,7 @@ var canvas: Control
 var level_list: ItemList
 var search: LineEdit
 var size_spin: SpinBox
+var gi_pick: OptionButton
 var title_label: Label
 var status: Label
 var info: Label
@@ -221,6 +222,18 @@ func _build_ui() -> void:
 	size_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_row.add_child(size_spin)
 	size_row.add_child(_button("RESIZE", func(): _resize(int(size_spin.value))))
+
+	var gi_row := HBoxContainer.new()
+	lv.add_child(gi_row)
+	gi_row.add_child(_label("REAL-TIME GI", 16, DIM))
+	gi_pick = OptionButton.new()
+	gi_pick.add_item("auto")
+	gi_pick.add_item("on")
+	gi_pick.add_item("off")
+	gi_pick.tooltip_text = "SDFGI bounce light. auto = only levels with a Classic zone. It is heavy on weak GPUs."
+	gi_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gi_pick.item_selected.connect(func(_i): _mark_dirty())
+	gi_row.add_child(gi_pick)
 
 	# center: canvas
 	var mid := VBoxContainer.new()
@@ -400,6 +413,7 @@ func _open(i: int) -> void:
 		(slot_picks[slot] as OptionButton).select(idx + 1 if idx >= 0 else 0)
 		_preview(slot)
 	size_spin.value = grid_size
+	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	undo_stack.clear()
 	dirty = false
 	_refresh_list()
@@ -598,6 +612,10 @@ func _current_payload() -> Dictionary:
 		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
 		zd[z] = list
 	out["zones"] = zd
+	match gi_pick.selected:
+		1: out["sdfgi"] = true
+		2: out["sdfgi"] = false
+		_: out.erase("sdfgi")
 	for m in MARKERS:
 		out[m] = [markers[m].x, markers[m].y] if markers[m] != null else null
 	var mats := {}

@@ -337,6 +337,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("threat", threat_s)
 		post_mat.set_shader_parameter("glitch", Game.glitch)
 		post_mat.set_shader_parameter("pulse", Game.pulse)
+		post_mat.set_shader_parameter("classic", Game.fx_classic)
 		post_mat.set_shader_parameter("fx_blur", Game.fx_blur)
 		post_mat.set_shader_parameter("fx_contrast", Game.fx_contrast)
 		post_mat.set_shader_parameter("fx_sat", Game.fx_sat)
