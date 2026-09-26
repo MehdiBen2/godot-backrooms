@@ -168,6 +168,7 @@ func _on_peer_disconnected(id: int) -> void:
 	remotes.erase(id)
 	names.erase(id)
 	_mq_view.erase(id)
+	_wt_view.erase(id)
 	_update_count()
 
 func _on_connected() -> void:
@@ -372,6 +373,35 @@ func _mm_hit_rpc() -> void:
 	var mm := _scene_node("Mimic")
 	if mm != null:
 		mm.hit_player()
+
+# ---- THE WATCHER: the host runs the figure, everyone sees the same one -----------------------------
+var _wt_view := {}                # peer id -> [is looking at it, time]
+
+func send_wt(m: Array) -> void:
+	if _has_peers():
+		_wt_rpc.rpc(clock(), m)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _wt_rpc(t: float, m: Array) -> void:
+	var w := _scene_node("Watcher")
+	if w != null and w.has_method("net_apply"):
+		w.net_apply(t, m)
+
+func send_wt_view(looking: bool) -> void:
+	if _to_host_ready():
+		_wt_view_rpc.rpc_id(1, looking)
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _wt_view_rpc(looking: bool) -> void:
+	_wt_view[multiplayer.get_remote_sender_id()] = [looking, Time.get_ticks_msec() / 1000.0]
+
+## Host: is another survivor staring at it? (its "stared at too long" timer counts everyone)
+func watch_seen_by_peers() -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	for id in _wt_view:
+		if _wt_view[id][0] and now - _wt_view[id][1] < 0.6 and remotes.has(id):
+			return true
+	return false
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:

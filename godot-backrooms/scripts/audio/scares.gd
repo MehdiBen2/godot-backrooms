@@ -337,8 +337,8 @@ func body_fall(from := 0.0) -> void:
 	var p := _spawn_flat(_body_fall_stream, 1.0, "Body")
 	if from > 0.0:
 		p.play(from)
-	# the last breath leaving you as you hit the floor
-	if _death_voice_stream != null:
+	# the last breath leaving you as you hit the floor: only when the bacteria killed you
+	if _death_voice_stream != null and Death.reason == "THE BACTERIA":
 		_spawn_flat(_death_voice_stream, 1.0, "Body")
 
 # At death: a grab or snap already stopped the heart, so its flatline (the same player) just settles

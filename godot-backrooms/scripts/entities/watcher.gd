@@ -57,6 +57,18 @@ var face_mat: StandardMaterial3D
 var eye_mat: StandardMaterial3D
 var eye: MeshInstance3D
 
+# ---- co-op: the host runs the figure against the nearest survivor (and counts EVERY survivor's stare);
+# guests draw the same figure from snapshots and feel it against their own position.
+const _SNAP := preload("res://scripts/net/snap_buffer.gd")
+var puppet := false
+var net_buf = _SNAP.new()
+var t_id := -1
+var t_pos := Vector3.ZERO
+var t_fwd := Vector3.FORWARD
+var t_local := true
+var vis_alpha := 0.0
+var _net_t := 0.0
+var _view_t := 0.0
 var enabled := true              # false: it stays gone (console despawn)
 var present := false
 var alpha := 0.0
@@ -164,7 +176,7 @@ func _build_mist() -> void:
 
 # How much it frightens you right now: felt before it is seen, worst when it is watching you
 func _feel(level: float) -> void:
-	if Game.heart != null:
+	if t_local and Game.heart != null:
 		Game.heart.feed("watcher", level)
 
 # From 40 m the face is a couple of pixels, so it gets an enlarged copy of the head laid over the
@@ -209,7 +221,12 @@ func _build_face() -> void:
 	eye.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	quad.add_child(eye)
 
+func _haunt(amount: float) -> void:
+	if t_local:
+		Game.haunt(amount)
+
 func _set_visual(a: float) -> void:
+	vis_alpha = a
 	mat.albedo_color = Color(1, 1, 1, a)
 	face_mat.albedo_color = Color(1.3, 1.3, 1.3, a)
 	# a slow cold pulse, and now and then a blink
@@ -223,8 +240,8 @@ func _set_visual(a: float) -> void:
 		p.n.position = Vector3(cos(ang) * r, p.y + 0.1 * sin(clock * 0.7 + p.ph) - HEIGHT / 2.0, sin(ang) * r)
 
 func view_dot(x: float, z: float) -> float:
-	var p := player.global_position
-	var fwd := -player.global_transform.basis.z
+	var p := t_pos
+	var fwd := t_fwd
 	var dx := x - p.x
 	var dz := z - p.z
 	var l := maxf(sqrt(dx * dx + dz * dz), 0.001)
@@ -233,8 +250,8 @@ func view_dot(x: float, z: float) -> float:
 
 # The far end of a long straight run you are looking down (or, failing that, any long run)
 func find_spot() -> Variant:
-	var p := player.global_position
-	var fwd := -player.global_transform.basis.z
+	var p := t_pos
+	var fwd := t_fwd
 	var best := -INF
 	var spot = null
 	for i in 16:
@@ -267,7 +284,7 @@ func appear(kind := "") -> bool:
 	var spot = find_spot()
 	if spot == null:
 		return false
-	global_position = Vector3(spot.x, player.global_position.y, spot.y)
+	global_position = Vector3(spot.x, t_pos.y, spot.y)
 	present = true
 	fading_out = false
 	alpha = 0.0
@@ -284,7 +301,7 @@ func appear(kind := "") -> bool:
 # A corner near you: hidden by a wall edge from where you stand, but one step out from behind it
 # and you would see it. hide = tucked behind the wall, show = leaning out past the edge.
 func find_peek_spot() -> bool:
-	var p := player.global_position
+	var p := t_pos
 	var R := ceili(PEEK_MAX / GridNav.CELL) + 1
 	var pcx := GridNav.cell(p.x)
 	var pcz := GridNav.cell(p.z)
@@ -346,7 +363,7 @@ func find_peek_spot() -> bool:
 
 func _update_peek(delta: float) -> void:
 	var pos := global_position
-	var pp := player.global_position
+	var pp := t_pos
 	var dist := Vector2(pos.x - pp.x, pos.z - pp.z).length()
 	if peek_delay > 0.0:
 		peek_delay -= delta
@@ -354,10 +371,10 @@ func _update_peek(delta: float) -> void:
 	elif not peek_leaving:
 		peek_amt = minf(1.0, peek_amt + delta / PEEK_IN)
 		var line: bool = nav.clear_line(pos.x, pos.z, pp.x, pp.z)
-		if line and peek_amt > 0.6 and view_dot(pos.x, pos.z) > 0.6:
+		if (line and peek_amt > 0.6 and view_dot(pos.x, pos.z) > 0.6) or (peek_amt > 0.6 and Net.watch_seen_by_peers()):
 			watched_for += delta
 			unseen_for = 0.0
-			Game.haunt(0.15)
+			_haunt(0.15)
 			_feel(0.55 + 0.3 * peek_creep)
 		elif peek_amt >= 1.0:
 			unseen_for += delta
@@ -385,9 +402,23 @@ func _gone() -> void:
 	wait = rng.randf_range(RESPAWN_MIN, RESPAWN_MAX)
 
 func _physics_process(delta: float) -> void:
-	if not Game.playing or Game.dead or player.dead:
+	var online := Net.is_online()
+	puppet = online and not Net.hosting
+	if puppet:
+		_puppet_step(delta)
 		return
+	if not Game.playing and not online:
+		return
+	var tg := Net.nearest_survivor(global_position if present else player.global_position, t_id)
+	if tg.is_empty():
+		return                                       # nobody alive and in the game
+	t_id = tg.id
+	t_pos = tg.pos
+	t_fwd = tg.fwd
+	t_local = tg.local
 	clock += delta
+	if online:
+		_net_send(delta)
 	if not present:
 		if not enabled:
 			return
@@ -402,17 +433,17 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var pos := global_position
-	var pp := player.global_position
+	var pp := t_pos
 	var dist := Vector2(pos.x - pp.x, pos.z - pp.z).length()
 	var line: bool = nav.clear_line(pos.x, pos.z, pp.x, pp.z)
-	var watched := line and view_dot(pos.x, pos.z) > VIEW_CONE and dist < 45.0
+	var watched := (line and view_dot(pos.x, pos.z) > VIEW_CONE and dist < 45.0) or Net.watch_seen_by_peers()
 
 	if not running:
 		no_line_for = 0.0 if line else no_line_for + delta
 		if watched:
 			watched_for += delta
 			unseen_for = 0.0
-			Game.haunt(0.12)
+			_haunt(0.12)
 			_feel(0.45 + 0.35 * minf(1.0, watched_for / STARE_TIME))
 		else:
 			unseen_for += delta
@@ -490,3 +521,50 @@ func debug_despawn() -> void:
 	peek_mode = false
 	if present:
 		_gone()
+
+# ================================================================= co-op
+func _net_send(delta: float) -> void:
+	_net_t -= delta
+	if _net_t > 0.0:
+		return
+	_net_t = 0.05
+	var p := global_position
+	Net.send_wt([p.x, p.y, p.z, present, quad.scale.x, quad.scale.y, peek_mode, vis_alpha])
+
+func net_apply(t: float, m: Array) -> void:
+	net_buf.send_interval = 0.05
+	net_buf.push(t, {"pos": Vector3(m[0], m[1], m[2]), "yaw": 0.0, "speed": float(m[7]), "m": m})
+
+# Guest: the host's figure, felt against THIS player (their heartbeat, their stare)
+func _puppet_step(delta: float) -> void:
+	clock += delta
+	t_local = true
+	t_pos = player.global_position
+	t_fwd = -player.global_transform.basis.z
+	var st: Dictionary = net_buf.sample(delta)
+	if st.is_empty():
+		return
+	var m: Array = st.m
+	present = m[3]
+	peek_mode = m[6]
+	quad.visible = present
+	var looking := false
+	if present:
+		global_position = st.pos
+		quad.scale = Vector3(m[4], m[5], 1.0)
+		_set_visual(st.speed)
+		if Game.playing and not player.dead:
+			var pos := global_position
+			var dist := Vector2(pos.x - t_pos.x, pos.z - t_pos.z).length()
+			var line: bool = nav.clear_line(pos.x, pos.z, t_pos.x, t_pos.z)
+			var facing := view_dot(pos.x, pos.z)
+			looking = line and dist < 45.0 and facing > (0.6 if peek_mode else VIEW_CONE)
+			if looking:
+				_haunt(0.12)
+				_feel(0.55)
+			elif not peek_mode:
+				_feel(0.2)
+	_view_t -= delta
+	if _view_t <= 0.0:
+		_view_t = 0.1
+		Net.send_wt_view(looking)
