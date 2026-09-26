@@ -27,6 +27,8 @@ var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
 var glass_mat: StandardMaterial3D           # every house window: lit up at night
 var hour := START_HOUR
+var time_scale := 1.0                       # debug: the clock runs this many times faster
+const SPEEDS := [1.0, 30.0, 120.0]
 var cloud_t := 0.0
 var time_acc := 0.0
 ## true when run as its own scene (own player, HUD hint, environment); false when embedded in the game via hills_portal.gd
@@ -200,20 +202,31 @@ func _apply_time() -> void:
 	Game.day_light = 0.12 + 0.88 * smoothstep(-0.08, 0.3, e)
 
 func _process(dt: float) -> void:
-	hour = fposmod(hour + dt * 24.0 / DAY_SECONDS, 24.0)
+	hour = fposmod(hour + dt * time_scale * 24.0 / DAY_SECONDS, 24.0)
 	cloud_t += dt * 0.008
 	time_acc += dt
 	if time_acc >= TIME_STEP and sky_mat != null:
 		time_acc = 0.0
 		_apply_time()
 
-## [ and ] step the clock an hour back / forward (handy for looking at night and dusk)
+## Debug clock keys (dev keys / debug build, or the standalone scene):
+##   N  jump to midnight, or back to noon    [ ]  step an hour back / forward
+##   K  cycle the clock speed 1x -> 30x -> 120x, so a whole day passes in seconds
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo and (Game.dev_keys or standalone):
-		if e.physical_keycode == KEY_BRACKETRIGHT:
+	if not (e is InputEventKey and e.pressed and not e.echo and (Game.dev_keys or standalone)):
+		return
+	match e.physical_keycode:
+		KEY_N:
+			hour = 12.0 if (hour < 5.0 or hour > 19.0) else 0.0
+			print("hills clock: %02d:00" % int(hour))
+		KEY_BRACKETRIGHT:
 			hour = fposmod(hour + 1.0, 24.0)
-		elif e.physical_keycode == KEY_BRACKETLEFT:
+		KEY_BRACKETLEFT:
 			hour = fposmod(hour - 1.0, 24.0)
+		KEY_K:
+			time_scale = SPEEDS[(SPEEDS.find(time_scale) + 1) % SPEEDS.size()]
+			print("hills clock speed: x%d" % int(time_scale))
+	_apply_time()
 
 ## What is underfoot at world (x, z): "dirt" on the road and steep slopes, "grass" everywhere else
 func surface_at(x: float, z: float) -> String:
