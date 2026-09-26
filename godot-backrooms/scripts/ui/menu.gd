@@ -116,9 +116,9 @@ func _click() -> void:
 	if click_player == null:
 		click_player = AudioStreamPlayer.new()
 		click_player.stream = load("res://audio/ui_click.wav")
-		click_player.volume_db = -9.0
+		click_player.volume_db = -6.0
 		add_child(click_player)
-	click_player.pitch_scale = randf_range(0.94, 1.06)
+	click_player.pitch_scale = randf_range(0.96, 1.04)
 	click_player.play()
 
 func _spacer(h: float) -> Control:
