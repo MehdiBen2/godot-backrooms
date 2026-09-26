@@ -17,8 +17,8 @@ uniform vec3 base_color : source_color = vec3(0.04,0.15,0.01);
 uniform vec3 tip_color : source_color = vec3(0.3,0.42,0.09);
 uniform vec3 subsurface_scattering_color : source_color = vec3(0.9,0.7,0.2);
 uniform vec3 far_color : source_color = vec3(0.21, 0.37, 0.06);   // what the terrain shader shows under distant grass
-uniform float fade_start = 75.0;   // blades shrink to nothing between these distances, so the tile edge never pops
-uniform float fade_end = 105.0;
+uniform float fade_start = 55.0;   // blades shrink to nothing between these distances, so the tile edge never pops
+uniform float fade_end = 85.0;
 
 // Source: https://www.shadertoy.com/view/Xt3cDn
 float hash12(vec2 x) {
@@ -144,13 +144,14 @@ void fragment() {
 	ALBEDO = mix(far_color, ALBEDO, fog_factor);
 
 	//AO = mix(0.1, 1.0, height_factor*height_factor); // Note: This looks better but is only visible when shadows are enabled!
-	ROUGHNESS = mix(1.0, 0.4, ease_out_quartic(height_factor));
-	ANISOTROPY = 0.85;
+	// thin, tiny blades sparkle badly under a strong specular (white dots that flicker, worst by moonlight): keep them matte
+	ROUGHNESS = mix(1.0, 0.75, ease_out_quartic(height_factor));
+	SPECULAR = 0.05;
 }
 
 void light() {
 	float diffuse_factor = pow(4.0, dot(NORMAL, LIGHT)) / 4.0; // Diffuse never drops to 0 to simulate ambient bounces
 	float sss_factor = max(-dot(VIEW, LIGHT), 0.0) * 0.5;
 	DIFFUSE_LIGHT += (diffuse_factor + sss_factor*subsurface_scattering_color*0.6) * ATTENUATION * LIGHT_COLOR;
-	SPECULAR_LIGHT *= diffuse_factor;
+	SPECULAR_LIGHT *= diffuse_factor * 0.25;
 }

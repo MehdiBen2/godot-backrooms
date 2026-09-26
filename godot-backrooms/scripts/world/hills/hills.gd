@@ -5,7 +5,7 @@ const SIZE := 640.0
 const RES := 320
 const HOUSE_COUNT := 30
 const TILE_SIZE := 5.0                        # GodotGrass tile LOD: one MultiMesh per tile, re-seated as the player moves
-const GRASS_RADIUS := 110.0                   # blades fade out by 105 m (grass.gdshader); the terrain shader carries the rest
+const GRASS_RADIUS := 90.0                    # blades fade out by 85 m (grass.gdshader); the terrain shader carries the rest
 const GRASS_HIGH := preload("res://models/grass/grass_high.obj")
 const GRASS_LOW := preload("res://models/grass/grass_low.obj")
 const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
@@ -125,9 +125,7 @@ func _build_environment() -> void:
 	env.fog_sun_scatter = 0.6
 	env.fog_aerial_perspective = 0.45
 	env.fog_sky_affect = 0.15
-	env.ssao_enabled = true
-	env.ssao_radius = 1.5
-	env.ssao_intensity = 2.0
+	env.ssao_enabled = false                    # it darkened the ground around the blades into blotchy bands, and costs a lot
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
 	env.glow_bloom = 0.05
@@ -144,10 +142,13 @@ func _build_environment() -> void:
 	sun.light_angular_distance = 0.6
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 250.0
+	sun.directional_shadow_max_distance = 150.0    # tighter range = sharper shadow map, fewer terraced bands on the hills
+	sun.directional_shadow_split_1 = 0.08
+	sun.directional_shadow_split_2 = 0.22
+	sun.directional_shadow_split_3 = 0.5
 	sun.directional_shadow_blend_splits = true
-	sun.shadow_bias = 0.04
-	sun.shadow_normal_bias = 1.2
+	sun.shadow_bias = 0.08
+	sun.shadow_normal_bias = 2.5
 	add_child(sun)
 
 # palettes for the three looks of the sky: [zenith, mid, horizon, cloud lit, cloud shade]
@@ -190,9 +191,12 @@ func _apply_time() -> void:
 		sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
 	else:
 		sun.light_color = Color(0.55, 0.65, 1.0)
-		sun.light_energy = 0.45 * smoothstep(0.0, 0.18, -e)
+		sun.light_energy = 0.9 * smoothstep(0.0, 0.18, -e)
 		sun.look_at_from_position(Vector3.ZERO, to_sun, Vector3.UP)
-	env.ambient_light_energy = lerpf(1.7, 1.0, day_mix)  # the night sky is dark blue: lift it so the hills stay readable
+	# the night sky is near black, so blend in a flat moonlit-blue ambient to keep the hills readable
+	env.ambient_light_color = Color(0.2, 0.28, 0.5)
+	env.ambient_light_sky_contribution = lerpf(0.3, 1.0, day_mix)
+	env.ambient_light_energy = lerpf(1.3, 1.0, day_mix)
 	env.fog_light_color = pal[2].lerp(Color(0.7, 0.75, 0.9), dw * 0.3)
 	env.fog_light_energy = lerpf(0.3, 1.0, day_mix)
 	env.fog_density = 0.0016 + 0.0012 * gw + 0.0014 * nw
@@ -371,8 +375,8 @@ func _grass_lod(density: float, mesh: Mesh) -> MultiMesh:
 func _build_grass() -> void:
 	grass_mat = _grass_material()
 	var lods: Array[MultiMesh] = [
-		_grass_lod(0.8, GRASS_HIGH), _grass_lod(0.4, GRASS_HIGH), _grass_lod(0.22, GRASS_LOW),
-		_grass_lod(0.1, GRASS_LOW), _grass_lod(0.05, GRASS_LOW)]
+		_grass_lod(0.7, GRASS_HIGH), _grass_lod(0.35, GRASS_HIGH), _grass_lod(0.18, GRASS_LOW),
+		_grass_lod(0.08, GRASS_LOW), _grass_lod(0.04, GRASS_LOW)]
 	var r := int(GRASS_RADIUS)
 	for i in range(-r, r, int(TILE_SIZE)):
 		for j in range(-r, r, int(TILE_SIZE)):
@@ -385,13 +389,13 @@ func _build_grass() -> void:
 			inst.material_override = grass_mat
 			inst.position = pos
 			inst.extra_cull_margin = 1.0
-			if dist < 12.0:
+			if dist < 10.0:
 				inst.multimesh = lods[0]
-			elif dist < 30.0:
+			elif dist < 25.0:
 				inst.multimesh = lods[1]
-			elif dist < 55.0:
+			elif dist < 45.0:
 				inst.multimesh = lods[2]
-			elif dist < 80.0:
+			elif dist < 68.0:
 				inst.multimesh = lods[3]
 			else:
 				inst.multimesh = lods[4]
