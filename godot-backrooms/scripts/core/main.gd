@@ -51,3 +51,16 @@ func set_paused(on: bool, start := false) -> void:
 	audio.set_paused(on)
 	# the death screen wants the cursor (click to respawn) whether or not the menu was opened over it
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (on or Game.dead) else Input.MOUSE_MODE_CAPTURED
+
+var _tf := 0
+func _process(_d: float) -> void:
+	var t := OS.get_environment("GFX_TEST")
+	if t == "": return
+	_tf += 1
+	if _tf == 3:
+		if t == "menu":
+			ui.menu._show_panel("graphics")
+		else:
+			Gfx.set_preset(t); Gfx.set_value("vsync", false); Gfx.set_value("fps", 0); set_paused(false)
+	if _tf == 400 and t != "menu":
+		print("FPS_RESULT ", t, " ", Engine.get_frames_per_second())
