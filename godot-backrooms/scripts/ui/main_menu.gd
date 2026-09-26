@@ -282,8 +282,8 @@ func _fx_shader() -> Shader:
 	s.code = """
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
-uniform float fisheye = 0.24;       // how much the edges bend in
-uniform float fringe = 0.006;       // red/blue split at the edges
+uniform float fisheye = 0.12;       // edge bend; the mapping below stays inside the frame (no black rim)
+uniform float fringe = 0.012;       // red/blue split, only really visible right at the corners
 
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -299,15 +299,18 @@ void fragment() {
 	float tear = smoothstep(0.045, 0.0, abs(UV.y - band)) * tear_on;
 	float jitter = (h(vec2(tt, floor(UV.y * 90.0))) - 0.5) * 0.02 * tear + wobble;
 
-	// barrel / fish-eye: centre magnified a little, edges squeezed
-	vec2 uv = 0.5 + c * (0.9 + fisheye * r2 * 2.0);
+	// barrel / fish-eye: centre magnified slightly, edges squeezed. Scale is 0.94 in the middle and
+	// exactly 1.0 at the corners, so it never samples outside the screen
+	vec2 uv = 0.5 + c * (0.94 + fisheye * r2);
 	uv.x += jitter;
 
-	// chromatic aberration grows toward the rim, along the radial direction
-	vec2 dir = c * r2 * fringe * 14.0;
-	float rr = texture(screen_tex, uv + dir).r;
-	float gg = texture(screen_tex, uv).g;
-	float bb = texture(screen_tex, uv - dir).b;
+	// chromatic aberration: a hair of split growing with r^2, so text near the edge stays readable
+	vec2 dir = c * r2 * fringe;
+	vec2 lo = vec2(0.001);
+	vec2 hi = vec2(0.999);
+	float rr = texture(screen_tex, clamp(uv + dir, lo, hi)).r;
+	float gg = texture(screen_tex, clamp(uv, lo, hi)).g;
+	float bb = texture(screen_tex, clamp(uv - dir, lo, hi)).b;
 	vec3 col = vec3(rr, gg, bb);
 
 	// tape: luma noise, fine scanlines, slow brightness roll, warm lift
@@ -318,11 +321,9 @@ void fragment() {
 	col *= (0.94 + 0.06 * lines) * roll;
 	col += vec3(0.9, 0.85, 0.7) * 0.10 * tear;
 
-	// lens vignette, darker than the image so the rim falls away
-	col *= 1.0 - smoothstep(0.18, 0.62, r2) * 0.75;
-	// the fisheye samples past the frame at the corners: fade to black there
-	float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
-	COLOR = vec4(col * inside, 1.0);
+	// soft lens vignette: darkens the rim a little without turning it into a black frame
+	col *= 1.0 - smoothstep(0.2, 0.55, r2) * 0.35;
+	COLOR = vec4(col, 1.0);
 }
 """
 	return s
