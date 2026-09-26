@@ -758,7 +758,7 @@ func think(dt: float) -> void:
 			if state_time > 8.0 or Vector2(goal.x - p.x, goal.z - p.z).length() < 1.2 or not goal_reachable:
 				end_flee()
 		"screech":
-			if state_time > 0.9:
+			if state_time > 1.15:
 				set_state("chase")
 		"chase":
 			if seen_target:
@@ -845,7 +845,7 @@ func move(delta: float) -> void:
 			speed = minf(0.9, d * 2.5)
 			dir /= d
 		var right := stalk_side.x * cos(yaw) - stalk_side.z * sin(yaw)
-		peek_lean_target = -signf(right) * 0.22 * peek_amt
+		peek_lean_target = -signf(right) * 0.58 * peek_amt
 	elif state == "screech":
 		if seen_target:
 			turn_toward(atan2(tgt.pos.x - p.x, tgt.pos.z - p.z), TURN_RATE, delta)

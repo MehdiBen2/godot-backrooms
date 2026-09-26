@@ -101,7 +101,10 @@ func _make_bus(name: String, send: String) -> void:
 	AudioServer.set_bus_name(idx, name)
 	AudioServer.set_bus_send(idx, send)
 
+var _clock := 0.0
+
 func _process(dt: float) -> void:
+	_clock += dt
 	entity_cut += (entity_cut_target - entity_cut) * (1.0 - exp(-dt / 0.08))
 	if absf(entity_lp.cutoff_hz - entity_cut) > 20.0:
 		entity_lp.cutoff_hz = entity_cut
@@ -185,9 +188,20 @@ func grid_off(pos := Vector3.INF) -> void:
 		# Mirror web scares.js: ref=12, volume=2.0, non-occluded (reverberant distant sound carries through walls)
 		_spawn3d(_gridoff_stream, pos, 2.0, "Scares", 12.0, 1.0, false)
 
+var _last_beat := -1.0
+
+# One heart: two callers asking for a beat in the same instant (the grab and the entity's proximity
+# beat, say) get ONE beat, never a flam that sounds like it stuttered
 func heartbeat(strength := 1.0) -> void:
+	if _clock - _last_beat < 0.3:          # game time, not the wall clock
+		return
+	_last_beat = _clock
 	_spawn_flat(synth("heartbeat"), clampf(0.45 * strength, 0.05, 1.2), "Body")
 	Game.beat()
+
+# The moment something seizes you: one designed hit instead of a stinger + static burst stacked
+func seize() -> void:
+	_spawn_flat(synth("seize"), 1.0, "Body")
 
 func entity_static() -> void:
 	_spawn_flat(synth("static"), 0.5, "Scares", rng.randf_range(0.9, 1.15))
@@ -273,7 +287,7 @@ func prewarm_death() -> void:
 		return
 	var s := ScareSynth.new()          # its own rng: not shared with the main thread
 	var jobs := [["flatline_loop", 0.0],
-		["static_hit", 0.0], ["stinger", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
+		["static_hit", 0.0], ["stinger", 0.0], ["seize", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
 		["howler_drag", 0.0], ["bone_crack", 0.0], ["heel", 0.0],
 		["mannequin_step", 0.0], ["mannequin_step", 1.0], ["mannequin_step", 2.0], ["mannequin_step", 3.0],

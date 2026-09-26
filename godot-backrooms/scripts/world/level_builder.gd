@@ -78,6 +78,7 @@ func _ready() -> void:
 	_build_light_pool()
 	_build_floor_reflections()
 	_build_exit()
+	_spawn_batteries()
 
 # ---------------------------------------------------------------- level files
 # The same files the web game and tools/level_editor.py use: levels/levels.json is the playlist
@@ -852,6 +853,33 @@ func _build_exit() -> void:
 	exit_door = preload("res://scripts/world/level_exit.gd").new()
 	exit_door.position = Vector3(e[0] * CELL, 0.0, e[1] * CELL)
 	add_child(exit_door)
+
+# ---------------------------------------------------------------- battery packs
+# Scattered at random open floor cells each load (own RNG: the level's rng is fixed-seeded).
+const BATTERY_PER_CELLS := 60        # roughly one pack per this many open cells
+const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
+
+func _spawn_batteries() -> void:
+	var r := RandomNumberGenerator.new()
+	r.randomize()
+	var s: Array = level_data.get("spawn", [4, 4])
+	var spawn_c := Vector2i(s[0], s[1])
+	var open: Array[Vector2i] = []
+	for z in size:
+		for x in size:
+			var c := Vector2i(x, z)
+			if walls.has(c) or pits.has(c): continue
+			if absi(c.x - spawn_c.x) + absi(c.y - spawn_c.y) < BATTERY_MIN_SPAWN_DIST: continue
+			open.append(c)
+	if open.is_empty(): return
+	var count := clampi(open.size() / BATTERY_PER_CELLS, 2, 12)
+	for i in count:
+		if open.is_empty(): break
+		var c: Vector2i = open.pop_at(r.randi_range(0, open.size() - 1))
+		var b := preload("res://scripts/world/battery_pickup.gd").new()
+		b.position = Vector3(c.x * CELL + r.randf_range(-1.4, 1.4), 0.0, c.y * CELL + r.randf_range(-1.4, 1.4))
+		b.rotation.y = r.randf() * TAU
+		add_child(b)
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):

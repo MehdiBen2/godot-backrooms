@@ -160,13 +160,35 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				ph += TAU * (300.0 + 220.0 * sin(t * 9.0) + 90.0 * t) / SR
 				a[i] = (sin(ph) * 0.15 + nz[i] * 0.8) * sin(PI * t / 0.9) * (0.6 + 0.4 * sin(t * 47.0))
 			w = _wav(a)
-		"stinger":     # a sudden loud startle
+		"stinger":     # a sudden loud startle: a hiss of air, a falling shriek, a low punch
+			# (the old one clipped hard and its pitch sweep jumped at 0.5 s: phase is accumulated now and
+			# the sum is soft-saturated instead of chopped off)
 			var a := _buf(0.9)
 			var nz := _noise_lp(a.size(), 4500.0)
+			var ph := 0.0
 			for i in a.size():
 				var t := float(i) / SR
-				a[i] = (nz[i] * 1.6 * exp(-t * 5.0) + sin(TAU * (900.0 - 500.0 * minf(t, 0.5)) * t) * 0.3 * exp(-t * 7.0)
-					+ sin(TAU * 55.0 * t) * 0.6 * exp(-t * 4.0))
+				ph += TAU * (380.0 + 520.0 * exp(-t * 4.0)) / SR          # 900 Hz gliding smoothly down
+				var v := nz[i] * 1.1 * exp(-t * 6.0) * minf(1.0, t / 0.003) 					+ sin(ph) * 0.3 * exp(-t * 6.0) 					+ sin(TAU * (55.0 + 25.0 * exp(-t * 20.0)) * t) * 0.6 * exp(-t * 4.0)
+				a[i] = tanh(v * 1.3) * 0.75
+			w = _wav(a)
+		"seize":       # it has you: a body blow, the floor dropping out, a dissonant cluster that swells and dies
+			var a := _buf(1.8)
+			var thud := _noise_lp(a.size(), 380.0)
+			var ph_sub := 0.0
+			var notes := [233.1, 246.9, 311.1, 329.6, 466.2]            # two clashing seconds and a tritone
+			var phs := [0.0, 0.0, 0.0, 0.0, 0.0]
+			for i in a.size():
+				var t := float(i) / SR
+				ph_sub += TAU * (38.0 + 34.0 * exp(-t * 6.0)) / SR        # a boom sinking out from under you
+				var v := sin(ph_sub) * 0.85 * exp(-t * 2.6) * minf(1.0, t / 0.004)
+				v += thud[i] * 2.4 * exp(-t * 22.0) * minf(1.0, t / 0.002)
+				var cl := 0.0
+				for k in notes.size():
+					phs[k] += TAU * notes[k] * (1.0 + 0.004 * sin(t * (3.0 + k))) / SR   # a slow sour wobble
+					cl += sin(phs[k]) + 0.35 * sin(phs[k] * 2.0) + 0.15 * sin(phs[k] * 3.0)
+				v += cl * 0.075 * minf(1.0, t / 0.015) * exp(-t * 2.2)
+				a[i] = tanh(v * 1.2) * 0.8
 			w = _wav(a)
 		"splat":       # something wet and heavy
 			var a := _buf(0.7)

@@ -135,6 +135,40 @@ func _turn(bone: int, axis: Vector3, angle: float) -> void:
 func _b(role: String) -> int:
 	return bones.get(role, -1)
 
+func get_bone_global_pos(role: String) -> Vector3:
+	var idx: int = _b(role)
+	if skel != null and idx >= 0:
+		return skel.global_transform * skel.get_bone_global_pose(idx).origin
+	return Vector3.ZERO
+
+func get_head_global_pos() -> Vector3:
+	var p := get_bone_global_pos("head")
+	if p != Vector3.ZERO:
+		return p
+	var neck_p := get_bone_global_pos("neck")
+	if neck_p != Vector3.ZERO:
+		return neck_p + Vector3(0.0, 0.45, 0.0)
+	var ep: Vector3 = e.global_position if e else global_position
+	var fwd := Vector3(sin(e.yaw), 0.0, cos(e.yaw)) if e else -global_transform.basis.z
+	return ep + Vector3(0.0, 3.9, 0.0) + fwd * 0.35
+
+func get_chest_global_pos() -> Vector3:
+	var p := get_bone_global_pos("chest")
+	if p != Vector3.ZERO:
+		return p
+	var ep: Vector3 = e.global_position if e else global_position
+	return ep + Vector3(0.0, 2.5, 0.0)
+
+func get_feet_global_pos() -> Vector3:
+	var fl := get_bone_global_pos("foot_l")
+	var fr := get_bone_global_pos("foot_r")
+	if fl != Vector3.ZERO and fr != Vector3.ZERO:
+		return (fl + fr) * 0.5
+	if fl != Vector3.ZERO: return fl
+	if fr != Vector3.ZERO: return fr
+	var ep: Vector3 = e.global_position if e else global_position
+	return ep + Vector3(0.0, 0.2, 0.0)
+
 # The pose it's aiming for, from its state and what it's doing (js poseTargets)
 func _pose_targets(st: String, run: float, moving: bool) -> void:
 	var P := pose_t
@@ -160,29 +194,72 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 			P.head_roll = minf(1.2, 0.3 + anim_time * 0.35) * (1.0 if head_yaw >= 0.0 else -1.0)
 			P.reach_a = 0.2; P.reach_b = 0.2
 	elif st == "chase":
-		P.hunch = 1.0; P.crouch = 0.22; P.neck = 0.25; P.head_pitch = 0.0; P.claw = 0.8
-		P.reach_a = 1.05; P.reach_b = 1.05; P.out_a = 0.22; P.out_b = 0.22; P.elbow_a = 0.55; P.elbow_b = 0.55
+		# Low, hunched, aggressive predator posture; head thrust forward, claws hooked to snatch
+		P.hunch = 1.15 + run * 0.45
+		P.crouch = 0.16 + run * 0.18
+		P.neck = 0.35 + run * 0.15
+		P.head_pitch = -0.15 * run
+		P.claw = 1.1 + run * 0.5
+		P.reach_a = 1.25 + run * 0.55
+		P.reach_b = 1.25 + run * 0.55
+		P.out_a = 0.28 + run * 0.15
+		P.out_b = 0.28 + run * 0.15
+		P.elbow_a = 0.65
+		P.elbow_b = 0.65
 		if e.lunge_windup > 0.0:
-			P.hunch = 0.45; P.crouch = 0.35; P.claw = 1.0
-			P.reach_a = 1.9; P.reach_b = 1.9; P.out_a = 0.6; P.out_b = 0.6; P.elbow_a = 0.2; P.elbow_b = 0.2
+			P.hunch = 0.45; P.crouch = 0.4; P.claw = 1.5
+			P.reach_a = 2.0; P.reach_b = 2.0; P.out_a = 0.7; P.out_b = 0.7; P.elbow_a = 0.2; P.elbow_b = 0.2
 		elif e.lunge > 0.0:
-			P.hunch = 1.25; P.crouch = 0.1; P.claw = 1.0
-			P.reach_a = 1.55; P.reach_b = 1.55; P.out_a = 0.3; P.out_b = 0.3; P.elbow_a = 0.0; P.elbow_b = 0.0
+			P.hunch = 1.45; P.crouch = 0.1; P.claw = 1.5
+			P.reach_a = 1.85; P.reach_b = 1.85; P.out_a = 0.3; P.out_b = 0.3; P.elbow_a = 0.0; P.elbow_b = 0.0
 	elif st == "screech":
-		# rears back with its maw to the ceiling, then snaps it down at you and howls
-		var thrown := anim_time < 0.4
-		P.hunch = -0.5 if thrown else -0.1; P.crouch = 0.15; P.neck = 0.35 if thrown else 0.3
-		P.head_pitch = 1.0 if thrown else 0.0; P.look = 0.0 if thrown else 1.0; P.claw = 1.2
-		P.reach_a = 0.65; P.reach_b = 0.65; P.out_a = 1.3; P.out_b = 1.3; P.elbow_a = 0.95; P.elbow_b = 0.95
+		# Spotted: Phase 1 (0.0-0.22s): Startled recoil / snap freeze
+		# Phase 2 (0.22-0.75s): Violent screech / rearing acoustic throat-shake
+		# Phase 3 (0.75s+): Drop into predatory sprint
+		if anim_time < 0.22:
+			P.hunch = -0.7; P.crouch = 0.25; P.neck = 0.45; P.head_pitch = 0.65; P.look = 1.0; P.claw = 1.5
+			P.reach_a = 0.8; P.reach_b = 0.8; P.out_a = 1.5; P.out_b = 1.5; P.elbow_a = 0.85; P.elbow_b = 0.85
+		elif anim_time < 0.75:
+			P.hunch = -0.3; P.crouch = 0.12; P.neck = 0.55; P.head_pitch = 1.15; P.look = 0.3; P.claw = 1.8
+			P.reach_a = 1.0; P.reach_b = 1.0; P.out_a = 1.6; P.out_b = 1.6; P.elbow_a = 1.1; P.elbow_b = 1.1
+		else:
+			P.hunch = 1.25; P.crouch = 0.35; P.neck = 0.35; P.head_pitch = -0.2; P.look = 1.0; P.claw = 1.3
+			P.reach_a = 1.4; P.reach_b = 1.4; P.out_a = 0.35; P.out_b = 0.35; P.elbow_a = 0.5; P.elbow_b = 0.5
 	elif st == "stalk":
-		# low behind the corner, one hand gripping the wall's edge, the head tipped almost flat
-		P.still = 1.0; P.hunch = 0.3; P.crouch = 0.45; P.neck = 0.2; P.head_pitch = 0.0; P.claw = 0.9
+		# Low behind the corner, leading hand gripping and hooking the wall's edge, head tilted nearly flat
+		P.still = 1.0; P.hunch = 0.4; P.crouch = 0.55; P.neck = 0.3; P.head_pitch = -0.15; P.claw = 1.5
 		var peek_side := -1.0 if peek_lean > 0.02 else 1.0
-		P.head_roll = -1.4 * peek_side * lerpf(0.35, 1.0, e.peek_amt)
+		P.head_roll = -1.55 * peek_side * lerpf(0.5, 1.0, e.peek_amt)
 		var grip := "a" if peek_side > 0.0 else "b"
 		var other := "b" if grip == "a" else "a"
-		P["reach_" + grip] = 0.6; P["out_" + grip] = 0.85; P["elbow_" + grip] = 0.95
-		P["reach_" + other] = 0.05; P["out_" + other] = 0.0; P["elbow_" + other] = 0.15
+		# gripping hand hooks forward around the corner edge, claws digging into the wall
+		P["reach_" + grip] = 0.8 + 0.35 * e.peek_amt
+		P["out_" + grip] = 0.95
+		P["elbow_" + grip] = 0.85
+		# non-gripping arm tucked close to the ribs
+		P["reach_" + other] = -0.1
+		P["out_" + other] = 0.1
+		P["elbow_" + other] = 0.4
+	elif st == "grab":
+		# Seizing and ripping the player: arms wrap around the camera, claws clench and tear
+		var snatching: bool = anim_time < 0.45
+		var rearing: bool = e.lunge_windup > 0.0
+		var lunging: bool = e.lunge > 0.0
+		P.still = 0.0; P.look = 1.0
+		if snatching:
+			P.hunch = 0.65; P.crouch = 0.35; P.neck = 0.2; P.head_pitch = -0.3; P.claw = 1.6
+			P.reach_a = 1.5; P.reach_b = 1.5; P.out_a = 0.38; P.out_b = 0.38; P.elbow_a = 0.75; P.elbow_b = 0.75
+		elif rearing:
+			P.hunch = -0.2; P.crouch = 0.25; P.neck = 0.45; P.head_pitch = 0.45; P.claw = 1.8
+			P.reach_a = 1.1; P.reach_b = 1.1; P.out_a = 0.8; P.out_b = 0.8; P.elbow_a = 1.05; P.elbow_b = 1.05
+		elif lunging:
+			# Violent rip: claws drive forward and cross inward, tearing through the victim!
+			P.hunch = 1.45; P.crouch = 0.08; P.neck = 0.2; P.head_pitch = -0.2; P.claw = 2.4
+			P.reach_a = 2.5; P.reach_b = 2.5; P.out_a = -0.25; P.out_b = -0.25; P.elbow_a = 0.3; P.elbow_b = 0.3
+		else:
+			# hoisted in the air: arms bracket the camera from the sides, claws digging in and clutching
+			P.hunch = 0.55; P.crouch = 0.15; P.neck = 0.25; P.head_pitch = -0.1; P.claw = 1.7
+			P.reach_a = 1.85; P.reach_b = 1.85; P.out_a = 0.24; P.out_b = 0.24; P.elbow_a = 0.62; P.elbow_b = 0.62
 	elif st == "flee":
 		P.hunch = 1.1; P.crouch = 0.4; P.neck = 0.35; P.head_pitch = 0.1; P.look = 0.0; P.claw = 0.2
 		P.reach_a = -0.55; P.reach_b = -0.55; P.out_a = 0.25; P.out_b = 0.25; P.elbow_a = 0.8; P.elbow_b = 0.8
@@ -243,7 +320,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	surge += (clampf(accel * 0.025, -0.12, 0.2) - surge) * minf(1.0, delta * 4.0)
 
 	_pose_targets(st, run, moving)
-	var rate := 12.0 if (st == "chase" or st == "screech" or st == "stunned") else (2.5 if st == "stalk" else 5.0)
+	var rate := 14.0 if (st == "chase" or st == "screech" or st == "stunned" or st == "grab") else (2.5 if st == "stalk" else 5.0)
 	for k in pose:
 		pose[k] = lerpf(pose[k], pose_t[k], 1.0 - exp(-rate * delta))
 	peek_lean += (e.peek_lean_target - peek_lean) * minf(1.0, delta * 4.0)
@@ -255,7 +332,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	# twitching: how much the joints shiver. Frozen while staring (tiny tremor), violent when hurt
 	var twitch := 0.35
 	match st:
-		"chase", "screech":
+		"chase", "screech", "grab":
 			twitch = 1.0
 		"flee":
 			twitch = 0.8
@@ -289,7 +366,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 
 	# ---- where the head wants to look: at you when it hunts, stalks or stares, else scanning
 	var slow_head: bool = st == "stalk" or e.staring > 0.0
-	var interested: bool = st == "chase" or st == "screech" or st == "stalk" or st == "stunned" or e.staring > 0.0 \
+	var interested: bool = st == "chase" or st == "screech" or st == "stalk" or st == "stunned" or st == "grab" or e.staring > 0.0 \
 		or (e.seen_target and dist < 20.0 and st != "flee")
 	var look_rel := 0.0
 	if pose.look > 0.4:
@@ -304,7 +381,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		if slow_head:
 			head_hop = rng.randf_range(1.2, 3.5)
 		elif interested:
-			head_hop = rng.randf_range(0.15, 0.5)
+			head_hop = rng.randf_range(0.12, 0.4)
 		else:
 			head_hop = rng.randf_range(0.6, 1.5)
 		head_yaw_goal = look_rel + rng.randf_range(-0.18, 0.18) * (0.3 if slow_head else 1.0)
@@ -318,16 +395,17 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	var breath: float = sin(clock * (1.4 + pose.hunch * 3.0)) * 0.06 * alive
 	var sway: float = sin(clock * 1.1) * 0.03 * alive
 	var thrash := 1.0 if st == "stunned" else 0.0
-	_turn(_b("hip"), up, sin(phase) * 0.12 * w)
+	var screech_shiver := sin(clock * 44.0) * 0.18 if (st == "screech" and anim_time >= 0.22 and anim_time < 0.75) else 0.0
+	_turn(_b("hip"), up, sin(phase) * (0.12 + run * 0.1) * w)
 	_turn(_b("hip"), fwd, sin(phase) * 0.05 * w - bank * 0.5)
-	_turn(_b("chest"), right, pose.hunch * 0.45 + breath + sway + surge + land * 0.08 \
-		+ _noise(1.0, tj) * 0.1 * twitch + thrash * _noise(3.0, clock * 14.0) * 0.3)
-	_turn(_b("chest"), up, -sin(phase) * 0.12 * w)
-	_turn(_b("chest"), fwd, peek_lean * 0.6 + sin(phase) * 0.06 * w + 0.05 * alive - bank * 0.5)
-	# ---- neck and head: the maw stays aimed where it looks however far it is folded over, and the
-	# head holds level through the bank (a predator's head stays still while the body swings under it)
+	_turn(_b("chest"), right, pose.hunch * 0.45 + breath + sway + surge * 1.2 + land * 0.14 \
+		+ _noise(1.0, tj) * 0.1 * twitch + thrash * _noise(3.0, clock * 14.0) * 0.3 + screech_shiver)
+	_turn(_b("chest"), up, -sin(phase) * (0.12 + run * 0.18) * w)
+	_turn(_b("chest"), fwd, peek_lean * 0.85 + sin(phase) * 0.06 * w + 0.05 * alive - bank * 0.5)
+
+	# ---- neck and head: the maw stays aimed where it looks however far it is folded over
 	var fold: float = pose.hunch * 0.45 + pose.neck * 0.5
-	_turn(_b("neck"), right, pose.neck * 0.5 + _noise(30.0, tj) * 0.1 * twitch)
+	_turn(_b("neck"), right, pose.neck * 0.5 + _noise(30.0, tj) * 0.1 * twitch + screech_shiver * 1.3)
 	_turn(_b("neck"), up, head_yaw * 0.35)
 	_turn(_b("neck"), fwd, pose.head_roll * 0.25 + bank * 0.4)
 	_turn(_b("head"), right, pose.head_pitch * 0.6 - fold * pose.look * 0.75 - surge * 0.8 * pose.look + _noise(31.0, tj) * 0.2 * twitch)
@@ -336,17 +414,18 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_glitch_turn("neck", g_angle)
 	_glitch_turn("head", g_angle)
 
-	# ---- legs: it limps, one long stride and one short dragging one, knees bent when it stalks
+	# ---- legs: violent limping gallop when chasing; high knee drive and dragged trailing leg
 	for leg in ["l", "r"]:
 		var ph := phase + (0.0 if leg == "l" else PI)
 		var limp := 1.0 if leg == "l" else 0.55
-		var swing := sin(ph) * (0.35 + run * 0.35) * w * limp
-		var knee: float = maxf(0.0, -cos(ph)) * (0.6 if leg == "l" else 0.3) * w + pose.crouch * 0.7 + land * 0.12
+		var high_drive := (0.85 if leg == "l" else 0.35) * run
+		var swing := sin(ph) * (0.35 + run * 0.45) * w * limp
+		var knee: float = maxf(0.0, -cos(ph)) * (0.85 if leg == "l" else 0.45) * w + high_drive + pose.crouch * 0.7 + land * 0.16
 		_turn(_b("thigh_" + leg), right, -swing - pose.crouch * 0.5)
 		_turn(_b("shin_" + leg), right, knee)
-		_turn(_b("foot_" + leg), right, swing * 0.3 - (0.12 if (leg == "r" and moving) else 0.0))
+		_turn(_b("foot_" + leg), right, swing * 0.35 - (0.16 if (leg == "r" and moving) else 0.0))
 
-	# ---- arms: a loose pendulum when it walks; running, alternating claws, each a beat out of step
+	# ---- arms: predatory alternating lunges when running; clutching/ripping in grab
 	var clawing := (1.0 if (st == "chase" and e.lunge <= 0.0 and e.lunge_windup <= 0.0) else 0.0) * maxf(w, 0.4 * run)
 	for arm in ["a", "b"]:
 		var arm_side := "l" if arm == "a" else "r"
@@ -354,24 +433,26 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		var seed_v := 10.0 if arm == "a" else 20.0
 		var ph2 := phase + (PI if arm_side == "l" else 0.0)
 		var hang := sin(ph2) * 0.3 * w * (1.0 - clawing)
-		var claw_swing := sin(ph2) * 0.4 * clawing
-		var reach: float = pose["reach_" + arm] + hang + claw_swing + _noise(seed_v, tj) * 0.15 * twitch \
+		var claw_swing := sin(ph2) * (0.75 * run if run > 0.3 else 0.4) * clawing
+		var reach: float = pose["reach_" + arm] + hang + claw_swing + _noise(seed_v, tj) * 0.18 * twitch \
 			+ thrash * _noise(seed_v, clock * 12.0) * 0.9
-		# arms fling out to the outside of a turn
+		# arms fling out to the outside of a turn, or tuck inward
 		var out: float = pose["out_" + arm] + sin(clock * 0.9 + (0.0 if arm == "a" else 2.0)) * 0.04 * alive \
 			+ maxf(0.0, -bank * sgn) * 0.6
-		var elbow: float = pose["elbow_" + arm] + maxf(0.0, -sin(ph2)) * clawing * 0.9 \
+		var elbow: float = pose["elbow_" + arm] + maxf(0.0, -sin(ph2)) * clawing * (1.2 * run if run > 0.3 else 0.9) \
 			+ sin(ph2 + 1.0) * 0.25 * w * (1.0 - clawing) + _noise(seed_v + 3.0, tj) * 0.25 * twitch
 		_turn(_b("arm_" + arm_side), right, -(reach * 0.9))
 		_turn(_b("arm_" + arm_side), fwd, sgn * out * 0.6)
 		_turn(_b("fore_" + arm_side), right, -(elbow * 0.9 + reach * 0.2))
 		_glitch_turn("arm_" + arm_side, g_angle * sgn)
 		_glitch_turn("fore_" + arm_side, g_angle * sgn)
-		# fingers curl into a claw and ripple like a spider's legs
+		# fingers curl into claws and actively clench/skitter
 		var fingers: Array = bones.get("fingers_" + arm_side, [])
+		var grab_clench := (sin(clock * 11.0 + (0.0 if arm == "a" else 1.5)) * 0.35 + sin(clock * 23.0) * 0.15) if st == "grab" else 0.0
 		for i in fingers.size():
-			var curl: float = (sin(clock * (2.5 if st == "stalk" else 5.0) + float(i) * 1.7) * 0.3 * (0.4 + alive * 0.6) + pose.claw) * 0.6
+			var run_twitch := sin(clock * 16.0 + float(i) * 1.8) * 0.25 * run
+			var curl: float = (sin(clock * (2.5 if st == "stalk" else 5.0) + float(i) * 1.7) * 0.3 * (0.4 + alive * 0.6) \
+				+ pose.claw + grab_clench + run_twitch) * 0.65
 			_turn(fingers[i], right, -curl)
-	# crouch sinks the whole body. The body rides highest as the legs pass under it and lowest as a foot
-	# lands, and sags a little more under the landing's weight; the breathing bob rides on top.
+	# crouch sinks the whole body
 	position.y = -pose.crouch * 0.5 + absf(cos(phase)) * 0.06 * w - land * 0.07 + breath * 0.15

@@ -658,7 +658,7 @@ func start_snap() -> void:
 	snapped = false
 	snap_prepped = false
 	snap_trauma = 0.0
-	snap_beat = 0.0
+	snap_beat = 0.6         # start_snap already beats once: 0 would fire a second one next frame
 	player.frozen = true
 	player.velocity = Vector3.ZERO
 	snap_start = real_node.position

@@ -9,7 +9,7 @@ uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.12;
 uniform float chroma_amt = 0.0028;
 uniform float grain = 0.038;
-uniform float dirt_amt = 0.32;
+uniform float dirt_amt = 0.04;
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
 uniform float fear = 0.0;      // psychological: sanity, darkness, events
@@ -126,18 +126,18 @@ void fragment() {
 	vec3 bled = max(vec3(dot(col, vec3(0.299, 0.587, 0.114))) + cs - vec3(dot(cs, vec3(0.299, 0.587, 0.114))), 0.0);
 	col = mix(col, bled, clamp(0.4 + threat * 0.6 + glitch, 0.0, 1.0));
 
-	// Realistic camera lens dirt (specks, smudges, water rings, and dust motes illuminated by bright lights)
+	// Camera lens dirt: subtle dust specks catching direct bright lights only
 	vec2 dirt_uv = uv;
 	dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
-	vec3 dirt_rgb = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
+	vec3 raw_dirt = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
+	// Cut off lifted black pedestal so clear lens areas stay 100% transparent with zero milky haze
+	vec3 dirt_rgb = max(raw_dirt - vec3(0.22), vec3(0.0)) * 1.4;
 
 	vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
-	vec3 scene_light = textureLod(screen_tex, vec2(0.5), 6.0).rgb;
 	float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
-	float luma_scene = dot(scene_light, vec3(0.299, 0.587, 0.114));
-	float ambient_glass = clamp(luma_scene * 2.5, 0.0, 1.0) * 0.09;
-	float light_on_lens = ambient_glass + smoothstep(0.06, 0.55, luma_local) * 0.70 + smoothstep(0.08, 0.50, luma_scene) * 0.30;
-	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.15, 1.08, 0.88);
+	// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
+	float light_on_lens = smoothstep(0.58, 0.95, luma_local);
+	col += dirt_rgb * light_on_lens * dirt_amt * vec3(1.10, 1.05, 0.90);
 
 	// Optical lens glare: subtle horizontal streak & gentle ghosts when looking at bright lights
 	if (glare_amt > 0.01) {
