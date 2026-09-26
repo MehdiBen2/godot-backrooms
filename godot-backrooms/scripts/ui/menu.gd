@@ -283,6 +283,9 @@ func _build() -> void:
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
 		nav_buttons[n] = b
+	var leave := _link_button("main menu")
+	leave.pressed.connect(_leave_to_main_menu)
+	nav.add_child(leave)
 	main.add_child(nav)
 
 	# --- side panel ---
@@ -601,6 +604,15 @@ func _build_controls() -> Control:
 	return v
 
 # ---- panel navigation ------------------------------------------------------------------
+## Back to the title screen (drops any multiplayer session first)
+func _leave_to_main_menu() -> void:
+	Net.leave()
+	Game.playing = false
+	Game.dead = false
+	Game.respawned = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
 func _on_nav(name: String) -> void:
 	_show_panel("" if open_section == name else name)
 

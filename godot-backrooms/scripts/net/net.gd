@@ -156,6 +156,8 @@ func _on_peer_connected(id: int) -> void:
 	_hello.rpc_id(id, my_name())
 	if hosting:
 		_level.rpc_id(id, Game.level_index)
+		if mq_level >= 0:
+			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
 	_ensure_remote(id)
 	_update_count()
 
@@ -165,6 +167,7 @@ func _on_peer_disconnected(id: int) -> void:
 		r.queue_free()
 	remotes.erase(id)
 	names.erase(id)
+	_mq_view.erase(id)
 	_update_count()
 
 func _on_connected() -> void:
@@ -258,6 +261,117 @@ func _stop_events() -> void:
 	var ev := _scene_node("Events")
 	if ev != null:
 		ev.stop_all()
+
+# ---- who the monsters can hunt ------------------------------------------------------------------
+## Every survivor a monster may target right now: this player and each remote one that is alive and in
+## the game (not dead, not sitting in a menu). {node, id, pos, fwd (flat, unit), local}
+func survivors() -> Array:
+	var out: Array = []
+	var p: Node = Game.player
+	if p != null and is_instance_valid(p) and not p.dead and Game.playing:
+		var f: Vector3 = -p.global_transform.basis.z
+		f.y = 0.0
+		out.append({"node": p, "id": multiplayer.get_unique_id() if is_online() else 1, "pos": p.global_position,
+			"fwd": f.normalized() if f.length() > 0.001 else Vector3.FORWARD, "local": true})
+	for id in remotes:
+		var r: Node3D = remotes[id]
+		if is_instance_valid(r) and r.seen and r.visible and r.playing and not r.dead:
+			out.append({"node": r, "id": id, "pos": r.target_pos, "fwd": Vector3(-sin(r.rotation.y), 0.0, -cos(r.rotation.y)),
+				"local": false})
+	return out
+
+## The closest of them to `from`; the one it already hunts (prev_id) keeps a small edge so it doesn't flip-flop
+func nearest_survivor(from: Vector3, prev_id := -1) -> Dictionary:
+	var best := {}
+	var best_key := INF
+	for s in survivors():
+		var key: float = from.distance_squared_to(s.pos) * (0.8 if s.id == prev_id else 1.0)
+		if key < best_key:
+			best_key = key
+			best = s
+	return best
+
+func _to_host_ready() -> bool:
+	return is_online() and not hosting
+
+func _has_peers() -> bool:
+	return hosting and is_online() and not multiplayer.get_peers().is_empty()
+
+# ---- THE MANNEQUIN: the host rolls the room and runs the real one ---------------------------------
+var mq_seed := 0
+var mq_level := -1
+var _mq_view := {}                # peer id -> [saw it, time]: guests tell the host whether they are looking at it
+
+func send_mq_seed(seed_v: int) -> void:
+	mq_seed = seed_v
+	mq_level = Game.level_index
+	if _has_peers():
+		_mq_seed_rpc.rpc(mq_level, seed_v)
+
+@rpc("authority", "call_remote", "reliable")
+func _mq_seed_rpc(level_idx: int, seed_v: int) -> void:
+	mq_seed = seed_v
+	mq_level = level_idx
+	var mq := _scene_node("Mannequin")
+	if mq != null and level_idx == Game.level_index and mq.has_method("net_seed"):
+		mq.net_seed(seed_v)
+
+func send_mq(m: Array) -> void:
+	if _has_peers():
+		_mq_snap_rpc.rpc(clock(), m)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _mq_snap_rpc(t: float, m: Array) -> void:
+	var mq := _scene_node("Mannequin")
+	if mq != null and mq.has_method("net_apply"):
+		mq.net_apply(t, m)
+
+func send_mq_view(seen: bool) -> void:
+	if _to_host_ready():
+		_mq_view_rpc.rpc_id(1, seen)
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func _mq_view_rpc(seen: bool) -> void:
+	_mq_view[multiplayer.get_remote_sender_id()] = [seen, Time.get_ticks_msec() / 1000.0]
+
+## Host: is any other survivor looking at it? (it only ever moves when nobody is)
+func mq_seen_by_peers() -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	for id in _mq_view:
+		if _mq_view[id][0] and now - _mq_view[id][1] < 0.6 and remotes.has(id):
+			return true
+	return false
+
+func send_mq_kill(id: int) -> void:
+	if _has_peers():
+		_mq_kill_rpc.rpc_id(id)
+
+@rpc("authority", "call_remote", "reliable")
+func _mq_kill_rpc() -> void:
+	var mq := _scene_node("Mannequin")
+	if mq != null and mq.has_method("net_snap"):
+		mq.net_snap()
+
+# ---- THE MIMIC: the host runs the body, each survivor gets the same one ---------------------------
+func send_mm(m: Array) -> void:
+	if _has_peers():
+		_mm_rpc.rpc(clock(), m)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _mm_rpc(t: float, m: Array) -> void:
+	var mm := _scene_node("Mimic")
+	if mm != null and mm.has_method("net_apply"):
+		mm.net_apply(t, m)
+
+func send_mm_hit(id: int) -> void:
+	if _has_peers():
+		_mm_hit_rpc.rpc_id(id)
+
+@rpc("authority", "call_remote", "reliable")
+func _mm_hit_rpc() -> void:
+	var mm := _scene_node("Mimic")
+	if mm != null:
+		mm.hit_player()
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:

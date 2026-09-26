@@ -75,6 +75,16 @@ var flee_until := 0.0
 var react_at := 0.0
 var hit_ready := 0.0
 var body: Node3D
+
+# ---- co-op: the host runs the body (hunting the nearest survivor); guests follow it from snapshots.
+# The peek (its head sliding in at the edge of YOUR screen) stays personal to each player.
+const MODES := ["approach", "keepAway", "flee", "charge"]
+var puppet := false
+var net_buf = preload("res://scripts/net/snap_buffer.gd").new()
+var t_id := -1
+var t_pos := Vector3.ZERO
+var t_fwd := Vector3.FORWARD
+var _net_t := 0.0
 var anim: AnimationPlayer
 var body_yaw := 0.0
 
@@ -157,20 +167,20 @@ func toggle_session() -> void:
 		body.visible = false
 
 func view_dot(x: float, z: float) -> float:
-	var p := player.global_position
-	var fwd := -player.global_transform.basis.z
+	var p := t_pos
+	var fwd := t_fwd
 	var dx := x - p.x
 	var dz := z - p.z
 	var l := maxf(sqrt(dx * dx + dz * dz), 0.001)
 	return (fwd.x * dx + fwd.z * dz) / l
 
 func watched_by(x: float, z: float, cone: float) -> bool:
-	var p := player.global_position
+	var p := t_pos
 	return Vector2(x - p.x, z - p.z).length() < 45.0 and view_dot(x, z) > cone
 
 # An open spot spawn_min..spawn_max metres away, out of your sight
 func spot_around() -> Variant:
-	var p := player.global_position
+	var p := t_pos
 	var angles: Array = []
 	for i in 16:
 		angles.append(i * PI / 8.0)
@@ -198,7 +208,7 @@ func appear() -> bool:
 	var spot = spot_around()
 	if spot == null:
 		return false
-	var p := player.global_position
+	var p := t_pos
 	body.global_position = Vector3(spot.x, p.y, spot.y)
 	heading = atan2(p.x - spot.x, p.z - spot.y)
 	speed = 0.0
@@ -240,15 +250,23 @@ func footsteps(delta: float, dist: float) -> void:
 			scares.play_scare("footThump", Vector3(pos.x, player.global_position.y + 0.2, pos.z), maxf(0.2, 0.75 * (1.0 - dist / 30.0)))
 
 func update_peer(delta: float) -> void:
-	if not session or player.dead:
+	if not session:
 		return
+	var tg := Net.nearest_survivor(body.global_position if spawned else player.global_position, t_id)
+	if tg.is_empty():
+		return                                       # nobody alive and in the game
+	t_id = tg.id
+	t_pos = tg.pos
+	t_fwd = tg.fwd
 	if not spawned:
 		wait -= delta
 		if wait <= 0.0:
 			appear()
 		return
 	var pos := body.global_position
-	var pp := player.global_position
+	var pp: Vector3 = t_pos
+	var lp := player.global_position
+	var ldist := Vector2(lp.x - pos.x, lp.z - pos.z).length()      # sound and heartbeat follow THIS player, not the target
 	var dx := pp.x - pos.x
 	var dz := pp.z - pos.z
 	var dist := maxf(Vector2(dx, dz).length(), 0.001)
@@ -256,8 +274,8 @@ func update_peer(delta: float) -> void:
 	var watched := watched_by(pos.x, pos.z, VIEW_CONE)
 	var t := now()
 	if Game.heart != null:
-		var near := clampf(1.0 - dist / 12.0, 0.0, 1.0)
-		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - dist / 25.0, 0.0, 1.0), 3.0 * near * near)
+		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
+		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
 
 	# decide what it is doing
 	var charging: bool = player.grid_down
@@ -348,9 +366,12 @@ func update_peer(delta: float) -> void:
 		hit_ready = t + HIT_COOLDOWN
 		mode = "flee"
 		flee_until = t + 3.0 + rng.randf() * 2.0
-		hit_player()
+		if tg.local:
+			hit_player()
+		else:
+			Net.send_mm_hit(tg.id)               # the blow lands on their machine
 
-	footsteps(delta, Vector2(pp.x - pos.x, pp.z - pos.z).length())
+	footsteps(delta, ldist)
 
 	# wedged somewhere: try another way, and if it stays stuck out of sight, start over elsewhere
 	var moved := absf(pos.x + pos.z * 1.37 - before)
@@ -579,10 +600,61 @@ func _peek_begin_out() -> void:
 
 # ================================================================= frame
 func _physics_process(delta: float) -> void:
-	if not Game.playing or Game.dead:
+	var online := Net.is_online()
+	puppet = online and not Net.hosting
+	if not online and (not Game.playing or Game.dead):
 		return
-	update_peer(delta)
-	update_peek(delta)
+	if puppet:
+		_puppet_step(delta)
+	else:
+		update_peer(delta)
+		if online:
+			_net_send(delta)
+	if Game.playing and not Game.dead:
+		update_peek(delta)
+
+# ================================================================= co-op
+func _net_send(delta: float) -> void:
+	_net_t -= delta
+	if _net_t > 0.0:
+		return
+	_net_t = 0.05
+	var p := body.global_position
+	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode))])
+
+func net_apply(t: float, m: Array) -> void:
+	net_buf.send_interval = 0.05
+	net_buf.push(t, {"pos": Vector3(m[0], m[1], m[2]), "yaw": float(m[3]), "speed": float(m[4]), "m": m})
+
+# Guest: the host's Mimic, drawn smoothly, with its own footfalls and the heartbeat for THIS player
+func _puppet_step(delta: float) -> void:
+	var st: Dictionary = net_buf.sample(delta)
+	if st.is_empty():
+		return
+	var m: Array = st.m
+	spawned = m[5]
+	body.visible = spawned
+	if not spawned:
+		return
+	mode = MODES[clampi(int(m[6]), 0, MODES.size() - 1)]
+	speed = st.speed
+	body.global_position = st.pos
+	body_yaw = st.yaw
+	body.rotation.y = body_yaw
+	var pos := body.global_position
+	var lp := player.global_position
+	var ldist := Vector2(lp.x - pos.x, lp.z - pos.z).length()
+	if Game.heart != null and Game.playing and not player.dead:
+		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
+		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
+	footsteps(delta, ldist)
+	if anim and anim.has_animation("run"):
+		if speed > 0.6:
+			if not anim.is_playing():
+				anim.play("run")
+			anim.speed_scale = clampf(speed / 4.0, 0.4, 1.6)
+		elif anim.is_playing():
+			anim.pause()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):

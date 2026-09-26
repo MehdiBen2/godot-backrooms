@@ -70,6 +70,20 @@ var last_step_sound := 0.0
 var flank_sign := 1.0
 var flow := PackedInt32Array()
 
+# ---- co-op: the host rolls the room (one seed) and runs the real one, hunting the nearest survivor and only
+# moving while NOBODY is looking at it. Everyone else builds the same room from the seed and follows the real
+# one from snapshots; each machine still plays its own whispers, shuffling decoys and neck snap.
+var seed_value := 0
+var puppet := false
+var net_buf = preload("res://scripts/net/snap_buffer.gd").new()
+var net_step_idx := -1
+var t_id := -1
+var t_pos := Vector3.ZERO
+var t_fwd := Vector3.FORWARD
+var _net_t := 0.0
+var _view_t := 0.0
+var _snap_cd := {}
+
 # snap sequence
 var snap_active := false
 var snap_t := 0.0
@@ -374,6 +388,17 @@ func in_room(p: Vector3) -> bool:
 func reset() -> void:
 	if not ready_ok:
 		return
+	# every survivor must stand in the same room: the host (or single player) rolls a seed, guests use the host's
+	if Net.is_online() and not Net.hosting:
+		if Net.mq_level != Game.level_index:
+			return                                  # the host's seed hasn't arrived yet: net_seed() will call us again
+		seed_value = Net.mq_seed
+	else:
+		seed_value = rng.randi()
+		Net.send_mq_seed(seed_value)
+	rng.seed = seed_value
+	_snap_cd.clear()
+	net_step_idx = -1
 	for c in get_children():
 		c.queue_free()
 	killed = false
@@ -402,6 +427,7 @@ func reset() -> void:
 	_build_crowd()
 	_pick_watchers()
 	_build_real(r)
+	rng.randomize()                 # the room is dealt: from here on it behaves differently every run
 
 func _build_crowd() -> void:
 	var count := decoys.size()
@@ -480,7 +506,7 @@ func _start_hunt() -> void:
 # ================================================================= being watched
 # Any part of it inside your view, with nothing solid in between
 func seen(pos: Vector3) -> bool:
-	if player.dead or player.frozen:
+	if player.dead or player.frozen or not Game.playing:
 		return false
 	var cam: Camera3D = player.cam
 	var d := Vector2(pos.x - cam.global_position.x, pos.z - cam.global_position.z).length()
@@ -533,16 +559,16 @@ func _player_forward() -> Vector3:
 
 # Is `at` behind the player (outside a wide rear arc)?
 func _is_behind(at: Vector3) -> bool:
-	var to := Vector3(at.x - player.global_position.x, 0.0, at.z - player.global_position.z)
+	var to := Vector3(at.x - t_pos.x, 0.0, at.z - t_pos.z)
 	if to.length() < 0.001:
 		return true
-	return to.normalized().dot(_player_forward()) < -0.5     # well behind you (over ~120 deg round), never at your side
+	return to.normalized().dot(t_fwd) < -0.5     # well behind you (over ~120 deg round), never at your side
 
 func begin_step(tgt: Vector3) -> void:
 	# It doesn't come at you from the side: closing in, it aims for the spot right behind you
 	var d_to := Vector2(tgt.x - real_node.position.x, tgt.z - real_node.position.z).length()
 	var behind_k := clampf(1.0 - (d_to - 3.0) / 5.0, 0.0, 1.0)
-	tgt = tgt - _player_forward() * 1.0 * behind_k
+	tgt = tgt - t_fwd * 1.0 * behind_k
 	var pos := real_node.position
 	var target := step_target(pos, tgt)
 	var to_x := tgt.x - pos.x
@@ -592,9 +618,13 @@ func smooth(x: float) -> float:
 
 func update_real(delta: float) -> void:
 	moving = false
-	if player.dead:
-		return
-	var tgt := player.global_position
+	var tg := Net.nearest_survivor(real_node.position, t_id)
+	if tg.is_empty():
+		return                                       # nobody alive and in the game
+	t_id = tg.id
+	t_pos = tg.pos
+	t_fwd = tg.fwd
+	var tgt: Vector3 = tg.pos
 	var pos := real_node.position
 	if not awake:
 		if Vector2(tgt.x - pos.x, tgt.z - pos.z).length() < WAKE_DISTANCE or in_room(tgt):
@@ -602,7 +632,7 @@ func update_real(delta: float) -> void:
 		else:
 			return
 	# watched by anyone: it holds its pose, silent, exactly where it is
-	if seen(pos):
+	if seen(pos) or Net.mq_seen_by_peers():
 		return
 	if rest_left > 0.0:
 		rest_left -= delta
@@ -671,10 +701,18 @@ func update_real(delta: float) -> void:
 		begin_step(tgt)
 	# it reaches you while you weren't looking
 	var reach := Vector2(tgt.x - np.x, tgt.z - np.z).length()
-	# not while the bacteria has you (frozen): two death sequences would fight over the camera
-	if reach < KILL_DISTANCE and _is_behind(np) and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not killed:
-		killed = true
-		start_snap()
+	if reach < KILL_DISTANCE and _is_behind(np):
+		if tg.local:
+			# not while the bacteria has you (frozen): two death sequences would fight over the camera
+			if not player.frozen and player.spawn_grace <= 0.0 and not killed:
+				killed = true
+				start_snap()
+		else:
+			# a remote survivor: their own machine plays the snap (with a cooldown so it isn't sent every frame)
+			var t_now := Time.get_ticks_msec() / 1000.0
+			if t_now > _snap_cd.get(tg.id, 0.0):
+				_snap_cd[tg.id] = t_now + 25.0
+				Net.send_mq_kill(tg.id)
 
 # The entity is terrified of it while it hunts
 func threat():
@@ -683,15 +721,94 @@ func threat():
 	return real_node.position
 
 func _physics_process(delta: float) -> void:
-	if not ready_ok or real_node == null or not Game.playing:
+	var online := Net.is_online()
+	puppet = online and not Net.hosting
+	if not ready_ok or real_node == null:
+		return
+	# in co-op it keeps hunting the others even while this player has the menu open
+	if not Game.playing and not online:
 		return
 	if snap_active:
 		update_snap(delta)
 		return
-	update_real(delta)
-	_update_whisper(delta)
-	_update_presence(delta)
-	_update_watchers(delta)
+	if puppet:
+		_puppet_step(delta)
+		_view_t -= delta
+		if _view_t <= 0.0:
+			_view_t = 0.1
+			Net.send_mq_view(Game.playing and not player.dead and seen(real_node.position))
+	else:
+		update_real(delta)
+		if online:
+			_net_send(delta)
+	if Game.playing:
+		_update_whisper(delta)
+		_update_presence(delta)
+		_update_watchers(delta)
+
+# ================================================================= co-op
+func _net_send(delta: float) -> void:
+	_net_t -= delta
+	if _net_t > 0.0:
+		return
+	_net_t = 0.05
+	var pose: Array = []
+	for k in POSE_KEYS:
+		pose.append(float(real_pose.get(k, 0.0)))
+	Net.send_mq([real_node.position.x, real_node.position.z, real_yaw, int(hunt.get("step_idx", 0)), awake, moving, pose])
+
+func net_apply(t: float, m: Array) -> void:
+	net_buf.send_interval = 0.05
+	net_buf.push(t, {"pos": Vector3(m[0], 0.0, m[1]), "yaw": float(m[2]), "m": m})
+
+# The host's seed arrived after our room was built (or before we had one): build it now
+func net_seed(_seed_v: int) -> void:
+	if real_node == null or seed_value != Net.mq_seed:
+		reset()
+
+# Guest: put the real one where the host has it, in the pose it holds, and play its footfalls
+func _puppet_step(_delta: float) -> void:
+	var st: Dictionary = net_buf.sample(_delta)
+	if st.is_empty():
+		return
+	var m: Array = st.m
+	real_node.position = st.pos
+	real_yaw = st.yaw
+	real_node.rotation.y = real_yaw
+	var pose := {}
+	var vals: Array = m[6]
+	for i in POSE_KEYS.size():
+		pose[POSE_KEYS[i]] = vals[i]
+	real_pose = pose
+	_apply_pose(real_pose)
+	awake = m[4]
+	moving = m[5]
+	var idx := int(m[3])
+	if idx != net_step_idx:
+		if net_step_idx >= 0 and moving:
+			_puppet_footfall(st.pos, idx)
+		net_step_idx = idx
+
+func _puppet_footfall(np: Vector3, idx: int) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var dd := Vector2(player.global_position.x - np.x, player.global_position.z - np.z).length()
+	if now - last_step_sound <= 0.22 or dd >= 28.0:
+		return
+	last_step_sound = now
+	var close := maxf(0.0, 1.0 - dd / 28.0)
+	var is_left := idx % 2 == 1
+	var side_dir := real_node.global_transform.basis.x.normalized()
+	var fwd_dir := -real_node.global_transform.basis.z.normalized()
+	var foot_pos: Vector3 = np + side_dir * ((1.0 if is_left else -1.0) * 0.17) + fwd_dir * 0.28
+	foot_pos.y = 0.05
+	scares.mannequin_step(foot_pos, (0.45 + close * 0.95) * LOUDNESS, is_left, real_node)
+
+# The host says the real one has reached this survivor: play the neck snap here
+func net_snap() -> void:
+	if killed or snap_active or real_node == null or player.dead or player.frozen:
+		return
+	killed = true
+	start_snap()
 
 # ------------------------------------------------------------ presence
 # Being near the real one is felt before it is seen: a heartbeat that quickens as it closes in, and

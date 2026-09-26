@@ -1,12 +1,15 @@
 extends Control
-## Title screen + level loading. A slow-drifting still of the level (textures/menu_bg.png, rendered by
-## tools/capture_menu_bg.gd) behind the same VCR / found-footage styling as the in-game start screen.
+## Title screen + level loading. Slow-drifting stills of the level (textures/menu/bg_N.png, rendered by
+## tools/capture_menu_bg.gd) that crossfade into each other behind the same VCR / found-footage styling as the in-game start screen.
 ## PLAY fades to a loading screen, streams scenes/main.tscn on a thread, then drops straight into the run.
 
 const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
 const RED := Color("c4271f")
-const BG_PATH := "res://textures/menu_bg.png"
+const BG_PATH := "res://textures/menu/bg_%d.png"
+const BG_HOLD := 7.0                    # seconds each still stays up
+const BG_FADE := 1.8                    # crossfade
+const MUSIC_DB := -24.0                 # quiet bed, not a soundtrack
 const MAIN_SCENE := "res://scenes/main.tscn"
 const MIN_LOAD := 2.6                   # never flash the loading screen; also lets the bar read
 const TIPS := [
@@ -20,7 +23,13 @@ const TIPS := [
 ]
 
 var font: FontFile = load("res://fonts/vcr.ttf")
-var bg: TextureRect
+var bg_root: Control
+var bg_a: TextureRect
+var bg_b: TextureRect
+var bg_tex: Array[Texture2D] = []
+var bg_i := 0
+var bg_timer := 0.0
+var bg_fading := false
 var title_label: Label
 var fringes: Array
 var glitch_left := 0.0
@@ -93,21 +102,26 @@ func _build() -> void:
 	add_child(back)
 	_full(back)
 
-	# The still, slightly oversized so the slow drift never shows an edge
-	bg = TextureRect.new()
-	if ResourceLoader.exists(BG_PATH):
-		bg.texture = load(BG_PATH)
-	else:
-		bg.texture = _gradient(PackedColorArray([Color(0.16, 0.13, 0.06), Color(0.05, 0.04, 0.02)]), PackedFloat32Array([0.0, 1.0]), true)
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	add_child(bg)
-	_full(bg)
-	bg.pivot_offset = Vector2(960, 540)
-	bg.scale = Vector2(1.08, 1.08)
+	# The stills, slightly oversized so the slow drift never shows an edge; two layers crossfade
+	var i := 0
+	while ResourceLoader.exists(BG_PATH % i):
+		bg_tex.append(load(BG_PATH % i))
+		i += 1
+	if bg_tex.is_empty():
+		bg_tex.append(_gradient(PackedColorArray([Color(0.16, 0.13, 0.06), Color(0.05, 0.04, 0.02)]), PackedFloat32Array([0.0, 1.0]), true))
+	bg_root = Control.new()
+	add_child(bg_root)
+	_full(bg_root)
+	bg_root.pivot_offset = Vector2(960, 540)
+	bg_root.scale = Vector2(1.08, 1.08)
+	bg_a = _bg_layer(bg_tex[0])
+	bg_b = _bg_layer(bg_tex[0])
+	bg_b.modulate.a = 0.0
+	bg_i = randi() % bg_tex.size()          # start on a different frame each launch
+	bg_a.texture = bg_tex[bg_i]
 	var drift := create_tween().set_loops()
-	drift.tween_property(bg, "position", Vector2(-26, -12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	drift.tween_property(bg, "position", Vector2(26, 12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	drift.tween_property(bg_root, "position", Vector2(-26, -12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	drift.tween_property(bg_root, "position", Vector2(26, 12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 	# Left-to-right veil so the text stays readable, then a vignette
 	var veil := TextureRect.new()
@@ -120,14 +134,6 @@ func _build() -> void:
 	vig.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(vig)
 	_full(vig)
-
-	# Camcorder grain + scanlines
-	var fx := ColorRect.new()
-	var mat := ShaderMaterial.new()
-	mat.shader = _fx_shader()
-	fx.material = mat
-	add_child(fx)
-	_full(fx)
 
 	# Text column
 	var margin := MarginContainer.new()
@@ -170,11 +176,41 @@ func _build() -> void:
 	col.add_child(sp3)
 	col.add_child(_label("BUILD 0.1 // TAPE 04", 11, Color(0.9, 0.882, 0.804, 0.3), 3))
 
+	# Camcorder lens over everything (text included): fisheye, chroma fringe, tape tear, grain
+	var fx := ColorRect.new()
+	var mat := ShaderMaterial.new()
+	mat.shader = _fx_shader()
+	fx.material = mat
+	add_child(fx)
+	_full(fx)
+
 	click = AudioStreamPlayer.new()
 	click.stream = load("res://audio/ui_click.wav")
 	click.volume_db = -6.0
 	add_child(click)
 	_build_loading()
+
+func _bg_layer(tex: Texture2D) -> TextureRect:
+	var r := TextureRect.new()
+	r.texture = tex
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	bg_root.add_child(r)
+	_full(r)
+	return r
+
+func _next_bg() -> void:
+	bg_fading = true
+	var nxt := (bg_i + 1) % bg_tex.size()
+	bg_b.texture = bg_tex[nxt]
+	var tw := create_tween()
+	tw.tween_property(bg_b, "modulate:a", 1.0, BG_FADE).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func():
+		bg_a.texture = bg_tex[nxt]
+		bg_b.modulate.a = 0.0
+		bg_i = nxt
+		bg_timer = 0.0
+		bg_fading = false)
 
 func _menu_button(text: String) -> Button:
 	var b := Button.new()
@@ -245,13 +281,48 @@ func _fx_shader() -> Shader:
 	var s := Shader.new()
 	s.code = """
 shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
+uniform float fisheye = 0.24;       // how much the edges bend in
+uniform float fringe = 0.006;       // red/blue split at the edges
+
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+
 void fragment() {
-	vec2 uv = FRAGCOORD.xy;
-	float grain = h(uv + floor(TIME * 24.0) * 17.3) - 0.5;
-	float line = 0.5 + 0.5 * sin(uv.y * 1.6);
-	float roll = smoothstep(0.0, 0.05, abs(fract(UV.y - TIME * 0.05) - 0.5) - 0.44);
-	COLOR = vec4(vec3(0.9, 0.88, 0.8) * max(grain, 0.0), 0.07) + vec4(0.0, 0.0, 0.0, (1.0 - line) * 0.10 + (1.0 - roll) * 0.02);
+	vec2 c = UV - 0.5;
+	float r2 = dot(c, c);
+	float tt = floor(TIME * 12.0);
+
+	// slow tape wobble + an occasional horizontal tear that rolls down the frame
+	float wobble = sin(TIME * 0.9 + UV.y * 5.0) * 0.0006;
+	float band = fract(TIME * 0.11);
+	float tear_on = step(0.86, h(vec2(floor(TIME * 0.7), 3.0)));
+	float tear = smoothstep(0.045, 0.0, abs(UV.y - band)) * tear_on;
+	float jitter = (h(vec2(tt, floor(UV.y * 90.0))) - 0.5) * 0.02 * tear + wobble;
+
+	// barrel / fish-eye: centre magnified a little, edges squeezed
+	vec2 uv = 0.5 + c * (0.9 + fisheye * r2 * 2.0);
+	uv.x += jitter;
+
+	// chromatic aberration grows toward the rim, along the radial direction
+	vec2 dir = c * r2 * fringe * 14.0;
+	float rr = texture(screen_tex, uv + dir).r;
+	float gg = texture(screen_tex, uv).g;
+	float bb = texture(screen_tex, uv - dir).b;
+	vec3 col = vec3(rr, gg, bb);
+
+	// tape: luma noise, fine scanlines, slow brightness roll, warm lift
+	float grain = h(FRAGCOORD.xy + tt * 17.3) - 0.5;
+	float lines = 0.5 + 0.5 * sin(FRAGCOORD.y * 3.14159);
+	float roll = 1.0 - 0.05 * smoothstep(0.0, 0.5, abs(fract(UV.y * 0.6 - TIME * 0.06) - 0.5));
+	col += grain * 0.07;
+	col *= (0.94 + 0.06 * lines) * roll;
+	col += vec3(0.9, 0.85, 0.7) * 0.10 * tear;
+
+	// lens vignette, darker than the image so the rim falls away
+	col *= 1.0 - smoothstep(0.18, 0.62, r2) * 0.75;
+	// the fisheye samples past the frame at the corners: fade to black there
+	float inside = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0);
+	COLOR = vec4(col * inside, 1.0);
 }
 """
 	return s
@@ -259,15 +330,21 @@ void fragment() {
 func _start_music() -> void:
 	if not ResourceLoader.exists("res://audio/ambient1.mp3"):
 		return
+	# Coming back from a run leaves the game's Master bus effects (compressor, low-pass, death muffle)
+	# behind. The menu music is played clean, so strip them.
+	while AudioServer.get_bus_effect_count(0) > 0:
+		AudioServer.remove_bus_effect(0, 0)
+	AudioServer.set_bus_volume_linear(0, 1.0)
 	var stream: AudioStream = load("res://audio/ambient1.mp3")
 	if stream is AudioStreamMP3:
 		stream.loop = true
 	music = AudioStreamPlayer.new()
 	music.stream = stream
+	music.bus = "Master"
 	music.volume_db = -60.0
 	add_child(music)
 	music.play()
-	create_tween().tween_property(music, "volume_db", -16.0, 3.0)
+	create_tween().tween_property(music, "volume_db", MUSIC_DB, 4.0)
 
 func _click() -> void:
 	click.pitch_scale = randf_range(0.96, 1.04)
@@ -303,6 +380,9 @@ func _process(dt: float) -> void:
 		_process_loading(dt)
 	else:
 		_update_glitch(dt)
+		bg_timer += dt
+		if bg_timer >= BG_HOLD and not bg_fading and bg_tex.size() > 1:
+			_next_bg()
 
 func _process_loading(dt: float) -> void:
 	load_t += dt
