@@ -158,9 +158,13 @@ func _ready() -> void:
 	else:
 		# The flashlight is mounted on this same body, so up close it clips through its own
 		# shadow-only geometry (worst when looking down or mid-sprint). Only the ceiling tubes,
-		# far enough away not to self-intersect, are left to light/shadow it.
+		# far enough away not to self-intersect, are left to light/shadow it. Both masks matter:
+		# light_cull_mask alone only stops the flashlight from lighting the body, shadow_caster_mask
+		# is the one that actually keeps it out of the flashlight's shadow map.
 		flash.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
+		flash.shadow_caster_mask &= ~PlayerShadow.SHADOW_LAYER
 		flash_spill.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
+		flash_spill.shadow_caster_mask &= ~PlayerShadow.SHADOW_LAYER
 	footsteps = Footsteps.new()
 	footsteps.name = "Footsteps"
 	add_child(footsteps)

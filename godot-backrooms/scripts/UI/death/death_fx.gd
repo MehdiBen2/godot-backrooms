@@ -12,51 +12,6 @@ extends Node
 
 const CELL := 4.5
 const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the warm-up blood in the frustum
-const BLOOD_SHADER := """
-shader_type spatial;
-render_mode blend_mix, depth_draw_never, cull_disabled, specular_schlick_ggx;
-uniform sampler2D tex : source_color, filter_linear_mipmap;
-uniform vec4 region = vec4(0.0, 0.0, 1.0, 1.0);
-uniform float alpha = 0.9;
-uniform float seed = 0.0;
-uniform bool drip = false;
-// Value-noise sampled around the circle (n equally-spaced control points, wrapped so ang = -PI and
-// +PI agree): an irregular, non-repeating blob edge. Plain sin(ang*k) harmonics tile perfectly and
-// draw a symmetric flower/gear outline - real blood splats have no such symmetry.
-float _h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
-float _ang_noise(float ang, float sd, float n) {
-	float a = (ang / 6.28318530718 + 0.5) * n;
-	float af = floor(a);
-	float f = a - af;
-	float i0 = mod(af, n);
-	float i1 = mod(i0 + 1.0, n);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(_h1(i0 * 13.7 + sd * 4.1), _h1(i1 * 13.7 + sd * 4.1), f);
-}
-void fragment() {
-	vec2 uv = region.xy + UV * region.zw;
-	vec3 c = texture(tex, uv).rgb;
-	float m = smoothstep(0.03, 0.09, c.r);
-	float mask;
-	if (drip) {
-		m = 1.0;
-			float w = 0.16 + 0.05 * sin(UV.y * 9.0 + seed);
-			float cx = 0.5 + 0.04 * sin(UV.y * 5.0 + seed * 2.0);
-			mask = smoothstep(w, w * 0.55, abs(UV.x - cx)) * smoothstep(0.9, 0.78, UV.y) * smoothstep(0.0, 0.03, UV.y);
-			c = vec3(0.22, 0.0, 0.0);
-	} else {
-		vec2 d = UV - vec2(0.5);
-		float a = atan(d.y, d.x);
-		float r = 0.28 + 0.18 * _ang_noise(a, seed, 6.0) + 0.08 * _ang_noise(a, seed + 51.0, 13.0);
-		mask = smoothstep(r, r - 0.06, length(d));
-	}
-	ALBEDO = vec3(0.065, 0.002, 0.004) + c * vec3(0.045, 0.0, 0.0);
-	ALPHA = m * mask * alpha;
-	ROUGHNESS = 0.1;
-	SPECULAR = 0.9;
-	METALLIC = 0.05;
-}
-"""
 
 # The flying blob: a sphere whose vertices bob around the surface so it wobbles like a loose mass of blood.
 const BLOB_SHADER := """
@@ -89,6 +44,7 @@ uniform float wet = 1.0;
 uniform float seed = 0.0;
 uniform vec3 splat_normal = vec3(0.0, 1.0, 0.0);
 uniform vec2 impact_dir = vec2(0.0);   // in the card's plane; its length is how hard it hit (0 = a pool)
+uniform vec2 link_to = vec2(0.0);      // a second pool centre (bp-space, 0,0 = none): bridged into one puddle
 varying vec3 wpos;
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -121,12 +77,14 @@ float fbm2(vec2 p) {
 	for (int i = 0; i < 3; i++) { s += a * vno(p); p = p * 2.17 + 13.0; a *= 0.5; }
 	return s;
 }
-// triplanar blend weighted by the surface normal, sampled at WORLD position: two splats on the same
-// wall share the pooling pattern instead of fighting over depth
+// triplanar blend weighted by the surface normal, sampled at WORLD position with NO per-decal offset:
+// every splat on the same surface reads the same mottling field, so where two overlap the pattern
+// keeps running instead of jump-cutting to a different noise at the boundary (which is what made
+// overlapping splats read as two stickers stacked on top of each other rather than one stain)
 float tri(vec3 p) {
 	vec3 w = abs(splat_normal);
 	w /= max(w.x + w.y + w.z, 0.001);
-	return fbm2(p.xy + seed) * w.z + fbm2(p.zy + seed * 1.7) * w.x + fbm2(p.xz - seed * 0.6) * w.y;
+	return fbm2(p.xy) * w.z + fbm2(p.zy) * w.x + fbm2(p.xz) * w.y;
 }
 float field(vec2 p) {
 	float hit = clamp(length(impact_dir), 0.0, 1.0);
@@ -145,6 +103,18 @@ float field(vec2 p) {
 		float a = hs(fi * 3.7) * 6.2832;
 		float d = sqrt(hs(fi * 5.3 + 1.0)) * 0.42;
 		f += ball(bp, vec2(cos(a), sin(a)) * d, 0.24 + 0.18 * hs(fi * 7.1 + 2.0));
+	}
+	// a second pool (e.g. the victim's, beside the kill) gets its own lobe cluster plus a stream
+	// bridging the two centres, so however far apart they are this is one continuous field - not
+	// two separately-shaded decals whose independent rims would show as a seam where they touch
+	if (dot(link_to, link_to) > 0.0001) {
+		for (int i = 0; i < 8; i++) {
+			float fi = float(i);
+			float a = hs(fi * 3.7 + 40.0) * 6.2832;
+			float d = sqrt(hs(fi * 5.3 + 41.0)) * 0.42;
+			f += ball(bp - link_to, vec2(cos(a), sin(a)) * d, 0.24 + 0.18 * hs(fi * 7.1 + 42.0));
+		}
+		f += seg(bp, vec2(0.0), link_to, 0.34, 0.3);
 	}
 	// fingers and droplets land on impact, before the pool has spread
 	float appear = smoothstep(0.0, 0.25, grow);
@@ -173,19 +143,26 @@ void fragment() {
 	if (m < 0.01) { discard; }
 	float thick = clamp((f - TH) / 0.9, 0.0, 1.0);
 	float lip = 1.0 - smoothstep(0.0, 0.35, thick);
-	// the rim of a puddle bulges up (surface tension): tilt the normal there so it catches the light
+	// the rim of a puddle bulges up (surface tension): tilt the normal there so it catches the light.
+	// Kept subtle - each splat computes this from only its own shape, so a strong bump here is what
+	// let one splat's rim show up as a ring drawn over a neighbour it happens to overlap.
 	float e = 0.01;
 	vec2 gr = vec2(field(p + vec2(e, 0.0)) - f, field(p + vec2(0.0, e)) - f) / e;
-	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.05 * lip, vec2(-0.7), vec2(0.7)), 1.0)) * 0.5 + 0.5;
+	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.018 * lip, vec2(-0.35), vec2(0.35)), 1.0)) * 0.5 + 0.5;
 	float n = tri(wpos * 3.0);   // world-aligned mottling: clotting, shared by overlapping splats
-	vec3 thin_col = vec3(0.19, 0.007, 0.009);
+	vec3 thin_col = vec3(0.15, 0.006, 0.007);
 	vec3 thick_col = vec3(0.1, 0.003, 0.005);
 	vec3 dried = vec3(0.04, 0.002, 0.003);
-	vec3 col = mix(thin_col, thick_col, smoothstep(0.0, 0.2, thick));
+	vec3 col = mix(thin_col, thick_col, smoothstep(0.0, 0.5, thick));
+	// dries at a flat rate across the whole body (not faster at the rim): that per-splat rim was
+	// another ring that showed through wherever splats overlapped
 	float dry = 1.0 - wet;
-	col = mix(col, dried, clamp(dry * (1.0 + lip), 0.0, 1.0));   // the rim dries dark first
+	col = mix(col, dried, dry);
 	ALBEDO = col * (0.85 + 0.3 * n);
-	ALPHA = m * mix(0.85, 0.97, smoothstep(0.0, 0.3, thick));
+	// fully opaque everywhere but the true silhouette edge (m already is that edge, antialiased by
+	// fwidth above): a partial alpha across the whole body was what let one splat's outline show
+	// through as a ghost ring wherever it overlapped another splat's opaque centre
+	ALPHA = m;
 	// wet blood is glossy; dried blood is matte (any leftover sheen reads as grey plastic)
 	ROUGHNESS = mix(0.9, mix(0.25, 0.08, thick), wet);
 	SPECULAR = mix(0.05, 0.6, wet);
@@ -193,9 +170,7 @@ void fragment() {
 }
 """
 
-var tex: Texture2D = null
 var floor_y := 0.0
-var _shader: Shader = null
 var _decals: Array = []
 var _grow: Array = []
 var _drops: Array = []
@@ -218,10 +193,6 @@ var contact_time := 0.85
 var _drop_mesh: SphereMesh = null
 var _drop_mat: StandardMaterial3D = null
 
-func _ready() -> void:
-	if ResourceLoader.exists("res://textures/blood/PsoSI8.png"):
-		tex = load("res://textures/blood/PsoSI8.png")
-
 # Where the blood and the body go: the running level (Game.main), which is also the current scene in a
 # normal run; the fallback keeps it working when something else is current (tools, tests)
 func _world() -> Node:
@@ -240,66 +211,6 @@ func _pit_at(x: float, z: float) -> bool:
 	if lvl == null:
 		return false
 	return lvl.pits.has(Vector2i(roundi(x / CELL), roundi(z / CELL)))
-
-func _material(drip: bool, alpha: float) -> ShaderMaterial:
-	if _shader == null:
-		_shader = Shader.new()
-		_shader.code = BLOOD_SHADER
-	var m := ShaderMaterial.new()
-	m.shader = _shader
-	m.render_priority = 2
-	m.set_shader_parameter("tex", tex)
-	m.set_shader_parameter("alpha", alpha)
-	m.set_shader_parameter("seed", randf() * 6.0)
-	m.set_shader_parameter("drip", drip)
-	if drip:
-		m.set_shader_parameter("region", Vector4(0.1 + (randi() % 4) * 0.2, 0.0, 0.2, 0.36))
-	else:
-		m.set_shader_parameter("region", Vector4(0.02 + randf() * 0.5, 0.62 + randf() * 0.12, 0.3, 0.27))
-	return m
-
-func pool(x: float, z: float, size: float, alpha := 0.9, stretch_dir := NAN, delay := 0.0) -> void:
-	if tex == null or _decals.size() > 70:
-		return
-	var mi := MeshInstance3D.new()
-	var q := QuadMesh.new()
-	q.size = Vector2(size, size)
-	mi.mesh = q
-	mi.material_override = _material(false, alpha)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_world().add_child(mi)
-	if _warm:
-		_keep_drawn(mi)
-	mi.rotation = Vector3(-PI / 2.0, 0.0, 0.0)
-	mi.rotate_y(randf() * TAU if is_nan(stretch_dir) else stretch_dir)
-	mi.global_position = Vector3(x, floor_y + 0.02 + _decals.size() * 0.0006, z)
-	mi.scale = Vector3(0.05, 0.05, 0.05)
-	mi.visible = delay <= 0.0
-	_decals.append(mi)
-	_grow.append({"m": mi, "t": -delay, "dur": 1.2 + size * 0.9, "sx": 1.0 if is_nan(stretch_dir) else 1.7, "run": false})
-
-func wall_streak(x: float, z: float, dx: float, dz: float, y: float) -> void:
-	if tex == null:
-		return
-	var d := 0.3
-	while d < 6.0:
-		if _wall_at(x + dx * d, z + dz * d):
-			var h := randf_range(1.1, 2.4)
-			var mi := MeshInstance3D.new()
-			var q := QuadMesh.new()
-			q.size = Vector2(h * 0.9, h)
-			q.center_offset = Vector3(0.0, -h / 2.0, 0.0)   # hangs from its top edge
-			mi.mesh = q
-			mi.material_override = _material(true, 0.92)
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			_world().add_child(mi)
-			mi.global_position = Vector3(x + dx * (d - 0.06), y + h * 0.4, z + dz * (d - 0.06))
-			mi.rotation.y = atan2(dx, dz) + PI   # faces back into the room
-			mi.scale = Vector3(1.0, 0.08, 1.0)
-			_decals.append(mi)
-			_grow.append({"m": mi, "t": -randf() * 0.4, "dur": randf_range(4.0, 7.0), "sx": 1.0, "run": true})
-			return
-		d += 0.25
 
 func drop(pos: Vector3, vel: Vector3, size: float) -> void:
 	if _drop_mesh == null:
@@ -409,7 +320,7 @@ func _physics_process(delta: float) -> void:
 ## Lay a decal flat on a surface, oriented by its normal: a mesh card with the decal shader on it
 ## (not a Decal node — full control over the shader), centred exactly at the hit point and trimmed to
 ## the surface that is actually there: the card never hangs over a wall's top edge or corner into open air.
-func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null, impact := Vector3.ZERO) -> void:
+func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null, impact := Vector3.ZERO, link_world := Vector3.ZERO) -> void:
 	if _decals.size() > 90:
 		return
 	if _decal_shader == null:
@@ -444,6 +355,11 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	# a glancing, fast hit stretches the splat and throws fingers; a straight drop leaves a round pool
 	var along := Vector2(impact.dot(t), -impact.dot(b))
 	m.set_shader_parameter("impact_dir", along.normalized() * clampf(along.length() / 5.0, 0.0, 1.0) if along.length() > 0.01 else Vector2.ZERO)
+	if link_world != Vector3.ZERO:
+		var rel := link_world - point
+		var half_w := size * sx * 0.5
+		var half_h := size * sy * 0.5
+		m.set_shader_parameter("link_to", Vector2(rel.dot(t) / half_w, -rel.dot(b) / half_h))
 	var mi := MeshInstance3D.new()
 	var q := QuadMesh.new()               # a single flush card: a box's back face and side banding show through
 	q.size = Vector2(size * sx, size * sy)
@@ -451,7 +367,11 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world().add_child(mi)
-	mi.transform = Transform3D(Basis(t, b, n), point + n * (0.012 + _decals.size() * 0.0004))
+	# a fixed nudge off the surface (not growing with decal count): render_priority already orders
+	# overlapping splats correctly, and a height that kept climbing with every decal ever laid made
+	# older splats visibly float above newer ones at a grazing view - another reason they read as
+	# stacked cards instead of stains on the same surface
+	mi.transform = Transform3D(Basis(t, b, n), point + n * 0.012)
 	if _warm:
 		_keep_drawn(mi)
 	_decals.append(mi)
@@ -506,9 +426,12 @@ func _splat_sound(size: float) -> void:
 ## splatters there as an expanding decal.
 func feast(head: Vector3, victim: Vector3) -> void:
 	floor_y = victim.y
-	# the pools under the kill and under you: laid straight on the floor, spreading as they land
-	surface_decal(Vector3(head.x, floor_y, head.z), Vector3.UP, randf_range(2.8, 3.6))
-	surface_decal(Vector3(victim.x, floor_y, victim.z), Vector3.UP, randf_range(2.4, 3.2), 0.3)
+	# the pool under the kill and the one under you: one linked decal, not two stacked ones - two
+	# separately-shaded pools touching would show a seam exactly where they meet
+	var hp := Vector3(head.x, floor_y, head.z)
+	var vp := Vector3(victim.x, floor_y, victim.z)
+	var span := Vector2(hp.x - vp.x, hp.z - vp.z).length()
+	surface_decal(hp, Vector3.UP, span * 2.1 + randf_range(2.6, 3.2), 0.0, null, Vector3.ZERO, vp)
 	# the spatter thrown out around the kill: each splat points away from it, fingers flung outward
 	for i in 14:
 		var a := randf() * TAU
@@ -635,14 +558,13 @@ func _hazmat_scene() -> PackedScene:
 ## is what makes it still render out of view, which is the only way its pipelines get built.
 func warm() -> void:
 	var cam := get_viewport().get_camera_3d()
-	if cam == null or tex == null:
+	if cam == null:
 		return
 	var pl = Game.player
 	var at := cam.global_position + cam.global_basis.z * 2.0          # behind the camera, not in front of it
 	floor_y = pl.global_position.y if pl != null and is_instance_valid(pl) else cam.global_position.y - 1.7
 	_warm = true
-	pool(at.x, at.z, 0.1, 0.02)
-	surface_decal(Vector3(at.x, floor_y, at.z), Vector3.UP, 0.06)   # the decal shader + its cube pipeline
+	surface_decal(Vector3(at.x, floor_y, at.z), Vector3.UP, 0.06)   # the decal shader + its pipeline
 	blob(Vector3(at.x, floor_y + 0.5, at.z), Vector3(0.1, 1.0, 0.0), 0.02)  # the wobbling blob shader + rigid body
 	_ensure_floor_collider(at)
 	_emit(Vector3(at.x, floor_y + 0.1, at.z), Vector3.UP, 6, 0.3, 0.5, 1.0, 20.0, 0.01, 0.015, Color(0.2, 0.0, 0.01), 0.1)

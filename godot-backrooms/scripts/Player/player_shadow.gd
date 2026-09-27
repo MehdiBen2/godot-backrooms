@@ -57,6 +57,9 @@ func build() -> bool:
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 		mi.layers = SHADOW_LAYER
+		# SDFGI voxelizes geometry regardless of any light's cull_mask, so without this the body
+		# still darkens the floor via GI occlusion even where the flashlight's direct shadow is excluded.
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	_play("idle")
 	return true
 

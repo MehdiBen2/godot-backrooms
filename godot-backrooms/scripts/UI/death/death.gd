@@ -125,8 +125,8 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	if bloody and killer != "THE BACTERIA" and killer != "THE MANNEQUIN":   # those two already sprayed at the bite / snap (bite())
 		_fx.feast(cam_start_global + fwd * 0.8, p_pos)
 	_fx.spawn_ragdoll(p_pos, p_yaw)
-	if killer == "THE BACTERIA":
-		_add_body_light(p_pos)
+	# Add a dim light above the dead body so the player can see their character
+	_add_body_light(p_pos)
 
 func _add_body_light(p_pos: Vector3) -> void:
 	_remove_body_light()

@@ -4,7 +4,7 @@ extends RefCounted
 ## relieved. Pre-rendered breath clips are picked by length / mouth / shake and played on "Body".
 ## `loudness` is read back by the hum, which ducks while you are breathing hard.
 
-const BREATH_VOLUME := 0.75          # AUDIO.breathVolume
+const BREATH_VOLUME := 0.25          # AUDIO.breathVolume (reduced from 0.75 for less intrusive breathing)
 const CALM_BREATH := 0.0             # AUDIO.calmBreathVolume
 const BREATH_DURS := [0.22, 0.34, 0.5, 0.7, 0.9, 1.3, 1.6]
 const BREATH_MOUTH := [0.0, 0.6, 1.0]
@@ -115,7 +115,10 @@ func update(dt: float) -> void:
 
 	var arousal := _arousal()
 	var active := e > 0.08 or arousal > 0.15
-	var loud := clamp01(smooth(0.08, 1.0, e) * 0.9 + arousal * 0.35) if active else CALM_BREATH
+	# Reduced multipliers: 0.9 -> 0.6 for exertion, 0.35 -> 0.2 for arousal
+	var loud := clamp01(smooth(0.08, 1.0, e) * 0.6 + arousal * 0.2) if active else CALM_BREATH
+	# Cap the loudness to prevent breathing from getting too loud during high exertion/panic
+	loud = minf(loud, 0.5)
 	if b_holding: loud = 0.0
 	loudness = loud
 	_schedule(loud)

@@ -81,7 +81,7 @@ func _outdoor_step(sprinting: bool, crouching: bool, intensity: float) -> void:
 	while idx == last_idx and list.size() > 1:
 		idx = randi() % list.size()
 	last_idx = idx
-	var mult := 0.4 if crouching else (1.45 if sprinting else 1.0)
+	var mult := 0.15 if crouching else (0.6 if sprinting else 0.4)
 	scuff.stream = list[idx][0]
 	scuff.volume_linear = OUTDOOR_LEVEL[surface] * list[idx][1] * mult * randf_range(0.85, 1.1) * intensity
 	scuff.pitch_scale = (0.94 if crouching else 1.0) * randf_range(0.94, 1.06) * (1.06 if sprinting else 1.0)
@@ -109,7 +109,7 @@ func step(sprinting: bool, crouching: bool, intensity: float) -> void:
 	while idx == last_idx and list.size() > 1:
 		idx = randi() % list.size()
 	last_idx = idx
-	var level := 0.05 if crouching else (0.2 if sprinting else 0.14)
+	var level := 0.015 if crouching else (0.08 if sprinting else 0.05)
 	scuff.stream = list[idx]
 	scuff.volume_linear = level * randf_range(0.85, 1.1) * intensity * (0.55 if on_tile else 1.0)
 	scuff.pitch_scale = (0.92 if crouching else 1.0) * randf_range(0.96, 1.04) * (1.1 if on_tile else 1.0)
