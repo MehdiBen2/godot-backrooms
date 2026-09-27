@@ -4,6 +4,10 @@ extends Node3D
 const SIZE := 640.0
 const RES := 320
 const CHUNK := 80.0                         # terrain chunk edge: one mesh per chunk, so the ones outside the view are culled
+const LOD_STEP := 4                         # far chunks keep every 4th grid line: 16x fewer triangles
+const LOD_NEAR := 180.0                     # metres from a chunk's centre where it swaps to the coarse mesh
+const OCC_STEP := 8                         # occluder grid spacing, in terrain cells
+const HOUSE_CELL := 160.0                   # houses are batched per patch this size, so a patch off-screen is culled
 const HOUSE_COUNT := 30
 const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
 const START_HOUR := 11.0
@@ -15,7 +19,7 @@ var sites: Array[Vector3] = []               # x, terrain height, z of each hous
 var yaws: Array[float] = []
 var spawn_xz := Vector2.ZERO
 var terrain_mat: ShaderMaterial
-var _batches := {}                            # material -> {st: SurfaceTool, n: int, shadow: bool}, while houses are built
+var _batches := {}                            # "material/cell" -> {st: SurfaceTool, n: int, shadow: bool, mat}, while houses are built
 var env: Environment
 var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
@@ -127,13 +131,18 @@ func _build_environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.1
+	# Gfx.apply_scene() would otherwise switch on the preset's SSAO / SSIL / SSR / volumetric fog here
+	# (on any settings change made while in the hills): all tuned for small rooms, not a 1 km view
+	env.set_meta("gfx_keep", true)
 	if standalone:
 		var we := WorldEnvironment.new()
 		we.environment = env
 		add_child(we)
 
 	sun = DirectionalLight3D.new()
-	sun.light_angular_distance = 0.6
+	# 0 keeps the sun on plain filtered shadows: any angular distance switches on PCSS, a blocker
+	# search per pixel per split over the whole screen, the priciest pass here at High / Ultra
+	sun.light_angular_distance = 0.0
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 150.0    # tighter range = sharper shadow map, fewer terraced bands on the hills
@@ -263,9 +272,8 @@ func _build_terrain() -> void:
 			norms[j * n + i] = Vector3(hl - hr, 2.0 * cell, hd - hu).normalized()
 			cols[j * n + i] = Color(road_mask(x, z), 0, 0)
 	_build_terrain_material()
-	# Chunked: one sheet mesh of 640 m can never be culled, so every triangle goes down every frame
-	# whether you are looking at it or not. Each chunk keeps world-space vertices and sits at the
-	# origin, so its bounds come straight from its own triangles.
+	# Chunked, so Godot skips a chunk that is off-screen (frustum culling) or behind a hill (the
+	# occluder below), and each chunk swaps to a coarse copy with distance (visibility-range LOD).
 	var chunks := int(SIZE / CHUNK)
 	var per := RES / chunks                       # grid cells per chunk edge
 	var body := StaticBody3D.new()
@@ -273,6 +281,7 @@ func _build_terrain() -> void:
 	for cj in chunks:
 		for ci in chunks:
 			_terrain_chunk(verts, norms, cols, n, ci * per, cj * per, per, body)
+	_build_terrain_occluder(hs, n, cell, half)
 
 func _build_terrain_material() -> void:
 	terrain_mat = ShaderMaterial.new()
@@ -285,11 +294,39 @@ func _build_terrain_material() -> void:
 		terrain_mat.set_shader_parameter(slot + "_rough", load(tex % [folder, folder, "Roughness"]))
 		terrain_mat.set_shader_parameter(slot + "_ao", load(tex % [folder, folder, "AmbientOcclusion"]))
 
-## One terrain chunk: its own mesh, its own trimesh (the same triangles as before chunking, so
-## walking is unchanged) and its own collision node, so off-screen chunks cost nothing.
+## One terrain chunk: a full-detail mesh (also its collision, so walking is unchanged) and a coarse
+## one for past LOD_NEAR. The detail mesh names the coarse one as its visibility parent (Godot's HLOD
+## setup), so exactly one of the two is drawn and the swap hinges on a single distance: no gaps, no
+## overlap. Each sits at its chunk's centre, so that distance is measured from the right place.
 func _terrain_chunk(v: PackedVector3Array, nr: PackedVector3Array, co: PackedColorArray, n: int,
 		i0: int, j0: int, per: int, body: StaticBody3D) -> void:
-	var side := per + 1
+	var mid := v[(j0 + per / 2) * n + i0 + per / 2]
+	var origin := Vector3(mid.x, 0.0, mid.z)
+	var coarse := _chunk_instance(_grid_mesh(v, nr, co, n, i0, j0, per, LOD_STEP, origin, 4.0), origin)
+	coarse.visibility_range_begin = LOD_NEAR
+	coarse.visibility_range_begin_margin = 8.0     # hysteresis: no flicker when standing on the line
+	var detail_mesh := _grid_mesh(v, nr, co, n, i0, j0, per, 1, origin, 0.0)
+	var detail := _chunk_instance(detail_mesh, origin)
+	detail.visibility_parent = detail.get_path_to(coarse)
+	var cs := CollisionShape3D.new()
+	cs.shape = detail_mesh.create_trimesh_shape()
+	cs.position = origin
+	body.add_child(cs)
+
+func _chunk_instance(mesh: ArrayMesh, origin: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.position = origin
+	add_child(mi)
+	return mi
+
+## A per x per cell patch of the grid, sampled every `step` cells, local to `origin`. `skirt` > 0 hangs
+## a wall that deep from the border: a coarse patch's edge only matches every `step`-th vertex of a
+## detailed neighbour, and the skirt covers the thin cracks that leaves.
+func _grid_mesh(v: PackedVector3Array, nr: PackedVector3Array, co: PackedColorArray, n: int,
+		i0: int, j0: int, per: int, step: int, origin: Vector3, skirt: float) -> ArrayMesh:
+	var cells := per / step
+	var side := cells + 1
 	var lv := PackedVector3Array()
 	var ln := PackedVector3Array()
 	var lc := PackedColorArray()
@@ -298,26 +335,46 @@ func _terrain_chunk(v: PackedVector3Array, nr: PackedVector3Array, co: PackedCol
 	lc.resize(side * side)
 	for j in side:
 		for i in side:
-			var k := (j0 + j) * n + i0 + i
-			lv[j * side + i] = v[k]
+			var k := (j0 + j * step) * n + i0 + i * step
+			lv[j * side + i] = v[k] - origin
 			ln[j * side + i] = nr[k]
 			lc[j * side + i] = co[k]
 	var li := PackedInt32Array()
-	li.resize(per * per * 6)
+	li.resize(cells * cells * 6)
 	var k := 0
-	for j in per:
-		for i in per:
+	for j in cells:
+		for i in cells:
 			var a := j * side + i
-			var b := a + 1
-			var c := a + side
-			var d := c + 1
 			li[k] = a
-			li[k + 1] = b
-			li[k + 2] = c
-			li[k + 3] = b
-			li[k + 4] = d
-			li[k + 5] = c
+			li[k + 1] = a + 1
+			li[k + 2] = a + side
+			li[k + 3] = a + 1
+			li[k + 4] = a + side + 1
+			li[k + 5] = a + side
 			k += 6
+	if skirt > 0.0:
+		# the border, walked all the way round and closed: top row, right column, bottom row, left column
+		var ring: Array[int] = []
+		for i in side:
+			ring.append(i)
+		for j in range(1, side):
+			ring.append(j * side + cells)
+		for i in range(cells - 1, -1, -1):
+			ring.append(cells * side + i)
+		for j in range(cells - 1, -1, -1):
+			ring.append(j * side)
+		var base := lv.size()
+		for r in ring:
+			lv.append(lv[r] + Vector3.DOWN * skirt)
+			ln.append(ln[r])
+			lc.append(lc[r])
+		for s in ring.size() - 1:
+			var t0 := ring[s]
+			var t1 := ring[s + 1]
+			var b0 := base + s
+			var b1 := b0 + 1
+			# both windings: the skirt can be seen from either side
+			li.append_array(PackedInt32Array([t0, t1, b0, t1, b1, b0, t0, b0, t1, t1, b0, b1]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = lv
@@ -327,12 +384,42 @@ func _terrain_chunk(v: PackedVector3Array, nr: PackedVector3Array, co: PackedCol
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mesh.surface_set_material(0, terrain_mat)
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	add_child(mi)
-	var cs := CollisionShape3D.new()
-	cs.shape = mesh.create_trimesh_shape()
-	body.add_child(cs)
+	return mesh
+
+## Hills hide what is behind them: an occluder (a coarse copy of the ground) lets Godot skip every
+## chunk and house it covers. Each vertex takes the lowest ground within one occluder cell around it
+## and sits a bit under that, so the occluder never rises above the real surface and hides something
+## that is actually in view.
+func _build_terrain_occluder(hs: PackedFloat32Array, n: int, cell: float, half: float) -> void:
+	var cells := RES / OCC_STEP
+	var side := cells + 1
+	# min filter done as a row pass then a column pass
+	var rowmin := PackedFloat32Array()
+	rowmin.resize(n * side)
+	for j in n:
+		for c in side:
+			var low := INF
+			for i in range(maxi((c - 1) * OCC_STEP, 0), mini((c + 1) * OCC_STEP, n - 1) + 1):
+				low = minf(low, hs[j * n + i])
+			rowmin[j * side + c] = low
+	var verts := PackedVector3Array()
+	verts.resize(side * side)
+	for r in side:
+		for c in side:
+			var low := INF
+			for j in range(maxi((r - 1) * OCC_STEP, 0), mini((r + 1) * OCC_STEP, n - 1) + 1):
+				low = minf(low, rowmin[j * side + c])
+			verts[r * side + c] = Vector3(c * OCC_STEP * cell - half, low - 0.5, r * OCC_STEP * cell - half)
+	var idx := PackedInt32Array()
+	for r in cells:
+		for c in cells:
+			var a := r * side + c
+			idx.append_array(PackedInt32Array([a, a + 1, a + side, a + 1, a + side + 1, a + side]))
+	var occ := ArrayOccluder3D.new()
+	occ.set_arrays(verts, idx)
+	var oi := OccluderInstance3D.new()
+	oi.occluder = occ
+	add_child(oi)
 
 # ---- houses & castle ---------------------------------------------------------
 
@@ -347,15 +434,17 @@ func _box(sz: Vector3) -> BoxMesh:
 	b.size = sz
 	return b
 
-## House parts are folded into one batch per material instead of becoming a node each: 30 houses x
-## ~17 parts was ~500 draw calls for a few thousand triangles. `_commit_batches` makes it one node
-## per material, and dropping the trim and glass from the shadow pass saves most of what is left.
+## House parts are folded into one batch per material and per HOUSE_CELL patch of ground instead of
+## becoming a node each: 30 houses x ~17 parts was ~500 draw calls for a few thousand triangles. One
+## batch per material alone would span the whole map and never be culled; per patch, the houses
+## behind you or behind a hill are skipped. Trim and glass also stay out of the shadow pass.
 func _stash(mesh: Mesh, mat: Material, xform: Transform3D, shadow := true) -> void:
-	if not _batches.has(mat):
+	var key := "%d/%d/%d" % [mat.get_instance_id(), floori(xform.origin.x / HOUSE_CELL), floori(xform.origin.z / HOUSE_CELL)]
+	if not _batches.has(key):
 		var fresh := SurfaceTool.new()
 		fresh.begin(Mesh.PRIMITIVE_TRIANGLES)
-		_batches[mat] = {"st": fresh, "n": 0, "shadow": shadow}
-	var b: Dictionary = _batches[mat]
+		_batches[key] = {"st": fresh, "n": 0, "shadow": shadow, "mat": mat}
+	var b: Dictionary = _batches[key]
 	var st: SurfaceTool = b.st
 	for s in mesh.get_surface_count():
 		var arrays: Array = mesh.surface_get_arrays(s)
@@ -374,15 +463,15 @@ func _stash(mesh: Mesh, mat: Material, xform: Transform3D, shadow := true) -> vo
 			for i in idx.size():
 				st.add_index(base + idx[i])
 
-## Every batch collected since the last commit, as one node per material.
+## Every batch collected since the last commit, as one node per material per patch.
 func _commit_batches() -> void:
-	for mat in _batches:
-		var b: Dictionary = _batches[mat]
+	for key in _batches:
+		var b: Dictionary = _batches[key]
 		if int(b.n) == 0:
 			continue
 		var mi := MeshInstance3D.new()
 		mi.mesh = (b.st as SurfaceTool).commit()
-		mi.material_override = mat
+		mi.material_override = b.mat
 		if not b.shadow:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)

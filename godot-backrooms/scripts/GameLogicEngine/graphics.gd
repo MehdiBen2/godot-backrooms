@@ -133,11 +133,13 @@ func apply_scene(root: Node = null) -> void:
 	var we := root.get_node_or_null("WorldEnvironment") as WorldEnvironment
 	if we and we.environment:
 		var e := we.environment
-		e.ssao_enabled = s.ssao > 0 and not compat
-		e.ssil_enabled = s.ssil and not compat
-		e.ssr_enabled = s.ssr and not compat
 		e.glow_enabled = s.glow
-		e.volumetric_fog_enabled = s.vfog > 0 and not compat
+		# an environment tuned by hand (the hills: "gfx_keep") keeps its own AO / GI / reflections / fog
+		if not e.has_meta("gfx_keep"):
+			e.ssao_enabled = s.ssao > 0 and not compat
+			e.ssil_enabled = s.ssil and not compat
+			e.ssr_enabled = s.ssr and not compat
+			e.volumetric_fog_enabled = s.vfog > 0 and not compat
 	# only lights that cast shadows in the scene file / level builder are switched; the rest stay off.
 	# The tube-light pool manages its own (level_lighting.gd reads `lights` / `light_shadows`).
 	for l in root.find_children("*", "Light3D", true, false):

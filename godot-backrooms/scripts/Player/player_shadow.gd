@@ -10,6 +10,12 @@ const MODEL_HEIGHT := 2.0       # metres: visor level matches the 1.7 m standing
 const FADE := 0.22              # clip cross-fade, seconds
 const MOVING_ABOVE := 0.1       # m/s
 const SPRINT_ABOVE := 3.2
+## The flashlight rides the same camera this body stands under, so at close range (looking down,
+## a sprint pose swinging a limb into the beam) it clips through its own geometry and throws a
+## broken shadow right underfoot. Kept off this dedicated layer so only the far-away ceiling tubes
+## (which don't have that problem) light and shadow it; player.gd clears this bit from the
+## flashlight's cull_mask.
+const SHADOW_LAYER := 1 << 19
 
 var anim: AnimationPlayer
 var clips := {}
@@ -48,7 +54,9 @@ func build() -> bool:
 	root.transform = HazmatFit.fit(root, model, MODEL_HEIGHT)
 	model.rotation.y = PI
 	for m in root.find_children("*", "MeshInstance3D", true, false):
-		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		var mi := m as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		mi.layers = SHADOW_LAYER
 	_play("idle")
 	return true
 

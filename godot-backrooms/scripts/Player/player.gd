@@ -155,6 +155,12 @@ func _ready() -> void:
 	if not shadow_body.build():
 		shadow_body.queue_free()
 		shadow_body = null
+	else:
+		# The flashlight is mounted on this same body, so up close it clips through its own
+		# shadow-only geometry (worst when looking down or mid-sprint). Only the ceiling tubes,
+		# far enough away not to self-intersect, are left to light/shadow it.
+		flash.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
+		flash_spill.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
 	footsteps = Footsteps.new()
 	footsteps.name = "Footsteps"
 	add_child(footsteps)

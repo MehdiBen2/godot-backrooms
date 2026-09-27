@@ -1,15 +1,14 @@
 extends Node
 ## Blood in the level + the fallen survivor's body (js/game/grab.js bloodFeast/bloodStep, death.js ragdoll).
-## Child of the Death autoload. Droplets fly and fall, stains spread across the floor, streaks run
-## down nearby walls, and a hazmat survivor topples onto its back where you stood.
+## Child of the Death autoload. Droplets fly and fall, stains spread across the floor, and a hazmat
+## survivor topples onto its back where you stood.
 ##
 ## The splatter follows the "improved blood decals" approach (reddit r/godot 143g7cz): a blob of blood
 ## is a RigidBody3D carrying a wobbling-sphere MeshInstance3D and a RayCast3D; it is flung into a random
-## direction, arcs under gravity, and when its ray finds a wall / floor / ceiling the ray's normal is
-## used to lay a decal on that surface. The decal is a thin BoxMesh with a custom decal shader (not a
-## Decal node, so every parameter is ours): world-space triplanar noise makes the blood pool in patches
-## and keeps overlapping splats aligned (no z-fighting), a centre-fade mask plus a Tween `grow` parameter
-## spreads the splat outward, and the albedo fades from bright oxygenated red to a dark dried red.
+## direction, arcs under gravity, and when its ray finds the floor it lays a decal there (walls and the
+## ceiling take no blood for now). The decal is a flat card with a custom metaball shader (not a Decal
+## node, so every parameter is ours), shaped by how the blood hit, spread by a Tween `grow` parameter,
+## and fading from wet red to a dark dried red.
 
 const CELL := 4.5
 const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the warm-up blood in the frustum
@@ -77,8 +76,11 @@ void fragment() {
 }
 """
 
-# The splat decal laid on a surface: triplanar world-space noise (pooling, aligned across overlapping
-# splats), a centre-fade mask expanded by the Tween-driven `grow`, and `wet` fading bright red to dark.
+# The splat decal laid on a surface. Its shape is a metaball field, so it reads as liquid: a body of
+# overlapping lobes that merge smoothly (stretched along the impact), tapered fingers and satellite
+# droplets thrown forward, and a small domain warp so no edge is ever a clean curve. Thin blood at the
+# rim is brighter, the thick centre darker, the rim lifts into a light-catching lip, and as `wet` falls
+# the edge dries dark first. `grow` spreads the body the way a pool creeps outward.
 const DECAL_SHADER := """
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_disabled, specular_schlick_ggx;
@@ -86,24 +88,28 @@ uniform float grow = 1.0;
 uniform float wet = 1.0;
 uniform float seed = 0.0;
 uniform vec3 splat_normal = vec3(0.0, 1.0, 0.0);
-uniform float pool_scale = 2.6;
+uniform vec2 impact_dir = vec2(0.0);   // in the card's plane; its length is how hard it hit (0 = a pool)
 varying vec3 wpos;
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
+float hs(float n) { return fract(sin(n * 12.9898 + seed * 78.233) * 43758.5453); }
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-// Value-noise sampled around the circle (n equally-spaced control points, wrapped so the outline
-// closes seamlessly at ang = ±PI): an irregular, non-repeating blob edge instead of the symmetric
-// flower/gear shape that plain sin(ang*k) harmonics draw.
-float _h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
-float ang_noise(float ang, float sd, float n) {
-	float a = (ang / 6.28318530718 + 0.5) * n;
-	float af = floor(a);
-	float f = a - af;
-	float i0 = mod(af, n);
-	float i1 = mod(i0 + 1.0, n);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(_h1(i0 * 13.7 + sd * 4.1), _h1(i1 * 13.7 + sd * 4.1), f);
+// compact metaball kernel: 1 at the centre, 0 at radius r, smooth everywhere
+float ball(vec2 p, vec2 c, float r) {
+	vec2 q = p - c;
+	float x = clamp(1.0 - dot(q, q) / (r * r), 0.0, 1.0);
+	return x * x * x;
+}
+// the same kernel around a segment whose radius tapers from ra to rb: a finger of thrown blood
+float seg(vec2 p, vec2 a, vec2 b, float ra, float rb) {
+	vec2 pa = p - a;
+	vec2 ba = b - a;
+	float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-5), 0.0, 1.0);
+	float r = mix(ra, rb, h);
+	vec2 q = pa - ba * h;
+	float x = clamp(1.0 - dot(q, q) / (r * r), 0.0, 1.0);
+	return x * x * x;
 }
 float vno(vec2 p) {
 	vec2 i = floor(p), f = fract(p);
@@ -122,25 +128,68 @@ float tri(vec3 p) {
 	w /= max(w.x + w.y + w.z, 0.001);
 	return fbm2(p.xy + seed) * w.z + fbm2(p.zy + seed * 1.7) * w.x + fbm2(p.xz - seed * 0.6) * w.y;
 }
+float field(vec2 p) {
+	float hit = clamp(length(impact_dir), 0.0, 1.0);
+	vec2 dir = hit > 0.001 ? impact_dir / length(impact_dir) : vec2(1.0, 0.0);
+	vec2 side = vec2(-dir.y, dir.x);
+	// organic edge: a two-octave domain warp, so no outline is ever a clean circle
+	p += (vec2(vno(p * 3.0 + seed * 3.1), vno(p * 3.0 - seed * 1.7)) - 0.5) * 0.14;
+	p += (vec2(vno(p * 9.0 + seed * 5.3), vno(p * 9.0 - seed * 2.9)) - 0.5) * 0.04;
+	// local frame: x runs along the direction the blood was travelling
+	vec2 lp = vec2(dot(p, dir), dot(p, side));
+	vec2 bp = vec2(lp.x / (1.0 + 0.55 * hit), lp.y) / max(grow, 0.02);
+	float f = 0.0;
+	// the body: lobes clustered about the centre, merging into one pool
+	for (int i = 0; i < 8; i++) {
+		float fi = float(i);
+		float a = hs(fi * 3.7) * 6.2832;
+		float d = sqrt(hs(fi * 5.3 + 1.0)) * 0.42;
+		f += ball(bp, vec2(cos(a), sin(a)) * d, 0.24 + 0.18 * hs(fi * 7.1 + 2.0));
+	}
+	// fingers and droplets land on impact, before the pool has spread
+	float appear = smoothstep(0.0, 0.25, grow);
+	for (int i = 0; i < 5; i++) {
+		float fi = float(i);
+		float a = (hs(fi * 2.3 + 9.0) - 0.5) * 1.7;
+		vec2 fd = vec2(cos(a), sin(a));
+		float len = (0.3 + 0.45 * hs(fi * 4.1 + 3.0)) * appear;
+		f += hit * 0.9 * seg(lp, fd * 0.2, fd * (0.2 + len), 0.11, 0.03);
+	}
+	for (int i = 0; i < 9; i++) {
+		float fi = float(i);
+		if (hs(fi * 11.0 + 7.0) > mix(0.3, 1.0, hit)) { continue; }
+		float a = (hs(fi * 6.7 + 4.0) - 0.5) * mix(6.2832, 2.2, hit);
+		float d = 0.6 + 0.32 * hs(fi * 1.9 + 5.0);
+		f += appear * ball(lp, vec2(cos(a), sin(a)) * d, 0.04 + 0.05 * hs(fi * 8.3 + 6.0));
+	}
+	return f;
+}
 void fragment() {
-	vec2 d = UV - vec2(0.5);
-	float ang = atan(d.y, d.x);
-	float r = length(d) * 2.0;
-	float outline = 0.48 + 0.34 * ang_noise(ang, seed, 6.0) + 0.16 * ang_noise(ang, seed + 51.0, 13.0);
-	float pool = clamp(0.55 + 0.85 * tri(wpos * pool_scale), 0.25, 1.35);
-	float edge = max(0.004, outline * grow * pool);   // never a zero-width smoothstep (NaN flicker)
-	float m = smoothstep(edge, edge * 0.55, r);
-	// fine spatter flung slightly past the body of the splat (soft-thresholded so it never crawls)
-	float sp = (1.0 - smoothstep(0.70, 0.80, fbm2(wpos.xz * 6.0 + seed))) * smoothstep(edge * 1.45, edge, r);
-	m = max(m * (0.75 + 0.25 * pool), sp * 0.8);
-	if (m < 0.02) { discard; }
-	vec3 bright = vec3(0.36, 0.013, 0.016);  // oxygenated: just landed
-	vec3 dark = vec3(0.05, 0.002, 0.004);    // dried, near-black
-	ALBEDO = mix(dark, bright, wet) * (0.75 + 0.3 * pool);
-	ALPHA = m * 0.95;
-	ROUGHNESS = mix(0.5, 0.12, wet);
-	SPECULAR = mix(0.25, 0.95, wet);
-	METALLIC = 0.02;
+	vec2 p = (UV - 0.5) * 2.0;
+	const float TH = 0.3;
+	float f = field(p);
+	float aa = max(fwidth(f), 1e-4);
+	float m = smoothstep(TH - aa, TH + aa, f);
+	if (m < 0.01) { discard; }
+	float thick = clamp((f - TH) / 0.9, 0.0, 1.0);
+	float lip = 1.0 - smoothstep(0.0, 0.35, thick);
+	// the rim of a puddle bulges up (surface tension): tilt the normal there so it catches the light
+	float e = 0.01;
+	vec2 gr = vec2(field(p + vec2(e, 0.0)) - f, field(p + vec2(0.0, e)) - f) / e;
+	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.05 * lip, vec2(-0.7), vec2(0.7)), 1.0)) * 0.5 + 0.5;
+	float n = tri(wpos * 3.0);   // world-aligned mottling: clotting, shared by overlapping splats
+	vec3 thin_col = vec3(0.19, 0.007, 0.009);
+	vec3 thick_col = vec3(0.1, 0.003, 0.005);
+	vec3 dried = vec3(0.04, 0.002, 0.003);
+	vec3 col = mix(thin_col, thick_col, smoothstep(0.0, 0.2, thick));
+	float dry = 1.0 - wet;
+	col = mix(col, dried, clamp(dry * (1.0 + lip), 0.0, 1.0));   // the rim dries dark first
+	ALBEDO = col * (0.85 + 0.3 * n);
+	ALPHA = m * mix(0.85, 0.97, smoothstep(0.0, 0.3, thick));
+	// wet blood is glossy; dried blood is matte (any leftover sheen reads as grey plastic)
+	ROUGHNESS = mix(0.9, mix(0.25, 0.08, thick), wet);
+	SPECULAR = mix(0.05, 0.6, wet);
+	METALLIC = 0.0;
 }
 """
 
@@ -332,9 +381,9 @@ func _physics_process(delta: float) -> void:
 		var point := Vector3.ZERO
 		var normal := Vector3.UP
 		var splat := false
-		# only the level's own surfaces take blood: never the player's or an entity's hitbox, which would
-		# leave a splat floating in mid-air where a body happened to stand
-		if ray.is_colliding() and ray.get_collider() is StaticBody3D:
+		# only the level's floor takes blood: never the player's or an entity's hitbox (a splat floating in
+		# mid-air), and not walls or the ceiling for now. A blob that meets a wall drops down it to the floor.
+		if ray.is_colliding() and ray.get_collider() is StaticBody3D and ray.get_collision_normal().y > 0.7:
 			splat = true
 			point = ray.get_collision_point()
 			normal = ray.get_collision_normal()
@@ -351,7 +400,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		if splat:
 			var s: float = b.size * randf_range(9.0, 15.0) * clampf(0.5 + speed / 8.0, 0.5, 1.4)
-			surface_decal(point + normal * 0.005, normal, s, 0.0, ray.get_collider() as CollisionObject3D)
+			surface_decal(point + normal * 0.005, normal, s, 0.0, ray.get_collider() as CollisionObject3D, v)
 			_splat_sound(s)
 			rb.queue_free()
 			b["dead"] = true
@@ -360,7 +409,7 @@ func _physics_process(delta: float) -> void:
 ## Lay a decal flat on a surface, oriented by its normal: a mesh card with the decal shader on it
 ## (not a Decal node — full control over the shader), centred exactly at the hit point and trimmed to
 ## the surface that is actually there: the card never hangs over a wall's top edge or corner into open air.
-func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null) -> void:
+func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null, impact := Vector3.ZERO) -> void:
 	if _decals.size() > 90:
 		return
 	if _decal_shader == null:
@@ -391,6 +440,10 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	m.set_shader_parameter("seed", randf() * 6.0)
 	m.set_shader_parameter("splat_normal", n)
 	m.set_shader_parameter("grow", 0.06)
+	# the part of the blood's velocity along the surface, in the card's UV plane (UV.y runs down -Y):
+	# a glancing, fast hit stretches the splat and throws fingers; a straight drop leaves a round pool
+	var along := Vector2(impact.dot(t), -impact.dot(b))
+	m.set_shader_parameter("impact_dir", along.normalized() * clampf(along.length() / 5.0, 0.0, 1.0) if along.length() > 0.01 else Vector2.ZERO)
 	var mi := MeshInstance3D.new()
 	var q := QuadMesh.new()               # a single flush card: a box's back face and side banding show through
 	q.size = Vector2(size * sx, size * sy)
@@ -449,33 +502,29 @@ func _splat_sound(size: float) -> void:
 	sc.spawn_flat(sc.synth("splat"), vol, "Body", randf_range(1.0, 1.6 - minf(0.5, size * 0.3)))
 
 ## The bite / snap: the wet central pools land straight on the floor, and the rest of the blood is
-## flung as physics blobs in random directions — each one arcs, its ray finds a wall / floor / ceiling,
-## and it splatters there as an expanding decal.
+## flung as physics blobs in random directions — each one arcs, its ray finds the floor, and it
+## splatters there as an expanding decal.
 func feast(head: Vector3, victim: Vector3) -> void:
 	floor_y = victim.y
 	# the pools under the kill and under you: laid straight on the floor, spreading as they land
 	surface_decal(Vector3(head.x, floor_y, head.z), Vector3.UP, randf_range(2.8, 3.6))
 	surface_decal(Vector3(victim.x, floor_y, victim.z), Vector3.UP, randf_range(2.4, 3.2), 0.3)
+	# the spatter thrown out around the kill: each splat points away from it, fingers flung outward
 	for i in 14:
 		var a := randf() * TAU
 		var sp := randf_range(0.5, 4.5)
-		surface_decal(Vector3(head.x + cos(a) * sp * 1.4, floor_y, head.z + sin(a) * sp * 1.4),
-				Vector3.UP, randf_range(0.2, 0.7), randf_range(0.0, 0.8))
-	# flung blobs: fast, low-arcing ones reach the walls before gravity pulls them down to the floor;
-	# heavy clots fall close and stain the floor; a few lobbed high reach the ceiling
-	for i in 14:
+		var out := Vector3(cos(a), 0.0, sin(a))
+		surface_decal(Vector3(head.x + out.x * sp * 1.4, floor_y, head.z + out.z * sp * 1.4),
+				Vector3.UP, randf_range(0.3, 0.8), randf_range(0.0, 0.8), null, out * randf_range(2.0, 6.0))
+	# flung blobs: fast ones fan out across the floor, heavy clots fall close
+	for i in 12:
 		var a := randf() * TAU
-		var sp := randf_range(4.5, 10.0)
-		blob(head + Vector3(0.0, 0.05, 0.0), Vector3(cos(a) * sp, randf_range(0.8, 2.2), sin(a) * sp), randf_range(0.025, 0.05))
+		var sp := randf_range(2.0, 5.5)
+		blob(head + Vector3(0.0, 0.05, 0.0), Vector3(cos(a) * sp, randf_range(1.0, 3.0), sin(a) * sp), randf_range(0.025, 0.05))
 	for i in 6:
 		var a := randf() * TAU
 		var sp := randf_range(0.4, 1.8)
 		blob(head, Vector3(cos(a) * sp, randf_range(0.6, 2.0), sin(a) * sp), randf_range(0.05, 0.09))
-	# guaranteed wall streaks: whichever walls are actually nearest the kill, regardless of whether a
-	# flung blob happened to reach that far
-	for i in 10:
-		var a := randf() * TAU
-		wall_streak(head.x, head.z, cos(a), sin(a), head.y)
 
 ## A fast burst of blood thrown out of `origin` toward `toward` (a direction): a heavy spray of
 ## beads plus a finer mist. Short-lived and vanishes on the floor, so it never hangs in the air.
@@ -565,7 +614,7 @@ func _process(delta: float) -> void:
 		var hit_floor := p.y <= floor_y + 0.03
 		if hit_floor or _wall_at(p.x, p.z):
 			if hit_floor and randf() < 0.6:
-				surface_decal(Vector3(p.x, floor_y, p.z), Vector3.UP, 0.16 + d.size * 6.0 + randf() * 0.25)
+				surface_decal(Vector3(p.x, floor_y, p.z), Vector3.UP, 0.16 + d.size * 6.0 + randf() * 0.25, 0.0, null, d.v)
 			mi.queue_free()
 			d["dead"] = true
 	_drops = _drops.filter(func(d): return not d.has("dead"))

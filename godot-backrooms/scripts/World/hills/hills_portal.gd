@@ -5,7 +5,7 @@ extends Node
 
 const HILLS_SCENE := preload("res://scenes/hills.tscn")
 const PAUSED := ["Entity", "Mannequin", "Mimic", "Watcher", "Eyes", "Events", "Level"]
-const HILLS_FAR := 2500.0
+const HILLS_FAR := 1000.0                   # the whole map fits (640 m square); the sky is drawn past it anyway
 
 var hills: Node3D
 var in_hills := false

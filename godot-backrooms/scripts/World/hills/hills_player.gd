@@ -20,7 +20,7 @@ func _ready() -> void:
 	cam = Camera3D.new()
 	cam.position.y = 1.65
 	cam.fov = 75.0
-	cam.far = 2500.0
+	cam.far = 1000.0
 	add_child(cam)
 	floor_max_angle = deg_to_rad(58.0)
 	floor_snap_length = 0.6
