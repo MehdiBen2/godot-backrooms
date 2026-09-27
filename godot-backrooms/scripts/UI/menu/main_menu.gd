@@ -356,7 +356,7 @@ func _fx_shader() -> Shader:
 	s.code = """
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
-uniform float fisheye = 0.12;       // edge bend; the mapping below stays inside the frame (no black rim)
+uniform float fisheye = 0.03;       // edge bend; the mapping below stays inside the frame (no black rim)
 uniform float fringe = 0.012;       // red/blue split, only really visible right at the corners
 
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -373,9 +373,11 @@ void fragment() {
 	float tear = smoothstep(0.045, 0.0, abs(UV.y - band)) * tear_on;
 	float jitter = (h(vec2(tt, floor(UV.y * 90.0))) - 0.5) * 0.02 * tear + wobble;
 
-	// barrel / fish-eye: centre magnified slightly, edges squeezed. Scale is 0.94 in the middle and
-	// exactly 1.0 at the corners, so it never samples outside the screen
-	vec2 uv = 0.5 + c * (0.94 + fisheye * r2);
+	// barrel / fish-eye: centre magnified slightly, edges squeezed. Scale is 0.985 in the middle and
+	// exactly 1.0 at the corners, so it never samples outside the screen. Kept subtle (as opposed to the
+	// original 0.94/0.12) so the visual warp stays close enough to true layout for buttons near the edges
+	// (e.g. the panel's CLOSE link) to still be clickable where they look clickable.
+	vec2 uv = 0.5 + c * (0.985 + fisheye * r2);
 	uv.x += jitter;
 
 	// chromatic aberration: a hair of split growing with r^2, so text near the edge stays readable

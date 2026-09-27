@@ -69,6 +69,7 @@ func gate_db() -> float:
 
 func cycle_mode() -> void:
 	mode = (mode + 1) % 3
+	_apply_mic_active()
 	changed.emit()
 
 func device_list() -> PackedStringArray:
@@ -159,10 +160,23 @@ func _setup_capture() -> void:
 	_mic.stream = AudioStreamMicrophone.new()
 	_mic.bus = CAPTURE_BUS
 	add_child(_mic)
-	_mic.play()
+	_apply_mic_active()
 	_in_rate = AudioServer.get_input_mix_rate()
 	if _in_rate <= 0.0:
 		_in_rate = AudioServer.get_mix_rate()
+
+## The mic device only needs to be open while voice chat can actually use it: leaving it capturing
+## for the whole session (menus, singleplayer, mode Off) keeps a CoreAudio input unit running for no
+## reason, and on macOS that shares hardware with the output unit closely enough that a hiccup on the
+## input side (AudioUnitRender failures on device/session changes) can show up as clicks on output too.
+func _apply_mic_active() -> void:
+	if _mic == null:
+		return
+	if mode != Mode.OFF:
+		if not _mic.playing:
+			_mic.play()
+	elif _mic.playing:
+		_mic.stop()
 
 func _process(dt: float) -> void:
 	if _capture != null:

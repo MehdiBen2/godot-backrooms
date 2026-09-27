@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://0yh5h0v8kl7n" path="res://scripts/Player/player.gd" id="3"]
 [ext_resource type="Script" uid="uid://cvol0lguexsfi" path="res://scripts/UI/hud/hud.gd" id="4"]
 [ext_resource type="Script" uid="uid://dpfqti8l1dvnm" path="res://scripts/Audio/audio.gd" id="5"]
-[ext_resource type="Script" uid="uid://dvu80x1hro761" path="res://scripts/Audio/scares/scares.gd" id="6"]
+[ext_resource type="Script" uid="uid://beghopsxv86xm" path="res://scripts/Audio/scares/scares.gd" id="6"]
 [ext_resource type="Script" uid="uid://bsirki1gb6k53" path="res://scripts/Events/events.gd" id="7"]
 [ext_resource type="Script" uid="uid://cfnpkyqdwt7ig" path="res://scripts/Entities/bacteria/bacteria.gd" id="8"]
 [ext_resource type="Script" uid="uid://hiucucacxs3e" path="res://scripts/Entities/mannequin/mannequin.gd" id="9"]
