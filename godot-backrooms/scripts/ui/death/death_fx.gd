@@ -12,6 +12,7 @@ extends Node
 ## spreads the splat outward, and the albedo fades from bright oxygenated red to a dark dried red.
 
 const CELL := 4.5
+const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the warm-up blood in the frustum
 const BLOOD_SHADER := """
 shader_type spatial;
 render_mode blend_mix, depth_draw_never, cull_disabled, specular_schlick_ggx;
@@ -107,8 +108,8 @@ void fragment() {
 	float sp = (1.0 - smoothstep(0.70, 0.80, fbm2(wpos.xz * 6.0 + seed))) * smoothstep(edge * 1.45, edge, r);
 	m = max(m * (0.75 + 0.25 * pool), sp * 0.8);
 	if (m < 0.02) { discard; }
-	vec3 bright = vec3(0.55, 0.015, 0.02);   // oxygenated: just landed
-	vec3 dark = vec3(0.13, 0.004, 0.008);    // dried
+	vec3 bright = vec3(0.78, 0.03, 0.035);  // oxygenated: just landed
+	vec3 dark = vec3(0.16, 0.006, 0.01);    // dried
 	ALBEDO = mix(dark, bright, wet) * (0.8 + 0.35 * pool);
 	ALPHA = m * 0.95;
 	ROUGHNESS = mix(0.42, 0.09, wet);
@@ -129,6 +130,8 @@ var _blob_shader: Shader = null
 var _decal_shader: Shader = null
 var _blob_mesh: SphereMesh = null
 var _floor_col: GPUParticlesCollisionBox3D = null
+var _warm := false              # true while `warm()` lays its out-of-sight warm-up blood
+var _bursts: Array = []         # the one-shot particle bursts, so clear() can end them (they outlive their blood)
 var _ragdoll: Node3D = null
 var _ragdoll_t := 0.0
 var _clip_played := false
@@ -190,6 +193,8 @@ func pool(x: float, z: float, size: float, alpha := 0.9, stretch_dir := NAN, del
 	mi.material_override = _material(false, alpha)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world().add_child(mi)
+	if _warm:
+		_keep_drawn(mi)
 	mi.rotation = Vector3(-PI / 2.0, 0.0, 0.0)
 	mi.rotate_y(randf() * TAU if is_nan(stretch_dir) else stretch_dir)
 	mi.global_position = Vector3(x, floor_y + 0.02 + _decals.size() * 0.0006, z)
@@ -279,6 +284,8 @@ func blob(pos: Vector3, vel: Vector3, size: float) -> void:
 	_world().add_child(rb)
 	rb.global_position = pos
 	rb.linear_velocity = vel
+	if _warm:
+		_keep_drawn(mi)
 	_blobs.append({"rb": rb, "ray": ray, "size": size, "t": 0.0})
 
 ## Step every flying blob: aim its ray along its travel, and splatter on the first surface found.
@@ -318,21 +325,40 @@ func _physics_process(delta: float) -> void:
 			continue
 		if splat:
 			var s: float = b.size * randf_range(9.0, 15.0) * clampf(0.5 + speed / 8.0, 0.5, 1.4)
-			surface_decal(point + normal * 0.005, normal, s)
+			surface_decal(point + normal * 0.005, normal, s, 0.0, ray.get_collider() as CollisionObject3D)
 			_splat_sound(s)
 			rb.queue_free()
 			b["dead"] = true
 	_blobs = _blobs.filter(func(b): return not b.has("dead"))
 
 ## Lay a decal flat on a surface, oriented by its normal: a mesh card with the decal shader on it
-## (not a Decal node — full control over the shader), centred exactly at the hit point.
-func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0) -> void:
+## (not a Decal node — full control over the shader), centred exactly at the hit point and trimmed to
+## the surface that is actually there: the card never hangs over a wall's top edge or corner into open air.
+func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null) -> void:
 	if _decals.size() > 90:
 		return
 	if _decal_shader == null:
 		_decal_shader = Shader.new()
 		_decal_shader.code = DECAL_SHADER
 	var n := normal.normalized()
+	# local +Z along the surface normal; a random spin about it varies the blob outline
+	var t := n.cross(Vector3.UP)
+	if t.length_squared() < 0.0001:
+		t = Vector3.RIGHT
+	t = t.normalized()
+	var b := n.cross(t).normalized()
+	var sx := 1.0
+	var sy := 1.0
+	var w := _world()
+	if w is Node3D:
+		var space: PhysicsDirectSpaceState3D = (w as Node3D).get_world_3d().direct_space_state
+		var reach := size * 0.5 + 0.05
+		var xt := _side_reach(space, point, n, t, reach, on) + _side_reach(space, point, n, -t, reach, on)
+		var yb := _side_reach(space, point, n, b, reach, on) + _side_reach(space, point, n, -b, reach, on)
+		if xt < 0.12 or yb < 0.12:
+			return                                  # a corner or lip: not enough surface under the splat
+		sx = clampf(xt * 1.9 / size, 0.25, 1.0)
+		sy = clampf(yb * 1.9 / size, 0.25, 1.0)
 	var m := ShaderMaterial.new()
 	m.shader = _decal_shader
 	m.render_priority = 2
@@ -341,19 +367,34 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0) -
 	m.set_shader_parameter("grow", 0.06)
 	var mi := MeshInstance3D.new()
 	var q := QuadMesh.new()               # a single flush card: a box's back face and side banding show through
-	q.size = Vector2(size, size)
+	q.size = Vector2(size * sx, size * sy)
 	mi.mesh = q
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world().add_child(mi)
-	# local +Z along the surface normal; a random spin about it varies the blob outline
-	var t := n.cross(Vector3.UP)
-	if t.length_squared() < 0.0001:
-		t = Vector3.RIGHT
-	t = t.normalized()
-	mi.transform = Transform3D(Basis(t, n.cross(t).normalized(), n), point + n * (0.012 + _decals.size() * 0.0004))
+	mi.transform = Transform3D(Basis(t, b, n), point + n * (0.012 + _decals.size() * 0.0004))
+	if _warm:
+		_keep_drawn(mi)
 	_decals.append(mi)
 	_grow_decal(m, delay)
+
+# How far the SAME surface keeps going from the hit point along one in-plane direction: a ray skimmed
+# into the plane; it dies out where the surface ends (over an edge it flies off into empty air, or
+# turns into a differently-facing surface like the floor).
+func _side_reach(space: PhysicsDirectSpaceState3D, point: Vector3, n: Vector3, axis: Vector3, reach: float, on: CollisionObject3D) -> float:
+	var origin := point + n * 0.03
+	var best := 0.0
+	for f in [0.4, 0.75, 1.0]:
+		var d: float = reach * f
+		var q := PhysicsRayQueryParameters3D.create(origin, origin + axis * d - n * 0.05)
+		q.collision_mask = 1
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or Vector3(hit.normal).dot(n) < 0.9:
+			break
+		if on != null and hit.collider != on:
+			break
+		best = d * 0.6                                # the skim touches down about 60% along its length
+	return best
 
 ## The Tween that sells it: the centre-fade mask spreads outward, then the red darkens as it dries.
 func _grow_decal(m: ShaderMaterial, delay: float) -> void:
@@ -365,7 +406,7 @@ func _grow_decal(m: ShaderMaterial, delay: float) -> void:
 			m.set_shader_parameter("wet", v)
 	var tw := create_tween().set_parallel(true)
 	tw.tween_method(set_grow, 0.06, 1.0, randf_range(0.5, 1.0)).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_method(set_wet, 1.0, 0.15, randf_range(4.0, 7.0)).set_delay(delay + 0.8)
+	tw.tween_method(set_wet, 1.0, 0.25, randf_range(9.0, 16.0)).set_delay(delay + 1.2)
 	_decal_tweens = _decal_tweens.filter(func(t: Tween) -> bool: return t.is_valid())
 	_decal_tweens.append(tw)
 
@@ -455,6 +496,9 @@ func _emit(origin: Vector3, dir: Vector3, amount: int, life: float, vmin: float,
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world().add_child(p)
 	p.global_position = origin
+	if _warm:
+		_keep_drawn(p)
+	_bursts.append(p)
 	p.emitting = true
 	get_tree().create_timer(life + 1.0).timeout.connect(p.queue_free)
 
@@ -505,23 +549,34 @@ func _hazmat_scene() -> PackedScene:
 		return ResourceLoader.load_threaded_get(path) as PackedScene
 	return load(path) as PackedScene
 
-## Draw one tiny decal and one tiny burst in front of the camera so their shaders / pipelines are built now.
+## Build the blood shaders / pipelines now so the first death does not hitch. The test blood is laid on the
+## floor behind the view, where the player cannot see it, and cleared again a moment later; `_keep_drawn`
+## is what makes it still render out of view, which is the only way its pipelines get built.
 func warm() -> void:
 	var cam := get_viewport().get_camera_3d()
 	if cam == null or tex == null:
 		return
-	var at := cam.global_position + (-cam.global_basis.z) * 2.0
-	floor_y = at.y - 0.3
+	var pl = Game.player
+	var at := cam.global_position + cam.global_basis.z * 2.0          # behind the camera, not in front of it
+	floor_y = pl.global_position.y if pl != null and is_instance_valid(pl) else cam.global_position.y - 1.7
+	_warm = true
 	pool(at.x, at.z, 0.1, 0.02)
 	surface_decal(Vector3(at.x, floor_y, at.z), Vector3.UP, 0.06)   # the decal shader + its cube pipeline
-	blob(at + Vector3(0.0, 0.5, 0.0), Vector3(0.1, 1.0, 0.0), 0.02) # the wobbling blob shader + rigid body
+	blob(Vector3(at.x, floor_y + 0.5, at.z), Vector3(0.1, 1.0, 0.0), 0.02)  # the wobbling blob shader + rigid body
 	_ensure_floor_collider(at)
-	_emit(at, Vector3.UP, 6, 0.3, 0.5, 1.0, 20.0, 0.01, 0.015, Color(0.2, 0.0, 0.01), 0.1)
+	_emit(Vector3(at.x, floor_y + 0.1, at.z), Vector3.UP, 6, 0.3, 0.5, 1.0, 20.0, 0.01, 0.015, Color(0.2, 0.0, 0.01), 0.1)
 	await get_tree().create_timer(0.7).timeout
+	_warm = false
 	if get_parent().active:      # died inside the warm-up window: the blood and the body are real now
 		return
 	clear()
 	floor_y = 0.0
+
+## Keep a warm-up instance being drawn although nothing is looking at it: a wide cull margin so the
+## frustum test always passes, and no occlusion culling so a wall between it and the camera never drops it.
+func _keep_drawn(g: GeometryInstance3D) -> void:
+	g.extra_cull_margin = WARM_CULL_MARGIN
+	g.set_ignore_occlusion_culling(true)
 
 func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 	var packed := _hazmat_scene()
@@ -660,6 +715,9 @@ func clear() -> void:
 	for b in _blobs:
 		if is_instance_valid(b.rb):
 			b.rb.queue_free()
+	for p in _bursts:
+		if is_instance_valid(p):
+			p.queue_free()
 	for tw in _decal_tweens:
 		if tw.is_valid():
 			tw.kill()
@@ -667,6 +725,7 @@ func clear() -> void:
 	_drops.clear()
 	_grow.clear()
 	_blobs.clear()
+	_bursts.clear()
 	_decal_tweens.clear()
 	if _ragdoll != null and is_instance_valid(_ragdoll):
 		_ragdoll.queue_free()

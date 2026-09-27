@@ -84,12 +84,13 @@ func build_lighting() -> void:
 
 ## Real-time bounce light (SDFGI). VoxelGI and baked lightmaps can only be baked in the editor and these levels are built
 ## at load (and their tubes flicker and cut out, which a bake can't follow), so SDFGI is the GI that fits. It is heavy, so
-## it is on by default only for levels with a Classic zone, on the higher quality presets; a level can force it with
-## "sdfgi": true / false in its .lvl (the editor has a checkbox).
+## it is on by default only for levels with a Classic zone, and only when the preset turns Global illumination on (the
+## menu's "Global illumination" row, i.e. Ultra); a level can force it with "sdfgi": true / false in its .lvl (the editor
+## has a checkbox).
 func _apply_gi() -> void:
 	if env == null: return
 	var want: bool = level_data.get("sdfgi", not classic.is_empty())
-	env.sdfgi_enabled = want and int(Gfx.s.get("light_shadows", 4)) >= 4 and not Gfx.compat
+	env.sdfgi_enabled = want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
 	if env.sdfgi_enabled:
 		env.sdfgi_cascades = 3
 		env.sdfgi_min_cell_size = 0.5
