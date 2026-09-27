@@ -25,15 +25,17 @@ This is the **Godot Engine recreation** of the Backrooms game.
 
 One folder per system; a script that grew long is split into files beside it.
 
-- `core/` - `main.gd` (scene root), `game_state.gd` (autoload `Game`: run state, fear channels, kill/respawn), `graphics.gd` (autoload `Gfx`: quality presets).
-- `player/` - `player.gd` (controller, flashlight, stamina, adrenaline, sanity) with `footsteps.gd`, `torch_model.gd`, `blink.gd`; `heart.gd` (the shared heartbeat every threat feeds).
-- `entities/bacteria/` - THE BACTERIA. Layered scripts, each extending the one before: `bacteria_base.gd` (config, state) -> `bacteria_nav.gd` -> `bacteria_senses.gd` -> `bacteria_stalk.gd` (stalk / flee / lurk) -> `bacteria.gd` (the node's script: brain, movement, voice, kill). Plus `bacteria_rig.gd` (procedural animation), `bacteria_grab.gd` (the kill sequence), `bacteria_net.gd` (co-op).
-- `entities/mannequin/` - `mannequin.gd` with `mannequin_model.gd` (posable parts), `mannequin_crowd.gd` (decoys), `mannequin_snap.gd` (the neck snap).
-- `entities/mimic/` (`mimic.gd`), `entities/watcher/`, `entities/eyes/`.
-- `audio/` - `audio.gd` (builds every game bus, hum, room reverb, wall occlusion), `ambience.gd`, `breathing.gd`, `clip_levels.gd` (loudness matching from `audio/clip_levels.json`); `audio/scares/` - `scares.gd` (one-shots, heart, flatline, gasps) with `scare_synth.gd` (procedural sounds), `creature_voice.gd`, `creature_steps.gd`, `preacher.gd`.
-- `world/level/` - layered like the bacteria: `level_data.gd` -> `level_geometry.gd` -> `level_lighting.gd` -> `level_builder.gd`. `world/props/` (battery pickup, exit), `world/grid_nav.gd`.
-- `events/` - the event director. `net/`, `voice/` - co-op and proximity voice chat.
-- `ui/hud/`, `ui/menu/`, `ui/death/` (death camera, blood, death screen, respawn fade), `ui/debug/` (console).
+Folders are PascalCase, one per system (renamed from the old lowercase `core/`, `entities/`, etc. - update any note or script comment still using the old names if you spot one):
+
+- `GameLogicEngine/` - `main.gd` (scene root), `game_state.gd` (autoload `Game`: run state, fear channels, kill/respawn, `DeathType`), `graphics.gd` (autoload `Gfx`: quality presets).
+- `Player/` - `player.gd` (controller, flashlight, stamina, adrenaline, sanity) with `footsteps.gd`, `torch_model.gd`, `blink.gd`; `heart.gd` (the shared heartbeat every threat feeds).
+- `Entities/bacteria/` - THE BACTERIA. Layered scripts, each extending the one before: `bacteria_base.gd` (config, state) -> `bacteria_nav.gd` -> `bacteria_senses.gd` -> `bacteria_stalk.gd` (stalk / flee / lurk) -> `bacteria.gd` (the node's script: brain, movement, voice, kill). Plus `bacteria_rig.gd` (procedural animation), `bacteria_grab.gd` (the kill sequence), `bacteria_net.gd` (co-op).
+- `Entities/mannequin/` - `mannequin.gd` with `mannequin_model.gd` (posable parts), `mannequin_crowd.gd` (decoys), `mannequin_snap.gd` (the neck snap).
+- `Entities/mimic/` (`mimic.gd`), `Entities/watcher/`, `Entities/eyes/`.
+- `Audio/` - `audio.gd` (builds every game bus, hum, room reverb, wall occlusion), `ambience.gd` (tension-matched, entity-aware bed picker with deliberate silence gaps), `breathing.gd`, `clip_levels.gd` (loudness matching from `audio/clip_levels.json`); `Audio/scares/` - `scares.gd` (one-shots, heart, flatline, gasps, `death_reaction()` per `Game.DeathType`) with `scare_synth.gd` (procedural sounds), `creature_voice.gd`, `creature_steps.gd`, `preacher.gd`.
+- `World/level/` - layered like the bacteria: `level_data.gd` -> `level_geometry.gd` -> `level_lighting.gd` -> `level_builder.gd`. `World/props/` (battery pickup, exit), `World/grid_nav.gd`.
+- `Events/` - the event director. `Net/`, `Voice/` - co-op and proximity voice chat.
+- `UI/hud/`, `UI/menu/`, `UI/death/` (death camera, blood, death screen, respawn fade), `UI/debug/` (console).
 
 ## Tools & Checks
 

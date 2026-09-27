@@ -1,6 +1,6 @@
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, cull_disabled, fog_disabled;
-// One eye on a wall or the ceiling (scripts/world/eyes.gd). Unshaded so it still reads in the dark,
+// One eye on a wall or the ceiling (scripts/Entities/eyes/eyes.gd). Unshaded so it still reads in the dark,
 // but kept dim: a stained, grimy filter is laid over it so it looks painted into the wallpaper
 // rather than glowing, and it fades out with distance. Everything animated here is per eye through
 // instance uniforms, so all the eyes share one material.

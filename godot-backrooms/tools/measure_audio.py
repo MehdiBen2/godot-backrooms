@@ -2,7 +2,7 @@
 
 The game cannot decode an MP3 into samples at run time, so it cannot measure how loud a recording is.
 This writes each clip's peak and "active" RMS (the RMS of the audible part, silence ignored) in dBFS;
-scripts/audio/clip_levels.gd turns that into a playback gain so clips recorded at wildly different
+scripts/Audio/clip_levels.gd turns that into a playback gain so clips recorded at wildly different
 levels (the gasps range from -30 dB to -4 dB peak) all land at the same loudness.
 
     pip install miniaudio numpy
