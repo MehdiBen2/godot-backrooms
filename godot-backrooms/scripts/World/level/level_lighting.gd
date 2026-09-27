@@ -1,5 +1,5 @@
-extends "res://scripts/World/level/level_geometry.gd"
-## THE LEVEL, layer 3: its light (the web game's level.js lights + lighting.js).
+extends "res://scripts/World/level/level_objects.gd"
+## THE LEVEL, layer 4: its light (the web game's level.js lights + lighting.js).
 ##
 ## Troffer fixtures are placed like the web game's _placeLights, some burnt out, some flickering. Only a
 ## small pool of real lights exists: POOL_SIZE slots re-targeted to the nearest working tubes and cross-

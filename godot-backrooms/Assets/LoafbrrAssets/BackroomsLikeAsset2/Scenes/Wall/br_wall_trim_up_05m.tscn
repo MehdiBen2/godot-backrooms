@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=4 uid="uid://dvemfovaokkx5"]
+
+[ext_resource type="Material" uid="uid://7xqh7wgltlqk" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres" id="1_vx2lv"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_yoevo"]
+_surfaces = [{
+"aabb": AABB(0, -0.40000015, 0.12500006, 0.5, 0.39287806, 0.02500002),
+"format": 34896613377,
+"index_count": 12,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAAAEAAMAAAAFAAQA"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("//8AAP//AAAAAP///v8AAP/////+/wAAAAAAAP//AAAAAAAAAAAAAP//AAAAAAAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_46cr3"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_Trim_up_05m"
+_surfaces = [{
+"aabb": AABB(0, -0.40000015, 0.12500006, 0.5, 0.39287806, 0.02500002),
+"attribute_data": PackedByteArray("D6oyaZNxkVEPqpFRk3EyaQ+qRCuTcf8/k3FEKw+q/z8="),
+"format": 34896613399,
+"index_count": 12,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUA"),
+"material": ExtResource("1_vx2lv"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("//8AAP//AIAAAP///v8AgP/////+/wCAAAAAAP//AID//wAA////vwAAAAAAAP+/AAAAAP///7///wAAAAD/v/9/////f////3////9///8AAP9/AAD/fwAA/38AAP9/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_yoevo")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_m0fo6"]
+data = PackedVector3Array(0.5, -0.0071220845, 0.15000002, 0.5, -0.3999998, 0.15000008, 0, -0.3999998, 0.15000008, 0, -0.3999998, 0.15000008, 0.5, -0.3999998, 0.15000008, 0.5, -0.40000015, 0.12500006, 0.5, -0.0071220845, 0.15000002, 0, -0.3999998, 0.15000008, 0, -0.0071220845, 0.15000002, 0, -0.3999998, 0.15000008, 0.5, -0.40000015, 0.12500006, 0, -0.40000015, 0.12500006)
+
+[node name="BR_Wall_Trim_up_05m" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_46cr3")
+skeleton = NodePath("")
+
+[node name="BR_Wall_Trim_up_05m" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_Trim_up_05m"]
+shape = SubResource("ConcavePolygonShape3D_m0fo6")

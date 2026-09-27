@@ -1,0 +1,49 @@
+[gd_scene load_steps=5 format=4 uid="uid://cccyxuq1wpcd7"]
+
+[ext_resource type="Material" uid="uid://7xqh7wgltlqk" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres" id="1_5mxug"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_2hdg6"]
+_surfaces = [{
+"aabb": AABB(-1.5, 0.00086557865, 0.12499994, 3, 0.12413497, 0.02500008),
+"format": 34896613377,
+"index_count": 36,
+"index_data": PackedByteArray("AAAKAAIACgAJAAIAAAABAAoACgAIAAkACgABAAMACwAIAAoACgADAAsACwAGAAgAAwAEAAsABAAGAAsAAwAFAAQABAAHAAYA"),
+"lods": [1.6679694e-05, PackedByteArray("AAABAAIAAgABAAMAAwAEAAIAAwAFAAQABAAGAAIABAAHAAYAAgAGAAgAAgAIAAkA")],
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("//8AAP//AACqqgAA//8AAP/////+/wAAVVUAAP//AAAAAP///v8AAAAAAAD//wAAVVX+/wAAAAAAAP7/AAAAAKqq/v8AAAAA///+/wAAAACqqv///v8AAFVV///+/wAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_3hg6i"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_Trim_down_Half_3m"
+_surfaces = [{
+"aabb": AABB(-1.5, 0.00086557865, 0.12499994, 3, 0.12413497, 0.02500008),
+"attribute_data": PackedByteArray("D6rvVZNx71UPqpBtFjnvVZoAkG2aAO9VD6q6VJNx/z8Pqv8/Fjn/P5oAulSaAP8/k3GQbRY5kG2TcbpUFjm6VA=="),
+"format": 34896613399,
+"index_count": 36,
+"index_data": PackedByteArray("AAAMAAIAAAABAAwADAABAAMADAADAA0AAwAEAA0AAwAFAAQADgAIAAYADgAHAAgADwAHAA4ADwAJAAcACgAJAA8ACgALAAkA"),
+"lods": [1.6679694e-05, PackedByteArray("AAABAAIAAgABAAMAAwAEAAIAAwAFAAQABgAHAAgABgAJAAcACgAJAAYACgALAAkA")],
+"material": ExtResource("1_5mxug"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 16,
+"vertex_data": PackedByteArray("//8AAP///n+qqgAA///+f//////+//5/VVUAAP///n8AAP///v/+fwAAAAD///5///////7//7+qqv7/AAD/v////v8AAP+/VVX+/wAA/78AAP///v//vwAA/v8AAP+/qqr///7//n9VVf///v/+f6qq///+//+/VVX///7//7//f////3////9/////f////3////9///////9/////f////3////9/////f////3//f////3///////3////9/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_2hdg6")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_jphqr"]
+data = PackedVector3Array(1.5, 0.12500022, 0.12499994, 1.5, 0.12500055, 0.14999996, -1.5, 0.12500055, 0.14999996, 1.5, 0.12500022, 0.12499994, -1.5, 0.12500055, 0.14999996, -1.5, 0.12500022, 0.12499994, -1.5, 0.12500055, 0.14999996, 1.5, 0.12500055, 0.14999996, 1.5, 0.00086557865, 0.15000002, -1.5, 0.12500055, 0.14999996, 1.5, 0.00086557865, 0.15000002, -1.5, 0.00086559355, 0.15000002)
+
+[node name="BR_Wall_Trim_down_Half_3m" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_3hg6i")
+skeleton = NodePath("")
+
+[node name="BR_Wall_Trim_down_Half_3m" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_Trim_down_Half_3m"]
+shape = SubResource("ConcavePolygonShape3D_jphqr")

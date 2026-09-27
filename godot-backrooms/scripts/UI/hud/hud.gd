@@ -56,6 +56,7 @@ func _ready() -> void:
 
 	_build_hud()
 	_build_pause()
+	_build_build_mode()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -268,6 +269,14 @@ func _build_pause() -> void:
 	add_child(pause_root)
 	menu.settings_changed.connect(apply_settings)
 	apply_settings()
+
+## Dev-only first-person wall placement (build_mode.gd) - its own CanvasLayer, above the HUD/pause.
+func _build_build_mode() -> void:
+	if not Game.dev_keys: return
+	var bm: CanvasLayer = load("res://scripts/UI/build/build_mode.gd").new()
+	bm.player = player
+	bm.level = level
+	add_child(bm)
 
 ## Push the menu's saved settings into the audio buses / player (js/game/settings.js)
 func apply_settings() -> void:

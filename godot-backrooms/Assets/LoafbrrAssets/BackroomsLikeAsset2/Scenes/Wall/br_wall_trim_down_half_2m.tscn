@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=4 uid="uid://cbp88enqy4eem"]
+
+[ext_resource type="Material" uid="uid://7xqh7wgltlqk" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres" id="1_adrju"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_ycepi"]
+_surfaces = [{
+"aabb": AABB(-0.99999976, 0.00086557865, 0.12499994, 2, 0.12413497, 0.02500008),
+"format": 34896613377,
+"index_count": 24,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAQAEAAIAAQAFAAQAAgAEAAYAAgAGAAcABwAAAAIABwAIAAAA"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 9,
+"vertex_data": PackedByteArray("/38AAP//AAAAAP///v8AAP9////+/wAAAAAAAP//AAD/f/7/AAAAAAAA/v8AAAAA///+/wAAAAD//////v8AAP//AAD//wAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_c6em7"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_Trim_down_Half_2m"
+_surfaces = [{
+"aabb": AABB(-0.99999976, 0.00086557865, 0.12499994, 2, 0.12413497, 0.02500008),
+"attribute_data": PackedByteArray("FjnvVZoAkG0WOZBtmgDvVZNxkG2Tce9VmgC6VBY5/z8WObpUmgD/P5Nx/z+TcbpU"),
+"format": 34896613399,
+"index_count": 24,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAAAAIABAAFAAAABgAHAAgABgAJAAcACAAHAAoACAAKAAsA"),
+"material": ExtResource("1_adrju"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 12,
+"vertex_data": PackedByteArray("/38AAP///n8AAP///v/+f/9////+//5/AAAAAP///n///////v/+f///AAD///5/AAD///7//7//f/7/AAD/v/9////+//+/AAD+/wAA/7////7/AAD/v//////+//+//3////9/////f////3////9/////f///////f////3////9/////f////3////9/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_ycepi")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_pij3b"]
+data = PackedVector3Array(-0.99999976, 0.12500055, 0.14999996, 1.0000002, 0.00086557865, 0.15000002, -0.99999976, 0.00086559355, 0.15000002, 1.0000002, 0.12500022, 0.12499994, -0.99999976, 0.12500055, 0.14999996, -0.99999976, 0.12500022, 0.12499994, -0.99999976, 0.12500055, 0.14999996, 1.0000002, 0.12500055, 0.14999996, 1.0000002, 0.00086557865, 0.15000002, 1.0000002, 0.12500022, 0.12499994, 1.0000002, 0.12500055, 0.14999996, -0.99999976, 0.12500055, 0.14999996)
+
+[node name="BR_Wall_Trim_down_Half_2m" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_c6em7")
+skeleton = NodePath("")
+
+[node name="BR_Wall_Trim_down_Half_2m" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_Trim_down_Half_2m"]
+shape = SubResource("ConcavePolygonShape3D_pij3b")

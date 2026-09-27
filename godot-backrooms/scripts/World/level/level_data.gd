@@ -1,10 +1,11 @@
 extends Node3D
-## THE LEVEL, layer 1 of 4: the grid it is built from. Reads levels/levels.json (the playlist the web
+## THE LEVEL, layer 1 of 5: the grid it is built from. Reads levels/levels.json (the playlist the web
 ## game and tools/level_editor.py share) and the .lvl it points at. Grid rows are z, characters are x:
 ## '#' wall, '.' floor, 'O' pit. Zones paint extra properties onto cells (tall / low ceilings, tile
 ## floors, bright / dim / dark lighting, flickering tubes, grime).
 ##   level_data.gd      the grid and its zones                       (this file)
 ##   level_geometry.gd  floors, walls, ceilings, pits, grime
+##   level_objects.gd   freeform thin-wall props from the imported kit
 ##   level_lighting.gd  the troffers, the light pool that follows you, flicker, fog
 ##   level_builder.gd   builds it all, plus the exit and the battery packs (the node's script)
 

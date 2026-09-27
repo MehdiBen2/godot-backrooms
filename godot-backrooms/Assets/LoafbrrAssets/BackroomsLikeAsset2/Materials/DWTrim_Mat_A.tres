@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://7xqh7wgltlqk"]
+
+[ext_resource type="Shader" uid="uid://dbypyy5nb03ph" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/ORM_Shader_Cull_Back.gdshader" id="1_ontd0"]
+[ext_resource type="Texture2D" uid="uid://8s1w0hkr1dl6" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/DWTrim/DWTrim_Diffuse_2K_A.png" id="2_8hp1k"]
+[ext_resource type="Texture2D" uid="uid://8agwko5f7vsf" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/DWTrim/DWTrim_Normal_2K.png" id="3_n4vbb"]
+[ext_resource type="Texture2D" uid="uid://6jsae1p4k7nm" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/DWTrim/DWTrim_ORM_2K.png" id="4_u1gmc"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_ontd0")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("2_8hp1k")
+shader_parameter/texture_orm = ExtResource("4_u1gmc")
+shader_parameter/alpha_scissor_threshold = 0.9
+shader_parameter/roughness = 1.5000000712500001
+shader_parameter/specular = 0.5
+shader_parameter/metallic = 0.0
+shader_parameter/texture_normal = ExtResource("3_n4vbb")
+shader_parameter/normal_scale = 1.0
+shader_parameter/ao_light_affect = 0.0
+shader_parameter/emission = Color(0, 0, 0, 1)
+shader_parameter/emission_energy = 0.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)

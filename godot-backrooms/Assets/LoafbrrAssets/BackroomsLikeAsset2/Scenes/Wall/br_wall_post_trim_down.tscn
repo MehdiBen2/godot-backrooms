@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=4 uid="uid://da4go3d4hd7ch"]
+
+[ext_resource type="Material" uid="uid://7xqh7wgltlqk" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres" id="1_1rmdu"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_qavr6"]
+_surfaces = [{
+"aabb": AABB(-0.21000011, 0.0017074272, -0.21000011, 0.42000017, 0.123293124, 0.42000017),
+"format": 34896613377,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAwACAAEABAABAAAABAAFAAEAAQAFAAYAAQAGAAMABwAEAAAAAAACAAcABwACAAMABwADAAYABwAIAAQABwAGAAgA"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 9,
+"vertex_data": PackedByteArray("AAD//wAAAAD/////AAAAAP9//v//fwAA/v//////AAAAAAAAAAAAAP//AAAAAAAA/v8AAP//AAAAAP///v8AAAAAAAD+/wAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_uwdg8"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_Post_Trim_down"
+_surfaces = [{
+"aabb": AABB(-0.21000011, 0.0017074272, -0.21000011, 0.42000017, 0.123293124, 0.42000017),
+"attribute_data": PackedByteArray("ZP+6VFTVulRc6v8/VNVEK2T/RSv4B5BtmgDvVZoAkG34B+9VmgCQbVYP71WaAO9VVg+QbfgHkG2aAO9VmgCQbfgH71VWD+9VmgCQbVYPkG2aAO9V"),
+"format": 34896613399,
+"index_count": 36,
+"index_data": PackedByteArray("AAABAAIAAwACAAEAAAACAAQABAACAAMABQAGAAcABQAIAAYACQAKAAsACQAMAAoADQAOAA8ADQAQAA4AEQASABMAEQAUABIA"),
+"material": ExtResource("1_1rmdu"),
+"name": "DWTrim_A",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 21,
+"vertex_data": PackedByteArray("AAD//wAA////////AAD///9//v//f////v////////8AAP///v////////8AAP8//v8AAP///z/+////////P///AAAAAP8/AAD///7//n/+/wAA///+fwAAAAD+//5//v///////n8AAP///v//PwAAAAAAAP8/AAD//wAA/z8AAAAA/v//PwAAAAAAAAAA/////wAAAAAAAP//AAAAAP//AAAAAAAA/3//v/9//7//f/+//3//v/9//7//fwAA/38AAP9/AAD/fwAA/3////9/////f////3////9//v//f/7//3/+//9//v//f/7//3/+//9//v//f/7/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_qavr6")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_pg6yn"]
+data = PackedVector3Array(-0.21000011, 0.12500055, 0.20999998, -0.20999998, 0.12500055, -0.21000011, 0.21000005, 0.12500055, -0.21000004, 0.21000004, 0.12500055, 0.21000005, 0.21000005, 0.0017074272, -0.21000004, 0.21000004, 0.0017074272, 0.21000005, -0.20999998, 0.12500055, -0.21000011, -0.21000011, 0.0017074272, 0.20999998, -0.20999998, 0.0017074272, -0.21000011, 0.21000004, 0.12500055, 0.21000005, 0.21000005, 0.12500055, -0.21000004, 0.21000005, 0.0017074272, -0.21000004, -0.21000011, 0.0017074272, 0.20999998, -0.21000011, 0.12500055, 0.20999998, 0.21000004, 0.12500055, 0.21000005, -0.21000011, 0.12500055, 0.20999998, 0.21000005, 0.12500055, -0.21000004, 0.21000004, 0.12500055, 0.21000005, -0.20999998, 0.12500055, -0.21000011, -0.21000011, 0.12500055, 0.20999998, -0.21000011, 0.0017074272, 0.20999998, -0.20999998, 0.12500055, -0.21000011, -0.20999998, 0.0017074272, -0.21000011, 0.21000005, 0.0017074272, -0.21000004, -0.21000011, 0.0017074272, 0.20999998, 0.21000004, 0.12500055, 0.21000005, 0.21000004, 0.0017074272, 0.21000005, -0.20999998, 0.12500055, -0.21000011, 0.21000005, 0.0017074272, -0.21000004, 0.21000005, 0.12500055, -0.21000004)
+
+[node name="BR_Wall_Post_Trim_down" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_uwdg8")
+skeleton = NodePath("")
+
+[node name="BR_Wall_Post_Trim_down" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_Post_Trim_down"]
+shape = SubResource("ConcavePolygonShape3D_pg6yn")
