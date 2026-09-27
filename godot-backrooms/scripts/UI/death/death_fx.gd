@@ -311,7 +311,7 @@ func _physics_process(delta: float) -> void:
 			continue
 		if splat:
 			var s: float = b.size * randf_range(9.0, 15.0) * clampf(0.5 + speed / 8.0, 0.5, 1.4)
-			surface_decal(point + normal * 0.005, normal, s, 0.0, ray.get_collider() as CollisionObject3D, v)
+			surface_decal(point + normal * 0.02, normal, s, 0.0, ray.get_collider() as CollisionObject3D, v)
 			_splat_sound(s)
 			rb.queue_free()
 			b["dead"] = true
@@ -371,7 +371,7 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	# overlapping splats correctly, and a height that kept climbing with every decal ever laid made
 	# older splats visibly float above newer ones at a grazing view - another reason they read as
 	# stacked cards instead of stains on the same surface
-	mi.transform = Transform3D(Basis(t, b, n), point + n * 0.012)
+	mi.transform = Transform3D(Basis(t, b, n), point + n * 0.025)
 	if _warm:
 		_keep_drawn(mi)
 	_decals.append(mi)
@@ -428,17 +428,17 @@ func feast(head: Vector3, victim: Vector3) -> void:
 	floor_y = victim.y
 	# the pool under the kill and the one under you: one linked decal, not two stacked ones - two
 	# separately-shaded pools touching would show a seam exactly where they meet
-	var hp := Vector3(head.x, floor_y, head.z)
-	var vp := Vector3(victim.x, floor_y, victim.z)
+	var hp := _find_floor_point(Vector3(head.x, head.y + 1.0, head.z))
+	var vp := _find_floor_point(Vector3(victim.x, victim.y + 1.0, victim.z))
 	var span := Vector2(hp.x - vp.x, hp.z - vp.z).length()
-	surface_decal(hp, Vector3.UP, span * 2.1 + randf_range(2.6, 3.2), 0.0, null, Vector3.ZERO, vp)
+	surface_decal(hp, Vector3.UP, span * 1.2 + randf_range(1.4, 1.8), 0.0, null, Vector3.ZERO, vp)
 	# the spatter thrown out around the kill: each splat points away from it, fingers flung outward
-	for i in 14:
+	for i in 10:
 		var a := randf() * TAU
-		var sp := randf_range(0.5, 4.5)
+		var sp := randf_range(0.3, 2.5)
 		var out := Vector3(cos(a), 0.0, sin(a))
-		surface_decal(Vector3(head.x + out.x * sp * 1.4, floor_y, head.z + out.z * sp * 1.4),
-				Vector3.UP, randf_range(0.3, 0.8), randf_range(0.0, 0.8), null, out * randf_range(2.0, 6.0))
+		var splat_pos := _find_floor_point(Vector3(head.x + out.x * sp * 0.9, head.y + 1.0, head.z + out.z * sp * 0.9))
+		surface_decal(splat_pos, Vector3.UP, randf_range(0.2, 0.5), randf_range(0.0, 0.8), null, out * randf_range(1.5, 4.0))
 	# flung blobs: fast ones fan out across the floor, heavy clots fall close
 	for i in 12:
 		var a := randf() * TAU
@@ -448,6 +448,19 @@ func feast(head: Vector3, victim: Vector3) -> void:
 		var a := randf() * TAU
 		var sp := randf_range(0.4, 1.8)
 		blob(head, Vector3(cos(a) * sp, randf_range(0.6, 2.0), sin(a) * sp), randf_range(0.05, 0.09))
+
+## Find the actual floor surface point by raycasting downward
+func _find_floor_point(from: Vector3) -> Vector3:
+	var w := _world()
+	if w is Node3D:
+		var space: PhysicsDirectSpaceState3D = (w as Node3D).get_world_3d().direct_space_state
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -5.0, 0))
+		q.collision_mask = 1
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty() and hit.collider is StaticBody3D:
+			return hit.position
+	# Fallback to floor_y if raycast fails
+	return Vector3(from.x, floor_y, from.z)
 
 ## A fast burst of blood thrown out of `origin` toward `toward` (a direction): a heavy spray of
 ## beads plus a finer mist. Short-lived and vanishes on the floor, so it never hangs in the air.

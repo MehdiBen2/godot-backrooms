@@ -243,11 +243,13 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 		"howler_step": # THE BACTERIA's footfall (arg = variant 0..3, so no two in a row are the same sound):
 			# the weight coming down, the floor giving under it, the carpet crushed, claws catching the pile
 			var v_i := int(arg)
-			var a := _buf(0.5)
-			var body := _noise_lp(a.size(), 170.0 + 25.0 * v_i)
-			var f0 := 46.0 + 5.0 * v_i
-			var k_hi := 1.0 - exp(-TAU * 2200.0 / SR)
-			var k_lo := 1.0 - exp(-TAU * 700.0 / SR)
+			var a := _buf(0.75)  # longer, more ominous duration
+			var body := _noise_lp(a.size(), 85.0 + 15.0 * v_i)  # very deep body thud
+			var sub_body := _noise_lp(a.size(), 45.0 + 10.0 * v_i)  # extremely deep sub-bass for massive weight
+			var grave_rumble := _noise_lp(a.size(), 28.0 + 8.0 * v_i)  # grave, ominous ultra-low rumble
+			var f0 := 24.0 + 3.0 * v_i  # very low fundamental frequency for grave, heavy impact
+			var k_hi := 1.0 - exp(-TAU * 3200.0 / SR)  # sharper claw definition
+			var k_lo := 1.0 - exp(-TAU * 350.0 / SR)  # lower band for deeper, more ominous tone
 			var hi := 0.0
 			var lo := 0.0
 			var gate := 1.0
@@ -256,20 +258,31 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var x := rng.randf_range(-1.0, 1.0)
 				hi += (x - hi) * k_hi
 				lo += (hi - lo) * k_lo
-				if i % 70 == 0:
-					gate = 1.0 if rng.randf() < 0.5 else 0.35
-				var v := body[i] * 3.2 * minf(1.0, t / 0.005) * exp(-t * 15.0)
-				v += sin(TAU * (f0 + 22.0 * exp(-t * 28.0)) * t) * 0.55 * exp(-t * 9.0)
-				var t2 := t - 0.015 - 0.004 * v_i
+				if i % 55 == 0:  # frequent menacing claw contact
+					gate = 1.0 if rng.randf() < 0.65 else 0.2
+				# Heavy body impact with grave weight
+				var v := body[i] * 2.5 * minf(1.0, t / 0.008) * exp(-t * 9.0)
+				# Deep sub-bass rumble for massive creature
+				v += sub_body[i] * 2.3 * minf(1.0, t / 0.012) * exp(-t * 6.5)
+				# Ultra-low grave rumble that lingers ominously
+				v += grave_rumble[i] * 1.8 * minf(1.0, t / 0.015) * exp(-t * 5.0)
+				# Very low frequency thud that resonates
+				v += sin(TAU * (f0 + 28.0 * exp(-t * 18.0)) * t) * 0.7 * exp(-t * 6.0)
+				# Secondary deep resonance for structure vibration
+				v += sin(TAU * (f0 * 1.4 + 15.0 * exp(-t * 14.0)) * t) * 0.4 * exp(-t * 8.0)
+				var t2 := t - 0.018 - 0.004 * v_i
 				if t2 > 0.0:
-					v += (hi - lo) * gate * 1.9 * minf(1.0, t2 / 0.003) * exp(-t2 * 30.0)   # a 700-2200 Hz band
+					# Sharp, threatening claw scraping
+					v += (hi - lo) * gate * 1.5 * minf(1.0, t2 / 0.003) * exp(-t2 * 20.0)
 				a[i] = v * 0.65
 			w = _wav(a)
 		"howler_drag": # its short, limping leg: the foot lands light and is dragged, claws raking the carpet
-			var a := _buf(0.42)
-			var body := _noise_lp(a.size(), 200.0)
-			var k_hi := 1.0 - exp(-TAU * 2600.0 / SR)
-			var k_lo := 1.0 - exp(-TAU * 500.0 / SR)
+			var a := _buf(0.65)  # longer for more ominous, heavy drag
+			var body := _noise_lp(a.size(), 95.0)  # deep, grave landing impact
+			var sub_rumble := _noise_lp(a.size(), 55.0)  # deep rumble on the drag
+			var grave_low := _noise_lp(a.size(), 35.0)  # ultra-low ominous tone
+			var k_hi := 1.0 - exp(-TAU * 3800.0 / SR)  # very sharp, menacing claw scraping
+			var k_lo := 1.0 - exp(-TAU * 280.0 / SR)  # very low band for grave weight
 			var hi := 0.0
 			var lo := 0.0
 			var gate := 1.0
@@ -278,11 +291,17 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var x := rng.randf_range(-1.0, 1.0)
 				hi += (x - hi) * k_hi
 				lo += (hi - lo) * k_lo
-				if i % 55 == 0:
-					gate = 1.0 if rng.randf() < 0.55 else 0.2
-				var drag := pow(sin(PI * clampf((t - 0.04) / 0.36, 0.0, 1.0)), 1.4)
-				var v := body[i] * 1.8 * minf(1.0, t / 0.005) * exp(-t * 20.0)            # a lighter landing
-				v += (hi - lo) * gate * drag * 1.4
+				if i % 40 == 0:  # frequent, threatening claw contact
+					gate = 1.0 if rng.randf() < 0.7 else 0.12
+				var drag := pow(sin(PI * clampf((t - 0.05) / 0.55, 0.0, 1.0)), 1.2)  # longer, heavier drag
+				# Heavy landing with grave impact even on dragging foot
+				var v := body[i] * 1.7 * minf(1.0, t / 0.006) * exp(-t * 13.0)
+				# Deep sub-bass weight transfer
+				v += sub_rumble[i] * 1.5 * minf(1.0, t / 0.010) * exp(-t * 9.0)
+				# Ultra-low grave rumble
+				v += grave_low[i] * 1.2 * minf(1.0, t / 0.014) * exp(-t * 7.0)
+				# Menacing, raspy claw dragging with threatening variation
+				v += (hi - lo) * gate * drag * 1.5 * (1.0 + sin(t * 160.0) * 0.3)
 				a[i] = v * 0.8
 			w = _wav(a)
 		"heel":        # your heel on carpet laid over concrete: the low knock the recorded scuffs lack
