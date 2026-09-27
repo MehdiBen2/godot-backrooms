@@ -99,7 +99,6 @@ var loading := false
 var shown_progress := 0.0
 var creep_progress := 0.0
 var load_elapsed := 0.0
-var tip_t := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
 var music: AudioStreamPlayer
@@ -210,7 +209,8 @@ func _build() -> void:
 	margin.add_child(col)
 	menu_box = col
 
-	col.add_child(_label("ARCHIVAL FOOTAGE // LEVEL 0", 12, Color(0.9, 0.882, 0.804, 0.55), 4))
+	var level_tag := load("res://scripts/World/level/level_data.gd")
+	col.add_child(_label("ARCHIVAL FOOTAGE // " + level_tag.current_level_tag(), 12, Color(0.9, 0.882, 0.804, 0.55), 4))
 	var sp := Control.new()
 	sp.custom_minimum_size = Vector2(0, 18)
 	col.add_child(sp)
@@ -470,6 +470,7 @@ func _on_play() -> void:
 	if music:
 		create_tween().tween_property(music, "volume_db", -60.0, 1.5)
 	load_title.text = "LOADING // %s" % _level_name().to_upper()
+	load_tip.text = TIPS[randi() % TIPS.size()]
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
@@ -532,10 +533,6 @@ func _process_loading(dt: float) -> void:
 	load_bar.size.x = 700.0 * shown_progress
 	load_pct.text = "%d%%" % int(shown_progress * 100.0)
 	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
-	tip_t += dt
-	if tip_t > 1.4:
-		tip_t = 0.0
-		load_tip.text = TIPS[randi() % TIPS.size()]
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 		load_pct.text = "LOAD FAILED"
 		loading = false

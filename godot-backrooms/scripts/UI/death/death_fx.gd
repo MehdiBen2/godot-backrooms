@@ -21,6 +21,19 @@ uniform vec4 region = vec4(0.0, 0.0, 1.0, 1.0);
 uniform float alpha = 0.9;
 uniform float seed = 0.0;
 uniform bool drip = false;
+// Value-noise sampled around the circle (n equally-spaced control points, wrapped so ang = -PI and
+// +PI agree): an irregular, non-repeating blob edge. Plain sin(ang*k) harmonics tile perfectly and
+// draw a symmetric flower/gear outline - real blood splats have no such symmetry.
+float _h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+float _ang_noise(float ang, float sd, float n) {
+	float a = (ang / 6.28318530718 + 0.5) * n;
+	float af = floor(a);
+	float f = a - af;
+	float i0 = mod(af, n);
+	float i1 = mod(i0 + 1.0, n);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(_h1(i0 * 13.7 + sd * 4.1), _h1(i1 * 13.7 + sd * 4.1), f);
+}
 void fragment() {
 	vec2 uv = region.xy + UV * region.zw;
 	vec3 c = texture(tex, uv).rgb;
@@ -31,14 +44,14 @@ void fragment() {
 			float w = 0.16 + 0.05 * sin(UV.y * 9.0 + seed);
 			float cx = 0.5 + 0.04 * sin(UV.y * 5.0 + seed * 2.0);
 			mask = smoothstep(w, w * 0.55, abs(UV.x - cx)) * smoothstep(0.9, 0.78, UV.y) * smoothstep(0.0, 0.03, UV.y);
-			c = vec3(0.6, 0.0, 0.0);
+			c = vec3(0.22, 0.0, 0.0);
 	} else {
 		vec2 d = UV - vec2(0.5);
 		float a = atan(d.y, d.x);
-		float r = 0.34 + 0.11 * sin(a * 3.0 + seed) + 0.05 * sin(a * 7.0 + seed * 2.0);
+		float r = 0.28 + 0.18 * _ang_noise(a, seed, 6.0) + 0.08 * _ang_noise(a, seed + 51.0, 13.0);
 		mask = smoothstep(r, r - 0.06, length(d));
 	}
-	ALBEDO = vec3(0.17, 0.005, 0.01) + c * vec3(0.10, 0.0, 0.0);
+	ALBEDO = vec3(0.065, 0.002, 0.004) + c * vec3(0.045, 0.0, 0.0);
 	ALPHA = m * mask * alpha;
 	ROUGHNESS = 0.1;
 	SPECULAR = 0.9;
@@ -57,8 +70,8 @@ void vertex() {
 	VERTEX += NORMAL * k * 0.16;
 }
 void fragment() {
-	ALBEDO = vec3(0.45, 0.012, 0.025);
-	ROUGHNESS = 0.12;
+	ALBEDO = vec3(0.17, 0.005, 0.01);
+	ROUGHNESS = 0.18;
 	SPECULAR = 0.85;
 	METALLIC = 0.02;
 }
@@ -79,6 +92,19 @@ void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// Value-noise sampled around the circle (n equally-spaced control points, wrapped so the outline
+// closes seamlessly at ang = ±PI): an irregular, non-repeating blob edge instead of the symmetric
+// flower/gear shape that plain sin(ang*k) harmonics draw.
+float _h1(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+float ang_noise(float ang, float sd, float n) {
+	float a = (ang / 6.28318530718 + 0.5) * n;
+	float af = floor(a);
+	float f = a - af;
+	float i0 = mod(af, n);
+	float i1 = mod(i0 + 1.0, n);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(_h1(i0 * 13.7 + sd * 4.1), _h1(i1 * 13.7 + sd * 4.1), f);
+}
 float vno(vec2 p) {
 	vec2 i = floor(p), f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
@@ -100,7 +126,7 @@ void fragment() {
 	vec2 d = UV - vec2(0.5);
 	float ang = atan(d.y, d.x);
 	float r = length(d) * 2.0;
-	float outline = 0.60 + 0.22 * sin(ang * 3.0 + seed) + 0.12 * sin(ang * 7.0 + seed * 2.3);
+	float outline = 0.48 + 0.34 * ang_noise(ang, seed, 6.0) + 0.16 * ang_noise(ang, seed + 51.0, 13.0);
 	float pool = clamp(0.55 + 0.85 * tri(wpos * pool_scale), 0.25, 1.35);
 	float edge = max(0.004, outline * grow * pool);   // never a zero-width smoothstep (NaN flicker)
 	float m = smoothstep(edge, edge * 0.55, r);
@@ -108,11 +134,11 @@ void fragment() {
 	float sp = (1.0 - smoothstep(0.70, 0.80, fbm2(wpos.xz * 6.0 + seed))) * smoothstep(edge * 1.45, edge, r);
 	m = max(m * (0.75 + 0.25 * pool), sp * 0.8);
 	if (m < 0.02) { discard; }
-	vec3 bright = vec3(0.78, 0.03, 0.035);  // oxygenated: just landed
-	vec3 dark = vec3(0.16, 0.006, 0.01);    // dried
-	ALBEDO = mix(dark, bright, wet) * (0.8 + 0.35 * pool);
+	vec3 bright = vec3(0.36, 0.013, 0.016);  // oxygenated: just landed
+	vec3 dark = vec3(0.05, 0.002, 0.004);    // dried, near-black
+	ALBEDO = mix(dark, bright, wet) * (0.75 + 0.3 * pool);
 	ALPHA = m * 0.95;
-	ROUGHNESS = mix(0.42, 0.09, wet);
+	ROUGHNESS = mix(0.5, 0.12, wet);
 	SPECULAR = mix(0.25, 0.95, wet);
 	METALLIC = 0.02;
 }
@@ -234,7 +260,7 @@ func drop(pos: Vector3, vel: Vector3, size: float) -> void:
 		_drop_mesh.radial_segments = 8
 		_drop_mesh.rings = 6
 		_drop_mat = StandardMaterial3D.new()
-		_drop_mat.albedo_color = Color(0.42, 0.016, 0.03)
+		_drop_mat.albedo_color = Color(0.16, 0.006, 0.011)
 		_drop_mat.roughness = 0.15
 	var mi := MeshInstance3D.new()
 	mi.mesh = _drop_mesh
@@ -435,23 +461,29 @@ func feast(head: Vector3, victim: Vector3) -> void:
 		var sp := randf_range(0.5, 4.5)
 		surface_decal(Vector3(head.x + cos(a) * sp * 1.4, floor_y, head.z + sin(a) * sp * 1.4),
 				Vector3.UP, randf_range(0.2, 0.7), randf_range(0.0, 0.8))
-	# flung blobs: fast ones reach the walls and the ceiling, heavy clots fall close and stain the floor
-	for i in 12:
+	# flung blobs: fast, low-arcing ones reach the walls before gravity pulls them down to the floor;
+	# heavy clots fall close and stain the floor; a few lobbed high reach the ceiling
+	for i in 14:
 		var a := randf() * TAU
-		var sp := randf_range(2.2, 6.0)
-		blob(head + Vector3(0.0, 0.05, 0.0), Vector3(cos(a) * sp, randf_range(1.2, 3.8), sin(a) * sp), randf_range(0.025, 0.05))
+		var sp := randf_range(4.5, 10.0)
+		blob(head + Vector3(0.0, 0.05, 0.0), Vector3(cos(a) * sp, randf_range(0.8, 2.2), sin(a) * sp), randf_range(0.025, 0.05))
 	for i in 6:
 		var a := randf() * TAU
 		var sp := randf_range(0.4, 1.8)
 		blob(head, Vector3(cos(a) * sp, randf_range(0.6, 2.0), sin(a) * sp), randf_range(0.05, 0.09))
+	# guaranteed wall streaks: whichever walls are actually nearest the kill, regardless of whether a
+	# flung blob happened to reach that far
+	for i in 10:
+		var a := randf() * TAU
+		wall_streak(head.x, head.z, cos(a), sin(a), head.y)
 
 ## A fast burst of blood thrown out of `origin` toward `toward` (a direction): a heavy spray of
 ## beads plus a finer mist. Short-lived and vanishes on the floor, so it never hangs in the air.
 func spray(origin: Vector3, toward: Vector3) -> void:
 	_ensure_floor_collider(origin)
 	var dir := (toward.normalized() + Vector3(0, 0.35, 0)).normalized()
-	_emit(origin, dir, 150, 0.9, 2.5, 8.5, 70.0, 0.022, 0.06, Color(0.17, 0.004, 0.012), 0.1)
-	_emit(origin, dir, 90, 0.55, 5.0, 11.0, 55.0, 0.008, 0.02, Color(0.24, 0.01, 0.02), 0.25)
+	_emit(origin, dir, 150, 0.9, 2.5, 8.5, 70.0, 0.022, 0.06, Color(0.07, 0.002, 0.005), 0.16)
+	_emit(origin, dir, 90, 0.55, 5.0, 11.0, 55.0, 0.008, 0.02, Color(0.1, 0.004, 0.008), 0.32)
 
 func _ensure_floor_collider(near: Vector3) -> void:
 	if _floor_col == null or not is_instance_valid(_floor_col):

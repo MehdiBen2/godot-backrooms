@@ -45,6 +45,17 @@ static func read_index() -> Array:
 		out = [{"id": "level0", "name": "Level 0", "file": "level0.lvl"}]
 	return out
 
+## "LEVEL 0", "LEVEL 1", ... for whichever playlist entry Game.level_index points at right now,
+## used by the title screen and pause menu's "ARCHIVAL FOOTAGE // LEVEL N" tag
+static func current_level_tag() -> String:
+	var levels := read_index()
+	if levels.is_empty():
+		return "LEVEL 0"
+	var meta: Dictionary = levels[clampi(Game.level_index, 0, levels.size() - 1)]
+	var name := str(meta.get("name", "LEVEL 0"))
+	var colon := name.find(":")
+	return (name.substr(0, colon) if colon != -1 else name).to_upper()
+
 static func read_level(meta: Dictionary) -> Dictionary:
 	if meta.has("data"):                              # old baked format
 		return meta["data"]

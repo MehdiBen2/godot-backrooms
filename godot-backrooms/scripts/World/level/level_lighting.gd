@@ -94,7 +94,10 @@ func _apply_gi() -> void:
 	if env.sdfgi_enabled:
 		env.sdfgi_cascades = 3
 		env.sdfgi_min_cell_size = 0.5
-		env.sdfgi_use_occlusion = true
+		# Off: SDFGI's probe occlusion approximates AO from the voxel cascades, which lag behind
+		# fast-moving dynamic objects (the player) and show up as a dark halo/blob dragging along
+		# beneath them. The bounce light itself still works fine without it.
+		env.sdfgi_use_occlusion = false
 		env.sdfgi_bounce_feedback = 0.6
 		env.sdfgi_energy = 1.0
 

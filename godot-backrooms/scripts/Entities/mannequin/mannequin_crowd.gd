@@ -50,6 +50,12 @@ func build(dealt: Array) -> void:
 		if mode != "stand" and mode != "sit":
 			continue
 		var body := StaticBody3D.new()
+		# Its own layer, off the level-geometry layer (1): a flying blood blob's raycast (mask 1) would
+		# otherwise treat this body-height cylinder as a splatterable surface, gluing a decal to its
+		# invisible collision shape well above the (much thinner) visible figure - blood stuck floating
+		# by the head. See player.gd's collision_mask, widened to still bump into these.
+		body.collision_layer = 2
+		body.collision_mask = 0
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
 		cyl.radius = m.RADIUS

@@ -8,6 +8,7 @@ extends CharacterBody3D
 const Footsteps := preload("res://scripts/Player/footsteps.gd")
 const TorchModel := preload("res://scripts/Player/torch_model.gd")
 const Blink := preload("res://scripts/Player/blink.gd")
+const PlayerShadow := preload("res://scripts/Player/player_shadow.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -54,6 +55,7 @@ var flash_spill: SpotLight3D
 var footsteps: Footsteps
 var torch: TorchModel
 var blink: Blink
+var shadow_body: PlayerShadow
 var level: Node
 
 signal jumped
@@ -148,6 +150,11 @@ func _ready() -> void:
 	if not torch.build():
 		torch.queue_free()
 		torch = null
+	shadow_body = PlayerShadow.new()
+	add_child(shadow_body)
+	if not shadow_body.build():
+		shadow_body.queue_free()
+		shadow_body = null
 	footsteps = Footsteps.new()
 	footsteps.name = "Footsteps"
 	add_child(footsteps)
@@ -188,6 +195,14 @@ func _physics_process(dt: float) -> void:
 		is_sprinting = false
 		if not is_on_floor(): velocity.y -= GRAVITY * dt
 		move_and_slide()
+		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
+		if dead:
+			if torch: torch.update(dt, false, false, false, bob)
+			flash.visible = false
+			flash.light_energy = 0.0
+			if flash_spill:
+				flash_spill.visible = false
+				flash_spill.light_energy = 0.0
 		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
@@ -250,6 +265,8 @@ func _physics_process(dt: float) -> void:
 		air_time += dt
 	if torch:
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
+	if shadow_body:
+		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length())
 	_update_flashlight(dt)
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
@@ -417,11 +434,12 @@ func _update_flashlight(dt: float) -> void:
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := ambient_light()
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
-	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if flash_on else 0.0
-	flash.visible = flash_on
+	var lit := flash_on and not dead
+	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if lit else 0.0
+	flash.visible = lit
 	if flash_spill:
-		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
-		flash_spill.visible = flash_on
+		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if lit else 0.0
+		flash_spill.visible = lit
 	# The beam rides the torch in your hand: it leaves from the lens, and drops with the arm when you
 	# sprint (and as the arm comes up), instead of staying welded to the eye.
 	var dip_target := 0.0

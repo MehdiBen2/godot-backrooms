@@ -220,7 +220,8 @@ func _build() -> void:
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dot_c.add_child(tag_dot)
 	tag.add_child(dot_c)
-	tag.add_child(_label("ARCHIVAL FOOTAGE // LEVEL 0", 12, Color(0.9, 0.882, 0.804, 0.55), 4))
+	var level_tag := load("res://scripts/World/level/level_data.gd")
+	tag.add_child(_label("ARCHIVAL FOOTAGE // " + level_tag.current_level_tag(), 12, Color(0.9, 0.882, 0.804, 0.55), 4))
 	main.add_child(tag)
 	main.add_child(_spacer(18))
 

@@ -3,5 +3,10 @@
     "file": "level0.lvl",
     "id": "level0",
     "name": "Level 0: The Lobby"
+  },
+  {
+    "file": "level_1_habitable_zone.lvl",
+    "id": "level_1_habitable_zone",
+    "name": "Level 1: Habitable Zone"
   }
 ]

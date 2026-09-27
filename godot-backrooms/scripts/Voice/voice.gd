@@ -161,9 +161,13 @@ func _setup_capture() -> void:
 	_mic.bus = CAPTURE_BUS
 	add_child(_mic)
 	_apply_mic_active()
-	_in_rate = AudioServer.get_input_mix_rate()
+	# The mic is resampled into the audio graph before it reaches this bus, so what
+	# AudioEffectCapture hands us runs at the engine's mix rate, not the raw input device rate
+	# (get_input_mix_rate()) -- using the wrong one here mis-tunes the resample to 16 kHz below
+	# and comes out pitch-shifted / aliased on the other end.
+	_in_rate = AudioServer.get_mix_rate()
 	if _in_rate <= 0.0:
-		_in_rate = AudioServer.get_mix_rate()
+		_in_rate = 44100.0
 
 ## The mic device only needs to be open while voice chat can actually use it: leaving it capturing
 ## for the whole session (menus, singleplayer, mode Off) keeps a CoreAudio input unit running for no

@@ -92,6 +92,7 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 		var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
 		for v in quad:
 			st.set_normal(n)
+			st.set_tangent(Plane(1, 0, 0, 1))
 			st.add_vertex(v)
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()

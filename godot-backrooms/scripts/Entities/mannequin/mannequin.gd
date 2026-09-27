@@ -211,6 +211,11 @@ func _build_real(r: Dictionary) -> void:
 	var body := AnimatableBody3D.new()
 	body.name = "RealBody"
 	body.sync_to_physics = false
+	# Same layer as the crowd's decoy bodies (2, not the level-geometry layer 1): keeps this body's
+	# collision cylinder invisible to death_fx.gd's blood-blob raycasts, which would otherwise splat a
+	# decal onto the cylinder itself and leave blood floating beside the actual (thinner) figure.
+	body.collision_layer = 2
+	body.collision_mask = 0
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = RADIUS
