@@ -89,7 +89,7 @@ func update_occlusion(delta: float) -> void:
 # Lying in wait it makes no sound at all.
 func vocalize(delta: float, st: String) -> void:
 	update_occlusion(delta)
-	var pos := global_position + Vector3(0, 2.4, 0)
+	var pos := global_position + Vector3(0, 2.0, 0)
 	scares.entity_move(pos)
 	var d := INF if player.dead else pos.distance_to(player.global_position)
 	if st != voice_state:

@@ -48,7 +48,7 @@ const MANNEQUIN_FEAR_RANGE := 12.0
 const FLEE_SPEED := 9.5
 const RESPAWN_MIN_CELLS := 18
 const SPAWN_GRACE := 8.0
-const MODEL_HEIGHT := 4.6
+const MODEL_HEIGHT := 4.6           # way taller than the player (mannequin is 1.85m) — it looms
 const KILL_DISTANCE := 1.35
 # Lying in wait: having lost you, now and then it doesn't wander off. It creeps to where you were
 # heading and crouches there in silence, sharper-eyed and sharper-eared than usual, until you walk into it.

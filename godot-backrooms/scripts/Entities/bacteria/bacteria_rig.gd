@@ -40,11 +40,15 @@ var stomp := 0.0               # the dip as a foot takes its weight, 1 on landin
 var _prev_yaw := NAN
 var _prev_speed := 0.0
 var rng := RandomNumberGenerator.new()
+var mist_mat: StandardMaterial3D
+var mist_ring_mat: StandardMaterial3D
+var mist_puffs := []             # black smoke curling off it, thicker while it hunts
 
 # ================================================================= model
 func build(entity: Node3D, height: float) -> void:
 	e = entity
 	rng.randomize()
+	_build_mist()
 	var packed := load("res://models/entities/howler.glb") as PackedScene
 	if packed == null:
 		_build_fallback()
@@ -68,13 +72,48 @@ func build(entity: Node3D, height: float) -> void:
 		_build_fallback()
 		return
 	var sc := height / box.size.y
-	var c := box.get_center()
 	var rot := Basis(Vector3.UP, MODEL_YAW) * Basis.from_scale(Vector3(sc, sc, sc))
-	root.transform = Transform3D(rot, rot * Vector3(-c.x, -box.position.y, -c.z))
+	root.transform = Transform3D(rot, Vector3.ZERO)
+	# recompute the box with that rotation and scale actually applied, then shift the root so its
+	# feet sit on the ground (y=0) and it's centred over its own origin, not wherever the mesh happened to be
+	var rbox := AABB()
+	first = true
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var t := Transform3D.IDENTITY
+		var p: Node = mi
+		while p != null and p != self:
+			if p is Node3D:
+				t = (p as Node3D).transform * t
+			p = p.get_parent()
+		var b := t * mi.get_aabb()
+		rbox = b if first else rbox.merge(b)
+		first = false
+	var rc := rbox.get_center()
+	root.position = Vector3(-rc.x, -rbox.position.y, -rc.z)
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = SKIN
-	mat.roughness = 0.85
-	mat.metallic = 0.0
+	var col_tex: Texture2D = load("res://textures/bacteria_color.png")
+	var norm_tex: Texture2D = load("res://textures/bacteria_normal.png")
+	var rough_tex: Texture2D = load("res://textures/bacteria_rough.png")
+	if col_tex != null:
+		mat.albedo_texture = col_tex
+		mat.albedo_color = Color(1.0, 1.0, 1.0)
+	else:
+		mat.albedo_color = SKIN
+	if norm_tex != null:
+		mat.normal_enabled = true
+		mat.normal_texture = norm_tex
+		mat.normal_scale = 1.35
+	if rough_tex != null:
+		mat.roughness_texture = rough_tex
+		mat.roughness = 1.0
+	else:
+		mat.roughness = 0.75
+	mat.metallic = 0.05
+	# Seamless triplanar mapping covers un-UV'd wire geometry with rich, organic grainy surface detail
+	mat.uv1_triplanar = true
+	mat.uv1_triplanar_sharpness = 3.5
+	mat.uv1_scale = Vector3(2.5, 2.5, 2.5)
 	for m in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.material_override = mat
@@ -87,6 +126,81 @@ func build(entity: Node3D, height: float) -> void:
 	for k in ["hunch", "crouch", "neck", "head_pitch", "head_roll", "look", "reach_a", "reach_b", "out_a", "out_b", "elbow_a", "elbow_b", "claw", "still", "shoulder_up", "arm_spread", "finger_splay"]:
 		pose[k] = 0.0
 		pose_t[k] = 0.0
+
+# Black mist pooled around its feet and curling off its body: a flat ground haze it drags with it,
+# plus a handful of big soft wisps that climb its legs and dissolve, thicker and faster while it hunts.
+const MIST_PUFF_COUNT := 7
+
+func _mist_texture(edge_a: float, edge_b: float) -> GradientTexture2D:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	g.colors = PackedColorArray([Color(0, 0, 0, edge_a), Color(0, 0, 0, edge_b), Color(0, 0, 0, 0.0)])
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	tex.width = 64
+	tex.height = 64
+	return tex
+
+func _build_mist() -> void:
+	mist_mat = StandardMaterial3D.new()
+	mist_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mist_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mist_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mist_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mist_mat.albedo_texture = _mist_texture(0.9, 0.5)
+	mist_mat.albedo_color = Color(1, 1, 1, 0)
+	# a flat pool lying on the floor, unaffected by camera angle, so it reads as fog on the ground and
+	# not a sprite standing in the corridor
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	ring_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	ring_mat.albedo_texture = _mist_texture(0.75, 0.4)
+	ring_mat.albedo_color = Color(1, 1, 1, 0)
+	var ring := MeshInstance3D.new()
+	var rq := QuadMesh.new()
+	rq.size = Vector2(3.4, 3.4)
+	ring.mesh = rq
+	ring.material_override = ring_mat
+	ring.rotation.x = -PI / 2.0
+	ring.position.y = 0.03
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ring)
+	mist_ring_mat = ring_mat
+	for i in MIST_PUFF_COUNT:
+		var m := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		var sz := rng.randf_range(1.1, 1.9)
+		q.size = Vector2(sz, sz)
+		m.mesh = q
+		var mm := mist_mat.duplicate()
+		m.material_override = mm
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(m)
+		mist_puffs.append({"n": m, "mat": mm, "ang": rng.randf() * TAU, "rad": rng.randf_range(0.15, 0.5),
+			"y0": rng.randf_range(0.05, 0.35), "rise": rng.randf_range(0.5, 1.1),
+			"spd": rng.randf_range(0.08, 0.22) * (1.0 if i % 2 == 0 else -1.0),
+			"cyc": rng.randf_range(2.5, 4.5), "ph": rng.randf() * TAU})
+
+# intensity: 0..1, how much it's stirred up (hunting/lunging makes it billow harder and rise faster)
+func _update_mist(intensity: float) -> void:
+	if mist_mat == null:
+		return
+	if mist_ring_mat != null:
+		mist_ring_mat.albedo_color = Color(1, 1, 1, minf(0.8, 0.4 + intensity * 0.35))
+	for p in mist_puffs:
+		var cyc: float = p.cyc / (1.0 + intensity * 1.2)
+		var life := fmod(clock / cyc + p.ph, 1.0)                # 0 = born low, 1 = dissolved up high
+		var ang: float = p.ang + clock * p.spd * (1.0 + intensity)
+		var r: float = p.rad + life * 0.35
+		var y: float = p.y0 + life * p.rise * (1.0 + intensity * 0.6)
+		p.n.position = Vector3(cos(ang) * r, y, sin(ang) * r)
+		var fade: float = sin(life * PI)                         # smooth in, smooth out, never pops
+		p.mat.albedo_color = Color(1, 1, 1, fade * (0.45 + intensity * 0.4))
 
 # Stick-figure placeholder if the model fails to load
 func _build_fallback() -> void:
@@ -144,6 +258,24 @@ func _turn(bone: int, axis: Vector3, angle: float) -> void:
 	var local := pg.basis.inverse() * new_basis
 	skel.set_bone_pose_rotation(bone, local.get_rotation_quaternion())
 
+# Compound rotation of `bone` combining pitch (right), roll (fwd) and yaw (up) in entity space
+func _turn_compound(bone: int, rot_right: float, rot_fwd: float, rot_up: float) -> void:
+	if bone < 0:
+		return
+	if absf(rot_right) < 0.0001 and absf(rot_fwd) < 0.0001 and absf(rot_up) < 0.0001:
+		return
+	var to_skel := skel.global_transform.basis.orthonormalized().inverse() * global_transform.basis
+	var ax_r := (to_skel * Vector3.RIGHT).normalized()
+	var ax_f := (to_skel * Vector3.BACK).normalized()
+	var ax_u := (to_skel * Vector3.UP).normalized()
+	var rot := Basis(ax_u, rot_up) * Basis(ax_f, rot_fwd) * Basis(ax_r, rot_right)
+	var g := skel.get_bone_global_pose(bone)
+	var parent := skel.get_bone_parent(bone)
+	var pg := skel.get_bone_global_pose(parent) if parent >= 0 else Transform3D.IDENTITY
+	var new_basis := rot * g.basis
+	var local := pg.basis.inverse() * new_basis
+	skel.set_bone_pose_rotation(bone, local.get_rotation_quaternion())
+
 func _b(role: String) -> int:
 	return bones.get(role, -1)
 
@@ -162,14 +294,14 @@ func get_head_global_pos() -> Vector3:
 		return neck_p + Vector3(0.0, 0.45, 0.0)
 	var ep: Vector3 = e.global_position if e else global_position
 	var fwd := Vector3(sin(e.yaw), 0.0, cos(e.yaw)) if e else -global_transform.basis.z
-	return ep + Vector3(0.0, 3.9, 0.0) + fwd * 0.35
+	return ep + Vector3(0.0, 2.4, 0.0) + fwd * 0.35
 
 func get_chest_global_pos() -> Vector3:
 	var p := get_bone_global_pos("chest")
 	if p != Vector3.ZERO:
 		return p
 	var ep: Vector3 = e.global_position if e else global_position
-	return ep + Vector3(0.0, 2.5, 0.0)
+	return ep + Vector3(0.0, 1.6, 0.0)
 
 func get_feet_global_pos() -> Vector3:
 	var fl := get_bone_global_pos("foot_l")
@@ -220,52 +352,50 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 		P.claw = 1.1 + run * 0.5
 		P.reach_a = 1.25 + run * 0.55
 		P.reach_b = 1.25 + run * 0.55
-		P.out_a = 0.32 + run * 0.18
-		P.out_b = 0.32 + run * 0.18
-		P.elbow_a = 0.65
-		P.elbow_b = 0.65
-		P.shoulder_up = 0.35 * run
+		P.out_a = 0.3 + run * 0.15
+		P.out_b = 0.3 + run * 0.15
+		P.elbow_a = 0.6
+		P.elbow_b = 0.6
 		# Bearing down on the player: arms spread wide in a terrifying envelopment posture
 		var player_node: Node3D = e.focus if is_instance_valid(e.focus) else e.player
 		var d_p: float = (player_node.global_position - e.global_position).length() if player_node else 10.0
 		var close_p: float = clampf(1.0 - d_p / 16.0, 0.0, 1.0)
-		P.arm_spread = 0.3 + 0.9 * close_p
-		P.out_a += 0.55 * close_p
-		P.out_b += 0.55 * close_p
-		P.finger_splay = 0.5 + 0.9 * close_p
+		P.arm_spread = 0.2 + 0.5 * close_p
+		P.out_a += 0.4 * close_p
+		P.out_b += 0.4 * close_p
+		P.finger_splay = 0.4 + 0.6 * close_p
 		if e.lunge_windup > 0.0:
-			P.hunch = 0.35; P.crouch = 0.42; P.claw = 1.6
-			P.shoulder_up = 1.1; P.arm_spread = 1.5
-			P.reach_a = 1.8; P.reach_b = 1.8; P.out_a = 1.4; P.out_b = 1.4; P.elbow_a = 0.45; P.elbow_b = 0.45
-			P.finger_splay = 2.0
+			P.hunch = 0.35; P.crouch = 0.38; P.claw = 1.5
+			P.arm_spread = 0.7
+			P.reach_a = 1.6; P.reach_b = 1.6; P.out_a = 0.95; P.out_b = 0.95; P.elbow_a = 0.4; P.elbow_b = 0.4
+			P.finger_splay = 1.4
 		elif e.lunge > 0.0:
-			P.hunch = 1.45; P.crouch = 0.08; P.claw = 1.8
-			P.shoulder_up = 0.4; P.arm_spread = 0.2
-			P.reach_a = 2.2; P.reach_b = 2.2; P.out_a = 0.25; P.out_b = 0.25; P.elbow_a = 0.1; P.elbow_b = 0.1
-			P.finger_splay = 1.2
+			P.hunch = 1.45; P.crouch = 0.08; P.claw = 1.6
+			P.arm_spread = 0.15
+			P.reach_a = 2.0; P.reach_b = 2.0; P.out_a = 0.2; P.out_b = 0.2; P.elbow_a = 0.15; P.elbow_b = 0.15
+			P.finger_splay = 0.8
 	elif st == "screech":
 		# SPOTTED PLAYER:
-		# Phase 1 (0.0-0.20s): Sudden lock-on, spine snaps erect, shoulders tense
-		# Phase 2 (0.20-0.85s): VIOLENT OPEN ARMS SCREECH! Shoulders jack high, chest flares,
-		#                        arms flung wide open in an intimidating wingspan, fingers splayed wide
-		# Phase 3 (0.85s+): Coils down low, arms whip forward from wide open into grasping claws
+		# Phase 1 (0.0-0.20s): Sudden lock-on, spine snaps erect, arms begin rising
+		# Phase 2 (0.20-0.85s): VIOLENT OPEN ARMS SCREECH! Broad intimidating wingspan threat display
+		# Phase 3 (0.85s+): Coils down low, arms whip forward into predatory reach
 		if anim_time < 0.20:
-			P.hunch = -0.55; P.crouch = 0.15; P.neck = 0.4; P.head_pitch = 0.45; P.look = 1.0; P.claw = 1.2
-			P.shoulder_up = 0.6; P.arm_spread = 0.8
-			P.reach_a = 0.5; P.reach_b = 0.5; P.out_a = 0.9; P.out_b = 0.9; P.elbow_a = 0.6; P.elbow_b = 0.6
-			P.finger_splay = 0.8
+			P.hunch = -0.35; P.crouch = 0.12; P.neck = 0.35; P.head_pitch = 0.4; P.look = 1.0; P.claw = 1.0
+			P.arm_spread = 0.35
+			P.reach_a = 0.35; P.reach_b = 0.35; P.out_a = 0.6; P.out_b = 0.6; P.elbow_a = 0.35; P.elbow_b = 0.35
+			P.finger_splay = 0.6
 		elif anim_time < 0.85:
 			# Massive open arms threat posture!
-			P.hunch = -0.4; P.crouch = 0.06; P.neck = 0.7; P.head_pitch = 1.3; P.look = 0.35; P.claw = 1.9
-			P.shoulder_up = 1.25; P.arm_spread = 2.0
-			P.reach_a = 0.85; P.reach_b = 0.85; P.out_a = 2.3; P.out_b = 2.3; P.elbow_a = 0.75; P.elbow_b = 0.75
-			P.finger_splay = 2.2
+			P.hunch = -0.35; P.crouch = 0.05; P.neck = 0.55; P.head_pitch = 1.15; P.look = 0.4; P.claw = 1.5
+			P.arm_spread = 0.65
+			P.reach_a = 0.55; P.reach_b = 0.55; P.out_a = 1.25; P.out_b = 1.25; P.elbow_a = 0.45; P.elbow_b = 0.45
+			P.finger_splay = 1.2
 		else:
 			# Coiling to sprint: drops low, arms whip forward from wide open into grasping claws
-			P.hunch = 1.35; P.crouch = 0.36; P.neck = 0.35; P.head_pitch = -0.25; P.look = 1.0; P.claw = 1.5
-			P.shoulder_up = 0.35; P.arm_spread = 0.4
-			P.reach_a = 1.6; P.reach_b = 1.6; P.out_a = 0.5; P.out_b = 0.5; P.elbow_a = 0.5; P.elbow_b = 0.5
-			P.finger_splay = 1.0
+			P.hunch = 1.25; P.crouch = 0.32; P.neck = 0.35; P.head_pitch = -0.2; P.look = 1.0; P.claw = 1.3
+			P.arm_spread = 0.2
+			P.reach_a = 1.35; P.reach_b = 1.35; P.out_a = 0.35; P.out_b = 0.35; P.elbow_a = 0.5; P.elbow_b = 0.5
+			P.finger_splay = 0.6
 	elif st == "stalk":
 		# Low behind the corner, leading hand gripping and hooking the wall's edge, head tilted nearly flat
 		P.still = 1.0; P.hunch = 0.4; P.crouch = 0.55; P.neck = 0.3; P.head_pitch = -0.15; P.claw = 1.5
@@ -342,6 +472,10 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_prev_yaw = e.yaw
 	var accel := (move_speed - _prev_speed) / dt
 	_prev_speed = move_speed
+	var mist_intensity := clampf(move_speed / CHASE_SPEED, 0.0, 1.0)
+	if st == "chase" or st == "screech" or st == "grab":
+		mist_intensity = maxf(mist_intensity, 0.6)
+	_update_mist(mist_intensity)
 	if skel == null:
 		return
 	var player: Node3D = e.focus if is_instance_valid(e.focus) else e.player
@@ -466,20 +600,6 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_turn(_b("head"), fwd, pose.head_roll * 0.75 + bank * 0.5 + _noise(32.0, tj) * 0.15 * twitch)
 	_glitch_turn("neck", g_angle)
 	_glitch_turn("head", g_angle)
-
-	# ---- shoulders: jack up and widen the silhouette during threat poses / screech
-	var sh_l: int = _b("shoulder_l")
-	var sh_r: int = _b("shoulder_r")
-	var sh_up_amt: float = pose.get("shoulder_up", 0.0)
-	var sh_spread_amt: float = pose.get("arm_spread", 0.0)
-	if sh_l >= 0:
-		_turn(sh_l, fwd, sh_up_amt * 0.45 + screech_shiver * 0.6)
-		_turn(sh_l, up, sh_spread_amt * 0.35)
-		_turn(sh_l, right, -sh_up_amt * 0.2)
-	if sh_r >= 0:
-		_turn(sh_r, fwd, -(sh_up_amt * 0.45 + screech_shiver * 0.6))
-		_turn(sh_r, up, -sh_spread_amt * 0.35)
-		_turn(sh_r, right, -sh_up_amt * 0.2)
 
 	# ---- legs: realistic biped articulation with monstrous asymmetry and uncanny horror gait
 	var pel_l: int = _b("pelvis_l")
@@ -607,15 +727,16 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		var elbow: float = pose["elbow_" + arm] + maxf(0.0, -sin(ph2)) * clawing * (1.2 * run if run > 0.3 else 0.9) * swing_suppress \
 			+ sin(ph2 + 1.0) * 0.25 * w * (1.0 - clawing) * swing_suppress + _noise(seed_v + 3.0, tj) * 0.25 * twitch
 
-		_turn(_b("arm_" + arm_side), right, -(reach * 0.9))
-		_turn(_b("arm_" + arm_side), fwd, sgn * out * 0.65)
-		_turn(_b("arm_" + arm_side), up, open_yaw)
-		_turn(_b("fore_" + arm_side), right, -(elbow * 0.9 + reach * 0.2))
-		_turn(_b("fore_" + arm_side), fwd, sgn * (out * 0.25 + threat_spread * 0.3))
+		# Single compound rotation for the upper arm (pitch, roll, yaw combined cleanly without overwriting)
+		_turn_compound(_b("arm_" + arm_side), -(reach * 0.85), sgn * out * 0.65, open_yaw)
+		
+		# Forearm is a pure elbow hinge - pitch only, never twisted on other axes
+		_turn(_b("fore_" + arm_side), right, -(elbow * 0.85 + reach * 0.15))
+		
 		_glitch_turn("arm_" + arm_side, g_angle * sgn)
 		_glitch_turn("fore_" + arm_side, g_angle * sgn)
 
-		# fingers: claw clench + wide splay when spotting player
+		# fingers: claw clench + natural wide splay when spotting player
 		var fingers: Array = bones.get("fingers_" + arm_side, [])
 		var idx_fingers: Array = bones.get("finger_index_" + arm_side, [])
 		var ring_fingers: Array = bones.get("finger_ring_" + arm_side, [])
@@ -626,13 +747,13 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 			var run_twitch := sin(clock * 16.0 + float(i) * 1.8) * 0.25 * run
 			var screech_twitch := sin(clock * 48.0 + float(i) * 2.3) * 0.22 * (1.0 if screech_shiver != 0.0 else 0.0)
 			var curl: float = (sin(clock * (2.5 if quiet else 5.0) + float(i) * 1.7) * 0.3 * (0.4 + alive * 0.6) \
-				+ pose.claw + grab_clench + run_twitch - f_splay * 0.35) * 0.65
+				+ pose.claw + grab_clench + run_twitch - f_splay * 0.25) * 0.65
 			_turn(f_bone, right, -curl + screech_twitch)
 			
 			if idx_fingers.has(f_bone):
-				_turn(f_bone, fwd, sgn * f_splay * 0.35)
+				_turn(f_bone, fwd, sgn * f_splay * 0.18)
 			elif ring_fingers.has(f_bone):
-				_turn(f_bone, fwd, -sgn * f_splay * 0.35)
+				_turn(f_bone, fwd, -sgn * f_splay * 0.18)
 
 	# crouch sinks the whole body, body bobs lowest at foot strikes and rises at midstance
 	var gait_bob: float = -absf(sin(phase)) * (0.09 + run * 0.08) * w
