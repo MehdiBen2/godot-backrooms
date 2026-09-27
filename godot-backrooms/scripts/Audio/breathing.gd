@@ -3,32 +3,11 @@ extends RefCounted
 ## the player inhales and exhales, gasps on a startle, holds their breath when frozen, sighs when
 ## relieved. Pre-rendered breath clips are picked by length / mouth / shake and played on "Body".
 ## `loudness` is read back by the hum, which ducks while you are breathing hard.
-##
-## Underneath the procedural phases, a recorded voice bed (VOICE_STAGES: one real take per arousal
-## level, split from a single "calm -> panicked" performance) fades in once arousal/exertion is
-## sustained past VOICE_MIN_AROUSAL, and crossfades to a louder/faster take as it climbs - texture the
-## tiny synthesized fragments can't carry on their own. It never replaces the procedural gasps/holds
-## above; it just sits under them, quiet, so a long chase doesn't read as the same few clips on loop.
 
 const BREATH_VOLUME := 0.75          # AUDIO.breathVolume
 const CALM_BREATH := 0.0             # AUDIO.calmBreathVolume
 const BREATH_DURS := [0.22, 0.34, 0.5, 0.7, 0.9, 1.3, 1.6]
 const BREATH_MOUTH := [0.0, 0.6, 1.0]
-
-# One real recording per arousal level (split from a single escalating performance): quiet, unhurried
-# breaths at the low end, fast ragged panting at the top. `level` is where it sits on the same 0..1
-# arousal/exertion scale _update_voice() uses to pick between them.
-const VOICE_STAGES := [
-	{"file": "res://audio/player/breath/breath_01_calm.wav", "level": 0.0},
-	{"file": "res://audio/player/breath/breath_02_alert.wav", "level": 0.2},
-	{"file": "res://audio/player/breath/breath_03_strained.wav", "level": 0.4},
-	{"file": "res://audio/player/breath/breath_04_tense.wav", "level": 0.6},
-	{"file": "res://audio/player/breath/breath_05_distressed.wav", "level": 0.8},
-	{"file": "res://audio/player/breath/breath_06_panicked.wav", "level": 1.0},
-]
-const VOICE_MIN_AROUSAL := 0.35      # below this, the procedural phases alone carry it - no recorded bed
-const VOICE_FADE := 1.2              # crossfade seconds, in and out
-const VOICE_GAIN := 0.5              # textural, under the procedural breathing, never on top of it
 
 var audio: Node                      # the Audio node: player, vol, scales, stream(), child players
 
@@ -53,10 +32,6 @@ var b_sigh_timer := 20.0
 var b_was_exhausted := false
 var b_adr_was := false
 
-var _voice_streams := {}             # VOICE_STAGES index -> AudioStream, loaded once
-var _voice_players: Array = []       # {p, t, dying, dying_t, idx}
-var _voice_idx := -1                 # VOICE_STAGES index currently playing (not dying), -1 = none
-
 func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
@@ -80,7 +55,6 @@ func _approach(cur: float, target: float, up: float, down: float, dt: float) -> 
 func update(dt: float) -> void:
 	if Game.dead:          # the dead don't breathe: only what last_breath() queued still plays out
 		loudness = 0.0
-		_stop_voice()
 		return
 	var sprinting: bool = audio.player.is_sprinting
 	var exhausted: bool = audio.player.exhausted
@@ -145,7 +119,6 @@ func update(dt: float) -> void:
 	if b_holding: loud = 0.0
 	loudness = loud
 	_schedule(loud)
-	_update_voice(dt, arousal)
 
 func _arousal() -> float:
 	return maxf(b_terror, b_anxiety * 0.55)
@@ -261,77 +234,3 @@ func play_queue() -> void:
 				p.pitch_scale = pitch
 				p.play()
 				break
-
-# ------------------------------------------------------------------ recorded voice bed (VOICE_STAGES)
-func _voice_stream(idx: int) -> AudioStream:
-	if not _voice_streams.has(idx):
-		var path: String = VOICE_STAGES[idx].file
-		_voice_streams[idx] = load(path) if ResourceLoader.exists(path) else null
-	return _voice_streams[idx]
-
-func _nearest_stage(level: float) -> int:
-	var best := 0
-	for i in VOICE_STAGES.size():
-		if absf(VOICE_STAGES[i].level - level) < absf(VOICE_STAGES[best].level - level):
-			best = i
-	return best
-
-func _update_voice(dt: float, arousal: float) -> void:
-	var target := clamp01(maxf(arousal, b_exertion * 0.6))
-	if b_holding or target < VOICE_MIN_AROUSAL:
-		for v in _voice_players:
-			v.dying = true
-	else:
-		var idx := _nearest_stage(target)
-		if idx != _voice_idx:
-			_start_voice(idx)
-	var i := _voice_players.size() - 1
-	while i >= 0:
-		var v: Dictionary = _voice_players[i]
-		var p: AudioStreamPlayer = v.p
-		if not is_instance_valid(p):
-			_voice_players.remove_at(i)
-			i -= 1
-			continue
-		v.t += dt
-		var fade := minf(1.0, v.t / VOICE_FADE)
-		if v.dying:
-			v.dying_t += dt
-			fade = minf(fade, maxf(0.0, 1.0 - v.dying_t / VOICE_FADE))
-		if fade <= 0.0 and v.t > 0.3:
-			p.queue_free()
-			_voice_players.remove_at(i)
-			if v.idx == _voice_idx:
-				_voice_idx = -1
-		else:
-			p.volume_linear = fade * VOICE_GAIN * BREATH_VOLUME * audio.vol.breathing
-		i -= 1
-
-func _start_voice(idx: int) -> void:
-	var s := _voice_stream(idx)
-	if s == null:
-		return
-	for v in _voice_players:
-		if not v.dying:
-			v.dying = true
-			v.dying_t = 0.0
-	var p := AudioStreamPlayer.new()
-	p.stream = s
-	p.bus = "Body"
-	p.volume_linear = 0.0
-	audio.add_child(p)
-	p.play()
-	var entry := {"p": p, "t": 0.0, "dying": false, "dying_t": 0.0, "idx": idx}
-	_voice_players.append(entry)
-	_voice_idx = idx
-	# the recording runs out long before a sustained chase does: pick it back up rather than cut to silence
-	p.finished.connect(func():
-		if is_instance_valid(p) and not entry.dying and entry.idx == _voice_idx:
-			p.play())
-
-func _stop_voice() -> void:
-	for v in _voice_players:
-		if is_instance_valid(v.p):
-			v.p.queue_free()
-	_voice_players.clear()
-	_voice_idx = -1
