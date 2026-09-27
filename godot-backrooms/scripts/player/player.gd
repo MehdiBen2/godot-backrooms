@@ -119,6 +119,7 @@ var idle_amt := 0.0
 var pitch_off := 0.0          # motion pitch offset currently added onto cam.rotation.x
 var pitch_applied := 0.0
 var dark_time := 0.0          # how long you have been in the dark with no light of your own
+var beam_tilt := 0.0          # eased sprint/crouch dip: the beam drops with the hand, not just the model
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -242,9 +243,9 @@ func _physics_process(dt: float) -> void:
 	else:
 		was_airborne = true
 		air_time += dt
-	_update_flashlight(dt)
 	if torch:
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
+	_update_flashlight(dt)
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
 
@@ -416,12 +417,20 @@ func _update_flashlight(dt: float) -> void:
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if flash_on else 0.0
 		flash_spill.visible = flash_on
-	# The beam leaves from the camera and follows the view with natural lag
-	var lens_world := cam.global_position
-	flash.global_position = lens_world
-	var want := cam.global_position - cam.global_transform.basis.z * 16.0
+	# The beam rides the torch in your hand: it leaves from the lens, and drops with the arm when you
+	# sprint (and as the arm comes up), instead of staying welded to the eye.
+	var dip_target := 0.0
+	if torch != null:
+		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
+	beam_tilt = lerpf(beam_tilt, dip_target, minf(1.0, 6.0 * dt))
+	var lens := cam.global_position
+	if torch != null and torch.visible:
+		lens = torch.global_transform.origin - torch.global_transform.basis.z * TorchModel.LENGTH
+	flash.global_position = lens
+	var fwd := -cam.global_transform.basis.z * 16.0
+	var want := lens + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
 	flash_target = flash_target.lerp(want, minf(1.0, 14.0 * dt))
-	if flash_target.distance_to(lens_world) > 0.01:
+	if flash_target.distance_to(lens) > 0.01:
 		flash.look_at(flash_target, Vector3.UP)
 
 ## The torch stutters for `secs` seconds (an event, or something big coming close)

@@ -50,6 +50,7 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 	visible = shown
 	if not shown:
 		raise = 0.0
+		lower = 0.0
 		return
 	raise = minf(1.0, raise + dt * 3.0)
 	lower += ((1.0 if sprinting else 0.0) - lower) * minf(1.0, dt * 8.0)

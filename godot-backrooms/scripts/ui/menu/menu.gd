@@ -368,6 +368,7 @@ func _slider_row(name: String, lo: int, hi: int, value: int, on_change: Callable
 	row.add_theme_constant_override("separation", 12)
 	var n := _label(name.to_upper(), 12, Color(0.9, 0.882, 0.804, 0.75), 2)
 	n.custom_minimum_size = Vector2(104, 0)
+	n.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(n)
 	var s := HSlider.new()
 	s.min_value = lo
@@ -376,21 +377,20 @@ func _slider_row(name: String, lo: int, hi: int, value: int, on_change: Callable
 	s.value = value
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# the row band is the target, not the 2px line drawn in the middle of it
+	s.custom_minimum_size = Vector2(0, 26)
 	s.focus_mode = Control.FOCUS_NONE
 	_slider_theme(s)
 	row.add_child(s)
 	var v := _label(str(value), 12, Color(0.9, 0.882, 0.804, 0.6), 2)
 	v.custom_minimum_size = Vector2(30, 0)
+	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(v)
 	s.value_changed.connect(func(x: float):
 		v.text = str(int(x))
 		on_change.call(int(x)))
-	var pad := MarginContainer.new()
-	pad.add_theme_constant_override("margin_top", 6)
-	pad.add_theme_constant_override("margin_bottom", 6)
-	pad.add_child(row)
-	return pad
+	return row
 
 func _build_settings() -> Control:
 	var v := VBoxContainer.new()
@@ -528,13 +528,34 @@ func _cycle_row(title: String, key: String, opts: Array) -> Control:
 	return _gfx_row(title, b)
 
 func _gfx_row(title: String, value: Control) -> Control:
+	# One band per setting with no dead gaps: the row is as tall as the old row + its margins,
+	# the label fills it, and the two controls touch each other.
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
-	var n := _label(title.to_upper(), 12, Color(0.9, 0.882, 0.804, 0.75), 2)
+	var n := _row_title(title)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if value is BaseButton:
+		n.pressed.connect(func(): (value as BaseButton).pressed.emit())
 	row.add_child(n)
+	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(value)
-	return _padded(row)
+	row.custom_minimum_size = Vector2(0, 29)
+	return row
+
+## A row label that looks like a label but takes the click like the control beside it
+func _row_title(text: String) -> Button:
+	var b := Button.new()
+	b.text = text.to_upper()
+	b.flat = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.add_theme_font_override("font", _font(2))
+	b.add_theme_font_size_override("font_size", 12)
+	b.add_theme_color_override("font_color", Color(0.9, 0.882, 0.804, 0.75))
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+		b.add_theme_stylebox_override(s, StyleBoxEmpty.new())
+	return b
 
 func _build_graphics() -> Control:
 	var v := VBoxContainer.new()
