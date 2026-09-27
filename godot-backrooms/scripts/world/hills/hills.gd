@@ -6,8 +6,11 @@ const RES := 320
 const HOUSE_COUNT := 30
 const TILE_SIZE := 5.0                        # GodotGrass tile LOD: one MultiMesh per tile, re-seated as the player moves
 const GRASS_RADIUS := 90.0                    # blades fade out by 85 m (grass.gdshader); the terrain shader carries the rest
-const GRASS_HIGH := preload("res://models/grass/grass_high.obj")
-const GRASS_LOW := preload("res://models/grass/grass_low.obj")
+const GRASS_HIGH_PATH := "res://models/grass/grass_high.obj"
+const GRASS_LOW_PATH := "res://models/grass/grass_low.obj"
+# .obj meshes can't be preloaded off the main thread, so load them when the grass is built
+static var grass_high: Mesh
+static var grass_low: Mesh
 const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
 const START_HOUR := 11.0
 const TIME_STEP := 0.1                        # the sky / light are refreshed this often (seconds), not every frame
@@ -374,9 +377,13 @@ func _grass_lod(density: float, mesh: Mesh) -> MultiMesh:
 
 func _build_grass() -> void:
 	grass_mat = _grass_material()
+	if grass_high == null:
+		grass_high = load(GRASS_HIGH_PATH)
+	if grass_low == null:
+		grass_low = load(GRASS_LOW_PATH)
 	var lods: Array[MultiMesh] = [
-		_grass_lod(0.7, GRASS_HIGH), _grass_lod(0.35, GRASS_HIGH), _grass_lod(0.18, GRASS_LOW),
-		_grass_lod(0.08, GRASS_LOW), _grass_lod(0.04, GRASS_LOW)]
+		_grass_lod(0.7, grass_high), _grass_lod(0.35, grass_high), _grass_lod(0.18, grass_low),
+		_grass_lod(0.08, grass_low), _grass_lod(0.04, grass_low)]
 	var r := int(GRASS_RADIUS)
 	for i in range(-r, r, int(TILE_SIZE)):
 		for j in range(-r, r, int(TILE_SIZE)):

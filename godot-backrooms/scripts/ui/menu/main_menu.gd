@@ -13,7 +13,6 @@ const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
 const MUSIC_DB := -24.0                 # quiet bed, not a soundtrack
 const MAIN_SCENE := "res://scenes/main.tscn"
-const MIN_LOAD := 2.6                   # never flash the loading screen; also lets the bar read
 const TIPS := [
 	"The hum is not always the lights.",
 	"Batteries stack. Tab to use them.",
@@ -22,7 +21,33 @@ const TIPS := [
 	"Not every corridor leads somewhere.",
 	"Archive papers explain what the map will not.",
 	"Sprinting costs stamina. Fear costs more.",
+	"Moist old carpet is the only weather here.",
+	"Six hundred million square miles of the same room.",
+	"Level 0 is not empty. It is only quiet.",
+	"The mannequins move on your blink, not your back.",
+	"Something in here has learned what doors look like.",
+	"Fear carries. So does the light of your torch.",
+	"No-clip through reality and this is where you land.",
+	"The tubes were humming long before you fell in.",
+	"There is no way out. There are only more levels.",
 ]
+# The no-clipping readout under the bar: the transfer is received, not typed
+const WARP := [
+	"NO-CLIP // RE-ANCHORING SUBJECT",
+	"WALL GEOMETRY THINNING",
+	"LOSING THE ROOM BETWEEN ROOMS",
+	"REBUILDING SECTOR 0 FROM MEMORY",
+	"CLIPPING THROUGH THE CEILING",
+	"COORDS UNKNOWN // DAMP CARPET",
+	"THE HUM IS LOCKING ON",
+	"TRANSFER BODY // DO NOT BLINK",
+	"REALITY BUFFER UNDERFLOW",
+	"LEVEL 0 ACCEPTING PAYLOAD",
+	"SMELL OF OLD CARPET DETECTED",
+	"YOU ARE ALMOST NOT HERE",
+]
+const WARP_HOLD := 0.42          # seconds each readout line stays before the next comes through
+const GLITCH_CHARS := "|/\\-=:*+~"
 
 var font: FontFile = load("res://fonts/vcr.ttf")
 var bg_root: Control
@@ -40,12 +65,15 @@ var glitch_tick := 0.0
 var buttons: Array[Button] = []
 var menu_box: Control
 var loading_root: Control
+var load_title: Label
 var load_bar: ColorRect
 var load_pct: Label
+var load_warp: Label
+var warp_t := 0.0
+var warp_i := 0
 var load_tip: Label
 var load_dot: ColorRect
 var loading := false
-var load_t := 0.0
 var shown_progress := 0.0
 var tip_t := 0.0
 var t := 0.0
@@ -301,7 +329,8 @@ func _build_loading() -> void:
 	box.position = Vector2(110, 800)
 	box.custom_minimum_size = Vector2(700, 0)
 	loading_root.add_child(box)
-	box.add_child(_label("LOADING // LEVEL 0", 26, TITLE, 6))
+	load_title = _label("LOADING", 26, TITLE, 6)
+	box.add_child(load_title)
 	var track := ColorRect.new()
 	track.color = Color(0.9, 0.882, 0.804, 0.15)
 	track.custom_minimum_size = Vector2(700, 2)
@@ -312,6 +341,8 @@ func _build_loading() -> void:
 	track.add_child(load_bar)
 	load_pct = _label("0%", 12, Color(0.9, 0.882, 0.804, 0.55), 4)
 	box.add_child(load_pct)
+	load_warp = _label("", 13, Color(0.77, 0.16, 0.13, 0.85), 3)
+	box.add_child(load_warp)
 	load_tip = _label(TIPS[randi() % TIPS.size()], 14, Color(0.9, 0.882, 0.804, 0.45), 1)
 	load_tip.position = Vector2(110, 960)
 	loading_root.add_child(load_tip)
@@ -409,13 +440,33 @@ func _on_play() -> void:
 	if loading:
 		return
 	loading = true
-	load_t = 0.0
 	loading_root.visible = true
 	loading_root.modulate.a = 0.0
 	create_tween().tween_property(loading_root, "modulate:a", 1.0, 0.5)
 	if music:
 		create_tween().tween_property(music, "volume_db", -60.0, 1.5)
+	load_title.text = "LOADING // %s" % _level_name().to_upper()
+	warp_i = randi() % WARP.size()
+	warp_t = 0.0
+	_next_warp()
 	ResourceLoader.load_threaded_request(MAIN_SCENE)
+
+## The next line of the transfer readout, with a few characters dropped so it reads as received
+func _next_warp() -> void:
+	load_warp.text = _corrupt(WARP[warp_i])
+	warp_i = (warp_i + 1) % WARP.size()
+
+func _corrupt(s: String) -> String:
+	var out := ""
+	for ch in s:
+		out += ch if ch == " " or randf() > 0.07 else GLITCH_CHARS[randi() % GLITCH_CHARS.length()]
+	return out
+
+## The playlist entry the run starts on, so the loading screen names the level actually being built
+func _level_name() -> String:
+	var levels: Array = load("res://scripts/world/level/level_data.gd").read_index()
+	var meta = levels[clampi(Game.level_index, 0, levels.size() - 1)]
+	return str(meta.get("name", "LEVEL 0"))
 
 func _finish_loading() -> void:
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
@@ -443,28 +494,31 @@ func _process(dt: float) -> void:
 			_next_bg()
 
 func _process_loading(dt: float) -> void:
-	load_t += dt
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	var real: float = prog[0] if prog.size() > 0 else 0.0
 	if status == ResourceLoader.THREAD_LOAD_LOADED:
 		real = 1.0
-	# eased and time-paced so the bar always reads as work, never a jump
-	var goal := minf(real, load_t / MIN_LOAD)
-	shown_progress += (goal - shown_progress) * (1.0 - exp(-dt * 6.0))
+	# ease toward the loader's own figure: the bar is the real progress, just smoothed
+	shown_progress += (real - shown_progress) * (1.0 - exp(-dt * 6.0))
 	load_bar.size.x = 700.0 * shown_progress
 	load_pct.text = "%d%%" % int(shown_progress * 100.0)
 	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
+	warp_t += dt
+	if warp_t >= WARP_HOLD:
+		warp_t = 0.0
+		_next_warp()
 	tip_t += dt
-	if tip_t > 3.2:
+	if tip_t > 1.4:
 		tip_t = 0.0
 		load_tip.text = TIPS[randi() % TIPS.size()]
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 		load_pct.text = "LOAD FAILED"
 		loading = false
 		return
-	if status == ResourceLoader.THREAD_LOAD_LOADED and load_t >= MIN_LOAD and shown_progress > 0.97:
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
 		set_process(false)
+		load_bar.size.x = 700.0
 		load_pct.text = "100%"
 		_finish_loading()
 

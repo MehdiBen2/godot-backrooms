@@ -5,14 +5,17 @@ extends Node3D
 const TRIGGER_RADIUS := 0.9
 const CHARGE := 45.0           # % of battery restored
 
-const MODEL := preload("res://models/aa_batteries.glb")
+const MODEL_PATH := "res://models/aa_batteries.glb"
 const MODEL_SIZE := 0.3          # metres, longest side
+static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread, so the menu's threaded load would stall on it
 
 var used := false
 var light: OmniLight3D
 
 func _ready() -> void:
-	var model: Node3D = MODEL.instantiate()
+	if model_scene == null:
+		model_scene = load(MODEL_PATH)
+	var model: Node3D = model_scene.instantiate()
 	add_child(model)
 	# fit the model to ~MODEL_SIZE along its longest side and rest it on the floor
 	var box := _mesh_aabb(model, Transform3D.IDENTITY)
