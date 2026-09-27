@@ -528,7 +528,7 @@ func add_node(args: Dictionary) -> Dictionary:
 	# the validator to report success while the .tscn never actually
 	# recorded the value. Pre-validation already proved the script loads.
 	if not script_path.is_empty():
-		var s := load(script_path)
+		var s: Script = load(script_path)
 		if s:
 			new_node.set_script(s)
 		else:

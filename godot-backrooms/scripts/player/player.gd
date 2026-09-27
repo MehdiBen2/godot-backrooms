@@ -120,10 +120,15 @@ var pitch_off := 0.0          # motion pitch offset currently added onto cam.rot
 var pitch_applied := 0.0
 var dark_time := 0.0          # how long you have been in the dark with no light of your own
 var beam_tilt := 0.0          # eased sprint/crouch dip: the beam drops with the hand, not just the model
+var beam_pos := Vector3.ZERO  # eased light origin: the torch lens, pulled back to the eye inside walls
+const BEAM_TILT_MAX := 0.30   # rad: how far the arm may drop the beam (any more and it only skims the floor)
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	level = get_parent().get_node_or_null("Level")
+	# The beam leaves from the low hand now, so it skims the floor: at that grazing angle the shadow map
+	# bands across it, which a normal bias lifts. Level lamps set theirs in code too, not in the scene.
+	flash.shadow_normal_bias = 2.0
 	flash.top_level = true
 	flash.visible = true
 	flash_spill = flash.get_node_or_null("Spill") as SpotLight3D
@@ -422,16 +427,40 @@ func _update_flashlight(dt: float) -> void:
 	var dip_target := 0.0
 	if torch != null:
 		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
-	beam_tilt = lerpf(beam_tilt, dip_target, minf(1.0, 6.0 * dt))
+	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 6.0 * dt))
 	var lens := cam.global_position
 	if torch != null and torch.visible:
 		lens = torch.global_transform.origin - torch.global_transform.basis.z * TorchModel.LENGTH
-	flash.global_position = lens
+	# Eased so the light can't jump the half-metre when the lens crosses from clear air into a wall.
+	# Over 2 m away is a teleport (respawn, level change), not a step: snap rather than fly across it.
+	var where := _lens_clear_of_walls(cam.global_position, lens)
+	beam_pos = where if beam_pos.distance_to(where) > 2.0 else beam_pos.lerp(where, minf(1.0, 25.0 * dt))
+	flash.global_position = beam_pos
 	var fwd := -cam.global_transform.basis.z * 16.0
-	var want := lens + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
+	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
 	flash_target = flash_target.lerp(want, minf(1.0, 14.0 * dt))
-	if flash_target.distance_to(lens) > 0.01:
+	if flash_target.distance_to(beam_pos) > 0.01:
 		flash.look_at(flash_target, Vector3.UP)
+
+# The lens hangs ~0.4 m in front of your eye, so pressed up against a wall it sits inside the geometry
+# and the beam vanishes with it. Only level walls count: a creature passing between your eye and the
+# torch must not move your light.
+func _lens_clear_of_walls(from: Vector3, lens: Vector3) -> Vector3:
+	if from.distance_to(lens) < 0.01:
+		return lens
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return lens
+	var q := PhysicsRayQueryParameters3D.create(from, lens)
+	q.exclude = [get_rid()]
+	for i in 3:
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return lens
+		if hit.collider is StaticBody3D:
+			return from
+		q.exclude.append(hit.rid)                       # a body in the way is not a wall: look past it
+	return lens
 
 ## The torch stutters for `secs` seconds (an event, or something big coming close)
 func trigger_flicker(secs: float) -> void:

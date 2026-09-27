@@ -1,14 +1,12 @@
 shader_type spatial;
-// Terrain: dark under the grass, fading to the meadow colours with distance (GodotGrass ground look),
-// with the road, slope dirt and grass-matched lighting on top.
+// Terrain: the meadow itself - turf tinted by patches of two grass colours, with the road, slope dirt
+// and dry blotches on top. There are no grass blades, so this is what the ground reads as.
 uniform vec3 grass_a : source_color = vec3(0.16, 0.28, 0.07);
 uniform vec3 grass_b : source_color = vec3(0.36, 0.42, 0.13);
 uniform vec3 dry_col : source_color = vec3(0.5, 0.45, 0.2);
 uniform vec3 dirt_col : source_color = vec3(0.3, 0.22, 0.13);
 uniform vec3 road_col : source_color = vec3(0.24, 0.22, 0.19);
-uniform vec3 under_grass_col : source_color = vec3(0.04, 0.15, 0.01);
 uniform vec3 subsurface_scattering_color : source_color = vec3(1.0, 0.75, 0.1);
-uniform float grass_range = 90.0;   // where the grass tiles end (hills.gd GRASS_RADIUS)
 uniform sampler2D turf_color : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D turf_rough : filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D turf_ao : filter_linear_mipmap_anisotropic, repeat_enable;
@@ -69,36 +67,22 @@ void fragment() {
 	float slope = (1.0 - smoothstep(0.5, 0.7, upness)) * 0.6;
 	float r = smoothstep(0.25, 0.75, road);
 	float solid = max(r, slope);
-	float dist = length(wpos.xz - CAMERA_POSITION_WORLD.xz);
-	float far_t = smoothstep(grass_range * 0.3, grass_range * 0.95, dist);
-	// under the blades the ground reads dark; the textures below are only sampled where they can be seen
-	// (road, steep slopes, and beyond the grass), which keeps the meadow around you cheap
-	vec3 col = under_grass_col * 0.15;
-	float rough = 1.0;
-	float ao = 1.0;
-	if (far_t > 0.001 || solid > 0.001) {
-		float tile_mix = 0.45;
-		float blotch = fbm2(p * 0.045);
-		vec3 turf = tex2(turf_color, p, tile_mix);
-		vec3 g = turf * mix(grass_a, grass_b, smoothstep(0.25, 0.75, blotch)) * 3.2;
-		g = mix(g, turf * dry_col * 3.0, smoothstep(0.6, 0.9, vnoise(p * 0.02 + 7.0)) * 0.2);
-		g *= 0.85 + 0.3 * vnoise(p * 1.7);
-		float turf_r = texture(turf_rough, p * 0.42).r;
-		float turf_a = texture(turf_ao, p * 0.42).r;
-		vec3 solid_col = g;
-		float solid_r = turf_r;
-		float solid_a = turf_a;
-		if (solid > 0.001) {
-			// irregular patches decide which path material shows where
-			float pm = smoothstep(0.38, 0.62, vnoise(p * 0.13 + 3.1) * 0.65 + vnoise(p * 0.6 + 9.7) * 0.35);
-			vec3 soil = mix(tex2(path_a_color, p, tile_mix), tex2(path_b_color, p, tile_mix), pm);
-			solid_col = soil * mix(0.85, 0.95, r);
-			solid_r = mix(texture(path_a_rough, p * 0.42).r, texture(path_b_rough, p * 0.42).r, pm);
-			solid_a = mix(texture(path_a_ao, p * 0.42).r, texture(path_b_ao, p * 0.42).r, pm);
-		}
-		col = mix(mix(col, g, far_t), solid_col, solid);
-		rough = mix(mix(1.0, turf_r, far_t), solid_r, solid);
-		ao = mix(mix(1.0, turf_a, far_t), solid_a, solid);
+	float tile_mix = 0.45;
+	float blotch = fbm2(p * 0.045);
+	vec3 turf = tex2(turf_color, p, tile_mix);
+	vec3 g = turf * mix(grass_a, grass_b, smoothstep(0.25, 0.75, blotch)) * 3.2;
+	g = mix(g, turf * dry_col * 3.0, smoothstep(0.6, 0.9, vnoise(p * 0.02 + 7.0)) * 0.2);
+	g *= 0.85 + 0.3 * vnoise(p * 1.7);
+	float rough = texture(turf_rough, p * 0.42).r;
+	float ao = texture(turf_ao, p * 0.42).r;
+	vec3 col = g;
+	if (solid > 0.001) {
+		// irregular patches decide which path material shows where
+		float pm = smoothstep(0.38, 0.62, vnoise(p * 0.13 + 3.1) * 0.65 + vnoise(p * 0.6 + 9.7) * 0.35);
+		vec3 soil = mix(tex2(path_a_color, p, tile_mix), tex2(path_b_color, p, tile_mix), pm) * mix(0.85, 0.95, r);
+		col = mix(g, soil, solid);
+		rough = mix(rough, mix(texture(path_a_rough, p * 0.42).r, texture(path_b_rough, p * 0.42).r, pm), solid);
+		ao = mix(ao, mix(texture(path_a_ao, p * 0.42).r, texture(path_b_ao, p * 0.42).r, pm), solid);
 	}
 	ALBEDO = col;
 	ROUGHNESS = mix(rough, 1.0, 0.1);

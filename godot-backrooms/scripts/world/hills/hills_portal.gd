@@ -33,7 +33,6 @@ func _enter() -> void:
 	if hills == null:
 		hills = HILLS_SCENE.instantiate()
 		hills.standalone = false
-	hills.player = player
 	main.add_child(hills)               # first time this builds the terrain, so expect a short hitch
 	in_hills = true
 	Game.outdoors = true

@@ -1,16 +1,10 @@
 extends Node3D
-## Rolling golden-hour hills: procedural terrain + road, cloud sky, wind grass, hilltop houses, distant castle.
+## Rolling golden-hour hills: procedural terrain + road, cloud sky, hilltop houses, distant castle.
 
 const SIZE := 640.0
 const RES := 320
+const CHUNK := 80.0                         # terrain chunk edge: one mesh per chunk, so the ones outside the view are culled
 const HOUSE_COUNT := 30
-const TILE_SIZE := 5.0                        # GodotGrass tile LOD: one MultiMesh per tile, re-seated as the player moves
-const GRASS_RADIUS := 90.0                    # blades fade out by 85 m (grass.gdshader); the terrain shader carries the rest
-const GRASS_HIGH_PATH := "res://models/grass/grass_high.obj"
-const GRASS_LOW_PATH := "res://models/grass/grass_low.obj"
-# .obj meshes can't be preloaded off the main thread, so load them when the grass is built
-static var grass_high: Mesh
-static var grass_low: Mesh
 const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
 const START_HOUR := 11.0
 const TIME_STEP := 0.1                        # the sky / light are refreshed this often (seconds), not every frame
@@ -20,11 +14,8 @@ var detail := FastNoiseLite.new()
 var sites: Array[Vector3] = []               # x, terrain height, z of each house pad
 var yaws: Array[float] = []
 var spawn_xz := Vector2.ZERO
-var terrain_tex: ImageTexture
-var grass_mat: ShaderMaterial
-var grass_tiles: Array = []                  # [MultiMeshInstance3D, rest position]
-var prev_tile := Vector2i(1 << 20, 0)
-var player: Node3D
+var terrain_mat: ShaderMaterial
+var _batches := {}                            # material -> {st: SurfaceTool, n: int, shadow: bool}, while houses are built
 var env: Environment
 var sky_mat: ShaderMaterial
 var sun: DirectionalLight3D
@@ -52,9 +43,9 @@ func _ready() -> void:
 	_pick_house_sites()
 	_build_environment()
 	_build_terrain()
-	_build_grass()
 	_build_houses()
 	_build_castle()
+	_commit_batches()
 	_apply_time()
 	if standalone:
 		_build_player()
@@ -254,7 +245,6 @@ func _build_terrain() -> void:
 	for j in n:
 		for i in n:
 			hs[j * n + i] = height(i * cell - half, j * cell - half)
-	_bake_terrain_texture(hs, n, cell, half)
 	var verts := PackedVector3Array()
 	var norms := PackedVector3Array()
 	var cols := PackedColorArray()
@@ -272,155 +262,77 @@ func _build_terrain() -> void:
 			verts[j * n + i] = Vector3(x, hs[j * n + i], z)
 			norms[j * n + i] = Vector3(hl - hr, 2.0 * cell, hd - hu).normalized()
 			cols[j * n + i] = Color(road_mask(x, z), 0, 0)
-	var idx := PackedInt32Array()
-	idx.resize(RES * RES * 6)
-	var k := 0
-	for j in RES:
-		for i in RES:
-			var a := j * n + i
-			var b := a + 1
-			var c := a + n
-			var d := c + 1
-			idx[k] = a
-			idx[k + 1] = b
-			idx[k + 2] = c
-			idx[k + 3] = b
-			idx[k + 4] = d
-			idx[k + 5] = c
-			k += 6
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
-	arrays[Mesh.ARRAY_NORMAL] = norms
-	arrays[Mesh.ARRAY_COLOR] = cols
-	arrays[Mesh.ARRAY_INDEX] = idx
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/hills/terrain.gdshader")
+	_build_terrain_material()
+	# Chunked: one sheet mesh of 640 m can never be culled, so every triangle goes down every frame
+	# whether you are looking at it or not. Each chunk keeps world-space vertices and sits at the
+	# origin, so its bounds come straight from its own triangles.
+	var chunks := int(SIZE / CHUNK)
+	var per := RES / chunks                       # grid cells per chunk edge
+	var body := StaticBody3D.new()
+	add_child(body)
+	for cj in chunks:
+		for ci in chunks:
+			_terrain_chunk(verts, norms, cols, n, ci * per, cj * per, per, body)
+
+func _build_terrain_material() -> void:
+	terrain_mat = ShaderMaterial.new()
+	terrain_mat.shader = load("res://shaders/hills/terrain.gdshader")
 	var tex := "res://textures/hills/%s/%s_%s.jpg"
 	var sets := {"turf": "Grass001_1K-JPG", "path_a": "Ground085_1K-JPG", "path_b": "Ground109_1K-JPG"}
 	for slot in sets:
 		var folder: String = sets[slot]
-		mat.set_shader_parameter(slot + "_color", load(tex % [folder, folder, "Color"]))
-		mat.set_shader_parameter(slot + "_rough", load(tex % [folder, folder, "Roughness"]))
-		mat.set_shader_parameter(slot + "_ao", load(tex % [folder, folder, "AmbientOcclusion"]))
-	mesh.surface_set_material(0, mat)
+		terrain_mat.set_shader_parameter(slot + "_color", load(tex % [folder, folder, "Color"]))
+		terrain_mat.set_shader_parameter(slot + "_rough", load(tex % [folder, folder, "Roughness"]))
+		terrain_mat.set_shader_parameter(slot + "_ao", load(tex % [folder, folder, "AmbientOcclusion"]))
+
+## One terrain chunk: its own mesh, its own trimesh (the same triangles as before chunking, so
+## walking is unchanged) and its own collision node, so off-screen chunks cost nothing.
+func _terrain_chunk(v: PackedVector3Array, nr: PackedVector3Array, co: PackedColorArray, n: int,
+		i0: int, j0: int, per: int, body: StaticBody3D) -> void:
+	var side := per + 1
+	var lv := PackedVector3Array()
+	var ln := PackedVector3Array()
+	var lc := PackedColorArray()
+	lv.resize(side * side)
+	ln.resize(side * side)
+	lc.resize(side * side)
+	for j in side:
+		for i in side:
+			var k := (j0 + j) * n + i0 + i
+			lv[j * side + i] = v[k]
+			ln[j * side + i] = nr[k]
+			lc[j * side + i] = co[k]
+	var li := PackedInt32Array()
+	li.resize(per * per * 6)
+	var k := 0
+	for j in per:
+		for i in per:
+			var a := j * side + i
+			var b := a + 1
+			var c := a + side
+			var d := c + 1
+			li[k] = a
+			li[k + 1] = b
+			li[k + 2] = c
+			li[k + 3] = b
+			li[k + 4] = d
+			li[k + 5] = c
+			k += 6
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = lv
+	arrays[Mesh.ARRAY_NORMAL] = ln
+	arrays[Mesh.ARRAY_COLOR] = lc
+	arrays[Mesh.ARRAY_INDEX] = li
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.surface_set_material(0, terrain_mat)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	add_child(mi)
-	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	cs.shape = mesh.create_trimesh_shape()
 	body.add_child(cs)
-	add_child(body)
-
-# ---- grass (GodotGrass port) ---------------------------------------------------
-
-## R = ground height, G = no-grass mask (road + house pads); sampled by grass.gdshader.
-func _bake_terrain_texture(hs: PackedFloat32Array, n: int, cell: float, half: float) -> void:
-	var img := Image.create(n, n, false, Image.FORMAT_RGF)
-	for j in n:
-		for i in n:
-			var x := i * cell - half
-			var z := j * cell - half
-			var m := road_mask(x, z)
-			for s in sites:
-				var d := Vector2(x - s.x, z - s.z).length()
-				m = maxf(m, 1.0 - smoothstep(6.5, 9.0, d))
-			img.set_pixel(i, j, Color(hs[j * n + i], m, 0.0))
-	terrain_tex = ImageTexture.create_from_image(img)
-
-func _grass_material() -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/hills/grass.gdshader")
-	var clump := FastNoiseLite.new()
-	clump.noise_type = FastNoiseLite.TYPE_CELLULAR
-	var clump_tex := NoiseTexture2D.new()
-	clump_tex.width = 256
-	clump_tex.height = 256
-	clump_tex.seamless = true
-	clump_tex.noise = clump
-	var wind := FastNoiseLite.new()
-	wind.noise_type = FastNoiseLite.TYPE_PERLIN
-	wind.frequency = 0.0275
-	wind.fractal_gain = 0.1
-	wind.domain_warp_enabled = true
-	wind.domain_warp_amplitude = 20.0
-	wind.domain_warp_frequency = 0.005
-	var wind_tex := NoiseTexture2D.new()
-	wind_tex.seamless = true
-	wind_tex.noise = wind
-	mat.set_shader_parameter("clump_noise", clump_tex)
-	mat.set_shader_parameter("wind_noise", wind_tex)
-	mat.set_shader_parameter("terrain_data", terrain_tex)
-	mat.set_shader_parameter("terrain_size", SIZE)
-	mat.set_shader_parameter("clumping_factor", 0.5)
-	mat.set_shader_parameter("wind_speed", 1.0)
-	return mat
-
-func _grass_lod(density: float, mesh: Mesh) -> MultiMesh:
-	var row := ceili(TILE_SIZE * lerpf(0.0, 10.0, density))
-	var mm := MultiMesh.new()
-	mm.mesh = mesh
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.instance_count = row * row
-	# blades are lifted onto the terrain in the shader, so the culling box must span the height range
-	mm.custom_aabb = AABB(Vector3(-TILE_SIZE, -40.0, -TILE_SIZE), Vector3(TILE_SIZE * 2.0, 100.0, TILE_SIZE * 2.0))
-	var jitter := TILE_SIZE / float(row) * 0.5 * 0.9
-	for i in row:
-		for j in row:
-			var p := Vector3(i / float(row) - 0.5, 0.0, j / float(row) - 0.5) * TILE_SIZE
-			p += Vector3(randf_range(-jitter, jitter), 0.0, randf_range(-jitter, jitter))
-			mm.set_instance_transform(i + j * row, Transform3D(Basis(), p))
-	return mm
-
-func _build_grass() -> void:
-	grass_mat = _grass_material()
-	if grass_high == null:
-		grass_high = load(GRASS_HIGH_PATH)
-	if grass_low == null:
-		grass_low = load(GRASS_LOW_PATH)
-	var lods: Array[MultiMesh] = [
-		_grass_lod(0.7, grass_high), _grass_lod(0.35, grass_high), _grass_lod(0.18, grass_low),
-		_grass_lod(0.08, grass_low), _grass_lod(0.04, grass_low)]
-	var r := int(GRASS_RADIUS)
-	for i in range(-r, r, int(TILE_SIZE)):
-		for j in range(-r, r, int(TILE_SIZE)):
-			var pos := Vector3(i, 0.0, j)
-			var dist := pos.length()
-			if dist > GRASS_RADIUS:
-				continue
-			var inst := MultiMeshInstance3D.new()
-			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # grass shadow maps cost far too much
-			inst.material_override = grass_mat
-			inst.position = pos
-			inst.extra_cull_margin = 1.0
-			if dist < 10.0:
-				inst.multimesh = lods[0]
-			elif dist < 25.0:
-				inst.multimesh = lods[1]
-			elif dist < 45.0:
-				inst.multimesh = lods[2]
-			elif dist < 68.0:
-				inst.multimesh = lods[3]
-			else:
-				inst.multimesh = lods[4]
-			add_child(inst)
-			grass_tiles.append([inst, pos])
-
-func _physics_process(_dt: float) -> void:
-	if player == null or grass_mat == null:
-		return
-	grass_mat.set_shader_parameter("player_position", player.global_position)
-	# re-seat the LOD tiles whenever the player crosses into a new tile
-	var t := Vector2i(floori((player.global_position.x + TILE_SIZE * 0.5) / TILE_SIZE),
-			floori((player.global_position.z + TILE_SIZE * 0.5) / TILE_SIZE))
-	if t != prev_tile:
-		prev_tile = t
-		var off := Vector3(t.x, 0.0, t.y) * TILE_SIZE
-		for d in grass_tiles:
-			d[0].global_position = d[1] + off
 
 # ---- houses & castle ---------------------------------------------------------
 
@@ -430,48 +342,75 @@ func _mat(c: Color, rough := 0.85) -> StandardMaterial3D:
 	m.roughness = rough
 	return m
 
-func _part(parent: Node3D, mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.position = pos
-	parent.add_child(mi)
-	return mi
-
 func _box(sz: Vector3) -> BoxMesh:
 	var b := BoxMesh.new()
 	b.size = sz
 	return b
 
-func _house(pos: Vector3, yaw: float, wall_col: Color) -> void:
+## House parts are folded into one batch per material instead of becoming a node each: 30 houses x
+## ~17 parts was ~500 draw calls for a few thousand triangles. `_commit_batches` makes it one node
+## per material, and dropping the trim and glass from the shadow pass saves most of what is left.
+func _stash(mesh: Mesh, mat: Material, xform: Transform3D, shadow := true) -> void:
+	if not _batches.has(mat):
+		var fresh := SurfaceTool.new()
+		fresh.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_batches[mat] = {"st": fresh, "n": 0, "shadow": shadow}
+	var b: Dictionary = _batches[mat]
+	var st: SurfaceTool = b.st
+	for s in mesh.get_surface_count():
+		var arrays: Array = mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var nr: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var base: int = b.n
+		for i in v.size():
+			st.set_normal((xform.basis * nr[i]).normalized())
+			st.add_vertex(xform * v[i])
+		b.n = base + v.size()
+		if idx.is_empty():
+			for i in v.size():
+				st.add_index(base + i)
+		else:
+			for i in idx.size():
+				st.add_index(base + idx[i])
+
+## Every batch collected since the last commit, as one node per material.
+func _commit_batches() -> void:
+	for mat in _batches:
+		var b: Dictionary = _batches[mat]
+		if int(b.n) == 0:
+			continue
+		var mi := MeshInstance3D.new()
+		mi.mesh = (b.st as SurfaceTool).commit()
+		mi.material_override = mat
+		if not b.shadow:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	_batches = {}
+
+func _house(pos: Vector3, yaw: float, mats: Dictionary) -> void:
+	var xform := Transform3D(Basis(Vector3.UP, yaw), pos)
+	var w := randf_range(5.6, 7.0)
+	var d := randf_range(6.5, 8.0)
+	var hgt := randf_range(4.6, 5.6)
+	_stash(_box(Vector3(w + 0.8, 6.0, d + 0.8)), mats.plinth, xform * Transform3D(Basis(), Vector3(0, -2.6, 0)))   # stone plinth sunk into the pad
+	_stash(_box(Vector3(w, hgt, d)), mats.wall, xform * Transform3D(Basis(), Vector3(0, 0.4 + hgt * 0.5, 0)))
+	var prism := PrismMesh.new()
+	prism.size = Vector3(w + 1.2, w * 0.5, d + 1.2)
+	_stash(prism, mats.roof, xform * Transform3D(Basis(), Vector3(0, 0.4 + hgt + w * 0.25, 0)))
+	# door and windows on the front (+Z) and both sides
+	_stash(_box(Vector3(1.1, 2.2, 0.16)), mats.door, xform * Transform3D(Basis(), Vector3(0, 1.5, d * 0.5 + 0.02)))
+	for row in 2:
+		var y := 1.9 + row * 2.2
+		for sx in [-1.0, 1.0]:
+			_stash(_box(Vector3(1.0, 1.35, 0.14)), mats.trim, xform * Transform3D(Basis(), Vector3(sx * w * 0.3, y, d * 0.5 + 0.02)), false)
+			_stash(_box(Vector3(0.8, 1.15, 0.16)), mats.glass, xform * Transform3D(Basis(), Vector3(sx * w * 0.3, y, d * 0.5 + 0.04)), false)
+			_stash(_box(Vector3(0.14, 1.35, 1.0)), mats.trim, xform * Transform3D(Basis(), Vector3(sx * (w * 0.5 + 0.02), y, 0)), false)
+			_stash(_box(Vector3(0.16, 1.15, 0.8)), mats.glass, xform * Transform3D(Basis(), Vector3(sx * (w * 0.5 + 0.04), y, 0)), false)
 	var root := Node3D.new()
 	root.position = pos
 	root.rotation.y = yaw
 	add_child(root)
-	var wall := _mat(wall_col)
-	var trim := _mat(Color(0.82, 0.78, 0.66))
-	var roof := _mat(Color(0.2, 0.15, 0.11), 0.7)
-	if glass_mat == null:
-		glass_mat = _mat(Color(0.12, 0.17, 0.22), 0.15)
-		glass_mat.emission = Color(1.0, 0.75, 0.4)
-	var glass := glass_mat
-	var w := randf_range(5.6, 7.0)
-	var d := randf_range(6.5, 8.0)
-	var hgt := randf_range(4.6, 5.6)
-	_part(root, _box(Vector3(w + 0.8, 6.0, d + 0.8)), _mat(Color(0.34, 0.31, 0.27)), Vector3(0, -2.6, 0))   # stone plinth sunk into the pad
-	_part(root, _box(Vector3(w, hgt, d)), wall, Vector3(0, 0.4 + hgt * 0.5, 0))
-	var prism := PrismMesh.new()
-	prism.size = Vector3(w + 1.2, w * 0.5, d + 1.2)
-	_part(root, prism, roof, Vector3(0, 0.4 + hgt + w * 0.25, 0))
-	# door and windows on the front (+Z) and both sides
-	_part(root, _box(Vector3(1.1, 2.2, 0.16)), _mat(Color(0.75, 0.72, 0.62)), Vector3(0, 1.5, d * 0.5 + 0.02))
-	for row in 2:
-		var y := 1.9 + row * 2.2
-		for sx in [-1.0, 1.0]:
-			_part(root, _box(Vector3(1.0, 1.35, 0.14)), trim, Vector3(sx * w * 0.3, y, d * 0.5 + 0.02))
-			_part(root, _box(Vector3(0.8, 1.15, 0.16)), glass, Vector3(sx * w * 0.3, y, d * 0.5 + 0.04))
-			_part(root, _box(Vector3(0.14, 1.35, 1.0)), trim, Vector3(sx * (w * 0.5 + 0.02), y, 0))
-			_part(root, _box(Vector3(0.16, 1.15, 0.8)), glass, Vector3(sx * (w * 0.5 + 0.04), y, 0))
 	var body := StaticBody3D.new()
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -481,38 +420,44 @@ func _house(pos: Vector3, yaw: float, wall_col: Color) -> void:
 	body.add_child(cs)
 	root.add_child(body)
 
+## One material per look, shared by every house: the batch merge only works if the houses actually
+## use the same Material objects.
 func _build_houses() -> void:
 	var palette := [Color(0.62, 0.4, 0.18), Color(0.7, 0.5, 0.24), Color(0.55, 0.36, 0.2), Color(0.66, 0.55, 0.32)]
+	if glass_mat == null:
+		glass_mat = _mat(Color(0.12, 0.17, 0.22), 0.15)
+		glass_mat.emission = Color(1.0, 0.75, 0.4)
+	var common := {"trim": _mat(Color(0.82, 0.78, 0.66)), "roof": _mat(Color(0.2, 0.15, 0.11), 0.7),
+		"plinth": _mat(Color(0.34, 0.31, 0.27)), "door": _mat(Color(0.75, 0.72, 0.62)), "glass": glass_mat}
 	for i in sites.size():
-		_house(sites[i], yaws[i], palette[i % palette.size()])
+		var mats := common.duplicate()
+		mats.wall = _mat(palette[i % palette.size()])
+		_house(sites[i], yaws[i], mats)
 
 func _build_castle() -> void:
 	var pos := Vector3(-30.0, 0.0, -300.0)
 	pos.y = height(pos.x, pos.z) - 2.0
-	var root := Node3D.new()
-	root.position = pos
-	root.scale = Vector3.ONE * 3.0
-	add_child(root)
+	var xform := Transform3D(Basis.from_scale(Vector3.ONE * 3.0), pos)
 	var stone := _mat(Color(0.86, 0.8, 0.68))
 	var roof := _mat(Color(0.5, 0.4, 0.34))
-	_part(root, _box(Vector3(22, 12, 10)), stone, Vector3(0, 6, 0))
-	_part(root, _box(Vector3(9, 22, 9)), stone, Vector3(0, 11, 0))
+	_stash(_box(Vector3(22, 12, 10)), stone, xform * Transform3D(Basis(), Vector3(0, 6, 0)))
+	_stash(_box(Vector3(9, 22, 9)), stone, xform * Transform3D(Basis(), Vector3(0, 11, 0)))
 	for sx in [-1.0, 1.0]:
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 3.0
 		cyl.bottom_radius = 3.0
 		cyl.height = 18.0
-		_part(root, cyl, stone, Vector3(sx * 12.0, 9, 0))
+		_stash(cyl, stone, xform * Transform3D(Basis(), Vector3(sx * 12.0, 9, 0)))
 		var cone := CylinderMesh.new()
 		cone.top_radius = 0.0
 		cone.bottom_radius = 3.8
 		cone.height = 8.0
-		_part(root, cone, roof, Vector3(sx * 12.0, 22, 0))
+		_stash(cone, roof, xform * Transform3D(Basis(), Vector3(sx * 12.0, 22, 0)))
 	var spire := CylinderMesh.new()
 	spire.top_radius = 0.0
 	spire.bottom_radius = 5.5
 	spire.height = 12.0
-	_part(root, spire, roof, Vector3(0, 28, 0))
+	_stash(spire, roof, xform * Transform3D(Basis(), Vector3(0, 28, 0)))
 
 func spawn_position() -> Vector3:
 	return Vector3(spawn_xz.x, height(spawn_xz.x, spawn_xz.y) + 1.0, spawn_xz.y)
@@ -524,7 +469,6 @@ func _build_player() -> void:
 	p.set_script(load("res://scripts/world/hills/hills_player.gd"))
 	p.position = Vector3(spawn_xz.x, height(spawn_xz.x, spawn_xz.y) + 1.0, spawn_xz.y)
 	add_child(p)
-	player = p
 
 func _build_hint() -> void:
 	var layer := CanvasLayer.new()

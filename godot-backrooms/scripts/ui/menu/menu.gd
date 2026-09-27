@@ -312,6 +312,7 @@ func _build() -> void:
 	panel.size_flags_vertical = Control.SIZE_SHRINK_END
 	var psb := _box(Color(0, 0, 0, 0), Color(0.9, 0.882, 0.804, 0.15), Vector4(1, 0, 0, 0))
 	psb.content_margin_left = 26
+	psb.content_margin_top = 6        # keep the header's close band off the panel's own edge
 	panel.add_theme_stylebox_override("panel", psb)
 	layout.add_child(panel)
 
@@ -320,10 +321,20 @@ func _build() -> void:
 	panel.add_child(pv)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 0)
+	# The whole header band closes the panel: a 48x19 "CLOSE" word is easy to miss by a pixel or two
+	head.custom_minimum_size = Vector2(0, 28)
+	head.mouse_filter = Control.MOUSE_FILTER_STOP
+	head.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	head.mouse_entered.connect(func(): Input.mouse_mode = Input.MOUSE_MODE_VISIBLE)
+	head.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_show_panel(""))
 	panel_title = _label("MULTIPLAYER", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
 	panel_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel_title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(panel_title)
 	var close := _link_button("close")
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	close.pressed.connect(func(): _show_panel(""))
 	head.add_child(close)
 	pv.add_child(head)
@@ -587,6 +598,7 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("VSync", "vsync", off_on))
 	v.add_child(_cycle_row("FPS limit", "fps", [[0, "Unlimited"], [30, "30"], [60, "60"], [120, "120"], [144, "144"]]))
 	v.add_child(_cycle_row("Smooth motion", "smooth", off_on))
+	v.add_child(_cycle_row("Adaptive resolution", "adapt", off_on))
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))
@@ -618,7 +630,7 @@ func _gfx_sync() -> void:
 		b.add_theme_color_override("font_color", Color.WHITE if active else Color(0.9, 0.882, 0.804, 0.7))
 	if gfx_scale_slider and int(gfx_scale_slider.value) != int(Gfx.s.scale):
 		gfx_scale_slider.value = Gfx.s.scale
-	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for weak PCs. Tube lights and their shadows cost the most. Smooth motion runs the camera at your screen's refresh rate."
+	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for weak PCs. Tube lights and their shadows cost the most. Smooth motion runs the camera at your screen's refresh rate. Adaptive resolution quietly lowers the render size when frames start dropping, and puts it back when they recover."
 	if Gfx.compat:
 		note = "Compatibility renderer: ambient occlusion, reflections, global illumination and volumetric fog are unavailable on this PC."
 	gfx_note.text = note
