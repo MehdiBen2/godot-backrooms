@@ -57,7 +57,7 @@
     "##############################################"
   ],
   "materials": {
-    "wall": "Tiles074"
+    "wall": "BRW_B"
   },
   "name": "Level 1: Habitable Zone",
   "size": 46,

@@ -1,0 +1,49 @@
+[gd_scene load_steps=5 format=4 uid="uid://dfxu0r6m7wgj0"]
+
+[ext_resource type="Material" uid="uid://bveyabsta08b4" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_B.tres" id="1_lm4u8"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_5av3q"]
+_surfaces = [{
+"aabb": AABB(-0.12499999, -0.33894867, -1.5, 0.25, 4.3389487, 3),
+"format": 34896613377,
+"index_count": 72,
+"index_data": PackedByteArray("DAAHAAQAAAAMAAQADAAJAAcAAwAHAAkAAAADAA0AAwAJAA0AAAANAAoAAAAKAAwACAAJAAwACgAIAAwADQAJAA4ACAAOAAkACgANAAsADQAOAAsACgAPAAgACgALAA8ADgABAAsADwALAAEADgAFAAEADwABAAIACAAPAAIABgAFAA4ACAACAAYABgAOAAgA"),
+"lods": [0.0003322003, PackedByteArray("CAAHAAQAAAAIAAQACAAJAAcAAwAHAAkAAAADAAoAAAAKAAgAAwAJAAUACAAFAAkABgAFAAgACAACAAYACgACAAgAAwAFAAsACgADAAsACgALAAIABQABAAsAAgALAAEA"), 0.00060933904, PackedByteArray("AAABAAIAAAADAAEAAAACAAQAAwAFAAEABAACAAYABgAFAAQAAwAHAAUABAAFAAcA")],
+"name": "Surface_Concrete_B",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 16,
+"vertex_data": PackedByteArray("AAD/sAAAAAAAAP9O//8AAAAAAAD//wAAAAD//wAAAAD///+wAAAAAP///07//wAA//8AAP//AAD/////AAAAAP///zqqqgAA////xFVVAAAAAP91VVUAAAAA/4mqqgAA////dVVVAAAAAP/EVVUAAP///4mqqgAAAAD/OqqqAAA=")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_f52s1"]
+resource_name = "BackroomsLikeAsset-RE_Hndrail_Ramp_A_3m"
+_surfaces = [{
+"aabb": AABB(-0.12499999, -0.33894867, -1.5, 0.25, 4.3389487, 3),
+"attribute_data": PackedByteArray("CrQBgP////8KtP///v8BgNylAYDoWf//6FkBgNyl//8CgFhsMI5V7AKAVewwjlhs3KUBgAq0///cpf//CrQBgNylVdXoWauqAoCswTCOApcKtKuq/v9V1dylVdUKtKuq3KWrquhZq6roWVXV6FlV1TCOrMECgKzB//+rqv7/q6r+/1XVCrRV1TCOApcCgAKXAoAClzCOrMEKtFXV3KWrqg=="),
+"format": 34896613399,
+"index_count": 72,
+"index_data": PackedByteArray("GAAGAAQAGAAZAAYAEAARABgAEAAaABEABwAbABAABwAFABsAHAAKAB0AHAAJAAoAAAAeABQAAAADAB4AFAAfACAAFAAgACEAIQABAAIAIQAVAAEACAAiACMACAALACIAJAAlABIAJAATACUAFgANAA4AFgAmAA0AFwAmABYAFwAWACcADwAXACcADwAnAAwA"),
+"lods": [0.0003322003, PackedByteArray("EAAGAAQAEAARAAYAEAAFABEABwAFABAACQAKABIACAAJABIACAATAAkACAALABMAAAADABQAFAADABUAFAAVAAIAAgAVAAEAFgANAA4AFwANABYADwAXABYADwAWAAwA"), 0.00060933904, PackedByteArray("AAABAAIAAAADAAEABAAFAAYABwAFAAQACAAJAAoACAALAAkADAANAA4ADwANAAwA")],
+"material": ExtResource("1_lm4u8"),
+"name": "Surface_Concrete_B",
+"primitive": 3,
+"uv_scale": Vector4(1.5040768, 1.9998667, 0, 0),
+"vertex_count": 40,
+"vertex_data": PackedByteArray("AAD/sAAAVNUAAP9O//9U1QAAAAD//1TVAAD//wAAVNX///+wAABU1f///07//1TV/////wAAVNX//wAA//9U1QAA//8AAP+f////Tv///58AAP9O////n/////8AAP+f////sAAA//8AAAAA////////AAD/////AAD/sAAA//////86qqpU1f///8RVVVTVAAD/iaqq/5/////EVVX/nwAA/3VVVVTVAAD/iaqqVNX///86qqr//wAA/3VVVf//////dVVVVNX////EVVVU1f///4mqqlTV////iaqqVNX///+Jqqr/nwAA/4mqqv+fAAD/xFVVVNUAAP/EVVVU1QAA/4mqqlTVAAD/OqqqVNX////EVVX/nwAA/8RVVf+fAAD/xFVV/5////+Jqqr/nwAA/zqqqv//////dVVV//9U1VTVVNVU1VTVVNVU1VTVqqpVVaqqVFWqqlVVqqpUVf7//3////9//v//f////398pf//fKX//3yl//+CWv7/qqpUVaqqVFX+//9//v//f1TVVNVU1VTVglr//4Ja/v+qqlRVqqpUVaqqVFWqqlRV/v//f/7//39U1VTVVNVU1VTVVNVU1VTV/v//f/7//3/+//9//v//f3yl//+CWv7/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_5av3q")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_s6on1"]
+data = PackedVector3Array(0.125, 1.0000001, 1.5, -0.12499999, 1.0000001, 1.5, -0.12499999, 4, -1.5, -0.12499999, 2.6610513, -1.5, -0.12499999, 4, -1.5, -0.12499999, 1.0000001, 1.5, -0.12499999, -0.33894867, 1.5, 0.12500001, 2.6610513, -1.5, -0.12499999, 2.6610513, -1.5, 0.12500001, 2.6610513, -1.5, 0.125, -0.33894867, 1.5, 0.125, 1.0000001, 1.5, -0.12499999, 2.6610513, -1.5, -0.12499999, 1.0000001, 1.5, -0.12499999, -0.33894867, 1.5, -0.12499999, -0.33894867, 1.5, 0.125, -0.33894867, 1.5, 0.12500001, 2.6610513, -1.5, 0.12500001, 2.6610513, -1.5, 0.125, 1.0000001, 1.5, 0.12500001, 4, -1.5, 0.125, 1.0000001, 1.5, -0.12499999, 4, -1.5, 0.12500001, 4, -1.5)
+
+[node name="Hndrail_Ramp_A_3m" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_f52s1")
+skeleton = NodePath("")
+
+[node name="Hndrail_Ramp_A_3m" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Hndrail_Ramp_A_3m"]
+shape = SubResource("ConcavePolygonShape3D_s6on1")

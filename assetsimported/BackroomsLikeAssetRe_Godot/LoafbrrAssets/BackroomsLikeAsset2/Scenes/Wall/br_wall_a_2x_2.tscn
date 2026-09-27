@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=4 uid="uid://5njl6ufxaiqa"]
+
+[ext_resource type="Material" uid="uid://c5mftxgpgom65" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_B_Mat.tres" id="1_3m65i"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_iqp5i"]
+_surfaces = [{
+"aabb": AABB(-0.99999976, -9.4870884e-08, -0.12500012, 2, 2, 0.2500001),
+"format": 34896613377,
+"index_count": 48,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAgABAAQABQAAAAIAAgAEAAYABQACAAcABwACAAYABwAGAAgACQAKAAsACQAMAAoADAANAAoADgAMAAkADAAPAA0ADgAQAAwAEAAPAAwAEAARAA8A"),
+"name": "BRW_B",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 18,
+"vertex_data": PackedByteArray("AAD/f/7/AAD/f/////8AAP9//3/+/wAAAAD/////AAD///////8AAAAAAAD+/wAA////f/7/AAD/fwAA/v8AAP//AAD+/wAAAAD/fwAAAAD/f///AAAAAAAA//8AAAAA/3//fwAAAAD/////AAAAAAAAAAAAAAAA////fwAAAAD/fwAAAAAAAP//AAAAAAAA")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_fpyn5"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_A_2x2"
+_surfaces = [{
+"aabb": AABB(-0.99999976, -9.4870884e-08, -0.12500012, 2, 2, 0.2500001),
+"attribute_data": PackedByteArray("AABVVVRVAABUVVRVAAAAAKmqAAAAAKqqqapUVVRVqaqpqqmqAABVVVRVAAAAAAAAVFVUVamqAAAAAKqqqapUVVRVqaqpqqmq"),
+"format": 34896613399,
+"index_count": 48,
+"index_data": PackedByteArray("AAABAAIAAAADAAEAAgABAAQABQAAAAIAAgAEAAYABQACAAcABwACAAYABwAGAAgACQAKAAsACQAMAAoADAANAAoADgAMAAkADAAPAA0ADgAQAAwAEAAPAAwAEAARAA8A"),
+"material": ExtResource("1_3m65i"),
+"name": "BRW_B",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 18,
+"vertex_data": PackedByteArray("AAD/f/7/AID/f/////8AgP9//3/+/wCAAAD/////AID///////8AgAAAAAD+/wCA////f/7/AID/fwAA/v8AgP//AAD+/wCAAAD/fwAAAAD/f///AAAAAAAA//8AAAAA/3//fwAAAAD/////AAAAAAAAAAAAAAAA////fwAAAAD/fwAAAAAAAP//AAAAAAAA/3////9/////f////3////9/////f////3////9/////f////v//f////3////9/////f////3/+//9/////f////3////9/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_iqp5i")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_py15h"]
+data = PackedVector3Array(1.0000002, -9.4870884e-08, 0.12499988, -0.99999976, -9.4870884e-08, 0.12499988, -0.99999976, 1.9999999, 0.12499997, 1.0000002, -8.3943036e-08, -0.12500012, 1.0000002, 1.9999999, -0.12500003, -0.99999976, 1.9999999, -0.12500003, 1.0000002, -8.3943036e-08, -0.12500012, -0.99999976, 1.9999999, -0.12500003, -0.99999976, -8.3943036e-08, -0.12500012, 1.0000002, -9.4870884e-08, 0.12499988, -0.99999976, 1.9999999, 0.12499997, 1.0000002, 1.9999999, 0.12499997)
+
+[node name="BR_Wall_A_2x2" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_fpyn5")
+skeleton = NodePath("")
+
+[node name="BR_Wall_A_2x2" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_A_2x2"]
+shape = SubResource("ConcavePolygonShape3D_py15h")

@@ -1,0 +1,92 @@
+[gd_scene load_steps=14 format=3 uid="uid://drbaai4dr7gen"]
+
+[ext_resource type="PackedScene" uid="uid://b5txdwc34jwqg" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/GLB/BackroomsLikeAsset-RE.glb" id="1_5xvrh"]
+[ext_resource type="Material" uid="uid://bwaaev27ix4jx" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRC_Mat.tres" id="2_ev0em"]
+[ext_resource type="Material" uid="uid://7lseh5pevooa" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRF_B_Mat.tres" id="3_i25dr"]
+[ext_resource type="Material" uid="uid://2x3mputsxn31" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_A_Mat.tres" id="4_0morw"]
+[ext_resource type="Material" uid="uid://c5mftxgpgom65" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_B_Mat.tres" id="5_i1gbo"]
+[ext_resource type="Material" uid="uid://7xqh7wgltlqk" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres" id="6_trtrf"]
+[ext_resource type="Material" uid="uid://in2j66akq5wu" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_B.tres" id="7_b34wy"]
+[ext_resource type="Material" uid="uid://doc4q0becehrx" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_C.tres" id="8_ayp1b"]
+[ext_resource type="Material" uid="uid://bee0qwlwcjtfa" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_D.tres" id="9_bmq67"]
+[ext_resource type="Material" uid="uid://c48g61aou444d" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_A.tres" id="10_au6nh"]
+[ext_resource type="Material" uid="uid://bveyabsta08b4" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_B.tres" id="11_ghdr0"]
+[ext_resource type="Material" uid="uid://dfotrkxy8f7nv" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_C.tres" id="12_0weir"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_3ou2q"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="BackroomsLikeAsset-RE" parent="." instance=ExtResource("1_5xvrh")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06324947, 0, -0.74755526)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.5, 0, -11.25)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("2_ev0em")
+
+[node name="MeshInstance3D2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.21103, 0, -11.25)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("3_i25dr")
+
+[node name="MeshInstance3D3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56.613716, 0, -11.25)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("4_0morw")
+
+[node name="MeshInstance3D4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.62413, 0, -11.25)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("5_i1gbo")
+
+[node name="MeshInstance3D5" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60.63833, 0, -11.25)
+mesh = SubResource("BoxMesh_3ou2q")
+
+[node name="MeshInstance3D6" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.5, 0, -9.441483)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("6_trtrf")
+
+[node name="MeshInstance3D7" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.21103, 0, -9.441483)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("7_b34wy")
+
+[node name="MeshInstance3D8" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56.613716, 0, -9.441483)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("8_ayp1b")
+
+[node name="MeshInstance3D9" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.62413, 0, -9.441483)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("9_bmq67")
+
+[node name="MeshInstance3D10" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60.63833, 0, -9.441483)
+mesh = SubResource("BoxMesh_3ou2q")
+
+[node name="MeshInstance3D11" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 53.5, 0, -7.5458436)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("10_au6nh")
+
+[node name="MeshInstance3D12" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 55.21103, 0, -7.5458436)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("11_ghdr0")
+
+[node name="MeshInstance3D13" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 56.613716, 0, -7.5458436)
+mesh = SubResource("BoxMesh_3ou2q")
+surface_material_override/0 = ExtResource("12_0weir")
+
+[node name="MeshInstance3D14" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58.62413, 0, -7.5458436)
+mesh = SubResource("BoxMesh_3ou2q")
+
+[node name="MeshInstance3D15" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60.63833, 0, -7.5458436)
+mesh = SubResource("BoxMesh_3ou2q")

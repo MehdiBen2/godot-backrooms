@@ -1,0 +1,47 @@
+[gd_scene load_steps=5 format=4 uid="uid://ck02moc50neim"]
+
+[ext_resource type="Material" uid="uid://c5mftxgpgom65" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_B_Mat.tres" id="1_8e8lr"]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_tonrn"]
+_surfaces = [{
+"aabb": AABB(-5.9604645e-08, -5.463918e-09, -0.12500012, 1.5, 1, 0.25000006),
+"format": 34896613377,
+"index_count": 12,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUA"),
+"name": "BRW_B",
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAP7/AAD///////8AAP//AAD+/wAAAAD/////AAAAAAAAAAAAAP////8AAAAAAAD//wAAAAD//wAAAAAAAA==")
+}]
+blend_shape_mode = 0
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_6fcm4"]
+resource_name = "BackroomsLikeAsset-RE_BR_Wall_A_1x1_5"
+_surfaces = [{
+"aabb": AABB(-5.9604645e-08, -5.463918e-09, -0.12500012, 1.5, 1, 0.25000006),
+"attribute_data": PackedByteArray("I8n/////VNX+////I8lU1SPJ///+/1TVI8lU1f7///8="),
+"format": 34896613399,
+"index_count": 12,
+"index_data": PackedByteArray("AAABAAIAAAADAAEABAAFAAYABAAHAAUA"),
+"material": ExtResource("1_8e8lr"),
+"name": "BRW_B",
+"primitive": 3,
+"uv_scale": Vector4(2.3333335, 2, 0, 0),
+"vertex_count": 8,
+"vertex_data": PackedByteArray("AAAAAP7/AID///////8AgP//AAD+/wCAAAD/////AIAAAAAAAAAAAP////8AAAAAAAD//wAAAAD//wAAAAAAAP9/////f////3////9///////9/////f////3////9/")
+}]
+blend_shape_mode = 0
+shadow_mesh = SubResource("ArrayMesh_tonrn")
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_r1twl"]
+data = PackedVector3Array(1.5, -5.463918e-09, 0.12499988, -5.9604645e-08, -5.463918e-09, 0.12499988, -5.9604645e-08, 1, 0.124999925, -5.9604645e-08, 1, -0.12500007, -5.9604645e-08, 5.463929e-09, -0.12500012, 1.5, 5.463929e-09, -0.12500012, 1.5, -5.463918e-09, 0.12499988, -5.9604645e-08, 1, 0.124999925, 1.5, 1, 0.124999925, -5.9604645e-08, 1, -0.12500007, 1.5, 5.463929e-09, -0.12500012, 1.5, 1, -0.12500007)
+
+[node name="BR_Wall_A_1x1_5" type="MeshInstance3D"]
+mesh = SubResource("ArrayMesh_6fcm4")
+skeleton = NodePath("")
+
+[node name="BR_Wall_A_1x1_5" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BR_Wall_A_1x1_5"]
+shape = SubResource("ConcavePolygonShape3D_r1twl")

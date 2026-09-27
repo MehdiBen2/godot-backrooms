@@ -12,6 +12,11 @@ extends Node
 
 const CELL := 4.5
 const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the warm-up blood in the frustum
+# How close to level a surface must be to take a splat at all. A puddle is a flat card oriented to the
+# hit normal, so on a steep hillside face (the hills level) that normal tilts the card hard enough to
+# read as a small blob standing on its edge rather than a puddle lying down; below this, the blob keeps
+# rolling/falling instead of painting one there.
+const FLAT_ENOUGH_Y := 0.92
 
 # The flying blob: a sphere whose vertices bob around the surface so it wobbles like a loose mass of blood.
 const BLOB_SHADER := """
@@ -294,17 +299,20 @@ func _physics_process(delta: float) -> void:
 		var splat := false
 		# only the level's floor takes blood: never the player's or an entity's hitbox (a splat floating in
 		# mid-air), and not walls or the ceiling for now. A blob that meets a wall drops down it to the floor.
-		if ray.is_colliding() and ray.get_collider() is StaticBody3D and ray.get_collision_normal().y > 0.7:
+		if ray.is_colliding() and ray.get_collider() is StaticBody3D and ray.get_collision_normal().y > FLAT_ENOUGH_Y:
 			splat = true
 			point = ray.get_collision_point()
 			normal = ray.get_collision_normal()
-		elif dir.y < 0.0 and p.y - b.size <= floor_y:      # landed on the floor plane (no collider of its own)
-			if _pit_at(p.x, p.z):
-				rb.queue_free()                           # it is falling through a pit: no surface, no stain
-				b["dead"] = true
-				continue
-			splat = true
-			point = Vector3(p.x, floor_y, p.z)
+		elif dir.y < 0.0 and p.y - b.size <= floor_y + 3.0:  # near the floor: confirm against the real ground, not
+			# a flat plane, so a blob over a slope (the hills level) lands on the actual surface under it
+			var ground := _find_floor_point(Vector3(p.x, p.y + 1.0, p.z))
+			if p.y - b.size <= ground.y:
+				if _pit_at(ground.x, ground.z):
+					rb.queue_free()                           # it is falling through a pit: no surface, no stain
+					b["dead"] = true
+					continue
+				splat = true
+				point = ground
 		elif b.t > 2.5:
 			rb.queue_free()                               # wandered off somewhere unseen: just despawn
 			b["dead"] = true
@@ -457,7 +465,9 @@ func _find_floor_point(from: Vector3) -> Vector3:
 		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -5.0, 0))
 		q.collision_mask = 1
 		var hit := space.intersect_ray(q)
-		if not hit.is_empty() and hit.collider is StaticBody3D:
+		# these callers always paint with an UP normal (a flat pool), so a steep hit here (a hillside
+		# face) is skipped too - otherwise the flat card would clip straight into the slope
+		if not hit.is_empty() and hit.collider is StaticBody3D and Vector3(hit.normal).y > FLAT_ENOUGH_Y:
 			return hit.position
 	# Fallback to floor_y if raycast fails
 	return Vector3(from.x, floor_y, from.z)
@@ -547,10 +557,13 @@ func _process(delta: float) -> void:
 		mi.global_position += d.v * delta
 		mi.scale = Vector3(d.size, d.size * (1.0 + minf(2.2, absf(d.v.y) * 0.16)), d.size)
 		var p := mi.global_position
-		var hit_floor := p.y <= floor_y + 0.03
+		# the real ground under the drop, not a flat plane: on a slope (the hills level) the actual
+		# surface can sit well above or below floor_y, which used to leave the stain floating or buried
+		var ground := _find_floor_point(Vector3(p.x, floor_y + 3.0, p.z)) if p.y <= floor_y + 3.0 else Vector3(p.x, floor_y, p.z)
+		var hit_floor := p.y <= ground.y + 0.03
 		if hit_floor or _wall_at(p.x, p.z):
 			if hit_floor and randf() < 0.6:
-				surface_decal(Vector3(p.x, floor_y, p.z), Vector3.UP, 0.16 + d.size * 6.0 + randf() * 0.25, 0.0, null, d.v)
+				surface_decal(Vector3(p.x, ground.y, p.z), Vector3.UP, 0.16 + d.size * 6.0 + randf() * 0.25, 0.0, null, d.v)
 			mi.queue_free()
 			d["dead"] = true
 	_drops = _drops.filter(func(d): return not d.has("dead"))

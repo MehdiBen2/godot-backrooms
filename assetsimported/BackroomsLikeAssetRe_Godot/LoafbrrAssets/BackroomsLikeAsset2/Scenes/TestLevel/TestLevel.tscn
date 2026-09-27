@@ -1,0 +1,46 @@
+[gd_scene load_steps=6 format=3 uid="uid://brau4q6neihrl"]
+
+[ext_resource type="PackedScene" uid="uid://cvskksr1ud74g" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Scenes/Level/tst_level.tscn" id="1_bb4r6"]
+[ext_resource type="LightmapGIData" uid="uid://divokwshhqt0y" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Scenes/TestLevel/Lightmap/TestLevel.lmbake" id="2_gp3xu"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_ihv3b"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_gejkn"]
+sky_material = SubResource("ProceduralSkyMaterial_ihv3b")
+
+[sub_resource type="Environment" id="Environment_rbub6"]
+background_mode = 1
+sky = SubResource("Sky_gejkn")
+tonemap_mode = 2
+ssr_enabled = true
+ssao_enabled = true
+ssil_enabled = true
+glow_enabled = true
+glow_mix = 0.183
+glow_bloom = 0.16
+glow_blend_mode = 4
+glow_hdr_scale = 3.1
+
+[node name="Node3D" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_rbub6")
+
+[node name="ReflectionProbe" type="ReflectionProbe" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.4182491, 3.3405304, 1.0236053)
+update_mode = 1
+size = Vector3(44.42877, 15.857819, 32.8226)
+enable_shadows = true
+
+[node name="TstLevel" parent="." instance=ExtResource("1_bb4r6")]
+
+[node name="LightmapGI" type="LightmapGI" parent="."]
+quality = 2
+bounce_indirect_energy = 2.0
+interior = true
+max_texture_size = 4096
+environment_mode = 0
+generate_probes_subdiv = 4
+light_data = ExtResource("2_gp3xu")

@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://c48g61aou444d"]
+
+[ext_resource type="Shader" uid="uid://dbypyy5nb03ph" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/ORM_Shader_Cull_Back.gdshader" id="1_y7fuh"]
+[ext_resource type="Texture2D" uid="uid://fn8h7ys51vmj" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/Surface_Concrete_A/Surface_Concrete_A_Diffuse_2K_A.png" id="2_gsbyp"]
+[ext_resource type="Texture2D" uid="uid://bieubmgn4bfqs" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/Surface_Concrete_A/Surface_Concrete_A_Normal_2K.png" id="3_68q8m"]
+[ext_resource type="Texture2D" uid="uid://53jbcntlwcee" path="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Textures/Surface_Concrete_A/Surface_Concrete_A_ORM_2K.png" id="4_micml"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_y7fuh")
+shader_parameter/albedo = Color(1, 1, 1, 1)
+shader_parameter/texture_albedo = ExtResource("2_gsbyp")
+shader_parameter/texture_orm = ExtResource("4_micml")
+shader_parameter/alpha_scissor_threshold = 0.9
+shader_parameter/roughness = 1.0
+shader_parameter/specular = 0.5
+shader_parameter/metallic = 0.0
+shader_parameter/texture_normal = ExtResource("3_68q8m")
+shader_parameter/normal_scale = 1.0
+shader_parameter/ao_light_affect = 0.0
+shader_parameter/emission = Color(0, 0, 0, 1)
+shader_parameter/emission_energy = 0.0
+shader_parameter/uv1_scale = Vector3(1, 1, 1)
+shader_parameter/uv1_offset = Vector3(0, 0, 0)

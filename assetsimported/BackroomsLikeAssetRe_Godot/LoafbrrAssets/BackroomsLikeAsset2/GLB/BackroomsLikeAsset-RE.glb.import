@@ -1,0 +1,85 @@
+[remap]
+
+importer="scene"
+importer_version=1
+type="PackedScene"
+uid="uid://b5txdwc34jwqg"
+path="res://.godot/imported/BackroomsLikeAsset-RE.glb-566bd84fc888eac3a99461b809185df3.scn"
+
+[deps]
+
+source_file="res://Assets/LoafbrrAssets/BackroomsLikeAsset2/GLB/BackroomsLikeAsset-RE.glb"
+dest_files=["res://.godot/imported/BackroomsLikeAsset-RE.glb-566bd84fc888eac3a99461b809185df3.scn"]
+
+[params]
+
+nodes/root_type=""
+nodes/root_name=""
+nodes/root_script=null
+nodes/apply_root_scale=true
+nodes/root_scale=1.0
+nodes/import_as_skeleton_bones=false
+nodes/use_name_suffixes=true
+nodes/use_node_type_suffixes=true
+meshes/ensure_tangents=true
+meshes/generate_lods=true
+meshes/create_shadow_meshes=true
+meshes/light_baking=1
+meshes/lightmap_texel_size=0.2
+meshes/force_disable_compression=false
+skins/use_named_skins=true
+animation/import=true
+animation/fps=30
+animation/trimming=false
+animation/remove_immutable_tracks=true
+animation/import_rest_as_RESET=false
+import_script/path=""
+materials/extract=0
+materials/extract_format=0
+materials/extract_path=""
+_subresources={
+"materials": {
+"BRC_A": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRC_Mat.tres",
+"use_external/path": "uid://bwaaev27ix4jx"
+},
+"BRF": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRF_B_Mat.tres",
+"use_external/path": "uid://7lseh5pevooa"
+},
+"BRW_A": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_A_Mat.tres",
+"use_external/path": "uid://2x3mputsxn31"
+},
+"BRW_B": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/BRW_B_Mat.tres",
+"use_external/path": "uid://c5mftxgpgom65"
+},
+"DWTrim_A": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_A.tres",
+"use_external/path": "uid://7xqh7wgltlqk"
+},
+"DWTrim_B": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/DWTrim_Mat_B.tres",
+"use_external/path": "uid://in2j66akq5wu"
+},
+"Surface_Concrete_B": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_B.tres",
+"use_external/path": "uid://bveyabsta08b4"
+},
+"Surface_Concrete_C": {
+"use_external/enabled": true,
+"use_external/fallback_path": "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Materials/Surface_Concrete_A_Mat_C.tres",
+"use_external/path": "uid://dfotrkxy8f7nv"
+}
+}
+}
+gltf/naming_version=2
+gltf/embedded_image_handling=1
