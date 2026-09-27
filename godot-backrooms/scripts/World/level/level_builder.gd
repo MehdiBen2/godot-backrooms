@@ -1,10 +1,9 @@
 extends "res://scripts/World/level/level_lighting.gd"
 ## Builds a backrooms level from levels/levels.json (the same data the web game uses) and runs it:
 ## a port of the web game's level.js. The work is split into layers, each extending the one before:
-## level_data.gd (the grid), level_geometry.gd (walls, floors, ceilings, pits, grime),
-## level_objects.gd (freeform thin-wall props) and level_lighting.gd (the troffers, the light pool
-## that follows you, flicker and fog). This last layer puts them together and adds the exit and the
-## battery packs.
+## level_data.gd (the grid), level_geometry.gd (walls, floors, ceilings, pits, grime) and
+## level_lighting.gd (the troffers, the light pool that follows you, flicker and fog). This last layer
+## puts them together and adds the exit and the battery packs.
 ##
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
@@ -19,7 +18,6 @@ func _ready() -> void:
 	rng.seed = 1971                    # the same layout of burnt / flickering tubes every run
 	load_current()
 	build_geometry()
-	build_thin_walls()
 	build_lighting()
 	_build_exit()
 	_spawn_batteries()

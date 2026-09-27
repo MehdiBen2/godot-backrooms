@@ -1,5 +1,5 @@
 extends "res://scripts/World/level/level_data.gd"
-## THE LEVEL, layer 2 of 5: what it is made of. Wallpapered walls (one MultiMesh per wall height), carpet and
+## THE LEVEL, layer 2: what it is made of. Wallpapered walls (one MultiMesh per wall height), carpet and
 ## glossy tile floors, the ceiling with its drops where two heights meet, pit shafts falling away into
 ## the dark, and grime on the carpet. All built once from the grid when the level loads.
 

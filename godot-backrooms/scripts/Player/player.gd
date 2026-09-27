@@ -219,7 +219,6 @@ func _physics_process(dt: float) -> void:
 	if Game.noclip:
 		_fly(dt)
 		return
-	shape.disabled = false   # undo _fly()'s collision-off if noclip just turned back on (e.g. build mode exiting)
 	var crouch := _key(KEY_C) or _key(KEY_CTRL)
 	var dir := Vector2.ZERO
 	if _key(KEY_W) or _key(KEY_UP): dir.y -= 1

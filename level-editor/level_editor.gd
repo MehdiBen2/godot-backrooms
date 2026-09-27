@@ -5,13 +5,6 @@ extends Control
 ## Set BACKROOMS_GAME_DIR to point at a different game folder.
 ##   left drag paint   right drag erase   middle drag / Space+drag pan   wheel zoom   F fit
 ##   1 2 3 wall/floor/pit   [ ] brush size   Ctrl+S save   Ctrl+Z undo   Ctrl+N new   Ctrl+D duplicate
-##
-## 3D mode (the "3D" button): freeform thin-wall panels from the imported kit (Assets/LoafbrrAssets/
-## BackroomsLikeAsset2/Scenes/Wall), placed anywhere rather than snapped to the grid.
-##   pick a piece on the right   left click empty ground places it   left click a piece selects it
-##   left drag a selected piece moves it along the ground   Q / E rotate (Shift = 90 deg snap)
-##   Page Up / Page Down raise / lower   Delete removes   right drag looks   WASD flies (Shift = fast)
-##   wheel = fly speed
 
 const CREAM := Color("e6e1cd")
 const DIM := Color(0.9, 0.882, 0.804, 0.55)
@@ -32,15 +25,6 @@ const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": C
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505")}
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage", "Maintenance", "Threshold", "Pool Rooms", "Stairwell", "Office"]
-
-# ---- 3D thin-wall placement mode ----
-const CELL_3D := 4.5          # must match level_data.gd's CELL
-const WALL_H_3D := 5.4        # must match level_data.gd's WALL_H
-const WALL_KIT_DIR := "res://Assets/LoafbrrAssets/BackroomsLikeAsset2/Scenes/Wall/"
-const FLY_SPEED := 26.0
-const LOOK_SENSITIVITY := 0.008
-const PICK_RADIUS_PX := 26.0
-const SELECT_TINT := Color(0.4, 0.9, 1.0)
 
 var GAME := OS.get_environment("BACKROOMS_GAME_DIR") if OS.has_environment("BACKROOMS_GAME_DIR") \
 	else ProjectSettings.globalize_path("res://").path_join("../godot-backrooms").simplify_path()
@@ -65,27 +49,6 @@ var pan := Vector2(10, 10)
 var hover := Vector2i(-1, -1)
 var dirty := false
 var filter := ""
-
-# ---- 3D thin-wall placement mode ----
-var thin_walls: Array = []           # [{piece, pos: Vector3, rot: float(deg)}]
-var wall_pieces: Array = []          # piece names scanned from WALL_KIT_DIR
-var selected_wall := -1
-var active_piece := ""
-var mode_3d := false
-var view3d: SubViewportContainer
-var sub_viewport: SubViewport
-var cam3d: Camera3D
-var cam_yaw := 0.0
-var cam_pitch := -0.35
-var fly_speed := FLY_SPEED
-var looking := false
-var dragging_wall := false
-var context_root: Node3D              # grey-box preview of the grid, rebuilt per level
-var walls_root: Node3D                # placed thin-wall instances
-var ghost: Node3D                     # preview of the piece about to be placed
-var wall_piece_scenes: Dictionary = {}  # piece name -> PackedScene (cached)
-var mode_button: Button
-var piece_buttons := {}
 
 var font: FontFile = load("res://fonts/vcr.ttf")
 var canvas: Control
@@ -112,7 +75,6 @@ var shown: Array = []                # index positions currently shown in the li
 func _ready() -> void:
 	theme = _make_theme()
 	_scan_pbr()
-	_scan_wall_pieces()
 	_build_ui()
 	_load_index()
 	_open(0)
@@ -123,21 +85,6 @@ func _scan_pbr() -> void:
 	for n in d.get_directories():
 		pbr_names.append(n)
 	pbr_names.sort()
-
-func _scan_wall_pieces() -> void:
-	var d := DirAccess.open(WALL_KIT_DIR)
-	if d == null: return
-	for f in d.get_files():
-		if f.ends_with(".tscn"):
-			wall_pieces.append(f.get_basename())
-	wall_pieces.sort()
-	# Plain "br_wall_a_3x_3" sorts after all the "br_wall_3x_..." trim/door-frame pieces (digits sort
-	# before letters), so picking wall_pieces[0] as the default landed on a thin decorative trim strip
-	# instead of an actual wall panel. Prefer a real full wall panel as the starting default.
-	if wall_pieces.has("br_wall_a_3x_3"):
-		active_piece = "br_wall_a_3x_3"
-	elif not wall_pieces.is_empty():
-		active_piece = wall_pieces[0]
 
 # ---------------------------------------------------------------- theme
 func _box(bg: Color, border := LINE, radius := 0, margin := 8) -> StyleBoxFlat:
@@ -229,9 +176,6 @@ func _build_ui() -> void:
 	tb.add_child(test_b)
 	tb.add_child(_button("UNDO", _undo))
 	tb.add_child(_button("FIT", _fit))
-	mode_button = _button("3D", _toggle_3d)
-	mode_button.toggle_mode = true
-	tb.add_child(mode_button)
 	var save_b := _button("SAVE  Ctrl+S", save)
 	save_b.add_theme_color_override("font_color", GOLD)
 	tb.add_child(save_b)
@@ -304,7 +248,6 @@ func _build_ui() -> void:
 	canvas.gui_input.connect(_canvas_input)
 	canvas.resized.connect(canvas.queue_redraw)
 	mid.add_child(canvas)
-	_build_3d_view(mid)
 
 	# right: tools
 	var right := _panel(290)
@@ -348,18 +291,6 @@ func _build_ui() -> void:
 		tr.clip_contents = true
 		side.add_child(tr)
 		slot_previews[slot] = tr
-
-	side.add_child(_label("THIN WALLS  (3D mode)", 16, GOLD))
-	var wall_scroll := ScrollContainer.new()
-	wall_scroll.custom_minimum_size = Vector2(0, 180)
-	wall_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	side.add_child(wall_scroll)
-	var wall_list := VBoxContainer.new()
-	wall_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wall_scroll.add_child(wall_list)
-	for p in wall_pieces:
-		wall_list.add_child(_piece_button(p))
-	side.add_child(_button("DELETE SELECTED  (Del)", _delete_selected_wall))
 
 	# bottom status bar
 	var bot := PanelContainer.new()
@@ -426,326 +357,9 @@ func _select_tool(id: String) -> void:
 	for k in tool_buttons:
 		tool_buttons[k].button_pressed = (k == id)
 
-## Its own function (not inlined in the palette's `for` loop) because GDScript lambdas capture a
-## `for` loop's variable by reference - every button's callback would otherwise fire with whatever
-## `p` happened to be after the loop finished (the last piece), not the one that was clicked.
-func _piece_button(p: String) -> Button:
-	var b := Button.new()
-	b.text = p.trim_prefix("br_wall_").replace("_", " ")
-	b.tooltip_text = p + "  -  click empty ground in the 3D view to place"
-	b.toggle_mode = true
-	b.button_pressed = p == active_piece
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.pressed.connect(func(): _select_piece(p))
-	piece_buttons[p] = b
-	return b
-
-func _select_piece(p: String) -> void:
-	active_piece = p
-	for k in piece_buttons:
-		piece_buttons[k].button_pressed = (k == p)
-	if mode_3d: _update_ghost()
-
 func _set_brush(n: int) -> void:
 	brush = clampi(n, 1, 8)
 	brush_label.text = " %d " % brush
-
-# ---------------------------------------------------------------- 3D thin-wall mode
-func _build_3d_view(mid: VBoxContainer) -> void:
-	view3d = SubViewportContainer.new()
-	view3d.stretch = true
-	view3d.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	view3d.visible = false
-	view3d.gui_input.connect(_view3d_input)
-	view3d.mouse_default_cursor_shape = Control.CURSOR_CROSS
-	mid.add_child(view3d)
-
-	sub_viewport = SubViewport.new()
-	sub_viewport.world_3d = World3D.new()   # assign directly - own_world_3d alone can leave it null until the next frame
-	sub_viewport.own_world_3d = true
-	sub_viewport.handle_input_locally = false
-	sub_viewport.size = Vector2i(1, 1)
-	view3d.add_child(sub_viewport)
-
-	var env := WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color("0d0c08")
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("d8d0b8")
-	e.ambient_light_energy = 1.1
-	env.environment = e
-	sub_viewport.add_child(env)
-
-	var sun := DirectionalLight3D.new()
-	sun.rotation = Vector3(-1.0, 0.6, 0.0)
-	sun.light_energy = 1.8
-	sub_viewport.add_child(sun)
-	var fill := DirectionalLight3D.new()
-	fill.rotation = Vector3(-0.6, -2.4, 0.0)
-	fill.light_energy = 0.7
-	sub_viewport.add_child(fill)
-
-	cam3d = Camera3D.new()
-	cam3d.far = 400.0
-	sub_viewport.add_child(cam3d)
-
-	context_root = Node3D.new()
-	sub_viewport.add_child(context_root)
-	walls_root = Node3D.new()
-	sub_viewport.add_child(walls_root)
-	ghost = Node3D.new()
-	sub_viewport.add_child(ghost)
-
-func _toggle_3d() -> void:
-	mode_3d = mode_button.button_pressed
-	canvas.visible = not mode_3d
-	view3d.visible = mode_3d
-	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	looking = false
-	if mode_3d:
-		sub_viewport.size = Vector2i(maxi(1, int(view3d.size.x)), maxi(1, int(view3d.size.y)))
-		_rebuild_3d_context()
-		_rebuild_3d_walls()
-		_update_ghost()
-		var center := float(grid_size) * 0.5 * CELL_3D
-		cam3d.position = Vector3(center, WALL_H_3D * 1.5, center + 10.0)
-		cam_yaw = 0.0
-		cam_pitch = -0.5
-		_apply_cam_rotation()
-	else:
-		canvas.queue_redraw()
-
-func _apply_cam_rotation() -> void:
-	cam3d.rotation = Vector3(cam_pitch, cam_yaw, 0.0)
-
-# Cheap grey-box preview of the grid's walls/floor, just for spatial context while placing pieces.
-func _rebuild_3d_context() -> void:
-	for c in context_root.get_children(): c.free()
-	var wall_cells: Array = []
-	for z in grid_size:
-		for x in grid_size:
-			if grid[z][x] == WALL: wall_cells.append(Vector2i(x, z))
-	if not wall_cells.is_empty():
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		var box := BoxMesh.new()
-		box.size = Vector3(CELL_3D, WALL_H_3D, CELL_3D)
-		mm.mesh = box
-		mm.instance_count = wall_cells.size()
-		for i in wall_cells.size():
-			var c: Vector2i = wall_cells[i]
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(c.x * CELL_3D, WALL_H_3D / 2.0, c.y * CELL_3D)))
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color("55503c")
-		mmi.material_override = m
-		context_root.add_child(mmi)
-	var floor_mi := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	var extent := float(grid_size) * CELL_3D
-	pm.size = Vector2(extent, extent)
-	floor_mi.mesh = pm
-	floor_mi.position = Vector3(extent / 2.0 - CELL_3D / 2.0, 0.0, extent / 2.0 - CELL_3D / 2.0)
-	var fm := StandardMaterial3D.new()
-	fm.albedo_color = Color("2a2818")
-	floor_mi.material_override = fm
-	context_root.add_child(floor_mi)
-
-func _load_wall_scene(piece: String) -> PackedScene:
-	if not wall_piece_scenes.has(piece):
-		var path := WALL_KIT_DIR + piece + ".tscn"
-		wall_piece_scenes[piece] = load(path) if ResourceLoader.exists(path) else null
-	return wall_piece_scenes[piece]
-
-func _rebuild_3d_walls() -> void:
-	for c in walls_root.get_children(): c.free()
-	for i in thin_walls.size():
-		_add_wall_instance(i)
-
-func _add_wall_instance(i: int) -> void:
-	var w: Dictionary = thin_walls[i]
-	var scene := _load_wall_scene(str(w.get("piece", "")))
-	if scene == null: return
-	var inst := scene.instantiate() as Node3D
-	inst.set_meta("wall_index", i)
-	walls_root.add_child(inst)
-	_refresh_wall_transform(i)
-
-func _refresh_wall_transform(i: int) -> void:
-	var inst := _wall_instance(i)
-	if inst == null: return
-	var w: Dictionary = thin_walls[i]
-	var p: Vector3 = w.get("pos", Vector3.ZERO)
-	inst.position = p
-	inst.rotation.y = deg_to_rad(float(w.get("rot", 0.0)))
-
-func _wall_instance(i: int) -> Node3D:
-	for c in walls_root.get_children():
-		if c.has_meta("wall_index") and int(c.get_meta("wall_index")) == i:
-			return c as Node3D
-	return null
-
-func _find_mesh(n: Node) -> MeshInstance3D:
-	if n is MeshInstance3D: return n
-	for c in n.get_children():
-		var m := _find_mesh(c)
-		if m != null: return m
-	return null
-
-func _set_wall_highlight(i: int, on: bool) -> void:
-	var inst := _wall_instance(i)
-	if inst == null: return
-	var mi := _find_mesh(inst)
-	if mi == null: return
-	if on:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = SELECT_TINT
-		m.emission_enabled = true
-		m.emission = SELECT_TINT
-		m.emission_energy_multiplier = 0.6
-		mi.material_override = m
-	else:
-		mi.material_override = null
-
-func _select_wall(i: int) -> void:
-	if selected_wall == i: return
-	if selected_wall >= 0: _set_wall_highlight(selected_wall, false)
-	selected_wall = i
-	if selected_wall >= 0: _set_wall_highlight(selected_wall, true)
-
-func _delete_selected_wall() -> void:
-	if selected_wall < 0 or selected_wall >= thin_walls.size(): return
-	_push_undo()
-	thin_walls.remove_at(selected_wall)
-	selected_wall = -1
-	_rebuild_3d_walls()          # indices shifted, cheapest to rebuild fully (also frees the old instance)
-	_mark_dirty()
-
-func _update_ghost() -> void:
-	for c in ghost.get_children(): c.free()
-	ghost.visible = false
-	if active_piece == "": return
-	var scene := _load_wall_scene(active_piece)
-	if scene == null: return
-	var inst := scene.instantiate() as Node3D
-	var mi := _find_mesh(inst)
-	if mi != null:
-		var m := StandardMaterial3D.new()
-		m.albedo_color = Color(1, 1, 1, 0.4)
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mi.material_override = m
-	for c in inst.get_children():
-		if c is StaticBody3D: c.queue_free()   # no collision on the ghost
-	ghost.add_child(inst)
-
-# Pure math, no physics: a ray from the camera through `pos` intersected with the horizontal plane
-# at `plane_y`. Avoids any dependency on the physics server having caught up with freshly added
-# collision shapes, which made placement/selection flaky.
-func _ray_plane(pos: Vector2, plane_y: float) -> Vector3:
-	var from := cam3d.project_ray_origin(pos)
-	var dir := cam3d.project_ray_normal(pos)
-	if absf(dir.y) < 0.0001:
-		return from + dir * 50.0
-	var t := (plane_y - from.y) / dir.y
-	return from + dir * (t if t > 0.0 else 50.0)
-
-# Nearest placed piece to the click, in screen space, within PICK_RADIUS_PX - or -1 for empty ground.
-func _pick_wall_at_screen(pos: Vector2) -> int:
-	var best := -1
-	var best_d := PICK_RADIUS_PX * PICK_RADIUS_PX
-	for i in thin_walls.size():
-		var w: Dictionary = thin_walls[i]
-		var wp: Vector3 = w.pos + Vector3(0, 1.0, 0)
-		if cam3d.is_position_behind(wp): continue
-		var d := cam3d.unproject_position(wp).distance_squared_to(pos)
-		if d < best_d:
-			best_d = d
-			best = i
-	return best
-
-func _view3d_input(ev: InputEvent) -> void:
-	if not mode_3d: return
-	if ev is InputEventMouseButton:
-		var mb := ev as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_RIGHT:
-			looking = mb.pressed
-			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED if looking else Input.MOUSE_MODE_VISIBLE)
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP:
-			fly_speed = clampf(fly_speed * 1.25, 2.0, 150.0)
-		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			fly_speed = clampf(fly_speed / 1.25, 2.0, 150.0)
-		elif mb.button_index == MOUSE_BUTTON_LEFT:
-			if mb.pressed:
-				var idx := _pick_wall_at_screen(mb.position)
-				if idx >= 0:
-					_select_wall(idx)
-					dragging_wall = true
-				elif active_piece != "":
-					_push_undo()
-					thin_walls.append({"piece": active_piece, "pos": _ray_plane(mb.position, 0.0), "rot": 0.0})
-					_add_wall_instance(thin_walls.size() - 1)
-					_select_wall(thin_walls.size() - 1)
-					_mark_dirty()
-			else:
-				dragging_wall = false
-	elif ev is InputEventMouseMotion:
-		var mm := ev as InputEventMouseMotion
-		if looking:
-			cam_yaw -= mm.relative.x * LOOK_SENSITIVITY
-			cam_pitch = clampf(cam_pitch - mm.relative.y * LOOK_SENSITIVITY, -1.5, 1.5)
-			_apply_cam_rotation()
-		elif dragging_wall and selected_wall >= 0:
-			var w: Dictionary = thin_walls[selected_wall]
-			var p: Vector3 = w.pos
-			w["pos"] = _ray_plane(mm.position, p.y)
-			_refresh_wall_transform(selected_wall)
-			_mark_dirty()
-		else:
-			ghost.visible = active_piece != "" and _pick_wall_at_screen(mm.position) < 0
-			if ghost.visible: ghost.position = _ray_plane(mm.position, 0.0)
-
-func _process(delta: float) -> void:
-	if not mode_3d or cam3d == null: return
-	var v := Vector3.ZERO
-	if Input.is_key_pressed(KEY_W): v.z -= 1.0
-	if Input.is_key_pressed(KEY_S): v.z += 1.0
-	if Input.is_key_pressed(KEY_A): v.x -= 1.0
-	if Input.is_key_pressed(KEY_D): v.x += 1.0
-	if Input.is_key_pressed(KEY_E) and not selected_wall_key_active(): v.y += 1.0
-	if Input.is_key_pressed(KEY_Q) and not selected_wall_key_active(): v.y -= 1.0
-	if v != Vector3.ZERO:
-		var boost := 3.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-		cam3d.position += cam3d.global_transform.basis * v.normalized() * fly_speed * boost * delta
-
-func selected_wall_key_active() -> bool:
-	return selected_wall >= 0        # Q/E rotate the selection instead of flying vertically when one is picked
-
-func _rotate_selected(delta_deg: float) -> void:
-	if selected_wall < 0: return
-	_push_undo()
-	var w: Dictionary = thin_walls[selected_wall]
-	w["rot"] = fmod(float(w.get("rot", 0.0)) + delta_deg + 360.0, 360.0)
-	_refresh_wall_transform(selected_wall)
-	_mark_dirty()
-
-func _raise_selected(delta_y: float) -> void:
-	if selected_wall < 0: return
-	_push_undo()
-	var w: Dictionary = thin_walls[selected_wall]
-	var p: Vector3 = w.get("pos", Vector3.ZERO)
-	w["pos"] = p + Vector3(0, delta_y, 0)
-	_refresh_wall_transform(selected_wall)
-	_mark_dirty()
-
-func _fit_3d() -> void:
-	if cam3d == null: return
-	var center := float(grid_size) * 0.5 * CELL_3D
-	cam3d.position = Vector3(center, WALL_H_3D * 1.5, center + 10.0)
-	cam_yaw = 0.0
-	cam_pitch = -0.5
-	_apply_cam_rotation()
 
 # ---------------------------------------------------------------- level list
 func _load_index() -> void:
@@ -794,14 +408,6 @@ func _open(i: int) -> void:
 		var c = data.get(m)
 		markers[m] = Vector2i(c[0], c[1]) if c is Array and c.size() >= 2 else null
 	materials = data.get("materials", {}).duplicate()
-	thin_walls = []
-	for w in data.get("thin_walls", []):
-		var p: Array = w.get("pos", [0.0, 0.0, 0.0])
-		thin_walls.append({"piece": str(w.get("piece", "")), "pos": Vector3(p[0], p[1], p[2]), "rot": float(w.get("rot", 0.0))})
-	selected_wall = -1
-	if mode_3d:
-		_rebuild_3d_context()
-		_rebuild_3d_walls()
 	for slot in SLOTS:
 		var idx := pbr_names.find(str(materials.get(slot, "")))
 		(slot_picks[slot] as OptionButton).select(idx + 1 if idx >= 0 else 0)
@@ -1017,14 +623,6 @@ func _current_payload() -> Dictionary:
 		if str(materials.get(slot, "")) != "": mats[slot] = materials[slot]
 	if mats.is_empty(): out.erase("materials")
 	else: out["materials"] = mats
-	if thin_walls.is_empty():
-		out.erase("thin_walls")
-	else:
-		var tw := []
-		for w in thin_walls:
-			var p: Vector3 = w.pos
-			tw.append({"piece": w.piece, "pos": [p.x, p.y, p.z], "rot": w.rot})
-		out["thin_walls"] = tw
 	return out
 
 func save() -> void:
@@ -1059,7 +657,6 @@ func _resize(n: int) -> void:
 	for m in markers:
 		var c = markers[m]
 		if c != null and (c.x >= n - 1 or c.y >= n - 1): markers[m] = null
-	if mode_3d: _rebuild_3d_context()
 	_mark_dirty()
 	_fit()
 
@@ -1117,11 +714,6 @@ func _draw_canvas() -> void:
 			canvas.draw_circle(p, zoom * 0.42, MARKERS[m])
 			canvas.draw_arc(p, zoom * 0.42, 0, TAU, 20, Color.BLACK, 1.5)
 			canvas.draw_string(font, p + Vector2(-zoom * 0.2, zoom * 0.2), m.substr(0, 1).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, int(zoom * 0.6), Color.BLACK)
-	for w in thin_walls:
-		var p: Vector3 = w.pos
-		var center := pan + Vector2(p.x, p.z) / CELL_3D * zoom
-		var dir := Vector2.RIGHT.rotated(deg_to_rad(float(w.rot))) * zoom * 0.5
-		canvas.draw_line(center - dir, center + dir, Color("8fd8ff"), 2.0)
 	if hover.x >= 0 and not tool.begins_with("mark:"):
 		var half := brush / 2
 		for dz in brush:
@@ -1190,9 +782,7 @@ func _apply(c: Vector2i) -> void:
 func _push_undo() -> void:
 	var z := {}
 	for k in zones: z[k] = zones[k].duplicate()
-	var tw := []
-	for w in thin_walls: tw.append(w.duplicate())
-	undo_stack.append({"grid": grid.duplicate(true), "zones": z, "markers": markers.duplicate(), "size": grid_size, "thin_walls": tw})
+	undo_stack.append({"grid": grid.duplicate(true), "zones": z, "markers": markers.duplicate(), "size": grid_size})
 	if undo_stack.size() > 80: undo_stack.pop_front()
 
 func _undo() -> void:
@@ -1202,11 +792,6 @@ func _undo() -> void:
 	zones = s.zones
 	markers = s.markers
 	grid_size = s.size
-	thin_walls = s.get("thin_walls", [])
-	selected_wall = -1
-	if mode_3d:
-		_rebuild_3d_context()
-		_rebuild_3d_walls()
 	_mark_dirty()
 
 func _input(ev: InputEvent) -> void:
@@ -1225,15 +810,6 @@ func _input(ev: InputEvent) -> void:
 		return
 	if k.keycode == KEY_F5:
 		_test_level()
-		return
-	if mode_3d:
-		match k.keycode:
-			KEY_DELETE, KEY_BACKSPACE: _delete_selected_wall()
-			KEY_Q: _rotate_selected(-90.0 if k.shift_pressed else -15.0)
-			KEY_E: _rotate_selected(90.0 if k.shift_pressed else 15.0)
-			KEY_PAGEUP: _raise_selected(0.3)
-			KEY_PAGEDOWN: _raise_selected(-0.3)
-			KEY_F: _fit_3d()
 		return
 	match k.keycode:
 		KEY_1: _select_tool("base:" + WALL)
