@@ -215,6 +215,12 @@ func load_variant(host: Node) -> bool:
 	var c := b.get_center()
 	var norm := Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s)
 	variant_mesh = mi.mesh
+	# the model's vertex colours are piece ids for mannequin_wear.gdshader, not a tint: the importer
+	# would multiply the albedo by them (a dark red figure) wherever the plain material is still used
+	for sf in variant_mesh.get_surface_count():
+		var sm := variant_mesh.surface_get_material(sf) as StandardMaterial3D
+		if sm != null:
+			sm.vertex_color_use_as_albedo = false
 	variant_xf = norm * xf
 	variant_root_xf = norm
 	variant_scene = packed
@@ -260,31 +266,22 @@ func make_variant(pose: Dictionary, style := {}) -> Node3D:
 	for m in n.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if float(style.get("cracks", 0.0)) > 0.0 or style.get("clothes", false):
-			mi.material_overlay = _wear_material(mi, sk, style)
+		mi.material_override = _wear_material(mi, style)     # every variant: plain ones just have no wear
 	return n
 
-func _wear_material(mi: MeshInstance3D, sk: Skeleton3D, style: Dictionary) -> ShaderMaterial:
+func _wear_material(mi: MeshInstance3D, style: Dictionary) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = WEAR_SHADER
+	var base := mi.mesh.surface_get_material(0) as StandardMaterial3D
+	if base != null:
+		mat.set_shader_parameter("albedo_tex", base.albedo_texture)
+		mat.set_shader_parameter("roughness", base.roughness)
 	mat.set_shader_parameter("cracks", float(style.get("cracks", 0.0)))
 	mat.set_shader_parameter("clothes", 1.0 if style.get("clothes", false) else 0.0)
 	var outfit: Array = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
 	mat.set_shader_parameter("shirt_color", outfit[0])
 	mat.set_shader_parameter("bottom_color", outfit[1])
 	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", true) else 0.0)
-	# the shader sees skin bind indices, not skeleton bone indices
-	var binds := {}
-	if mi.skin != null:
-		for b in mi.skin.get_bind_count():
-			var nm := String(mi.skin.get_bind_name(b))
-			if nm.is_empty():
-				nm = sk.get_bone_name(mi.skin.get_bind_bone(b))
-			binds[nm] = b
-	mat.set_shader_parameter("bone_chest", binds.get("Spine", -1))
-	mat.set_shader_parameter("bone_pelvis", binds.get("Hips", -1))
-	mat.set_shader_parameter("bone_arm_l", binds.get("ArmL", -1))
-	mat.set_shader_parameter("bone_arm_r", binds.get("ArmR", -1))
 	return mat
 
 ## A dust sheet thrown over a standing figure (figure space: feet on y = 0, facing +Z): a round head, the
