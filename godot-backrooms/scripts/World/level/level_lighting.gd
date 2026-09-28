@@ -36,7 +36,7 @@ const FOG_COLOR_DARK := Color("020201")
 ## that meters, pumps and drifts on its own (_update_camcorder).
 const ATMOSPHERES := {
 	"classic": {
-		"ambient_energy": 0.7, "ambient_color": Color(0.36, 0.31, 0.17),   # even yellow fill, low enough that the lights still shape the walls
+		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # even yellow fill, low enough that the lights still shape the walls
 		"exposure": 1.12, "tonemap_white": 3.0,       # a touch overexposed: panels clip white, walls stay readable
 		"glow_threshold": 1.15,                       # only the panels themselves bleed, not bright walls
 		# no bloom-everything and only a small wide halo: the far panels bunched up near the horizon used to
@@ -131,7 +131,11 @@ func _load_baked_gi() -> VoxelGIData:
 
 func _apply_gi() -> void:
 	if env == null: return
-	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat) else null
+	# The found-footage (classic) levels are big and flat-lit: a 200 m bake gets ~0.4 m voxels, only about ten
+	# floor to ceiling, and their seams showed as a dark line across every wall at eye height plus uneven
+	# bounce on the far ceiling. The look's even ambient fill does that job cleanly, so no GI there.
+	var flat_lit := atmosphere() == "classic"
+	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat and not flat_lit) else null
 	if data != null:
 		if voxel_gi == null:
 			voxel_gi = VoxelGI.new()
@@ -150,7 +154,7 @@ func _apply_gi() -> void:
 		voxel_gi.visible = true
 	elif voxel_gi != null:
 		voxel_gi.visible = false
-	var want: bool = level_data.get("sdfgi", not classic.is_empty())
+	var want: bool = level_data.get("sdfgi", not classic.is_empty()) and not flat_lit
 	env.sdfgi_enabled = data == null and want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
 	if env.sdfgi_enabled:
 		env.sdfgi_cascades = 3

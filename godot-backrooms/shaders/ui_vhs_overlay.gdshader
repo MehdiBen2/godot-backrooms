@@ -19,9 +19,10 @@ float hash12(vec2 p) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
-vec4 sample_in(vec2 uv) {
+// TEXTURE only exists inside fragment(), so it is passed in (using it here failed to compile)
+vec4 sample_in(sampler2D tex, vec2 uv) {
 	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
-	return texture(TEXTURE, uv);
+	return texture(tex, uv);
 }
 
 void fragment() {
@@ -42,9 +43,9 @@ void fragment() {
 	vec2 pg = pd;                    pg.x /= aspect; pg += 0.5;
 	vec2 pb = pd - ca_dir * ca_disp; pb.x /= aspect; pb += 0.5;
 
-	vec4 tr = sample_in(pr);
-	vec4 tg = sample_in(pg);
-	vec4 tb = sample_in(pb);
+	vec4 tr = sample_in(TEXTURE, pr);
+	vec4 tg = sample_in(TEXTURE, pg);
+	vec4 tb = sample_in(TEXTURE, pb);
 	vec3 col = vec3(tr.r, tg.g, tb.b);
 	float alpha = max(tr.a, max(tg.a, tb.a));
 

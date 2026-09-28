@@ -13,7 +13,7 @@ extends RefCounted
 ## player.gd feeds it the footfalls and reads `pitch`, `roll` (rad) and `offset` (m). Scaled by the head-bob
 ## setting: 0 turns all of it off.
 
-const AMOUNT := 1.0               # master scale for all of it
+const AMOUNT := 2.0               # master scale for all of it (1.0 read as no handheld at all)
 # tremor (rad): fast and tiny
 const TREMOR := 0.00035
 const TREMOR_SPEED := 7.0
