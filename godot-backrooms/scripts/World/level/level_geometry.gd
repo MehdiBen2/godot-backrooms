@@ -297,9 +297,37 @@ func _build_objects() -> void:
 
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var all_low := true
 	for n: Vector2i in DIRS + [Vector2i.ZERO]:
-		if tall.has(c + n): return TALL_H
-	return WALL_H
+		var cell: Vector2i = c + n
+		if tall.has(cell): return TALL_H
+		if not low.has(cell): all_low = false
+	return LOW_H if all_low else WALL_H
+
+## The clear height directly over `pos` (world) if it's under an arch's crown, else INF. The crown's
+## curve dips well below the room's own ceiling_height() near the springline, so anything tall passing
+## under it (bacteria_rig.gd) needs this, not just the flat per-cell height.
+func arch_clearance(pos: Vector3) -> float:
+	var best := INF
+	var pillar := float(object_info("arch").get("pillar", 0.75))
+	for o: Dictionary in objects:
+		if o.type != "arch":
+			continue
+		var xf := object_transform(o)
+		var local := xf.affine_inverse() * pos
+		var d := CELL * 0.5
+		if absf(local.x) > d:
+			continue
+		var w: float = CELL * o.scale - pillar * 2.0
+		var r := w * 0.5
+		if r <= 0.0 or absf(local.z) > r:
+			continue
+		var h := _object_wall_h(o)
+		var rise := minf(r, h - ARCH_SPRING - 0.3)
+		var t := local.z / r
+		var clear := ARCH_SPRING + rise * sqrt(maxf(0.0, 1.0 - t * t))
+		best = minf(best, clear)
+	return best
 
 ## One box collider under `body`, placed by `xf` (object space) at local `pos`
 func _add_box_collider(body: StaticBody3D, xf: Transform3D, size: Vector3, pos: Vector3) -> void:
@@ -444,6 +472,7 @@ func _build_ceiling_steps() -> void:
 	]
 	for b in batches: (b.st as SurfaceTool).begin(Mesh.PRIMITIVE_TRIANGLES)
 	var trims: Array = []
+	var collider_tris := PackedVector3Array()
 	var half := CELL / 2.0
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
@@ -477,6 +506,7 @@ func _build_ceiling_steps() -> void:
 					st.set_normal(nrm)
 					st.set_uv(pts[i][1])
 					st.add_vertex(pts[i][0])
+					collider_tris.append(pts[i][0])
 				batch.n += 1
 				var side := 1.0 if b2 > a else -1.0
 				trims.append({"x": bx + dv.x * side * 0.03, "z": bz + dv.y * side * 0.03, "y": lo - 0.05, "along_x": dv.x == 0})
@@ -497,6 +527,15 @@ func _build_ceiling_steps() -> void:
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED    # seen from whichever cell is taller
 		mi.material_override = m
 		add_child(mi)
+	if not collider_tris.is_empty():
+		var body := StaticBody3D.new()
+		add_child(body)
+		var cs := CollisionShape3D.new()
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(collider_tris)
+		shape.backface_collision = true
+		cs.shape = shape
+		body.add_child(cs)
 	if trims.is_empty(): return
 	var tm := StandardMaterial3D.new()
 	tm.albedo_color = Color("cfc6a8")

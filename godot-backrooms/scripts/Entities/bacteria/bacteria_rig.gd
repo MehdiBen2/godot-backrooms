@@ -121,7 +121,7 @@ func build(entity: Node3D, height: float) -> void:
 		mi.material_override = mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mi.extra_cull_margin = 8.0
-	for k in ["hunch", "crouch", "neck", "head_pitch", "head_roll", "look", "reach_a", "reach_b", "out_a", "out_b", "elbow_a", "elbow_b", "claw", "still", "shoulder_up", "arm_spread", "finger_splay"]:
+	for k in ["hunch", "crouch", "neck", "head_pitch", "head_roll", "look", "reach_a", "reach_b", "out_a", "out_b", "elbow_a", "elbow_b", "claw", "still", "shoulder_up", "arm_spread", "finger_splay", "duck_reach"]:
 		pose[k] = 0.0
 		pose_t[k] = 0.0
 
@@ -192,11 +192,14 @@ func _ceiling_near(move_speed: float) -> float:
 		return INF
 	var p := e.global_position
 	var f := Vector3(sin(e.yaw), 0.0, cos(e.yaw))
+	var has_arch: bool = lv.has_method("arch_clearance")
 	var lowest := INF
 	for d in [-1.2, 0.0, 1.5, 1.5 + move_speed * 0.5]:
 		var q: Vector3 = p + f * float(d)
 		var c: Vector2i = lv.cell_of(q)
 		var ch: float = lv.ceiling_height(c)
+		if has_arch:
+			ch = minf(ch, lv.arch_clearance(q))
 		lowest = minf(lowest, ch)
 	return lowest
 
@@ -496,7 +499,7 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 	P.hunch = 0.35 + run * 0.15; P.crouch = 0.0; P.neck = 0.1; P.head_pitch = -0.1; P.head_roll = 0.0
 	P.look = 1.0; P.still = 0.0; P.claw = 0.3
 	P.reach_a = 0.15; P.reach_b = 0.15; P.out_a = 0.06; P.out_b = 0.06; P.elbow_a = 0.25; P.elbow_b = 0.25
-	P.shoulder_up = 0.0; P.arm_spread = 0.0; P.finger_splay = 0.0
+	P.shoulder_up = 0.0; P.arm_spread = 0.0; P.finger_splay = 0.0; P.duck_reach = 0.0
 	if st == "roam" or st == "investigate" or st == "search":
 		if not moving:
 			# standing: listening. Head cocked, arms dead still
@@ -686,11 +689,24 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_pose_targets(st, run, moving)
 	_update_squeeze(delta, move_speed, st)
 	if squeeze > 0.001:
-		# under a low ceiling: knees down, back rounded over, head carried low and forward
+		# under a low ceiling or arch: knees down, back rounded over, head carried low and forward,
+		# hands rising up ahead of the head as if feeling out the low roof it's folding under
 		pose_t.crouch += 0.45 * squeeze
 		pose_t.hunch = minf(2.3, pose_t.hunch + 0.8 * squeeze)
 		pose_t.neck += 0.35 * squeeze
 		pose_t.head_pitch -= 0.15 * squeeze
+		# whatever the state was asking for, a wide-flung / overhead arm pose would poke straight
+		# through the low roof it's folded under: fold the arms back in as squeeze rises
+		var fold: float = clampf(squeeze, 0.0, 1.0)
+		pose_t.arm_spread *= 1.0 - fold
+		pose_t.shoulder_up *= 1.0 - fold
+		pose_t.out_a = lerpf(pose_t.out_a, minf(pose_t.out_a, 0.2), fold)
+		pose_t.out_b = lerpf(pose_t.out_b, minf(pose_t.out_b, 0.2), fold)
+		var arms_free: bool = st != "grab" and st != "screech" and e.lunge <= 0.0 and e.lunge_windup <= 0.0
+		if arms_free:
+			# squeeze itself can run well past 1 under a very low ceiling; the overlay below has to
+			# stay bounded or it swings the arm past vertical and straight through the roof it's ducking under
+			pose_t.duck_reach = fold
 	# heavy: it eases between poses, only the scream, the hit and the grab snap
 	var rate := 14.0 if (st == "screech" or st == "stunned" or st == "grab") else (9.0 if st == "chase" else (2.2 if quiet else 3.5))
 	for k in pose:
@@ -941,6 +957,14 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 
 		# Forearm is a pure elbow hinge - pitch only, never twisted on other axes
 		_turn(_b("fore_" + arm_side), right, -(elbow * 0.85 + reach * 0.15))
+
+		# ducking under a low ceiling or an arch's crown: both arms rise up ahead of the head, elbows
+		# bending in, as if bracing against / feeling out the roof it's folding itself under
+		var duck: float = clampf(pose.get("duck_reach", 0.0), 0.0, 1.0)
+		if duck > 0.001:
+			_turn(_b("arm_" + arm_side), right, -duck * 0.6)
+			_turn(_b("arm_" + arm_side), fwd, sgn * duck * 0.15)
+			_turn(_b("fore_" + arm_side), right, -duck * 0.5)
 
 		# a glitching arm wrenches outward, never in across the body
 		_glitch_turn("arm_" + arm_side, absf(g_angle) * sgn * 0.6)

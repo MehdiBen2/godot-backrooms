@@ -38,18 +38,19 @@ const EYE_SPEED := 0.9
 const EYE_PROBE := 8.0
 # Glare: looking into a lit tube / panel stops the exposure down, so the rest of the room drops toward shadow
 # like a real eye or camera. Clamps down fast, opens back up slowly.
-const GLARE_CONE := 0.82            # cos of the half-angle round the view centre where a light counts (~35 deg)
-const GLARE_FULL := 0.985           # cos where it counts fully (~10 deg: staring straight at it)
+const GLARE_CONE := 0.87            # cos of the half-angle round the view centre where a light counts (~30 deg)
+const GLARE_FULL := 0.99            # cos where it counts fully (~8 deg: staring straight at it)
 const GLARE_DIST := 7.0             # metres: nearer lights glare more
-const GLARE_DIM := 0.5              # exposure multiplier at full glare
+const GLARE_DIM := 0.55             # exposure multiplier at full glare (the light itself stays clipped white: it's HDR)
 const GLARE_IN := 3.5               # 1/s: stopping down (fast)
 const GLARE_OUT := 0.7              # 1/s: opening back up (slow)
 # Ceiling glow: the tube lights skip the ceiling (CEIL_LAYER, level_geometry.gd), so each lit slot also drives a
 # soft light further down that only reaches the ceiling: the broad halo round a real troffer, never a hotspot.
-const CEIL_GLOW := 0.18             # of the slot's energy
+const CEIL_GLOW := 0.5              # of the slot's energy, tube fixtures (the ceiling round a troffer is well lit)
+const CEIL_GLOW_PANEL := 0.2        # panel ceilings: the panels themselves already light up the tiles round them
 const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = wider, softer halo
-const CEIL_GLOW_RANGE := 7.5              # metres ahead of the camera for "where you look"
-const LIT_DIFFUSER := Color(2.1, 1.95, 1.65)
+const CEIL_GLOW_RANGE := 7.5
+const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const FOG_DENSITY := 0.075
 const FOG_LIT_SCALE := 0.5
@@ -68,7 +69,7 @@ const FOG_COLOR_DARK := Color("020201")
 const PANEL_ENERGY := 1.9
 const PANEL_RANGE := 16.0
 const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
-const PANEL_GLOW := Color(2.6, 2.35, 2.0)   # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
+const PANEL_GLOW := Color(3.6, 3.25, 2.75)  # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
 const PANEL_BURNT_CHANCE := 0.08
 const PANEL_FLICKER_CHANCE := 0.06
 const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]
@@ -80,8 +81,8 @@ const ATMOSPHERES := {
 	"classic": {
 		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
 		"exposure": 1.05, "tonemap_white": 4.0,       # gentle highlight roll-off: panels clip white, walls don't
-		"glow_threshold": 1.35,                       # only the panels bloom, not the brightly lit walls
-		"glow_intensity": 0.8, "glow_bloom": 0.02, "glow_wide": 0.25,   # wide soft halo round the lights (glow level 5)
+		"glow_threshold": 1.1,                        # the panels bloom, the brightly lit walls don't
+		"glow_intensity": 1.0, "glow_bloom": 0.02, "glow_wide": 0.5,    # wide soft halo round the lights (glow level 5)
 		"ssao_intensity": 2.5,                        # fluorescent light is shadowless: keep only contact AO
 		"haze": Color(0.66, 0.58, 0.36),              # the far distance fades to lit-wallpaper yellow, never to murk
 	},
@@ -153,7 +154,7 @@ func build_lighting() -> void:
 ## too. It is used while the .lvl is unchanged since the bake and the preset allows it (Gfx `baked_gi`: High and
 ## Ultra; Ultra adds a second bounce). Without a bake: SDFGI, heavy, so only on Ultra ("ssil") and only for
 ## levels with a Classic zone unless the .lvl forces it with "sdfgi": true / false (the editor's REAL-TIME GI).
-const BAKE_VERSION := "1"          # bump when the geometry code changes in a way old bakes no longer match
+const BAKE_VERSION := "2"          # bump when the geometry code changes in a way old bakes no longer match
 var voxel_gi: VoxelGI
 
 func gi_path() -> String:
@@ -191,7 +192,7 @@ func _apply_gi() -> void:
 		data.dynamic_range = 4.0
 		data.bias = 1.0
 		data.normal_bias = 0.2
-		data.use_two_bounces = int(Gfx.s.get("shadows", 1)) >= 3   # Ultra: light bounces ceiling -> wall -> floor
+		data.use_two_bounces = false         # each bounce off yellow walls multiplies the colour: two turned dark corners red-brown
 		voxel_gi.data = data
 		voxel_gi.visible = true
 	elif voxel_gi != null:
@@ -247,7 +248,7 @@ func _place_fixtures() -> void:
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": PI / 2.0 if ns else 0.0,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
-				"index": -1, "wanted": false})
+				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
@@ -631,9 +632,15 @@ func _update_pool(delta: float) -> void:
 		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
 		var g := ceil_glow[i]
-		g.visible = l.visible
-		g.global_position = f.light_pos - Vector3(0, CEIL_GLOW_DROP, 0)
-		g.light_energy = energy * CEIL_GLOW
+		# the halo only reads as "coming from this fixture" while its real ceiling is close enough
+		# to reach (a hanging fixture under a tall atrium ceiling is metres short of that: skip it
+		# rather than paint a faint, disconnected glow patch on a ceiling far above the housing)
+		var ceil_h: float = f.get("ceil_h", f.light_pos.y)
+		var ceil_gap: float = ceil_h - f.light_pos.y
+		var ceil_reach := clampf(1.0 - (ceil_gap - CEIL_GLOW_DROP) / (CEIL_GLOW_RANGE - CEIL_GLOW_DROP), 0.0, 1.0)
+		g.visible = l.visible and ceil_reach > 0.0
+		g.global_position = Vector3(f.light_pos.x, ceil_h - CEIL_GLOW_DROP, f.light_pos.z)
+		g.light_energy = energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
 			l.global_position = f.light_pos
@@ -765,6 +772,8 @@ func _update_atmosphere(delta: float) -> void:
 	if cam:
 		var target := _glare_now(cam)
 		glare += (target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
+	if Gfx.post_mat:
+		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (post.gdshader)
 	_blend_env(ATMOSPHERES.classic)
 	zf = lerpf(zf, 0.2, open_mix)                                     # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k

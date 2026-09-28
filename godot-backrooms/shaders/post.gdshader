@@ -6,14 +6,20 @@ shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D lens_dirt_tex : filter_linear, repeat_disable;
 uniform vec3 grade = vec3(1.07, 1.03, 0.88);
-uniform float distortion = 0.27;
+uniform float distortion = 0.30;
 uniform float chroma_amt = 0.0028;
 uniform float grain = 0.034;
 uniform float vhs = 1.0;          // master for the calm-state tape look (softness, jitter, tracking, chroma smear); scares add on top
 uniform float vhs_soft = 0.3;     // tape luma bandwidth: how soft the picture is horizontally
+// Colour-under wiggle: chroma carrier drifts per scanline and carries its own blur, independent
+// of luma (ported from a standalone VHS chroma-bleed shader)
+uniform float vhs_color_offset_multiplier : hint_range(0.0, 0.1) = 0.004;
+uniform float vhs_color_offset : hint_range(-0.1, 0.1) = 0.005;
+uniform float vhs_blur_amount : hint_range(0.0, 3.0) = 1.0;
 uniform float dirt_amt = 0.04;
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
+uniform float glare = 0.0;        // 0..1 looking straight into a lit tube / panel (level_lighting.gd): lens dirt, halation, streaks swell
 uniform float fear = 0.0;      // psychological: sanity, darkness, events
 uniform float threat = 0.0;    // entity proximity 0..1, smoothed
 uniform float glitch = 0.0;    // tape damage from events and scares
@@ -47,6 +53,27 @@ float vnoise(vec2 p) {
 	vec2 i = floor(p), f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash12(i), hash12(i + vec2(1, 0)), f.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), f.x), f.y);
+}
+// per-scanline noise for the colour-under wiggle: a distinct hash from hash12 so the chroma
+// carrier's drift doesn't lock-step with the jitter/tracking noise above
+float vhs_line_noise(vec2 uv, float offset) {
+	return (fract(sin(dot(uv * offset, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 2.0;
+}
+vec3 rgb_to_yuv(vec3 rgb) {
+	const mat3 RGB_TO_YUV = mat3(
+		vec3(0.299, 0.587, 0.114),
+		vec3(-0.14713, -0.28886, 0.436),
+		vec3(0.615, -0.51499, -0.10001)
+		);
+	return rgb * RGB_TO_YUV;
+}
+vec3 yuv_to_rgb(vec3 yuv) {
+	const mat3 YUV_TO_RGB = mat3(
+		vec3(1.0, 0.0, 1.13983),
+		vec3(1.0, -0.39465, -0.58060),
+		vec3(1.0, 2.03211, 0.0)
+		);
+	return clamp(yuv * YUV_TO_RGB, vec3(0.0), vec3(1.0));
 }
 
 void fragment() {
@@ -154,11 +181,17 @@ void fragment() {
 		col = acc / 6.0;
 	}
 
-	// Tape chroma has less bandwidth than luma: colour smears right of edges
-	vec2 c_off = vec2(lpx * (2.0 + threat * 5.0 + glitch * 5.0), 0.0);
-	vec3 cs = (col + texture(screen_tex, uvg + c_off).rgb + texture(screen_tex, uvg + c_off * 2.0).rgb) / 3.0;
-	vec3 bled = max(vec3(dot(col, vec3(0.299, 0.587, 0.114))) + cs - vec3(dot(cs, vec3(0.299, 0.587, 0.114))), 0.0);
-	col = mix(col, bled, clamp(0.4 * vhs + threat * 0.6 + glitch, 0.0, 1.0));
+	// Tape colour-under wiggle: the chroma carrier drifts a little each scanline, independent of
+	// luma, and carries its own soft blur — pulled from luma via YUV so edges stay sharp while
+	// colour smears (colour-under signal has far less bandwidth than luma on real tape)
+	if (vhs > 0.001) {
+		float line_n = vhs_line_noise(vec2(floor(uv.y * 487.0), fract(uv.y * 487.0)), TIME);
+		float x_off = (vhs_color_offset + line_n * vhs_color_offset_multiplier) * vhs * (1.0 + glitch * 2.0 + threat * 0.4);
+		vec3 chroma_src = textureLod(screen_tex, clamp(uvg + vec2(x_off, 0.0), 0.0, 1.0), vhs_blur_amount).rgb;
+		vec3 yuv_l = rgb_to_yuv(col);
+		vec3 yuv_c = rgb_to_yuv(chroma_src);
+		col = mix(col, yuv_to_rgb(vec3(yuv_l.x, yuv_c.yz)), vhs);
+	}
 
 	// Camera lens dirt: subtle dust specks catching direct bright lights only, and lens halation around
 	// the bulbs (both off on the low preset: no extra texture reads at all)
@@ -171,9 +204,11 @@ void fragment() {
 		vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
 		float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
 		// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
-		col += dirt_rgb * smoothstep(0.58, 0.95, luma_local) * dirt_amt * vec3(1.10, 1.05, 0.90);
-		if (luma_local > 0.60) {
-			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - 0.60) * halation_amt;
+		// staring into a light: the dust on the lens lights up and the bulbs halate harder
+		float lens_t = 0.58 - 0.18 * glare;
+		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90);
+		if (luma_local > lens_t) {
+			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - lens_t) * halation_amt * (1.0 + 2.0 * glare);
 		}
 	}
 
@@ -188,12 +223,13 @@ void fragment() {
 			vec2 suv = clamp(uvg + s_dir * fi, 0.0, 1.0);
 			vec3 sc = textureLod(screen_tex, suv, 3.0).rgb;
 			float sl = dot(sc, vec3(0.299, 0.587, 0.114));
-			if (sl > 0.68) {
+			float st = 0.68 - 0.15 * glare;
+			if (sl > st) {
 				float weight = exp(-abs(fi) * 0.45);
-				glare_streak += sc * (sl - 0.68) * weight;
+				glare_streak += sc * (sl - st) * weight;
 			}
 		}
-		col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt;
+		col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt * (1.0 + 1.5 * glare);
 
 		// Gentle lens flare ghosts
 		vec2 ghost_vec = vec2(0.5) - uvg;
