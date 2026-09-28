@@ -167,7 +167,18 @@ for name in [b.name for b in arm_obj.data.bones]:
     if mesh_obj.vertex_groups.get(name) is None:
         mesh_obj.vertex_groups.new(name=name)
 
+# ---- which piece each vertex belongs to, baked as a vertex colour (R = piece id / 10) so shaders can tell
+# the chest from an arm without bone data: 1 Head, 2 Spine (chest), 3 Hips (pelvis), 4 ArmL, 5 ArmR,
+# 6 ForearmL, 7 ForearmR, 8 LegL, 9 LegR. mannequin_wear.gdshader reads it.
+PIECE_ID = {"Head": 1, "Spine": 2, "Hips": 3, "ArmL": 4, "ArmR": 5, "ForearmL": 6, "ForearmR": 7, "LegL": 8, "LegR": 9}
+col = me.color_attributes.get("piece") or me.color_attributes.new(name="piece", type="FLOAT_COLOR", domain="POINT")
+for p in info:
+    v = PIECE_ID[p["role"]] / 10.0
+    for i in p["ids"]:
+        col.data[i].color = (v, 0.0, 0.0, 1.0)
+me.color_attributes.active_color = col
+
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format="GLB", export_animations=False,
-    export_skins=True, export_yup=True, export_apply=False)
+    export_skins=True, export_yup=True, export_apply=False, export_vertex_color="ACTIVE")
 print("saved", OUT_BLEND, "and", OUT_GLB)

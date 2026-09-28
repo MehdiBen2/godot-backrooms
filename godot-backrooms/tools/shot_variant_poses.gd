@@ -46,7 +46,8 @@ func _initialize() -> void:
 	var styles: Array = []
 	if OS.get_environment("STYLES") != "":
 		var base := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
-		for mod in [{}, {"cracks": 1.0}, {"missing": "ForearmR"}, {"missing": "ArmL", "cracks": 0.7},
+		for mod in [{}, {"cracks": 1.0}, {"missing": ["Head"]}, {"missing": ["ArmL", "ArmR"], "cracks": 0.7},
+				{"missing": ["Head", "ArmL", "ArmR"]}, {"missing": ["ForearmR"]},
 				{"clothes": true, "outfit": 0}, {"clothes": true, "outfit": 1, "sleeves": false}, {"sheet": true}]:
 			var st := base.duplicate()
 			st.merge(mod, true)

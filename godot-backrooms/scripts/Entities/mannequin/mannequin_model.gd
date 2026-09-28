@@ -17,14 +17,22 @@ const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
-# How worn each variant is (variant_style): cracked plaster, a missing hand / forearm / arm, a painted-on
+# How worn each variant is (variant_style): cracked plaster, missing parts (a hand, an arm, both arms, the
+# head, or head and arms: a bare torso on legs), a painted-on
 # display-shop outfit, or standing under a dust sheet. Drawn by shaders/mannequin_wear.gdshader.
 const WEAR_SHADER := preload("res://shaders/mannequin_wear.gdshader")
 const SHEET_CHANCE := 0.15
 const CRACK_CHANCE := 0.4
-const MISSING_CHANCE := 0.25
+const MISSING_CHANCE := 0.35
 const DRESSED_CHANCE := 0.3
-const MISSING_PARTS := ["ForearmL", "ForearmR", "ArmL", "ArmR"]
+# what can be broken off, with how likely each is (a piece takes whatever hangs from it with it)
+const MISSING_SETS := [
+	[["ForearmL"], 1.0], [["ForearmR"], 1.0],            # a hand and forearm
+	[["ArmL"], 1.0], [["ArmR"], 1.0],                    # one arm
+	[["ArmL", "ArmR"], 1.5],                             # armless
+	[["Head"], 1.5],                                     # headless
+	[["Head", "ArmL", "ArmR"], 0.6],                     # just a torso on legs
+]
 const OUTFITS := [                            # shirt, bottom: faded shop-window colours
 	[Color(0.42, 0.14, 0.13), Color(0.16, 0.16, 0.18)],
 	[Color(0.2, 0.28, 0.38), Color(0.55, 0.5, 0.42)],
@@ -215,22 +223,36 @@ func load_variant(host: Node) -> bool:
 	var c := b.get_center()
 	var norm := Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s)
 	variant_mesh = mi.mesh
+	# the model's vertex colours are piece ids for mannequin_wear.gdshader, not a tint: the importer
+	# would multiply the albedo by them (a dark red figure) wherever the plain material is still used
+	for sf in variant_mesh.get_surface_count():
+		var sm := variant_mesh.surface_get_material(sf) as StandardMaterial3D
+		if sm != null:
+			sm.vertex_color_use_as_albedo = false
 	variant_xf = norm * xf
 	variant_root_xf = norm
 	variant_scene = packed
 	variant_ok = true
 	return true
 
-## How this one has aged: {sheet, cracks 0..1, missing bone or "", clothes, outfit, sleeves}
+## How this one has aged: {sheet, cracks 0..1, missing: [bone names], clothes, outfit, sleeves}
 static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
-	var st := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
+	var st := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0, "sleeves": true}
 	if rng.randf() < SHEET_CHANCE:
 		st.sheet = true
 		return st
 	if rng.randf() < CRACK_CHANCE:
 		st.cracks = rng.randf_range(0.6, 1.0)
 	if rng.randf() < MISSING_CHANCE:
-		st.missing = MISSING_PARTS[rng.randi() % MISSING_PARTS.size()]
+		var total := 0.0
+		for m in MISSING_SETS:
+			total += float(m[1])
+		var roll := rng.randf() * total
+		for m in MISSING_SETS:
+			roll -= float(m[1])
+			if roll <= 0.0:
+				st.missing = (m[0] as Array).duplicate()
+				break
 	if rng.randf() < DRESSED_CHANCE:
 		st.clothes = true
 		st.outfit = rng.randi() % OUTFITS.size()
@@ -251,40 +273,34 @@ func make_variant(pose: Dictionary, style := {}) -> Node3D:
 		return covered
 	var n: Node3D = variant_scene.instantiate()
 	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
-	var missing: String = style.get("missing", "")
+	var missing = style.get("missing", [])
+	if missing is String:
+		missing = [missing] if missing != "" else []
 	# a Skeleton3D only schedules its update while in the tree: posed before that, it keeps showing its rest
 	sk.ready.connect(func():
 		pose_variant(sk, pose)
-		if _vbones.has(missing):                         # broken off: the piece (and what hangs from it) shrinks away
-			sk.set_bone_pose_scale(_vbones[missing], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
+		for bone in missing:                              # broken off: the piece (and what hangs from it) shrinks away
+			if _vbones.has(bone):
+				sk.set_bone_pose_scale(_vbones[bone], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
 	for m in n.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if float(style.get("cracks", 0.0)) > 0.0 or style.get("clothes", false):
-			mi.material_overlay = _wear_material(mi, sk, style)
+		mi.material_override = _wear_material(mi, style)     # every variant: plain ones just have no wear
 	return n
 
-func _wear_material(mi: MeshInstance3D, sk: Skeleton3D, style: Dictionary) -> ShaderMaterial:
+func _wear_material(mi: MeshInstance3D, style: Dictionary) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = WEAR_SHADER
+	var base := mi.mesh.surface_get_material(0) as StandardMaterial3D
+	if base != null:
+		mat.set_shader_parameter("albedo_tex", base.albedo_texture)
+		mat.set_shader_parameter("roughness", base.roughness)
 	mat.set_shader_parameter("cracks", float(style.get("cracks", 0.0)))
 	mat.set_shader_parameter("clothes", 1.0 if style.get("clothes", false) else 0.0)
 	var outfit: Array = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
 	mat.set_shader_parameter("shirt_color", outfit[0])
 	mat.set_shader_parameter("bottom_color", outfit[1])
 	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", true) else 0.0)
-	# the shader sees skin bind indices, not skeleton bone indices
-	var binds := {}
-	if mi.skin != null:
-		for b in mi.skin.get_bind_count():
-			var nm := String(mi.skin.get_bind_name(b))
-			if nm.is_empty():
-				nm = sk.get_bone_name(mi.skin.get_bind_bone(b))
-			binds[nm] = b
-	mat.set_shader_parameter("bone_chest", binds.get("Spine", -1))
-	mat.set_shader_parameter("bone_pelvis", binds.get("Hips", -1))
-	mat.set_shader_parameter("bone_arm_l", binds.get("ArmL", -1))
-	mat.set_shader_parameter("bone_arm_r", binds.get("ArmR", -1))
 	return mat
 
 ## A dust sheet thrown over a standing figure (figure space: feet on y = 0, facing +Z): a round head, the
