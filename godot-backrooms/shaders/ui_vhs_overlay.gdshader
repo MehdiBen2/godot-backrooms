@@ -19,10 +19,10 @@ float hash12(vec2 p) {
 	return fract((p3.x + p3.y) * p3.z);
 }
 
-// TEXTURE only exists inside fragment(), so it is passed in (using it here failed to compile)
-vec4 sample_in(sampler2D tex, vec2 uv) {
-	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
-	return texture(tex, uv);
+// 1 inside the panel, 0 outside (TEXTURE itself can only be sampled in fragment(): neither using it in a
+// helper nor passing it into one compiles)
+float inside(vec2 uv) {
+	return (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) ? 0.0 : 1.0;
 }
 
 void fragment() {
@@ -43,9 +43,9 @@ void fragment() {
 	vec2 pg = pd;                    pg.x /= aspect; pg += 0.5;
 	vec2 pb = pd - ca_dir * ca_disp; pb.x /= aspect; pb += 0.5;
 
-	vec4 tr = sample_in(TEXTURE, pr);
-	vec4 tg = sample_in(TEXTURE, pg);
-	vec4 tb = sample_in(TEXTURE, pb);
+	vec4 tr = texture(TEXTURE, clamp(pr, 0.0, 1.0)) * inside(pr);
+	vec4 tg = texture(TEXTURE, clamp(pg, 0.0, 1.0)) * inside(pg);
+	vec4 tb = texture(TEXTURE, clamp(pb, 0.0, 1.0)) * inside(pb);
 	vec3 col = vec3(tr.r, tg.g, tb.b);
 	float alpha = max(tr.a, max(tg.a, tb.a));
 
