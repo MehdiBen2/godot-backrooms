@@ -46,10 +46,13 @@ const GLARE_IN := 3.5               # 1/s: stopping down (fast)
 const GLARE_OUT := 0.7              # 1/s: opening back up (slow)
 # Ceiling glow: the tube lights skip the ceiling (CEIL_LAYER, level_geometry.gd), so each lit slot also drives a
 # soft light further down that only reaches the ceiling: the broad halo round a real troffer, never a hotspot.
+# It only ever lights the CEIL_LAYER mesh (never walls), so walls can never occlude it: it has no way to
+# know a corner is in the way. Its range is kept well under CELL (level_data.gd) so the halo stays inside
+# the fixture's own cell instead of bleeding over a nearby wall onto a corridor the fixture isn't even in.
 const CEIL_GLOW := 0.5              # of the slot's energy, tube fixtures (the ceiling round a troffer is well lit)
 const CEIL_GLOW_PANEL := 0.2        # panel ceilings: the panels themselves already light up the tiles round them
 const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = wider, softer halo
-const CEIL_GLOW_RANGE := 7.5
+const CEIL_GLOW_RANGE := 3.5
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const FOG_DENSITY := 0.075

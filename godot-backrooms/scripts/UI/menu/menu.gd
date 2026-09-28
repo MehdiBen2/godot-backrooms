@@ -25,6 +25,7 @@ const CONTROLS := [
 	[["Space"], "Jump", ""],
 	[["C"], "Crouch", "Ctrl works too. Quieter, and harder to see"],
 	[["F"], "Flashlight", "Battery packs on the floor recharge it"],
+	[["Tab"], "Inventory", "Check what you're carrying"],
 	[["V"], "Push to talk", "Co-op voice chat"],
 	[["F11"], "Fullscreen", "Alt+Enter works too"],
 	[["Esc"], "Pause", ""],

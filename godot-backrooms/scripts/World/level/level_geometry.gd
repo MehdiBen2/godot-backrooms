@@ -173,6 +173,7 @@ func _build_surfaces() -> void:
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
 	_build_floor_collision(floor_cells)
+	_build_ceiling_collision(floor_cells)
 
 func _classic_mat(tex: String, scale: float, tint: Color, glow := 0.1) -> StandardMaterial3D:
 	var m := _mat(tex, Vector3(scale, scale, scale), tint)
@@ -212,6 +213,21 @@ func _build_floor_collision(floor_cells: Array) -> void:
 		bs.size = Vector3(CELL, 0.4, CELL)
 		cs.shape = bs
 		cs.position = Vector3(c.x * CELL, -0.2, c.y * CELL)
+		body.add_child(cs)
+
+## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
+## (the plain quad above, or level_lighting.gd's panel ceiling) has ever carried a collider, so nothing
+## has ever stopped a jump, a shove or a tall entity from poking straight through into the unlit plenum
+## above it - only ever noticed at a low ceiling because that's the one height anything can actually reach.
+func _build_ceiling_collision(floor_cells: Array) -> void:
+	var body := StaticBody3D.new()
+	add_child(body)
+	for c in floor_cells:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = Vector3(CELL, 0.4, CELL)
+		cs.shape = bs
+		cs.position = Vector3(c.x * CELL, ceiling_height(c) + 0.2, c.y * CELL)
 		body.add_child(cs)
 
 ## Occlusion culling: every wall block is an occluder, so the renderer skips whatever is hidden behind walls

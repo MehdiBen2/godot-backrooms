@@ -37,6 +37,7 @@ ssao_sharpness = 0.9
 ssao_light_affect = 0.25
 ssao_ao_channel_affect = 1.0
 glow_enabled = true
+glow_levels/1 = true
 glow_levels/2 = true
 glow_levels/4 = true
 glow_normalized = true

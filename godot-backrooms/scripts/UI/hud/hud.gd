@@ -18,6 +18,7 @@ const DIM := Color(0.9, 0.88, 0.8, 0.55)
 var font: FontFile = load("res://fonts/vcr.ttf")
 var pause_root: Control
 var menu: Control
+var inventory: Control
 var hud_root: Control
 var hud_fade: Tween
 var shown_vals := {}      # meter name -> displayed value (eased toward the real one)
@@ -56,6 +57,7 @@ func _ready() -> void:
 
 	_build_hud()
 	_build_pause()
+	_build_inventory()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -224,7 +226,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "ESC // PAUSE"]
+	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "TAB // ITEMS", "ESC // PAUSE"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 11, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 11, HINT))
@@ -268,6 +270,10 @@ func _build_pause() -> void:
 	add_child(pause_root)
 	menu.settings_changed.connect(apply_settings)
 	apply_settings()
+
+func _build_inventory() -> void:
+	inventory = load("res://scripts/UI/inventory/inventory.gd").new()
+	add_child(inventory)
 
 ## Push the menu's saved settings into the audio buses / player (js/game/settings.js)
 func apply_settings() -> void:
