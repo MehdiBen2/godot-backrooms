@@ -98,6 +98,8 @@ var fx: Array = []        # every fixture
 var lit: Array = []       # the non-burnt ones (the light pool ranks these)
 var tubes_mm: MultiMesh
 var lens_mm: MultiMesh
+var burnt_tubes_mm: MultiMesh     # tools/bake_level.gd keeps all four out of the GI bake
+var burnt_lens_mm: MultiMesh
 var tint := Color.WHITE   # events recolour every lit tube (null in the web game = white)
 
 # ---- light pool
@@ -389,9 +391,9 @@ func _build_fixture_meshes() -> void:
 		return mm
 	place.call("Object_3", fx, housing_mat, false)
 	place.call("Object_4", fx, tray_mat, false)
-	place.call("Object_5", burnt, burnt_tubes, false)
+	burnt_tubes_mm = place.call("Object_5", burnt, burnt_tubes, false)
 	tubes_mm = place.call("Object_5", lit, lit_tubes, true)
-	place.call("Object_2", burnt, burnt_lens, false)
+	burnt_lens_mm = place.call("Object_2", burnt, burnt_lens, false)
 	lens_mm = place.call("Object_2", lit, lit_lens, true)
 	root.queue_free()
 

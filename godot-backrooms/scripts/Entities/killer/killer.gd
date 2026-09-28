@@ -8,9 +8,8 @@ const MODEL := "res://models/entities/killer/Character_Monster_06.fbx"
 const TEXTURE := "res://models/entities/killer/Character_Monster_06.png"
 const HEIGHT := 1.9           # metres, feet to crown
 const SPAWN_DIST := 3.5       # how far in front of the player it appears
-const BODY_YAW_OFFSET := 90.0 # deg: the FBX's own "front" isn't -Z, so the mesh needs this correction
-                               # to actually face the direction the node turns to. If it still shows
-                               # side-on, try -90; if it faces backwards, add 180 to whichever works.
+const BODY_YAW_OFFSET := -90.0 # deg: the FBX's own "front" isn't -Z, so the mesh needs this correction
+                                # to actually face the direction the node turns to.
 
 var level: Node
 var player: CharacterBody3D

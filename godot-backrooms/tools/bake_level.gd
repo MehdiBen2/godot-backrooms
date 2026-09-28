@@ -36,13 +36,15 @@ func _bake(meta: Dictionary) -> void:
 		var moving: bool = n.get_parent() != lvl and not (n.get_parent() is StaticBody3D)
 		var see_through: bool = gi.material_override is BaseMaterial3D and (gi.material_override as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 		gi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC if (moving or see_through) else GeometryInstance3D.GI_MODE_STATIC
-	# The voxels keep whatever glows at bake time as a permanent light source (the per-instance colours
-	# that switch a tube off are ignored by the voxelizer): every tube and panel would go on lighting its
-	# ceiling in-game even burnt out, flickering or in a power cut. The glowing tube / diffuser meshes stay
-	# out of the bake, and the panel ceiling bakes as plain tiles; the live tubes supply every light.
+	# The voxels keep whatever glows at bake time as a permanent light source, and the voxelizer reads the
+	# troffer model's own emissive tube material, not the dark one a burnt-out tube is drawn with (nor the
+	# per-instance colours that switch a lit one off): every tube, dead or alive, would go on lighting its
+	# ceiling in-game. The tube / diffuser meshes stay out of the bake, and the panel ceiling bakes as plain
+	# tiles; the live tubes supply every light.
+	var glowing: Array = [lvl.tubes_mm, lvl.lens_mm, lvl.burnt_tubes_mm, lvl.burnt_lens_mm]
 	for mmi: MultiMeshInstance3D in lvl.find_children("*", "MultiMeshInstance3D", true, false):
 		if mmi.multimesh == null: continue
-		if mmi.multimesh == lvl.tubes_mm or mmi.multimesh == lvl.lens_mm or mmi == lvl.reflect_mmi:
+		if mmi.multimesh in glowing or mmi == lvl.reflect_mmi:
 			mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		elif mmi.multimesh == lvl.panels_mm:
 			var plain := StandardMaterial3D.new()
