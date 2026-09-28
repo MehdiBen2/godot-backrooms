@@ -102,6 +102,9 @@ var clickables: Array = []           # fixed controls in the viewport that take 
 # vitals
 var stats := {}                      # key -> {icon, value, cells, shown}
 var link_label: Label
+var clearance_label: Label           # header: A.S.R.A. clearance tier (asra_clearance.gd)
+var clearance_cells: Control
+var clearance_yield: Label
 var link_state := ""
 
 # items
@@ -144,6 +147,7 @@ func _ready() -> void:
 	visible = false
 	_build()
 	Archive.entity_discovered.connect(_on_entry_logged)
+	Clearance.yield_filed.connect(_refresh_clearance)
 	get_viewport().size_changed.connect(_fit_viewport)
 
 # ---- helpers ------------------------------------------------------------------
@@ -440,11 +444,46 @@ func _build_header() -> Control:
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title := _label("A.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.clip_text = true           # gives way to the clearance readout on narrow screens
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(title)
+	# A.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
+	h.add_child(_label("CLEARANCE: ", 19, MUTED, 2))
+	clearance_label = _label("", 19, AMBER, 2)
+	h.add_child(clearance_label)
+	h.add_child(_spacer_w(12))
+	clearance_cells = _cells(10, 3.0, false)
+	clearance_cells.custom_minimum_size = Vector2(130, 0)
+	clearance_cells.size_flags_vertical = Control.SIZE_FILL
+	var bar := MarginContainer.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_theme_constant_override("margin_top", 7)
+	bar.add_theme_constant_override("margin_bottom", 9)
+	bar.add_child(clearance_cells)
+	h.add_child(bar)
+	h.add_child(_spacer_w(12))
+	clearance_yield = _label("", 17, TEXT_DIM, 2)
+	h.add_child(clearance_yield)
+	h.add_child(_spacer_w(40))
+	_refresh_clearance()
 	h.add_child(_label("LINK STATUS: ", 19, MUTED, 2))
 	link_label = _label("STABLE", 19, GREEN, 2)
 	h.add_child(link_label)
 	return h
+
+func _spacer_w(w: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size.x = w
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+func _refresh_clearance(_report := {}) -> void:
+	if not clearance_label:
+		return
+	clearance_label.text = Clearance.tier_label()
+	_set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
+	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
+		else "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), Clearance.unit]
 
 func _build_footer() -> Control:
 	var h := HBoxContainer.new()

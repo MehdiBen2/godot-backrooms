@@ -2,7 +2,9 @@ extends Node
 ## A.S.R.A. field scanner: the only way to log an entity in the Threshold Dossier. Hold Q while
 ## facing one. A reading needs the target near the middle of the view (CONE_COS), within RANGE and
 ## in plain line of sight for SCAN_TIME seconds; a complete one calls Archive.discover(), and the
-## HUD toast (scripts/UI/hud/terminal_toast.gd) announces the new entry.
+## HUD toast (scripts/UI/hud/terminal_toast.gd) announces the new entry. Every complete reading
+## also goes to Clearance.file() for its Research Yield (asra_clearance.gd): new sites and repeat
+## readings of logged entities still pay, a little.
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
 ## the points it can be read from in scan_points() (see the entity scripts).
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
@@ -30,6 +32,7 @@ var raw_signal := 0.0
 var signal_dist := 0.0           # rough range of whatever gives the signal, eased (the scale's band)
 var raw_dist := 0.0
 var progress := 0.0              # 0..1 through the current reading
+var last_yield := 0              # RY the last completed reading filed (Clearance.file), 0 for none
 var result_t := 0.0
 var latched := false             # a reading finished: Q has to be let go before the next one
 var lost_t := 0.0
@@ -84,7 +87,7 @@ func _process(dt: float) -> void:
 		state = "lock"
 		target_dist = hit.dist
 		target_pos = hit.pos
-		progress = minf(1.0, progress + dt / SCAN_TIME)
+		progress = minf(1.0, progress + dt / (SCAN_TIME * Clearance.scan_time_scale()))
 		if progress >= 1.0:
 			_complete()
 			return
@@ -93,9 +96,12 @@ func _process(dt: float) -> void:
 func _complete() -> void:
 	latched = true
 	result_t = RESULT_TIME
+	# Research Yield first: the NEW ENTRY toast reads the report Archive.discover() then announces
+	last_yield = int(Clearance.file(target_id, target_dist, player).get("total", 0))
 	if Archive.is_discovered(target_id):
 		state = "on_file"
-		denied.play()
+		if last_yield <= 0:
+			denied.play()
 	else:
 		state = "logged"
 		Archive.discover(target_id)  # -> entity_discovered -> the HUD toast and its chime

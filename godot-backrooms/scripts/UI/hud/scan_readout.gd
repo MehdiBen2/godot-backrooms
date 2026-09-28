@@ -214,6 +214,8 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 		"lock": detail = "READING %d%%" % roundi(scanner.progress * 100.0)
 		"logged", "on_file":
 			detail = str(Archive.entity_info(scanner.target_id).get("code", "ASRA-EN-??"))
+			if scanner.last_yield > 0:
+				detail += " // +%d %s" % [scanner.last_yield, Clearance.unit]
 	var sw := _text(Vector2(x0, by - 36.0), str(STATUS.get(st, "")), 20, _a(col), w * 0.45, HORIZONTAL_ALIGNMENT_LEFT, wide)
 	_text(Vector2(x0 + w, by - 36.0), detail, 17, _a(Term.TEXT, 0.9), w - sw - 24.0, HORIZONTAL_ALIGNMENT_RIGHT)
 

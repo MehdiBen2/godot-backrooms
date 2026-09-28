@@ -4,7 +4,7 @@ extends CanvasLayer
 ## (bottom-left), key hints (bottom-right), viewfinder corner brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the A.S.R.A. field scanner (scanner.gd, hold Q) with
-## its reticle (scan_readout.gd), and the "new entry logged" toast (terminal_toast.gd).
+## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
@@ -306,15 +306,55 @@ func _build_scanner() -> void:
 	toast = TerminalToast.new()
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
+	Clearance.yield_filed.connect(_on_yield_filed)
 
+## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
 	if id == "":                 # Archive.forget_all(): nothing new to announce
 		return
 	var info := Archive.entity_info(id)
-	toast.push("[NEW ENTRY LOGGED]", [
+	var lines: Array = [
 		["%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
 		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
-		["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16],
+	]
+	var report: Dictionary = Clearance.last_report
+	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
+		lines.append_array(_yield_lines(report))
+	lines.append(["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16])
+	toast.push("[NEW ENTRY LOGGED]", lines)
+	_promotion(report)
+
+## New sites get a toast of their own; supplemental readings only show on the reticle.
+## A first contact waits for _on_entity_logged; any of them can raise the clearance tier.
+func _on_yield_filed(report: Dictionary) -> void:
+	match report.get("kind", ""):
+		"first_contact":
+			return
+		"new_site":
+			var info := Archive.entity_info(str(report.id))
+			var lines: Array = [["%s // %s" % [str(info.get("code", "ASRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
+			lines.append_array(_yield_lines(report))
+			toast.push("[NEW SITE CONFIRMED]", lines)
+	_promotion(report)
+
+## "+100 RY  FIRST CONTACT", one row per markup, then the total against the next tier
+func _yield_lines(report: Dictionary) -> Array:
+	var out: Array = []
+	for ln in report.get("lines", []):
+		out.append(["+%d %s  %s" % [int(ln[1]), Clearance.unit, str(ln[0])], Term.AMBER, 17])
+	var tail := "MAX CLEARANCE" if Clearance.is_max_tier() else "%d / %d" % [Clearance.total, Clearance.next_threshold()]
+	out.append(["FILED +%d %s  //  %s" % [int(report.get("total", 0)), Clearance.unit, tail], Term.TEXT, 18])
+	return out
+
+func _promotion(report: Dictionary) -> void:
+	var to := int(report.get("tier_to", 0))
+	if to <= int(report.get("tier_from", 0)):
+		return
+	var t := Clearance.tier(to)
+	toast.push("[CLEARANCE ELEVATED]", [
+		[Clearance.tier_label(to), Term.GREEN, 21],
+		[str(t.get("brief", "")), Term.TEXT, 16, true],
+		["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16],
 	])
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
