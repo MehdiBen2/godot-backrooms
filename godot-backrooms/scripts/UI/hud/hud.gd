@@ -10,6 +10,7 @@ const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
+const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -42,6 +43,7 @@ var player: Node
 var level: Node
 var corners: Array[Control] = []
 var shake_seed := randf() * 1000.0
+var battery_hint_shown := false   # the "[R] to load it" toast, once per run
 
 func _ready() -> void:
 	layer = 5
@@ -239,7 +241,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -363,6 +365,40 @@ func _promotion(report: Dictionary) -> void:
 			lines.append([str(u.get("text", "")), Term.TEXT, 16, true])
 	lines.append(["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16])
 	toast.push("[CLEARANCE ELEVATED]", lines)
+
+# ---- carried items ------------------------------------------------------------------------
+## Floor pickups (World/props) hand themselves in here; false when there's no room, so the
+## pickup stays where it is
+func pick_up_item(id: String, title: String, desc: String, code: String, stack: int, model: String) -> bool:
+	if not inventory.add_item(id, title, desc, 1, code, stack, model):
+		return false
+	if id == BatteryPickup.ITEM_ID and not battery_hint_shown:
+		battery_hint_shown = true
+		toast.push("[ITEM RECOVERED]", [
+			[title.to_upper(), Term.AMBER, 20],
+			["STACKS UP TO %d  //  TAB TO VIEW" % stack, Term.TEXT, 17],
+			["[R] LOADS ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+		])
+	return true
+
+## R: load a carried battery pack into the flashlight. Nothing to load or a full battery: the
+## dead click, so the key still answers.
+func use_battery() -> void:
+	if player.battery >= 99.5 or not inventory.has_item(BatteryPickup.ITEM_ID):
+		player.dead_click.emit()
+		return
+	inventory.remove_item(BatteryPickup.ITEM_ID)
+	player.battery = minf(100.0, player.battery + BatteryPickup.CHARGE)
+	var audio: Node = get_parent().get_node_or_null("Audio")
+	if audio:
+		audio.play_world("flash_click_on.wav")
+
+func _unhandled_input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k and k.pressed and not k.echo and k.physical_keycode == KEY_R and Game.playing and not Game.dead \
+			and not player.dead and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		use_battery()
+		get_viewport().set_input_as_handled()
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.

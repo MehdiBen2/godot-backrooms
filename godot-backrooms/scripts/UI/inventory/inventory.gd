@@ -25,6 +25,7 @@ signal close_requested
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
 const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
+const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
 const AMBER := Color("f0a838")
@@ -65,6 +66,8 @@ const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
+const ROW_ICON := 46.0           # item icon on an INV row (rendered from its model, item_icon.gd)
+const PAGE_ICON := 190.0         # the same icon on the [F1] item record
 const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS"]
@@ -108,7 +111,7 @@ var clearance_yield: Label
 var link_state := ""
 
 # items
-var items: Array = []                # {id, name, desc, count, code, stack}
+var items: Array = []                # {id, name, desc, count, code, stack, icon (model path or "")}
 var selected := -1
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
@@ -702,6 +705,13 @@ func _item_row(i: int) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# icon slot on every row, empty for items without a model, so the codes stay in a column
+	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, ORANGE, 2.0) if it.icon != "" else null
+	if icon == null or (icon as TextureRect).texture == null:
+		icon = Control.new()
+		icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(icon)
 	var labels := [
 		_label("INV: " + str(it.code).rpad(4), 24, TEXT, 1),
 		_label("[>", 24, TEXT, 1),
@@ -964,6 +974,16 @@ func _refresh_item_page() -> void:
 	var it: Dictionary = items[selected]
 	item_page.add_child(_label("[ITEM RECORD // SLOT %02d OF %02d]" % [selected + 1, SLOT_COUNT], 21, TEXT, 1))
 	item_page.add_child(_spacer(12))
+	if it.icon != "":
+		var frame := PanelContainer.new()       # the icon in a bordered square, like the vitals'
+		var sb := _box(Color(AMBER, 0.05), AMBER_DIM, 2)
+		sb.set_content_margin_all(10)
+		frame.add_theme_stylebox_override("panel", sb)
+		frame.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
+		item_page.add_child(frame)
+		item_page.add_child(_spacer(12))
 	item_page.add_child(_label("DESIGNATION: " + str(it.name).to_upper(), 21, TEXT, 1, true))
 	item_page.add_child(_label("CODE: " + str(it.code), 21, TEXT, 1))
 	item_page.add_child(_label("QUANTITY: %d / %d" % [it.count, it.stack], 21, TEXT, 1))
@@ -1447,8 +1467,9 @@ func _update_glitch(dt: float) -> void:
 # ---- public API: World/props pickups can call these -------------------------------------
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
 ## pickup can stay on the floor. `code` is the 3-4 letter tag on the INV row (default: from the
-## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS).
-func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS) -> bool:
+## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS);
+## `icon` is the item's model (res:// .glb): its icon is rendered from it, with an orange outline.
+func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS, icon := "") -> bool:
 	for it in items:
 		if it.id == id:
 			if it.count >= it.stack:
@@ -1461,7 +1482,7 @@ func add_item(id: String, title: String, desc: String, count := 1, code := "", s
 	if code == "":
 		code = title.replace(" ", "")
 	stack = maxi(stack, 1)
-	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack})
+	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack, "icon": icon})
 	if selected == -1:
 		selected = 0
 	_refresh_items()
@@ -1481,6 +1502,11 @@ func has_item(id: String) -> bool:
 	for it in items:
 		if it.id == id: return true
 	return false
+
+func item_count(id: String) -> int:
+	for it in items:
+		if it.id == id: return it.count
+	return 0
 
 func add_lore(id: String, title: String, text: String) -> void:
 	for e in lore_entries:
