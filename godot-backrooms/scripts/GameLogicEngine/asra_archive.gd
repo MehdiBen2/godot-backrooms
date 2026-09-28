@@ -20,16 +20,14 @@ const SCANNABLE := "asra_scannable"
 
 const ENTITIES_PATH := "res://levels/asra_entities.json"
 const DOSSIERS_PATH := "res://levels/asra_dossiers.json"
-const SAVE_PATH := "user://asra_archive.cfg"
 
 var _entities := {}
 var _dossiers := {}
 
-var discovered := {}   # entity_id -> {t: unix seconds, level: levels.json id} ({} from older saves)
+# No save feature yet: nothing here is written to disk, and main.gd clears it whenever a level
+# starts (a new game, joining one, a respawn, a level change), so every run logs from scratch
+var discovered := {}   # entity_id -> {t: unix seconds, level: levels.json id}
 var unread := {}       # entity_id -> true until its entry is opened in the terminal ([F3] ENTRIES)
-
-func _ready() -> void:
-	_load()
 
 func _read_json(path: String) -> Dictionary:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -110,8 +108,7 @@ func has_unread() -> bool:
 	return not unread.is_empty()
 
 func mark_read(entity_id: String) -> void:
-	if unread.erase(entity_id):
-		_save()
+	unread.erase(entity_id)
 
 func is_discovered(entity_id: String) -> bool:
 	return discovered.has(entity_id)
@@ -122,32 +119,10 @@ func discover(entity_id: String) -> void:
 		return
 	discovered[entity_id] = {"t": int(Time.get_unix_time_from_system()), "level": current_level_id()}
 	unread[entity_id] = true
-	_save()
 	entity_discovered.emit(entity_id)
 
-## Debug console `archive reset`: every entity back to unlogged
+## Every entity back to unlogged: each level start (main.gd) and the debug console's `archive reset`
 func forget_all() -> void:
 	discovered.clear()
 	unread.clear()
-	_save()
 	entity_discovered.emit("")
-
-func _load() -> void:
-	var cf := ConfigFile.new()
-	if cf.load(SAVE_PATH) != OK:
-		return
-	if cf.has_section("discovered"):
-		for id in cf.get_section_keys("discovered"):
-			var v = cf.get_value("discovered", id, {})
-			discovered[id] = v if v is Dictionary else {}   # older saves stored `true`
-	if cf.has_section("unread"):
-		for id in cf.get_section_keys("unread"):
-			unread[id] = true
-
-func _save() -> void:
-	var cf := ConfigFile.new()
-	for id in discovered:
-		cf.set_value("discovered", id, discovered[id])
-	for id in unread:
-		cf.set_value("unread", id, true)
-	cf.save(SAVE_PATH)
