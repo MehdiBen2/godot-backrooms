@@ -49,7 +49,8 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | C / Ctrl | Crouch |
 | Space | Jump |
 | F | Torch on/off |
-| Tab | Inventory |
+| Tab | Inventory (A.S.R.A. field terminal) |
+| ↑ ↓ / F1–F3 or ← → / PgUp PgDn | In the terminal: select item / switch page / scroll |
 | V | Push-to-talk (when voice is set to push-to-talk) |
 | Esc | Pause / settings |
 | F11 or Alt+Enter | Fullscreen |

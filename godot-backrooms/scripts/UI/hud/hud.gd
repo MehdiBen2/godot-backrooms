@@ -279,6 +279,16 @@ func _build_inventory() -> void:
 	inventory.player = player
 	add_child(inventory)
 
+## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
+## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.
+func set_inventory(on: bool) -> void:
+	inventory.set_shown(on)
+	if not hud_root or menu.shown:
+		return
+	if hud_fade: hud_fade.kill()
+	hud_fade = create_tween()
+	hud_fade.tween_property(hud_root, "modulate:a", 0.0 if on else 1.0, 0.2)
+
 ## Push the menu's saved settings into the audio buses / player (js/game/settings.js)
 func apply_settings() -> void:
 	var v: Dictionary = menu.volumes

@@ -62,5 +62,5 @@ func set_paused(on: bool, start := false) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (on or Game.dead) else Input.MOUSE_MODE_CAPTURED
 
 func set_inventory(on: bool) -> void:
-	ui.inventory.set_shown(on)
+	ui.set_inventory(on)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if (on or ui.menu.shown or Game.dead) else Input.MOUSE_MODE_CAPTURED
