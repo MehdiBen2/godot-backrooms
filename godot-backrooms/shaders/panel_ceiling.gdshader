@@ -17,7 +17,7 @@ uniform float tile_size = 0.75;         // metres: BRC_A has 6 x 6 tiles per 4.5
 uniform float tile_vary = 0.05;         // how much one tile's shade differs from the next
 uniform float stained = 0.08;           // share of tiles yellowed with age
 uniform float normal_depth = 1.0;
-uniform float ao_light_affect = 0.6;
+uniform float ao_light_affect = 0.2;   // AO belongs on bounce light, not on the panels' own direct light
 uniform float specular = 0.4;
 
 float hash12(vec2 p) {

@@ -75,7 +75,7 @@ func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMater
 	m.roughness_texture = load("res://textures/%s_rough.webp" % tex)
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.webp" % tex)
-	m.ao_light_affect = 0.85
+	m.ao_light_affect = AO_DIRECT
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = per_metre
@@ -96,7 +96,7 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 	m.roughness = 0.95
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.png" % prefix)
-	m.ao_light_affect = 0.85
+	m.ao_light_affect = AO_DIRECT
 	m.metallic_specular = 0.28
 	if world:
 		m.uv1_triplanar = true
@@ -106,6 +106,12 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	m.texture_repeat = true
 	return m
+
+## How much the baked AO maps darken *direct* light. AO is occlusion of light arriving from all round, so it
+## belongs on the ambient / bounce light; at 0.85 the wallpaper's baked ceiling band and baseboard stayed dark
+## right under a lamp and in the torch beam, a painted-on shadow that never moved. The real contact
+## darkening now comes from the shadows, the bounce light and SSAO.
+const AO_DIRECT := 0.2
 
 ## The ceiling's own render layer: the tube lights skip it (a point light 0.45 m under it blows a white hotspot);
 ## it is lit by bounce light, the tubes' glow and level_lighting.gd's soft ceiling-glow lights instead.
@@ -194,7 +200,7 @@ func _default_tile_material() -> StandardMaterial3D:
 	tm.roughness_texture = load("res://textures/tiles_rough.png")
 	tm.ao_enabled = true
 	tm.ao_texture = load("res://textures/tiles_ao.png")
-	tm.ao_light_affect = 0.85
+	tm.ao_light_affect = AO_DIRECT
 	tm.metallic = 0.02
 	tm.metallic_specular = 0.55
 	tm.uv1_triplanar = true

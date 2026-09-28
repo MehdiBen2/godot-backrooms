@@ -66,6 +66,11 @@ func _ready() -> void:
 	light.spot_angle = 32.0
 	light.light_energy = 2.5
 	light.light_color = Color("fff0c8")
+	# Without a shadow their torch shines straight through walls: you'd see a pool of light on your floor
+	# from a survivor in the next corridor. One spot shadow each is cheap; off on the Low preset.
+	light.shadow_enabled = int(Gfx.s.get("shadows", 1)) > 0
+	light.shadow_bias = 0.04
+	light.shadow_normal_bias = 1.5
 	body.add_child(light)
 
 	tag = Label3D.new()

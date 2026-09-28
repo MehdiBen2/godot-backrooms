@@ -34,6 +34,14 @@ const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = w
 const CEIL_GLOW_RANGE := 3.5
 const BOUNCE_RADIUS := 7.0
 const BOUNCE_FULL := 1.3
+# Light leaks. Godot lights without a shadow go straight through walls, so a shadowless tube behind a wall
+# paints the floor of the corridor you are in with no visible source. Shadowless lights (pool slots past the
+# shadow budget, all far lights) are therefore only lit for tubes the player can see; a hidden tube near you
+# gets one of the shadowed slots (the nearest ones) or stays dark. The test is on the grid, from where you
+# stand and half a cell to each side, so a tube just round a corner still counts (its spill is real).
+const HIDDEN_BOUNCE := 0.3          # tube_light_at: share of a tube behind a wall that still reaches you
+const FAR_SCAN := 4                 # far lights look at up to this many times their cap to find visible tubes
+const SOFT_LIGHT_SIZE := 0.4        # metres: PCSS penumbra on Ultra shadows (a tube is a big, soft source)
 # ---- panel ceilings (a ceiling material with baked light panels, see level_geometry.gd panel_ceiling)
 # Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
 # in the middle, four on the diagonals). Only every other cell each way glows and hides a real light behind
@@ -50,6 +58,7 @@ var slot_weight: Array[float] = []
 var slot_target: Array[float] = []
 var slot_on: Array[float] = []     # 0..1: lit under the quality cap (eased, so a light never pops)
 var slot_want: Array[bool] = []
+var slot_single: Array[float] = [] # 0..1: how far a shadowed slot has pulled its two tube ends into one light
 var _rank_timer := 0.0
 var _candidates: Array = []
 var _lit_cap := POOL_SIZE
@@ -65,6 +74,12 @@ func _read_quality() -> void:
 	_lit_cap = clampi(int(Gfx.s.get("lights", POOL_SIZE)), 1, POOL_SIZE)
 	_far_cap = clampi(int(Gfx.s.get("far_lights", 16)), 0, FAR_MAX)
 	_shadow_cap = int(Gfx.s.get("light_shadows", 4)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
+	# Ultra: contact-hardening soft shadows (PCSS). Crisp where an object meets the floor, soft further out,
+	# which is how a long fluorescent tube actually shadows; the fixed blur below looks the same everywhere.
+	var soft := int(Gfx.s.get("shadows", 1)) >= 3
+	for l in pool:
+		l.light_size = SOFT_LIGHT_SIZE if soft else 0.0
+		l.shadow_blur = 1.0 if soft else 1.6
 	_rank_timer = 0.0
 
 # ---------------------------------------------------------------- light pool
@@ -72,8 +87,13 @@ func _build_light_pool() -> void:
 	for i in POOL_SIZE:
 		var l := OmniLight3D.new()
 		l.light_color = LIGHT_COLOR
-		l.light_size = 0.0                   # > 0 turns on PCSS soft shadows, which are expensive; shadow_blur is enough
+		l.light_size = 0.0                   # > 0 turns on PCSS soft shadows, expensive: only on Ultra (_read_quality)
 		l.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID   # much cheaper than cube shadows, fine for ceiling lights
+		# The two paraboloid halves split on the light's local Z. Unrotated that seam is a vertical plane
+		# through the lamp, a stretched, blurry line down the walls and across the floor right under it.
+		# Pointing Z down puts the whole room in the lower half (sharpest straight down) and the seam
+		# up at lamp height, where only the top of the walls is.
+		l.basis = Basis(Vector3.RIGHT, -PI / 2.0)
 		l.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		l.omni_attenuation = 1.4
 		l.light_energy = 0.0
@@ -95,6 +115,7 @@ func _build_light_pool() -> void:
 		slot_target.append(0.0)
 		slot_on.append(0.0)
 		slot_want.append(false)
+		slot_single.append(0.0)
 		var g := OmniLight3D.new()
 		g.light_color = LIGHT_COLOR
 		g.omni_range = CEIL_GLOW_RANGE
@@ -141,14 +162,37 @@ func _rank(p: Vector3) -> void:
 		f.far_wanted = false
 		if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
 	_candidates.sort_custom(func(a, b): return a.dsq < b.dsq)
-	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls)
-	_far_candidates = _candidates.slice(mini(_lit_cap, _candidates.size()), mini(_lit_cap + _far_cap, _candidates.size()))
-	for f in _far_candidates: f.far_wanted = true
+	var eyes := _eyes(p)
+	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls);
+	# they never cast shadows, so only tubes you can see (see HIDDEN_BOUNCE)
+	_far_candidates = []
+	var i := mini(_lit_cap, _candidates.size())
+	var scan_end := mini(_candidates.size(), i + _far_cap * FAR_SCAN)
+	while i < scan_end and _far_candidates.size() < _far_cap:
+		var fc: Dictionary = _candidates[i]
+		if _seen_from(eyes, fc):
+			fc.far_wanted = true
+			_far_candidates.append(fc)
+		i += 1
 	var n := 0
 	while n < mini(_candidates.size(), POOL_SIZE) and _candidates[n].dsq < max_sq:
 		_candidates[n].wanted = true
+		_candidates[n].seen = _seen_from(eyes, _candidates[n])
 		n += 1
 	_candidates.resize(n)
+
+## Where the player can see from: their spot and half a cell to each open side (slack round corners)
+func _eyes(p: Vector3) -> Array:
+	var out: Array = [p]
+	for o in [Vector3(CELL * 0.5, 0.0, 0.0), Vector3(-CELL * 0.5, 0.0, 0.0), Vector3(0.0, 0.0, CELL * 0.5), Vector3(0.0, 0.0, -CELL * 0.5)]:
+		var q: Vector3 = p + o
+		if not _solid(cell_of(q)): out.append(q)
+	return out
+
+func _seen_from(eyes: Array, f: Dictionary) -> bool:
+	for e in eyes:
+		if _line_clear(e, f.pos, true): return true
+	return false
 
 # Which slots are lit (the nearest `_lit_cap`) and which of those cast shadows (the nearest `_shadow_cap`)
 func _rank_slots() -> void:
@@ -160,8 +204,9 @@ func _rank_slots() -> void:
 	order.sort_custom(func(a: int, b: int) -> bool: return slot_fixture[a].dsq < slot_fixture[b].dsq)
 	for r in order.size():
 		var i := order[r]
-		slot_want[i] = r < _lit_cap
 		var shadow := r < _shadow_cap
+		# a shadowless light on a tube you can't see would only shine through the wall at you
+		slot_want[i] = r < _lit_cap and (shadow or slot_fixture[i].get("seen", true))
 		if pool[i].shadow_enabled != shadow:
 			pool[i].shadow_enabled = shadow
 
@@ -225,13 +270,20 @@ func _update_pool(delta: float) -> void:
 			l.global_position = f.light_pos
 			l.light_energy = energy
 			continue
-		lb.visible = l.visible and f.dsq < TWIN_RANGE * TWIN_RANGE       # far away the tube reads as a point: skip the twin
-		# one light at each end of the tube, so the ceiling is lit along its whole length, not from a point
-		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF
+		# One light at each end of the tube, so the floor is lit along its whole length, not from a point. Only
+		# the first end can cast a shadow, and a shadowless twin next to it leaks through every wall round it,
+		# so a shadowed slot eases both ends into one centred light instead. Far away the tube reads as a
+		# point anyway: no twin, and the single light carries all of the energy (it used to keep only half,
+		# so every tube doubled in brightness as you came within TWIN_RANGE).
+		slot_single[i] += ((1.0 if l.shadow_enabled else 0.0) - slot_single[i]) * k
+		var twin := (1.0 - slot_single[i]) if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0
+		lb.visible = l.visible and twin > 0.01
+		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin
 		l.global_position = f.light_pos + axis
 		lb.global_position = f.light_pos - axis
-		l.light_energy = energy * 0.5
-		lb.light_energy = energy * 0.5
+		var share := 0.5 * twin if lb.visible else 0.0
+		l.light_energy = energy * (1.0 - share)
+		lb.light_energy = energy * share
 	_update_far(k)
 
 # Far lights keep their tube while it stays wanted (no jumping about), fade out when it isn't, and a
@@ -274,5 +326,20 @@ func tube_light_at(p: Vector3) -> float:
 		var f = slot_fixture[i]
 		if f == null: continue
 		var dsq := (f.pos as Vector3).distance_squared_to(p)
-		sum += f.level * slot_weight[i] / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
+		# a tube behind a wall only reaches you by bouncing round (it used to count in full, so standing in a
+		# dark corridor beside a lit one read as lit: the eye adaptation, fog and sanity all got it wrong)
+		var seen := 1.0 if _line_clear(p, f.pos, true) else HIDDEN_BOUNCE
+		sum += f.level * slot_weight[i] * seen / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
 	return minf(1.0, sum / BOUNCE_FULL)
+
+## True when no wall cell lies between two points (half-cell steps across the grid). `see_carved`: door and
+## thin-wall cells count as open (most of the cell is air; light gets past them)
+func _line_clear(a: Vector3, b: Vector3, see_carved := false) -> bool:
+	var steps := maxi(1, ceili(Vector2(b.x - a.x, b.z - a.z).length() / (CELL * 0.5)))
+	for k in range(1, steps):
+		var c := cell_of(a.lerp(b, float(k) / steps))
+		if walls.has(c) and not (see_carved and carved.has(c)): return false
+	return true
+
+func _solid(c: Vector2i) -> bool:
+	return walls.has(c) and not carved.has(c)

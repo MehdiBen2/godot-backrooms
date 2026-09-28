@@ -216,14 +216,6 @@ func _glare_now(cam: Camera3D) -> float:
 		if w > 0.01 and _line_clear(cp, f.pos): sum += w
 	return clampf(sum, 0.0, 1.0)
 
-## True when no wall cell lies between two points (half-cell steps across the grid)
-func _line_clear(a: Vector3, b: Vector3) -> bool:
-	var steps := maxi(1, ceili(Vector2(b.x - a.x, b.z - a.z).length() / (CELL * 0.5)))
-	for k in range(1, steps):
-		var p := a.lerp(b, float(k) / steps)
-		if walls.has(cell_of(p)): return false
-	return true
-
 func _blend_env(a: Dictionary) -> void:
 	if _env_base.is_empty():
 		# kept on the resource: main.tscn's Environment can outlive a level reload with the last blend in it
