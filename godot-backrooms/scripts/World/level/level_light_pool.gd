@@ -41,7 +41,11 @@ const BOUNCE_FULL := 1.3
 # stand and half a cell to each side, so a tube just round a corner still counts (its spill is real).
 const HIDDEN_BOUNCE := 0.3          # tube_light_at: share of a tube behind a wall that still reaches you
 const FAR_SCAN := 4                 # far lights look at up to this many times their cap to find visible tubes
-const SOFT_LIGHT_SIZE := 0.4        # metres: PCSS penumbra on Ultra shadows (a tube is a big, soft source)
+# Real ceiling lights are big: a 60 cm diffuser panel or a 1.2 m tube. A 30 cm thin wall under one only
+# throws a faint, very soft shadow, where a point light throws a hard black stripe. light_size is the size of
+# the emitter for PCSS (contact-hardening soft shadows): sharp where things meet the floor, soft further out.
+const PANEL_LIGHT_SIZE := 0.6       # metres: a lit panel
+const TUBE_LIGHT_SIZE := 0.5        # metres: a troffer (Godot's emitter is a sphere, so a bit under the tube length)
 # ---- panel ceilings (a ceiling material with baked light panels, see level_geometry.gd panel_ceiling)
 # Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
 # in the middle, four on the diagonals). Only every other cell each way glows and hides a real light behind
@@ -74,12 +78,12 @@ func _read_quality() -> void:
 	_lit_cap = clampi(int(Gfx.s.get("lights", POOL_SIZE)), 1, POOL_SIZE)
 	_far_cap = clampi(int(Gfx.s.get("far_lights", 16)), 0, FAR_MAX)
 	_shadow_cap = int(Gfx.s.get("light_shadows", 4)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
-	# Ultra: contact-hardening soft shadows (PCSS). Crisp where an object meets the floor, soft further out,
-	# which is how a long fluorescent tube actually shadows; the fixed blur below looks the same everywhere.
-	var soft := int(Gfx.s.get("shadows", 1)) >= 3
+	# High / Ultra: area-light soft shadows (PCSS). Medium keeps plain filtered shadows (cheaper) but blurs
+	# them wider so the stripes behind thin walls still read as soft.
+	var soft := int(Gfx.s.get("shadows", 1)) >= 2
 	for l in pool:
-		l.light_size = SOFT_LIGHT_SIZE if soft else 0.0
-		l.shadow_blur = 1.0 if soft else 1.6
+		l.light_size = (PANEL_LIGHT_SIZE if panels_mm else TUBE_LIGHT_SIZE) if soft else 0.0
+		l.shadow_blur = 1.0 if soft else 2.6
 	_rank_timer = 0.0
 
 # ---------------------------------------------------------------- light pool
@@ -87,7 +91,7 @@ func _build_light_pool() -> void:
 	for i in POOL_SIZE:
 		var l := OmniLight3D.new()
 		l.light_color = LIGHT_COLOR
-		l.light_size = 0.0                   # > 0 turns on PCSS soft shadows, expensive: only on Ultra (_read_quality)
+		l.light_size = 0.0                   # set by _read_quality (soft area-light shadows on High / Ultra)
 		# Cube shadows. Dual paraboloid is cheaper (2 renders instead of 6) but it warps the shadow map and only
 		# gets it right at mesh vertices: the walls here are big boxes with a handful of vertices, so the
 		# straight edge of a thin wall threw a curved, banana-shaped shadow onto the wall beside it. Only the
