@@ -40,27 +40,35 @@ func build(dealt: Array) -> void:
 		mmi.multimesh = mm
 		m.add_child(mmi)
 		mms.append(mm)
-	if model.variant_ok:
+	var zero := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
+	if model.variant_ok and not model.variant_rigged:     # rigged variants are posed copies of their own
 		variant_mm = MultiMesh.new()
 		variant_mm.transform_format = MultiMesh.TRANSFORM_3D
 		variant_mm.mesh = model.variant_mesh
 		variant_mm.instance_count = count
+		for i in count:                  # unused slots hidden (identity would stack them all at the origin)
+			variant_mm.set_instance_transform(i, zero)
 		var vmmi := MultiMeshInstance3D.new()
 		vmmi.multimesh = variant_mm
 		m.add_child(vmmi)
-	var zero := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
 	for i in count:
 		var d: Dictionary = decoys[i]
 		var g := Transform3D(Basis(Vector3.UP, d.yaw), Vector3(d.x, 0.0, d.z))
 		var mode: String = d.pose.get("mode", "stand")
-		# the plain sculpt has no rig, so it only ever stands at rest
+		# the variant sculpt stands (it is one piece: no lying / sitting base poses), but in the decoy's own pose
 		var is_variant: bool = model.variant_ok and mode == "stand" and m.rng.randf() < VARIANT_CHANCE
 		d["variant"] = is_variant
 		if is_variant:
 			for j in model.parts.size():
 				(mms[j] as MultiMesh).set_instance_transform(i, zero)
-			variant_mm.set_instance_transform(i, g * model.variant_xf)
 			d["g"] = g
+			var vn := model.make_variant(d.pose)
+			if vn != null:                   # rigged: its own posed copy
+				vn.transform = g * model.variant_root_xf
+				m.add_child(vn)
+				d["vnode"] = vn
+			else:                            # no rig: the shared mesh at rest
+				variant_mm.set_instance_transform(i, g * model.variant_xf)
 		else:
 			var xfs := model.part_transforms(d.pose)
 			var base := MannequinModel.mode_base(mode, m.rng)
@@ -104,7 +112,11 @@ func _place(i: int, x: float, z: float, yaw: float) -> void:
 	d.yaw = yaw
 	d.g = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, 0.0, z))
 	if d.get("variant", false):
-		variant_mm.set_instance_transform(i, d.g * m.model.variant_xf)
+		var vn = d.get("vnode")
+		if vn != null and is_instance_valid(vn):
+			(vn as Node3D).transform = d.g * m.model.variant_root_xf
+		else:
+			variant_mm.set_instance_transform(i, d.g * m.model.variant_xf)
 	else:
 		var xfs: Array = m.model.part_transforms(d.pose)
 		for j in xfs.size():
