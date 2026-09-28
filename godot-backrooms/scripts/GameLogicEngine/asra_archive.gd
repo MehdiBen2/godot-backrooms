@@ -71,13 +71,31 @@ func current_dossier() -> Dictionary:
 	var all := dossiers()
 	return all.get(current_level_id(), all.get("_default", {}))
 
-## Designations of every level whose dossier lists this entity (its KNOWN SITES)
+## Designations of every level whose dossier lists this entity, and of the one it was logged on
+## (its KNOWN SITES)
 func sites_of(entity_id: String) -> Array:
 	var out := []
 	var all := dossiers()
 	for level_id in all:
 		if str(level_id) != "_default" and entity_id in all[level_id].get("entities", []):
 			out.append(str(all[level_id].get("designation", level_id)))
+	var logged := str(logged_info(entity_id).get("level", ""))
+	if logged != "":
+		var where := str(all.get(logged, {}).get("designation", logged))
+		if not (where in out):
+			out.append(where)
+	return out
+
+## The entities a level's dossier covers: the ones its block lists, plus any logged on that level.
+## Every entity node sits in every level's scene (main.tscn), so one can turn up, and be scanned,
+## where its dossier doesn't list it; it still belongs under that level's PHENOMENA LOGGED.
+func level_entities(level_id: String) -> Array:
+	var all := dossiers()
+	var block: Dictionary = all.get(level_id, all.get("_default", {}))
+	var out: Array = block.get("entities", []).duplicate()
+	for id in discovered:
+		if str(logged_info(id).get("level", "")) == level_id and not (id in out):
+			out.append(id)
 	return out
 
 ## When and where it was logged: {t, level}; empty for entries from before this was recorded
