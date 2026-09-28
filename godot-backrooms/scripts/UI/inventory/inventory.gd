@@ -1,15 +1,19 @@
 extends Control
-## Inventory as an A.S.R.A. field terminal (TAB): a full-screen amber CRT readout laid over the live
-## camera feed. Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars,
-## then the carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
+## Inventory as an A.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
+## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
+## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
+## carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
 ## estimate. On the right, a tabbed sheet: [F1] ITEMS (the selected item's record), [F2] THRESHOLD
 ## DOSSIER (level dossier + entity sightings from Archive, scripts/GameLogicEngine/asra_archive.gd)
 ## and [F3] PAPERS (recovered lore).
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
 ## same warp (_through_lens) so hover and clicks land on what is drawn.
-## Toggled with TAB (scripts/GameLogicEngine/main.gd -> hud.gd set_inventory), closed by TAB / ESC;
-## arrows, F1-F3 and PgUp/PgDn navigate while it is up.
+## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): power on / off, a chirp
+## on page switches (which also lift the tab and type the page in behind a scan line), a blip on
+## item selection.
+## Toggled with TAB (scripts/GameLogicEngine/main.gd -> hud.gd set_inventory), closed by TAB / ESC
+## or a click outside the window; arrows, F1-F3 and PgUp/PgDn navigate while it is up.
 ## Empty by default: scripts/World/props pickups can call add_item() / add_lore() to populate it.
 
 signal close_requested
@@ -42,6 +46,9 @@ const TAB_H := 50.0
 const TAB_SLANT := 24.0
 const CHAMFER := 10.0
 const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corner-fitted
+const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
+# terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
+const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
@@ -61,6 +68,9 @@ var font_cache := {}                 # glyph spacing -> FontVariation
 var player: Node                     # set by hud.gd; the vitals read live stats off it
 var shown := false
 var anim: Tween
+var page_anim: Tween                 # page type-in + scan line (_reveal_page)
+var tab_anim: Tween
+var sfx := {}                        # name -> AudioStreamPlayer
 var t := 0.0
 var glitch_left := 0.0
 var next_glitch := 3.0
@@ -92,6 +102,9 @@ var tab_buttons := {}                # tab -> Button
 var pages := {}                      # tab -> page Control
 var page_scrolls := {}               # tab -> its ScrollContainer (PgUp / PgDn)
 var active_page := "DOSSIER"
+var tab_lift := 1.0                  # 0..1: the active tab rising out of the row after a switch
+var scan_t := -1.0                   # 0..1 down the sheet while a page redraws, < 0 off
+var scan_overlay: Control
 var item_page: VBoxContainer
 var dossier_text: VBoxContainer
 var phenomena_title: Label
@@ -133,6 +146,7 @@ func _label(text: String, px: int, color: Color, spacing := 1.0, wrap := false) 
 	l.add_theme_constant_override("shadow_offset_x", 0)
 	l.add_theme_constant_override("shadow_offset_y", 2)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING   # type-in keeps the wrapping
 	if wrap:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -280,6 +294,7 @@ func _build() -> void:
 	overlay_mat.set_shader_parameter("grain_amt", 0.05)
 	overlay_mat.set_shader_parameter("vignette_amt", 0.22)
 	lens.material = overlay_mat
+	lens.scale = Vector2.ONE * WINDOW_SCALE   # about pivot_offset, the centre (_fit_viewport)
 	content_root.add_child(lens)
 
 	var screen := Control.new()
@@ -293,6 +308,13 @@ func _build() -> void:
 	screen.add_child(_build_readout())
 	screen.add_child(_build_footer())
 
+	for n in SFX:
+		var sp := AudioStreamPlayer.new()
+		sp.stream = load("res://audio/terminal/terminal_%s.wav" % n)
+		sp.volume_db = SFX[n]
+		add_child(sp)
+		sfx[n] = sp
+
 	_fit_viewport()
 	_select_tab(active_page, true)
 	_refresh_items()
@@ -300,7 +322,7 @@ func _build() -> void:
 	_refresh_papers()
 
 ## Size the SubViewport to the screen: laid out in canvas units (size_2d_override) but rendered at
-## the window's real resolution, so the VCR text stays sharp above 1080p
+## the pixel size it is shown at (window resolution x WINDOW_SCALE), so the VCR text stays sharp
 func _fit_viewport() -> void:
 	if not (content_root and viewport and lens and overlay_mat):   # resized can fire mid-_build()
 		return
@@ -309,7 +331,7 @@ func _fit_viewport() -> void:
 		return
 	var k := get_viewport().get_final_transform().get_scale()
 	var px := clampf(maxf(k.x, k.y), 0.5, 3.0)
-	viewport.size = Vector2i((logical * px).round())
+	viewport.size = Vector2i((logical * px * WINDOW_SCALE).round())
 	viewport.size_2d_override = Vector2i(logical.round())
 	overlay_mat.set_shader_parameter("aspect", logical.x / logical.y)
 	lens.pivot_offset = logical * 0.5
@@ -320,8 +342,13 @@ func _forward_mouse(e: InputEvent) -> void:
 	var m := e as InputEventMouse
 	if m == null or not shown:
 		return
-	var ev := m.duplicate() as InputEventMouse
 	var p := _through_lens(m.position)
+	if not Rect2(Vector2.ZERO, content_root.size).has_point(p):
+		# outside the window: a click there closes the terminal, like the pause menu's backdrop
+		var mb := e as InputEventMouseButton
+		if mb and mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			close_requested.emit()
+	var ev := m.duplicate() as InputEventMouse
 	ev.position = p
 	ev.global_position = p
 	viewport.push_input(ev, true)
@@ -334,12 +361,12 @@ func _forward_mouse(e: InputEvent) -> void:
 				break
 		content_root.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if hand else Control.CURSOR_ARROW
 
-## Same mapping as ui_vhs_overlay.gdshader (barrel bulge, fit_corners): the viewport point that is
-## drawn at `pos` on screen
+## Same mapping as ui_vhs_overlay.gdshader (barrel bulge, fit_corners) after undoing the lens's
+## WINDOW_SCALE about the centre: the viewport point that is drawn at `pos` on screen
 func _through_lens(pos: Vector2) -> Vector2:
 	var sz := content_root.size
 	var aspect := sz.x / sz.y
-	var p := pos / sz - Vector2(0.5, 0.5)
+	var p := (pos - sz * 0.5) / WINDOW_SCALE / sz
 	p.x *= aspect
 	p *= (1.0 + LENS_CURVE * p.dot(p)) / (1.0 + LENS_CURVE * (0.25 * aspect * aspect + 0.25))
 	p.x /= aspect
@@ -557,7 +584,8 @@ func _item_row(i: int) -> Control:
 	p.set_meta("hover", false)
 	p.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			_select(i)
+			var quiet := active_page != "ITEMS"   # the page switch plays its own chirp
+			_select(i, quiet)
 			_select_tab("ITEMS")
 	)
 	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_row(i))
@@ -627,17 +655,17 @@ func _update_battery_line() -> void:
 		elif bat < PlayerScript.BATTERY_LOW: col = ORANGE
 		battery_label.add_theme_color_override("font_color", col)
 
-func _select(i: int) -> void:
+func _select(i: int, quiet := false) -> void:
 	if i >= items.size():
 		return
+	if i != selected and not quiet: _sfx("select")
 	selected = i
 	_refresh_selection()
 
 func _move_selection(delta: int) -> void:
 	if items.is_empty():
 		return
-	selected = clampi(maxi(selected, 0) + delta, 0, items.size() - 1)
-	_refresh_selection()
+	_select(clampi(maxi(selected, 0) + delta, 0, items.size() - 1))
 
 # ---- right-hand sheet: [F1] ITEMS / [F2] THRESHOLD DOSSIER / [F3] PAPERS -----------------
 func _build_readout() -> Control:
@@ -688,6 +716,20 @@ func _build_readout() -> Control:
 	page_scrolls["PAPERS"] = papers_scroll
 	for tab in TABS:
 		body.add_child(pages[tab])
+
+	# drawn over the page text while it redraws (_reveal_page): a bright line with a faint trail
+	scan_overlay = Control.new()
+	scan_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scan_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scan_overlay.draw.connect(func():
+		if scan_t < 0.0:
+			return
+		var w := scan_overlay.size.x
+		var y := TAB_H + 6.0 + scan_t * (scan_overlay.size.y - TAB_H - 12.0)
+		scan_overlay.draw_rect(Rect2(3, y - 26.0, w - 6, 26.0), Color(AMBER, 0.07))
+		scan_overlay.draw_line(Vector2(3, y), Vector2(w - 3, y), Color(AMBER, 0.75), 2.0)
+	)
+	readout.add_child(scan_overlay)
 	return readout
 
 ## The sheet's outline, drawn by hand so the front tab opens into it like a file folder: the top
@@ -706,7 +748,7 @@ func _draw_readout() -> void:
 		var x0 := tabs_row.position.x + b.position.x
 		var x1 := x0 + b.size.x
 		var on: bool = tab == active_page
-		var y := 0.0 if on else 8.0
+		var y := 8.0 * (1.0 - tab_lift) if on else 8.0
 		var shape := PackedVector2Array([Vector2(x0, top), Vector2(x0, y), Vector2(x1 - TAB_SLANT, y), Vector2(x1, top)])
 		readout.draw_colored_polygon(shape, FILL if on else Color(FILL, 0.5))
 		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, 2.0, true)
@@ -741,6 +783,52 @@ func _select_tab(tab: String, force := false) -> void:
 	for k in tab_buttons:
 		_style_tab(k)
 	readout.queue_redraw()
+	if force:
+		return
+	_sfx("tab")
+	glitch_left = 0.07                        # a short tear on the overlay as the page changes
+	if tab_anim: tab_anim.kill()
+	tab_anim = create_tween()
+	tab_anim.tween_method(_set_tab_lift, 0.0, 1.0, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_reveal_page(tab)
+
+## The page redraws like a terminal screen: it flickers on, a scan line runs down the sheet and each
+## line of text types itself in, top to bottom
+func _reveal_page(tab: String, delay := 0.0) -> void:
+	if page_anim: page_anim.kill()
+	var page: Control = pages[tab]
+	var labels := page.find_children("*", "Label", true, false)
+	page_anim = create_tween().set_parallel(true)
+	page.modulate.a = 0.0
+	page_anim.tween_method(func(x: float): page.modulate.a = _flicker(x), 0.0, 1.0, 0.22).set_delay(delay)
+	for i in labels.size():
+		var l: Label = labels[i]
+		l.visible_ratio = 0.0
+		var dur := clampf(l.text.length() * 0.007, 0.06, 0.3)
+		page_anim.tween_method(_type_label.bind(l), 0.0, 1.0, dur).set_delay(delay + minf(i * 0.022, 0.45))
+	scan_t = 0.0
+	page_anim.tween_method(_set_scan, 0.0, 1.0, 0.4).set_delay(delay).set_trans(Tween.TRANS_SINE)
+	page_anim.tween_callback(_set_scan.bind(-1.0)).set_delay(delay + 0.4)   # off once it reaches the bottom
+
+# `l` untyped: a page can be rebuilt mid-reveal (selection change, new sighting) and a freed label
+# must reach the is_instance_valid() check rather than fail the argument's type check
+func _type_label(ratio: float, l) -> void:
+	if is_instance_valid(l):
+		l.visible_ratio = ratio
+
+func _set_tab_lift(v: float) -> void:
+	tab_lift = v
+	readout.queue_redraw()
+
+func _set_scan(v: float) -> void:
+	scan_t = v
+	scan_overlay.queue_redraw()
+
+func _sfx(n: String) -> void:
+	var sp: AudioStreamPlayer = sfx.get(n)
+	if sp:
+		sp.pitch_scale = randf_range(0.97, 1.03)   # repeats shouldn't sound mechanical
+		sp.play()
 
 func _cycle_tab(delta: int) -> void:
 	_select_tab(TABS[wrapi(TABS.find(active_page) + delta, 0, TABS.size())])
@@ -882,7 +970,8 @@ func _refresh_papers() -> void:
 # ---- open / close, input, per frame ------------------------------------------------------
 ## Power-on: the picture opens out of a bright line like a CRT warming up, its alpha stuttering
 ## (same flicker curve as the pause menu, menu.gd _flicker) while the overlay throws a short
-## tear-glitch burst. Power-off collapses it back into the line.
+## tear-glitch burst, the vitals bars sweep up from empty and the open page types itself in.
+## Power-off collapses it back into the line.
 func set_shown(on: bool) -> void:
 	if on == shown:
 		return
@@ -897,23 +986,29 @@ func set_shown(on: bool) -> void:
 		if selected == -1 and not items.is_empty(): selected = 0
 		_refresh_selection()
 		_refresh_dossier()
+		_sfx("on")
+		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
-		lens.scale = Vector2(1.0, 0.01)
+		lens.scale = Vector2(WINDOW_SCALE, WINDOW_SCALE * 0.01)
 		overlay_mat.set_shader_parameter("fade", 0.0)
 		overlay_mat.set_shader_parameter("glitch", 1.0)
 		anim.tween_property(backdrop, "modulate:a", 1.0, 0.2)
-		anim.tween_property(lens, "scale:y", 1.0, 0.26).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		anim.tween_property(lens, "scale:y", WINDOW_SCALE, 0.26).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("fade", _flicker(x)), 0.0, 1.0, 0.34)
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("glitch", x), 1.0, 0.0, 0.55).set_delay(0.05)
+		_reveal_page(active_page, 0.2)
 	else:
-		anim.tween_property(lens, "scale:y", 0.01, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		_sfx("off")
+		anim.tween_property(lens, "scale:y", WINDOW_SCALE * 0.01, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		anim.tween_property(self, "modulate:a", 0.0, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		anim.chain().tween_callback(_finish_hide)
 
 func _finish_hide() -> void:
 	visible = false
 	modulate.a = 1.0
-	lens.scale = Vector2.ONE
+	lens.scale = Vector2.ONE * WINDOW_SCALE
+	if page_anim: page_anim.kill()
+	_set_scan(-1.0)
 	overlay_mat.set_shader_parameter("fade", 1.0)
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
