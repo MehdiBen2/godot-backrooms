@@ -16,7 +16,6 @@ const VARIANT_CHANCE := 0.18                 # of the standing decoys, how many 
 var m: Node3D                                # mannequin.gd
 var decoys: Array = []                       # {x, z, yaw, pose, g, body, variant}
 var mms: Array = []                          # one MultiMesh per model part
-var variant_mm: MultiMesh                    # one MultiMesh for the plain variant sculpt (whole figure)
 var shufflers: Array = []                    # {i, seen}: every standing decoy
 var stalker := -1                            # decoy index of the one that creeps toward you
 var tick := 0.0
@@ -28,7 +27,6 @@ func _init(owner: Node3D) -> void:
 func build(dealt: Array) -> void:
 	decoys = dealt
 	mms.clear()
-	variant_mm = null
 	var model: MannequinModel = m.model
 	var count := decoys.size()
 	for pt in model.parts:
@@ -40,27 +38,24 @@ func build(dealt: Array) -> void:
 		mmi.multimesh = mm
 		m.add_child(mmi)
 		mms.append(mm)
-	if model.variant_ok:
-		variant_mm = MultiMesh.new()
-		variant_mm.transform_format = MultiMesh.TRANSFORM_3D
-		variant_mm.mesh = model.variant_mesh
-		variant_mm.instance_count = count
-		var vmmi := MultiMeshInstance3D.new()
-		vmmi.multimesh = variant_mm
-		m.add_child(vmmi)
 	var zero := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
 	for i in count:
 		var d: Dictionary = decoys[i]
 		var g := Transform3D(Basis(Vector3.UP, d.yaw), Vector3(d.x, 0.0, d.z))
 		var mode: String = d.pose.get("mode", "stand")
-		# the plain sculpt has no rig, so it only ever stands at rest
+		# the rigged variant sculpt is only used standing: its skeleton isn't set up for lying poses
 		var is_variant: bool = model.variant_ok and mode == "stand" and m.rng.randf() < VARIANT_CHANCE
 		d["variant"] = is_variant
 		if is_variant:
 			for j in model.parts.size():
 				(mms[j] as MultiMesh).set_instance_transform(i, zero)
-			variant_mm.set_instance_transform(i, g * model.variant_xf)
 			d["g"] = g
+			var inst := model.variant_scene.instantiate() as Node3D
+			inst.transform = g * model.variant_xf
+			m.add_child(inst)
+			var skel := inst.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+			model.apply_variant_pose(skel, d.pose)
+			d["variant_node"] = inst
 		else:
 			var xfs := model.part_transforms(d.pose)
 			var base := MannequinModel.mode_base(mode, m.rng)
@@ -104,7 +99,9 @@ func _place(i: int, x: float, z: float, yaw: float) -> void:
 	d.yaw = yaw
 	d.g = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, 0.0, z))
 	if d.get("variant", false):
-		variant_mm.set_instance_transform(i, d.g * m.model.variant_xf)
+		var inst: Node3D = d.variant_node
+		if is_instance_valid(inst):
+			inst.transform = d.g * m.model.variant_xf
 	else:
 		var xfs: Array = m.model.part_transforms(d.pose)
 		for j in xfs.size():

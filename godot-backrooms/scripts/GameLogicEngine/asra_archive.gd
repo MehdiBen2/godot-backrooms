@@ -18,15 +18,15 @@ const ENTITIES_PATH := "res://levels/asra_entities.json"
 const DOSSIERS_PATH := "res://levels/asra_dossiers.json"
 const SAVE_PATH := "user://asra_archive.cfg"
 
-static var _entities := {}
-static var _dossiers := {}
+var _entities := {}
+var _dossiers := {}
 
 var discovered := {}   # entity_id -> true, persisted across sessions
 
 func _ready() -> void:
 	_load()
 
-static func _read_json(path: String) -> Dictionary:
+func _read_json(path: String) -> Dictionary:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not (parsed is Dictionary):
 		push_error("cannot read " + path)
@@ -37,22 +37,22 @@ static func _read_json(path: String) -> Dictionary:
 	return out
 
 ## entity_id -> {code, common_name, threat_class, behavior_vector, directive}
-static func entities() -> Dictionary:
+func entities() -> Dictionary:
 	if _entities.is_empty():
 		_entities = _read_json(ENTITIES_PATH)
 	return _entities
 
-static func entity_info(id: String) -> Dictionary:
+func entity_info(id: String) -> Dictionary:
 	return entities().get(id, {})
 
 ## level id (levels/levels.json "id") -> {designation, threat_classification, metrics, directives, entities}
-static func dossiers() -> Dictionary:
+func dossiers() -> Dictionary:
 	if _dossiers.is_empty():
 		_dossiers = _read_json(DOSSIERS_PATH)
 	return _dossiers
 
 ## The dossier for whichever playlist entry Game.level_index points at, falling back to "_default"
-static func current_dossier() -> Dictionary:
+func current_dossier() -> Dictionary:
 	var LevelData := load("res://scripts/World/level/level_data.gd")
 	var levels: Array = LevelData.read_index()
 	var all := dossiers()

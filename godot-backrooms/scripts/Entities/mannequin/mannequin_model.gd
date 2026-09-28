@@ -8,9 +8,14 @@ const MODEL := "res://models/entities/creepy_mannequin.glb"
 const HEIGHT := 1.85
 const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL", "rollR", "headYaw", "headTilt", "headNod", "lean", "twist", "bob"]
 
-# A second, plainer sculpt (no separate parts, no skeleton) mixed into the standing crowd for variety.
-# It can't be posed like the real one, so it only ever stands at rest.
+# A second, plainer sculpt mixed into the standing crowd for variety: same idea as MODEL (rigid parts
+# that swing about a joint) but skinned to a real Skeleton3D instead of split into separate meshes, so
+# posing it means driving bone rotations (apply_variant_pose) instead of part_transforms(). Its bones
+# mirror this file's own hierarchy: Hips (root, never posed - legs hang off it unrotated, same as the
+# real one), Spine (torso twist/lean), Head + ArmL/ArmR (children of Spine, inherit that twist/lean),
+# LegL/LegR (children of Hips).
 const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
+const VARIANT_BONES := ["Hips", "Spine", "Head", "ArmL", "ArmR", "LegL", "LegR"]
 
 var parts: Array = []                        # {mesh, xf, pivot, kind, side, ...}
 var hip_pivot := Vector3(0.0, 0.818858, -0.099118)
@@ -18,8 +23,9 @@ var norm_xf := Transform3D.IDENTITY          # model space -> figure space
 var ok := false
 var _top_x := Vector2.ZERO                   # x extent of the last arm's shoulder slice
 
-var variant_mesh: Mesh
+var variant_scene: PackedScene
 var variant_xf := Transform3D.IDENTITY       # model space -> figure space, feet on y = 0, HEIGHT tall
+var variant_rest: Dictionary = {}            # bone name -> its Basis at rest, for posing new instances
 var variant_ok := false
 
 func _part_kind(node: Node) -> String:
@@ -149,7 +155,9 @@ func load_template(host: Node) -> bool:
 	ok = true
 	return true
 
-## Load the plain variant sculpt: a single static mesh, normalised the same way (feet on y = 0, HEIGHT tall).
+## Load the plain variant sculpt and measure it the same way load_template() measures MODEL, so it
+## stands at the same HEIGHT with its feet on y = 0. Also records each bone's rest Basis, needed to
+## turn a world-space pose angle into the bone-local rotation apply_variant_pose() actually sets.
 func load_variant(host: Node) -> bool:
 	var packed := load(VARIANT_MODEL) as PackedScene
 	if packed == null:
@@ -157,7 +165,8 @@ func load_variant(host: Node) -> bool:
 	var root: Node3D = packed.instantiate()
 	host.add_child(root)
 	var meshes := root.find_children("*", "MeshInstance3D", true, false)
-	if meshes.is_empty():
+	var skeletons := root.find_children("*", "Skeleton3D", true, false)
+	if meshes.is_empty() or skeletons.is_empty():
 		root.queue_free()
 		return false
 	var mi := meshes[0] as MeshInstance3D
@@ -168,15 +177,55 @@ func load_variant(host: Node) -> bool:
 			xf = (p as Node3D).transform * xf
 		p = p.get_parent()
 	var b := xf * mi.get_aabb()
-	root.queue_free()
 	if b.size.y <= 0.0:
+		root.queue_free()
 		return false
+	var skel := skeletons[0] as Skeleton3D
+	variant_rest.clear()
+	for bname in VARIANT_BONES:
+		var i := skel.find_bone(bname)
+		if i < 0:
+			root.queue_free()
+			return false
+		variant_rest[bname] = skel.get_bone_rest(i).basis
 	var s := HEIGHT / b.size.y
 	var c := b.get_center()
-	variant_mesh = mi.mesh
 	variant_xf = Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s) * xf
+	variant_scene = packed
+	root.queue_free()
 	variant_ok = true
 	return true
+
+## A world-axis rotation about a joint, expressed as the bone-local delta set_bone_pose_rotation()
+## needs: rest * local = world * rest, i.e. local = rest^-1 * world * rest (see load_variant()).
+static func _variant_bone_local(rest_basis: Basis, world_basis: Basis) -> Basis:
+	return rest_basis.inverse() * world_basis * rest_basis
+
+## Pose a variant instance's skeleton. Same angles as a POSE_KEYS Dictionary, applied per-bone; the
+## hierarchy (arms/head under Spine, legs under Hips) does the rest - Spine's own twist/lean is
+## inherited by the head and arms automatically, exactly like part_transforms()'s "twist * lean * ...".
+func apply_variant_pose(skeleton: Skeleton3D, pose: Dictionary) -> void:
+	var idx := {}
+	for bname in VARIANT_BONES:
+		idx[bname] = skeleton.find_bone(bname)
+
+	var twist := Basis(Vector3.UP, pose.get("twist", 0.0))
+	var lean := Basis(Vector3.RIGHT, pose.get("lean", 0.0))
+	skeleton.set_bone_pose_rotation(idx["Spine"], _variant_bone_local(variant_rest["Spine"], twist * lean).get_rotation_quaternion())
+
+	var head_world := _rot_about(Vector3.ZERO, Vector3.UP, pose.get("headYaw", 0.0)).basis \
+		* _rot_about(Vector3.ZERO, Vector3.BACK, pose.get("headTilt", 0.0)).basis \
+		* _rot_about(Vector3.ZERO, Vector3.RIGHT, pose.get("headNod", 0.0)).basis
+	skeleton.set_bone_pose_rotation(idx["Head"], _variant_bone_local(variant_rest["Head"], head_world).get_rotation_quaternion())
+
+	for side in ["L", "R"]:
+		var sg := 1.0 if side == "L" else -1.0
+		var swing: float = pose.get("arm" + side, 0.0)
+		var splay: float = pose.get("splay" + side, 0.0)
+		var arm_world := Basis(Vector3.BACK, splay * sg) * Basis(Vector3.RIGHT, -swing)
+		skeleton.set_bone_pose_rotation(idx["Arm" + side], _variant_bone_local(variant_rest["Arm" + side], arm_world).get_rotation_quaternion())
+		var leg_world := Basis(Vector3.RIGHT, -float(pose.get("leg" + side, 0.0)))
+		skeleton.set_bone_pose_rotation(idx["Leg" + side], _variant_bone_local(variant_rest["Leg" + side], leg_world).get_rotation_quaternion())
 
 # ================================================================= poses
 static func rest_pose() -> Dictionary:

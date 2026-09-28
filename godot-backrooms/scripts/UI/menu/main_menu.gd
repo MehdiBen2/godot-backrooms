@@ -209,8 +209,7 @@ func _build() -> void:
 	margin.add_child(col)
 	menu_box = col
 
-	var level_tag := load("res://scripts/World/level/level_data.gd")
-	col.add_child(_label("ARCHIVAL FOOTAGE // " + level_tag.current_level_tag(), 12, Color(0.9, 0.882, 0.804, 0.55), 4))
+	col.add_child(_label("ARCHIVAL FOOTAGE", 12, Color(0.9, 0.882, 0.804, 0.55), 4))
 	var sp := Control.new()
 	sp.custom_minimum_size = Vector2(0, 18)
 	col.add_child(sp)

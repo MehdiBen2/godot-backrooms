@@ -216,7 +216,7 @@ func _build_hud() -> void:
 	var bl := _vbox(16)
 	hud.add_child(bl)
 	bl.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	bl.offset_left = 42; bl.offset_right = 42 + 220 * SCALE; bl.offset_bottom = -32; bl.offset_top = -32
+	bl.offset_left = 42; bl.offset_right = 42 + 250 * SCALE; bl.offset_bottom = -32; bl.offset_top = -32
 	bl.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	for m in [["STAMINA", Color("e0d494")], ["HEALTH", Color("c8503c")], ["SANITY", Color("a89d62")], ["BATTERY", Color("39e58c")]]:
 		bl.add_child(_meter(m[0], m[1]))
@@ -231,12 +231,12 @@ func _build_hud() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_END
 	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "TAB // ITEMS", "ESC // PAUSE"]
 	for i in hints.size():
-		row.add_child(_label(hints[i], 11, HINT))
-		if i < hints.size() - 1: row.add_child(_label("•", 11, HINT))
+		row.add_child(_label(hints[i], 13, HINT))
+		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
 	br.add_child(row)
 	br.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.612, 0.573, 0.408, 0.5)))
-	br.offset_left = -42 - 720
-	br.offset_top = -32 - 40
+	br.offset_left = -42 - 800
+	br.offset_top = -32 - 44
 	br.offset_right = -42
 	br.offset_bottom = -32
 
@@ -244,9 +244,9 @@ func _meter(name: String, color: Color) -> Control:
 	var block := _vbox(5)
 	var meta := HBoxContainer.new()
 	meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var n := _label(name, 11, METER_LABEL, 2.5)
+	var n := _label(name, 13, METER_LABEL, 2.5)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var v := _label("100%", 11, METER_VAL)
+	var v := _label("100%", 13, METER_VAL)
 	meta.add_child(n)
 	meta.add_child(v)
 	block.add_child(meta)
@@ -364,7 +364,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("exhaust", 0.8 if (player and player.get("exhausted")) else 0.0)
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
-	rec_dot.visible = fmod(t, 1.2) < 0.6
+	rec_dot.modulate.a = 1.0 if fmod(t, 1.2) < 0.6 else 0.0
 	# Handheld-camera jitter on the viewfinder brackets
 	for i in corners.size():
 		var c := corners[i]
