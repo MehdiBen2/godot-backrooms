@@ -13,7 +13,8 @@ extends RefCounted
 ##   steps       each footfall dips and rolls the camera differently, eased in and out
 ##
 ## player.gd feeds it footfalls and how hard you move, and reads `pitch`, `yaw`, `roll` (rad) and `offset` (m).
-## Scaled by the head-bob setting: 0 turns all of it off; AMOUNT scales everything.
+## Only while sprinting (standing and walking keep a steady camera). Scaled by the head-bob setting: 0 turns
+## all of it off; AMOUNT scales everything.
 
 const AMOUNT := 0.6               # 1.0 = about 1 deg of sway standing (1.5 was far too much)
 # layers: amplitude (rad) and noise speed (roughly Hz)
@@ -39,6 +40,7 @@ var offset := Vector3.ZERO
 var step_amp := 1.0               # this step's bob height (player.gd multiplies its vertical bob by it)
 
 var _motion := 0.0                # eased: 0 standing, 1 walking, ~1.8 sprinting
+var _run := 0.0                   # eased 0..1: the shake is only there while sprinting
 var _step_goal := Vector2.ZERO    # (pitch, roll) this step wants, fading out
 var _step := Vector2.ZERO
 var _side := 0.0
@@ -62,6 +64,7 @@ func _n(row: float, speed: float) -> float:
 func update(dt: float, motion: float, shake: float, amount: float) -> void:
 	_t += dt
 	_motion = lerpf(_motion, motion, minf(1.0, dt * 3.0))
+	_run = lerpf(_run, 1.0 if motion > 1.5 else 0.0, minf(1.0, dt * 3.0))    # fades in / out over ~0.5 s
 	var sway := 1.0 + 0.7 * _motion
 	var corr := 1.0 + 1.2 * _motion
 	var trem := shake * (1.0 + 0.8 * _motion)
@@ -71,7 +74,7 @@ func update(dt: float, motion: float, shake: float, amount: float) -> void:
 	_step_goal *= exp(-dt * STEP_FALL)
 	_step = _step.lerp(_step_goal, minf(1.0, dt * STEP_RISE))
 	_side = lerpf(_side, _side_goal, minf(1.0, dt * 4.0))
-	var k := amount * AMOUNT
+	var k := amount * AMOUNT * _run
 	pitch = (p + _step.x) * k
 	yaw = y * k
 	roll = (r + _step.y) * k
