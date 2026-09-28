@@ -2,7 +2,7 @@
   "_about": "A.S.R.A. entity catalog: entity_id -> dossier shown once the player logs it with the field scanner (scripts/Player/scanner.gd, hold Q). The id matches the \"asra_id\" meta the entity script sets in _enter_tree(); new entities register a block here and add _enter_tree() + scan_points() like the others (see asra_archive.gd).",
   "mannequin": {
     "code": "ASRA-EN-01",
-    "common_name": "Faceless Loiterer",
+    "common_name": "The Mannequins",
     "threat_class": "Class 2",
     "behavior_vector": "Idles in crowds of visually identical copies; freezes when observed directly, closes distance when unseen.",
     "directive": "Keep at least one in direct line of sight at all times. Do not enter a room containing more than three."

@@ -952,7 +952,7 @@ func _refresh_dossier() -> void:
 
 	_clear(phenomena_list)
 	link_nodes.clear()
-	var ids: Array = d.get("entities", [])
+	var ids := Archive.level_entities(Archive.current_level_id())
 	var found := 0
 	for id in ids:
 		if Archive.is_discovered(str(id)): found += 1
