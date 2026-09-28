@@ -50,6 +50,7 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | Space | Jump |
 | F | Torch on/off |
 | Q (hold) | T.S.R.A. field scanner: hold on an entity near the crosshair to log it |
+| T (hold) | Reflective hazard tape: hold on a wall or the floor, look along it to pull a strip out, let go to stick it. Mark corridors you've already walked |
 | Tab | Inventory (T.S.R.A. field terminal) |
 | ↑ ↓ / F1–F4 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |
 | V | Push-to-talk (when voice is set to push-to-talk) |

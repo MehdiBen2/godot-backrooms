@@ -4,6 +4,8 @@ extends RefCounted
 ## framed to fit, drawn for a few frames and then frozen, so the icon costs nothing afterwards.
 ## One viewport per model, shared by every row / page that shows it.
 ## Show the texture through outlined() (shaders/item_icon_outline.gdshader) for the orange rim.
+## The "model" is a scene (.glb / .tscn), or a script that builds its Node3D in _init
+## (World/props/tape_roll.gd).
 
 const SIZE := 256                  # icon resolution, px
 const FILL := 0.86                 # share of the frame the model spans, leaving room for the outline
@@ -72,7 +74,7 @@ static func _build(model_path: String) -> SubViewport:
 	vp.add_child(fill)
 
 	# the model, scaled to 1 m along its longest side and centred on the origin
-	var model: Node3D = (load(model_path) as PackedScene).instantiate()
+	var model := instantiate(model_path)
 	vp.add_child(model)
 	var box := mesh_aabb(model, Transform3D.IDENTITY)
 	var longest := maxf(box.size.x, maxf(box.size.y, box.size.z))
@@ -114,6 +116,13 @@ static func _freeze(vp: SubViewport) -> void:
 		await tree.process_frame
 	if is_instance_valid(vp):
 		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+## The item's model as a node: a scene instanced, or a model script (see the top) made
+static func instantiate(model_path: String) -> Node3D:
+	var res := load(model_path)
+	if res is Script:
+		return (res as Script).new()
+	return (res as PackedScene).instantiate()
 
 static func mesh_aabb(n: Node, xf: Transform3D) -> AABB:
 	var out := AABB()
