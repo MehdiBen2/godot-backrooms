@@ -13,4 +13,4 @@ It creates a `game/` folder beside itself. Testing in the editor installs into `
 ## Notes
 - The repo must be **public** (or the launcher needs a token) for the unauthenticated releases API to work.
 - Tags are compared as plain strings: any different tag counts as an update.
-- Multiplayer: the launcher passes `--player-name=` and `--join=host:port` to the game. The game does not read them yet.
+- Multiplayer: the launcher passes `--player-name=` and `--join=host:port` to the game (read by `scripts/Net/net.gd`).

@@ -17,8 +17,12 @@ uniform float tile_size = 0.75;         // metres: BRC_A has 6 x 6 tiles per 4.5
 uniform float tile_vary = 0.05;         // how much one tile's shade differs from the next
 uniform float stained = 0.08;           // share of tiles yellowed with age
 uniform float normal_depth = 1.0;
-uniform float ao_light_affect = 0.6;
+uniform float ao_light_affect = 0.2;   // AO belongs on bounce light, not on the panels' own direct light
 uniform float specular = 0.4;
+// Found-footage look: a real drop ceiling under this much light is one of the brightest things in the room
+// (light bouncing off the carpet and walls). The tube lights skip the ceiling layer, so level_lighting.gd
+// drives this fill instead: 0 = off, fades with power cuts.
+uniform float ceiling_fill = 0.0;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -47,5 +51,5 @@ void fragment() {
 	ROUGHNESS = max(orm.g, 0.55);         // painted steel T-bars and mineral tiles: matte, so a torch lights them
 	METALLIC = 0.0;                       // (the ORM marks the grid as bare metal, which ignores diffuse light)
 	SPECULAR = specular;
-	EMISSION = emit * COLOR.rgb;
+	EMISSION = emit * COLOR.rgb + ALBEDO * ceiling_fill;
 }

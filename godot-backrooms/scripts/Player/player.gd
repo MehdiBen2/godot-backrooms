@@ -9,6 +9,7 @@ const Footsteps := preload("res://scripts/Player/footsteps.gd")
 const TorchModel := preload("res://scripts/Player/torch_model.gd")
 const Blink := preload("res://scripts/Player/blink.gd")
 const PlayerShadow := preload("res://scripts/Player/player_shadow.gd")
+const Handheld := preload("res://scripts/Player/handheld.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -81,6 +82,9 @@ var eye := STAND_H
 var was_stepping := false
 var step_triggered := false
 var fov_kick := 0.0
+var handheld := Handheld.new()   # camcorder-in-the-hands offsets: weight, tremor, uneven steps (handheld.gd)
+var pitch_accum := 0.0           # mouse pitch since the last physics tick (rad), for the handheld weight
+var bob_amp := 1.0               # eased per-step bob height from handheld.step_amp
 var health := 100.0
 var sanity := 100.0
 var sanity_lock := -1.0        # >= 0 pins sanity there (debug console)
@@ -185,6 +189,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-e.relative.x * sens)
 		turn_accum += -e.relative.x * sens
+		pitch_accum += -e.relative.y * sens
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
@@ -330,7 +335,10 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	elif not walking:
 		if was_stepping:
 			was_stepping = false
-			if not step_triggered: footsteps.step(false, crouch, 0.5)   # trailing foot comes down softly
+			if not step_triggered:
+				footsteps.step(false, crouch, 0.5)   # trailing foot comes down softly
+				handheld.step(0.5, false)
+		handheld.settle()
 		bob += dt * 1.5
 		y = eye + sin(bob) * 0.012 * head_bob
 	else:
@@ -338,10 +346,12 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		var freq := 12.0 if sprint else (6.0 if crouch else 8.5)
 		bob += dt * freq
 		var b := sin(bob)
-		y = eye + b * (0.07 if sprint else 0.035) * head_bob
+		bob_amp = lerpf(bob_amp, handheld.step_amp, minf(1.0, dt * 8.0))    # no two steps the same height
+		y = eye + b * (0.07 if sprint else 0.035) * head_bob * bob_amp
 		if b < -0.85 and not step_triggered:
 			step_triggered = true
 			footsteps.step(sprint, crouch, 1.0)
+			handheld.step(0.6 if crouch else 1.0, sprint)
 		elif b > 0.0:
 			step_triggered = false
 	land_dip *= exp(-dt * 9.0)
@@ -358,13 +368,20 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
 	var yaw_rate := turn_accum / maxf(dt, 0.0001)
 	turn_accum = 0.0
+	var pitch_rate := pitch_accum / maxf(dt, 0.0001)
+	pitch_accum = 0.0
+	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
+	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
+	handheld.update(dt, yaw_rate, pitch_rate, shake, head_bob)
+	cam.position += handheld.offset
+	cam.rotation.y = handheld.yaw
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
 	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
 	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
 	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
 	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
-	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk
+	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)
@@ -373,7 +390,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	var pitch_total := pitch_off + qx * 0.006 * qk
+	var pitch_total := pitch_off + qx * 0.006 * qk + handheld.pitch
 	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline

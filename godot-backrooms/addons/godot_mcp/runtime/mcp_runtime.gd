@@ -42,6 +42,12 @@ var _started_at_msec := 0
 
 
 func _ready() -> void:
+	# Local patch: this is editor tooling. In an exported build (no "editor" feature) it would keep
+	# retrying a socket and expose node/method calls to anything on localhost, so switch it off.
+	if not OS.has_feature("editor"):
+		set_process(false)
+		queue_free()
+		return
 	_project_path = ProjectSettings.globalize_path("res://")
 	_started_at_msec = Time.get_ticks_msec()
 	process_mode = Node.PROCESS_MODE_ALWAYS

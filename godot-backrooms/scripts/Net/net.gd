@@ -14,6 +14,11 @@ const SEND_INTERVAL := 1.0 / 20.0
 const HELLO_TIMEOUT := 6.0       # no hello from the host by then: we are on different game versions
 const NAME_MAX := 16
 const MAX_PLAYERS := 8
+## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
+## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
+## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
+const PROTOCOL := 2
+const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const CLOUDFLARED_PATHS := [
 	"C:/Program Files (x86)/cloudflared/cloudflared.exe",
 	"C:/Program Files/cloudflared/cloudflared.exe",
@@ -32,6 +37,7 @@ var debug := false               # --net-debug: print what the entity is doing o
 var _dbg_t := 0.0
 var launch_name := ""           # --player-name= from the launcher
 var names := {}                 # peer id -> callsign ("" until they send one)
+var build_tag := ""             # release tag from the launcher's version.txt ("DEV" when run from the editor)
 var remotes := {}               # peer id -> RemotePlayer
 
 var _send_t := 0.0
@@ -45,6 +51,7 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	build_tag = _read_build_tag()
 	# The launcher passes --join=<host or tunnel link> and --player-name=<name>
 	var join_to := ""
 	var host_mode := ""
@@ -52,7 +59,7 @@ func _ready() -> void:
 		if a.begins_with("--join="):
 			join_to = a.substr(7)
 		elif a.begins_with("--player-name="):
-			launch_name = a.substr(14).strip_edges().left(NAME_MAX).to_upper()
+			launch_name = clean_name(a.substr(14))
 		elif a == "--host" or a == "--host-local":       # open the lobby straight away (-local: no tunnel)
 			host_mode = a
 		elif a.begins_with("--port="):
@@ -153,7 +160,7 @@ func _on_peer_connected(id: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(id)
 		return
 	names[id] = ""
-	_hello.rpc_id(id, my_name())
+	_hello.rpc_id(id, my_name(), PROTOCOL, build_tag)
 	if hosting:
 		_level.rpc_id(id, Game.level_index)
 		if mq_level >= 0:
@@ -195,9 +202,17 @@ func _update_count() -> void:
 
 # ---- RPCs -------------------------------------------------------------------------------
 @rpc("any_peer", "reliable")
-func _hello(callsign: String) -> void:
+func _hello(callsign: String, protocol: int, their_build: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
-	names[id] = callsign.strip_edges().left(NAME_MAX).to_upper()
+	if protocol != PROTOCOL:
+		var theirs := their_build.left(24).to_upper()
+		if hosting:
+			multiplayer.multiplayer_peer.disconnect_peer(id)    # they get the message from their own side
+		elif id == 1:
+			leave()
+			_set_status("VERSION MISMATCH // HOST: %s  YOU: %s // BOTH OF YOU: UPDATE IN THE LAUNCHER" % [theirs, build_tag])
+		return
+	names[id] = clean_name(callsign)
 	if id == 1:
 		_hello_wait = -1.0
 	var r: Node = remotes.get(id)
@@ -206,17 +221,50 @@ func _hello(callsign: String) -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _level(idx: int) -> void:
+	if idx < 0 or idx >= 64:       # Game.level_count may not be loaded yet on a guest; change_level wraps it anyway
+		return
 	if idx != Game.level_index:
 		Game.change_level(idx)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
 	var id := multiplayer.get_remote_sender_id()
+	if not _is_peer(id) or not _valid_state(t, pos, yaw, pitch, spd, level):
+		return
 	var r: Node = _ensure_remote(id)
 	r.push_state(t, pos, yaw, pitch, spd, flags, level)
 
 ## Snapshot clock: simulated time of the physics step the position comes from. Wall time would be off
 ## by up to a frame (several physics steps run back to back in one frame), which shows as stutter.
+static func _valid_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, level: int) -> bool:
+	if not (is_finite(t) and pos.is_finite() and is_finite(yaw) and is_finite(pitch) and is_finite(spd)):
+		return false
+	return absf(pos.x) < MAX_COORD and absf(pos.y) < MAX_COORD and absf(pos.z) < MAX_COORD \
+		and spd >= 0.0 and spd < 1000.0 and level >= 0 and level < 64
+
+## A peer that is actually connected right now (a late packet must not bring a player back after they left)
+func _is_peer(id: int) -> bool:
+	return id > 0 and multiplayer.get_peers().has(id)
+
+## Callsigns are shown on 3D labels and in the lobby list: printable ASCII only, trimmed, capped
+static func clean_name(raw: String) -> String:
+	var out := ""
+	for c in raw.strip_edges().to_upper():
+		var u := c.unicode_at(0)
+		if u >= 32 and u < 127 and c != "[" and c != "]":
+			out += c
+		if out.length() >= NAME_MAX:
+			break
+	return out.strip_edges()
+
+## The launcher writes the release tag next to the exe; from the editor there is none
+static func _read_build_tag() -> String:
+	var path := OS.get_executable_path().get_base_dir().path_join("version.txt")
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return "DEV"
+	return f.get_as_text().strip_edges().left(24)
+
 static func clock() -> float:
 	return Engine.get_physics_frames() / float(Engine.physics_ticks_per_second)
 
@@ -333,6 +381,8 @@ func send_mq_view(seen: bool) -> void:
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _mq_view_rpc(seen: bool) -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
 	_mq_view[multiplayer.get_remote_sender_id()] = [seen, Time.get_ticks_msec() / 1000.0]
 
 ## Host: is any other survivor looking at it? (it only ever moves when nobody is)
@@ -393,6 +443,8 @@ func send_wt_view(looking: bool) -> void:
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _wt_view_rpc(looking: bool) -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
 	_wt_view[multiplayer.get_remote_sender_id()] = [looking, Time.get_ticks_msec() / 1000.0]
 
 ## Host: is another survivor staring at it? (its "stared at too long" timer counts everyone)

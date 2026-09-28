@@ -17,7 +17,7 @@ var door_leaf_mat: StandardMaterial3D
 var door_hw_mat: StandardMaterial3D
 var door_frame_mat: StandardMaterial3D
 ## The level's ceiling material when it has light panels baked into it (an emission texture, e.g. BRC_A).
-## Then level_lighting.gd builds the ceiling itself, one textured quad per cell with a light behind its
+## Then level_fixtures.gd builds the ceiling itself, one textured quad per cell with a light behind its
 ## panels, instead of the plain ceiling here plus hanging troffers.
 var panel_ceiling: StandardMaterial3D
 
@@ -75,7 +75,7 @@ func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMater
 	m.roughness_texture = load("res://textures/%s_rough.webp" % tex)
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.webp" % tex)
-	m.ao_light_affect = 0.85
+	m.ao_light_affect = AO_DIRECT
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
 	m.uv1_scale = per_metre
@@ -96,7 +96,7 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 	m.roughness = 0.95
 	m.ao_enabled = true
 	m.ao_texture = load("res://textures/%s_ao.png" % prefix)
-	m.ao_light_affect = 0.85
+	m.ao_light_affect = AO_DIRECT
 	m.metallic_specular = 0.28
 	if world:
 		m.uv1_triplanar = true
@@ -105,6 +105,26 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 		m.uv1_offset = Vector3(0, 1, 0)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	m.texture_repeat = true
+	return m
+
+## How much the baked AO maps darken *direct* light. AO is occlusion of light arriving from all round, so it
+## belongs on the ambient / bounce light; at 0.85 the wallpaper's baked ceiling band and baseboard stayed dark
+## right under a lamp and in the torch beam, a painted-on shadow that never moved. The real contact
+## darkening now comes from the shadows, the bounce light and SSAO.
+const AO_DIRECT := 0.2
+
+## Ceiling materials whose bounce-light fill level_lighting.gd drives (found-footage look)
+var ceil_mats: Array[Material] = []
+
+## A ceiling material that can glow with its own colour (the fill stands in for bounce light off the lit
+## carpet and walls, which the tube lights never put on the ceiling layer). Starts dark.
+func _fillable_ceiling(m: StandardMaterial3D) -> StandardMaterial3D:
+	if not m.emission_enabled:
+		m.emission_enabled = true
+		m.emission_texture = m.albedo_texture
+		m.emission = m.albedo_color
+		m.emission_energy_multiplier = 0.0
+		ceil_mats.append(m)
 	return m
 
 ## The ceiling's own render layer: the tube lights skip it (a point light 0.45 m under it blows a white hotspot);
@@ -147,7 +167,7 @@ func _build_surfaces() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if panel_ceiling != null: pass          # built by level_lighting.gd with its lights
+			if panel_ceiling != null: pass          # built by level_fixtures.gd with its lights
 			elif classic.has(c): classic_ceil.append(c)
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
@@ -158,12 +178,12 @@ func _build_surfaces() -> void:
 	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
-	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
+	_cell_surface(ceil_cells, func(c): return ceiling_height(c), _fillable_ceiling(ceil_m), true).layers = CEIL_LAYER
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
 	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0), true).layers = CEIL_LAYER
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _fillable_ceiling(_classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0)), true).layers = CEIL_LAYER
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -194,7 +214,7 @@ func _default_tile_material() -> StandardMaterial3D:
 	tm.roughness_texture = load("res://textures/tiles_rough.png")
 	tm.ao_enabled = true
 	tm.ao_texture = load("res://textures/tiles_ao.png")
-	tm.ao_light_affect = 0.85
+	tm.ao_light_affect = AO_DIRECT
 	tm.metallic = 0.02
 	tm.metallic_specular = 0.55
 	tm.uv1_triplanar = true
@@ -216,7 +236,7 @@ func _build_floor_collision(floor_cells: Array) -> void:
 		body.add_child(cs)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
-## (the plain quad above, or level_lighting.gd's panel ceiling) has ever carried a collider, so nothing
+## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
 ## has ever stopped a jump, a shove or a tall entity from poking straight through into the unlit plenum
 ## above it - only ever noticed at a low ceiling because that's the one height anything can actually reach.
 func _build_ceiling_collision(floor_cells: Array) -> void:

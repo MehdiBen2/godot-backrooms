@@ -1,5 +1,5 @@
 extends Node3D
-## THE LEVEL, layer 1 of 4: the grid it is built from. Reads levels/levels.json (the playlist the web
+## THE LEVEL, layer 1: the grid it is built from. Reads levels/levels.json (the playlist the web
 ## game and tools/level_editor.py share) and the .lvl it points at. Grid rows are z, characters are x:
 ## '#' wall, '.' floor, 'O' pit (v1 files also used 'T' thin wall, 'A' archway, 'D' door; those load as
 ## objects now). Zones paint extra properties onto cells (tall / low ceilings, tile floors, bright / dim /
