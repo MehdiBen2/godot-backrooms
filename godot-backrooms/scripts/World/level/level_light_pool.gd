@@ -88,12 +88,11 @@ func _build_light_pool() -> void:
 		var l := OmniLight3D.new()
 		l.light_color = LIGHT_COLOR
 		l.light_size = 0.0                   # > 0 turns on PCSS soft shadows, expensive: only on Ultra (_read_quality)
-		l.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID   # much cheaper than cube shadows, fine for ceiling lights
-		# The two paraboloid halves split on the light's local Z. Unrotated that seam is a vertical plane
-		# through the lamp, a stretched, blurry line down the walls and across the floor right under it.
-		# Pointing Z down puts the whole room in the lower half (sharpest straight down) and the seam
-		# up at lamp height, where only the top of the walls is.
-		l.basis = Basis(Vector3.RIGHT, -PI / 2.0)
+		# Cube shadows. Dual paraboloid is cheaper (2 renders instead of 6) but it warps the shadow map and only
+		# gets it right at mesh vertices: the walls here are big boxes with a handful of vertices, so the
+		# straight edge of a thin wall threw a curved, banana-shaped shadow onto the wall beside it. Only the
+		# nearest `light_shadows` tubes cast at all (Gfx preset), which is where that cost is controlled.
+		l.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
 		l.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		l.omni_attenuation = 1.4
 		l.light_energy = 0.0

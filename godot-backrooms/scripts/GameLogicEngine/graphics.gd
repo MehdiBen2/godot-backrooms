@@ -6,7 +6,7 @@ extends Node
 ##
 ## The biggest costs in this game are the tube lights around you (level_light_pool.gd keeps a pool of
 ## them following you) and their shadows: `lights` is how many are lit at once and `light_shadows` how
-## many of the nearest cast shadows (each one is six shadow renders a frame). `far_lights` are cheap
+## many of the nearest cast shadows (each one is a cube shadow: six shadow renders a frame). `far_lights` are cheap
 ## shadowless lights on the tubes further out, so distant tubes still light their walls. `smooth` runs the physics
 ## (and so the camera) at the display's refresh rate instead of 60 Hz, so a 144 Hz screen moves at 144.
 ## `scale` is only the ceiling: `adapt` lets the game drop the internal render size below it whenever
