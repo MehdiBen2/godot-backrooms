@@ -12,7 +12,6 @@ const HINT_STRONG := Color("ded6ad")
 const METER_LABEL := Color("b5a975")
 const METER_VAL := Color("ded6ad")
 const REC_RED := Color("ff3b30")
-const AMBER := Color("ffc107")
 const DIM := Color(0.9, 0.88, 0.8, 0.55)
 
 var font: FontFile = load("res://fonts/vcr.ttf")
@@ -25,14 +24,15 @@ var shown_vals := {}      # meter name -> displayed value (eased toward the real
 var t := 0.0
 var playing_label: Label
 var time_label: Label
-var rec_dot: ColorRect
+var rec_dot: Control
 var post_mat: ShaderMaterial
 var threat_s := 0.0
 var fear_s := 0.0
-var papers_val: RichTextLabel
 var meters := {}          # name -> {fill, text}
 var player: Node
 var level: Node
+var corners: Array[Control] = []
+var shake_seed := randf() * 1000.0
 
 func _ready() -> void:
 	layer = 5
@@ -78,6 +78,15 @@ func _label(text: String, size: float, color: Color, spacing := 1.5) -> Label:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return l
 
+func _round_dot(diameter: float, color: Color) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(diameter, diameter)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.draw.connect(func():
+		c.draw_circle(Vector2(diameter, diameter) * 0.5, diameter * 0.5, color)
+	)
+	return c
+
 func _gradient_rect(h: float, from: Color, to: Color) -> TextureRect:
 	var g := Gradient.new()
 	g.set_color(0, from)
@@ -107,19 +116,42 @@ func _hbox(gap: float) -> HBoxContainer:
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return h
 
+const BRACKET_LEN := 42.0
+const BRACKET_THICK := 3.0
+const CHROMA_OFFSET := 1.6
+
 func _corner(anchor: Control.LayoutPreset, x: float, y: float, top: bool, left: bool) -> Control:
-	# Viewfinder bracket: two 2px lines, 30px long
+	# Viewfinder bracket: thick L-shaped lines with a subtle red/cyan chromatic fringe
 	var c := Control.new()
 	c.set_anchors_and_offsets_preset(anchor)
-	c.offset_left = x; c.offset_top = y; c.offset_right = x + 30; c.offset_bottom = y + 30
+	c.offset_left = x; c.offset_top = y
+	c.offset_right = x + BRACKET_LEN; c.offset_bottom = y + BRACKET_LEN
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var col := Color(0.894, 0.882, 0.776, 0.7)
-	var h := ColorRect.new(); h.color = col; h.size = Vector2(30, 2); h.position = Vector2(0, 0 if top else 28)
-	var v := ColorRect.new(); v.color = col; v.size = Vector2(2, 30); v.position = Vector2(0 if left else 28, 0)
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.add_child(h)
-	c.add_child(v)
+	c.set_meta("base_offset", Vector2(x, y))
+
+	var len := BRACKET_LEN
+	var thick := BRACKET_THICK
+	var y_bar := 0.0 if top else len - thick
+	var x_bar := 0.0 if left else len - thick
+
+	var fringes := [
+		[Color(1.0, 0.28, 0.24, 0.35), Vector2(-CHROMA_OFFSET, 0)],   # red, shifted left
+		[Color(0.3, 0.9, 1.0, 0.35), Vector2(CHROMA_OFFSET, 0)],      # cyan, shifted right
+		[Color(0.894, 0.882, 0.776, 0.85), Vector2.ZERO],             # core cream line, on top
+	]
+	for f in fringes:
+		var col: Color = f[0]
+		var off: Vector2 = f[1]
+		var h := ColorRect.new(); h.color = col
+		h.size = Vector2(len, thick); h.position = Vector2(0, y_bar) + off
+		var v := ColorRect.new(); v.color = col
+		v.size = Vector2(thick, len); v.position = Vector2(x_bar, 0) + off
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		c.add_child(h)
+		c.add_child(v)
+
+	corners.append(c)
 	return c
 
 # ---- HUD ------------------------------------------------------------------------
@@ -132,9 +164,9 @@ func _build_hud() -> void:
 
 	# Corner brackets (16 px from top/bottom, 18 px from the sides)
 	hud.add_child(_corner(Control.PRESET_TOP_LEFT, 18, 16, true, true))
-	hud.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - 30, 16, true, false))
-	hud.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - 30, false, true))
-	hud.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - 30, -16 - 30, false, false))
+	hud.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - BRACKET_LEN, 16, true, false))
+	hud.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
+	hud.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
 
 	# Crosshair: a 3 px dot
 	var dot := ColorRect.new()
@@ -150,9 +182,7 @@ func _build_hud() -> void:
 	tl.position = Vector2(42, 32)
 	hud.add_child(tl)
 	var rec := _hbox(8)
-	rec_dot = ColorRect.new()
-	rec_dot.color = REC_RED
-	rec_dot.custom_minimum_size = Vector2(8 * SCALE, 8 * SCALE)
+	rec_dot = _round_dot(8 * SCALE, REC_RED)
 	var dot_c := CenterContainer.new()
 	dot_c.add_child(rec_dot)
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -161,34 +191,6 @@ func _build_hud() -> void:
 	rec.add_child(_label("CAM 04", 12, CREAM, 2))
 	tl.add_child(rec)
 	tl.add_child(_gradient_rect(1, Color(1, 0.231, 0.188, 0.8), Color(1, 0.231, 0.188, 0.15)))
-	var obj := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.059, 0.047, 0.024, 0.5)
-	sb.border_color = Color(1, 0.757, 0.027, 0.25)
-	sb.set_border_width_all(1)
-	sb.content_margin_left = 8; sb.content_margin_right = 8
-	sb.content_margin_top = 3; sb.content_margin_bottom = 3
-	obj.add_theme_stylebox_override("panel", sb)
-	obj.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	obj.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	var orow := _hbox(6)
-	var odot := ColorRect.new()
-	odot.color = AMBER
-	odot.custom_minimum_size = Vector2(6 * SCALE, 6 * SCALE)
-	var odot_c := CenterContainer.new()
-	odot_c.add_child(odot)
-	orow.add_child(odot_c)
-	orow.add_child(_label("ARCHIVE PAPERS:", 11, AMBER))
-	papers_val = null
-	var pv := _label("0 / 10", 11, AMBER)
-	pv.name = "PapersVal"
-	orow.add_child(pv)
-	obj.add_child(orow)
-	var obj_wrap := MarginContainer.new()
-	obj_wrap.add_theme_constant_override("margin_top", int(4 * SCALE))
-	obj_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	obj_wrap.add_child(obj)
-	tl.add_child(obj_wrap)
 
 	# --- top-right: level title, timecode, tape mode ---
 	var tr := _vbox(4)
@@ -362,6 +364,17 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
 	rec_dot.visible = fmod(t, 1.2) < 0.6
+	# Handheld-camera jitter on the viewfinder brackets
+	for i in corners.size():
+		var c := corners[i]
+		var n := shake_seed + i * 41.7
+		var jx := sin(t * 13.0 + n) * 0.35 + sin(t * 27.0 + n * 1.7) * 0.2
+		var jy := cos(t * 11.0 + n) * 0.35 + cos(t * 23.0 + n * 1.3) * 0.2
+		var base: Vector2 = c.get_meta("base_offset")
+		var ox := base.x + jx
+		var oy := base.y + jy
+		c.offset_left = ox; c.offset_top = oy
+		c.offset_right = ox + BRACKET_LEN; c.offset_bottom = oy + BRACKET_LEN
 	var s := int(t)
 	time_label.text = "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
 	if not player: return

@@ -12,6 +12,7 @@ const SNAP_AT := 2.3
 const TOTAL := 4.6
 const FLINCH := 0.3                 # seconds before the snap its hands touch your head
 const HEIGHT := MannequinModel.HEIGHT
+const SNAP_DISTANCE := 0.65         # close enough that reaching arms put its hands right at your head
 
 var m: Node3D                       # mannequin.gd
 var active := false
@@ -56,12 +57,13 @@ func start() -> void:
 	player.frozen = true
 	player.velocity = Vector3.ZERO
 	# however it got here, it ends up standing right behind you, so the neck snap is always the same
-	# full turn onto its face and never a clipped half-turn from the side
+	# full turn onto its face and never a clipped half-turn from the side: it was allowed to catch you
+	# from a wide rear arc, so snap it into true-behind now regardless of which side of that arc it was on
 	var fwd: Vector3 = m.player_forward()
-	var behind: Vector3 = m.nav.resolve(player.global_position - fwd * 0.95, m.RADIUS)
+	var behind: Vector3 = m.nav.resolve(player.global_position - fwd * SNAP_DISTANCE, m.RADIUS)
 	behind.y = 0.0
 	var to_b := Vector3(behind.x - player.global_position.x, 0.0, behind.z - player.global_position.z)
-	if to_b.length() > 0.4 and to_b.normalized().dot(fwd) < -0.8:
+	if to_b.length() > 0.4:
 		real.position = behind
 	start_pos = real.position
 	cam_pos = player.cam.position
@@ -94,7 +96,7 @@ func update(delta: float) -> void:
 		# head tilts and the hands settle, so nothing reads as the figure sliding toward the camera
 		var k := 1.0 - pow(1.0 - turn_x, 4.0)
 		real.position = start_pos
-		var reach := 1.0 + 0.25 * k
+		var reach := 1.45 + 0.25 * k
 		var pose := MannequinModel.rest_pose()
 		pose.lean = 0.08; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
 		pose.armL = reach; pose.armR = reach; pose.splayL = 0.1 - 0.3 * k; pose.splayR = 0.1 - 0.3 * k
@@ -106,9 +108,10 @@ func update(delta: float) -> void:
 		trauma = maxf(trauma, 0.10 + 0.32 * dread * dread)
 	var flinch := _smooth((t - (SNAP_AT - FLINCH)) / 0.12) * (1.0 - _smooth((t - SNAP_AT) / 0.05))
 	var tr2 := trauma * trauma
-	# its hands close on your head: the dry joints creak right behind you
+	# its hands close on your head: the dry joints creak right behind you, and the grip itself jolts you
 	if not touched and t >= SNAP_AT - FLINCH:
 		touched = true
+		trauma = maxf(trauma, 0.55)
 		scares.mannequin_settle(real.position + Vector3(0.0, HEIGHT * 0.8, 0.0), 1.3)
 	# the whip's turn direction and end point are fixed the moment it starts, so it never flips or wanders
 	if t >= SNAP_AT and not prepped:
@@ -132,9 +135,13 @@ func update(delta: float) -> void:
 			twitch = 0.7 - 0.5 * dread + m.rng.randf() * 0.4
 			jerk = (m.rng.randf() - 0.5) * 0.35 * (0.4 + dread)
 		jerk *= exp(-delta * 9.0)
-		cam.position = cam_pos + Vector3(0.0, -0.05 * dread - 0.05 * flinch, 0.0)
-		player.rotation.y += jerk * 0.3 * delta * 6.0
-		cam.rotation.x = cam_pitch + pitch_add
+		# the hold itself: a tight, fast tremor as its grip closes on your neck, on top of the dread sway
+		var grip := flinch * flinch
+		var hold := Vector3(_noise(7.0, t * 3.2), _noise(8.0, t * 3.2), _noise(9.0, t * 3.2)) * 0.03 * grip
+		cam.position = cam_pos + hold + Vector3(0.0, -0.05 * dread - 0.06 * flinch, 0.0)
+		player.rotation.y += jerk * 0.3 * delta * 6.0 + _noise(10.0, t * 3.2) * 0.02 * grip
+		cam.rotation.x = cam_pitch + pitch_add - 0.02 * grip
+		roll += _noise(11.0, t * 3.2) * 0.03 * grip
 	else:
 		# ease-out-back: fast out, overshoot, settle
 		var x := clampf(a / 0.2, 0.0, 1.0)

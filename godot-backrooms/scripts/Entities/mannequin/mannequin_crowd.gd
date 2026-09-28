@@ -11,10 +11,12 @@ const SHUFFLE_POOL := 10                     # the this-many standing decoys nea
 const SHUFFLE_RANGE := 16.0
 const STALK_STEP := 0.9
 const STALK_MIN_DIST := 2.2                  # it never crowds closer than this by itself
+const VARIANT_CHANCE := 0.18                 # of the standing decoys, how many wear the plain sculpt
 
 var m: Node3D                                # mannequin.gd
-var decoys: Array = []                       # {x, z, yaw, pose, g, body}
+var decoys: Array = []                       # {x, z, yaw, pose, g, body, variant}
 var mms: Array = []                          # one MultiMesh per model part
+var variant_mm: MultiMesh                    # one MultiMesh for the plain variant sculpt (whole figure)
 var shufflers: Array = []                    # {i, seen}: every standing decoy
 var stalker := -1                            # decoy index of the one that creeps toward you
 var tick := 0.0
@@ -26,6 +28,7 @@ func _init(owner: Node3D) -> void:
 func build(dealt: Array) -> void:
 	decoys = dealt
 	mms.clear()
+	variant_mm = null
 	var model: MannequinModel = m.model
 	var count := decoys.size()
 	for pt in model.parts:
@@ -37,15 +40,33 @@ func build(dealt: Array) -> void:
 		mmi.multimesh = mm
 		m.add_child(mmi)
 		mms.append(mm)
+	if model.variant_ok:
+		variant_mm = MultiMesh.new()
+		variant_mm.transform_format = MultiMesh.TRANSFORM_3D
+		variant_mm.mesh = model.variant_mesh
+		variant_mm.instance_count = count
+		var vmmi := MultiMeshInstance3D.new()
+		vmmi.multimesh = variant_mm
+		m.add_child(vmmi)
+	var zero := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
 	for i in count:
 		var d: Dictionary = decoys[i]
 		var g := Transform3D(Basis(Vector3.UP, d.yaw), Vector3(d.x, 0.0, d.z))
-		var xfs := model.part_transforms(d.pose)
 		var mode: String = d.pose.get("mode", "stand")
-		var base := MannequinModel.mode_base(mode, m.rng)
-		d["g"] = g * base
-		for j in model.parts.size():
-			(mms[j] as MultiMesh).set_instance_transform(i, g * base * xfs[j])
+		# the plain sculpt has no rig, so it only ever stands at rest
+		var is_variant: bool = model.variant_ok and mode == "stand" and m.rng.randf() < VARIANT_CHANCE
+		d["variant"] = is_variant
+		if is_variant:
+			for j in model.parts.size():
+				(mms[j] as MultiMesh).set_instance_transform(i, zero)
+			variant_mm.set_instance_transform(i, g * model.variant_xf)
+			d["g"] = g
+		else:
+			var xfs := model.part_transforms(d.pose)
+			var base := MannequinModel.mode_base(mode, m.rng)
+			d["g"] = g * base
+			for j in model.parts.size():
+				(mms[j] as MultiMesh).set_instance_transform(i, g * base * xfs[j])
 		# they are solid (lying ones stay walk-over-able)
 		if mode != "stand" and mode != "sit":
 			continue
@@ -82,9 +103,12 @@ func _place(i: int, x: float, z: float, yaw: float) -> void:
 	d.z = z
 	d.yaw = yaw
 	d.g = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, 0.0, z))
-	var xfs: Array = m.model.part_transforms(d.pose)
-	for j in xfs.size():
-		(mms[j] as MultiMesh).set_instance_transform(i, d.g * xfs[j])
+	if d.get("variant", false):
+		variant_mm.set_instance_transform(i, d.g * m.model.variant_xf)
+	else:
+		var xfs: Array = m.model.part_transforms(d.pose)
+		for j in xfs.size():
+			(mms[j] as MultiMesh).set_instance_transform(i, d.g * xfs[j])
 	var body = d.get("body")
 	if body != null and is_instance_valid(body):
 		(body as Node3D).position = Vector3(x, 0.0, z)

@@ -8,11 +8,19 @@ const MODEL := "res://models/entities/creepy_mannequin.glb"
 const HEIGHT := 1.85
 const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL", "rollR", "headYaw", "headTilt", "headNod", "lean", "twist", "bob"]
 
+# A second, plainer sculpt (no separate parts, no skeleton) mixed into the standing crowd for variety.
+# It can't be posed like the real one, so it only ever stands at rest.
+const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
+
 var parts: Array = []                        # {mesh, xf, pivot, kind, side, ...}
 var hip_pivot := Vector3(0.0, 0.818858, -0.099118)
 var norm_xf := Transform3D.IDENTITY          # model space -> figure space
 var ok := false
 var _top_x := Vector2.ZERO                   # x extent of the last arm's shoulder slice
+
+var variant_mesh: Mesh
+var variant_xf := Transform3D.IDENTITY       # model space -> figure space, feet on y = 0, HEIGHT tall
+var variant_ok := false
 
 func _part_kind(node: Node) -> String:
 	var name := ""
@@ -139,6 +147,35 @@ func load_template(host: Node) -> bool:
 			pt.pivot = head_pivot
 	hip_pivot = Vector3(c.x, hip_y, c.z)
 	ok = true
+	return true
+
+## Load the plain variant sculpt: a single static mesh, normalised the same way (feet on y = 0, HEIGHT tall).
+func load_variant(host: Node) -> bool:
+	var packed := load(VARIANT_MODEL) as PackedScene
+	if packed == null:
+		return false
+	var root: Node3D = packed.instantiate()
+	host.add_child(root)
+	var meshes := root.find_children("*", "MeshInstance3D", true, false)
+	if meshes.is_empty():
+		root.queue_free()
+		return false
+	var mi := meshes[0] as MeshInstance3D
+	var xf := Transform3D.IDENTITY
+	var p: Node = mi
+	while p != null and p != root:
+		if p is Node3D:
+			xf = (p as Node3D).transform * xf
+		p = p.get_parent()
+	var b := xf * mi.get_aabb()
+	root.queue_free()
+	if b.size.y <= 0.0:
+		return false
+	var s := HEIGHT / b.size.y
+	var c := b.get_center()
+	variant_mesh = mi.mesh
+	variant_xf = Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s) * xf
+	variant_ok = true
 	return true
 
 # ================================================================= poses
