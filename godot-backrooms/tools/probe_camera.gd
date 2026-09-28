@@ -17,11 +17,11 @@ func _initialize() -> void:
 	await physics_frame
 	print("mouse captured = ", Input.mouse_mode == Input.MOUSE_MODE_CAPTURED)
 	print("head_bob setting = ", player.head_bob, "  handheld = ", player.get("handheld"))
-	for phase in ["standing", "walking"]:
-		if phase == "walking":
-			Input.action_press("ui_up")
+	for phase in ["standing", "walking", "sprinting"]:
+		var key := KEY_W if phase == "walking" else (KEY_SHIFT if phase == "sprinting" else KEY_NONE)
+		if key != KEY_NONE:
 			var ev := InputEventKey.new()
-			ev.physical_keycode = KEY_W
+			ev.physical_keycode = key
 			ev.pressed = true
 			Input.parse_input_event(ev)
 		var mn := Vector3(INF, INF, INF)
