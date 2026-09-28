@@ -1,0 +1,38 @@
+{
+  "_about": "A.S.R.A. entity catalog: entity_id (matches the id each Entities/*.gd script reports to Archive.discover) -> dossier shown once discovered. New entities register a block here and call Archive.discover(\"id\") from wherever they first become visible/active in-game.",
+  "mannequin": {
+    "code": "ASRA-EN-01",
+    "common_name": "Faceless Loiterer",
+    "threat_class": "Class 2",
+    "behavior_vector": "Idles in crowds of visually identical copies; freezes when observed directly, closes distance when unseen.",
+    "directive": "Keep at least one in direct line of sight at all times. Do not enter a room containing more than three."
+  },
+  "bacteria": {
+    "code": "ASRA-EN-02",
+    "common_name": "The Howler",
+    "threat_class": "Class 4",
+    "behavior_vector": "Roams on scent and sound; screeches on first sighting, then closes at pursuit speed. Feigns loss of target to lurk near last known position.",
+    "directive": "Do not run in a straight line. Break sound discipline only as a last resort."
+  },
+  "eyes": {
+    "code": "ASRA-EN-03",
+    "common_name": "Corridor Watchers",
+    "threat_class": "Class 1",
+    "behavior_vector": "Manifests only under severe cognitive decay; opens at range down a sightline and tracks the subject's gaze without approach.",
+    "directive": "Do not stare back. Restore ambient light or lose the sightline to clear the manifestation."
+  },
+  "mimic": {
+    "code": "ASRA-EN-04",
+    "common_name": "Reflected Subject",
+    "threat_class": "Class 3",
+    "behavior_vector": "Adopts the subject's own gait and silhouette at range before approaching under cover of misidentification.",
+    "directive": "Treat any unexplained figure matching your own profile as hostile. Do not approach to confirm."
+  },
+  "killer": {
+    "code": "ASRA-EN-06",
+    "common_name": "Fixed-Post Aggressor",
+    "threat_class": "Class 5",
+    "behavior_vector": "Holds position until a trigger condition is met, then closes on the nearest subject without hesitation.",
+    "directive": "Do not linger near unexplained stationary figures. Evacuate the area immediately on sighting."
+  }
+}

@@ -64,6 +64,7 @@ func _font(spacing: float) -> FontVariation:
 	var fv := FontVariation.new()
 	fv.base_font = font
 	fv.spacing_glyph = int(spacing)
+	fv.variation_embolden = 0.6
 	return fv
 
 func _label(text: String, size: float, color: Color, spacing := 1.5) -> Label:
@@ -187,27 +188,27 @@ func _build_hud() -> void:
 	dot_c.add_child(rec_dot)
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rec.add_child(dot_c)
-	rec.add_child(_label("REC", 12, REC_RED, 3))
-	rec.add_child(_label("CAM 04", 12, CREAM, 2))
+	rec.add_child(_label("REC", 15, REC_RED, 3))
+	rec.add_child(_label("CAM 04", 15, CREAM, 2))
 	tl.add_child(rec)
 	tl.add_child(_gradient_rect(1, Color(1, 0.231, 0.188, 0.8), Color(1, 0.231, 0.188, 0.15)))
 
 	# --- top-right: level title, timecode, tape mode ---
 	var tr := _vbox(4)
 	tr.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	tr.offset_left = -42 - 300; tr.offset_right = -42; tr.offset_top = 32; tr.offset_bottom = 32
+	tr.offset_left = -42 - 320; tr.offset_right = -42; tr.offset_top = 32; tr.offset_bottom = 32
 	hud.add_child(tr)
-	var title := _label(str(level.level_name).to_upper(), 11, TAPE)
+	var title := _label(str(level.level_name).to_upper(), 13, TAPE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tr.add_child(title)
-	time_label = _label("00:00:00", 11, TAPE)
+	time_label = _label("00:00:00", 13, TAPE)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tr.add_child(time_label)
 	var mode := _hbox(14)
 	mode.alignment = BoxContainer.ALIGNMENT_END
-	playing_label = _label("► PLAY", 11, CREAM)
+	playing_label = _label("► PLAY", 13, CREAM)
 	mode.add_child(playing_label)
-	mode.add_child(_label("SP", 11, CREAM))
+	mode.add_child(_label("SP", 13, CREAM))
 	tr.add_child(mode)
 	tr.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.788, 0.745, 0.627, 0.6)))
 

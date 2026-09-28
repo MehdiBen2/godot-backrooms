@@ -93,6 +93,7 @@ func debug_spawn() -> bool:
 		return false
 	present = true
 	visible = true
+	Archive.discover("killer")
 	return true
 
 func debug_despawn() -> void:

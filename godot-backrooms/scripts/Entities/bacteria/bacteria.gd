@@ -107,6 +107,7 @@ func vocalize(delta: float, st: String) -> void:
 		var was := voice_state
 		voice_state = st
 		if st == "screech" or (st == "chase" and was != "screech"):
+			Archive.discover("bacteria")
 			scares.entity_call("scream", pos, true)
 			scares.startle(0.7 if was == "lurk" else 0.4)      # out of the dark beside you: much worse
 			_screech_fx(d)

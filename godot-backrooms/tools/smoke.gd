@@ -52,7 +52,7 @@ func _process(_dt: float) -> bool:
 	if frames > 1300 and frames % 60 == 0 and frames < 1900:
 		print("f", frames, " snap_t=", snappedf(man.snap_t, 0.1), " dead=", root.get_node("Game").dead, " fov=", ply.cam.fov)
 		print("f", frames, " mimic spawned=", main.get_node("Mimic").spawned, " mode=", main.get_node("Mimic").mode, " ent=", ent.state)
-	# ---- the newer paths: lying in wait, the tubes, the watcher, the eyes, tile steps, presets
+	# ---- the newer paths: lying in wait, the tubes, the eyes, tile steps, presets
 	if frames == 1900:
 		var g3 = root.get_node("Game")
 		g3.dead = false
@@ -71,13 +71,12 @@ func _process(_dt: float) -> bool:
 			if f.burst > 0:
 				bursting += 1
 		print("disturbed tubes: ", bursting, " of ", lvl.lit.size())
-		print("watcher: ", main.get_node("Watcher").debug_spawn("stand"))
 		print("wallKnock -> ", main.get_node("Events").run_event("wallKnock"), "  breathBehind -> ", main.get_node("Events").run_event("breathBehind"))
 		ply.sanity_lock = 5.0
 		main.get_node("Eyes").debug_set(1)
 	if frames > 1900 and frames % 60 == 0 and frames < 2400:
 		print("f", frames, " ent=", ent.state, " waiting=", ent.lurk_waiting,
-			" watcher=", main.get_node("Watcher").present, " eyes=", main.get_node("Eyes").alive_count(),
+			" eyes=", main.get_node("Eyes").alive_count(),
 			" lights=", main.get_node("Level").pool.filter(func(l): return l.visible).size())
 	if frames == 2100:
 		var lvl2 = main.get_node("Level")

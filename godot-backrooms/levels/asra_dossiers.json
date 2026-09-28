@@ -1,0 +1,47 @@
+{
+  "_about": "A.S.R.A. Field Archive dossiers, one block per levels/levels.json entry id. \"_default\" is used for any level id not listed here (e.g. a new level added to levels.json). New levels register a block here, keyed by their levels.json \"id\", and list the entity ids (see asra_entities.json) that can appear in them under \"entities\".",
+  "level0": {
+    "designation": "LEVEL 0 — \"THE LOBBY\"",
+    "threat_classification": "CLASS 1",
+    "metrics": {
+      "spatial_reliability": "94.2% Euclidean // minor drift vectors, east corridor // room topology stable",
+      "temporal_coherence": "NOMINAL // baseline-aligned, no measurable dilation",
+      "cognitive_decay": "Fluorescent hum 38dB // sensory erosion index LOW",
+      "atmosphere_substratum": "Carpet moisture 12% // airborne mold count TRACE"
+    },
+    "directives": [
+      "Do not count the light blinks.",
+      "Return paths seal after 40m of undocumented travel.",
+      "Maintain steady pace. Running attracts attention."
+    ],
+    "entities": ["mannequin", "eyes"]
+  },
+  "level_2_yellow_halls": {
+    "designation": "LEVEL 2 — \"THE YELLOW HALLS\"",
+    "threat_classification": "CLASS 3",
+    "metrics": {
+      "spatial_reliability": "71.8% Euclidean // pronounced drift vectors, all axes // topology unstable past 200m",
+      "temporal_coherence": "RETROGRADE // dilation increases with depth",
+      "cognitive_decay": "Fluorescent hum 61dB // sensory erosion index ELEVATED",
+      "atmosphere_substratum": "Carpet moisture 34% // airborne mold count HIGH"
+    },
+    "directives": [
+      "Do not linger at wall junctions.",
+      "Sound discipline is mandatory beyond the second hallway.",
+      "Abort exploration if hum exceeds 70dB."
+    ],
+    "entities": ["bacteria", "mimic", "killer"]
+  },
+  "_default": {
+    "designation": "LEVEL // DESIGNATION PENDING",
+    "threat_classification": "UNDETERMINED",
+    "metrics": {
+      "spatial_reliability": "NO SURVEY DATA",
+      "temporal_coherence": "NO SURVEY DATA",
+      "cognitive_decay": "NO SURVEY DATA",
+      "atmosphere_substratum": "NO SURVEY DATA"
+    },
+    "directives": ["Field team has not filed directives for this level."],
+    "entities": []
+  }
+}

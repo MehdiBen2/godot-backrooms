@@ -10,7 +10,6 @@
 [ext_resource type="Script" uid="uid://cfnpkyqdwt7ig" path="res://scripts/Entities/bacteria/bacteria.gd" id="8"]
 [ext_resource type="Script" uid="uid://hiucucacxs3e" path="res://scripts/Entities/mannequin/mannequin.gd" id="9"]
 [ext_resource type="Script" uid="uid://cael5vy4v6327" path="res://scripts/Entities/mimic/mimic.gd" id="10"]
-[ext_resource type="Script" uid="uid://cnojn8tmyd7et" path="res://scripts/Entities/watcher/watcher.gd" id="11"]
 [ext_resource type="Script" uid="uid://m1s2nixljs0d" path="res://scripts/UI/debug/debug_console.gd" id="12"]
 [ext_resource type="Script" uid="uid://cpxc42glaf07t" path="res://scripts/Player/heart.gd" id="13"]
 [ext_resource type="Script" uid="uid://boto124pp6cs" path="res://scripts/Entities/eyes/eyes.gd" id="14"]
@@ -121,9 +120,6 @@ script = ExtResource("9")
 
 [node name="Mimic" type="Node3D" parent="." unique_id=2109186444]
 script = ExtResource("10")
-
-[node name="Watcher" type="Node3D" parent="." unique_id=128270197]
-script = ExtResource("11")
 
 [node name="Eyes" type="Node3D" parent="." unique_id=1521498022]
 script = ExtResource("14")

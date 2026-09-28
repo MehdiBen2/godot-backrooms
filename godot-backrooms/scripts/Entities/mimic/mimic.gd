@@ -166,6 +166,7 @@ func appear() -> bool:
 	mode = "approach"
 	spawned = true
 	body.visible = true
+	Archive.discover("mimic")
 	return true
 
 # Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?

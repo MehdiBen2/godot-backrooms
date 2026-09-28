@@ -13,16 +13,15 @@ extends CanvasLayer
 ##   lightout                   trigger the grid power cut event
 ##   clear                      wipe this log
 ##
-## Names: bacteria, mannequin, mimic, watcher, killer (placeholder model, no AI yet).
+## Names: bacteria, mannequin, mimic, killer (placeholder model, no AI yet).
 
 const ENTITIES := {
 	"bacteria": "Entity",
 	"mannequin": "Mannequin",
 	"mimic": "Mimic",
-	"watcher": "Watcher",
 	"killer": "Killer",
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "watcher", "killer"]
+const ORDER := ["bacteria", "mannequin", "mimic", "killer"]
 
 var root: Node
 var panel: PanelContainer
@@ -116,14 +115,14 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("spawn <name|all> [peek|stand]   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   clear")
+			_print("spawn <name|all>   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   clear")
 			_print("names: " + ", ".join(ORDER))
 		"list":
 			for n in ORDER:
 				var on := _active(n)
 				_print("  %-10s %s" % [n, "[color=lime]active[/color]" if on else "[color=gray]off[/color]"])
 		"spawn":
-			_each(arg, true, parts[2] if parts.size() > 2 else "")
+			_each(arg, true)
 		"despawn", "kill":
 			_each(arg, false)
 		"tp":
@@ -173,20 +172,20 @@ func _submit(line: String) -> void:
 		_:
 			_print("[color=orange]unknown command: " + cmd + "[/color]")
 
-func _each(arg: String, spawn: bool, kind := "") -> void:
+func _each(arg: String, spawn: bool) -> void:
 	if arg == "":
 		_print("[color=orange]%s what? %s, or all[/color]" % ["spawn" if spawn else "despawn", ", ".join(ORDER)])
 		return
 	if arg == "all":
 		for n in ORDER:
-			_apply(n, spawn, kind)
+			_apply(n, spawn)
 		return
 	if arg == "entity":
 		arg = "bacteria"
 	if not ORDER.has(arg):
 		_print("[color=orange]unknown entity: " + arg + "[/color]")
 		return
-	_apply(arg, spawn, kind)
+	_apply(arg, spawn)
 
 func _node(name: String) -> Node:
 	return root.get_node_or_null(ENTITIES[name])
@@ -195,13 +194,13 @@ func _active(name: String) -> bool:
 	var n := _node(name)
 	return n != null and n.debug_active()
 
-func _apply(name: String, spawn: bool, kind := "") -> void:
+func _apply(name: String, spawn: bool) -> void:
 	var n := _node(name)
 	if n == null:
 		_print("[color=orange]%s is not in the scene[/color]" % name)
 		return
 	if spawn:
-		var ok = n.debug_spawn(kind) if name == "watcher" else n.debug_spawn()
+		var ok = n.debug_spawn()
 		if ok == false:
 			_print("[color=orange]%s: no room to spawn here, try another spot[/color]" % name)
 			return

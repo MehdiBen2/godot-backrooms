@@ -666,5 +666,6 @@ func debug_despawn() -> void:
 func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT
 	visible = true
+	Archive.discover("mannequin")
 	reset()
 	return true

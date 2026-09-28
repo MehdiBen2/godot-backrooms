@@ -47,6 +47,13 @@ const ARCHIVE_CAP := 10
 var lore_entries: Array = []         # {id, title, text}
 var archive_list: VBoxContainer
 
+# A.S.R.A. Field Archive: level dossier + entity catalog, gated by Archive (asra_archive.gd)
+var asra_designation_label: Label
+var asra_threat_label: Label
+var asra_metrics_box: VBoxContainer
+var asra_directives_box: VBoxContainer
+var asra_entity_list: VBoxContainer
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -315,6 +322,14 @@ func _build() -> void:
 	page_host.add_child(archive_page)
 	pages["ARCHIVE"] = archive_page
 
+	# --- A.S.R.A. page: clinical level dossier + gated entity catalog ---
+	var asra_page := _build_asra_page()
+	asra_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	asra_page.visible = false
+	page_host.add_child(asra_page)
+	pages["A.S.R.A."] = asra_page
+	Archive.entity_discovered.connect(func(_id: String): _refresh_asra())
+
 	for n in tab_buttons: _style_tab(n)
 
 	# Corner brackets, rendered into the viewport too so the lens warps them along with everything else
@@ -331,7 +346,7 @@ func _build_tab_bar() -> VBoxContainer:
 	bar.add_theme_constant_override("separation", 4)
 	bar.custom_minimum_size = Vector2(96, 0)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for tab in ["ITEMS", "VITALS", "ARCHIVE"]:
+	for tab in ["ITEMS", "VITALS", "ARCHIVE", "A.S.R.A."]:
 		var b := _tab_button(tab)
 		b.pressed.connect(_select_tab.bind(tab))
 		tab_buttons[tab] = b
@@ -367,12 +382,19 @@ func _select_tab(name: String) -> void:
 	for n in tab_buttons: _style_tab(n)
 	_refresh_header_count()
 	if name == "VITALS": _refresh_vitals()
+	elif name == "A.S.R.A.": _refresh_asra()
 
 func _refresh_header_count() -> void:
 	if not count_label: return
 	match active_page:
 		"ITEMS": count_label.text = "%d/%d" % [items.size(), SLOT_COUNT]
 		"ARCHIVE": count_label.text = "%d/%d" % [lore_entries.size(), ARCHIVE_CAP]
+		"A.S.R.A.":
+			var ids: Array = Archive.current_dossier().get("entities", [])
+			var found := 0
+			for id in ids:
+				if Archive.is_discovered(str(id)): found += 1
+			count_label.text = "%d/%d" % [found, ids.size()]
 		_: count_label.text = ""
 
 # ---- VITALS page: live stats off the player, same numbers the HUD meters already show ----
@@ -442,6 +464,129 @@ func add_lore(id: String, title: String, text: String) -> void:
 	if lore_entries.size() >= ARCHIVE_CAP: return
 	lore_entries.append({"id": id, "title": title, "text": text})
 	_refresh_archive()
+
+# ---- A.S.R.A. page: clinical level dossier + entity catalog, gated by Archive (asra_archive.gd) ----
+# New levels/entities register in levels/asra_dossiers.json / levels/asra_entities.json — see the
+# comment at the top of scripts/GameLogicEngine/asra_archive.gd for where discovery is fired from.
+func _build_asra_page() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(v)
+
+	asra_designation_label = _label("LEVEL // DESIGNATION PENDING", 12, CREAM, 2)
+	asra_designation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(asra_designation_label)
+	asra_threat_label = _label("THREAT CLASSIFICATION: UNDETERMINED", 10, RED, 1.5)
+	v.add_child(asra_threat_label)
+	var line := ColorRect.new()
+	line.color = Color(0.9, 0.882, 0.804, 0.12)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(_spacer(6))
+	v.add_child(line)
+	v.add_child(_spacer(8))
+
+	asra_metrics_box = VBoxContainer.new()
+	asra_metrics_box.add_theme_constant_override("separation", 3)
+	asra_metrics_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(asra_metrics_box)
+	v.add_child(_spacer(8))
+
+	asra_directives_box = VBoxContainer.new()
+	asra_directives_box.add_theme_constant_override("separation", 2)
+	asra_directives_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(asra_directives_box)
+	v.add_child(_spacer(10))
+
+	v.add_child(_label("ASSOCIATED ANOMALIES", 10, Color(0.9, 0.882, 0.804, 0.45), 3))
+	var line2 := ColorRect.new()
+	line2.color = Color(0.9, 0.882, 0.804, 0.12)
+	line2.custom_minimum_size = Vector2(0, 1)
+	line2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line2)
+	v.add_child(_spacer(6))
+	asra_entity_list = VBoxContainer.new()
+	asra_entity_list.add_theme_constant_override("separation", 8)
+	asra_entity_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(asra_entity_list)
+
+	_refresh_asra()
+	return scroll
+
+func _refresh_asra() -> void:
+	if not asra_designation_label: return
+	var d := Archive.current_dossier()
+	asra_designation_label.text = str(d.get("designation", "LEVEL // DESIGNATION PENDING"))
+	asra_threat_label.text = "THREAT CLASSIFICATION: %s" % str(d.get("threat_classification", "UNDETERMINED"))
+
+	for c in asra_metrics_box.get_children(): c.queue_free()
+	var metrics: Dictionary = d.get("metrics", {})
+	var metric_labels := {
+		"spatial_reliability": "SPATIAL RELIABILITY",
+		"temporal_coherence": "TEMPORAL COHERENCE",
+		"cognitive_decay": "COGNITIVE DECAY",
+		"atmosphere_substratum": "SUBSTRATUM",
+	}
+	for key in ["spatial_reliability", "temporal_coherence", "cognitive_decay", "atmosphere_substratum"]:
+		if not metrics.has(key): continue
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var n := _label(str(metric_labels[key]), 9, Color(0.9, 0.882, 0.804, 0.5), 1.5)
+		n.custom_minimum_size = Vector2(118, 0)
+		row.add_child(n)
+		var val := _label(str(metrics[key]), 9, TAPE, 0.5)
+		val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(val)
+		asra_metrics_box.add_child(row)
+
+	for c in asra_directives_box.get_children(): c.queue_free()
+	asra_directives_box.add_child(_label("FIELD DIRECTIVES", 9, Color(0.9, 0.882, 0.804, 0.4), 2))
+	for dtext in d.get("directives", []):
+		var l := _label("— " + str(dtext), 10, HINT, 0.5)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		asra_directives_box.add_child(l)
+
+	for c in asra_entity_list.get_children(): c.queue_free()
+	var entity_ids: Array = d.get("entities", [])
+	if entity_ids.is_empty():
+		asra_entity_list.add_child(_label("NO ANOMALIES CATALOGUED FOR THIS SITE", 10, Color(0.9, 0.882, 0.804, 0.35), 1))
+	else:
+		for id in entity_ids:
+			asra_entity_list.add_child(_build_asra_entity_entry(str(id)))
+	_refresh_header_count()
+
+## Discovered: full profile off Archive.entity_info(). Undiscovered: redacted placeholder — the
+## dossier lists that something is catalogued here without saying what until the player sees it.
+func _build_asra_entity_entry(id: String) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if Archive.is_discovered(id):
+		var info := Archive.entity_info(id)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 8)
+		head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		head.add_child(_label(str(info.get("code", "ASRA-EN-??")), 10, AMBER, 1))
+		head.add_child(_label(str(info.get("common_name", id)).to_upper(), 11, CREAM, 1))
+		box.add_child(head)
+		var cls := _label(str(info.get("threat_class", "UNDETERMINED")), 9, RED, 1)
+		box.add_child(cls)
+		var vec := _label("VECTOR // " + str(info.get("behavior_vector", "")), 9, TAPE, 0.5)
+		vec.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(vec)
+		var dir := _label("DIRECTIVE // " + str(info.get("directive", "")), 9, HINT, 0.5)
+		dir.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(dir)
+	else:
+		box.add_child(_label("[UNREGISTERED ANOMALY // NO DIRECT SIGHTING]", 10, Color(0.9, 0.882, 0.804, 0.3), 1))
+		box.add_child(_label("████████████ ████ ██████████", 9, Color(0.9, 0.882, 0.804, 0.15), 1))
+	return box
 
 func _build_slot(i: int) -> Control:
 	var p := PanelContainer.new()

@@ -76,7 +76,7 @@ func start() -> void:
 	m.real_yaw = atan2(to.x, to.z)
 	real.rotation.y = m.real_yaw
 	var pose := MannequinModel.rest_pose()
-	pose.armL = 1.45; pose.armR = 1.45; pose.splayL = 0.1; pose.splayR = 0.1; pose.lean = 0.08
+	pose.armL = 1.15; pose.armR = 1.15; pose.splayL = 0.1; pose.splayR = 0.1; pose.lean = 0.08
 	pose["align"] = 1.0
 	m.set_pose(pose)
 
@@ -96,7 +96,7 @@ func update(delta: float) -> void:
 		# head tilts and the hands settle, so nothing reads as the figure sliding toward the camera
 		var k := 1.0 - pow(1.0 - turn_x, 4.0)
 		real.position = start_pos
-		var reach := 1.45 + 0.25 * k
+		var reach := 1.15 - 0.05 * k          # settles onto the neck, not raised above the head
 		var pose := MannequinModel.rest_pose()
 		pose.lean = 0.08; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
 		pose.armL = reach; pose.armR = reach; pose.splayL = 0.1 - 0.3 * k; pose.splayR = 0.1 - 0.3 * k
