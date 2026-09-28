@@ -4,7 +4,8 @@ extends "res://scripts/World/level/level_lighting.gd"
 ## level_data.gd (the grid), level_geometry.gd (walls, floors, ceilings, pits, grime), level_fixtures.gd
 ## (the troffers, flicker, power cuts), level_light_pool.gd (the real lights that follow you) and
 ## level_lighting.gd (GI, fog, eye adaptation, glare). This last layer
-## puts them together and adds the exit and the battery packs.
+## puts them together and adds the exit, the battery packs, the rolls of hazard tape and the tape
+## already stuck up in this level (tape_marks.gd).
 ##
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
@@ -12,6 +13,9 @@ const LevelExit := preload("res://scripts/World/props/level_exit.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const BATTERY_PER_CELLS := 60        # roughly one pack per this many open cells
 const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
+const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
+const TAPE_PER_CELLS := 180          # rarer than batteries: one roll lasts a long while
 
 var exit_door: Node3D
 
@@ -22,6 +26,10 @@ func _ready() -> void:
 	build_lighting()
 	_build_exit()
 	_spawn_batteries()
+	_spawn_tape()
+	var marks := TapeMarks.new()
+	marks.name = "TapeMarks"
+	add_child(marks)
 
 func _process(delta: float) -> void:
 	update_lighting(delta)
@@ -63,6 +71,15 @@ func _build_exit() -> void:
 # ---------------------------------------------------------------- battery packs
 # Scattered at random open floor cells each load (own RNG: the level's rng is fixed-seeded).
 func _spawn_batteries() -> void:
+	_scatter(func(): return BatteryPickup.new(), BATTERY_PER_CELLS, 2, 12)
+
+# ---------------------------------------------------------------- hazard tape
+func _spawn_tape() -> void:
+	_scatter(func(): return TapePickup.new(), TAPE_PER_CELLS, 1, 4)
+
+## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),
+## none right at the spawn point
+func _scatter(make: Callable, per_cells: int, lo: int, hi: int) -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
 	var s: Array = level_data.get("spawn", [4, 4])
@@ -75,11 +92,11 @@ func _spawn_batteries() -> void:
 			if absi(c.x - spawn_c.x) + absi(c.y - spawn_c.y) < BATTERY_MIN_SPAWN_DIST: continue
 			open.append(c)
 	if open.is_empty(): return
-	var count := clampi(open.size() / BATTERY_PER_CELLS, 2, 12)
+	var count := clampi(open.size() / per_cells, lo, hi)
 	for i in count:
 		if open.is_empty(): break
 		var c: Vector2i = open.pop_at(r.randi_range(0, open.size() - 1))
-		var b := BatteryPickup.new()
+		var b: Node3D = make.call()
 		b.position = Vector3(c.x * CELL + r.randf_range(-1.4, 1.4), 0.0, c.y * CELL + r.randf_range(-1.4, 1.4))
 		b.rotation.y = r.randf() * TAU
 		add_child(b)

@@ -5,12 +5,15 @@ extends CanvasLayer
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
 ## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
+## And the reflective hazard tape (tape_tool.gd, hold T) with its length readout under the crosshair.
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
+const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const TapeTool := preload("res://scripts/Player/tape_tool.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -27,6 +30,8 @@ var pause_root: Control
 var menu: Control
 var inventory: Control
 var scanner: Node
+var tape: Node
+var tape_label: Label
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween
@@ -70,6 +75,7 @@ func _ready() -> void:
 	_build_pause()
 	_build_inventory()
 	_build_scanner()
+	_build_tape()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -241,7 +247,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "R // BATTERY", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -309,6 +315,23 @@ func _build_scanner() -> void:
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
 	Clearance.yield_filed.connect(_on_yield_filed)
+
+## Every run starts with one roll of hazard tape. The readout under the crosshair only shows while
+## a strip is being pulled out.
+func _build_tape() -> void:
+	inventory.add_item(TapePickup.ITEM_ID, TapePickup.ITEM_NAME, TapePickup.ITEM_DESC, 1,
+		TapePickup.ITEM_CODE, TapePickup.STACK, TapePickup.MODEL_PATH)
+	tape = TapeTool.new()
+	tape.player = player
+	tape.inventory = inventory
+	add_child(tape)
+	tape_label = _label("", 13, CREAM, 2)
+	tape_label.set_anchors_preset(Control.PRESET_CENTER)
+	tape_label.offset_left = -300; tape_label.offset_right = 300
+	tape_label.offset_top = 34; tape_label.offset_bottom = 60
+	tape_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tape_label.visible = false
+	hud_root.add_child(tape_label)
 
 ## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
@@ -496,6 +519,11 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
 	rec_dot.modulate.a = 1.0 if fmod(t, 1.2) < 0.6 else 0.0
+	tape_label.visible = tape.pulling
+	if tape.pulling:
+		var txt: String = "TAPE %.2f M  //  ROLL %.1f M" % [tape.length, maxf(0.0, tape.roll_left - tape.length)]
+		if tape_label.text != txt:
+			tape_label.text = txt
 	# Handheld-camera jitter on the viewfinder brackets
 	for i in corners.size():
 		var c := corners[i]

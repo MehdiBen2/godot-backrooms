@@ -14,6 +14,7 @@ const CONTROLS := [
 	[["C"], "Crouch", "Ctrl works too. Quieter, and harder to see"],
 	[["F"], "Flashlight", "Pick up battery packs from the floor"],
 	[["R"], "Load battery", "Uses one carried battery pack: +45%"],
+	[["T"], "Hazard tape", "Hold on a wall or the floor, look along it, let go to stick"],
 	[["Tab"], "Inventory", "Check what you're carrying"],
 	[["V"], "Push to talk", "Co-op voice chat"],
 	[["F11"], "Fullscreen", "Alt+Enter works too"],
