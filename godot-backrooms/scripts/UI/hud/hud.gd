@@ -3,7 +3,7 @@ extends CanvasLayer
 ## REC block + objective (top-left), level / timecode / tape mode (top-right), four meters
 ## (bottom-left), key hints (bottom-right), viewfinder corner brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
-## Also owns the TAB terminal (inventory.gd), the A.S.R.A. field scanner (scanner.gd, hold Q) with
+## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
 ## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
@@ -293,7 +293,7 @@ func _build_inventory() -> void:
 ## terminal. Reticle and toast live in hud_root: they fade with the OSD under the pause menu and the
 ## terminal (a scan only runs in play, and the dossier shows the entry anyway).
 func _build_scanner() -> void:
-	inventory.add_item("scanner", "A.S.R.A. Field Scanner",
+	inventory.add_item("scanner", "T.S.R.A. Field Scanner",
 		"Hold Q while an anomaly is near the middle of your view and in plain sight. A complete "
 		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1)
 	scanner = Scanner.new()
@@ -314,7 +314,7 @@ func _on_entity_logged(id: String) -> void:
 		return
 	var info := Archive.entity_info(id)
 	var lines: Array = [
-		["%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
+		["%s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
 		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
 	]
 	var report: Dictionary = Clearance.last_report
@@ -332,7 +332,7 @@ func _on_yield_filed(report: Dictionary) -> void:
 			return
 		"new_site":
 			var info := Archive.entity_info(str(report.id))
-			var lines: Array = [["%s // %s" % [str(info.get("code", "ASRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
+			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
 			lines.append_array(_yield_lines(report))
 			toast.push("[NEW SITE CONFIRMED]", lines)
 	_promotion(report)
@@ -351,11 +351,18 @@ func _promotion(report: Dictionary) -> void:
 	if to <= int(report.get("tier_from", 0)):
 		return
 	var t := Clearance.tier(to)
-	toast.push("[CLEARANCE ELEVATED]", [
+	var lines: Array = [
 		[Clearance.tier_label(to), Term.GREEN, 21],
 		[str(t.get("brief", "")), Term.TEXT, 16, true],
-		["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16],
-	])
+	]
+	# every tier passed on the way up, in case one filing jumps more than one
+	for i in range(int(report.get("tier_from", 0)) + 1, to + 1):
+		var u: Dictionary = Clearance.tier(i).get("unlock", {})
+		if not u.is_empty():
+			lines.append(["UNLOCKED: " + str(u.get("name", "")), Term.AMBER, 18])
+			lines.append([str(u.get("text", "")), Term.TEXT, 16, true])
+	lines.append(["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16])
+	toast.push("[CLEARANCE ELEVATED]", lines)
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.

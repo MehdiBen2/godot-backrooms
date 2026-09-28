@@ -1,15 +1,17 @@
 extends Node
-## A.S.R.A. (Anomalous Spatial Research Agency) Field Archive: which entities the player has
+## T.S.R.A. (Threshold Spatial Research Agency) Field Archive: which entities the player has
 ## personally encountered, plus the level/entity dossier catalog the inventory's ARCHIVE tab
 ## renders (scripts/UI/inventory/inventory.gd). Autoload name: Archive.
 ##
-## Entities are logged by scanning them: the A.S.R.A. field scanner (scripts/Player/scanner.gd, hold
+## Entities are logged by scanning them: the T.S.R.A. field scanner (scripts/Player/scanner.gd, hold
 ## Q) calls discover("id") once a reading completes, and the HUD toast announces the new entry.
 ## Anything scannable joins the SCANNABLE group with its id in the "asra_id" meta, and implements
 ## scan_points() -> Array of world positions it can be read from right now (empty while it is away):
 ## see bacteria.gd, mannequin.gd, mimic.gd, eyes.gd, killer.gd.
-## New entities: add a block to levels/asra_entities.json keyed by the new id, then give the entity
-## an _enter_tree() + scan_points() like the others.
+## It also implements scan_behavior(at) -> {state, detail, danger 0..2}: what it is doing right now,
+## which the C-4 deep scan shows on the reticle (scan_readout.gd).
+## New entities: add a block to levels/asra_entities.json keyed by the new id (with its classified
+## annex), then give the entity an _enter_tree() + scan_points() + scan_behavior() like the others.
 ##
 ## New levels: add a block to levels/asra_dossiers.json keyed by the level's levels.json "id",
 ## listing the entity ids (from asra_entities.json) that can appear in it under "entities".
@@ -17,7 +19,9 @@ extends Node
 signal entity_discovered(entity_id: String)
 
 const SCANNABLE := "asra_scannable"
-const AGENCY := "ANOMALOUS SPATIAL RESEARCH AGENCY"   # what A.S.R.A. stands for (terminal footer)
+# What T.S.R.A. stands for (terminal footer). The agency was A.S.R.A. once: internal names (asra_id,
+# asra_*.json, the save files) keep that spelling so existing saves carry over.
+const AGENCY := "THRESHOLD SPATIAL RESEARCH AGENCY"
 
 const ENTITIES_PATH := "res://levels/asra_entities.json"
 const DOSSIERS_PATH := "res://levels/asra_dossiers.json"

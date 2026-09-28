@@ -1,5 +1,5 @@
 extends Node
-## A.S.R.A. Field Clearance: the agency's take on XP. Every useful scanner reading files Research
+## T.S.R.A. Field Clearance: the agency's take on XP. Every useful scanner reading files Research
 ## Yield (RY); lifetime yield sets the player's clearance tier (levels/asra_clearance.json).
 ## Autoload name: Clearance (listed after Archive, whose entries it reads).
 ##
@@ -12,6 +12,8 @@ extends Node
 ## and each is marked up by the conditions it was taken in (close range, off-roster sightings,
 ## hazard pay while the player is hurt or losing it, readings filed back to back).
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
+## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
+## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
 
 signal yield_filed(report: Dictionary)
 
@@ -86,6 +88,23 @@ func tier_progress() -> float:
 ## Scanner calibration: each tier shaves 5% off a reading's time (scanner.gd SCAN_TIME)
 func scan_time_scale() -> float:
 	return 1.0 - 0.05 * tier_index()
+
+## The tier whose "unlock" has this id (-1 if none does): classified / rangefinder / deep_scan
+func unlock_tier(id: String) -> int:
+	for i in tiers.size():
+		if str(tiers[i].get("unlock", {}).get("id", "")) == id:
+			return i
+	return -1
+
+## Has the player's clearance reached the tier that grants `id`? (see levels/asra_clearance.json)
+func has_unlock(id: String) -> bool:
+	var i := unlock_tier(id)
+	return i >= 0 and tier_index() >= i
+
+## "C-2" for the tier that grants `id`
+func unlock_code(id: String) -> String:
+	var i := unlock_tier(id)
+	return str(tiers[i].get("code", "")) if i >= 0 else "C-?"
 
 ## Yield the next tier needs in all (the current total at the top)
 func next_threshold() -> int:

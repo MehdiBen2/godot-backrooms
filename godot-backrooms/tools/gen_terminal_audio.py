@@ -1,4 +1,4 @@
-"""Synthesizes the A.S.R.A. field terminal's UI sounds (scripts/UI/inventory/inventory.gd) into
+"""Synthesizes the T.S.R.A. field terminal's UI sounds (scripts/UI/inventory/inventory.gd) into
 audio/terminal/. Standard library only; re-run from anywhere after tweaking:
 
     python tools/gen_terminal_audio.py

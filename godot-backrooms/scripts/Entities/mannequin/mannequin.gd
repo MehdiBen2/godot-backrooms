@@ -709,7 +709,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if Game.dev_keys and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F2 and e.shift_pressed:
 		warp_to_room()
 
-# ---------------------------------------------------------------- A.S.R.A. scanner
+# ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
@@ -725,6 +725,19 @@ func scan_points() -> Array:
 	for d in decoys:
 		out.append(global_transform * Vector3(d.x, HEIGHT * 0.75, d.z))
 	return out
+
+## C-4 deep scan (scan_readout.gd): which one is real, and where it is in its hunt / rest cycle.
+## `at` is the scan point the reading is locked on (the real one's, or a decoy's)
+func scan_behavior(at: Vector3) -> Dictionary:
+	if real_node == null or Vector2(at.x - real_node.global_position.x, at.z - real_node.global_position.z).length() > 0.5:
+		return {"state": "INERT FIXTURE", "detail": "NOT THE ACTIVE SPECIMEN", "danger": 0}
+	if not awake:
+		return {"state": "DORMANT", "detail": "ACTIVE SPECIMEN // NOTHING HAS WOKEN IT YET", "danger": 1}
+	if rest_left > REST_TIME:
+		return {"state": "DEEP DORMANCY", "detail": "ACTIVE SPECIMEN // WAKES IN %d S // LEAVE NOW" % ceili(rest_left), "danger": 1}
+	if rest_left > 0.0:
+		return {"state": "RESTING", "detail": "ACTIVE SPECIMEN // HUNTS AGAIN IN %d S" % ceili(rest_left), "danger": 1}
+	return {"state": "HUNTING", "detail": "ACTIVE SPECIMEN // FROZEN ONLY WHILE WATCHED // DO NOT BLINK", "danger": 2}
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:

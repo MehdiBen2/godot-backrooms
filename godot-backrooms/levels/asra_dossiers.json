@@ -1,5 +1,5 @@
 {
-  "_about": "A.S.R.A. Field Archive dossiers: the [F2] THRESHOLD DOSSIER page in the TAB terminal (scripts/UI/inventory/inventory.gd), one block per levels/levels.json entry, keyed by its \"id\". Fields: designation (ZONE line), threat_classification (THREAT line), metrics (spatial_reliability / temporal_coherence / cognitive_decay / atmosphere_substratum, any may be left out), directives (the numbered MANDATES), entities (ids from asra_entities.json listed under PHENOMENA LOGGED; each shows as unconfirmed until the player scans it with the field scanner), and optionally log_sheet (the LOG SHEET number; derived from the designation when absent). \"_default\" is used for any level id not listed here (e.g. a new level added to levels.json).",
+  "_about": "T.S.R.A. Field Archive dossiers: the [F2] THRESHOLD DOSSIER page in the TAB terminal (scripts/UI/inventory/inventory.gd), one block per levels/levels.json entry, keyed by its \"id\". Fields: designation (ZONE line), threat_classification (THREAT line), metrics (spatial_reliability / temporal_coherence / cognitive_decay / atmosphere_substratum, any may be left out), directives (the numbered MANDATES), entities (ids from asra_entities.json listed under PHENOMENA LOGGED; each shows as unconfirmed until the player scans it with the field scanner), and optionally log_sheet (the LOG SHEET number; derived from the designation when absent). \"_default\" is used for any level id not listed here (e.g. a new level added to levels.json). Optionally classified: the CLASSIFIED ANNEX under the mandates, redacted until the player's clearance unlocks \"classified\" (levels/asra_clearance.json): history, survival (numbered steps), survey_note, incident; any may be left out.",
   "level0": {
     "designation": "LEVEL 0 — \"THE LOBBY\"",
     "threat_classification": "CLASS 1",
@@ -14,7 +14,22 @@
       "Return paths seal after 40m of undocumented travel.",
       "Maintain steady pace. Running attracts attention."
     ],
-    "entities": ["mannequin", "eyes"]
+    "entities": [
+      "mannequin",
+      "eyes"
+    ],
+    "classified": {
+      "history": "Level 0 is the most common point of entry. Most subjects arrive here with no equipment and no explanation, after passing through a surface in ordinary space that should have been solid. The agency keeps no permanent station on this level: every station it has built was found, days later, to be a room indistinguishable from all the others.",
+      "survival": [
+        "Stay near working lights. Darkness drains sanity, and the longer you stay in it the faster it goes.",
+        "Your torch holds sanity steady and slowly restores it - but a lit torch is also the easiest way to be seen. Watch the battery.",
+        "Stamina comes back at a walk. Never spend your last sprint on a hunch.",
+        "Power cuts end. When one hits, stop, put your back to a wall and wait it out with your torch on.",
+        "If the room you walk into is full of mannequins, leave it walking backwards."
+      ],
+      "survey_note": "Room counts on Level 0 do not converge. Three independent surveys of the same wing returned 212, 208, and \"more than there were a minute ago\".",
+      "incident": "INCIDENT 0-001: The first T.S.R.A. field recording. Eleven minutes of empty office rooms and fluorescent hum, no speech. The surveyor who made it has no memory of doing so, and was never reported missing."
+    }
   },
   "level_2_yellow_halls": {
     "designation": "LEVEL 2 — \"THE YELLOW HALLS\"",
@@ -30,7 +45,23 @@
       "Sound discipline is mandatory beyond the second hallway.",
       "Abort exploration if hum exceeds 70dB."
     ],
-    "entities": ["bacteria", "mimic", "killer"]
+    "entities": [
+      "bacteria",
+      "mimic",
+      "killer"
+    ],
+    "classified": {
+      "history": "The Yellow Halls lie below Level 0: older, wetter and louder. The hum rises with depth, and long service corridors dominate the layout. The agency believes the level is still growing - survey maps go out of date within days.",
+      "survival": [
+        "Listen before you move. The hum masks footsteps - yours and the Howler's.",
+        "Wall junctions are where things wait. Cross them quickly and never stop at one.",
+        "A figure in a hazmat suit at the far end of a corridor is not your teammate until it speaks.",
+        "When the grid fails here, whatever hunts by sight starts hunting by other means. Keep moving toward light.",
+        "Anything standing perfectly still and facing you: log it if you must, then leave."
+      ],
+      "survey_note": "Hum above 70dB correlates with every Class 4 sighting on file. The mandate to abort above 70dB is not a comfort guideline.",
+      "incident": "INCIDENT 2-003: Survey Team WREN reported a corridor that was \"longer on the way back\". Odometer data confirms it: 212 m outbound, 1.4 km return."
+    }
   },
   "_default": {
     "designation": "LEVEL // DESIGNATION PENDING",
@@ -41,7 +72,9 @@
       "cognitive_decay": "NO SURVEY DATA",
       "atmosphere_substratum": "NO SURVEY DATA"
     },
-    "directives": ["Field team has not filed directives for this level."],
+    "directives": [
+      "Field team has not filed directives for this level."
+    ],
     "entities": []
   }
 }

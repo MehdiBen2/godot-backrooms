@@ -143,6 +143,8 @@ func _draw_sheet() -> void:
 	var h := sheet.size.y
 	var top := TAB_H
 	var c := CHAMFER
+	if h <= top + c * 2.0:           # nothing pushed yet (the first draw comes before any size)
+		return
 	sheet.draw_colored_polygon(PackedVector2Array([
 		Vector2(0, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c)]), Term.FILL)

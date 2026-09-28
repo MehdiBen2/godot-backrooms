@@ -1,5 +1,5 @@
 extends Control
-## Inventory as an A.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
+## Inventory as an T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
 ## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
 ## carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
@@ -102,7 +102,7 @@ var clickables: Array = []           # fixed controls in the viewport that take 
 # vitals
 var stats := {}                      # key -> {icon, value, cells, shown}
 var link_label: Label
-var clearance_label: Label           # header: A.S.R.A. clearance tier (asra_clearance.gd)
+var clearance_label: Label           # header: T.S.R.A. clearance tier (asra_clearance.gd)
 var clearance_cells: Control
 var clearance_yield: Label
 var link_state := ""
@@ -442,12 +442,12 @@ func _build_header() -> Control:
 	h.offset_left = FRAME_INSET + 30; h.offset_right = -FRAME_INSET - 30
 	h.offset_top = FRAME_INSET + 14; h.offset_bottom = FRAME_INSET + 44
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := _label("A.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
+	var title := _label("T.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.clip_text = true           # gives way to the clearance readout on narrow screens
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(title)
-	# A.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
+	# T.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
 	h.add_child(_label("CLEARANCE: ", 19, MUTED, 2))
 	clearance_label = _label("", 19, AMBER, 2)
 	h.add_child(clearance_label)
@@ -477,9 +477,12 @@ func _spacer_w(w: float) -> Control:
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return c
 
-func _refresh_clearance(_report := {}) -> void:
+func _refresh_clearance(report := {}) -> void:
 	if not clearance_label:
 		return
+	if int(report.get("tier_to", 0)) != int(report.get("tier_from", 0)):
+		_refresh_dossier()
+		_refresh_entries()
 	clearance_label.text = Clearance.tier_label()
 	_set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
 	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
@@ -494,7 +497,7 @@ func _build_footer() -> Control:
 	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# the agency's full name on the left, under the item column; the key hints stay on the right
-	var agency := _label("A.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
+	var agency := _label("T.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
 	agency.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -1020,6 +1023,10 @@ func _refresh_dossier() -> void:
 		dossier_text.add_child(_label("MANDATES:", 21, TEXT, 1))
 		for i in directives.size():
 			dossier_text.add_child(_label("%d. %s" % [i + 1, str(directives[i])], 21, TEXT, 1, true))
+	var cl: Dictionary = d.get("classified", {})
+	if not cl.is_empty():
+		_annex(dossier_text, designation, [["SITE HISTORY", cl.get("history", "")], ["SURVIVAL GUIDANCE", cl.get("survival", [])],
+			["SURVEY NOTE", cl.get("survey_note", "")], ["INCIDENT REPORT", cl.get("incident", "")]], 19)
 
 	_clear(phenomena_list)
 	link_nodes.clear()
@@ -1056,7 +1063,7 @@ func _phenomenon(id: String) -> Control:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Archive.is_discovered(id):
 		var info := Archive.entity_info(id)
-		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
+		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
 		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 17, TEXT, 1, true))
 	else:
 		v.add_child(_label("[UNCONFIRMED] NO SCAN ON FILE", 19, TEXT_DIM, 1))
@@ -1149,7 +1156,7 @@ func _entry_row(i: int, id: String) -> Control:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var top := HBoxContainer.new()
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var code := _label(str(info.get("code", "ASRA-EN-??")) if logged else "ASRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
+	var code := _label(str(info.get("code", "TSRA-EN-??")) if logged else "TSRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
 	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(code)
 	var badge := _label("NEW", 15, AMBER, 2)
@@ -1232,13 +1239,19 @@ func _show_entry() -> void:
 	var info := Archive.entity_info(id)
 	_mark_seen()
 	if Archive.is_discovered(id):
-		entry_detail.add_child(_label(str(info.get("code", "ASRA-EN-??")), 26, AMBER, 2))
+		entry_detail.add_child(_label(str(info.get("code", "TSRA-EN-??")), 26, AMBER, 2))
 		entry_detail.add_child(_label(str(info.get("common_name", id)).to_upper(), 21, TEXT, 1, true))
 		entry_detail.add_child(_label("THREAT CLASS: " + str(info.get("threat_class", "Undetermined")), 18, RED, 1, true))
+		if info.has("description"):
+			_entry_section("OVERVIEW", str(info.description))
 		_entry_section("BEHAVIOUR VECTOR", str(info.get("behavior_vector", "")))
 		_entry_section("FIELD PROTOCOL", str(info.get("directive", "")))
+		var cl: Dictionary = info.get("classified", {})
+		if not cl.is_empty():
+			_annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
+				["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 18)
 	else:
-		entry_detail.add_child(_label("ASRA-EN-??", 26, TEXT_DIM, 2))
+		entry_detail.add_child(_label("TSRA-EN-??", 26, TEXT_DIM, 2))
 		entry_detail.add_child(_label("UNREGISTERED ANOMALY", 21, TEXT_DIM, 1))
 		entry_detail.add_child(_spacer(14))
 		for n in [4, 3, 4, 2]:
@@ -1258,6 +1271,41 @@ func _entry_section(title: String, body: String) -> void:
 	entry_detail.add_child(_spacer(12))
 	entry_detail.add_child(_label(title, 15, MUTED, 2))
 	entry_detail.add_child(_label(body, 18, TEXT, 1, true))
+
+## The CLASSIFIED ANNEX of a dossier or an entry: its sections in full once the player's clearance
+## unlocks "classified" (asra_clearance.gd), until then each title over redaction bars and the tier
+## that releases them. sections: [[title, text or Array of paragraphs]]; an Array under a title with
+## "PROTOCOL" / "GUIDANCE" in it is numbered. Empty sections are left out.
+func _annex(box: VBoxContainer, key: String, sections: Array, px: int) -> void:
+	var open := Clearance.has_unlock("classified")
+	var code := Clearance.unlock_code("classified")
+	box.add_child(_spacer(18))
+	box.add_child(_hline(Color(AMBER if open else RED, 0.5), 2))
+	box.add_child(_spacer(10))
+	if open:
+		box.add_child(_label("CLASSIFIED ANNEX // RELEASED AT %s" % code, 17, AMBER, 2, true))
+	else:
+		box.add_child(_label("CLASSIFIED ANNEX // %s CLEARANCE REQUIRED" % code, 17, RED, 2, true))
+	for sec in sections:
+		var body = sec[1]
+		if (body is String and body == "") or (body is Array and body.is_empty()):
+			continue
+		box.add_child(_spacer(10))
+		box.add_child(_label(str(sec[0]), 15, MUTED, 2))
+		if not open:
+			var rows: int = body.size() if body is Array else 2
+			for r in clampi(rows, 1, 4):
+				box.add_child(_redacted(key + str(sec[0]) + str(r), 2 + (r + str(sec[0]).length()) % 3))
+			continue
+		if body is Array:
+			var numbered: bool = "PROTOCOL" in str(sec[0]) or "GUIDANCE" in str(sec[0])
+			for i in body.size():
+				box.add_child(_label(("%d. %s" % [i + 1, str(body[i])]) if numbered else str(body[i]), px, TEXT, 1, true))
+		else:
+			box.add_child(_label(str(body), px, TEXT, 1, true))
+	if not open:
+		box.add_child(_spacer(10))
+		box.add_child(_label("YOUR CLEARANCE: %s. FILE READINGS WITH THE FIELD SCANNER TO RAISE IT." % Clearance.tier_label(), 15, AMBER, 1, true))
 
 ## Unix seconds -> "YYYY-MM-DD HH:MM" on this machine's clock
 func _local_time(unix: int) -> String:

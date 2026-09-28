@@ -11,8 +11,8 @@ extends CanvasLayer
 ##   sanity <0-100|off>         pin sanity (blur, eyes, health drain all follow); off releases it
 ##   health <0-100>             set health
 ##   lightout                   trigger the grid power cut event
-##   archive [list|reset]       A.S.R.A. entries logged by the field scanner; reset unlogs them all
-##   clearance [reset|add <n>]  A.S.R.A. clearance tier and Research Yield (asra_clearance.gd)
+##   archive [list|reset]       T.S.R.A. entries logged by the field scanner; reset unlogs them all
+##   clearance [reset|add <n>]  T.S.R.A. clearance tier and Research Yield (asra_clearance.gd)
 ##   clear                      wipe this log
 ##
 ## Names: bacteria, mannequin, mimic, killer (placeholder model, no AI yet).

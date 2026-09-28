@@ -215,7 +215,7 @@ func _spawn() -> bool:
 		return true
 	return false
 
-# ---------------------------------------------------------------- A.S.R.A. scanner
+# ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
@@ -228,6 +228,10 @@ func scan_points() -> Array:
 		if not w.dying and w.lid > 0.3:
 			out.append(w.pos)
 	return out
+
+## C-4 deep scan (scan_readout.gd): harmless in itself; the reading is really about your sanity
+func scan_behavior(_at: Vector3) -> Dictionary:
+	return {"state": "WATCHING", "detail": "HARMLESS // YOUR SANITY %d%% - LIGHT UP OR STARE IT DOWN" % int(player.sanity), "danger": 0}
 
 func _add(p: Vector3) -> void:
 	# sized by distance so it always covers the same small angle on screen (about 1 degree per eye):

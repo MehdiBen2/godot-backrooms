@@ -82,7 +82,7 @@ func _floor_y(at: Vector3, fallback: float) -> float:
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	return hit.position.y if hit else fallback
 
-# ---------------------------------------------------------------- A.S.R.A. scanner
+# ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
@@ -93,6 +93,10 @@ func scan_points() -> Array:
 	if not present or body == null:
 		return []
 	return [global_position + Vector3.UP * HEIGHT * 0.6]
+
+## C-4 deep scan (scan_readout.gd)
+func scan_behavior(_at: Vector3) -> Dictionary:
+	return {"state": "HOLDING POST", "detail": "FACING YOU // TRIGGER CONDITION UNKNOWN", "danger": 1}
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:
