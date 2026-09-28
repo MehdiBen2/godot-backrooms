@@ -1,5 +1,5 @@
 extends Control
-## Inventory as an A.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
+## Inventory as an T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
 ## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
 ## carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
@@ -25,6 +25,7 @@ signal close_requested
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
 const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
+const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
 const AMBER := Color("f0a838")
@@ -65,6 +66,8 @@ const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
+const ROW_ICON := 46.0           # item icon on an INV row (rendered from its model, item_icon.gd)
+const PAGE_ICON := 190.0         # the same icon on the [F1] item record
 const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS"]
@@ -102,10 +105,13 @@ var clickables: Array = []           # fixed controls in the viewport that take 
 # vitals
 var stats := {}                      # key -> {icon, value, cells, shown}
 var link_label: Label
+var clearance_label: Label           # header: T.S.R.A. clearance tier (asra_clearance.gd)
+var clearance_cells: Control
+var clearance_yield: Label
 var link_state := ""
 
 # items
-var items: Array = []                # {id, name, desc, count, code, stack}
+var items: Array = []                # {id, name, desc, count, code, stack, icon (model path or "")}
 var selected := -1
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
@@ -144,6 +150,7 @@ func _ready() -> void:
 	visible = false
 	_build()
 	Archive.entity_discovered.connect(_on_entry_logged)
+	Clearance.yield_filed.connect(_refresh_clearance)
 	get_viewport().size_changed.connect(_fit_viewport)
 
 # ---- helpers ------------------------------------------------------------------
@@ -438,13 +445,51 @@ func _build_header() -> Control:
 	h.offset_left = FRAME_INSET + 30; h.offset_right = -FRAME_INSET - 30
 	h.offset_top = FRAME_INSET + 14; h.offset_bottom = FRAME_INSET + 44
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := _label("A.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
+	var title := _label("T.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.clip_text = true           # gives way to the clearance readout on narrow screens
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(title)
+	# T.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
+	h.add_child(_label("CLEARANCE: ", 19, MUTED, 2))
+	clearance_label = _label("", 19, AMBER, 2)
+	h.add_child(clearance_label)
+	h.add_child(_spacer_w(12))
+	clearance_cells = _cells(10, 3.0, false)
+	clearance_cells.custom_minimum_size = Vector2(130, 0)
+	clearance_cells.size_flags_vertical = Control.SIZE_FILL
+	var bar := MarginContainer.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_theme_constant_override("margin_top", 7)
+	bar.add_theme_constant_override("margin_bottom", 9)
+	bar.add_child(clearance_cells)
+	h.add_child(bar)
+	h.add_child(_spacer_w(12))
+	clearance_yield = _label("", 17, TEXT_DIM, 2)
+	h.add_child(clearance_yield)
+	h.add_child(_spacer_w(40))
+	_refresh_clearance()
 	h.add_child(_label("LINK STATUS: ", 19, MUTED, 2))
 	link_label = _label("STABLE", 19, GREEN, 2)
 	h.add_child(link_label)
 	return h
+
+func _spacer_w(w: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size.x = w
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+func _refresh_clearance(report := {}) -> void:
+	if not clearance_label:
+		return
+	if int(report.get("tier_to", 0)) != int(report.get("tier_from", 0)):
+		_refresh_dossier()
+		_refresh_entries()
+	clearance_label.text = Clearance.tier_label()
+	_set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
+	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
+		else "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), Clearance.unit]
 
 func _build_footer() -> Control:
 	var h := HBoxContainer.new()
@@ -454,6 +499,12 @@ func _build_footer() -> Control:
 	h.alignment = BoxContainer.ALIGNMENT_END
 	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# the agency's full name on the left, under the item column; the key hints stay on the right
+	var agency := _label("T.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
+	agency.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	agency.clip_text = true
+	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(agency)
 	for hint in ["UP/DN SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
@@ -654,6 +705,13 @@ func _item_row(i: int) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# icon slot on every row, empty for items without a model, so the codes stay in a column
+	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, ORANGE, 2.0) if it.icon != "" else null
+	if icon == null or (icon as TextureRect).texture == null:
+		icon = Control.new()
+		icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(icon)
 	var labels := [
 		_label("INV: " + str(it.code).rpad(4), 24, TEXT, 1),
 		_label("[>", 24, TEXT, 1),
@@ -916,6 +974,16 @@ func _refresh_item_page() -> void:
 	var it: Dictionary = items[selected]
 	item_page.add_child(_label("[ITEM RECORD // SLOT %02d OF %02d]" % [selected + 1, SLOT_COUNT], 21, TEXT, 1))
 	item_page.add_child(_spacer(12))
+	if it.icon != "":
+		var frame := PanelContainer.new()       # the icon in a bordered square, like the vitals'
+		var sb := _box(Color(AMBER, 0.05), AMBER_DIM, 2)
+		sb.set_content_margin_all(10)
+		frame.add_theme_stylebox_override("panel", sb)
+		frame.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
+		item_page.add_child(frame)
+		item_page.add_child(_spacer(12))
 	item_page.add_child(_label("DESIGNATION: " + str(it.name).to_upper(), 21, TEXT, 1, true))
 	item_page.add_child(_label("CODE: " + str(it.code), 21, TEXT, 1))
 	item_page.add_child(_label("QUANTITY: %d / %d" % [it.count, it.stack], 21, TEXT, 1))
@@ -975,6 +1043,10 @@ func _refresh_dossier() -> void:
 		dossier_text.add_child(_label("MANDATES:", 21, TEXT, 1))
 		for i in directives.size():
 			dossier_text.add_child(_label("%d. %s" % [i + 1, str(directives[i])], 21, TEXT, 1, true))
+	var cl: Dictionary = d.get("classified", {})
+	if not cl.is_empty():
+		_annex(dossier_text, designation, [["SITE HISTORY", cl.get("history", "")], ["SURVIVAL GUIDANCE", cl.get("survival", [])],
+			["SURVEY NOTE", cl.get("survey_note", "")], ["INCIDENT REPORT", cl.get("incident", "")]], 19)
 
 	_clear(phenomena_list)
 	link_nodes.clear()
@@ -1011,7 +1083,7 @@ func _phenomenon(id: String) -> Control:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Archive.is_discovered(id):
 		var info := Archive.entity_info(id)
-		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
+		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
 		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 17, TEXT, 1, true))
 	else:
 		v.add_child(_label("[UNCONFIRMED] NO SCAN ON FILE", 19, TEXT_DIM, 1))
@@ -1104,7 +1176,7 @@ func _entry_row(i: int, id: String) -> Control:
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var top := HBoxContainer.new()
 	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var code := _label(str(info.get("code", "ASRA-EN-??")) if logged else "ASRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
+	var code := _label(str(info.get("code", "TSRA-EN-??")) if logged else "TSRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
 	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(code)
 	var badge := _label("NEW", 15, AMBER, 2)
@@ -1187,13 +1259,19 @@ func _show_entry() -> void:
 	var info := Archive.entity_info(id)
 	_mark_seen()
 	if Archive.is_discovered(id):
-		entry_detail.add_child(_label(str(info.get("code", "ASRA-EN-??")), 26, AMBER, 2))
+		entry_detail.add_child(_label(str(info.get("code", "TSRA-EN-??")), 26, AMBER, 2))
 		entry_detail.add_child(_label(str(info.get("common_name", id)).to_upper(), 21, TEXT, 1, true))
 		entry_detail.add_child(_label("THREAT CLASS: " + str(info.get("threat_class", "Undetermined")), 18, RED, 1, true))
+		if info.has("description"):
+			_entry_section("OVERVIEW", str(info.description))
 		_entry_section("BEHAVIOUR VECTOR", str(info.get("behavior_vector", "")))
 		_entry_section("FIELD PROTOCOL", str(info.get("directive", "")))
+		var cl: Dictionary = info.get("classified", {})
+		if not cl.is_empty():
+			_annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
+				["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 18)
 	else:
-		entry_detail.add_child(_label("ASRA-EN-??", 26, TEXT_DIM, 2))
+		entry_detail.add_child(_label("TSRA-EN-??", 26, TEXT_DIM, 2))
 		entry_detail.add_child(_label("UNREGISTERED ANOMALY", 21, TEXT_DIM, 1))
 		entry_detail.add_child(_spacer(14))
 		for n in [4, 3, 4, 2]:
@@ -1213,6 +1291,41 @@ func _entry_section(title: String, body: String) -> void:
 	entry_detail.add_child(_spacer(12))
 	entry_detail.add_child(_label(title, 15, MUTED, 2))
 	entry_detail.add_child(_label(body, 18, TEXT, 1, true))
+
+## The CLASSIFIED ANNEX of a dossier or an entry: its sections in full once the player's clearance
+## unlocks "classified" (asra_clearance.gd), until then each title over redaction bars and the tier
+## that releases them. sections: [[title, text or Array of paragraphs]]; an Array under a title with
+## "PROTOCOL" / "GUIDANCE" in it is numbered. Empty sections are left out.
+func _annex(box: VBoxContainer, key: String, sections: Array, px: int) -> void:
+	var open := Clearance.has_unlock("classified")
+	var code := Clearance.unlock_code("classified")
+	box.add_child(_spacer(18))
+	box.add_child(_hline(Color(AMBER if open else RED, 0.5), 2))
+	box.add_child(_spacer(10))
+	if open:
+		box.add_child(_label("CLASSIFIED ANNEX // RELEASED AT %s" % code, 17, AMBER, 2, true))
+	else:
+		box.add_child(_label("CLASSIFIED ANNEX // %s CLEARANCE REQUIRED" % code, 17, RED, 2, true))
+	for sec in sections:
+		var body = sec[1]
+		if (body is String and body == "") or (body is Array and body.is_empty()):
+			continue
+		box.add_child(_spacer(10))
+		box.add_child(_label(str(sec[0]), 15, MUTED, 2))
+		if not open:
+			var rows: int = body.size() if body is Array else 2
+			for r in clampi(rows, 1, 4):
+				box.add_child(_redacted(key + str(sec[0]) + str(r), 2 + (r + str(sec[0]).length()) % 3))
+			continue
+		if body is Array:
+			var numbered: bool = "PROTOCOL" in str(sec[0]) or "GUIDANCE" in str(sec[0])
+			for i in body.size():
+				box.add_child(_label(("%d. %s" % [i + 1, str(body[i])]) if numbered else str(body[i]), px, TEXT, 1, true))
+		else:
+			box.add_child(_label(str(body), px, TEXT, 1, true))
+	if not open:
+		box.add_child(_spacer(10))
+		box.add_child(_label("YOUR CLEARANCE: %s. FILE READINGS WITH THE FIELD SCANNER TO RAISE IT." % Clearance.tier_label(), 15, AMBER, 1, true))
 
 ## Unix seconds -> "YYYY-MM-DD HH:MM" on this machine's clock
 func _local_time(unix: int) -> String:
@@ -1354,8 +1467,9 @@ func _update_glitch(dt: float) -> void:
 # ---- public API: World/props pickups can call these -------------------------------------
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
 ## pickup can stay on the floor. `code` is the 3-4 letter tag on the INV row (default: from the
-## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS).
-func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS) -> bool:
+## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS);
+## `icon` is the item's model (res:// .glb): its icon is rendered from it, with an orange outline.
+func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS, icon := "") -> bool:
 	for it in items:
 		if it.id == id:
 			if it.count >= it.stack:
@@ -1368,7 +1482,7 @@ func add_item(id: String, title: String, desc: String, count := 1, code := "", s
 	if code == "":
 		code = title.replace(" ", "")
 	stack = maxi(stack, 1)
-	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack})
+	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack, "icon": icon})
 	if selected == -1:
 		selected = 0
 	_refresh_items()
@@ -1388,6 +1502,11 @@ func has_item(id: String) -> bool:
 	for it in items:
 		if it.id == id: return true
 	return false
+
+func item_count(id: String) -> int:
+	for it in items:
+		if it.id == id: return it.count
+	return 0
 
 func add_lore(id: String, title: String, text: String) -> void:
 	for e in lore_entries:

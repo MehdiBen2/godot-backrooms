@@ -17,21 +17,44 @@ const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
-# How worn each variant is (variant_style): cracked plaster, a missing hand / forearm / arm, a painted-on
+# How worn each variant is (variant_style): cracked plaster, missing parts (a hand, an arm, both arms, the
+# head, or head and arms: a bare torso on legs), a painted-on
 # display-shop outfit, or standing under a dust sheet. Drawn by shaders/mannequin_wear.gdshader.
 const WEAR_SHADER := preload("res://shaders/mannequin_wear.gdshader")
 const SHEET_CHANCE := 0.15
 const CRACK_CHANCE := 0.4
-const MISSING_CHANCE := 0.25
+const MISSING_CHANCE := 0.35
 const DRESSED_CHANCE := 0.3
-const MISSING_PARTS := ["ForearmL", "ForearmR", "ArmL", "ArmR"]
-const OUTFITS := [                            # shirt, bottom: faded shop-window colours
-	[Color(0.42, 0.14, 0.13), Color(0.16, 0.16, 0.18)],
-	[Color(0.2, 0.28, 0.38), Color(0.55, 0.5, 0.42)],
-	[Color(0.62, 0.6, 0.55), Color(0.12, 0.12, 0.14)],
-	[Color(0.25, 0.33, 0.22), Color(0.3, 0.22, 0.16)],
-	[Color(0.5, 0.4, 0.2), Color(0.35, 0.33, 0.36)],
+# what can be broken off, with how likely each is (a piece takes whatever hangs from it with it)
+const MISSING_SETS := [
+	[["ForearmL"], 1.0], [["ForearmR"], 1.0],            # a hand and forearm
+	[["ArmL"], 1.0], [["ArmR"], 1.0],                    # one arm
+	[["ArmL", "ArmR"], 1.5],                             # armless
+	[["Head"], 1.5],                                     # headless
+	[["Head", "ArmL", "ArmR"], 0.6],                     # just a torso on legs
 ]
+# Display-shop outfits in faded colours: top (+ pattern), bottom, sleeves, trousers or a dress
+const OUTFITS := [
+	{"top": Color(0.42, 0.14, 0.13), "bottom": Color(0.16, 0.16, 0.18), "sleeves": true},
+	{"top": Color(0.2, 0.28, 0.38), "bottom": Color(0.55, 0.5, 0.42), "sleeves": false},
+	{"top": Color(0.62, 0.6, 0.55), "bottom": Color(0.12, 0.12, 0.14), "sleeves": true, "pants": true},
+	{"top": Color(0.25, 0.33, 0.22), "bottom": Color(0.3, 0.22, 0.16), "sleeves": false, "pants": true},
+	{"top": Color(0.18, 0.2, 0.3), "bottom": Color(0.14, 0.14, 0.16), "sleeves": true, "pattern": 1, "pattern_color": Color(0.8, 0.78, 0.7)},
+	{"top": Color(0.5, 0.16, 0.14), "bottom": Color(0.2, 0.2, 0.24), "sleeves": true, "pattern": 2, "pattern_color": Color(0.15, 0.12, 0.1), "pants": true},
+	{"top": Color(0.58, 0.46, 0.2), "sleeves": false, "dress": true},
+	{"top": Color(0.14, 0.14, 0.16), "sleeves": true, "dress": true, "pattern": 3, "pattern_color": Color(0.85, 0.83, 0.76)},
+	{"top": Color(0.45, 0.36, 0.42), "sleeves": false, "dress": true, "pattern": 1, "pattern_color": Color(0.75, 0.72, 0.66)},
+	{"top": Color(0.7, 0.68, 0.62), "bottom": Color(0.25, 0.3, 0.42), "sleeves": false, "pattern": 3, "pattern_color": Color(0.5, 0.15, 0.14), "pants": true},
+]
+# What goes over the sheeted ones (mannequin_sheet.gdshader kind): linen dust sheet, moving blanket, plastic
+const SHEETS := [
+	{"kind": 0, "tint": Color(0.8, 0.78, 0.72), "weight": 1.0},
+	{"kind": 0, "tint": Color(0.74, 0.68, 0.52), "weight": 0.6},      # yellowed with age
+	{"kind": 1, "tint": Color(0.36, 0.38, 0.36), "weight": 0.6},
+	{"kind": 1, "tint": Color(0.3, 0.34, 0.44), "weight": 0.4},
+	{"kind": 2, "tint": Color(0.9, 0.92, 0.9), "weight": 0.7},        # plastic: the figure shows through
+]
+const SHEET_SHADER := preload("res://shaders/mannequin_sheet.gdshader")
 var _sheet_mesh: ArrayMesh
 
 var parts: Array = []                        # {mesh, xf, pivot, kind, side, ...}
@@ -215,26 +238,49 @@ func load_variant(host: Node) -> bool:
 	var c := b.get_center()
 	var norm := Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s)
 	variant_mesh = mi.mesh
+	# the model's vertex colours are piece ids for mannequin_wear.gdshader, not a tint: the importer
+	# would multiply the albedo by them (a dark red figure) wherever the plain material is still used
+	for sf in variant_mesh.get_surface_count():
+		var sm := variant_mesh.surface_get_material(sf) as StandardMaterial3D
+		if sm != null:
+			sm.vertex_color_use_as_albedo = false
 	variant_xf = norm * xf
 	variant_root_xf = norm
 	variant_scene = packed
 	variant_ok = true
 	return true
 
-## How this one has aged: {sheet, cracks 0..1, missing bone or "", clothes, outfit, sleeves}
+## How this one has aged: {sheet, cracks 0..1, missing: [bone names], clothes, outfit, sleeves}
 static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
-	var st := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
+	var st := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0, "sheet_kind": 0,
+		"seed": rng.randf() * 100.0}
 	if rng.randf() < SHEET_CHANCE:
 		st.sheet = true
+		var total := 0.0
+		for sh in SHEETS:
+			total += float(sh.weight)
+		var roll := rng.randf() * total
+		for k in SHEETS.size():
+			roll -= float(SHEETS[k].weight)
+			if roll <= 0.0:
+				st.sheet_kind = k
+				break
 		return st
 	if rng.randf() < CRACK_CHANCE:
 		st.cracks = rng.randf_range(0.6, 1.0)
 	if rng.randf() < MISSING_CHANCE:
-		st.missing = MISSING_PARTS[rng.randi() % MISSING_PARTS.size()]
+		var total := 0.0
+		for m in MISSING_SETS:
+			total += float(m[1])
+		var roll := rng.randf() * total
+		for m in MISSING_SETS:
+			roll -= float(m[1])
+			if roll <= 0.0:
+				st.missing = (m[0] as Array).duplicate()
+				break
 	if rng.randf() < DRESSED_CHANCE:
 		st.clothes = true
 		st.outfit = rng.randi() % OUTFITS.size()
-		st.sleeves = rng.randf() < 0.5
 	return st
 
 ## A posed copy of the variant sculpt (its own rigged scene), in figure space, worn per `style`
@@ -243,48 +289,59 @@ func make_variant(pose: Dictionary, style := {}) -> Node3D:
 	if not variant_rigged:
 		return null
 	if style.get("sheet", false):
-		var covered := Node3D.new()                     # just the sheet: whatever stands under it stays hidden
+		var sheet: Dictionary = SHEETS[int(style.get("sheet_kind", 0)) % SHEETS.size()]
+		var covered := Node3D.new()
 		var mi_s := MeshInstance3D.new()
 		mi_s.mesh = _sheet()
 		mi_s.transform = variant_root_xf.affine_inverse()   # the crowd places it through variant_root_xf
+		var sm := ShaderMaterial.new()
+		sm.shader = SHEET_SHADER
+		sm.set_shader_parameter("kind", int(sheet.kind))
+		sm.set_shader_parameter("tint", sheet.tint)
+		sm.set_shader_parameter("seed", float(style.get("seed", 0.0)))
+		mi_s.material_override = sm
 		covered.add_child(mi_s)
+		if int(sheet.kind) == 2:                         # clear plastic: the figure inside, stood at rest
+			var inner := style.duplicate()
+			inner.sheet = false
+			var fig := make_variant(rest_pose(), inner)
+			if fig != null:
+				covered.add_child(fig)
 		return covered
 	var n: Node3D = variant_scene.instantiate()
 	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
-	var missing: String = style.get("missing", "")
+	var missing = style.get("missing", [])
+	if missing is String:
+		missing = [missing] if missing != "" else []
 	# a Skeleton3D only schedules its update while in the tree: posed before that, it keeps showing its rest
 	sk.ready.connect(func():
 		pose_variant(sk, pose)
-		if _vbones.has(missing):                         # broken off: the piece (and what hangs from it) shrinks away
-			sk.set_bone_pose_scale(_vbones[missing], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
+		for bone in missing:                              # broken off: the piece (and what hangs from it) shrinks away
+			if _vbones.has(bone):
+				sk.set_bone_pose_scale(_vbones[bone], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
 	for m in n.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		if float(style.get("cracks", 0.0)) > 0.0 or style.get("clothes", false):
-			mi.material_overlay = _wear_material(mi, sk, style)
+		mi.material_override = _wear_material(mi, style)     # every variant: plain ones just have no wear
 	return n
 
-func _wear_material(mi: MeshInstance3D, sk: Skeleton3D, style: Dictionary) -> ShaderMaterial:
+func _wear_material(mi: MeshInstance3D, style: Dictionary) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = WEAR_SHADER
+	var base := mi.mesh.surface_get_material(0) as StandardMaterial3D
+	if base != null:
+		mat.set_shader_parameter("albedo_tex", base.albedo_texture)
+		mat.set_shader_parameter("roughness", base.roughness)
 	mat.set_shader_parameter("cracks", float(style.get("cracks", 0.0)))
 	mat.set_shader_parameter("clothes", 1.0 if style.get("clothes", false) else 0.0)
-	var outfit: Array = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
-	mat.set_shader_parameter("shirt_color", outfit[0])
-	mat.set_shader_parameter("bottom_color", outfit[1])
-	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", true) else 0.0)
-	# the shader sees skin bind indices, not skeleton bone indices
-	var binds := {}
-	if mi.skin != null:
-		for b in mi.skin.get_bind_count():
-			var nm := String(mi.skin.get_bind_name(b))
-			if nm.is_empty():
-				nm = sk.get_bone_name(mi.skin.get_bind_bone(b))
-			binds[nm] = b
-	mat.set_shader_parameter("bone_chest", binds.get("Spine", -1))
-	mat.set_shader_parameter("bone_pelvis", binds.get("Hips", -1))
-	mat.set_shader_parameter("bone_arm_l", binds.get("ArmL", -1))
-	mat.set_shader_parameter("bone_arm_r", binds.get("ArmR", -1))
+	var outfit: Dictionary = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
+	mat.set_shader_parameter("shirt_color", outfit.top)
+	mat.set_shader_parameter("bottom_color", outfit.get("bottom", outfit.top))
+	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", outfit.get("sleeves", true)) else 0.0)
+	mat.set_shader_parameter("pants", 1.0 if outfit.get("pants", false) else 0.0)
+	mat.set_shader_parameter("dress", 1.0 if outfit.get("dress", false) else 0.0)
+	mat.set_shader_parameter("pattern", int(outfit.get("pattern", 0)))
+	mat.set_shader_parameter("pattern_color", outfit.get("pattern_color", Color.WHITE))
 	return mat
 
 ## A dust sheet thrown over a standing figure (figure space: feet on y = 0, facing +Z): a round head, the

@@ -17,7 +17,7 @@ const HOLD := 5.0
 const RIGHT := 42.0              # lines up with the HUD's top-right block (hud.gd)
 const TOP := 150.0
 
-var queue: Array = []            # [title, lines]; lines: [[text, color, font size], ...]
+var queue: Array = []            # [title, lines]; lines: [[text, color, font size, wrap?], ...]
 var busy := false
 var layer: CrtLayer
 var sheet: Control
@@ -102,9 +102,15 @@ func _next() -> void:
 		body.remove_child(c)
 		c.queue_free()
 	for ln in entry[1]:
-		body.add_child(_label(str(ln[0]), int(ln[2]), ln[1]))
+		var l := _label(str(ln[0]), int(ln[2]), ln[1])
+		if ln.size() > 3 and ln[3]:  # a sentence: wraps instead of trailing off
+			l.clip_text = false
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			l.custom_minimum_size.x = W - 44.0
+		body.add_child(l)
 	var h := TAB_H + 14.0 + body.get_combined_minimum_size().y + 22.0
 	sheet.size = Vector2(W, h)
+	layer.size.y = maxf(320.0, h + PAD * 2.0)   # long entries (a yield breakdown) stay inside the glow
 	life = 1.0
 	chime.play()
 	layer.burst(0.8)
@@ -137,6 +143,8 @@ func _draw_sheet() -> void:
 	var h := sheet.size.y
 	var top := TAB_H
 	var c := CHAMFER
+	if h <= top + c * 2.0:           # nothing pushed yet (the first draw comes before any size)
+		return
 	sheet.draw_colored_polygon(PackedVector2Array([
 		Vector2(0, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c)]), Term.FILL)

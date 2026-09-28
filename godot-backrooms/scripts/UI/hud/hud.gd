@@ -3,13 +3,14 @@ extends CanvasLayer
 ## REC block + objective (top-left), level / timecode / tape mode (top-right), four meters
 ## (bottom-left), key hints (bottom-right), viewfinder corner brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
-## Also owns the TAB terminal (inventory.gd), the A.S.R.A. field scanner (scanner.gd, hold Q) with
-## its reticle (scan_readout.gd), and the "new entry logged" toast (terminal_toast.gd).
+## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
+## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
+const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -42,6 +43,7 @@ var player: Node
 var level: Node
 var corners: Array[Control] = []
 var shake_seed := randf() * 1000.0
+var battery_hint_shown := false   # the "[R] to load it" toast, once per run
 
 func _ready() -> void:
 	layer = 5
@@ -239,7 +241,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -293,7 +295,7 @@ func _build_inventory() -> void:
 ## terminal. Reticle and toast live in hud_root: they fade with the OSD under the pause menu and the
 ## terminal (a scan only runs in play, and the dossier shows the entry anyway).
 func _build_scanner() -> void:
-	inventory.add_item("scanner", "A.S.R.A. Field Scanner",
+	inventory.add_item("scanner", "T.S.R.A. Field Scanner",
 		"Hold Q while an anomaly is near the middle of your view and in plain sight. A complete "
 		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1)
 	scanner = Scanner.new()
@@ -306,16 +308,97 @@ func _build_scanner() -> void:
 	toast = TerminalToast.new()
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
+	Clearance.yield_filed.connect(_on_yield_filed)
 
+## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
 	if id == "":                 # Archive.forget_all(): nothing new to announce
 		return
 	var info := Archive.entity_info(id)
-	toast.push("[NEW ENTRY LOGGED]", [
-		["%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
+	var lines: Array = [
+		["%s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
 		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
-		["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16],
-	])
+	]
+	var report: Dictionary = Clearance.last_report
+	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
+		lines.append_array(_yield_lines(report))
+	lines.append(["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16])
+	toast.push("[NEW ENTRY LOGGED]", lines)
+	_promotion(report)
+
+## New sites get a toast of their own; supplemental readings only show on the reticle.
+## A first contact waits for _on_entity_logged; any of them can raise the clearance tier.
+func _on_yield_filed(report: Dictionary) -> void:
+	match report.get("kind", ""):
+		"first_contact":
+			return
+		"new_site":
+			var info := Archive.entity_info(str(report.id))
+			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
+			lines.append_array(_yield_lines(report))
+			toast.push("[NEW SITE CONFIRMED]", lines)
+	_promotion(report)
+
+## "+100 RY  FIRST CONTACT", one row per markup, then the total against the next tier
+func _yield_lines(report: Dictionary) -> Array:
+	var out: Array = []
+	for ln in report.get("lines", []):
+		out.append(["+%d %s  %s" % [int(ln[1]), Clearance.unit, str(ln[0])], Term.AMBER, 17])
+	var tail := "MAX CLEARANCE" if Clearance.is_max_tier() else "%d / %d" % [Clearance.total, Clearance.next_threshold()]
+	out.append(["FILED +%d %s  //  %s" % [int(report.get("total", 0)), Clearance.unit, tail], Term.TEXT, 18])
+	return out
+
+func _promotion(report: Dictionary) -> void:
+	var to := int(report.get("tier_to", 0))
+	if to <= int(report.get("tier_from", 0)):
+		return
+	var t := Clearance.tier(to)
+	var lines: Array = [
+		[Clearance.tier_label(to), Term.GREEN, 21],
+		[str(t.get("brief", "")), Term.TEXT, 16, true],
+	]
+	# every tier passed on the way up, in case one filing jumps more than one
+	for i in range(int(report.get("tier_from", 0)) + 1, to + 1):
+		var u: Dictionary = Clearance.tier(i).get("unlock", {})
+		if not u.is_empty():
+			lines.append(["UNLOCKED: " + str(u.get("name", "")), Term.AMBER, 18])
+			lines.append([str(u.get("text", "")), Term.TEXT, 16, true])
+	lines.append(["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16])
+	toast.push("[CLEARANCE ELEVATED]", lines)
+
+# ---- carried items ------------------------------------------------------------------------
+## Floor pickups (World/props) hand themselves in here; false when there's no room, so the
+## pickup stays where it is
+func pick_up_item(id: String, title: String, desc: String, code: String, stack: int, model: String) -> bool:
+	if not inventory.add_item(id, title, desc, 1, code, stack, model):
+		return false
+	if id == BatteryPickup.ITEM_ID and not battery_hint_shown:
+		battery_hint_shown = true
+		toast.push("[ITEM RECOVERED]", [
+			[title.to_upper(), Term.AMBER, 20],
+			["STACKS UP TO %d  //  TAB TO VIEW" % stack, Term.TEXT, 17],
+			["[R] LOADS ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+		])
+	return true
+
+## R: load a carried battery pack into the flashlight. Nothing to load or a full battery: the
+## dead click, so the key still answers.
+func use_battery() -> void:
+	if player.battery >= 99.5 or not inventory.has_item(BatteryPickup.ITEM_ID):
+		player.dead_click.emit()
+		return
+	inventory.remove_item(BatteryPickup.ITEM_ID)
+	player.battery = minf(100.0, player.battery + BatteryPickup.CHARGE)
+	var audio: Node = get_parent().get_node_or_null("Audio")
+	if audio:
+		audio.play_world("flash_click_on.wav")
+
+func _unhandled_input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k and k.pressed and not k.echo and k.physical_keycode == KEY_R and Game.playing and not Game.dead \
+			and not player.dead and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		use_battery()
+		get_viewport().set_input_as_handled()
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.

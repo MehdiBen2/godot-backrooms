@@ -590,7 +590,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		gather_target()
 		begin_stalk(true)
 
-# ---------------------------------------------------------------- A.S.R.A. scanner
+# ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
@@ -601,6 +601,27 @@ func scan_points() -> Array:
 	if process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree():
 		return []
 	return [global_position + Vector3.UP * 1.6]
+
+## C-4 deep scan (scan_readout.gd): what it is doing right now, in the agency's words.
+## danger 0 calm / 1 wary / 2 after you
+const SCAN_STATES := {
+	"roam": ["ROAMING", "HAS NOT NOTICED YOU", 0],
+	"investigate": ["INVESTIGATING", "HEADING FOR A NOISE", 1],
+	"search": ["SEARCHING", "LOOKING WHERE IT LOST YOU", 1],
+	"chase": ["IN PURSUIT", "HUNTING YOU - BREAK LINE OF SIGHT", 2],
+	"screech": ["SCREECHING", "IT HAS SEEN YOU", 2],
+	"stalk": ["STALKING", "WATCHING YOU FROM COVER - FACE IT", 1],
+	"stunned": ["STUNNED", "DISORIENTED", 0],
+	"flee": ["RETREATING", "BREAKING OFF", 0],
+	"lurk": ["LYING IN WAIT", "AMBUSH - DO NOT WALK INTO IT", 2],
+}
+
+func scan_behavior(_at: Vector3) -> Dictionary:
+	var s: Array = SCAN_STATES.get(state, [state.to_upper(), "", 1])
+	var detail: String = s[1]
+	if state == "roam" or state == "investigate" or state == "search":
+		detail += " // AWARENESS %d%%" % roundi(clampf(awareness, 0.0, 1.0) * 100.0)
+	return {"state": s[0], "detail": detail, "danger": s[2]}
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:

@@ -6,9 +6,11 @@ extends Control
 ## - a focus-distance scale along the bottom, 1 to 30 m on a log axis like a lens barrel. While
 ##   searching, a band on it marks roughly how far the signal is (scanner.signal_dist); it narrows
 ##   as the signal firms up. On a lock a needle marks the exact range, and a hairline under the
-##   scale fills with the reading
+##   scale fills with the reading. The band and the signal's range come with clearance C-3 (the
+##   range-finder, asra_clearance.gd), along with chevrons by the focus box pointing the way to turn
 ## - on a lock, corner marks travel out of the focus box onto the target, the way autofocus snaps
-##   to a subject, with a small tag beside it (name, range); a new entry blinks them twice
+##   to a subject, with a small tag beside it (name, range); a new entry blinks them twice. From C-4
+##   the tag adds a DEEP SCAN line: what the entity is doing right now (its scan_behavior())
 ## The marks, scale and text are drawn inside a crt_layer.gd so they glow, flicker and tear like
 ## the TAB terminal. Lines are thin (LINE_W): it sits over the view while you play. Every string is
 ## measured and trimmed to the room it has (_fit).
@@ -25,6 +27,7 @@ const MAJOR := [1, 2, 5, 10, 20, 30]
 const MINOR := [3, 4, 7, 15, 25]
 const CHIP_TOP := 42.0
 const LINE_W := 1.5
+const BEARING_AHEAD := 6.0       # degrees: a signal this close to the view reads DEAD AHEAD (C-3)
 const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED ON", "logged": "ENTRY LOGGED", "on_file": "ALREADY ON FILE"}
 const HINT := {
 	"idle": "",
@@ -150,6 +153,16 @@ func _draw_focus(c: Vector2, st: String) -> void:
 	if st == "search":
 		var size_now := FOCUS + Vector2(6.0, 4.0) * sin(t * 5.0) * (1.0 - sig)
 		_brackets(Rect2(c - size_now * 0.5, size_now), 16.0, _a(Term.TEXT, 0.3 + 0.35 * sig), LINE_W)
+	# C-3 range-finder: chevrons beside the box point the way to turn, one to three by how far
+	var b: float = scanner.signal_bearing
+	if st == "search" and sig > 0.06 and absf(b) >= BEARING_AHEAD and Clearance.has_unlock("rangefinder"):
+		var side := signf(b)
+		var n := 1 + int(absf(b) > 20.0) + int(absf(b) > 40.0)
+		for i in n:
+			var x := c.x + side * (FOCUS.x * 0.5 + 22.0 + i * 13.0)
+			var blink := 0.35 + 0.65 * absf(sin(t * 6.0 - i * 0.9))
+			canvas.draw_polyline(PackedVector2Array([Vector2(x - side * 6.0, c.y - 10.0), Vector2(x + side * 3.0, c.y),
+				Vector2(x - side * 6.0, c.y + 10.0)]), _a(Term.AMBER, (0.4 + 0.6 * sig) * blink), 2.0)
 	var k := 0.45 if st == "search" else 0.25
 	canvas.draw_line(c - Vector2(9.0, 0.0), c + Vector2(9.0, 0.0), _a(Term.TEXT, k), LINE_W)
 	canvas.draw_line(c - Vector2(0.0, 9.0), c + Vector2(0.0, 9.0), _a(Term.TEXT, k), LINE_W)
@@ -180,6 +193,8 @@ func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	if Archive.is_discovered(scanner.target_id):
 		tag = str(Archive.entity_info(scanner.target_id).get("common_name", scanner.target_id)).to_upper()
 	var tw := minf(_text_w(tag, 19), 320.0)
+	if Clearance.has_unlock("deep_scan"):
+		tw = 320.0                   # room for the deep scan lines under the tag
 	# on the right of the marks, or the left when the right runs off the screen
 	var side := 1.0
 	var ax := r.end.x + 4.0
@@ -193,6 +208,20 @@ func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	var align := HORIZONTAL_ALIGNMENT_LEFT if side > 0.0 else HORIZONTAL_ALIGNMENT_RIGHT
 	_text(Vector2(d.x + 8.0 * side, d.y + 7.0), tag, 19, k, 320.0, align)
 	_text(Vector2(d.x + 8.0 * side, d.y + 28.0), "%.1f M" % dist, 16, _a(Term.TEXT, 0.7), 160.0, align)
+	# C-4 deep scan: what it is doing right now, live, from the entity itself
+	var node: Node = scanner.target_node
+	if Clearance.has_unlock("deep_scan") and is_instance_valid(node) and node.has_method("scan_behavior"):
+		var bh: Dictionary = node.scan_behavior(scanner.target_pos)
+		var danger := int(bh.get("danger", 0))
+		var dcol: Color = Term.RED if danger >= 2 else (Term.ORANGE if danger == 1 else Term.GREEN)
+		if danger >= 2 and int(t * 4.0) % 2 == 1:
+			dcol = Color(dcol, 0.55)
+		_text(Vector2(d.x + 8.0 * side, d.y + 54.0), "DEEP SCAN: " + str(bh.get("state", "")), 17, _a(dcol), 320.0, align)
+		# the detail a clause a line (" // " or " - " between them), so none of it trails off
+		var y := d.y + 74.0
+		for part in str(bh.get("detail", "")).replace(" - ", " // ").split(" // ", false):
+			_text(Vector2(d.x + 8.0 * side, y), part, 15, _a(Term.TEXT, 0.75), 320.0, align)
+			y += 19.0
 
 ## The focus-distance scale: status over it on the left, the detail on the right; the signal's band
 ## or the lock's needle on it; the reading's hairline and the next step under it
@@ -201,6 +230,7 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 	var x0 := cx - w * 0.5
 	var half := w * 0.5 * _smooth(unfold)
 	var sig: float = scanner.signal_strength
+	var ranged := Clearance.has_unlock("rangefinder")
 
 	var detail := ""
 	match st:
@@ -210,15 +240,21 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 				var word := "FAINT"
 				if sig > 0.66: word = "STRONG"
 				elif sig > 0.33: word = "MODERATE"
-				detail = "SIGNAL %s // ABOUT %d M AHEAD" % [word, roundi(scanner.signal_dist)]
+				detail = "SIGNAL " + word
+				if ranged:               # C-3: how far, and which way to turn
+					var b: float = scanner.signal_bearing
+					var way := "DEAD AHEAD" if absf(b) < BEARING_AHEAD else "%d DEG %s" % [roundi(absf(b)), "RIGHT" if b > 0.0 else "LEFT"]
+					detail = "SIGNAL %s // %d M // %s" % [word, roundi(scanner.signal_dist), way]
 		"lock": detail = "READING %d%%" % roundi(scanner.progress * 100.0)
 		"logged", "on_file":
-			detail = str(Archive.entity_info(scanner.target_id).get("code", "ASRA-EN-??"))
+			detail = str(Archive.entity_info(scanner.target_id).get("code", "TSRA-EN-??"))
+			if scanner.last_yield > 0:
+				detail += " // +%d %s" % [scanner.last_yield, Clearance.unit]
 	var sw := _text(Vector2(x0, by - 36.0), str(STATUS.get(st, "")), 20, _a(col), w * 0.45, HORIZONTAL_ALIGNMENT_LEFT, wide)
 	_text(Vector2(x0 + w, by - 36.0), detail, 17, _a(Term.TEXT, 0.9), w - sw - 24.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
-	# the band: roughly where the signal is, narrowing as it firms up
-	if st == "search" and sig > 0.06 and scanner.signal_dist > 0.0:
+	# the band: roughly where the signal is, narrowing as it firms up (C-3 range-finder only)
+	if ranged and st == "search" and sig > 0.06 and scanner.signal_dist > 0.0:
 		var spread := lerpf(0.55, 0.12, sig)
 		var mid := _scale_x(x0, scanner.signal_dist)
 		var l := maxf(_scale_x(x0, scanner.signal_dist * exp(-spread)), cx - half)

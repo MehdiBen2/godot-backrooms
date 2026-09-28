@@ -1,38 +1,115 @@
 {
-  "_about": "A.S.R.A. entity catalog: entity_id -> dossier shown once the player logs it with the field scanner (scripts/Player/scanner.gd, hold Q). The id matches the \"asra_id\" meta the entity script sets in _enter_tree(); new entities register a block here and add _enter_tree() + scan_points() like the others (see asra_archive.gd).",
+  "_about": "T.S.R.A. entity catalog: entity_id -> dossier shown once the player logs it with the field scanner (scripts/Player/scanner.gd, hold Q). The id matches the \"asra_id\" meta the entity script sets in _enter_tree(); new entities register a block here and add _enter_tree() + scan_points() like the others (see asra_archive.gd). Fields: code, common_name, threat_class, description (OVERVIEW), behavior_vector, directive (FIELD PROTOCOL), and classified: the CLASSIFIED ANNEX on [F3] ENTRIES, redacted until the player's clearance unlocks \"classified\" (levels/asra_clearance.json): origin, survival (numbered steps), field_notes, incident. Any classified field may be left out. The entity script's scan_behavior() feeds the C-4 deep scan.",
   "mannequin": {
-    "code": "ASRA-EN-01",
+    "code": "TSRA-EN-01",
     "common_name": "The Mannequins",
     "threat_class": "Class 2",
+    "description": "A room furnished with dozens of identical display mannequins. All but one are inert fixtures. The active specimen is indistinguishable from the decoys at rest, and relocates only while it is outside every observer's line of sight - in stiff, stop-motion steps.",
     "behavior_vector": "Idles in crowds of visually identical copies; freezes when observed directly, closes distance when unseen.",
-    "directive": "Keep at least one in direct line of sight at all times. Do not enter a room containing more than three."
+    "directive": "Keep at least one in direct line of sight at all times. Do not enter a room containing more than three.",
+    "classified": {
+      "origin": "First catalogued by Survey Team KESTREL in a Level 0 storage wing and filed as \"retail fixtures, 41 units\". The count was 40 on the return pass. Material analysis of a recovered forearm returned standard fibreglass with no internal structure; the forearm was later found reattached. Working theory: the specimen is not a mannequin at all, but something that has learned which shape goes unnoticed in a room.",
+      "survival": [
+        "Keep it in view. It only moves while nobody is looking at it - and a blink counts as not looking.",
+        "It works in cycles: about thirty seconds of pursuit, then a rest. Every third rest it goes fully dormant for several minutes. Use that window to leave, not to explore.",
+        "Leave the room walking backwards. Do not turn your back to run for the door.",
+        "Learn the tells: your pulse rising, whispering at your ear, the ceiling tubes dying above you. It is close.",
+        "A dry creak as you turn means it moved while you looked away. Assume it is closer than the last time you checked.",
+        "The decoys shift between observations too. Never use a mannequin's position as a landmark."
+      ],
+      "field_notes": [
+        "\"I counted them every time I turned around. The count was always right. It was the positions that were wrong.\" - Surveyor R. Oduya, C-1",
+        "The Howler (TSRA-EN-02) will not stay within roughly twelve metres of an active specimen. No one on file has survived using this on purpose."
+      ],
+      "incident": "INCIDENT 0-117: Surveyor lost in the storage wing during a lighting failure. Helmet feed shows the subject holding the specimen in view for four minutes without interruption, then blinking once. The feed ends there."
+    }
   },
   "bacteria": {
-    "code": "ASRA-EN-02",
+    "code": "TSRA-EN-02",
     "common_name": "The Howler",
     "threat_class": "Class 4",
+    "description": "A tall, emaciated biped, well over four metres upright, that hunts by sound and sight. It announces a first sighting with a screech, then pursues faster than a person can sprint. Its wet, growling breath carries before it is seen, and overhead tubes stutter and buzz as it runs beneath them.",
     "behavior_vector": "Roams on scent and sound; screeches on first sighting, then closes at pursuit speed. Feigns loss of target to lurk near last known position.",
-    "directive": "Do not run in a straight line. Break sound discipline only as a last resort."
+    "directive": "Do not run in a straight line. Break sound discipline only as a last resort.",
+    "classified": {
+      "origin": "The agency tag \"bacteria\" comes from the first tissue sample recovered. It kept dividing in a sealed container for eleven days, then stopped - at the exact minute the specimen was sighted on another level. Whether it is one organism or a colony wearing one body is unresolved. No two sightings have ever overlapped in time.",
+      "survival": [
+        "Crouch-walk when it is near. It hears a sprint from about fifteen metres, a walk from six, a crouch from barely one.",
+        "Stand still with your torch off. A dark, motionless subject is only visible to it up close. A lit torch lets it see you from much further away.",
+        "Break line of sight and open distance. It gives up a pursuit once it has lost you beyond roughly twenty metres.",
+        "After losing it, do not carry on the way you were heading. It often waits in silence where it expects you to arrive, and springs from there.",
+        "If you catch it peering at you from behind a corner, look straight at it or walk toward it. A stalking specimen backs off when confronted.",
+        "You cannot outrun it in a straight line. Use corners and doors, never open corridors."
+      ],
+      "field_notes": [
+        "\"The screech isn't for you. It's for the building. Every light on the floor answered it.\" - Field Analyst D. Varga, C-2",
+        "It avoids the Mannequins (TSRA-EN-01). This is an observation, not a recommendation."
+      ],
+      "incident": "INCIDENT 2-044: Two-person team separated in the Yellow Halls. The survivor reports the specimen passed within three metres of her while she crouched motionless in the dark. Her partner was running."
+    }
   },
   "eyes": {
-    "code": "ASRA-EN-03",
+    "code": "TSRA-EN-03",
     "common_name": "Corridor Watchers",
     "threat_class": "Class 1",
+    "description": "A single pair of eyes that opens in the dark at the far end of a long corridor, twenty-five to forty-five metres away. They never blink and never come closer. The pupils follow the subject, and look away when looked at.",
     "behavior_vector": "Manifests only under severe cognitive decay; opens at range down a sightline and tracks the subject's gaze without approach.",
-    "directive": "Do not stare back. Restore ambient light or lose the sightline to clear the manifestation."
+    "directive": "Do not stare back. Restore ambient light or lose the sightline to clear the manifestation.",
+    "classified": {
+      "origin": "Watchers only appear to a subject whose cognitive decay is severe, and no two team members have ever reported the same pair. The agency classifies them as a perceptual phenomenon, not an organism. The agency also notes that a perceptual phenomenon should not show up on helmet footage. It has, twice.",
+      "survival": [
+        "Recover your sanity. Watchers do not open for anyone above roughly thirty percent.",
+        "Turn your torch on or step into a lit room. They will not open in good light.",
+        "Hold your torch beam directly on them for about a second.",
+        "The public protocol says not to stare back. Field data disagrees: holding their gaze head-on for a few seconds, or walking toward them, blinks them away.",
+        "They are harmless on their own. What matters is what they say about your sanity - and what else low sanity lets near you."
+      ],
+      "field_notes": [
+        "\"Official guidance says don't look. I looked. They closed. I still don't know what that cost me.\" - Surveyor M. Hale, C-1"
+      ],
+      "incident": "INCIDENT 0-203: Subject reported watchers in a fully lit room. Sanity telemetry at the time of the report: 4%. The room's lights had been off for an hour."
+    }
   },
   "mimic": {
-    "code": "ASRA-EN-04",
+    "code": "TSRA-EN-04",
     "common_name": "Reflected Subject",
     "threat_class": "Class 3",
+    "description": "A figure in a standard-issue T.S.R.A. hazmat suit that keeps to the edge of the subject's sight. It closes in while the subject's back is turned, withdraws when faced, and runs if pursued. It has only ever been recorded after a power failure.",
     "behavior_vector": "Adopts the subject's own gait and silhouette at range before approaching under cover of misidentification.",
-    "directive": "Treat any unexplained figure matching your own profile as hostile. Do not approach to confirm."
+    "directive": "Treat any unexplained figure matching your own profile as hostile. Do not approach to confirm.",
+    "classified": {
+      "origin": "Every suit it has been seen wearing carries the serial number of a surveyor listed as missing. The serials never repeat. The agency has quietly stopped issuing new suits under those numbers.",
+      "survival": [
+        "Face it. It only gains ground while you are turned away.",
+        "Do not chase it. It is faster than you and will draw you off your route.",
+        "During a power cut it changes: it charges you in the dark, freezing whenever you look at it. Put your torch on it and it breaks off and bolts.",
+        "If it reaches you it hits hard and leaves you stunned. Get out of the dark before you check your wounds.",
+        "In co-op, confirm every teammate by voice before you walk up to them. It wears the same suit you do."
+      ],
+      "field_notes": [
+        "\"It waved. I waved back. Neither of us was in any hurry after that.\" - Surveyor J. Bakr, C-1 (retired)"
+      ],
+      "incident": "INCIDENT 2-061: A roll call during a grid failure returned five voices. Four surveyors were deployed."
+    }
   },
   "killer": {
-    "code": "ASRA-EN-06",
+    "code": "TSRA-EN-06",
     "common_name": "Fixed-Post Aggressor",
     "threat_class": "Class 5",
+    "description": "A humanoid figure found standing perfectly still, always facing the subject. It does not react to light, noise or approach - until something changes.",
     "behavior_vector": "Holds position until a trigger condition is met, then closes on the nearest subject without hesitation.",
-    "directive": "Do not linger near unexplained stationary figures. Evacuate the area immediately on sighting."
+    "directive": "Do not linger near unexplained stationary figures. Evacuate the area immediately on sighting.",
+    "classified": {
+      "origin": "Designation EN-05 was retired when its specimen was found to be this one, standing somewhere else. The agency does not know what the trigger condition is. Every subject who found out is no longer available to explain it.",
+      "survival": [
+        "Do not walk up to it to confirm what it is. Leave its line of sight.",
+        "Mark the location and take another route. A fixed post is still a post: it chose that spot.",
+        "Log it and move on. Do not stay locked on it any longer than the reading takes."
+      ],
+      "field_notes": [
+        "\"It isn't waiting for you. It's waiting for something to happen to you.\" - Principal Investigator (name withheld), C-5"
+      ],
+      "incident": "INCIDENT 2-090: Specimen watched by a remote camera for six hours with no movement. At hour six the camera recorded an empty corridor. The specimen was found standing at the camera."
+    }
   }
 }

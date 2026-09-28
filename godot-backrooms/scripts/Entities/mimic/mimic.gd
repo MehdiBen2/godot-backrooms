@@ -168,7 +168,7 @@ func appear() -> bool:
 	body.visible = true
 	return true
 
-# ---------------------------------------------------------------- A.S.R.A. scanner
+# ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
@@ -179,6 +179,18 @@ func scan_points() -> Array:
 	if not spawned or body == null or not body.is_visible_in_tree():
 		return []
 	return [body.global_position + Vector3.UP * 1.3]
+
+## C-4 deep scan (scan_readout.gd): what it is doing right now. danger 0 calm / 1 wary / 2 after you
+const SCAN_MODES := {
+	"approach": ["CLOSING IN", "GAINS GROUND WHILE YOU LOOK AWAY", 1],
+	"keepAway": ["HOLDING DISTANCE", "KEEPS TO THE EDGE OF YOUR SIGHT", 1],
+	"flee": ["FLEEING", "FASTER THAN YOU - LET IT GO", 0],
+	"charge": ["CHARGING", "COMING AT YOU IN THE DARK - LIGHT IT UP", 2],
+}
+
+func scan_behavior(_at: Vector3) -> Dictionary:
+	var s: Array = SCAN_MODES.get(mode, [mode.to_upper(), "", 1])
+	return {"state": s[0], "detail": s[1], "danger": s[2]}
 
 # Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?
 func clear_ahead(x: float, z: float, a: float, dist: float) -> bool:

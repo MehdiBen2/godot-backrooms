@@ -32,6 +32,7 @@ Voice="*res://scripts/Voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 Archive="*res://scripts/GameLogicEngine/asra_archive.gd"
+Clearance="*res://scripts/GameLogicEngine/asra_clearance.gd"
 
 [display]
 
