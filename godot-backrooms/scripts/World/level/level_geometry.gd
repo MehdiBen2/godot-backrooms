@@ -113,6 +113,20 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 ## darkening now comes from the shadows, the bounce light and SSAO.
 const AO_DIRECT := 0.2
 
+## Ceiling materials whose bounce-light fill level_lighting.gd drives (found-footage look)
+var ceil_mats: Array[Material] = []
+
+## A ceiling material that can glow with its own colour (the fill stands in for bounce light off the lit
+## carpet and walls, which the tube lights never put on the ceiling layer). Starts dark.
+func _fillable_ceiling(m: StandardMaterial3D) -> StandardMaterial3D:
+	if not m.emission_enabled:
+		m.emission_enabled = true
+		m.emission_texture = m.albedo_texture
+		m.emission = m.albedo_color
+		m.emission_energy_multiplier = 0.0
+		ceil_mats.append(m)
+	return m
+
 ## The ceiling's own render layer: the tube lights skip it (a point light 0.45 m under it blows a white hotspot);
 ## it is lit by bounce light, the tubes' glow and level_lighting.gd's soft ceiling-glow lights instead.
 const CEIL_LAYER := 1 << 18
@@ -164,12 +178,12 @@ func _build_surfaces() -> void:
 	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
-	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
+	_cell_surface(ceil_cells, func(c): return ceiling_height(c), _fillable_ceiling(ceil_m), true).layers = CEIL_LAYER
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
 	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0), true).layers = CEIL_LAYER
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _fillable_ceiling(_classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0)), true).layers = CEIL_LAYER
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():

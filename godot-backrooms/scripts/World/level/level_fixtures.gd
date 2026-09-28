@@ -124,6 +124,7 @@ func _build_panel_ceiling() -> void:
 	mmi.layers = CEIL_LAYER
 	add_child(mmi)
 	panels_mm = mm
+	ceil_mats.append(mat)          # its ceiling_fill is driven by level_lighting.gd
 
 func _mesh_world(root: Node, node: Node3D) -> Transform3D:
 	var t := Transform3D.IDENTITY

@@ -30,16 +30,34 @@ const FOG_COLOR_DARK := Color("020201")
 ## Level-wide looks. "dim" is what main.tscn's WorldEnvironment is tuned for; the others are where the
 ## environment blends to while you stand in them (classic_mix: the Classic zone, or "atmosphere":
 ## "classic" for the whole level). Tune the classic backrooms look here.
+##
+## "classic" is the found-footage look (the famous 1996 camcorder tape): a flat, evenly lit, overexposed
+## mono-yellow office, a bright ceiling, clear air, highlights that clip hard like a cheap CCD, and a camera
+## that meters, pumps and drifts on its own (_update_camcorder).
 const ATMOSPHERES := {
 	"classic": {
-		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
-		"exposure": 1.05, "tonemap_white": 4.0,       # gentle highlight roll-off: panels clip white, walls don't
-		"glow_threshold": 1.1,                        # the panels bloom, the brightly lit walls don't
-		"glow_intensity": 1.0, "glow_bloom": 0.02, "glow_wide": 0.5,    # wide soft halo round the lights (glow level 5)
-		"ssao_intensity": 2.5,                        # fluorescent light is shadowless: keep only contact AO
-		"haze": Color(0.66, 0.58, 0.36),              # the far distance fades to lit-wallpaper yellow, never to murk
+		"ambient_energy": 1.0, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
+		"exposure": 1.3, "tonemap_white": 2.2,        # overexposed: walls sit near white-yellow, panels clip hard
+		"glow_threshold": 0.9,                        # the panels and the brightest wall patches bleed
+		"glow_intensity": 1.0, "glow_bloom": 0.05, "glow_wide": 0.7,    # wide soft halo round the lights (glow level 5)
+		"ssao_intensity": 1.2,                        # fluorescent light is flat and shadowless: only a hint of contact AO
+		"haze": Color(0.75, 0.68, 0.45),              # the far distance fades to lit-wallpaper yellow, never to murk
 	},
 }
+const FF_FOG := 0.08                # found footage: fog left at this share (clear air, far walls readable)
+const FF_CEIL_FILL := 0.45          # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader)
+const FF_BLACK_LIFT := 0.07         # found footage: camcorder black level (post.gdshader black_lift)
+# Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles
+const AE_KEY := 0.75                # meter reading that gives a gain of 1 (a typical lit hall)
+const AE_MIN := 0.55
+const AE_MAX := 1.7
+const AE_METER_SPEED := 2.5         # 1/s: how fast the meter itself follows
+const AE_HZ := 0.45                 # spring frequency: a full swing takes about two seconds
+const AE_DAMP := 0.42               # < 1: overshoots (the pumping)
+# Camcorder auto white balance: a slow wander, and a late, partial correction of tinted light
+const WB_DRIFT := 0.035
+const WB_CORRECT := 0.5             # how much of a light's colour cast the camera takes back out
+const WB_SPEED := 0.25              # 1/s
 
 var _env_base := {}        # the WorldEnvironment's own (dim) values, read once
 
@@ -55,6 +73,14 @@ var zone_fog := 1.0
 var bright_mix := 0.0              # same idea for Bright zones (a softer version of the classic look)
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
+var exposure_gain := 1.0           # what the eye / camera adds on top of the look's exposure
+var _ae := 1.0
+var _ae_v := 0.0
+var _ae_meter := AE_KEY
+var _wb_t := 0.0
+var _wb_corr := Vector3.ONE
+var _wb_noise := FastNoiseLite.new()
+var _ceil_fill := -1.0
 
 func build_lighting() -> void:
 	if panel_ceiling != null:
@@ -180,8 +206,9 @@ func _update_atmosphere(delta: float) -> void:
 		glare += (target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
 	if Gfx.post_mat:
 		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (post.gdshader)
+	_update_camcorder(delta, seen)
 	_blend_env(ATMOSPHERES.classic)
-	zf = lerpf(zf, 0.2, open_mix)                                     # clear air: the far halls keep their light, only a touch of haze
+	zf = lerpf(zf, FF_FOG, open_mix)                                  # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
 	# power cut: a faint glow so shapes barely read (ATMOSPHERE.gridDownAmbient / gridDownFog)
@@ -228,13 +255,52 @@ func _blend_env(a: Dictionary) -> void:
 	var b := _env_base
 	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix)
 	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
-	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * eye * lerpf(1.0, GLARE_DIM, glare)
+	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * exposure_gain
 	env.tonemap_white = lerpf(b.tonemap_white, a.tonemap_white, cam_mix)
 	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
 	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix) * (1.0 + 0.35 * glare)   # the light you stare into blooms a bit more
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
 	env.set_glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix))
 	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)
+
+## The found-footage camera (weighted by cam_mix: the classic look). Elsewhere the eye adaptation and the
+## glare stop-down stay as they were.
+func _update_camcorder(delta: float, seen: float) -> void:
+	var ff := cam_mix
+	# auto exposure: the meter reads tube light round you and ahead plus whatever bright thing is in the
+	# middle of the frame; the iris follows late and overshoots, so turning into a lit hall blows the picture
+	# out for a moment, then it dims past the mark and creeps back
+	var meter := 0.15 + seen * 0.75 + glare * 0.9
+	_ae_meter += (meter - _ae_meter) * minf(1.0, delta * AE_METER_SPEED)
+	var goal := clampf(AE_KEY / maxf(_ae_meter, 0.05), AE_MIN, AE_MAX)
+	var w := TAU * AE_HZ
+	_ae_v += ((goal - _ae) * w * w - _ae_v * 2.0 * AE_DAMP * w) * delta
+	_ae = clampf(_ae + _ae_v * delta, AE_MIN * 0.8, AE_MAX * 1.2)
+	exposure_gain = lerpf(eye * lerpf(1.0, GLARE_DIM, glare), _ae, ff)
+	# white balance: a slow wander between warmer / cooler and greener / pinker, and the tubes' own tint
+	# (events recolour them) taken halfway back out, late, the way a camcorder's auto white balance does
+	_wb_t += delta
+	var temp := _wb_noise.get_noise_1d(_wb_t * 3.5) * WB_DRIFT
+	var green := _wb_noise.get_noise_1d(_wb_t * 5.0 + 500.0) * WB_DRIFT * 0.6
+	var lum := (tint.r + tint.g + tint.b) / 3.0
+	var corr := Vector3.ONE
+	if lum > 0.02:
+		corr = Vector3(clampf(lum / maxf(tint.r, 0.05), 0.6, 1.6), clampf(lum / maxf(tint.g, 0.05), 0.6, 1.6),
+			clampf(lum / maxf(tint.b, 0.05), 0.6, 1.6))
+	_wb_corr = _wb_corr.lerp(Vector3.ONE.lerp(corr, WB_CORRECT), minf(1.0, delta * WB_SPEED))
+	var wbv := Vector3(1.0 + temp, 1.0 + green, 1.0 - temp * 1.4) * _wb_corr
+	if Gfx.post_mat:
+		Gfx.post_mat.set_shader_parameter("wb", Vector3.ONE.lerp(wbv, ff))
+		Gfx.post_mat.set_shader_parameter("black_lift", FF_BLACK_LIFT * ff)
+	# the ceiling: bright with bounced light while the power is on (open_mix already drops in a power cut)
+	var fill := FF_CEIL_FILL * open_mix
+	if absf(fill - _ceil_fill) > 0.002:
+		_ceil_fill = fill
+		for m in ceil_mats:
+			if m is ShaderMaterial:
+				(m as ShaderMaterial).set_shader_parameter("ceiling_fill", fill)
+			elif m is StandardMaterial3D:
+				(m as StandardMaterial3D).emission_energy_multiplier = fill
 
 func update_lighting(delta: float) -> void:
 	if player == null or pool.is_empty(): return

@@ -25,6 +25,10 @@ uniform float threat = 0.0;    // entity proximity 0..1, smoothed
 uniform float glitch = 0.0;    // tape damage from events and scares
 uniform float pulse = 0.0;     // heartbeat envelope 0..1
 uniform float classic = 0.0;      // 0..1 standing in a Classic zone: blown-out, soft, clean picture
+// Camcorder (found-footage look, driven by level_lighting.gd): auto white balance that drifts and lags
+// behind the light, and the milky, never-black blacks of a cheap CCD on tape
+uniform vec3 wb = vec3(1.0);
+uniform float black_lift = 0.0;
 uniform float exhaust = 0.0;
 uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
 uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (scares.gd)
@@ -261,7 +265,9 @@ void fragment() {
 		// camcorder tape: blacks lift to olive and the whole picture leans yellow-green, highlights stay white
 		col = mix(col, col * vec3(1.0, 0.99, 0.9) + vec3(0.03, 0.028, 0.008), classic);
 	}
-	col *= grade;
+	col *= grade * wb;
+	// the darkest parts sit on a grey-olive pedestal (a camcorder's black level), highlights untouched
+	col = col * (1.0 - black_lift) + black_lift * vec3(0.78, 0.8, 0.62);
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
 	float sat = clamp(0.92 - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
 	col = mix(vec3(luma), col, sat);                        // colour drains with fear
