@@ -25,7 +25,8 @@ const SAVE_PATH := "user://asra_archive.cfg"
 var _entities := {}
 var _dossiers := {}
 
-var discovered := {}   # entity_id -> true, persisted across sessions
+var discovered := {}   # entity_id -> {t: unix seconds, level: levels.json id} ({} from older saves)
+var unread := {}       # entity_id -> true until its entry is opened in the terminal ([F3] ENTRIES)
 
 func _ready() -> void:
 	_load()
@@ -56,30 +57,60 @@ func dossiers() -> Dictionary:
 		_dossiers = _read_json(DOSSIERS_PATH)
 	return _dossiers
 
-## The dossier for whichever playlist entry Game.level_index points at, falling back to "_default"
-func current_dossier() -> Dictionary:
+## The levels.json id of whichever playlist entry Game.level_index points at ("" if none)
+func current_level_id() -> String:
 	var LevelData := load("res://scripts/World/level/level_data.gd")
 	var levels: Array = LevelData.read_index()
-	var all := dossiers()
 	if levels.is_empty():
-		return all.get("_default", {})
+		return ""
 	var meta: Dictionary = levels[clampi(Game.level_index, 0, levels.size() - 1)]
-	return all.get(str(meta.get("id", "")), all.get("_default", {}))
+	return str(meta.get("id", ""))
+
+## The dossier for the current level, falling back to "_default"
+func current_dossier() -> Dictionary:
+	var all := dossiers()
+	return all.get(current_level_id(), all.get("_default", {}))
+
+## Designations of every level whose dossier lists this entity (its KNOWN SITES)
+func sites_of(entity_id: String) -> Array:
+	var out := []
+	var all := dossiers()
+	for level_id in all:
+		if str(level_id) != "_default" and entity_id in all[level_id].get("entities", []):
+			out.append(str(all[level_id].get("designation", level_id)))
+	return out
+
+## When and where it was logged: {t, level}; empty for entries from before this was recorded
+func logged_info(entity_id: String) -> Dictionary:
+	var v = discovered.get(entity_id, {})
+	return v if v is Dictionary else {}
+
+func is_unread(entity_id: String) -> bool:
+	return unread.has(entity_id)
+
+func has_unread() -> bool:
+	return not unread.is_empty()
+
+func mark_read(entity_id: String) -> void:
+	if unread.erase(entity_id):
+		_save()
 
 func is_discovered(entity_id: String) -> bool:
 	return discovered.has(entity_id)
 
-## Called by an entity script the moment it becomes visible/active to the player; idempotent.
+## Called by the field scanner (scanner.gd) when a reading completes; idempotent.
 func discover(entity_id: String) -> void:
 	if discovered.has(entity_id):
 		return
-	discovered[entity_id] = true
+	discovered[entity_id] = {"t": int(Time.get_unix_time_from_system()), "level": current_level_id()}
+	unread[entity_id] = true
 	_save()
 	entity_discovered.emit(entity_id)
 
 ## Debug console `archive reset`: every entity back to unlogged
 func forget_all() -> void:
 	discovered.clear()
+	unread.clear()
 	_save()
 	entity_discovered.emit("")
 
@@ -87,11 +118,18 @@ func _load() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(SAVE_PATH) != OK:
 		return
-	for id in cf.get_section_keys("discovered"):
-		discovered[id] = true
+	if cf.has_section("discovered"):
+		for id in cf.get_section_keys("discovered"):
+			var v = cf.get_value("discovered", id, {})
+			discovered[id] = v if v is Dictionary else {}   # older saves stored `true`
+	if cf.has_section("unread"):
+		for id in cf.get_section_keys("unread"):
+			unread[id] = true
 
 func _save() -> void:
 	var cf := ConfigFile.new()
 	for id in discovered:
-		cf.set_value("discovered", id, true)
+		cf.set_value("discovered", id, discovered[id])
+	for id in unread:
+		cf.set_value("unread", id, true)
 	cf.save(SAVE_PATH)

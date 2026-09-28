@@ -1,26 +1,24 @@
 extends Control
-## Field scanner HUD (scripts/Player/scanner.gd), drawn inside a crt_layer.gd so it glows, flickers,
-## scans and tears like the TAB terminal:
-## - a segmented ring round the crosshair that turns while searching (faster as the signal rises),
-##   with a radar sweep inside it; it tightens on a lock and an arc fills round it as the reading
-##   completes
-## - lock brackets that snap onto the target where it really is on screen, a dashed leader from the
-##   ring and a tag (UNIDENTIFIED and the range, or the entry code once it is logged)
-## - a folder-tab readout under the crosshair: status with a blinking cursor and signal bars, an
+## Field scanner HUD (scripts/Player/scanner.gd), drawn inside a crt_layer.gd so it glows, flickers
+## and tears like the TAB terminal. Built like the camcorder's own viewfinder rather than sci-fi
+## chrome:
+## - a focus box round the crosshair that hunts a little while searching and brightens with the
+##   signal (warmer / colder)
+## - on a lock, a heavier frame travels out of it onto the target, the way autofocus snaps to a
+##   subject, with the entry tag above it and a thin progress gauge under it; a new entry blinks it
+##   twice, like a camera confirming focus
+## - a folder-tab readout under the crosshair: status with a blinking cursor, signal bars, an
 ##   oscilloscope trace that settles from noise into a clean wave as the reading locks in, the
 ##   signal line, a segmented progress bar and a running data stream
-## - a new entry sends a pulse ring out and a tear through the layer
 ## Every string is measured and trimmed to the box it sits in (_fit).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 
-const RING_SEARCH := 96.0
-const RING_LOCK := 64.0
-const DASHES := 40
-const PANEL_W := 500.0
-const PANEL_GAP := 64.0          # crosshair ring to the readout's tab
+const FOCUS := Vector2(124.0, 88.0)   # the focus box round the crosshair
+const PANEL_W := 480.0
+const PANEL_GAP := 72.0          # focus box to the readout's tab
 const TAB_H := 34.0
 const SLANT := 18.0
 const CHAMFER := 8.0
@@ -37,11 +35,9 @@ var font := FontVariation.new()
 var line_w: float = Term.LINE * Term.WINDOW_SCALE   # the terminal's outline weight, as it shows on screen
 var alpha := 0.0
 var t := 0.0
-var spin := 0.0
-var sweep := 0.0
 var last_state := "idle"
-var snap := 1.0                  # 0..1: lock brackets settling onto the target
-var pulse := -1.0                # 0..1: "entry logged" ring going out, < 0 off
+var snap := 1.0                  # 0..1: the lock frame travelling from the focus box to the target
+var confirm := 0.0               # seconds left of the "logged" double blink
 var unfold := 1.0                # 0..1: the readout opening out as the scanner comes on
 var fit_cache := {}
 
@@ -76,27 +72,21 @@ func _process(dt: float) -> void:
 	if not layer.running:        # coming on: the readout unfolds through a tear
 		layer.running = true
 		unfold = 0.0
-		layer.burst(0.6)
+		layer.burst(0.5)
 	unfold = move_toward(unfold, 1.0, dt * 6.0)
-	snap = move_toward(snap, 1.0, dt * 5.0)
-	if pulse >= 0.0:
-		pulse += dt * 1.6
-		if pulse > 1.0:
-			pulse = -1.0
-	var sig: float = scanner.signal_strength
-	spin += dt * (0.5 + 3.0 * sig) * (0.3 if st == "lock" else 1.0)
-	sweep += dt * (2.2 + 4.0 * sig)
+	snap = move_toward(snap, 1.0, dt * 4.5)
+	confirm = maxf(0.0, confirm - dt)
 	canvas.queue_redraw()
 
 func _on_state(from: String, to: String) -> void:
 	if to == "lock" and from != "lock":
 		snap = 0.0
-		layer.burst(0.35)
+		layer.burst(0.25)
 	elif to == "logged":
-		pulse = 0.0
-		layer.burst(1.0)
+		confirm = 0.3
+		layer.burst(0.6)
 	elif to == "on_file":
-		layer.burst(0.4)
+		confirm = 0.3
 
 # ---- drawing --------------------------------------------------------------------------
 func _draw_canvas() -> void:
@@ -107,49 +97,34 @@ func _draw_canvas() -> void:
 	if st == "logged": col = Term.GREEN
 	elif st == "on_file": col = Term.TEXT
 	var c := canvas.size * 0.5
-	var r := _ring_radius(st)
-	_draw_ring(c, r, st, col)
-	_draw_lock(c, r, st, col)
-	_draw_panel(Vector2(c.x - PANEL_W * 0.5, c.y + RING_SEARCH + PANEL_GAP), st, col)
+	_draw_focus(c, st, col)
+	_draw_lock(c, st, col)
+	_draw_panel(Vector2(c.x - PANEL_W * 0.5, c.y + FOCUS.y * 0.5 + PANEL_GAP), st, col)
 
-func _ring_radius(st: String) -> float:
-	if st == "lock":
-		return lerpf(RING_SEARCH, RING_LOCK, _smooth(snap))
-	if st == "logged" or st == "on_file":
-		return RING_LOCK
-	return RING_SEARCH + 3.0 * sin(t * 3.0)
+## Four corner brackets: the box, and how long their arms are
+func _brackets(r: Rect2, arm: float, color: Color, width: float) -> void:
+	for corner in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+		var sx := 1.0 if corner.x < r.get_center().x else -1.0
+		var sy := 1.0 if corner.y < r.get_center().y else -1.0
+		canvas.draw_line(corner, corner + Vector2(sx * arm, 0.0), color, width)
+		canvas.draw_line(corner, corner + Vector2(0.0, sy * arm), color, width)
 
-func _draw_ring(c: Vector2, r: float, st: String, col: Color) -> void:
+## The focus box round the crosshair: hunting a little while it searches, brighter as the signal
+## rises; a faint centre tick so the eye keeps the crosshair
+func _draw_focus(c: Vector2, st: String, col: Color) -> void:
 	var sig: float = scanner.signal_strength
-	var done := st == "logged" or st == "on_file"
-	var locked := st == "lock"
-	# dashes: brighter as the signal rises, brightest where the sweep passes
-	var seg := TAU / DASHES
-	for i in DASHES:
-		var a0 := spin + i * seg
-		var near := pow(maxf(0.0, cos(a0 + seg * 0.3 - sweep)), 12.0) if st == "search" else 0.0
-		var lit := 1.0 if done else clampf(0.3 + 0.5 * sig + 0.6 * near, 0.0, 1.0)
-		canvas.draw_arc(c, r, a0, a0 + seg * 0.55, 4, _a(col, lit), 2.5, true)
-	# radar sweep: a spoke with a fading trail, only while searching
+	var size_now := FOCUS
 	if st == "search":
-		for k in 7:
-			var d := Vector2.from_angle(sweep - k * 0.08)
-			canvas.draw_line(c + d * 16.0, c + d * (r - 8.0), _a(col, (0.25 + 0.45 * sig) * (1.0 - k / 7.0)), 2.0, true)
-	# the crosshair's fixed frame: four ticks outside the ring
-	for k in 4:
-		var d := Vector2.from_angle(k * PI * 0.5)
-		canvas.draw_line(c + d * (r + 6.0), c + d * (r + 20.0), _a(col, 0.9), line_w * 0.6)
-	# progress round the outside: a faint track, the reading filling it clockwise from the top
-	if locked or done:
-		var frac: float = 1.0 if done else scanner.progress
-		canvas.draw_arc(c, r + 13.0, 0.0, TAU, 72, _a(col, 0.14), line_w, true)
-		if frac > 0.001:
-			canvas.draw_arc(c, r + 13.0, -PI * 0.5, -PI * 0.5 + TAU * frac, maxi(4, int(72 * frac)), _a(col), line_w, true)
-	if pulse >= 0.0:
-		canvas.draw_arc(c, r + 13.0 + pulse * 150.0, 0.0, TAU, 96, _a(col, (1.0 - pulse) * 0.9), line_w * (1.0 - 0.6 * pulse), true)
+		size_now += Vector2(6.0, 4.0) * sin(t * 5.0) * (1.0 - sig)
+	var k := 0.45 + 0.45 * sig if st == "search" else 0.35
+	var r := Rect2(c - size_now * 0.5, size_now)
+	_brackets(r, 16.0, _a(col, k), line_w * 0.6)
+	canvas.draw_line(c - Vector2(7.0, 0.0), c + Vector2(7.0, 0.0), _a(col, k * 0.8), 2.0)
+	canvas.draw_line(c - Vector2(0.0, 7.0), c + Vector2(0.0, 7.0), _a(col, k * 0.8), 2.0)
+	_text(r.position + Vector2(0.0, -8.0), "SCN", 13, _a(Term.MUTED, 0.9), 60.0)
 
-## Brackets on the target itself, a dashed leader from the ring, and its tag
-func _draw_lock(c: Vector2, r: float, st: String, col: Color) -> void:
+## The lock frame on the target itself, its tag above and a progress gauge under it
+func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	if not (st == "lock" or st == "logged" or st == "on_file"):
 		return
 	var cam: Camera3D = scanner.player.cam
@@ -158,32 +133,30 @@ func _draw_lock(c: Vector2, r: float, st: String, col: Color) -> void:
 		return
 	var sp := cam.unproject_position(wp)
 	var dist: float = scanner.target_dist
+	var hs := clampf(1100.0 / maxf(dist, 1.0), 26.0, 110.0)
+	# travel out of the focus box to the target, like autofocus finding its subject
 	var e := _smooth(snap)
-	var hs := clampf(1100.0 / maxf(dist, 1.0), 22.0, 110.0) * lerpf(2.2, 1.0, e)
-	var k := _a(col, lerpf(0.25, 1.0, e))
-	var arm := minf(18.0, hs * 0.6)
-	for sx in [-1.0, 1.0]:
-		for sy in [-1.0, 1.0]:
-			var q := sp + Vector2(sx, sy) * hs
-			canvas.draw_line(q, q - Vector2(sx * arm, 0.0), k, line_w)
-			canvas.draw_line(q, q - Vector2(0.0, sy * arm), k, line_w)
-	var d := sp - c
-	if d.length() > r + hs + 24.0:
-		var dir := d.normalized()
-		var a0 := c + dir * (r + 22.0)
-		var a1 := sp - dir * hs * 1.2
-		var n := int(a0.distance_to(a1) / 10.0)
-		for i in range(0, n, 2):
-			canvas.draw_line(a0.lerp(a1, float(i) / n), a0.lerp(a1, float(i + 1) / n), _a(col, 0.55 * e), 2.0)
-	# tag beside the brackets, flipped to the left near the screen's right edge
+	var from := Rect2(c - FOCUS * 0.5, FOCUS)
+	var to := Rect2(sp - Vector2(hs, hs), Vector2(hs, hs) * 2.0)
+	var r := Rect2(from.position.lerp(to.position, e), from.size.lerp(to.size, e))
+	if confirm > 0.0 and int(confirm * 13.0) % 2 == 1:
+		return                       # the confirm blink: off
+	var k := _a(col)
+	_brackets(r, minf(20.0, r.size.x * 0.3), k, line_w)
+	if e < 0.99:
+		return
+	# tag above, range on the right; gauge under, as wide as the frame
 	var tag := "UNIDENTIFIED"
 	if Archive.is_discovered(scanner.target_id):
 		tag = str(Archive.entity_info(scanner.target_id).get("code", "ASRA-EN-??"))
-	var right := sp.x + hs + 230.0 < canvas.size.x
-	var tx := sp.x + hs + 12.0 if right else sp.x - hs - 12.0
-	var align := HORIZONTAL_ALIGNMENT_LEFT if right else HORIZONTAL_ALIGNMENT_RIGHT
-	_text(Vector2(tx, sp.y - hs + 14.0), tag, 16, k, 210.0, align)
-	_text(Vector2(tx, sp.y - hs + 34.0), "%.1fM" % dist, 15, _a(col, 0.7 * e), 210.0, align)
+	var w := maxf(r.size.x, 220.0)       # the frame's colour and the readout say logged / on file
+	var x0 := r.get_center().x - w * 0.5
+	var rw := _text(Vector2(x0 + w, r.position.y - 10.0), "%.1fM" % dist, 14, _a(Term.MUTED), 70.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	_text(Vector2(x0, r.position.y - 10.0), tag, 15, k, w - rw - 10.0)
+	var frac: float = 1.0 if st != "lock" else scanner.progress
+	var bar := Rect2(r.position.x, r.end.y + 10.0, r.size.x, 4.0)
+	canvas.draw_rect(bar, _a(col, 0.18))
+	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), k)
 
 ## Folder-tab readout (the toast's and the dossier's shape)
 func _draw_panel(o: Vector2, st: String, col: Color) -> void:

@@ -3,19 +3,21 @@ extends Control
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
 ## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
 ## carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
-## estimate. On the right, a tabbed sheet: [F1] ITEMS (the selected item's record), [F2] THRESHOLD
-## DOSSIER (level dossier + entity sightings from Archive, scripts/GameLogicEngine/asra_archive.gd)
-## and [F3] PAPERS (recovered lore).
+## estimate. On the right, a tabbed sheet: [F1] ITEMS (the selected item's record), [F2] DOSSIER (the
+## level's threshold dossier and which of its anomalies are logged, from Archive,
+## scripts/GameLogicEngine/asra_archive.gd), [F3] ENTRIES (every catalogued entity: pick one with
+## the arrows or a click and read its full entry; new ones are marked until opened) and [F4] PAPERS
+## (recovered lore).
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
 ## same warp (_through_lens) so hover and clicks land on what is drawn. Its bright parts glow: two
 ## half-resolution blur passes (scripts/UI/crt/crt_bloom.gd) that the lens adds back, flickering like
 ## a tired tube (crt_flicker.gd). The HUD's scanner reticle and toast share both (crt_layer.gd).
-## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): power on / off, a chirp
-## on page switches (which also lift the tab and type the page in behind a scan line), a blip on
-## item selection.
+## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): a relay and static on
+## power on / off, a key switch on page switches (which also lift the tab and type the page in behind
+## a scan line), a lighter tick on item / entry selection.
 ## Toggled with TAB (scripts/GameLogicEngine/main.gd -> hud.gd set_inventory), closed by TAB / ESC
-## or a click outside the window; arrows, F1-F3 and PgUp/PgDn navigate while it is up.
+## or a click outside the window; arrows, F1-F4 and PgUp/PgDn navigate while it is up.
 ## Empty by default: scripts/World/props pickups can call add_item() / add_lore() to populate it.
 
 signal close_requested
@@ -58,14 +60,16 @@ const BLOOM_RADIUS := 11.0       # how far the glow reaches, in screen pixels at
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
 # scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
-const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
+const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
 const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
-const TABS := ["ITEMS", "DOSSIER", "PAPERS"]
-const TAB_TITLES := {"ITEMS": "[F1] ITEMS", "DOSSIER": "[F2] THRESHOLD DOSSIER", "PAPERS": "[F3] PAPERS"}
+const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS"]
+# short, so four fit on the sheet; the dossier page carries its full title
+const TAB_TITLES := {"ITEMS": "[F1] ITEMS", "DOSSIER": "[F2] DOSSIER", "ENTRIES": "[F3] ENTRIES", "PAPERS": "[F4] PAPERS"}
+const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS"}
 const METRICS := {
 	"spatial_reliability": "SPATIAL RELIABILITY",
 	"temporal_coherence": "TEMPORAL COHERENCE",
@@ -104,6 +108,7 @@ var items: Array = []                # {id, name, desc, count, code, stack}
 var selected := -1
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
+var link_nodes: Array = []           # dossier phenomena rows: a click opens their entry
 var selected_label: Label
 var battery_label: Label
 
@@ -121,6 +126,13 @@ var item_page: VBoxContainer
 var dossier_text: VBoxContainer
 var phenomena_title: Label
 var phenomena_list: VBoxContainer
+# [F3] ENTRIES
+var entries_title: Label
+var entries_list: VBoxContainer
+var entry_detail: VBoxContainer
+var entry_ids: Array = []            # every catalogued entity, in code order
+var entry_rows: Array = []           # one PanelContainer per entry
+var entry_sel := 0
 var lore_entries: Array = []         # {id, title, text}
 var papers_list: VBoxContainer
 
@@ -129,7 +141,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	visible = false
 	_build()
-	Archive.entity_discovered.connect(func(_id: String): _refresh_dossier())
+	Archive.entity_discovered.connect(_on_entry_logged)
 	get_viewport().size_changed.connect(_fit_viewport)
 
 # ---- helpers ------------------------------------------------------------------
@@ -338,6 +350,7 @@ func _build() -> void:
 	_select_tab(active_page, true)
 	_refresh_items()
 	_refresh_dossier()
+	_refresh_entries()
 	_refresh_papers()
 
 ## Size the SubViewport to the screen: laid out in canvas units (size_2d_override) but rendered at
@@ -376,7 +389,7 @@ func _forward_mouse(e: InputEvent) -> void:
 	content_root.accept_event()
 	if ev is InputEventMouseMotion:
 		var hand := false
-		for c in clickables + row_nodes:
+		for c in clickables + row_nodes + link_nodes + entry_rows:
 			if is_instance_valid(c) and c.is_visible_in_tree() and c.get_global_rect().has_point(p):
 				hand = true
 				break
@@ -425,7 +438,7 @@ func _build_footer() -> Control:
 	h.alignment = BoxContainer.ALIGNMENT_END
 	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for hint in ["UP/DN SELECT", "F1-F3 PAGE", "PGUP/PGDN SCROLL"]:
+	for hint in ["UP/DN SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
 	var close := Button.new()
@@ -731,6 +744,7 @@ func _build_readout() -> Control:
 	pages["ITEMS"] = items_scroll
 	page_scrolls["ITEMS"] = items_scroll
 	pages["DOSSIER"] = _build_dossier_page()
+	pages["ENTRIES"] = _build_entries_page()
 	var papers_scroll := _scroll()
 	papers_list = _scroll_body(papers_scroll, 8)
 	pages["PAPERS"] = papers_scroll
@@ -774,6 +788,8 @@ func _draw_readout() -> void:
 		readout.draw_colored_polygon(shape, FILL if on else Color(FILL, 0.5))
 		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, LINE, true)
 		if on: gap = Vector2(x0, x1)
+		if tab == "ENTRIES" and Archive.has_unread():   # something newly logged and not read yet
+			readout.draw_circle(Vector2(x1 - TAB_SLANT - 6.0, y + 10.0), 5.0, AMBER)
 	var edge := PackedVector2Array([
 		Vector2(gap.y, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c), Vector2(0, top)])
@@ -790,12 +806,12 @@ func _style_tab(tab: String) -> void:
 	sb.content_margin_top = 0.0 if on else 8.0
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, sb)
-	b.add_theme_font_size_override("font_size", 22 if on else 18)
+	b.add_theme_font_size_override("font_size", 22 if on else 16)
 	for s in ["font_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(s, TEXT if on else TEXT_DIM)
 	b.add_theme_color_override("font_hover_color", TEXT)
 
-func _select_tab(tab: String, force := false) -> void:
+func _select_tab(tab: String, force := false, focus_new := true) -> void:
 	if tab == active_page and not force:
 		return
 	active_page = tab
@@ -804,6 +820,8 @@ func _select_tab(tab: String, force := false) -> void:
 	for k in tab_buttons:
 		_style_tab(k)
 	readout.queue_redraw()
+	if tab == "ENTRIES" and focus_new:
+		_focus_unread()
 	if force:
 		return
 	_sfx("tab")
@@ -916,7 +934,7 @@ func _refresh_dossier() -> void:
 	var designation := str(d.get("designation", "LEVEL // DESIGNATION PENDING"))
 	_clear(dossier_text)
 	var sheet_no = d.get("log_sheet", 100 + absi(designation.hash()) % 900)
-	dossier_text.add_child(_label("[LOG SHEET #%s]" % str(sheet_no), 21, TEXT, 1))
+	dossier_text.add_child(_label("THRESHOLD DOSSIER // LOG SHEET #%s" % str(sheet_no), 21, TEXT, 1))
 	dossier_text.add_child(_spacer(14))
 	dossier_text.add_child(_label("ZONE: " + designation, 21, TEXT, 1, true))
 	dossier_text.add_child(_label("THREAT: <%s>" % str(d.get("threat_classification", "UNDETERMINED")), 21, RED, 1, true))
@@ -933,6 +951,7 @@ func _refresh_dossier() -> void:
 			dossier_text.add_child(_label("%d. %s" % [i + 1, str(directives[i])], 21, TEXT, 1, true))
 
 	_clear(phenomena_list)
+	link_nodes.clear()
 	var ids: Array = d.get("entities", [])
 	var found := 0
 	for id in ids:
@@ -945,39 +964,243 @@ func _refresh_dossier() -> void:
 		var hint := _label("HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY TO LOG IT.", 17, AMBER, 1, true)
 		phenomena_list.add_child(hint)
 		phenomena_list.move_child(hint, 0)
+	if not ids.is_empty():
+		phenomena_list.add_child(_label("CLICK AN ENTRY OR PRESS F3 TO READ IT IN FULL.", 15, MUTED, 1, true))
 	phenomena_title.text = "PHENOMENA LOGGED: %d/%d" % [found, ids.size()]
 
-## Seen: its catalog entry off Archive.entity_info(). Not seen yet: the sheet admits something is
-## catalogued here without saying what, until the player has had a look at it.
+## One line per anomaly catalogued for this level: its code and name once it is logged (and the
+## protocol to follow), redacted until then. A click opens its full entry on [F3] ENTRIES.
 func _phenomenon(id: String) -> Control:
+	var p := PanelContainer.new()
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	p.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0)))
+	p.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_open_entry(id)
+	)
+	p.mouse_entered.connect(func(): p.add_theme_stylebox_override("panel", _box(Color(AMBER, 0.07))))
+	p.mouse_exited.connect(func(): p.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0))))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 3)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if Archive.is_discovered(id):
 		var info := Archive.entity_info(id)
-		v.add_child(_label("[CONFIRMED: %s (%s)]" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
-		v.add_child(_label("Threat: " + str(info.get("threat_class", "Undetermined")), 19, RED, 1, true))
-		v.add_child(_label("Vector: " + str(info.get("behavior_vector", "")), 19, TEXT_DIM, 1, true))
-		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 19, TEXT, 1, true))
+		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
+		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 17, TEXT, 1, true))
 	else:
-		v.add_child(_label("[UNCONFIRMED: NO SCAN ON FILE]", 19, TEXT_DIM, 1))
-		var h := HBoxContainer.new()
-		h.add_theme_constant_override("separation", 8)
-		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		h.add_child(_label("Protocol:", 19, TEXT_DIM, 1))
-		var rng := RandomNumberGenerator.new()
-		rng.seed = id.hash()                  # the same redaction every time for this entity
-		for i in 4:
-			var bar := ColorRect.new()
-			bar.color = Color(TEXT, 0.22)
-			bar.custom_minimum_size = Vector2(rng.randi_range(40, 130), 14)
-			bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			h.add_child(bar)
-		v.add_child(h)
+		v.add_child(_label("[UNCONFIRMED] NO SCAN ON FILE", 19, TEXT_DIM, 1))
+		v.add_child(_redacted(id, 3))
+	p.add_child(v)
+	link_nodes.append(p)
+	return p
+
+## Redaction bars standing in for text not on file yet: the same ones every time for this id
+func _redacted(id: String, bars: int) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rng := RandomNumberGenerator.new()
+	rng.seed = id.hash() + bars
+	for i in bars:
+		var bar := ColorRect.new()
+		bar.color = Color(TEXT, 0.22)
+		bar.custom_minimum_size = Vector2(rng.randi_range(50, 150), 14)
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(bar)
+	return h
+
+# [F3] every catalogued entity: a list on the left, the chosen entry on the right
+func _build_entries_page() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	entries_title = _label("[ANOMALY ENTRIES]", 21, TEXT, 1)
+	v.add_child(entries_title)
+	v.add_child(_spacer(14))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(row)
+	var list_scroll := _scroll()
+	list_scroll.custom_minimum_size.x = 250
+	entries_list = _scroll_body(list_scroll, 6)
+	row.add_child(list_scroll)
+	var div := ColorRect.new()
+	div.color = Color(AMBER, 0.35)
+	div.custom_minimum_size = Vector2(2, 0)
+	div.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(div)
+	var detail_scroll := _scroll()
+	detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	entry_detail = _scroll_body(detail_scroll, 6)
+	row.add_child(detail_scroll)
+	page_scrolls["ENTRIES"] = detail_scroll
 	return v
 
-# [F3] recovered papers
+func _refresh_entries() -> void:
+	if not entries_list:
+		return
+	var all := Archive.entities()
+	entry_ids = all.keys()
+	entry_ids.sort_custom(func(a, b): return str(all[a].get("code", "")) < str(all[b].get("code", "")))
+	var logged := 0
+	for id in entry_ids:
+		if Archive.is_discovered(str(id)): logged += 1
+	entries_title.text = "[ANOMALY ENTRIES // %d OF %d LOGGED]" % [logged, entry_ids.size()]
+	_clear(entries_list)
+	entry_rows.clear()
+	for i in entry_ids.size():
+		var row := _entry_row(i, str(entry_ids[i]))
+		entries_list.add_child(row)
+		entry_rows.append(row)
+	entry_sel = clampi(entry_sel, 0, maxi(entry_ids.size() - 1, 0))
+	for i in entry_rows.size():
+		_style_entry_row(i)
+	_show_entry()
+
+## A list row: the code (and NEW until it is opened), the name under it; redacted until logged
+func _entry_row(i: int, id: String) -> Control:
+	var logged := Archive.is_discovered(id)
+	var info := Archive.entity_info(id)
+	var p := PanelContainer.new()
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	p.set_meta("hover", false)
+	p.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			_select_entry(i)
+	)
+	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_entry_row(i))
+	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_entry_row(i))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var code := _label(str(info.get("code", "ASRA-EN-??")) if logged else "ASRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
+	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(code)
+	var badge := _label("NEW", 15, AMBER, 2)
+	badge.visible = Archive.is_unread(id)
+	top.add_child(badge)
+	v.add_child(top)
+	var nm := _label(str(info.get("common_name", id)).to_upper() if logged else "UNREGISTERED", 15, TEXT_DIM, 1)
+	nm.clip_text = true
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(nm)
+	p.add_child(v)
+	p.set_meta("code", code)
+	p.set_meta("badge", badge)
+	p.set_meta("logged", logged)
+	return p
+
+func _style_entry_row(i: int) -> void:
+	if i >= entry_rows.size():
+		return
+	var p: PanelContainer = entry_rows[i]
+	var sel := i == entry_sel
+	var bg := Color(0, 0, 0, 0)
+	if sel: bg = Color(AMBER, 0.16)
+	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
+	var sb := _box(bg, AMBER)
+	sb.border_width_left = LINE if sel else 0
+	sb.content_margin_left = 12; sb.content_margin_right = 10
+	sb.content_margin_top = 5; sb.content_margin_bottom = 5
+	p.add_theme_stylebox_override("panel", sb)
+	var logged: bool = p.get_meta("logged")
+	(p.get_meta("code") as Label).add_theme_color_override("font_color", AMBER if sel else (TEXT if logged else TEXT_DIM))
+
+func _select_entry(i: int, quiet := false) -> void:
+	if entry_ids.is_empty():
+		return
+	i = clampi(i, 0, entry_ids.size() - 1)
+	if i != entry_sel and not quiet: _sfx("select")
+	entry_sel = i
+	for j in entry_rows.size():
+		_style_entry_row(j)
+	_show_entry()
+
+## [F3] from the dossier's phenomena list: straight to that entity's entry (built before the page
+## switch, so it types in with the rest of the page)
+func _open_entry(id: String) -> void:
+	var i := entry_ids.find(id)
+	if i >= 0 and i != entry_sel:
+		entry_sel = i
+		for j in entry_rows.size():
+			_style_entry_row(j)
+		_show_entry()
+	_select_tab("ENTRIES", false, false)
+	_mark_seen()
+
+## The entry on show is no longer new once it has been opened on [F3]
+func _mark_seen() -> void:
+	if entry_ids.is_empty() or not shown or active_page != "ENTRIES":
+		return
+	var id := str(entry_ids[entry_sel])
+	if Archive.is_discovered(id) and Archive.is_unread(id):
+		Archive.mark_read(id)
+		(entry_rows[entry_sel].get_meta("badge") as Label).visible = false
+		readout.queue_redraw()
+
+## Arriving on [F3] with something new logged: that one first
+func _focus_unread() -> void:
+	for i in entry_ids.size():
+		if Archive.is_unread(str(entry_ids[i])):
+			_select_entry(i, true)
+			return
+
+func _show_entry() -> void:
+	if not entry_detail:
+		return
+	_clear(entry_detail)
+	if entry_ids.is_empty():
+		entry_detail.add_child(_label("NO ENTRIES CATALOGUED.", 19, TEXT_DIM, 1))
+		return
+	var id := str(entry_ids[entry_sel])
+	var info := Archive.entity_info(id)
+	_mark_seen()
+	if Archive.is_discovered(id):
+		entry_detail.add_child(_label(str(info.get("code", "ASRA-EN-??")), 26, AMBER, 2))
+		entry_detail.add_child(_label(str(info.get("common_name", id)).to_upper(), 21, TEXT, 1, true))
+		entry_detail.add_child(_label("THREAT CLASS: " + str(info.get("threat_class", "Undetermined")), 18, RED, 1, true))
+		_entry_section("BEHAVIOUR VECTOR", str(info.get("behavior_vector", "")))
+		_entry_section("FIELD PROTOCOL", str(info.get("directive", "")))
+	else:
+		entry_detail.add_child(_label("ASRA-EN-??", 26, TEXT_DIM, 2))
+		entry_detail.add_child(_label("UNREGISTERED ANOMALY", 21, TEXT_DIM, 1))
+		entry_detail.add_child(_spacer(14))
+		for n in [4, 3, 4, 2]:
+			entry_detail.add_child(_redacted(id + str(n), n))
+		entry_detail.add_child(_spacer(12))
+		entry_detail.add_child(_label("NO SCAN ON FILE. HOLD Q WITH THE FIELD SCANNER ON IT TO LOG THIS ENTRY.", 17, AMBER, 1, true))
+	var sites := Archive.sites_of(id)
+	_entry_section("KNOWN SITES", "\n".join(sites) if not sites.is_empty() else "NONE ON RECORD")
+	var when := Archive.logged_info(id)
+	if when.has("t"):
+		var level_id := str(when.get("level", ""))
+		var where := str(Archive.dossiers().get(level_id, {}).get("designation", level_id))
+		entry_detail.add_child(_spacer(12))
+		entry_detail.add_child(_label("LOGGED %s // %s" % [_local_time(int(when.t)), where], 15, MUTED, 1, true))
+
+func _entry_section(title: String, body: String) -> void:
+	entry_detail.add_child(_spacer(12))
+	entry_detail.add_child(_label(title, 15, MUTED, 2))
+	entry_detail.add_child(_label(body, 18, TEXT, 1, true))
+
+## Unix seconds -> "YYYY-MM-DD HH:MM" on this machine's clock
+func _local_time(unix: int) -> String:
+	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+	var d := Time.get_datetime_dict_from_unix_time(unix + bias)
+	return "%04d-%02d-%02d %02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute]
+
+func _on_entry_logged(_id: String) -> void:
+	_refresh_dossier()
+	_refresh_entries()
+	if readout:
+		readout.queue_redraw()
+
+# [F4] recovered papers
 func _refresh_papers() -> void:
 	if not papers_list:
 		return
@@ -1014,6 +1237,7 @@ func set_shown(on: bool) -> void:
 		if selected == -1 and not items.is_empty(): selected = 0
 		_refresh_selection()
 		_refresh_dossier()
+		_refresh_entries()
 		_sfx("on")
 		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
@@ -1060,13 +1284,15 @@ func _input(e: InputEvent) -> void:
 	if k == null or not k.pressed or k.echo:
 		return
 	match k.physical_keycode:
-		KEY_UP: _move_selection(-1)
-		KEY_DOWN: _move_selection(1)
+		KEY_UP, KEY_DOWN:            # the arrows move whichever list the page shows
+			var step := -1 if k.physical_keycode == KEY_UP else 1
+			if active_page == "ENTRIES":
+				_select_entry(entry_sel + step)
+			else:
+				_move_selection(step)
 		KEY_LEFT: _cycle_tab(-1)
 		KEY_RIGHT: _cycle_tab(1)
-		KEY_F1: _select_tab("ITEMS")
-		KEY_F2: _select_tab("DOSSIER")
-		KEY_F3: _select_tab("PAPERS")
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4: _select_tab(TAB_KEYS[k.physical_keycode])
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return

@@ -51,7 +51,7 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | F | Torch on/off |
 | Q (hold) | A.S.R.A. field scanner: hold on an entity near the crosshair to log it |
 | Tab | Inventory (A.S.R.A. field terminal) |
-| ↑ ↓ / F1–F3 or ← → / PgUp PgDn | In the terminal: select item / switch page / scroll |
+| ↑ ↓ / F1–F4 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |
 | V | Push-to-talk (when voice is set to push-to-talk) |
 | Esc | Pause / settings |
 | F11 or Alt+Enter | Fullscreen |
@@ -89,7 +89,8 @@ sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
 the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and
-unlock once the player scans the entity with the field scanner (debug console: `archive list` / `archive reset`).
+unlock once the player scans the entity with the field scanner; they are read on the terminal's [F3] ENTRIES page
+(debug console: `archive list` / `archive reset`).
 
 ## Releasing
 

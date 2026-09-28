@@ -63,7 +63,7 @@ func _ready() -> void:
 
 	chime = AudioStreamPlayer.new()
 	chime.stream = load("res://audio/terminal/terminal_logged.wav")
-	chime.volume_db = -8.0
+	chime.volume_db = -15.0
 	add_child(chime)
 
 func _label(text: String, px: int, color: Color) -> Label:
