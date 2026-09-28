@@ -1,4 +1,8 @@
 shader_type canvas_item;
+// Premultiplied: TEXTURE is a transparent SubViewport, whose colour is already multiplied by its
+// alpha (it composites over transparent black), and the bloom is added on top (lighting the view
+// around the panels, not just the panels).
+render_mode blend_premul_alpha;
 // Camcorder-viewfinder composite for the inventory panel: a real fisheye bulge (unlike the
 // full-screen post.gdshader, this is deliberately NOT overscan-corrected by default — the point is
 // a visibly round lens with the corners falling into shadow, like looking through a camcorder
@@ -6,6 +10,10 @@ shader_type canvas_item;
 // `glitch` (0..1, set from GDScript on open and on random idle ticks).
 // fit_corners: scale the bulge back so the corners land exactly on the corners — a CRT screen
 // curve that never crops, for full-screen use (inventory.gd mirrors this in _through_lens()).
+// Bloom: bloom_tex is the terminal's bright parts blurred at half resolution (ui_bloom.gdshader,
+// inventory.gd _bloom_pass), added back through the same warp, pulled toward the amber phosphor
+// hue (bloom_tint) and held back on pixels that are already bright (bloom_damp), so the lines and
+// bars glow without washing their own segments out.
 // TEXTURE is the SubViewport this panel's own controls are rendered into (see inventory.gd).
 uniform float aspect = 1.5;
 uniform float distortion : hint_range(0.0, 1.0) = 0.5;
@@ -18,6 +26,12 @@ uniform float glitch : hint_range(0.0, 1.0) = 0.0;
 // overall opacity for the power-on flicker: writing COLOR drops the node's modulate, so the
 // fade has to come in as a uniform
 uniform float fade : hint_range(0.0, 1.0) = 1.0;
+uniform sampler2D bloom_tex : hint_default_black, filter_linear, repeat_disable;
+uniform float bloom_amt : hint_range(0.0, 4.0) = 0.0;
+uniform float bloom_tint : hint_range(0.0, 1.0) = 0.5;
+uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
+
+const vec3 PHOSPHOR = vec3(1.0, 0.785, 0.319);   // the terminal's amber, brightest channel at 1
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -58,13 +72,21 @@ void fragment() {
 	vec3 col = vec3(tr.r, tg.g, tb.b);
 	float alpha = max(tr.a, max(tg.a, tb.a));
 
+	vec3 glow = texture(bloom_tex, clamp(pg, 0.0, 1.0)).rgb * inside(pg);
+	float glow_l = max(glow.r, max(glow.g, glow.b));
+	glow = mix(glow, glow_l * PHOSPHOR, bloom_tint);
+	float own = smoothstep(0.3, 0.75, max(col.r, max(col.g, col.b)));
+	col += glow * bloom_amt * (1.0 - bloom_damp * own);
+	// where anything is drawn at all, the panel or its glow: grain and tears stay off the bare view
+	float cover = max(alpha, clamp(glow_l * bloom_amt, 0.0, 1.0));
+
 	// scanlines at real pixel density (FRAGCOORD, not UV) so they read as lines, not a grey wash
 	float sl = 0.5 + 0.5 * sin(FRAGCOORD.y * 1.05);
 	col *= 1.0 - scan_amt * sl;
 
 	// film grain: a fresh hash every frame
 	float g = hash12(FRAGCOORD.xy + fract(TIME * 11.3) * 191.0);
-	col += (g - 0.5) * grain_amt * 2.0;
+	col += (g - 0.5) * grain_amt * 2.0 * cover;
 
 	// vignette toward the lens edge, doubling as the fisheye's own falloff
 	float vig = smoothstep(0.28, 0.85, dist_r);
@@ -75,8 +97,8 @@ void fragment() {
 		float row = floor(uv.y * 70.0);
 		float tick = floor(TIME * 42.0);
 		float tear = step(0.9, hash12(vec2(row, tick)));
-		col += vec3(0.85, 0.9, 0.95) * tear * glitch;
+		col += vec3(0.85, 0.9, 0.95) * tear * glitch * cover;
 	}
 
-	COLOR = vec4(clamp(col, 0.0, 1.0), alpha * fade);
+	COLOR = vec4(clamp(col, 0.0, 1.0), alpha) * fade;
 }

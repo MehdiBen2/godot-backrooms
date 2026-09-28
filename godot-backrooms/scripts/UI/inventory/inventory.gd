@@ -8,7 +8,8 @@ extends Control
 ## and [F3] PAPERS (recovered lore).
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
-## same warp (_through_lens) so hover and clicks land on what is drawn.
+## same warp (_through_lens) so hover and clicks land on what is drawn. Its bright parts glow: two
+## half-resolution blur passes (_bloom_pass, shaders/ui_bloom.gdshader) that the lens adds back.
 ## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): power on / off, a chirp
 ## on page switches (which also lift the tab and type the page in behind a scan line), a blip on
 ## item selection.
@@ -49,6 +50,9 @@ const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corne
 const LINE := 3                  # outline weight: boxes, bars, the sheet and its tabs (shown x WINDOW_SCALE)
 const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
+const BLOOM := 1.5               # phosphor glow strength (ui_vhs_overlay bloom_amt)
+const BLOOM_RADIUS := 13.0       # how far the glow reaches, in screen pixels at 1080p
+const BLOOM_DOWNSCALE := 2       # the blur runs at half the terminal's resolution (keep it 2: ui_bloom.gdshader)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
 
@@ -82,6 +86,8 @@ var content_root: Control
 var viewport: SubViewport
 var lens: TextureRect
 var overlay_mat: ShaderMaterial
+var bloom_vps: Array = []        # [horizontal, vertical] blur passes (SubViewport)
+var bloom_mats: Array = []
 var clickables: Array = []           # fixed controls in the viewport that take a click (hand cursor)
 
 # vitals
@@ -299,6 +305,14 @@ func _build() -> void:
 	lens.scale = Vector2.ONE * WINDOW_SCALE   # about pivot_offset, the centre (_fit_viewport)
 	content_root.add_child(lens)
 
+	# Bloom, like phosphor on a CRT: the terminal's bright parts (lines, bar segments, icons, text)
+	# blurred horizontally then vertically at half resolution; the lens adds the result back through
+	# the same warp, so the glow spills onto the dark panels and the view around them
+	var h := _bloom_pass(viewport.get_texture(), Vector2(1, 0), true)
+	var v := _bloom_pass(h.get_texture(), Vector2(0, 1), false)
+	overlay_mat.set_shader_parameter("bloom_tex", v.get_texture())
+	overlay_mat.set_shader_parameter("bloom_amt", BLOOM)
+
 	var screen := Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -334,9 +348,37 @@ func _fit_viewport() -> void:
 	var k := get_viewport().get_final_transform().get_scale()
 	var px := clampf(maxf(k.x, k.y), 0.5, 3.0)
 	viewport.size = Vector2i((logical * px * WINDOW_SCALE).round())
+	var half := Vector2i((Vector2(viewport.size) / BLOOM_DOWNSCALE).ceil())
+	var reach := BLOOM_RADIUS * px   # texture pixels: the terminal texture is shown 1:1
+	for i in bloom_vps.size():
+		(bloom_vps[i] as SubViewport).size = half
+		# 13 taps span +-6 steps; the vertical pass reads the half-resolution horizontal one
+		(bloom_mats[i] as ShaderMaterial).set_shader_parameter("spacing", reach / 6.0 / (1.0 if i == 0 else float(BLOOM_DOWNSCALE)))
 	viewport.size_2d_override = Vector2i(logical.round())
 	overlay_mat.set_shader_parameter("aspect", logical.x / logical.y)
 	lens.pivot_offset = logical * 0.5
+
+## One blur pass: `src` drawn at half resolution through ui_bloom.gdshader along `dir`
+func _bloom_pass(src: Texture2D, dir: Vector2, bright_pass: bool) -> SubViewport:
+	var vp := SubViewport.new()
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	content_root.add_child(vp)
+	var r := TextureRect.new()
+	r.texture = src
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_SCALE
+	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/ui_bloom.gdshader")
+	m.set_shader_parameter("direction", dir)
+	m.set_shader_parameter("bright_pass", bright_pass)
+	r.material = m
+	vp.add_child(r)
+	bloom_vps.append(vp)
+	bloom_mats.append(m)
+	return vp
 
 ## Screen-space mouse events land on content_root; push them into the terminal's viewport at the
 ## point the lens actually shows there, so hover / click / wheel match the curved picture
@@ -988,6 +1030,7 @@ func set_shown(on: bool) -> void:
 	anim = create_tween().set_parallel(true)
 	if on:
 		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		for vp in bloom_vps: vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		visible = true
 		modulate.a = 1.0
 		_fit_viewport()
@@ -1019,6 +1062,7 @@ func _finish_hide() -> void:
 	_set_scan(-1.0)
 	overlay_mat.set_shader_parameter("fade", 1.0)
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	for vp in bloom_vps: vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
 ## Alpha curve for the power-on: dim, blink out, flash, settle (matches menu.gd). Static: the HUD
 ## toast (terminal_toast.gd) flickers on with it too.
