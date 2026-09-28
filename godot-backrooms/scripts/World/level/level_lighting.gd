@@ -36,16 +36,20 @@ const FOG_COLOR_DARK := Color("020201")
 ## that meters, pumps and drifts on its own (_update_camcorder).
 const ATMOSPHERES := {
 	"classic": {
-		"ambient_energy": 1.0, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
-		"exposure": 1.3, "tonemap_white": 2.2,        # overexposed: walls sit near white-yellow, panels clip hard
-		"glow_threshold": 0.9,                        # the panels and the brightest wall patches bleed
-		"glow_intensity": 1.0, "glow_bloom": 0.05, "glow_wide": 0.7,    # wide soft halo round the lights (glow level 5)
+		"ambient_energy": 0.7, "ambient_color": Color(0.36, 0.31, 0.17),   # even yellow fill, low enough that the lights still shape the walls
+		"exposure": 1.12, "tonemap_white": 3.0,       # a touch overexposed: panels clip white, walls stay readable
+		"glow_threshold": 1.15,                       # only the panels themselves bleed, not bright walls
+		# no bloom-everything and only a small wide halo: the far panels bunched up near the horizon used to
+		# merge into one glowing band across the ceiling
+		"glow_intensity": 0.9, "glow_bloom": 0.0, "glow_wide": 0.25,
 		"ssao_intensity": 1.2,                        # fluorescent light is flat and shadowless: only a hint of contact AO
-		"haze": Color(0.75, 0.68, 0.45),              # the far distance fades to lit-wallpaper yellow, never to murk
+		# the distance loses contrast toward a dim wall tone; a bright haze made everything far away glow
+		"haze": Color(0.36, 0.32, 0.2),
 	},
 }
-const FF_FOG := 0.08                # found footage: fog left at this share (clear air, far walls readable)
-const FF_CEIL_FILL := 0.45          # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader)
+const FF_FOG := 0.05                # found footage: fog left at this share (clear air, far walls readable)
+const FF_CEIL_FILL := 0.2           # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader)
+const VFOG_EMISSION := Color(0.035, 0.03, 0.015)   # main.tscn's volumetric fog emission (the dim look)
 const FF_BLACK_LIFT := 0.07         # found footage: camcorder black level (post.gdshader black_lift)
 # Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles
 const AE_KEY := 0.75                # meter reading that gives a gain of 1 (a typical lit hall)
@@ -221,8 +225,11 @@ func _update_atmosphere(delta: float) -> void:
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
 	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
 	if env.volumetric_fog_enabled:
-		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
+		# lit volumetric fog scatters every tube it passes and piles up with distance (a glowing far band), so
+		# in the found-footage look's clear air it is almost gone
+		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix)
 		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
+		env.volumetric_fog_emission = VFOG_EMISSION * (1.0 - 0.85 * open_mix)   # its own glow piles up with distance too
 
 ## Blend the WorldEnvironment from its own (dim) values toward an ATMOSPHERES look: the camera settings
 ## follow classic_mix (where you stand), the light itself open_mix (which a power cut takes away).

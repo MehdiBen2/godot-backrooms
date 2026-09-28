@@ -260,7 +260,7 @@ void fragment() {
 		float bl1 = dot(b1, vec3(0.299, 0.587, 0.114));
 		float bl2 = dot(b2, vec3(0.299, 0.587, 0.114));
 		// (the environment's glow already blooms the panels: this is only the camera's soft highlight bleed)
-		col += (b1 * smoothstep(0.55, 0.95, bl1) * 0.06 + b2 * smoothstep(0.6, 1.0, bl2) * 0.08) * classic * vec3(1.0, 0.96, 0.82);
+		col += (b1 * smoothstep(0.55, 0.95, bl1) * 0.03 + b2 * smoothstep(0.7, 1.0, bl2) * 0.015) * classic * vec3(1.0, 0.96, 0.82);
 		col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), 0.08 * classic);   // slightly less saturated, like real fluorescent light
 		// camcorder tape: blacks lift to olive and the whole picture leans yellow-green, highlights stay white
 		col = mix(col, col * vec3(1.0, 0.99, 0.9) + vec3(0.03, 0.028, 0.008), classic);
