@@ -447,7 +447,7 @@ func _tape_rpc(strips: Array) -> void:
 		var b: Vector3 = s[2]
 		var n: Vector3 = s[3]
 		if not (a.is_finite() and b.is_finite() and n.is_finite()) or absf(a.x) > MAX_COORD or absf(a.y) > MAX_COORD \
-				or absf(a.z) > MAX_COORD or a.distance_to(b) > 5.0 or absf(n.length() - 1.0) > 0.01:
+				or absf(a.z) > MAX_COORD or a.distance_to(b) > 25.0 or absf(n.length() - 1.0) > 0.01:
 			continue
 		TapeMarks.receive(level, a, b, n)
 

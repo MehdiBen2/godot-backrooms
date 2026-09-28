@@ -14,7 +14,7 @@ const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 
 const KEY := KEY_T
 const REACH := 3.0               # m: how far away the first end can be pressed down
-const MAX_STRIP := 6.0           # m in one pull
+const MAX_STRIP := 20.0          # m in one pull
 const MIN_STRIP := 0.12          # m: shorter is not a strip
 const WORLD_MASK := 1            # level geometry only
 const PULL_EASE := 16.0          # 1/s: how quickly the tape catches up with your aim
@@ -152,9 +152,10 @@ func _supported(goal: Vector3) -> Vector3:
 	var probe := PhysicsRayQueryParameters3D.create(Vector3.ZERO, Vector3.ZERO, WORLD_MASK)
 	probe.exclude = [player.get_rid()]
 	var side := normal.cross(dir).normalized() * TapeMarks.WIDTH * 0.45
-	var s := SUPPORT_STEP
+	var step := maxf(SUPPORT_STEP, want / 60.0)   # a long pull checks a little more coarsely
+	var s := step
 	var ok := 0.0
-	while s <= want + SUPPORT_STEP * 0.5:
+	while s <= want + step * 0.5:
 		var at := anchor + dir * minf(s, want)
 		var held := true
 		for off in [Vector3.ZERO, side, -side]:
@@ -168,7 +169,7 @@ func _supported(goal: Vector3) -> Vector3:
 			limit = "EDGE"
 			break
 		ok = minf(s, want)
-		s += SUPPORT_STEP
+		s += step
 	return anchor + dir * ok
 
 func _tear_off() -> void:

@@ -163,8 +163,10 @@ func _draw_gauge(cx: float, by: float) -> void:
 	canvas.draw_rect(r, _a(Term.AMBER_DIM), false, LINE_W)
 	for m in range(0, int(max_m) + 1):
 		var x := x0 + w * m / max_m
-		canvas.draw_line(Vector2(x, by), Vector2(x, by + 8.0), _a(Term.TEXT, 0.6), LINE_W)
-		_text(Vector2(x, by + 26.0), str(m), 15, _a(Term.TEXT, 0.6), 30.0, HORIZONTAL_ALIGNMENT_CENTER)
+		var major := m % 5 == 0              # a number every 5 m, a tick every metre
+		canvas.draw_line(Vector2(x, by), Vector2(x, by + (8.0 if major else 4.0)), _a(Term.TEXT, 0.6 if major else 0.35), LINE_W)
+		if major:
+			_text(Vector2(x, by + 26.0), str(m), 15, _a(Term.TEXT, 0.6), 30.0, HORIZONTAL_ALIGNMENT_CENTER)
 	# the roll: what's left after this strip, and the spare rolls
 	var ry := by + 52.0
 	var left := maxf(0.0, float(tape.roll_left) - pulled)
