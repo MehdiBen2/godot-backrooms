@@ -6,7 +6,7 @@ extends Node
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
 ## the points it can be read from in scan_points() (see the entity scripts).
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
-## off `state` / `progress` / `target_id`.
+## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength`.
 
 const RANGE := 32.0
 const CONE_COS := 0.9877         # cos 9 deg: the target has to be close to the crosshair
@@ -15,6 +15,7 @@ const LOCK_GRACE := 0.4          # a lock survives this long out of view (a door
 const RESULT_TIME := 1.6         # the reticle shows the result this long after Q is let go
 const MAX_RAYS := 4              # line-of-sight checks per frame, best-aimed candidates first
 const WORLD_MASK := 1            # level geometry only: an entity's own body never blocks its reading
+const SIGNAL_COS := 0.55         # the signal meter starts to pick things up within ~57 deg of the view
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd: no scanner item, no scanning
@@ -23,6 +24,9 @@ var holding := false             # Q is down and scanning is possible
 var state := "idle"              # idle / search / lock / logged / on_file
 var target_id := ""
 var target_dist := 0.0
+var target_pos := Vector3.ZERO   # world point being read (the reticle's lock brackets sit on it)
+var signal_strength := 0.0       # 0..1 warmer / colder: anything scannable ahead and near, walls or not
+var raw_signal := 0.0
 var progress := 0.0              # 0..1 through the current reading
 var result_t := 0.0
 var latched := false             # a reading finished: Q has to be let go before the next one
@@ -51,6 +55,7 @@ func _process(dt: float) -> void:
 		holding = false
 		latched = false
 		progress = 0.0
+		signal_strength = 0.0
 		if state == "search" or state == "lock" or result_t <= 0.0:
 			state = "idle"
 			target_id = ""
@@ -59,6 +64,7 @@ func _process(dt: float) -> void:
 	if latched:
 		return                       # keep showing the result until Q is let go
 	var hit := _best_target()
+	signal_strength = lerpf(signal_strength, maxf(raw_signal, 0.85 if state == "lock" else 0.0), minf(1.0, dt * 6.0))
 	if hit.is_empty():
 		lost_t += dt
 		if state != "lock" or lost_t > LOCK_GRACE:
@@ -72,6 +78,7 @@ func _process(dt: float) -> void:
 			progress = 0.0
 		state = "lock"
 		target_dist = hit.dist
+		target_pos = hit.pos
 		progress = minf(1.0, progress + dt / SCAN_TIME)
 		if progress >= 1.0:
 			_complete()
@@ -107,6 +114,7 @@ func _best_target() -> Dictionary:
 	var from := cam.global_position
 	var fwd := -cam.global_transform.basis.z
 	var found: Array = []            # [dot, id, pos, dist] inside the cone
+	raw_signal = 0.0
 	for n in get_tree().get_nodes_in_group(Archive.SCANNABLE):
 		if not n.has_method("scan_points"):
 			continue
@@ -119,6 +127,7 @@ func _best_target() -> Dictionary:
 			if dist < 0.5 or dist > RANGE:
 				continue
 			var dot := fwd.dot(d / dist)
+			raw_signal = maxf(raw_signal, smoothstep(SIGNAL_COS, CONE_COS, dot) * (1.0 - 0.6 * dist / RANGE))
 			if dot >= CONE_COS:
 				found.append([dot, id, p, dist])
 	if found.is_empty():

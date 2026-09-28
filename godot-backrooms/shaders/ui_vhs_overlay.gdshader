@@ -33,6 +33,14 @@ uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
 
 const vec3 PHOSPHOR = vec3(1.0, 0.785, 0.319);   // the terminal's amber, brightest channel at 1
 
+// the node's modulate (its own and its parents'): writing COLOR in fragment() would drop it, so it is
+// caught here and applied at the end — the HUD fades these under the pause menu and the terminal
+varying vec4 v_modulate;
+
+void vertex() {
+	v_modulate = COLOR;
+}
+
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
@@ -100,5 +108,5 @@ void fragment() {
 		col += vec3(0.85, 0.9, 0.95) * tear * glitch * cover;
 	}
 
-	COLOR = vec4(clamp(col, 0.0, 1.0), alpha) * fade;
+	COLOR = vec4(clamp(col, 0.0, 1.0), alpha) * fade * v_modulate.a;
 }

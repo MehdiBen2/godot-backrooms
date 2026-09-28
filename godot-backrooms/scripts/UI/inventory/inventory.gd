@@ -9,7 +9,8 @@ extends Control
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
 ## same warp (_through_lens) so hover and clicks land on what is drawn. Its bright parts glow: two
-## half-resolution blur passes (_bloom_pass, shaders/ui_bloom.gdshader) that the lens adds back.
+## half-resolution blur passes (scripts/UI/crt/crt_bloom.gd) that the lens adds back, flickering like
+## a tired tube (crt_flicker.gd). The HUD's scanner reticle and toast share both (crt_layer.gd).
 ## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): power on / off, a chirp
 ## on page switches (which also lift the tab and type the page in behind a scan line), a blip on
 ## item selection.
@@ -20,6 +21,8 @@ extends Control
 signal close_requested
 
 const PlayerScript := preload("res://scripts/Player/player.gd")
+const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
+const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
 
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
 const AMBER := Color("e8b64a")
@@ -52,10 +55,8 @@ const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
 const BLOOM := 1               # phosphor glow strength (ui_vhs_overlay bloom_amt)
 const BLOOM_RADIUS := 11.0       # how far the glow reaches, in screen pixels at 1080p
-const BLOOM_DOWNSCALE := 2       # the blur runs at half the terminal's resolution (keep it 2: ui_bloom.gdshader)
-const BLOOM_SHIMMER := 0.06      # the glow's constant unsteadiness (fraction of BLOOM)
-const BLOOM_FLICKER_GAP := Vector2(2.5, 7.0)     # seconds between glow stutters (at calm; see _update_bloom)
-const BLOOM_FLICKER_LEN := Vector2(0.12, 0.55)   # how long one stutter lasts
+# (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
+# scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
 
@@ -83,19 +84,14 @@ var sfx := {}                        # name -> AudioStreamPlayer
 var t := 0.0
 var glitch_left := 0.0
 var next_glitch := 3.0
-var bloom_level := 1.0           # multiplier on BLOOM, eased toward bloom_target
-var bloom_target := 1.0
-var bloom_burst := 0.0           # seconds left in the current glow stutter
-var bloom_step := 0.0            # seconds until the stutter jumps to a new level
-var next_bloom_flicker := 3.0
+var glow_flicker := CrtFlicker.new()
 
 var backdrop: Control
 var content_root: Control
 var viewport: SubViewport
 var lens: TextureRect
 var overlay_mat: ShaderMaterial
-var bloom_vps: Array = []        # [horizontal, vertical] blur passes (SubViewport)
-var bloom_mats: Array = []
+var bloom: CrtBloom
 var clickables: Array = []           # fixed controls in the viewport that take a click (hand cursor)
 
 # vitals
@@ -316,9 +312,8 @@ func _build() -> void:
 	# Bloom, like phosphor on a CRT: the terminal's bright parts (lines, bar segments, icons, text)
 	# blurred horizontally then vertically at half resolution; the lens adds the result back through
 	# the same warp, so the glow spills onto the dark panels and the view around them
-	var h := _bloom_pass(viewport.get_texture(), Vector2(1, 0), true)
-	var v := _bloom_pass(h.get_texture(), Vector2(0, 1), false)
-	overlay_mat.set_shader_parameter("bloom_tex", v.get_texture())
+	bloom = CrtBloom.new(content_root, viewport.get_texture())
+	overlay_mat.set_shader_parameter("bloom_tex", bloom.texture())
 	overlay_mat.set_shader_parameter("bloom_amt", BLOOM)
 
 	var screen := Control.new()
@@ -356,37 +351,11 @@ func _fit_viewport() -> void:
 	var k := get_viewport().get_final_transform().get_scale()
 	var px := clampf(maxf(k.x, k.y), 0.5, 3.0)
 	viewport.size = Vector2i((logical * px * WINDOW_SCALE).round())
-	var half := Vector2i((Vector2(viewport.size) / BLOOM_DOWNSCALE).ceil())
-	var reach := BLOOM_RADIUS * px   # texture pixels: the terminal texture is shown 1:1
-	for i in bloom_vps.size():
-		(bloom_vps[i] as SubViewport).size = half
-		# 13 taps span +-6 steps; the vertical pass reads the half-resolution horizontal one
-		(bloom_mats[i] as ShaderMaterial).set_shader_parameter("spacing", reach / 6.0 / (1.0 if i == 0 else float(BLOOM_DOWNSCALE)))
+	if bloom:
+		bloom.resize(viewport.size, BLOOM_RADIUS * px)   # texture pixels: the terminal is shown 1:1
 	viewport.size_2d_override = Vector2i(logical.round())
 	overlay_mat.set_shader_parameter("aspect", logical.x / logical.y)
 	lens.pivot_offset = logical * 0.5
-
-## One blur pass: `src` drawn at half resolution through ui_bloom.gdshader along `dir`
-func _bloom_pass(src: Texture2D, dir: Vector2, bright_pass: bool) -> SubViewport:
-	var vp := SubViewport.new()
-	vp.disable_3d = true
-	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	content_root.add_child(vp)
-	var r := TextureRect.new()
-	r.texture = src
-	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	r.stretch_mode = TextureRect.STRETCH_SCALE
-	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/ui_bloom.gdshader")
-	m.set_shader_parameter("direction", dir)
-	m.set_shader_parameter("bright_pass", bright_pass)
-	r.material = m
-	vp.add_child(r)
-	bloom_vps.append(vp)
-	bloom_mats.append(m)
-	return vp
 
 ## Screen-space mouse events land on content_root; push them into the terminal's viewport at the
 ## point the lens actually shows there, so hover / click / wheel match the curved picture
@@ -1038,7 +1007,7 @@ func set_shown(on: bool) -> void:
 	anim = create_tween().set_parallel(true)
 	if on:
 		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		for vp in bloom_vps: vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		bloom.set_running(true)
 		visible = true
 		modulate.a = 1.0
 		_fit_viewport()
@@ -1056,8 +1025,7 @@ func set_shown(on: bool) -> void:
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("fade", flicker(x)), 0.0, 1.0, 0.34)
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("glitch", x), 1.0, 0.0, 0.55).set_delay(0.05)
 		_reveal_page(active_page, 0.2)
-		bloom_level = 0.0                   # the glow stutters up as the tube warms
-		_kick_bloom(0.45)
+		glow_flicker.kick(0.45, true)       # the glow stutters up as the tube warms
 	else:
 		_sfx("off")
 		anim.tween_property(lens, "scale:y", WINDOW_SCALE * 0.01, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -1072,7 +1040,7 @@ func _finish_hide() -> void:
 	_set_scan(-1.0)
 	overlay_mat.set_shader_parameter("fade", 1.0)
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	for vp in bloom_vps: vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	bloom.set_running(false)
 
 ## Alpha curve for the power-on: dim, blink out, flash, settle (matches menu.gd). Static: the HUD
 ## toast (terminal_toast.gd) flickers on with it too.
@@ -1112,7 +1080,7 @@ func _process(dt: float) -> void:
 	_update_battery_line()
 	_update_link()
 	_update_glitch(dt)
-	_update_bloom(dt)
+	overlay_mat.set_shader_parameter("bloom_amt", BLOOM * glow_flicker.update(dt))
 
 ## Every few seconds a brief tear-glitch burst — the tape never sits perfectly still (menu.gd
 ## _update_glitch) — plus whatever the events are throwing at the camera (Game.glitch)
@@ -1126,36 +1094,9 @@ func _update_glitch(dt: float) -> void:
 		if next_glitch <= 0.0:
 			glitch_left = randf_range(0.05, 0.14)
 			next_glitch = randf_range(3.0, 7.0)
-			if randf() < 0.5: _kick_bloom(randf_range(0.1, 0.25))   # the tear jolts the glow too
+			if randf() < 0.5: glow_flicker.kick(randf_range(0.1, 0.25))   # the tear jolts the glow too
 	if shown and not (anim and anim.is_running()):     # the power-on burst drives it while it plays
 		overlay_mat.set_shader_parameter("glitch", maxf(g, Game.glitch * 0.8))
-
-## The glow is never quite steady, like a tired tube: a faint shimmer all the time, and every few
-## seconds a short stutter where it jumps between dim and over-bright, now and then dropping out for
-## a frame. Stutters come up to four times as often as something closes in (Game.terror, which also
-## drives LINK STATUS).
-func _update_bloom(dt: float) -> void:
-	if bloom_burst > 0.0:
-		bloom_burst -= dt
-		bloom_step -= dt
-		if bloom_step <= 0.0:
-			bloom_step = randf_range(0.03, 0.09)
-			bloom_target = 0.0 if randf() < 0.2 else randf_range(0.2, 1.35)
-		if bloom_burst <= 0.0:
-			bloom_target = 1.0
-	else:
-		next_bloom_flicker -= dt * (1.0 + 3.0 * Game.terror)
-		if next_bloom_flicker <= 0.0:
-			_kick_bloom(randf_range(BLOOM_FLICKER_LEN.x, BLOOM_FLICKER_LEN.y))
-	# steps land almost at once (a flicker, not a fade), just not in a single hard frame
-	bloom_level = lerpf(bloom_level, bloom_target, minf(1.0, dt * 35.0))
-	var shimmer := 1.0 + BLOOM_SHIMMER * (0.6 * sin(t * 47.0) + 0.4 * sin(t * 13.3 + 1.7))
-	overlay_mat.set_shader_parameter("bloom_amt", BLOOM * bloom_level * shimmer)
-
-func _kick_bloom(length: float) -> void:
-	bloom_burst = maxf(bloom_burst, length)
-	bloom_step = 0.0
-	next_bloom_flicker = randf_range(BLOOM_FLICKER_GAP.x, BLOOM_FLICKER_GAP.y)
 
 # ---- public API: World/props pickups can call these -------------------------------------
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
