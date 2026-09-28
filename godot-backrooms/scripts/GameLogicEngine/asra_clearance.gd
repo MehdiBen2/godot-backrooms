@@ -134,7 +134,9 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	var kind := ""
 	var title := ""
 	var core := 0
-	if not Archive.is_discovered(entity_id):
+	# first contact off clearance's own saved record, not the archive: the archive starts empty
+	# every level (asra_archive.gd), and re-reading a known entity must not pay first contact again
+	if not sites.has(entity_id):
 		kind = "first_contact"
 		title = "FIRST CONTACT"
 		core = base
