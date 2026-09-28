@@ -19,6 +19,7 @@ const PATH := "user://voice.cfg"
 const CAPTURE_BUS := "VoiceCapture"
 const RATE := 16000
 const FRAME := 320                          # 20 ms
+const MAX_PKT := 2 + Adpcm.HEADER + FRAME   # seq + header + 4-bit samples, with room to spare
 const PTT_KEY := KEY_V
 const HANG_TIME := 0.35                     # keeps sending this long after the voice drops (no clipped word endings)
 const PTT_HANG := 0.15
@@ -267,9 +268,11 @@ func _hear_myself(block: PackedByteArray) -> void:
 # ---- network ----------------------------------------------------------------------------------------
 @rpc("any_peer", "call_remote", "unreliable")
 func _pkt(pkt: PackedByteArray) -> void:
-	if deafened or pkt.size() <= Adpcm.HEADER + 2:
+	if deafened or pkt.size() <= Adpcm.HEADER + 2 or pkt.size() > MAX_PKT:
 		return
 	var id := multiplayer.get_remote_sender_id()
+	if not Net.remotes.has(id):           # only survivors we know about get a speaker (no node spam from strangers)
+		return
 	var s = speakers.get(id)
 	if s == null or not is_instance_valid(s):
 		s = Speaker.new()
