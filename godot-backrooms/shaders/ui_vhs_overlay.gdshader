@@ -1,17 +1,23 @@
 shader_type canvas_item;
 // Camcorder-viewfinder composite for the inventory panel: a real fisheye bulge (unlike the
-// full-screen post.gdshader, this is deliberately NOT overscan-corrected — the point is a visibly
-// round lens with the corners falling into shadow, like looking through a camcorder viewfinder),
-// plus chromatic fringing, scanlines, film grain and a tear-glitch burst driven by `glitch`
-// (0..1, set from GDScript on open and on random idle ticks).
+// full-screen post.gdshader, this is deliberately NOT overscan-corrected by default — the point is
+// a visibly round lens with the corners falling into shadow, like looking through a camcorder
+// viewfinder), plus chromatic fringing, scanlines, film grain and a tear-glitch burst driven by
+// `glitch` (0..1, set from GDScript on open and on random idle ticks).
+// fit_corners: scale the bulge back so the corners land exactly on the corners — a CRT screen
+// curve that never crops, for full-screen use (inventory.gd mirrors this in _through_lens()).
 // TEXTURE is the SubViewport this panel's own controls are rendered into (see inventory.gd).
 uniform float aspect = 1.5;
 uniform float distortion : hint_range(0.0, 1.0) = 0.5;
+uniform bool fit_corners = false;
 uniform float chroma_amt : hint_range(0.0, 0.05) = 0.014;
 uniform float scan_amt : hint_range(0.0, 1.0) = 0.22;
 uniform float grain_amt : hint_range(0.0, 1.0) = 0.09;
 uniform float vignette_amt : hint_range(0.0, 1.0) = 0.5;
 uniform float glitch : hint_range(0.0, 1.0) = 0.0;
+// overall opacity for the power-on flicker: writing COLOR drops the node's modulate, so the
+// fade has to come in as a uniform
+uniform float fade : hint_range(0.0, 1.0) = 1.0;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -34,6 +40,9 @@ void fragment() {
 	// barrel bulge, no overscan correction: corners sample past the edge and fall to transparent,
 	// reading as a round lens rather than a rectangular warped card
 	vec2 pd = p * (1.0 + distortion * r2);
+	if (fit_corners) {
+		pd /= 1.0 + distortion * (0.25 * aspect * aspect + 0.25);
+	}
 
 	float dist_r = sqrt(r2);
 	vec2 ca_dir = (dist_r > 0.0001) ? (p / dist_r) : vec2(0.0);
@@ -69,5 +78,5 @@ void fragment() {
 		col += vec3(0.85, 0.9, 0.95) * tear * glitch;
 	}
 
-	COLOR = vec4(clamp(col, 0.0, 1.0), alpha);
+	COLOR = vec4(clamp(col, 0.0, 1.0), alpha * fade);
 }
