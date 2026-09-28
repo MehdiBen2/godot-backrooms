@@ -53,6 +53,9 @@ const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas,
 const BLOOM := 1.5               # phosphor glow strength (ui_vhs_overlay bloom_amt)
 const BLOOM_RADIUS := 13.0       # how far the glow reaches, in screen pixels at 1080p
 const BLOOM_DOWNSCALE := 2       # the blur runs at half the terminal's resolution (keep it 2: ui_bloom.gdshader)
+const BLOOM_SHIMMER := 0.06      # the glow's constant unsteadiness (fraction of BLOOM)
+const BLOOM_FLICKER_GAP := Vector2(2.5, 7.0)     # seconds between glow stutters (at calm; see _update_bloom)
+const BLOOM_FLICKER_LEN := Vector2(0.12, 0.55)   # how long one stutter lasts
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
 
@@ -80,6 +83,11 @@ var sfx := {}                        # name -> AudioStreamPlayer
 var t := 0.0
 var glitch_left := 0.0
 var next_glitch := 3.0
+var bloom_level := 1.0           # multiplier on BLOOM, eased toward bloom_target
+var bloom_target := 1.0
+var bloom_burst := 0.0           # seconds left in the current glow stutter
+var bloom_step := 0.0            # seconds until the stutter jumps to a new level
+var next_bloom_flicker := 3.0
 
 var backdrop: Control
 var content_root: Control
@@ -1048,6 +1056,8 @@ func set_shown(on: bool) -> void:
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("fade", flicker(x)), 0.0, 1.0, 0.34)
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("glitch", x), 1.0, 0.0, 0.55).set_delay(0.05)
 		_reveal_page(active_page, 0.2)
+		bloom_level = 0.0                   # the glow stutters up as the tube warms
+		_kick_bloom(0.45)
 	else:
 		_sfx("off")
 		anim.tween_property(lens, "scale:y", WINDOW_SCALE * 0.01, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
@@ -1102,6 +1112,7 @@ func _process(dt: float) -> void:
 	_update_battery_line()
 	_update_link()
 	_update_glitch(dt)
+	_update_bloom(dt)
 
 ## Every few seconds a brief tear-glitch burst — the tape never sits perfectly still (menu.gd
 ## _update_glitch) — plus whatever the events are throwing at the camera (Game.glitch)
@@ -1115,8 +1126,36 @@ func _update_glitch(dt: float) -> void:
 		if next_glitch <= 0.0:
 			glitch_left = randf_range(0.05, 0.14)
 			next_glitch = randf_range(3.0, 7.0)
+			if randf() < 0.5: _kick_bloom(randf_range(0.1, 0.25))   # the tear jolts the glow too
 	if shown and not (anim and anim.is_running()):     # the power-on burst drives it while it plays
 		overlay_mat.set_shader_parameter("glitch", maxf(g, Game.glitch * 0.8))
+
+## The glow is never quite steady, like a tired tube: a faint shimmer all the time, and every few
+## seconds a short stutter where it jumps between dim and over-bright, now and then dropping out for
+## a frame. Stutters come up to four times as often as something closes in (Game.terror, which also
+## drives LINK STATUS).
+func _update_bloom(dt: float) -> void:
+	if bloom_burst > 0.0:
+		bloom_burst -= dt
+		bloom_step -= dt
+		if bloom_step <= 0.0:
+			bloom_step = randf_range(0.03, 0.09)
+			bloom_target = 0.0 if randf() < 0.2 else randf_range(0.2, 1.35)
+		if bloom_burst <= 0.0:
+			bloom_target = 1.0
+	else:
+		next_bloom_flicker -= dt * (1.0 + 3.0 * Game.terror)
+		if next_bloom_flicker <= 0.0:
+			_kick_bloom(randf_range(BLOOM_FLICKER_LEN.x, BLOOM_FLICKER_LEN.y))
+	# steps land almost at once (a flicker, not a fade), just not in a single hard frame
+	bloom_level = lerpf(bloom_level, bloom_target, minf(1.0, dt * 35.0))
+	var shimmer := 1.0 + BLOOM_SHIMMER * (0.6 * sin(t * 47.0) + 0.4 * sin(t * 13.3 + 1.7))
+	overlay_mat.set_shader_parameter("bloom_amt", BLOOM * bloom_level * shimmer)
+
+func _kick_bloom(length: float) -> void:
+	bloom_burst = maxf(bloom_burst, length)
+	bloom_step = 0.0
+	next_bloom_flicker = randf_range(BLOOM_FLICKER_GAP.x, BLOOM_FLICKER_GAP.y)
 
 # ---- public API: World/props pickups can call these -------------------------------------
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
