@@ -9,7 +9,8 @@ extends Control
 ##   1-3 wall/floor/pit   [ ] brush size   Ctrl+S save   Ctrl+Z undo   Ctrl+N new   Ctrl+D duplicate
 ##   objects: 4-6 thin wall/arch/door (click places, drag while placing aims it), V select / move,
 ##   drag the round handle to rotate, R / Shift+R rotate, Del delete, Esc deselect, G snap to grid,
-##   Alt ignores snapping, Shift while rotating steps 15 degrees
+##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees
+## The object types (and their keys, colours and sizes) come from the game's levels/object_types.json.
 
 const CREAM := Color("e6e1cd")
 const DIM := Color(0.9, 0.882, 0.804, 0.55)
@@ -37,15 +38,7 @@ const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 # Free-placed objects, mirrored from the game's level_data.gd. Positions are in cells with a cell's centre
 # on a whole number (the same frame as "spawn"), rotation is degrees clockwise on this map, scale is the
 # width in cells. Locally an object faces +x (you walk through it along x) and spans y.
-const OBJ_TYPES := ["thin_wall", "arch", "door"]
-const OBJ_INFO := {
-	"thin_wall": {"label": "Thin wall", "key": "4", "col": Color("4f493e"), "help": "A slim partition"},
-	"arch": {"label": "Arch", "key": "5", "col": Color("7a5f36"), "help": "A round-topped opening through a full wall. Put it square on a wall cell to punch through it"},
-	"door": {"label": "Door", "key": "6", "col": Color("c0602a"), "help": "A framed wood door set in its own thin wall; opens as you approach"}}
-const CELL_M := 4.5                  # metres per cell in the game; the sizes below match level_geometry.gd / door.gd
-const THIN_C := 0.3 / CELL_M         # thin wall / door partition thickness
-const DOOR_C := 1.12 / CELL_M        # door opening (leaf + frame lining)
-const PILLAR_C := 0.75 / CELL_M      # arch pillar at each end of its span
+const CELL_M := 4.5                  # metres per cell in the game (level_data.gd CELL)
 const SNAP_STEP := 0.5               # snap to cell centres and cell edges
 const ATMOS := ["dim", "classic"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
@@ -84,6 +77,9 @@ var place_rot := 0.0                 # new objects start at the last rotation / 
 var place_scale := 1.0
 var snap := true
 var rot_snap := true
+var align := true                    # turn doors / arches / thin walls to fit the wall or corridor they land on
+var OBJ_TYPES: Array = []            # the object types, in levels/object_types.json order
+var OBJ_INFO := {}                   # type -> its object_types.json entry, plus "col" as a Color
 var insp_undo := -1                  # the object the inspector already pushed an undo step for
 
 var font: FontFile = load("res://fonts/vcr.ttf")
@@ -116,13 +112,35 @@ var insp_rot: SpinBox
 var insp_scale: SpinBox
 var snap_check: CheckBox
 var rot_check: CheckBox
+var align_check: CheckBox
 
 func _ready() -> void:
 	theme = _make_theme()
 	_scan_pbr()
+	_load_object_types()
 	_build_ui()
 	_load_index()
 	_open(0)
+
+## The game's levels/object_types.json (shared with level_data.gd): one entry per object type
+func _load_object_types() -> void:
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(GAME.path_join("levels/object_types.json")))
+	if not (parsed is Dictionary):
+		push_error("cannot read levels/object_types.json in " + GAME)
+		return
+	for t in parsed:
+		if str(t).begins_with("_"): continue
+		var inf: Dictionary = parsed[t].duplicate()
+		inf["col"] = Color(str(inf.get("color", "a39c8a")))
+		OBJ_INFO[t] = inf
+		OBJ_TYPES.append(t)
+
+func _info(t: String) -> Dictionary:
+	return OBJ_INFO.get(t, {"label": t, "key": "", "col": Color("a39c8a"), "help": ""})
+
+## A size from object_types.json, in cells
+func _cells(t: String, key: String, metres: float) -> float:
+	return float(_info(t).get(key, metres)) / CELL_M
 
 func _scan_pbr() -> void:
 	var d := DirAccess.open(GAME.path_join("textures/pbr"))
@@ -345,6 +363,12 @@ func _build_ui() -> void:
 	rot_check.tooltip_text = "Rotation snaps to 90° so doors line up with walls. Off: free (Shift steps 15°)"
 	rot_check.toggled.connect(func(on): rot_snap = on)
 	side.add_child(rot_check)
+	align_check = CheckBox.new()
+	align_check.text = "Align to walls  (A)"
+	align_check.button_pressed = align
+	align_check.tooltip_text = "On a cell edge a piece lines up with the edge; on a cell it spans the corridor or wall it lands in.\nHold Alt to skip"
+	align_check.toggled.connect(func(on): align = on)
+	side.add_child(align_check)
 	side.add_child(_label("ZONES", 16, GOLD))
 	for z in ZONES:
 		side.add_child(_tool_button("zone:" + z, z.capitalize(), ZONES[z], ZONE_HELP[z]))
@@ -527,7 +551,7 @@ func _open(i: int) -> void:
 		markers[m] = Vector2i(c[0], c[1]) if c is Array and c.size() >= 2 else null
 	objects = []
 	for o in data.get("objects", []):
-		if o is Dictionary and str(o.get("type", "")) in OBJ_TYPES:
+		if o is Dictionary and str(o.get("type", "")) != "":     # unknown types are kept as they are, drawn as slabs
 			objects.append({"type": str(o.type), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
 				"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, 4.0)})
 	var migrated := _migrate_legacy()
@@ -790,6 +814,22 @@ func save() -> void:
 	dirty = false
 	_update_title()
 	_status("Saved " + str(index[current].file))
+	_bake(str(index[current].id))
+
+## Bake the saved level's bounce light (the game's tools/bake_level.gd: a VoxelGI of its walls, floors and
+## ceilings) in the background. Takes 30 s to 2 min depending on size; until it lands the game falls back to SDFGI.
+var _bake_pid := -1
+
+func _bake(id: String) -> void:
+	var exe := _godot_path()
+	if exe == "": return
+	if _bake_pid > 0 and OS.is_process_running(_bake_pid):
+		OS.kill(_bake_pid)                      # a newer save supersedes the running bake
+	var args := ["--path", GAME, "--resolution", "320x180", "--position", "-4000,-4000",
+		"--script", "res://tools/bake_level.gd", "--", "--bake-level=" + id]
+	_bake_pid = OS.create_process(exe, args)
+	if _bake_pid > 0:
+		_status("Saved %s  -  baking lighting in the background..." % str(index[current].file))
 
 func _write(path: String, payload) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -884,7 +924,7 @@ func _draw_canvas() -> void:
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
-			var ghost := {"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": place_rot, "scale": place_scale}
+			var ghost := {"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale}
 			_draw_object(ghost, 0.45)
 			_draw_arrow(ghost, Color(SEL, 0.5))
 	elif hover.x >= 0 and not tool.begins_with("mark:"):
@@ -1017,7 +1057,7 @@ func _obj_xf(o: Dictionary) -> Transform2D:
 
 ## Footprint depth along local x, in cells (at least a few pixels, so thin pieces stay clickable)
 func _obj_depth(o: Dictionary) -> float:
-	return maxf(1.0 if o.type == "arch" else THIN_C, 4.0 / zoom)
+	return maxf(_cells(o.type, "thickness", 0.3), 4.0 / zoom)
 
 func _obj_at(p: Vector2) -> int:
 	for i in range(objects.size() - 1, -1, -1):
@@ -1034,6 +1074,29 @@ func _handle_px(o: Dictionary) -> Vector2:
 
 func _on_handle(p: Vector2) -> bool:
 	return selected >= 0 and p.distance_to(_handle_px(objects[selected])) <= 9.0
+
+## Wall-aware placement. On a cell edge a piece lines up with that edge; square on a cell it spans the
+## corridor or wall run it lands in (you walk through it the way the open neighbours lie, like the game's
+## old tiles did). Of the two ways to face along that axis it keeps the one nearer `cur`, so a door keeps
+## its swing side. Off, with Alt held, on a cell corner or off the half-cell grid, `cur` stays.
+func _wall_align(p: Vector2, cur: float) -> float:
+	if not align or Input.is_key_pressed(KEY_ALT): return cur
+	var whole := func(v: float) -> bool: return absf(v - roundf(v)) < 0.1
+	var half := func(v: float) -> bool: return absf(absf(v - floorf(v)) - 0.5) < 0.1
+	var facing := -1.0
+	if half.call(p.x) and whole.call(p.y): facing = 0.0            # on a north-south edge: face across it
+	elif whole.call(p.x) and half.call(p.y): facing = 90.0
+	elif whole.call(p.x) and whole.call(p.y):
+		var c := Vector2i(roundi(p.x), roundi(p.y))
+		var ew := _open_cell(c + Vector2i(1, 0)) and _open_cell(c + Vector2i(-1, 0))
+		var ns := _open_cell(c + Vector2i(0, 1)) and _open_cell(c + Vector2i(0, -1))
+		if ew and not ns: facing = 0.0
+		elif ns and not ew: facing = 90.0
+	if facing < 0.0: return cur
+	return facing if absf(angle_difference(deg_to_rad(cur), deg_to_rad(facing))) <= PI / 2.0 else facing + 180.0
+
+func _open_cell(c: Vector2i) -> bool:
+	return c.x > 0 and c.y > 0 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL
 
 func _object_press(mb: InputEventMouseButton) -> void:
 	if not mb.pressed:
@@ -1061,7 +1124,7 @@ func _object_press(mb: InputEventMouseButton) -> void:
 	else:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
-		objects.append({"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": place_rot, "scale": place_scale})
+		objects.append({"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale})
 		_select(objects.size() - 1)
 		drag = "place"                   # keep the button down and drag away to aim it
 		_mark_dirty()
@@ -1075,6 +1138,8 @@ func _object_drag(p: Vector2) -> void:
 		var q := _snap_pos(_pos_at(p) + drag_off)
 		o.pos_x = q.x
 		o.pos_y = q.y
+		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
+			o.rotation = _wall_align(q, o.rotation)
 	else:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
@@ -1160,7 +1225,7 @@ func _deg(d: float) -> String:
 	return str(snappedf(d, 0.1)).trim_suffix(".0")
 
 func _describe(o: Dictionary) -> String:
-	return "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [OBJ_INFO[o.type].label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
+	return "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [_info(o.type).label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
 
 ## A rectangle in the object's local space (cells), as canvas points
 func _local_rect(xf: Transform2D, x0: float, y0: float, x1: float, y1: float) -> PackedVector2Array:
@@ -1173,30 +1238,34 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 ## Plan view of an object, the way an architect's floor plan draws it
 func _draw_object(o: Dictionary, alpha: float) -> void:
 	var xf := _obj_xf(o)
-	var col: Color = OBJ_INFO[o.type].col
+	var col: Color = _info(o.type).col
 	col.a = alpha
 	var half: float = o.scale * 0.5
-	var t := maxf(THIN_C, 5.0 / zoom)
+	var t := maxf(_cells(o.type, "thickness", 0.3), 5.0 / zoom)
 	match o.type:
-		"thin_wall":
-			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)
 		"door":
 			# the partition either side of the doorway, the leaf (closed) and its swing either way
-			var dw := DOOR_C * 0.5
-			var wall_col := Color(OBJ_INFO.thin_wall.col, alpha)
+			var door_c := _cells("door", "opening", 1.12)
+			var dw := door_c * 0.5
+			var wall_col := Color(_info("thin_wall").col, alpha)
 			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, -dw), wall_col)
 			_fill(_local_rect(xf, -t * 0.5, dw, t * 0.5, half), wall_col)
 			var hinge := xf * (Vector2(0, -dw) * zoom)
 			canvas.draw_line(hinge, xf * (Vector2(0, dw) * zoom), col, maxf(2.0, zoom * 0.04))
 			var a := deg_to_rad(o.rotation)
-			canvas.draw_arc(hinge, DOOR_C * zoom, a, a + PI, 24, Color(col, alpha * 0.8), 1.5)
+			canvas.draw_arc(hinge, door_c * zoom, a, a + PI, 24, Color(col, alpha * 0.8), 1.5)
 		"arch":
 			# two pillars and the passage between them, dashed where the crown spans it
-			_fill(_local_rect(xf, -0.5, -half, 0.5, -half + PILLAR_C), col)
-			_fill(_local_rect(xf, -0.5, half - PILLAR_C, 0.5, half), col)
-			for s: float in [-0.5, 0.5]:
-				canvas.draw_dashed_line(xf * (Vector2(s, -half + PILLAR_C) * zoom), xf * (Vector2(s, half - PILLAR_C) * zoom),
+			var p := _cells("arch", "pillar", 0.75)
+			var d := t * 0.5
+			_fill(_local_rect(xf, -d, -half, d, -half + p), col)
+			_fill(_local_rect(xf, -d, half - p, d, half), col)
+			for s: float in [-d, d]:
+				canvas.draw_dashed_line(xf * (Vector2(s, -half + p) * zoom), xf * (Vector2(s, half - p) * zoom),
 					Color(col, alpha * 0.8), 1.5, maxf(zoom * 0.12, 3.0))
+		_:
+			# thin walls, and any type the editor has no plan drawing for: a slab its thickness by its width
+			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
 	var pad := 3.0 / zoom
@@ -1232,7 +1301,7 @@ func _draw_gizmo(o: Dictionary) -> void:
 	canvas.draw_string(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, SEL)
 	var xf := _obj_xf(o)
 	if o.type == "door":
-		canvas.draw_circle(xf * (Vector2(0, -DOOR_C * 0.5) * zoom), 3.0, Color.WHITE)
+		canvas.draw_circle(xf * (Vector2(0, -_cells("door", "opening", 1.12) * 0.5) * zoom), 3.0, Color.WHITE)
 	canvas.draw_circle(xf.origin, 2.5, SEL)
 
 func _input(ev: InputEvent) -> void:
@@ -1252,16 +1321,18 @@ func _input(ev: InputEvent) -> void:
 	if k.keycode == KEY_F5:
 		_test_level()
 		return
+	for t in OBJ_TYPES:                  # each object type's key, from object_types.json
+		if str(OBJ_INFO[t].get("key", "")) == OS.get_keycode_string(k.keycode):
+			_select_tool("obj:" + t)
+			return
 	match k.keycode:
 		KEY_1: _select_tool("base:" + WALL)
 		KEY_2: _select_tool("base:" + FLOOR)
 		KEY_3: _select_tool("base:" + PIT)
-		KEY_4: _select_tool("obj:thin_wall")
-		KEY_5: _select_tool("obj:arch")
-		KEY_6: _select_tool("obj:door")
 		KEY_V: _select_tool("select")
 		KEY_R: _rotate_selected(-90.0 if k.shift_pressed else 90.0)
 		KEY_G: snap_check.button_pressed = not snap_check.button_pressed
+		KEY_A: align_check.button_pressed = not align_check.button_pressed
 		KEY_DELETE, KEY_BACKSPACE: _delete_selected()
 		KEY_ESCAPE: _select(-1)
 		KEY_BRACKETLEFT: _set_brush(brush - 1)

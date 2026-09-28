@@ -1,0 +1,32 @@
+{
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab.",
+  "thin_wall": {
+    "label": "Thin wall",
+    "key": "4",
+    "color": "4f493e",
+    "help": "A slim partition",
+    "thickness": 0.3,
+    "on_cell": "wall",
+    "blocks_nav": true
+  },
+  "arch": {
+    "label": "Arch",
+    "key": "5",
+    "color": "7a5f36",
+    "help": "A round-topped opening through a full wall. Put it square on a wall cell to punch through it",
+    "thickness": 4.5,
+    "pillar": 0.75,
+    "on_cell": "open",
+    "blocks_nav": false
+  },
+  "door": {
+    "label": "Door",
+    "key": "6",
+    "color": "c0602a",
+    "help": "A framed wood door set in its own thin wall; opens as you approach",
+    "thickness": 0.3,
+    "opening": 1.12,
+    "on_cell": "wall",
+    "blocks_nav": true
+  }
+}

@@ -8,8 +8,6 @@ extends "res://scripts/World/level/level_data.gd"
 ## door set into a thin wall, see props/door.gd). Each has its own position, rotation and width.
 
 const Door := preload("res://scripts/World/props/door.gd")
-const THIN_DEPTH := 0.3        # a thin wall's thickness along its closed axis (vs. a full CELL block)
-const ARCH_OPEN := 3.0         # a 1-cell archway's opening width; the rest of its span is a plain pillar each side
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 
@@ -109,6 +107,10 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 	m.texture_repeat = true
 	return m
 
+## The ceiling's own render layer: the tube lights skip it (a point light 0.45 m under it blows a white hotspot);
+## it is lit by bounce light, the tubes' glow and level_lighting.gd's soft ceiling-glow lights instead.
+const CEIL_LAYER := 1 << 18
+
 func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0) -> MeshInstance3D:
 	# One quad per cell in a single mesh (the bulk of the level is just floor/ceiling)
 	var st := SurfaceTool.new()
@@ -156,12 +158,12 @@ func _build_surfaces() -> void:
 	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
-	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true)
+	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
 	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0), true)
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0), true).layers = CEIL_LAYER
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -316,7 +318,7 @@ func _build_thin_walls(list: Array) -> void:
 	add_child(body)
 	for o: Dictionary in list:
 		var h := _object_wall_h(o)
-		var size := Vector3(THIN_DEPTH, h, CELL * o.scale)
+		var size := Vector3(float(object_info("thin_wall").get("thickness", 0.3)), h, CELL * o.scale)
 		var xf := object_transform(o)
 		var mi := MeshInstance3D.new()
 		var box := BoxMesh.new()
@@ -330,7 +332,7 @@ func _build_thin_walls(list: Array) -> void:
 # A round-topped opening through a full CELL-deep wall: straight jambs up to ARCH_SPRING, then a
 # semicircular crown (flattened if a wide arch would hit the ceiling), solid wall to either side of the
 # opening and above it. The opening is the span minus a fixed pillar each side, so a 1-cell arch opens
-# ARCH_OPEN wide and a wider one opens up to match.
+# 4.5 m less a pillar each side (object_types.json) and a wider one opens up to match.
 func _build_arches(list: Array) -> void:
 	if list.is_empty(): return
 	var crown: Array = []                  # world-space triangles, clockwise-front (Godot's convention)
@@ -338,7 +340,7 @@ func _build_arches(list: Array) -> void:
 	var body := StaticBody3D.new()
 	add_child(body)
 	var d := CELL * 0.5
-	var pillar := (CELL - ARCH_OPEN) * 0.5
+	var pillar := float(object_info("arch").get("pillar", 0.75))
 	for o: Dictionary in list:
 		var xf := object_transform(o)
 		var h := _object_wall_h(o)
@@ -431,7 +433,7 @@ func _build_door(o: Dictionary) -> void:
 	var d := Door.new()
 	d.transform = object_transform(o)
 	add_child(d)
-	d.build(CELL * o.scale, THIN_DEPTH, h, tall_wall_mat if h > WALL_H else wall_mat, door_frame_mat, door_leaf_mat, door_hw_mat)
+	d.build(CELL * o.scale, float(object_info("door").get("thickness", 0.3)), h, tall_wall_mat if h > WALL_H else wall_mat, door_frame_mat, door_leaf_mat, door_hw_mat)
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap
 # (like a drywall bulkhead) with a trim strip along its bottom edge.

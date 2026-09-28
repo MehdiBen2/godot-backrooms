@@ -1,21 +1,14 @@
 {
-  "format": "backrooms_level",
-  "version": 1,
-  "name": "Level 2: The Yellow Halls",
-  "size": 46,
-  "spawn": [
-    6,
-    6
+  "atmosphere": "classic",
+  "entity": [
+    36,
+    18
   ],
   "exit": [
     44,
     44
   ],
-  "entity": [
-    36,
-    18
-  ],
-  "tv": null,
+  "format": "backrooms_level",
   "grid": [
     "##############################################",
     "#............................................#",
@@ -64,9 +57,28 @@
     "#..........#...................#.............#",
     "##############################################"
   ],
-  "zones": {},
-  "atmosphere": "classic",
   "materials": {
     "ceiling": "BRC_A"
+  },
+  "name": "Level 2: The Yellow Halls",
+  "objects": [],
+  "sdfgi": true,
+  "size": 46,
+  "spawn": [
+    6,
+    6
+  ],
+  "tv": null,
+  "version": 2,
+  "zones": {
+    "bright": [],
+    "classic": [],
+    "dark": [],
+    "dim": [],
+    "flicker": [],
+    "grime": [],
+    "low": [],
+    "tall": [],
+    "tiles": []
   }
 }

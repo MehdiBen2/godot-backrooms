@@ -72,8 +72,8 @@ func steer(delta: float) -> Vector3:
 		for o in GridNav.NEIGHBOURS:
 			var ax: int = x + o.x
 			var az: int = z + o.y
-			if ax < 0 or az < 0 or ax >= n or az >= n:
-				continue
+			if ax < 0 or az < 0 or ax >= n or az >= n or not nav.can_step(x, z, ax, az):
+				continue                     # (a cell behind an off-centre thin wall can still be "closer")
 			var v := flow[ax * n + az]
 			if v >= 0 and v < best:
 				best = v
@@ -145,7 +145,7 @@ func roam_spot(who := Vector3.INF) -> bool:
 		var score := minf(1.0, since / 150.0) * 2.0 + rng.randf() * 0.4
 		var open := 0
 		for o in GridNav.NEIGHBOURS:
-			if not blocked(gx + o.x, gz + o.y):
+			if nav.can_step(gx, gz, gx + o.x, gz + o.y):
 				open += 1
 		if open >= 3:
 			score += 0.35

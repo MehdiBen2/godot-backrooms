@@ -7,15 +7,16 @@ extends SceneTree
 ##   godot --path . --script res://tools/bake_level.gd -- --bake-level=<id from levels.json>   (all levels if no id)
 ## Needs a real renderer (not --headless): the voxel data lives on the GPU until it is saved.
 
-const LevelData := preload("res://scripts/World/level/level_data.gd")
-const Builder := preload("res://scripts/World/level/level_builder.gd")
+# loaded at run time: the level scripts use the Game autoload, which a --script tool only has after the first frame
+var Builder: GDScript
 
 func _init() -> void:
 	await process_frame
 	var want := ""
 	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if a.begins_with("--bake-level="): want = a.substr(13)
-	var levels := LevelData.read_index()
+	Builder = load("res://scripts/World/level/level_builder.gd")
+	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
 	var game: Node = root.get_node("Game")
 	for i in levels.size():
 		var meta: Dictionary = levels[i]

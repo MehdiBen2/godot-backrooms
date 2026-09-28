@@ -35,7 +35,20 @@ const FAR_FADE := 36.0
 const EYE_GAIN_DARK := 1.35
 const EYE_GAIN_BRIGHT := 0.85
 const EYE_SPEED := 0.9
-const EYE_PROBE := 8.0              # metres ahead of the camera for "where you look"
+const EYE_PROBE := 8.0
+# Glare: looking into a lit tube / panel stops the exposure down, so the rest of the room drops toward shadow
+# like a real eye or camera. Clamps down fast, opens back up slowly.
+const GLARE_CONE := 0.82            # cos of the half-angle round the view centre where a light counts (~35 deg)
+const GLARE_FULL := 0.985           # cos where it counts fully (~10 deg: staring straight at it)
+const GLARE_DIST := 7.0             # metres: nearer lights glare more
+const GLARE_DIM := 0.5              # exposure multiplier at full glare
+const GLARE_IN := 3.5               # 1/s: stopping down (fast)
+const GLARE_OUT := 0.7              # 1/s: opening back up (slow)
+# Ceiling glow: the tube lights skip the ceiling (CEIL_LAYER, level_geometry.gd), so each lit slot also drives a
+# soft light further down that only reaches the ceiling: the broad halo round a real troffer, never a hotspot.
+const CEIL_GLOW := 0.18             # of the slot's energy
+const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = wider, softer halo
+const CEIL_GLOW_RANGE := 7.5              # metres ahead of the camera for "where you look"
 const LIT_DIFFUSER := Color(2.1, 1.95, 1.65)
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const FOG_DENSITY := 0.075
@@ -50,12 +63,12 @@ const FOG_COLOR_DARK := Color("020201")
 
 # ---- panel ceilings (a ceiling material with baked light panels, see level_geometry.gd panel_ceiling)
 # Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
-# in the middle, four on the diagonals). Only every other cell (a checkerboard) hides a real light behind
-# its panels: that spreads the 12-light pool twice as far as one per cell, and the gaps don't show.
+# in the middle, four on the diagonals). Only every other cell each way glows and hides a real light behind
+# its panels (a sparse, regular grid); the other cells' panel squares are drawn as plain ceiling tiles.
 const PANEL_ENERGY := 1.9
 const PANEL_RANGE := 16.0
 const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
-const PANEL_GLOW := Color(4.2, 3.7, 3.1)   # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
+const PANEL_GLOW := Color(2.6, 2.35, 2.0)   # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
 const PANEL_BURNT_CHANCE := 0.08
 const PANEL_FLICKER_CHANCE := 0.06
 const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]
@@ -68,9 +81,9 @@ const ATMOSPHERES := {
 		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
 		"exposure": 1.05, "tonemap_white": 4.0,       # gentle highlight roll-off: panels clip white, walls don't
 		"glow_threshold": 1.35,                       # only the panels bloom, not the brightly lit walls
-		"glow_intensity": 0.9, "glow_bloom": 0.02, "glow_wide": 0.55,   # wide soft halo round the lights (glow level 5)
+		"glow_intensity": 0.8, "glow_bloom": 0.02, "glow_wide": 0.25,   # wide soft halo round the lights (glow level 5)
 		"ssao_intensity": 2.5,                        # fluorescent light is shadowless: keep only contact AO
-		"haze": Color(0.34, 0.29, 0.16),              # the colour the far distance fades to
+		"haze": Color(0.66, 0.58, 0.36),              # the far distance fades to lit-wallpaper yellow, never to murk
 	},
 }
 
@@ -102,8 +115,10 @@ var _shadow_cap := 4
 var env: Environment
 var bounce := 1.0
 var eye := 1.0                     # eye-adaptation exposure gain
+var glare := 0.0                   # 0..1 smoothed: how much light you are looking straight into
 var cam_mix := 0.0                 # how far the camera settings lean to the classic look (Classic zone, or softer in Bright)
 var far_pool: Array[OmniLight3D] = []
+var ceil_glow: Array[OmniLight3D] = []   # one per pool slot: lights only the ceiling layer
 var far_fixture: Array = []        # fixture Dictionary or null
 var far_weight: Array[float] = []
 var _far_candidates: Array = []
@@ -221,7 +236,11 @@ func _place_fixtures() -> void:
 			var ns := walls.has(Vector2i(x - 1, z)) and walls.has(Vector2i(x + 1, z))
 			var ew := walls.has(Vector2i(x, z - 1)) and walls.has(Vector2i(x, z + 1))
 			var grid_node := x % 3 == 0 and z % 3 == 0
-			if not (ns or ew or grid_node or is_bright or (is_classic and x % 2 == 0 and z % 2 == 0)): continue
+			# big lit halls (Bright / Classic) get the plain 3-cell grid only: a sparse, regular ceiling like the
+			# reference photos. The far-light pool and the baked bounce light keep the gaps between tubes lit.
+			if is_bright or is_classic:
+				if not grid_node: continue
+			elif not (ns or ew or grid_node): continue
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else BURNT_CHANCE)
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)
@@ -244,10 +263,13 @@ func _place_panel_fixtures() -> void:
 			var pos := Vector3(x * CELL, ceiling_height(c), z * CELL)
 			var is_classic := classic.has(c)
 			var is_bright := bright.has(c)
+			# only every other cell each way glows (a sparse, regular grid like the reference photos); the rest
+			# of the texture's panels read as switched-off diffusers
+			var on_grid := x % 2 == 0 and z % 2 == 0
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
-			var burnt := not (is_bright or is_classic) and rng.randf() < chance
+			var burnt := not on_grid or (not (is_bright or is_classic) and rng.randf() < chance)
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
-			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": (x + z) % 2 == 0,
+			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": on_grid,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "cell": fx.size(), "wanted": false})
@@ -281,6 +303,7 @@ func _build_panel_ceiling() -> void:
 	mmi.multimesh = mm
 	mmi.material_override = mat
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.layers = CEIL_LAYER
 	add_child(mmi)
 	panels_mm = mm
 
@@ -344,6 +367,7 @@ func _build_fixture_meshes() -> void:
 		mmi.multimesh = mm
 		mmi.material_override = mat
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.layers = CEIL_LAYER          # flush with the ceiling: lit by its glow, not blown out by the tube under it
 		add_child(mmi)
 		return mm
 	place.call("Object_3", fx, housing_mat, false)
@@ -454,6 +478,7 @@ func _build_floor_reflections() -> void:
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.94, 0.80)
 		l.omni_range = 24.0
+		l.light_cull_mask &= ~CEIL_LAYER
 		l.omni_attenuation = 1.3
 		l.light_energy = LIGHT_ENERGY * 1.5
 		l.shadow_enabled = false              # two shadowed 24 m omnis over the whole level were a big fps cost
@@ -477,6 +502,7 @@ func _build_light_pool() -> void:
 		l.shadow_normal_bias = 1.2
 		l.shadow_blur = 1.6
 		l.visible = false
+		l.light_cull_mask &= ~CEIL_LAYER     # the ceiling gets its glow from ceil_glow instead (no hotspot)
 		l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 		add_child(l)
 		pool.append(l)
@@ -489,12 +515,24 @@ func _build_light_pool() -> void:
 		slot_target.append(0.0)
 		slot_on.append(0.0)
 		slot_want.append(false)
+		var g := OmniLight3D.new()
+		g.light_color = LIGHT_COLOR
+		g.omni_range = CEIL_GLOW_RANGE
+		g.omni_attenuation = 1.6
+		g.light_cull_mask = CEIL_LAYER
+		g.light_specular = 0.0
+		g.shadow_enabled = false
+		g.visible = false
+		g.set_meta("gfx_managed", true)
+		add_child(g)
+		ceil_glow.append(g)
 	for i in FAR_MAX:
 		var fl := OmniLight3D.new()
 		fl.light_color = LIGHT_COLOR
 		fl.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		fl.omni_attenuation = 1.4
 		fl.shadow_enabled = false
+		fl.light_cull_mask &= ~CEIL_LAYER
 		fl.light_energy = 0.0
 		fl.visible = false
 		fl.set_meta("gfx_managed", true)
@@ -583,13 +621,19 @@ func _update_pool(delta: float) -> void:
 			l.light_energy = 0.0
 			l.visible = false
 			lb.visible = false
+			ceil_glow[i].visible = false
 			continue
 		slot_weight[i] += (slot_target[i] - slot_weight[i]) * k
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * f.level * slot_weight[i] * dist_fade * slot_on[i]
+		var cast: float = 0.0 if f.black > 0.0 else f.level      # a dead tube keeps a faint ember but lights nothing
+		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
+		var g := ceil_glow[i]
+		g.visible = l.visible
+		g.global_position = f.light_pos - Vector3(0, CEIL_GLOW_DROP, 0)
+		g.light_energy = energy * CEIL_GLOW
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
 			l.global_position = f.light_pos
@@ -631,7 +675,7 @@ func _update_far(k: float) -> void:
 			continue
 		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * f.level * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
 		fl.visible = energy > 0.002
 		fl.global_position = f.light_pos
 		fl.light_energy = energy
@@ -700,7 +744,7 @@ func _update_atmosphere(delta: float) -> void:
 	Game.fx_classic = classic_mix
 	if reflect_mmi != null:                                              # noclip under the map would show them as huge white panels
 		reflect_mmi.visible = player.global_position.y > 0.0
-	for l in pool + pool_b + far_pool:                                   # stark white tubes in the classic zone, so the light reads against the yellow walls
+	for l in pool + pool_b + far_pool + ceil_glow:                                   # stark white tubes in the classic zone, so the light reads against the yellow walls
 		l.light_color = LIGHT_COLOR.lerp(Color(1.0, 0.99, 0.96), classic_mix)
 	cam_mix = maxf(classic_mix, bright_mix * 0.7)
 	if dark.has(c):
@@ -718,6 +762,9 @@ func _update_atmosphere(delta: float) -> void:
 	var seen := 0.5 * (tube_light_at(player.global_position) + tube_light_at(ahead))
 	var gain := lerpf(1.0, lerpf(EYE_GAIN_DARK, EYE_GAIN_BRIGHT, seen), clampf(zone_amb, 0.0, 1.0) * (1.0 - grid_glow))
 	eye += (gain - eye) * minf(1.0, delta * EYE_SPEED)
+	if cam:
+		var target := _glare_now(cam)
+		glare += (target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
 	_blend_env(ATMOSPHERES.classic)
 	zf = lerpf(zf, 0.2, open_mix)                                     # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
@@ -737,6 +784,31 @@ func _update_atmosphere(delta: float) -> void:
 
 ## Blend the WorldEnvironment from its own (dim) values toward an ATMOSPHERES look: the camera settings
 ## follow classic_mix (where you stand), the light itself open_mix (which a power cut takes away).
+## How much lit fixture sits near the centre of the view right now (0..1), lights behind walls left out
+func _glare_now(cam: Camera3D) -> float:
+	var fwd := -cam.global_transform.basis.z
+	var cp := cam.global_position
+	var sum := 0.0
+	for i in POOL_SIZE:
+		var f = slot_fixture[i]
+		if f == null or f.black > 0.0: continue
+		var to: Vector3 = (f.pos as Vector3) - cp
+		var d := to.length()
+		if d < 0.2: continue
+		var facing := fwd.dot(to / d)
+		if facing < GLARE_CONE: continue
+		var w := smoothstep(GLARE_CONE, GLARE_FULL, facing) * slot_level(i) / (1.0 + d * d / (GLARE_DIST * GLARE_DIST))
+		if w > 0.01 and _line_clear(cp, f.pos): sum += w
+	return clampf(sum, 0.0, 1.0)
+
+## True when no wall cell lies between two points (half-cell steps across the grid)
+func _line_clear(a: Vector3, b: Vector3) -> bool:
+	var steps := maxi(1, ceili(Vector2(b.x - a.x, b.z - a.z).length() / (CELL * 0.5)))
+	for k in range(1, steps):
+		var p := a.lerp(b, float(k) / steps)
+		if walls.has(cell_of(p)): return false
+	return true
+
 func _blend_env(a: Dictionary) -> void:
 	if _env_base.is_empty():
 		# kept on the resource: main.tscn's Environment can outlive a level reload with the last blend in it
@@ -749,10 +821,10 @@ func _blend_env(a: Dictionary) -> void:
 	var b := _env_base
 	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix)
 	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
-	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * eye
+	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * eye * lerpf(1.0, GLARE_DIM, glare)
 	env.tonemap_white = lerpf(b.tonemap_white, a.tonemap_white, cam_mix)
 	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
-	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix)
+	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix) * (1.0 + 0.35 * glare)   # the light you stare into blooms a bit more
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
 	env.set_glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix))
 	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)

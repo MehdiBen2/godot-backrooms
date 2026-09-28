@@ -20,6 +20,7 @@ const CLOSE_DIST := 2.4
 const SWING_TIME := 0.9
 
 var pivot: Node3D
+var leaf_collision: CollisionShape3D
 var open_amount := 0.0
 var swing_dir := 1.0
 
@@ -55,12 +56,12 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	_box(Vector3(leaf_size.x, leaf_size.z, leaf_size.y), leaf_pos, leaf_mat, pivot).rotation.x = PI / 2.0
 	var leaf_body := AnimatableBody3D.new()
 	pivot.add_child(leaf_body)
-	var cs := CollisionShape3D.new()
+	leaf_collision = CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	bs.size = leaf_size
-	cs.shape = bs
-	cs.position = leaf_pos
-	leaf_body.add_child(cs)
+	leaf_collision.shape = bs
+	leaf_collision.position = leaf_pos
+	leaf_body.add_child(leaf_collision)
 	# a knob on each face, near the free edge: round rose, short neck, ball
 	for f: float in [-1.0, 1.0]:
 		var face := f * LEAF_T * 0.5
@@ -132,3 +133,5 @@ func _process(delta: float) -> void:
 	open_amount = clampf(open_amount + (1.0 if want_open else -1.0) * delta / SWING_TIME, 0.0, 1.0)
 	var eased := open_amount * open_amount * (3.0 - 2.0 * open_amount)
 	pivot.rotation.y = eased * OPEN_ANGLE * swing_dir
+	if leaf_collision != null:
+		leaf_collision.disabled = open_amount > 0.1

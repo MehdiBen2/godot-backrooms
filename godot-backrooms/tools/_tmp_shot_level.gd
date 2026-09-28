@@ -17,6 +17,11 @@ func _init() -> void:
 		p.global_position = Vector3(float(cell[0]) * 4.5, 0.1, float(cell[1]) * 4.5)
 	p.rotation.y = deg_to_rad(float(OS.get_environment("YAW")))
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if OS.get_environment("PITCH") != "":
+		p.cam.rotation.x = deg_to_rad(float(OS.get_environment("PITCH")))
+	if OS.get_environment("CUT") != "":
+		main.get_node("Level").cut_power(60.0)
+		p.grid_down = true
 	await create_timer(3.0).timeout
 	g.playing = true
 	for n in main.find_children("*", "", true, false):
@@ -24,6 +29,6 @@ func _init() -> void:
 	await create_timer(1.5).timeout
 	var lv: Node = main.get_node("Level")
 	print("near lit: ", lv.pool.filter(func(l): return l.visible).size(), "  far lit: ", lv.far_pool.filter(func(l): return l.visible).size(),
-		"  far cap: ", lv._far_cap, "  eye: ", snappedf(lv.eye, 0.01), "  sdfgi: ", lv.env.sdfgi_enabled, "  exposure: ", snappedf(lv.env.tonemap_exposure, 0.01))
+		"  far cap: ", lv._far_cap, "  eye: ", snappedf(lv.eye, 0.01), "  sdfgi: ", lv.env.sdfgi_enabled, "  voxelgi: ", lv.voxel_gi != null and lv.voxel_gi.visible, "  glare: ", snappedf(lv.glare, 0.01), "  exposure: ", snappedf(lv.env.tonemap_exposure, 0.01))
 	root.get_viewport().get_texture().get_image().save_png(OS.get_environment("SHOT"))
 	quit()

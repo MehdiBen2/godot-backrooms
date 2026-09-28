@@ -1,6 +1,8 @@
 extends RefCounted
 ## Grid helpers over the level's wall / pit maps: line of sight, breadth-first flow fields and
 ## push-out collision for entities. World x/z <-> cell = round(v / CELL), same as the web game.
+## Thin walls and doors placed off-centre in the editor don't fill a cell: they cut the links between the
+## cells either side (level_data.gd blocked_edges / wall_segments), which every step here respects.
 
 const CELL := 4.5
 const NEIGHBOURS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
@@ -25,6 +27,10 @@ func blocked(cx: int, cz: int) -> bool:
 func open_at(x: float, z: float) -> bool:
 	return not blocked(cell(x), cell(z))
 
+## One step from a cell to a neighbouring one: the target is open and no off-centre wall is in between
+func can_step(ax: int, az: int, bx: int, bz: int) -> bool:
+	return not blocked(bx, bz) and not level.edge_blocked(Vector2i(ax, az), Vector2i(bx, bz))
+
 # Line of sight across the grid (walls block, pits don't)
 func clear_line(ax: float, az: float, bx: float, bz: float, step := 0.25) -> bool:
 	var dx := bx - ax
@@ -34,7 +40,7 @@ func clear_line(ax: float, az: float, bx: float, bz: float, step := 0.25) -> boo
 		var t := float(i) / steps
 		if level.walls.has(Vector2i(cell(ax + dx * t), cell(az + dz * t))):
 			return false
-	return true
+	return not level.crosses_wall_segment(Vector2(ax, az) / CELL, Vector2(bx, bz) / CELL)
 
 # Path distance from (sx, sz) to every cell; -1 = unreachable. `out` is n*n, index x * n + z.
 func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
@@ -60,7 +66,7 @@ func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
 			if nx < 0 or nz < 0 or nx >= n or nz >= n:
 				continue
 			var k := nx * n + nz
-			if out[k] == -1 and not blocked(nx, nz):
+			if out[k] == -1 and can_step(x, z, nx, nz):
 				out[k] = d
 				queue[tail] = k
 				tail += 1
@@ -102,4 +108,18 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 				elif m == r: p.x = maxx + radius
 				elif m == u: p.z = minz - radius
 				else: p.z = maxz + radius
+	# off-centre thin walls / doors: keep the circle a radius clear of each span (plus its thickness)
+	for s: Array in level.wall_segments:
+		var here := Vector2(p.x, p.z)
+		var q := Geometry2D.get_closest_point_to_segment(here, s[0] * CELL, s[1] * CELL)
+		var clear: float = radius + s[2]
+		var off := here - q
+		if off.length_squared() >= clear * clear:
+			continue
+		if off.length_squared() < 0.000001:              # dead on the line: out the side it faces
+			var along: Vector2 = s[1] - s[0]
+			off = along.orthogonal()
+		var out := q + off.normalized() * clear
+		p.x = out.x
+		p.z = out.y
 	return p
