@@ -36,8 +36,8 @@ var ping: AudioStreamPlayer
 var denied: AudioStreamPlayer
 
 func _ready() -> void:
-	ping = _player("res://audio/terminal/terminal_scan.wav", -15.0)
-	denied = _player("res://audio/terminal/terminal_select.wav", -8.0)
+	ping = _player("res://audio/terminal/terminal_scan.wav", -10.0)
+	denied = _player("res://audio/terminal/terminal_select.wav", -16.0)
 
 func _player(path: String, db: float) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
@@ -95,17 +95,17 @@ func _complete() -> void:
 		state = "logged"
 		Archive.discover(target_id)  # -> entity_discovered -> the HUD toast and its chime
 
-## Faster and higher as the reading fills; a slow ping while nothing is in the cone
+## Geiger-counter ticks at random (Poisson) gaps: about one a second of background while nothing
+## is near, more as the signal rises, a rattle as a reading fills
 func _ping(dt: float) -> void:
 	ping_t -= dt
 	if ping_t > 0.0:
 		return
+	var rate := 1.0 + 7.0 * signal_strength
 	if state == "lock":
-		ping_t = lerpf(0.3, 0.07, progress)
-		ping.pitch_scale = 1.0 + 0.5 * progress
-	else:
-		ping_t = 0.8
-		ping.pitch_scale = 0.85
+		rate = lerpf(8.0, 30.0, progress)
+	ping_t = -log(maxf(randf(), 0.001)) / rate
+	ping.pitch_scale = randf_range(0.9, 1.12)
 	ping.play()
 
 ## The scannable point closest to the crosshair that is in range and in plain sight: {id, pos, dist}

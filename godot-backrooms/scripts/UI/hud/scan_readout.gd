@@ -1,47 +1,51 @@
 extends Control
-## Field scanner HUD (scripts/Player/scanner.gd), drawn inside a crt_layer.gd so it glows, flickers,
-## scans and tears like the TAB terminal:
-## - a segmented ring round the crosshair that turns while searching (faster as the signal rises),
-##   with a radar sweep inside it; it tightens on a lock and an arc fills round it as the reading
-##   completes
-## - lock brackets that snap onto the target where it really is on screen, a dashed leader from the
-##   ring and a tag (UNIDENTIFIED and the range, or the entry code once it is logged)
-## - a folder-tab readout under the crosshair: status with a blinking cursor and signal bars, an
-##   oscilloscope trace that settles from noise into a clean wave as the reading locks in, the
-##   signal line, a segmented progress bar and a running data stream
-## - a new entry sends a pulse ring out and a tear through the layer
+## Field scanner HUD (scripts/Player/scanner.gd), drawn inside a crt_layer.gd so it glows, flickers
+## and tears like the TAB terminal. Built like the camcorder's own viewfinder rather than sci-fi
+## chrome:
+## - a focus box round the crosshair that hunts a little while searching and brightens with the
+##   signal (warmer / colder)
+## - on a lock, a heavier frame travels out of it onto the target, the way autofocus snaps to a
+##   subject, with the entry tag above it and a thin progress gauge under it; a new entry blinks it
+##   twice, like a camera confirming focus
+## - a small folder-tab readout under the crosshair where every line is something real: the status,
+##   the signal strength (a meter and a word), the target and its range, the reading's progress,
+##   and what to do next. Nothing on it is decoration.
+## Lines are thinner than the terminal's (LINE_W): it sits over the view while you play.
 ## Every string is measured and trimmed to the box it sits in (_fit).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 
-const RING_SEARCH := 96.0
-const RING_LOCK := 64.0
-const DASHES := 40
-const PANEL_W := 500.0
-const PANEL_GAP := 64.0          # crosshair ring to the readout's tab
-const TAB_H := 34.0
-const SLANT := 18.0
-const CHAMFER := 8.0
-const PAD := 18.0
-const SCOPE_H := 46.0
-const SCOPE_PTS := 72
-const CELLS := 20
-const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED // HOLD Q", "logged": "ENTRY LOGGED", "on_file": "ALREADY ON FILE"}
+const FOCUS := Vector2(124.0, 88.0)   # the focus box round the crosshair
+const PANEL_W := 430.0
+const PANEL_GAP := 64.0          # focus box to the readout's tab
+const TAB_H := 30.0
+const SLANT := 16.0
+const CHAMFER := 7.0
+const PAD := 16.0
+const ROW_H := 30.0
+const LABEL_W := 92.0            # the row labels' column
+const CELLS := 12
+const LINE_W := 2.0              # panel outline; the lock frame is a little heavier, the focus box lighter
+const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED ON", "logged": "ENTRY LOGGED", "on_file": "ALREADY ON FILE"}
+const HINT := {
+	"idle": "",
+	"search": "AIM AT AN ANOMALY AND KEEP IT CENTRED",
+	"lock": "KEEP IT IN VIEW UNTIL THE READING COMPLETES",
+	"logged": "NEW ENTRY // TAB, THEN F3 TO READ IT",
+	"on_file": "ALREADY LOGGED // NOTHING NEW RECORDED",
+}
 
 var scanner: Node
 var layer: CrtLayer
 var canvas: Control
 var font := FontVariation.new()
-var line_w: float = Term.LINE * Term.WINDOW_SCALE   # the terminal's outline weight, as it shows on screen
 var alpha := 0.0
 var t := 0.0
-var spin := 0.0
-var sweep := 0.0
 var last_state := "idle"
-var snap := 1.0                  # 0..1: lock brackets settling onto the target
-var pulse := -1.0                # 0..1: "entry logged" ring going out, < 0 off
+var snap := 1.0                  # 0..1: the lock frame travelling from the focus box to the target
+var confirm := 0.0               # seconds left of the "logged" double blink
 var unfold := 1.0                # 0..1: the readout opening out as the scanner comes on
 var fit_cache := {}
 
@@ -76,27 +80,21 @@ func _process(dt: float) -> void:
 	if not layer.running:        # coming on: the readout unfolds through a tear
 		layer.running = true
 		unfold = 0.0
-		layer.burst(0.6)
+		layer.burst(0.5)
 	unfold = move_toward(unfold, 1.0, dt * 6.0)
-	snap = move_toward(snap, 1.0, dt * 5.0)
-	if pulse >= 0.0:
-		pulse += dt * 1.6
-		if pulse > 1.0:
-			pulse = -1.0
-	var sig: float = scanner.signal_strength
-	spin += dt * (0.5 + 3.0 * sig) * (0.3 if st == "lock" else 1.0)
-	sweep += dt * (2.2 + 4.0 * sig)
+	snap = move_toward(snap, 1.0, dt * 4.5)
+	confirm = maxf(0.0, confirm - dt)
 	canvas.queue_redraw()
 
 func _on_state(from: String, to: String) -> void:
 	if to == "lock" and from != "lock":
 		snap = 0.0
-		layer.burst(0.35)
+		layer.burst(0.25)
 	elif to == "logged":
-		pulse = 0.0
-		layer.burst(1.0)
+		confirm = 0.3
+		layer.burst(0.6)
 	elif to == "on_file":
-		layer.burst(0.4)
+		confirm = 0.3
 
 # ---- drawing --------------------------------------------------------------------------
 func _draw_canvas() -> void:
@@ -107,49 +105,33 @@ func _draw_canvas() -> void:
 	if st == "logged": col = Term.GREEN
 	elif st == "on_file": col = Term.TEXT
 	var c := canvas.size * 0.5
-	var r := _ring_radius(st)
-	_draw_ring(c, r, st, col)
-	_draw_lock(c, r, st, col)
-	_draw_panel(Vector2(c.x - PANEL_W * 0.5, c.y + RING_SEARCH + PANEL_GAP), st, col)
+	_draw_focus(c, st, col)
+	_draw_lock(c, st, col)
+	_draw_panel(Vector2(c.x - PANEL_W * 0.5, c.y + FOCUS.y * 0.5 + PANEL_GAP), st, col)
 
-func _ring_radius(st: String) -> float:
-	if st == "lock":
-		return lerpf(RING_SEARCH, RING_LOCK, _smooth(snap))
-	if st == "logged" or st == "on_file":
-		return RING_LOCK
-	return RING_SEARCH + 3.0 * sin(t * 3.0)
+## Four corner brackets: the box, and how long their arms are
+func _brackets(r: Rect2, arm: float, color: Color, width: float) -> void:
+	for corner in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
+		var sx := 1.0 if corner.x < r.get_center().x else -1.0
+		var sy := 1.0 if corner.y < r.get_center().y else -1.0
+		canvas.draw_line(corner, corner + Vector2(sx * arm, 0.0), color, width)
+		canvas.draw_line(corner, corner + Vector2(0.0, sy * arm), color, width)
 
-func _draw_ring(c: Vector2, r: float, st: String, col: Color) -> void:
+## The focus box round the crosshair: hunting a little while it searches, brighter as the signal
+## rises; a faint centre tick so the eye keeps the crosshair
+func _draw_focus(c: Vector2, st: String, col: Color) -> void:
 	var sig: float = scanner.signal_strength
-	var done := st == "logged" or st == "on_file"
-	var locked := st == "lock"
-	# dashes: brighter as the signal rises, brightest where the sweep passes
-	var seg := TAU / DASHES
-	for i in DASHES:
-		var a0 := spin + i * seg
-		var near := pow(maxf(0.0, cos(a0 + seg * 0.3 - sweep)), 12.0) if st == "search" else 0.0
-		var lit := 1.0 if done else clampf(0.3 + 0.5 * sig + 0.6 * near, 0.0, 1.0)
-		canvas.draw_arc(c, r, a0, a0 + seg * 0.55, 4, _a(col, lit), 2.5, true)
-	# radar sweep: a spoke with a fading trail, only while searching
+	var size_now := FOCUS
 	if st == "search":
-		for k in 7:
-			var d := Vector2.from_angle(sweep - k * 0.08)
-			canvas.draw_line(c + d * 16.0, c + d * (r - 8.0), _a(col, (0.25 + 0.45 * sig) * (1.0 - k / 7.0)), 2.0, true)
-	# the crosshair's fixed frame: four ticks outside the ring
-	for k in 4:
-		var d := Vector2.from_angle(k * PI * 0.5)
-		canvas.draw_line(c + d * (r + 6.0), c + d * (r + 20.0), _a(col, 0.9), line_w * 0.6)
-	# progress round the outside: a faint track, the reading filling it clockwise from the top
-	if locked or done:
-		var frac: float = 1.0 if done else scanner.progress
-		canvas.draw_arc(c, r + 13.0, 0.0, TAU, 72, _a(col, 0.14), line_w, true)
-		if frac > 0.001:
-			canvas.draw_arc(c, r + 13.0, -PI * 0.5, -PI * 0.5 + TAU * frac, maxi(4, int(72 * frac)), _a(col), line_w, true)
-	if pulse >= 0.0:
-		canvas.draw_arc(c, r + 13.0 + pulse * 150.0, 0.0, TAU, 96, _a(col, (1.0 - pulse) * 0.9), line_w * (1.0 - 0.6 * pulse), true)
+		size_now += Vector2(6.0, 4.0) * sin(t * 5.0) * (1.0 - sig)
+	var k := 0.45 + 0.45 * sig if st == "search" else 0.35
+	var r := Rect2(c - size_now * 0.5, size_now)
+	_brackets(r, 16.0, _a(col, k), LINE_W * 0.75)
+	canvas.draw_line(c - Vector2(7.0, 0.0), c + Vector2(7.0, 0.0), _a(col, k * 0.8), 1.5)
+	canvas.draw_line(c - Vector2(0.0, 7.0), c + Vector2(0.0, 7.0), _a(col, k * 0.8), 1.5)
 
-## Brackets on the target itself, a dashed leader from the ring, and its tag
-func _draw_lock(c: Vector2, r: float, st: String, col: Color) -> void:
+## The lock frame on the target itself, its tag above and a progress gauge under it
+func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	if not (st == "lock" or st == "logged" or st == "on_file"):
 		return
 	var cam: Camera3D = scanner.player.cam
@@ -158,77 +140,67 @@ func _draw_lock(c: Vector2, r: float, st: String, col: Color) -> void:
 		return
 	var sp := cam.unproject_position(wp)
 	var dist: float = scanner.target_dist
+	var hs := clampf(1100.0 / maxf(dist, 1.0), 26.0, 110.0)
+	# travel out of the focus box to the target, like autofocus finding its subject
 	var e := _smooth(snap)
-	var hs := clampf(1100.0 / maxf(dist, 1.0), 22.0, 110.0) * lerpf(2.2, 1.0, e)
-	var k := _a(col, lerpf(0.25, 1.0, e))
-	var arm := minf(18.0, hs * 0.6)
-	for sx in [-1.0, 1.0]:
-		for sy in [-1.0, 1.0]:
-			var q := sp + Vector2(sx, sy) * hs
-			canvas.draw_line(q, q - Vector2(sx * arm, 0.0), k, line_w)
-			canvas.draw_line(q, q - Vector2(0.0, sy * arm), k, line_w)
-	var d := sp - c
-	if d.length() > r + hs + 24.0:
-		var dir := d.normalized()
-		var a0 := c + dir * (r + 22.0)
-		var a1 := sp - dir * hs * 1.2
-		var n := int(a0.distance_to(a1) / 10.0)
-		for i in range(0, n, 2):
-			canvas.draw_line(a0.lerp(a1, float(i) / n), a0.lerp(a1, float(i + 1) / n), _a(col, 0.55 * e), 2.0)
-	# tag beside the brackets, flipped to the left near the screen's right edge
+	var from := Rect2(c - FOCUS * 0.5, FOCUS)
+	var to := Rect2(sp - Vector2(hs, hs), Vector2(hs, hs) * 2.0)
+	var r := Rect2(from.position.lerp(to.position, e), from.size.lerp(to.size, e))
+	if confirm > 0.0 and int(confirm * 13.0) % 2 == 1:
+		return                       # the confirm blink: off
+	var k := _a(col)
+	_brackets(r, minf(20.0, r.size.x * 0.3), k, LINE_W * 1.25)
+	if e < 0.99:
+		return
+	# tag above, range on the right; gauge under, as wide as the frame
 	var tag := "UNIDENTIFIED"
 	if Archive.is_discovered(scanner.target_id):
 		tag = str(Archive.entity_info(scanner.target_id).get("code", "ASRA-EN-??"))
-	var right := sp.x + hs + 230.0 < canvas.size.x
-	var tx := sp.x + hs + 12.0 if right else sp.x - hs - 12.0
-	var align := HORIZONTAL_ALIGNMENT_LEFT if right else HORIZONTAL_ALIGNMENT_RIGHT
-	_text(Vector2(tx, sp.y - hs + 14.0), tag, 16, k, 210.0, align)
-	_text(Vector2(tx, sp.y - hs + 34.0), "%.1fM" % dist, 15, _a(col, 0.7 * e), 210.0, align)
+	var w := maxf(r.size.x, 220.0)       # the frame's colour and the readout say logged / on file
+	var x0 := r.get_center().x - w * 0.5
+	var rw := _text(Vector2(x0 + w, r.position.y - 10.0), "%.1fM" % dist, 14, _a(Term.MUTED), 70.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	_text(Vector2(x0, r.position.y - 10.0), tag, 15, k, w - rw - 10.0)
+	var frac: float = 1.0 if st != "lock" else scanner.progress
+	var bar := Rect2(r.position.x, r.end.y + 10.0, r.size.x, 4.0)
+	canvas.draw_rect(bar, _a(col, 0.18))
+	canvas.draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), k)
 
-## Folder-tab readout (the toast's and the dossier's shape)
+## Folder-tab readout (the toast's and the dossier's shape). Rows: status; SIGNAL (how strongly
+## anything scannable is ahead, scanner.signal_strength); TARGET (what is locked and how far);
+## READING (the scan's progress); and a hint saying what to do next.
 func _draw_panel(o: Vector2, st: String, col: Color) -> void:
 	var sig: float = scanner.signal_strength
-	var p: float = scanner.progress
 	var w := PANEL_W
 	var inner := w - PAD * 2.0
-	var body_h := PAD + 22.0 + 10.0 + SCOPE_H + 12.0 + 20.0 + 10.0 + 16.0 + 10.0 + 14.0 + PAD
+	var h := PAD + 24.0 + 8.0 + ROW_H * 3.0 + 6.0 + 16.0 + PAD
 	var top := o.y + TAB_H
-	var h := body_h
 	# unfold from the tab down as the scanner comes on
 	var s := _smooth(unfold)
 	canvas.draw_set_transform(Vector2(0.0, o.y * (1.0 - s)), 0.0, Vector2(1.0, maxf(s, 0.02)))
 
-	var title := "A.S.R.A. SCANNER"
-	var tab_w := _text_w(title, 16) + 34.0 + SLANT
+	var title := "FIELD SCANNER"
+	var tab_w := _text_w(title, 15) + 30.0 + SLANT
 	var fill := Color(Term.FILL, Term.FILL.a * alpha)
 	canvas.draw_colored_polygon(PackedVector2Array([
 		Vector2(o.x, top), Vector2(o.x + w - CHAMFER, top), Vector2(o.x + w, top + CHAMFER), Vector2(o.x + w, top + h - CHAMFER),
 		Vector2(o.x + w - CHAMFER, top + h), Vector2(o.x + CHAMFER, top + h), Vector2(o.x, top + h - CHAMFER)]), fill)
 	var tab := PackedVector2Array([Vector2(o.x, top), Vector2(o.x, o.y), Vector2(o.x + tab_w - SLANT, o.y), Vector2(o.x + tab_w, top)])
 	canvas.draw_colored_polygon(tab, fill)
-	canvas.draw_polyline(tab, _a(col), line_w, true)
+	canvas.draw_polyline(tab, _a(col), LINE_W, true)
 	canvas.draw_polyline(PackedVector2Array([
 		Vector2(o.x + tab_w, top), Vector2(o.x + w - CHAMFER, top), Vector2(o.x + w, top + CHAMFER), Vector2(o.x + w, top + h - CHAMFER),
-		Vector2(o.x + w - CHAMFER, top + h), Vector2(o.x + CHAMFER, top + h), Vector2(o.x, top + h - CHAMFER), Vector2(o.x, top)]), _a(col), line_w, true)
-	_text(Vector2(o.x + 17.0, o.y + 23.0), title, 16, _a(Term.TEXT), tab_w - SLANT - 20.0)
-	_text(Vector2(o.x + w - 4.0, o.y + 23.0), "RNG %dM" % int(Scanner.RANGE), 13, _a(Term.MUTED), w - tab_w - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		Vector2(o.x + w - CHAMFER, top + h), Vector2(o.x + CHAMFER, top + h), Vector2(o.x, top + h - CHAMFER), Vector2(o.x, top)]), _a(col), LINE_W, true)
+	_text(Vector2(o.x + 15.0, o.y + 21.0), title, 15, _a(Term.TEXT), tab_w - SLANT - 18.0)
 
 	var x := o.x + PAD
+	var vx := x + LABEL_W            # where the values start
+	var vw := inner - LABEL_W
 	var y := top + PAD
-	# 1: status, blinking cursor, signal bars
-	var status := str(STATUS.get(st, ""))
-	if st == "search":
-		status += ".".repeat(int(t * 3.0) % 4)
-	var bars_w := 5 * 9.0 + 34.0
-	var sw := _text(Vector2(x, y + 17.0), status, 19, _a(col), inner - bars_w - 20.0)
-	if fmod(t, 0.9) < 0.5:
-		canvas.draw_rect(Rect2(x + sw + 6.0, y + 2.0, 10.0, 17.0), _a(col, 0.85))
-	_text(Vector2(o.x + w - PAD - 5 * 9.0 - 6.0, y + 16.0), "SIG", 13, _a(Term.MUTED), 40.0, HORIZONTAL_ALIGNMENT_RIGHT)
-	for i in 5:
-		var bh := 5.0 + i * 3.5
-		var lit := sig > (i + 0.5) / 5.0 or st == "logged" or st == "on_file"
-		canvas.draw_rect(Rect2(o.x + w - PAD - (5 - i) * 9.0, y + 19.0 - bh, 6.0, bh), _a(col, 1.0 if lit else 0.15))
-	y += 22.0 + 10.0
+	# status; the cursor blinks while it is still working
+	var sw := _text(Vector2(x, y + 18.0), str(STATUS.get(st, "")), 19, _a(col), inner - 20.0)
+	if (st == "search" or st == "lock") and fmod(t, 0.9) < 0.5:
+		canvas.draw_rect(Rect2(x + sw + 6.0, y + 3.0, 9.0, 16.0), _a(col, 0.85))
+	y += 24.0 + 8.0
 
 	# 2: oscilloscope: noise while searching, a clean wave coming through as the reading locks in
 	var box := Rect2(x, y, inner, SCOPE_H)
@@ -260,49 +232,60 @@ func _draw_panel(o: Vector2, st: String, col: Color) -> void:
 	canvas.draw_line(Vector2(head, y + 3.0), Vector2(head, y + SCOPE_H - 3.0), _a(col, 0.35), 2.0)
 	y += SCOPE_H + 12.0
 
-	# 3: what is on the other end, and how far
-	var line := "NO SIGNAL"
-	if st == "search":
-		if sig > 0.66: line = "SIGNAL: STRONG"
-		elif sig > 0.33: line = "SIGNAL: WEAK"
-		elif sig > 0.06: line = "SIGNAL: FAINT"
-	elif st == "lock" and not Archive.is_discovered(scanner.target_id):
-		line = "SIGNAL: UNIDENTIFIED"
-	elif st != "idle":
-		line = _entity_name(scanner.target_id)
-	var range_txt := "--.-M" if st == "search" or st == "idle" else "%.1fM" % scanner.target_dist
-	var rw := _text(Vector2(x + inner, y + 15.0), range_txt, 16, _a(Term.MUTED), 90.0, HORIZONTAL_ALIGNMENT_RIGHT)
-	_text(Vector2(x, y + 15.0), line, 17, _a(Term.GREEN if st == "logged" else Term.TEXT), inner - rw - 16.0)
-	y += 20.0 + 10.0
+	# SIGNAL: how strongly something scannable is ahead (through walls), in cells and in words
+	var word := "NONE"
+	if st == "lock" or st == "logged" or st == "on_file": word = "LOCKED"
+	elif sig > 0.66: word = "STRONG"
+	elif sig > 0.33: word = "MODERATE"
+	elif sig > 0.06: word = "FAINT"
+	_row_label(x, y, "SIGNAL")
+	var ww := _text_w("MODERATE", 15)
+	_meter(Rect2(vx, y + 5.0, vw - ww - 14.0, 12.0), sig if word != "LOCKED" else 1.0, col)
+	_text(Vector2(x + inner, y + 16.0), word, 15, _a(col if sig > 0.06 or word == "LOCKED" else Term.MUTED), ww, HORIZONTAL_ALIGNMENT_RIGHT)
+	y += ROW_H
 
-	# 4: segmented progress and its percentage
-	var fill_frac := 0.0
-	if st == "lock": fill_frac = p
-	elif st == "logged" or st == "on_file": fill_frac = 1.0
-	var pct := "%d%%" % int(round(fill_frac * 100.0))
-	var pw := _text_w("100%", 16)
-	_text(Vector2(x + inner, y + 14.0), pct, 16, _a(col), pw, HORIZONTAL_ALIGNMENT_RIGHT)
-	var bw := inner - pw - 12.0
-	var gap := 3.0
-	var cw := (bw - gap * (CELLS - 1)) / CELLS
-	var lit_cells := ceili(fill_frac * CELLS - 0.01)
-	for i in CELLS:
-		canvas.draw_rect(Rect2(x + i * (cw + gap), y, cw, 16.0), _a(col, 1.0 if i < lit_cells else 0.1))
-	y += 16.0 + 10.0
+	# TARGET: what is locked, and how far
+	_row_label(x, y, "TARGET")
+	var target := "NONE IN VIEW"
+	var target_col := _a(Term.MUTED)
+	if st != "search" and st != "idle":
+		# the name here, the code on the lock frame's tag
+		target = "UNIDENTIFIED"
+		if Archive.is_discovered(scanner.target_id):
+			target = str(Archive.entity_info(scanner.target_id).get("common_name", scanner.target_id)).to_upper()
+		target_col = _a(Term.GREEN if st == "logged" else Term.TEXT)
+		var dw := _text(Vector2(x + inner, y + 16.0), "%.1f M" % scanner.target_dist, 15, _a(Term.MUTED), 80.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		_text(Vector2(vx, y + 16.0), target, 16, target_col, vw - dw - 12.0)
+	else:
+		_text(Vector2(vx, y + 16.0), target, 16, target_col, vw)
+	y += ROW_H
 
-	# 5: data stream: bytes running while it reads, a verdict once it is done
-	var data := ""
-	match st:
-		"lock":
-			for i in 16:
-				data += "%02X " % int(_hash(i + floor(t * 14.0) * 31.0) * 255.0)
-		"logged": data = "CHECKSUM OK // WRITTEN TO THRESHOLD DOSSIER"
-		"on_file": data = "MATCHES AN ENTRY ON FILE // NOTHING WRITTEN"
-		_:
-			for i in 16:
-				data += ("%02X " % int(_hash(i + floor(t * 5.0) * 17.0) * 255.0)) if _hash(i * 3.0 + floor(t * 5.0)) > 0.8 else "-- "
-	_text(Vector2(x, y + 11.0), data, 13, _a(Term.MUTED, 0.8), inner)
+	# READING: the scan itself
+	_row_label(x, y, "READING")
+	var frac := 0.0
+	if st == "lock": frac = scanner.progress
+	elif st == "logged" or st == "on_file": frac = 1.0
+	var pw := _text_w("100%", 15)
+	_meter(Rect2(vx, y + 5.0, vw - ww - 14.0, 12.0), frac, col)
+	var pct := "%d%%" % int(round(frac * 100.0)) if st != "search" else "--"
+	_text(Vector2(x + inner, y + 16.0), pct, 15, _a(col if st != "search" else Term.MUTED), maxf(pw, ww), HORIZONTAL_ALIGNMENT_RIGHT)
+	y += ROW_H + 6.0
+
+	# what to do next
+	canvas.draw_line(Vector2(x, y - 4.0), Vector2(x + inner, y - 4.0), _a(col, 0.25), 1.0)
+	_text(Vector2(x, y + 14.0), str(HINT.get(st, "")), 13, _a(Term.MUTED), inner)
 	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _row_label(x: float, y: float, label: String) -> void:
+	_text(Vector2(x, y + 16.0), label, 14, _a(Term.MUTED), LABEL_W - 8.0)
+
+## A segmented meter: `frac` of its cells lit
+func _meter(r: Rect2, frac: float, col: Color) -> void:
+	var gap := 3.0
+	var cw := (r.size.x - gap * (CELLS - 1)) / CELLS
+	var lit := ceili(clampf(frac, 0.0, 1.0) * CELLS - 0.01)
+	for i in CELLS:
+		canvas.draw_rect(Rect2(r.position.x + i * (cw + gap), r.position.y, cw, r.size.y), _a(col, 1.0 if i < lit else 0.12))
 
 # ---- helpers --------------------------------------------------------------------------
 ## Colour with the readout's fade applied
@@ -312,13 +295,6 @@ func _a(c: Color, k := 1.0) -> Color:
 func _smooth(x: float) -> float:
 	x = clampf(x, 0.0, 1.0)
 	return x * x * (3.0 - 2.0 * x)
-
-func _hash(n: float) -> float:
-	return fposmod(sin(n * 12.9898) * 43758.5453, 1.0)
-
-func _entity_name(id: String) -> String:
-	var info := Archive.entity_info(id)
-	return "%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()]
 
 func _text_w(s: String, px: int) -> float:
 	return font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x

@@ -314,7 +314,7 @@ func _on_entity_logged(id: String) -> void:
 	toast.push("[NEW ENTRY LOGGED]", [
 		["%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
 		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
-		["TAB // [F2] THRESHOLD DOSSIER", Term.MUTED, 16],
+		["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16],
 	])
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
