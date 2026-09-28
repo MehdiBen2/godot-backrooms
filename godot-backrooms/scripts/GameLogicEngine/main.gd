@@ -10,6 +10,7 @@ func _ready() -> void:
 	player.global_position = level.spawn_pos
 	level.player = player
 	Game.bind(player, level, self)
+	Archive.forget_all()          # no save feature yet: every level start logs entities from scratch
 	Game.dead = false
 	Death.warmup.call_deferred()
 	ui.apply_settings()
