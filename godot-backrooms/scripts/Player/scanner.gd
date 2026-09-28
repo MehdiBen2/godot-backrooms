@@ -6,7 +6,7 @@ extends Node
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
 ## the points it can be read from in scan_points() (see the entity scripts).
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
-## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength`.
+## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`.
 
 const RANGE := 32.0
 const CONE_COS := 0.9877         # cos 9 deg: the target has to be close to the crosshair
@@ -27,6 +27,8 @@ var target_dist := 0.0
 var target_pos := Vector3.ZERO   # world point being read (the reticle's lock brackets sit on it)
 var signal_strength := 0.0       # 0..1 warmer / colder: anything scannable ahead and near, walls or not
 var raw_signal := 0.0
+var signal_dist := 0.0           # rough range of whatever gives the signal, eased (the scale's band)
+var raw_dist := 0.0
 var progress := 0.0              # 0..1 through the current reading
 var result_t := 0.0
 var latched := false             # a reading finished: Q has to be let go before the next one
@@ -56,6 +58,7 @@ func _process(dt: float) -> void:
 		latched = false
 		progress = 0.0
 		signal_strength = 0.0
+		signal_dist = 0.0
 		if state == "search" or state == "lock" or result_t <= 0.0:
 			state = "idle"
 			target_id = ""
@@ -65,6 +68,8 @@ func _process(dt: float) -> void:
 		return                       # keep showing the result until Q is let go
 	var hit := _best_target()
 	signal_strength = lerpf(signal_strength, maxf(raw_signal, 0.85 if state == "lock" else 0.0), minf(1.0, dt * 6.0))
+	if raw_signal > 0.02:
+		signal_dist = raw_dist if signal_dist <= 0.0 else lerpf(signal_dist, raw_dist, minf(1.0, dt * 4.0))
 	if hit.is_empty():
 		lost_t += dt
 		if state != "lock" or lost_t > LOCK_GRACE:
@@ -127,7 +132,10 @@ func _best_target() -> Dictionary:
 			if dist < 0.5 or dist > RANGE:
 				continue
 			var dot := fwd.dot(d / dist)
-			raw_signal = maxf(raw_signal, smoothstep(SIGNAL_COS, CONE_COS, dot) * (1.0 - 0.6 * dist / RANGE))
+			var s: float = smoothstep(SIGNAL_COS, CONE_COS, dot) * (1.0 - 0.6 * dist / RANGE)
+			if s > raw_signal:
+				raw_signal = s
+				raw_dist = dist
 			if dot >= CONE_COS:
 				found.append([dot, id, p, dist])
 	if found.is_empty():
