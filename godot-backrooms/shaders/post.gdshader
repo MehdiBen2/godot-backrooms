@@ -6,9 +6,11 @@ shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D lens_dirt_tex : filter_linear, repeat_disable;
 uniform vec3 grade = vec3(1.07, 1.03, 0.88);
-uniform float distortion = 0.12;
+uniform float distortion = 0.27;
 uniform float chroma_amt = 0.0028;
-uniform float grain = 0.038;
+uniform float grain = 0.034;
+uniform float vhs = 1.0;          // master for the calm-state tape look (softness, jitter, tracking, chroma smear); scares add on top
+uniform float vhs_soft = 0.3;     // tape luma bandwidth: how soft the picture is horizontally
 uniform float dirt_amt = 0.04;
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
@@ -51,6 +53,8 @@ void fragment() {
 	vec2 res = 1.0 / SCREEN_PIXEL_SIZE;
 	float aspect = res.x / res.y;
 	float px = SCREEN_PIXEL_SIZE.x;
+	// one pixel of a 1080p picture: the tape work is sized in these so it looks the same at 720p and 4K
+	float lpx = 1.0 / (1080.0 * aspect);
 	vec2 uv = SCREEN_UV;
 	// scale(zoom) skewX(deg) about the centre
 	uv = (uv - 0.5) / (fx_zoom + fx_shock * 0.07) + 0.5;
@@ -77,14 +81,19 @@ void fragment() {
 	// weak-signal interference near the entity: rare frames where sync slips
 	float burst_tick = floor(TIME * 12.0);
 	float burst = step(1.0 - threat2 * 0.07, hash12(vec2(burst_tick, 3.17)));
-	float jitter = (hash12(vec2(row, tick)) - 0.5) * px * (0.8 + fear * 1.2 + glitch * 4.0);
-	jitter += sin(uv.y * 7.0 + TIME * 1.9) * sin(uv.y * 19.0 - TIME * 4.3) * px * threat * 3.0;
-	jitter += burst * (hash12(vec2(burst_tick, 8.3)) - 0.5) * px * 14.0;
+	float jitter = (hash12(vec2(row, tick)) - 0.5) * lpx * (0.5 * vhs + fear * 1.2 + glitch * 4.0);
+	jitter += sin(uv.y * 7.0 + TIME * 1.9) * sin(uv.y * 19.0 - TIME * 4.3) * lpx * threat * 3.0;
+	jitter += burst * (hash12(vec2(burst_tick, 8.3)) - 0.5) * lpx * 14.0;
 	float head_sw = 1.0 - smoothstep(0.0, 0.012 + threat * 0.012, uv.y);
-	jitter += head_sw * px * (threat * 8.0 + glitch * 8.0) * (0.6 + 0.4 * hash12(vec2(row, tick)));
+	jitter += head_sw * lpx * (threat * 8.0 + glitch * 8.0) * (0.6 + 0.4 * hash12(vec2(row, tick)));
+	// head-switching wobble: the last few lines at the bottom of every VHS frame sit a little off
+	float head_b = smoothstep(0.988, 1.0, uv.y);
+	jitter += head_b * lpx * vhs * (2.5 + 2.0 * hash12(vec2(row, tick + 2.0)));
+	// the tracking band drifts through only now and then (always there when the tape is damaged)
 	float band_y = fract(TIME * 0.045 + 0.3);
-	float band = 1.0 - smoothstep(0.0, 0.025 + glitch * 0.05, abs(uv.y - band_y));
-	jitter += band * (hash12(vec2(row, tick + 7.0)) - 0.5) * (0.003 + glitch * 0.008);
+	float band_on = clamp(smoothstep(0.55, 0.8, vnoise(vec2(TIME * 0.06, 1.7))) * vhs + glitch * 2.0, 0.0, 1.0);
+	float band = (1.0 - smoothstep(0.0, 0.025 + glitch * 0.05, abs(uv.y - band_y))) * band_on;
+	jitter += band * (hash12(vec2(row, tick + 7.0)) - 0.5) * (0.0015 + glitch * 0.008);
 	vec2 shift = vec2(0.5 + jitter, 0.5);
 
 	// Subtle, realistic lateral chromatic aberration (increases smoothly with radial distance)
@@ -95,6 +104,15 @@ void fragment() {
 	vec2 uvg = p * f;                     uvg.x /= aspect; uvg = clamp(uvg + shift, 0.0, 1.0);
 	vec2 uvb = (p * f - ca_dir * ca_disp); uvb.x /= aspect; uvb = clamp(uvb + shift, 0.0, 1.0);
 	vec3 col = vec3(texture(screen_tex, uvr).r, texture(screen_tex, uvg).g, texture(screen_tex, uvb).b);
+	// Tape luma bandwidth: a soft horizontal smear (the references are never pin sharp). Luma only, so it
+	// softens edges without greying the colour; the chroma smear below is wider still.
+	if (vhs_soft * vhs > 0.01) {
+		vec2 ho = vec2(lpx * 1.2, 0.0);
+		vec3 hs = texture(screen_tex, uvg - ho).rgb * 0.3 + texture(screen_tex, uvg + ho).rgb * 0.3
+			+ texture(screen_tex, uvg - ho * 2.2).rgb * 0.2 + texture(screen_tex, uvg + ho * 2.2).rgb * 0.2;
+		float dl = dot(hs - col, vec3(0.299, 0.587, 0.114));
+		col = max(col + dl * clamp(vhs_soft * vhs, 0.0, 1.0), 0.0);
+	}
 
 	// blur: the grab's CSS blur() px, plus the focus of a failing mind breathing in and out
 	float ins_breath = 0.5 + 0.5 * sin(TIME * 0.7 + 1.8 * sin(TIME * 0.31));
@@ -137,10 +155,10 @@ void fragment() {
 	}
 
 	// Tape chroma has less bandwidth than luma: colour smears right of edges
-	vec2 c_off = vec2(px * (1.5 + threat * 5.0 + glitch * 5.0), 0.0);
+	vec2 c_off = vec2(lpx * (2.0 + threat * 5.0 + glitch * 5.0), 0.0);
 	vec3 cs = (col + texture(screen_tex, uvg + c_off).rgb + texture(screen_tex, uvg + c_off * 2.0).rgb) / 3.0;
 	vec3 bled = max(vec3(dot(col, vec3(0.299, 0.587, 0.114))) + cs - vec3(dot(cs, vec3(0.299, 0.587, 0.114))), 0.0);
-	col = mix(col, bled, clamp(0.4 + threat * 0.6 + glitch, 0.0, 1.0));
+	col = mix(col, bled, clamp(0.4 * vhs + threat * 0.6 + glitch, 0.0, 1.0));
 
 	// Camera lens dirt: subtle dust specks catching direct bright lights only, and lens halation around
 	// the bulbs (both off on the low preset: no extra texture reads at all)
@@ -201,9 +219,11 @@ void fragment() {
 		vec3 b2 = textureLod(screen_tex, uvg, 5.0).rgb;
 		float bl1 = dot(b1, vec3(0.299, 0.587, 0.114));
 		float bl2 = dot(b2, vec3(0.299, 0.587, 0.114));
-		col += (b1 * smoothstep(0.45, 0.95, bl1) * 0.10 + b2 * smoothstep(0.5, 1.0, bl2) * 0.12) * classic * vec3(1.0, 0.96, 0.82);
-		col = mix(col, col * 1.03, classic);
+		// (the environment's glow already blooms the panels: this is only the camera's soft highlight bleed)
+		col += (b1 * smoothstep(0.55, 0.95, bl1) * 0.06 + b2 * smoothstep(0.6, 1.0, bl2) * 0.08) * classic * vec3(1.0, 0.96, 0.82);
 		col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), 0.08 * classic);   // slightly less saturated, like real fluorescent light
+		// camcorder tape: blacks lift to olive and the whole picture leans yellow-green, highlights stay white
+		col = mix(col, col * vec3(1.0, 0.99, 0.9) + vec3(0.03, 0.028, 0.008), classic);
 	}
 	col *= grade;
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
@@ -227,10 +247,10 @@ void fragment() {
 	vec2 q = (uv - 0.5) * vec2(1.0, 1.15);
 	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12 - insanity * 0.08, 0.88 - tunnel * 0.3 - insanity * 0.18, length(q));
 	float edge = 1.0 - vig;
-	col *= mix(mix(0.55, 0.9, classic) - tunnel * 0.3, 1.0, vig);
+	col *= mix(mix(0.62, 0.9, classic) - tunnel * 0.3, 1.0, vig);
 	col = mix(col, vec3(dot(col, vec3(0.299, 0.587, 0.114))), clamp(edge * (threat * 0.9 + exhaust * 0.6), 0.0, 0.85));
 	col *= 1.0 - edge * exhaust * 0.35;
-	col += band * 0.03 * (0.5 + glitch);
+	col += band * 0.02 * (0.5 + glitch);
 
 	// interference snow band where the sync slipped, and short tape dropout streaks
 	float by = hash12(vec2(burst_tick, 5.9));
@@ -304,7 +324,7 @@ void fragment() {
 	}
 
 	vec2 fc = FRAGCOORD.xy;
-	col *= 0.98 + 0.02 * sin(fc.y * 1.57);                 // soft analog scanlines
+	col *= 1.0 - 0.015 * vhs * (0.5 + 0.5 * sin(fc.y * 1.57));   // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
 	col += g * (grain * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
 	col = mix(col, vec3(0.0), blink_lids);                  // the lids are pure black, over grain and all

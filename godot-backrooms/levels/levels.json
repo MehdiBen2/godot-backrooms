@@ -1,12 +1,17 @@
 [
   {
-    "file": "level0.lvl",
-    "id": "level0",
-    "name": "Level 0: The Lobby"
-  },
-  {
     "file": "level_1_habitable_zone.lvl",
     "id": "level_1_habitable_zone",
-    "name": "Level 1: Habitable Zone"
+    "name": "Level 0: ???"
+  },
+  {
+    "file": "level0.lvl",
+    "id": "level0",
+    "name": "Level 1: The Lobby"
+  },
+  {
+    "file": "level_2_yellow_halls.lvl",
+    "id": "level_2_yellow_halls",
+    "name": "Level 2: The Yellow Halls"
   }
 ]

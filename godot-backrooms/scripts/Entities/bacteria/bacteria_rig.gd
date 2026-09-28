@@ -8,9 +8,9 @@ extends Node3D
 ## its whole weight (and `stepped`, the footfall sound's cue). It banks into turns and pitches forward as
 ## it surges ahead, while the head stays level, locked on what it's looking at.
 
-signal stepped(weight: float, dragging: bool)   # dragging: the short, limping leg came down
+signal stepped(weight: float, dragging: bool, run: float)   # dragging: the short, limping leg came down
 
-const MODEL_YAW := -PI / 2.0
+const MODEL_YAW := -PI / 2.0   # fallback only: howler.glb faces +X (head section first); the real facing comes from its arms
 const SKIN := Color("15120e")
 const CHASE_SPEED := 6.0
 const STRIDE := 1.2            # metres per step at a walk; about twice that at a full run
@@ -24,6 +24,10 @@ var pose_t := {}
 var phase := 0.0
 var anim_time := 0.0
 var anim_state := ""
+var stride := STRIDE           # metres per walking step, from its height (set in build)
+var side_flip := 1.0           # -1 when its "l" bones are on its right (the model's naming is mirrored)
+var size_k := 1.0             # its height over the 2.8 m the bob / dip amounts were tuned at
+var arm_s := {}                # per arm: reach / out / elbow, lagging behind the pose so the long arms swing with weight
 var step_len := STRIDE
 var step_side := 0
 var gait_w := 0.0              # how much of the walk cycle is showing, eased in and out (no pop on setting off)
@@ -44,6 +48,18 @@ var mist_mat: StandardMaterial3D
 var mist_ring_mat: StandardMaterial3D
 var mist_puffs := []             # black smoke curling off it, thicker while it hunts
 
+# ---- low ceilings: it folds itself down to fit under them
+const HEAD_CLEAR := 0.15       # metres it keeps between the top of its head and the ceiling
+var model_h := 2.8
+var top_off := 0.0             # how far the top of the model sits above its head bone, standing
+var squeeze := 0.0             # 0 = standing tall, ~1 = folded down under a 2.3 m ceiling
+var squeeze_trim := 0.0        # correction learned from where its head actually is
+
+# ---- planted feet: each foot stays where it landed until it lifts (two-bone IK over the walk cycle)
+var ankle_h := {"l": 0.0, "r": 0.0}     # ankle bone height above the floor, standing
+var feet := {"l": {"planted": false, "pos": Vector3.ZERO}, "r": {"planted": false, "pos": Vector3.ZERO}}
+var leg_phase := {"l": {"stance": false, "prog": 0.0}, "r": {"stance": false, "prog": 0.0}}
+
 # ================================================================= model
 func build(entity: Node3D, height: float) -> void:
 	e = entity
@@ -55,42 +71,28 @@ func build(entity: Node3D, height: float) -> void:
 		return
 	var root: Node3D = packed.instantiate()
 	add_child(root)
-	var box := AABB()
-	var first := true
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var t := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null and p != self:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		var b := t * mi.get_aabb()
-		box = b if first else box.merge(b)
-		first = false
+	var box := _mesh_box(root)
 	if box.size.y <= 0.0:
 		_build_fallback()
 		return
 	var sc := height / box.size.y
-	var rot := Basis(Vector3.UP, MODEL_YAW) * Basis.from_scale(Vector3(sc, sc, sc))
-	root.transform = Transform3D(rot, Vector3.ZERO)
-	# recompute the box with that rotation and scale actually applied, then shift the root so its
-	# feet sit on the ground (y=0) and it's centred over its own origin, not wherever the mesh happened to be
-	var rbox := AABB()
-	first = true
-	for m in root.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
-		var t := Transform3D.IDENTITY
-		var p: Node = mi
-		while p != null and p != self:
-			if p is Node3D:
-				t = (p as Node3D).transform * t
-			p = p.get_parent()
-		var b := t * mi.get_aabb()
-		rbox = b if first else rbox.merge(b)
-		first = false
+	size_k = height / 2.8
+	stride = height * 0.36
+	var sks := root.find_children("*", "Skeleton3D", true, false)
+	if not sks.is_empty():
+		skel = sks[0]
+		_find_bones()
+	root.transform = Transform3D(Basis.from_scale(Vector3(sc, sc, sc)), Vector3.ZERO)
+	# every pose below assumes it faces +Z with its left side on +X; turned any other way, "arms out"
+	# swings them across its chest. So face it by where its own left and right arms actually are.
+	root.transform = Transform3D(Basis(Vector3.UP, _facing_fix()) * root.transform.basis, Vector3.ZERO)
+	_find_side_flip()
+	# feet on the ground (y=0), centred over its own origin
+	var rbox := _mesh_box(root)
 	var rc := rbox.get_center()
 	root.position = Vector3(-rc.x, -rbox.position.y, -rc.z)
+	model_h = height
+	_measure_rest()
 	var mat := StandardMaterial3D.new()
 	var col_tex: Texture2D = load("res://textures/bacteria_color.png")
 	var norm_tex: Texture2D = load("res://textures/bacteria_normal.png")
@@ -119,13 +121,188 @@ func build(entity: Node3D, height: float) -> void:
 		mi.material_override = mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		mi.extra_cull_margin = 8.0
-	var sks := root.find_children("*", "Skeleton3D", true, false)
-	if not sks.is_empty():
-		skel = sks[0]
-		_find_bones()
 	for k in ["hunch", "crouch", "neck", "head_pitch", "head_roll", "look", "reach_a", "reach_b", "out_a", "out_b", "elbow_a", "elbow_b", "claw", "still", "shoulder_up", "arm_spread", "finger_splay"]:
 		pose[k] = 0.0
 		pose_t[k] = 0.0
+
+# `n`'s transform in this rig's own space
+func _to_rig(n: Node) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var p: Node = n
+	while p != null and p != self:
+		if p is Node3D:
+			t = (p as Node3D).transform * t
+		p = p.get_parent()
+	return t
+
+func _mesh_box(root: Node) -> AABB:
+	var box := AABB()
+	var first := true
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var b := _to_rig(mi) * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+# The yaw that turns the model to face +Z, from its arms: its left arm must end up on +X
+func _facing_fix() -> float:
+	var l := _b("arm_l")
+	var r := _b("arm_r")
+	if skel == null or l < 0 or r < 0:
+		return MODEL_YAW
+	var to_rig := _to_rig(skel)
+	var left := to_rig * skel.get_bone_global_rest(l).origin - to_rig * skel.get_bone_global_rest(r).origin
+	left.y = 0.0
+	if left.length() < 0.001:
+		return MODEL_YAW
+	# the long head section is its front: that's the opposite way to what its arm bones' names suggest
+	var fwd := -left.cross(Vector3.UP)
+	return -atan2(fwd.x, fwd.z)
+
+# +1 if the bones named "l" sit on its left (+X) once it faces +Z, -1 if the naming is mirrored
+func _find_side_flip() -> void:
+	var l := _b("arm_l")
+	var r := _b("arm_r")
+	if skel == null or l < 0 or r < 0:
+		return
+	var to_rig := _to_rig(skel)
+	var dx := (to_rig * skel.get_bone_global_rest(l).origin).x - (to_rig * skel.get_bone_global_rest(r).origin).x
+	side_flip = 1.0 if dx >= 0.0 else -1.0
+
+# Standing heights, read off the rest pose once it's scaled and on the floor
+func _measure_rest() -> void:
+	if skel == null:
+		return
+	var to_rig := _to_rig(skel)
+	for leg in ["l", "r"]:
+		var f := _b("foot_" + leg)
+		if f >= 0:
+			ankle_h[leg] = maxf(0.0, (to_rig * skel.get_bone_global_rest(f).origin).y)
+	var h := _b("head")
+	if h >= 0:
+		top_off = maxf(0.0, model_h - (to_rig * skel.get_bone_global_rest(h).origin).y)
+
+# ================================================================= low ceilings
+# The lowest ceiling over where it stands, the ground just behind it and where it's about to be, so it
+# ducks before it walks in, and doesn't stand up until all of it is out
+func _ceiling_near(move_speed: float) -> float:
+	var lv = e.get("level")
+	if lv == null or not lv.has_method("ceiling_height"):
+		return INF
+	var p := e.global_position
+	var f := Vector3(sin(e.yaw), 0.0, cos(e.yaw))
+	var lowest := INF
+	for d in [-1.2, 0.0, 1.5, 1.5 + move_speed * 0.5]:
+		var q: Vector3 = p + f * float(d)
+		var c: Vector2i = lv.cell_of(q)
+		var ch: float = lv.ceiling_height(c)
+		lowest = minf(lowest, ch)
+	return lowest
+
+# Where the top of it is right now (last frame's pose), above the floor
+func _top_y() -> float:
+	var h := _b("head")
+	if h < 0:
+		return model_h
+	return (skel.global_transform * skel.get_bone_global_pose(h).origin).y - e.global_position.y + top_off
+
+func _update_squeeze(delta: float, move_speed: float, st: String) -> void:
+	var ceil_h := _ceiling_near(move_speed)
+	var need := model_h + HEAD_CLEAR - ceil_h
+	var goal := 0.0
+	if need > 0.0:
+		# roughly how far to fold for this ceiling, then trimmed by where its head actually ends up
+		var poke := _top_y() + HEAD_CLEAR - ceil_h
+		squeeze_trim = clampf(squeeze_trim + poke * 1.5 * delta, -0.4, 0.8)
+		goal = clampf(need / (model_h * 0.5), 0.0, 1.4) + squeeze_trim
+	else:
+		squeeze_trim = move_toward(squeeze_trim, 0.0, delta)
+	var fast := st == "chase" or st == "flee"
+	squeeze += (maxf(0.0, goal) - squeeze) * (1.0 - exp(-(6.0 if fast else 3.5) * delta))
+
+# ================================================================= planted feet
+# In stance a foot stays exactly where it came down while the body travels over it; standing about, both
+# feet stay put; in swing it's left to the walk cycle, only never through the floor. Each stance lets go
+# over its last stretch, so the foot peels off into the swing instead of snapping.
+func _plant_feet(w: float) -> void:
+	var ground := e.global_position.y
+	for leg in ["l", "r"]:
+		var c_i := _b("foot_" + leg)
+		if c_i < 0:
+			continue
+		var fk := skel.global_transform * skel.get_bone_global_pose(c_i).origin
+		var floor_y: float = ground + ankle_h[leg]
+		var ft: Dictionary = feet[leg]
+		var lp: Dictionary = leg_phase[leg]
+		var standing := w < 0.35
+		var target := fk
+		var weight := 0.0
+		if lp.stance or standing:
+			var p: Vector3 = ft.pos
+			# first contact, or knocked / teleported too far from where it was planted: put it down here
+			if not ft.planted or Vector2(p.x - fk.x, p.z - fk.z).length() > stride * 0.9:
+				ft.planted = true
+				ft.pos = Vector3(fk.x, floor_y, fk.z)
+			var planted: Vector3 = ft.pos
+			ft.pos = Vector3(planted.x, floor_y, planted.z)
+			target = ft.pos
+			weight = 1.0 if standing else clampf((1.0 - lp.prog) / 0.18, 0.0, 1.0)
+		else:
+			ft.planted = false
+			if fk.y < floor_y:
+				target = Vector3(fk.x, floor_y, fk.z)
+				weight = 1.0
+		if weight > 0.001:
+			_leg_ik(leg, target, weight)
+
+# Rotate `bone` by `rot`, given in skeleton space
+func _rotate_skel(bone: int, rot: Basis) -> void:
+	var g := skel.get_bone_global_pose(bone)
+	var parent := skel.get_bone_parent(bone)
+	var pg := skel.get_bone_global_pose(parent) if parent >= 0 else Transform3D.IDENTITY
+	var local := pg.basis.inverse() * (rot * g.basis)
+	skel.set_bone_pose_rotation(bone, local.get_rotation_quaternion())
+
+# Two-bone IK: bend the knee to the right distance, then swing the thigh so the ankle lands on `target_w`
+# (world space). The knee always bends forward, the way the walk cycle bends it, so it never flips.
+func _leg_ik(leg: String, target_w: Vector3, weight: float) -> void:
+	var a_i := _b("thigh_" + leg)
+	var b_i := _b("shin_" + leg)
+	var c_i := _b("foot_" + leg)
+	if a_i < 0 or b_i < 0 or c_i < 0:
+		return
+	var inv := skel.global_transform.affine_inverse()
+	var knee_axis := (inv.basis * (global_transform.basis * Vector3.RIGHT)).normalized()
+	var T := skel.get_bone_global_pose(c_i).origin.lerp(inv * target_w, weight)
+	for _pass in 2:
+		var A := skel.get_bone_global_pose(a_i).origin
+		var B := skel.get_bone_global_pose(b_i).origin
+		var C := skel.get_bone_global_pose(c_i).origin
+		var l1 := A.distance_to(B)
+		var l2 := B.distance_to(C)
+		if l1 < 0.0001 or l2 < 0.0001:
+			return
+		var d := clampf(A.distance_to(T), absf(l1 - l2) + 0.001, (l1 + l2) * 0.995)
+		# 1. the knee: signed angle shin -> thigh about the knee's hinge (positive = bent forward)
+		var ba := (A - B).normalized()
+		var n := (knee_axis - ba * knee_axis.dot(ba)).normalized()
+		if n.length_squared() < 0.5:
+			return
+		var bc := C - B
+		bc = (bc - n * bc.dot(n)).normalized()
+		var cur := bc.signed_angle_to(ba, n)
+		var want := acos(clampf((l1 * l1 + l2 * l2 - d * d) / (2.0 * l1 * l2), -1.0, 1.0))
+		_rotate_skel(b_i, Basis(n, cur - want))
+		# 2. the thigh: aim the whole leg at the target
+		C = skel.get_bone_global_pose(c_i).origin
+		var from := C - A
+		var to := T - A
+		if from.length_squared() > 0.000001 and to.length_squared() > 0.000001:
+			var fn := from.normalized()
+			var tn := to.normalized()
+			if fn.dot(tn) < 0.99999:
+				_rotate_skel(a_i, Basis(Quaternion(fn, tn)))
 
 # Black mist pooled around its feet and curling off its body: a flat ground haze it drags with it,
 # plus a handful of big soft wisps that climb its legs and dissolve, thicker and faster while it hunts.
@@ -424,9 +601,9 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 			P.hunch = -0.2; P.crouch = 0.25; P.neck = 0.45; P.head_pitch = 0.45; P.claw = 1.8
 			P.reach_a = 1.1; P.reach_b = 1.1; P.out_a = 0.8; P.out_b = 0.8; P.elbow_a = 1.05; P.elbow_b = 1.05
 		elif lunging:
-			# Violent rip: claws drive forward and cross inward, tearing through the victim!
+			# Violent rip: claws drive straight forward, each on its own side, tearing through the victim
 			P.hunch = 1.45; P.crouch = 0.08; P.neck = 0.2; P.head_pitch = -0.2; P.claw = 2.4
-			P.reach_a = 2.5; P.reach_b = 2.5; P.out_a = -0.25; P.out_b = -0.25; P.elbow_a = 0.3; P.elbow_b = 0.3
+			P.reach_a = 2.2; P.reach_b = 2.2; P.out_a = 0.12; P.out_b = 0.12; P.elbow_a = 0.3; P.elbow_b = 0.3
 		else:
 			# hoisted in the air: arms bracket the camera from the sides, claws digging in and clutching
 			P.hunch = 0.55; P.crouch = 0.15; P.neck = 0.25; P.head_pitch = -0.1; P.claw = 1.7
@@ -488,7 +665,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	var gait_speed := maxf(move_speed, absf(yaw_rate) * PIVOT)
 	var moving := gait_speed > 0.25
 	gait_w += ((clampf(gait_speed / 1.5, 0.3, 1.0) if moving else 0.0) - gait_w) * minf(1.0, delta * 6.0)
-	step_len = (0.95 + run * 1.15) / 0.95 * STRIDE * (1.0 - close * 0.2)
+	step_len = (0.95 + run * 1.15) / 0.95 * stride * (1.0 - close * 0.2)
 	if moving:
 		phase += PI * gait_speed * delta / step_len
 	# a foot lands where the legs are furthest apart (phase = PI/2 + k*PI)
@@ -498,15 +675,24 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		if moving:
 			stomp = 1.0
 			# the feet alternate: one long stride, then the short leg it drags (see the legs below)
-			stepped.emit((0.45 + run * 0.55) * (0.5 + close * 1.6) * (0.3 if quiet else 1.0), posmod(side, 2) == 1)
-	stomp = maxf(0.0, stomp - delta * 6.0)
+			stepped.emit((0.45 + run * 0.55) * (0.5 + close * 1.6) * (0.3 if quiet else 1.0), posmod(side, 2) == 1, run)
+	# the weight settles slowly into the landed leg: something this big doesn't bounce back
+	stomp = maxf(0.0, stomp - delta * 4.0)
 	# leaning into turns like anything heavy running (only when it's actually moving), and into a surge
 	var bank_goal := clampf(atan(move_speed * yaw_rate / 9.8) * 0.6, -0.3, 0.3)
 	bank += (bank_goal - bank) * minf(1.0, delta * 5.0)
 	surge += (clampf(accel * 0.025, -0.12, 0.2) - surge) * minf(1.0, delta * 4.0)
 
 	_pose_targets(st, run, moving)
-	var rate := 14.0 if (st == "chase" or st == "screech" or st == "stunned" or st == "grab") else (2.5 if quiet else 5.0)
+	_update_squeeze(delta, move_speed, st)
+	if squeeze > 0.001:
+		# under a low ceiling: knees down, back rounded over, head carried low and forward
+		pose_t.crouch += 0.45 * squeeze
+		pose_t.hunch = minf(2.3, pose_t.hunch + 0.8 * squeeze)
+		pose_t.neck += 0.35 * squeeze
+		pose_t.head_pitch -= 0.15 * squeeze
+	# heavy: it eases between poses, only the scream, the hit and the grab snap
+	var rate := 14.0 if (st == "screech" or st == "stunned" or st == "grab") else (9.0 if st == "chase" else (2.2 if quiet else 3.5))
 	for k in pose:
 		pose[k] = lerpf(pose[k], pose_t[k], 1.0 - exp(-rate * delta))
 	peek_lean += (e.peek_lean_target - peek_lean) * minf(1.0, delta * 4.0)
@@ -601,19 +787,28 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_glitch_turn("neck", g_angle)
 	_glitch_turn("head", g_angle)
 
+	# ---- the whole body: crouch (and a low ceiling) sinks it, it bobs lowest as a foot strikes and
+	# rises at midstance, and its weight rolls onto whichever leg is planted (the "l" leg mid-stance at
+	# 0.95*PI). Set before the legs, so the planted feet below are solved against where the body really is.
+	var gait_bob: float = -absf(sin(phase)) * (0.09 + run * 0.08) * w
+	position.y = (-pose.crouch * 0.5 + gait_bob - land * 0.13 + breath * 0.15) * size_k - squeeze * 0.1 * model_h
+	position.x = cos(phase - 0.95 * PI) * (0.07 - run * 0.03) * w * size_k * side_flip
+
 	# ---- legs: realistic biped articulation with monstrous asymmetry and uncanny horror gait
 	var pel_l: int = _b("pelvis_l")
 	var pel_r: int = _b("pelvis_r")
 
 	for leg in ["l", "r"]:
 		var is_left: bool = leg == "l"
-		var sgn := 1.0 if is_left else -1.0
+		var sgn := (1.0 if is_left else -1.0) * side_flip    # +1 = this leg is on its left (+X)
 		var ph := wrapf(phase + (0.0 if is_left else PI), 0.0, TAU)
 
 		# Stance phase: foot on ground (0.45*PI to 1.45*PI)
 		# Swing phase: foot airborne (1.45*PI to 2.45*PI / 0.45*PI)
 		var is_stance: bool = ph >= 0.45 * PI and ph < 1.45 * PI
-		
+		leg_phase[leg].stance = is_stance
+		leg_phase[leg].prog = (ph - 0.45 * PI) / PI if is_stance else 0.0
+
 		var thigh_pitch := 0.0
 		var knee_flex := 0.0
 		var ankle_pitch := 0.0
@@ -703,6 +898,9 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 			_turn(pel_bone, fwd, sgn * pel_tilt)
 			_turn(pel_bone, right, (0.05 if is_stance else -0.04) * w)
 
+	# the walk cycle above only says roughly where each foot goes; this pins them to the floor
+	_plant_feet(w)
+
 	# ---- arms: predatory alternating lunges when running; open arms threat when spotting
 	var clawing := (1.0 if (st == "chase" and e.lunge <= 0.0 and e.lunge_windup <= 0.0) else 0.0) * maxf(w, 0.4 * run)
 	var threat_spread: float = pose.get("arm_spread", 0.0)
@@ -710,31 +908,43 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 
 	for arm in ["a", "b"]:
 		var arm_side := "l" if arm == "a" else "r"
-		var sgn := 1.0 if arm_side == "l" else -1.0
+		var sgn := (1.0 if arm_side == "l" else -1.0) * side_flip    # +1 = this arm is on its left (+X)
 		var seed_v := 10.0 if arm == "a" else 20.0
 		var ph2 := phase + (PI if arm_side == "l" else 0.0)
 		var swing_suppress: float = clampf(1.0 - threat_spread * 0.7, 0.0, 1.0)
 		var hang := sin(ph2) * 0.3 * w * (1.0 - clawing) * swing_suppress
 		var claw_swing := sin(ph2) * (0.75 * run if run > 0.3 else 0.4) * clawing * swing_suppress
-		var reach: float = pose["reach_" + arm] + hang + claw_swing + _noise(seed_v, tj) * 0.18 * twitch \
-			+ thrash * _noise(seed_v, clock * 12.0) * 0.9
-		
-		var out: float = pose["out_" + arm] + sin(clock * 0.9 + (0.0 if arm == "a" else 2.0)) * 0.04 * alive \
-			+ maxf(0.0, -bank * sgn) * 0.6 + threat_spread * 0.5
-		
-		var open_yaw: float = sgn * (threat_spread * 0.75 + screech_shiver * 0.4)
-		
-		var elbow: float = pose["elbow_" + arm] + maxf(0.0, -sin(ph2)) * clawing * (1.2 * run if run > 0.3 else 0.9) * swing_suppress \
-			+ sin(ph2 + 1.0) * 0.25 * w * (1.0 - clawing) * swing_suppress + _noise(seed_v + 3.0, tj) * 0.25 * twitch
+		var reach_goal: float = pose["reach_" + arm] + hang + claw_swing
+		var out_goal: float = pose["out_" + arm] + maxf(0.0, -bank * sgn) * 0.6 + threat_spread * 0.5
+		var elbow_goal: float = pose["elbow_" + arm] + maxf(0.0, -sin(ph2)) * clawing * (1.2 * run if run > 0.3 else 0.9) * swing_suppress \
+			+ sin(ph2 + 1.0) * 0.25 * w * (1.0 - clawing) * swing_suppress
+		# the long arms are heavy: they trail the body's motion a beat and overshoot a little on the way
+		if not arm_s.has(arm):
+			arm_s[arm] = {"reach": reach_goal, "out": out_goal, "elbow": elbow_goal, "v": 0.0}
+		var s: Dictionary = arm_s[arm]
+		var om := 16.0 if (st == "grab" or st == "screech") else 8.0     # spring frequency, rad/s
+		var dts := minf(delta, 0.05)
+		s.v += ((reach_goal - s.reach) * om * om - s.v * 2.0 * 0.65 * om) * dts
+		s.reach += s.v * dts
+		var lag := 1.0 - exp(-om * dts)
+		s.out += (out_goal - s.out) * lag
+		s.elbow += (elbow_goal - s.elbow) * lag
+
+		var reach: float = s.reach + _noise(seed_v, tj) * 0.18 * twitch + thrash * _noise(seed_v, clock * 12.0) * 0.9
+		# never below a little outward: a negative "out" pulls the arm across its chest to the other side
+		var out: float = maxf(0.06, s.out + sin(clock * 0.9 + (0.0 if arm == "a" else 2.0)) * 0.04 * alive)
+		var open_yaw: float = sgn * maxf(0.0, threat_spread * 0.75 + screech_shiver * 0.4)
+		var elbow: float = s.elbow + _noise(seed_v + 3.0, tj) * 0.25 * twitch
 
 		# Single compound rotation for the upper arm (pitch, roll, yaw combined cleanly without overwriting)
 		_turn_compound(_b("arm_" + arm_side), -(reach * 0.85), sgn * out * 0.65, open_yaw)
-		
+
 		# Forearm is a pure elbow hinge - pitch only, never twisted on other axes
 		_turn(_b("fore_" + arm_side), right, -(elbow * 0.85 + reach * 0.15))
-		
-		_glitch_turn("arm_" + arm_side, g_angle * sgn)
-		_glitch_turn("fore_" + arm_side, g_angle * sgn)
+
+		# a glitching arm wrenches outward, never in across the body
+		_glitch_turn("arm_" + arm_side, absf(g_angle) * sgn * 0.6)
+		_glitch_turn("fore_" + arm_side, absf(g_angle) * sgn * 0.6)
 
 		# fingers: claw clench + natural wide splay when spotting player
 		var fingers: Array = bones.get("fingers_" + arm_side, [])
@@ -750,11 +960,9 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 				+ pose.claw + grab_clench + run_twitch - f_splay * 0.25) * 0.65
 			_turn(f_bone, right, -curl + screech_twitch)
 			
+			# splay apart: the inner (index) finger toward the body's midline, the outer (ring) away from it
 			if idx_fingers.has(f_bone):
-				_turn(f_bone, fwd, sgn * f_splay * 0.18)
-			elif ring_fingers.has(f_bone):
 				_turn(f_bone, fwd, -sgn * f_splay * 0.18)
+			elif ring_fingers.has(f_bone):
+				_turn(f_bone, fwd, sgn * f_splay * 0.18)
 
-	# crouch sinks the whole body, body bobs lowest at foot strikes and rises at midstance
-	var gait_bob: float = -absf(sin(phase)) * (0.09 + run * 0.08) * w
-	position.y = -pose.crouch * 0.5 + gait_bob - land * 0.09 + breath * 0.15

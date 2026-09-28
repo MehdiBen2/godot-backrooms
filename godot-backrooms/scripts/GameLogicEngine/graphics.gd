@@ -6,7 +6,8 @@ extends Node
 ##
 ## The biggest costs in this game are the tube lights around you (level_lighting.gd keeps a pool of
 ## them following you) and their shadows: `lights` is how many are lit at once and `light_shadows` how
-## many of the nearest cast shadows (each one is six shadow renders a frame). `smooth` runs the physics
+## many of the nearest cast shadows (each one is six shadow renders a frame). `far_lights` are cheap
+## shadowless lights on the tubes further out, so distant tubes still light their walls. `smooth` runs the physics
 ## (and so the camera) at the display's refresh rate instead of 60 Hz, so a 144 Hz screen moves at 144.
 ## `scale` is only the ceiling: `adapt` lets the game drop the internal render size below it whenever
 ## frames miss the target and put it back when the GPU has headroom, which is what keeps a weak PC
@@ -19,7 +20,7 @@ const ORDER := ["low", "medium", "high", "ultra"]
 const SMOOTH_MAX_HZ := 165
 ## Adaptive resolution: how far below the preset's render scale it may drop, and the frame-time
 ## slack on each side of the target so the scale settles instead of hunting.
-const ADAPT_FLOOR := 0.55
+const ADAPT_FLOOR := 0.72       # lower than this and FSR turns the far end of a hall to mush
 const ADAPT_SLOW := 1.25
 const ADAPT_FAST := 1.06
 const ADAPT_DOWN := 0.05
@@ -30,16 +31,16 @@ const ADAPT_WINDOW := 0.5
 const PRESETS := {
 	"low": {"scale": 60, "msaa": 0, "fxaa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
 		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60,
-		"lights": 6, "light_shadows": 0, "smooth": false, "adapt": true},
+		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true},
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
-		"lights": 8, "light_shadows": 2, "smooth": false, "adapt": true},
+		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true},
 	"high": {"scale": 100, "msaa": 2, "fxaa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
 		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 4, "smooth": true, "adapt": true},
+		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true},
 	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
 		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 8, "smooth": true, "adapt": true},
+		"lights": 12, "light_shadows": 8, "far_lights": 32, "baked_gi": true, "smooth": true, "adapt": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)
@@ -157,7 +158,9 @@ func apply() -> void:
 	vp.use_occlusion_culling = true
 	vp.mesh_lod_threshold = [4.0, 3.0, 1.5, 1.0][clampi(s.shadows, 0, 3)]     # coarser meshes sooner on low presets
 	vp.msaa_3d = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X, 4: Viewport.MSAA_4X}.get(s.msaa, Viewport.MSAA_DISABLED)
-	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if s.fxaa else Viewport.SCREEN_SPACE_AA_DISABLED
+	# FXAA blurs the whole frame (distant texture detail first); with MSAA on the edges are already clean
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if (s.fxaa and s.msaa == 0) else Viewport.SCREEN_SPACE_AA_DISABLED
+	vp.texture_mipmap_bias = -0.35        # slightly sharper mips: wallpaper and carpet stay readable down a long hall
 	vp.anisotropic_filtering_level = {0: Viewport.ANISOTROPY_DISABLED, 2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X,
 		8: Viewport.ANISOTROPY_8X, 16: Viewport.ANISOTROPY_16X}.get(s.aniso, Viewport.ANISOTROPY_DISABLED)
 
@@ -206,6 +209,7 @@ func _render_scale() -> void:
 		live *= adapt_ratio
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if (live < 1.0 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR
 	vp.scaling_3d_scale = clampf(live, 0.5, 1.0)
+	vp.fsr_sharpness = 0.1                # 0 = sharpest: FSR's own sharpening puts back what the upscale softens
 
 func _apply_post() -> void:
 	if post_mat == null:

@@ -39,7 +39,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	scares = get_parent().get_node("Scares")
 	_setup_nav()
-	var sp: Array = level.level_data.get("entity", [n - 12, 18])
+	var sp := _spawn_cell()
 	global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
 	_build_model()
 	grab = BacteriaGrab.new(self)
@@ -56,15 +56,26 @@ func _build_model() -> void:
 	rig.stepped.connect(_on_step)
 
 # A footfall from the rig's gait: heavy and near when it hunts, a faint creep when it stalks
-func _on_step(weight: float, dragging: bool) -> void:
+func _on_step(weight: float, dragging: bool, run: float) -> void:
 	var d := global_position.distance_to(player.global_position)
 	if d < 34.0:
-		scares.howler_step(global_position, weight * LOUDNESS, dragging)
-	# close behind you in a chase you feel each one land: the floor jolts under your feet
-	if state == "chase" and d < 12.0 and not player.dead:
-		var k := (1.0 - d / 12.0) * (1.0 - d / 12.0)
-		player.jolt(k * weight * (0.5 if dragging else 1.0))
-		Game.fx_shock = maxf(Game.fx_shock, 0.12 * k)
+		scares.howler_step(global_position, weight * LOUDNESS, dragging, run)
+	if player.dead:
+		return
+	# the floor carries its weight: near enough, you feel every step come down. Further and harder the
+	# faster it moves; the short dragged leg lands lighter. Walking past at a distance it's a faint tremor,
+	# bearing down on you in a chase the view jolts and rumbles with each one.
+	var reach := 10.0 + 8.0 * run
+	if d < reach:
+		var k := (1.0 - d / reach) * (1.0 - d / reach)
+		var hit := k * (0.35 + 0.65 * run) * (0.55 if dragging else 1.0) * clampf(weight, 0.2, 1.6)
+		player.jolt(hit * 1.3)
+		player.quake(hit)
+		if state == "chase":
+			Game.fx_shock = maxf(Game.fx_shock, 0.12 * k)
+		# the tubes overhead rattle in their housings: a hard step close by and they stutter
+		if hit > 0.25 and level.has_method("disturb"):
+			level.disturb(global_position, 4.0 + 3.0 * run, clampf(hit * 0.3, 0.0, 0.35))
 
 # ================================================================= its voice, its breath
 func update_occlusion(delta: float) -> void:
@@ -360,6 +371,9 @@ func move(delta: float) -> void:
 			# slow down for sharp turns so it rounds corners instead of sliding
 			var off := absf(wrapf(want - yaw, -PI, PI))
 			speed *= maxf(0.75 if state == "flee" else 0.25, 1.0 - off / 1.6)
+			# folded down under a low ceiling it can't stride out: somewhat slower in there
+			var folded: float = rig.squeeze
+			speed *= 1.0 - 0.25 * clampf(folded, 0.0, 1.0)
 			dir = dir.normalized()
 		else:
 			speed = 0.0
@@ -509,8 +523,13 @@ func update_fear(delta: float) -> void:
 func net_apply(t: float, m: Array) -> void:
 	net.apply(t, m)
 
+## The level editor writes "entity": null when no spawn is placed
+func _spawn_cell() -> Array:
+	var sp = level.level_data.get("entity")
+	return sp if sp is Array and sp.size() >= 2 else [n - 12, 18]
+
 func relocate() -> void:
-	var sp: Array = level.level_data.get("entity", [n - 12, 18])
+	var sp := _spawn_cell()
 	global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
 	goal_key = -1
 	awareness = 0.0

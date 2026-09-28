@@ -21,21 +21,24 @@ func _init(owner: Node) -> void:
 			_carpet.append(load(path))
 
 # THE BACTERIA's footfall (js howlerStep). weight 0..~2: heavier the faster it moves and the closer it
-# is. On the Entity bus, so walls between you muffle it like its voice. It limps: every other foot is
-# the short leg, which lands lighter and is dragged, claws raking the carpet. Now and then a joint cracks.
-func howler_step(pos: Vector3, weight: float, dragging := false) -> void:
+# is; run 0..1: walking it rolls its weight down slow and soft, running it slams down. On the Entity bus,
+# so walls between you muffle it like its voice. It limps: every other foot is the short leg, which lands
+# lighter and is dragged through the pile. Rarely a joint gives a dull crack under the load.
+func howler_step(pos: Vector3, weight: float, dragging := false, run := 0.0) -> void:
 	var w := clampf(weight, 0.05, 2.0)
-	var pitch := rng.randf_range(0.94, 1.06) - 0.07 * minf(w, 1.5)
+	var pace := 10.0 if run > 0.5 else 0.0          # the walking or the running takes
+	# big and heavy: pitched down, and lower still the harder it comes down
+	var pitch := rng.randf_range(0.95, 1.03) - 0.06 * minf(w, 1.5)
 	if dragging:
-		scares.spawn3d(scares.synth("howler_drag"), pos, 0.5 + w * 0.7, "Entity", 2.5, pitch)
+		scares.spawn3d(scares.synth("howler_drag", pace), pos, 0.45 + w * 0.6, "Entity", 3.5, pitch)
 	else:
 		# never the same take twice in a row
 		_howler_variant = (_howler_variant + 1 + rng.randi() % 3) % 4
-		scares.spawn3d(scares.synth("howler_step", _howler_variant), pos, 0.6 + w * 0.9, "Entity", 2.5, pitch)
-	if not dragging and rng.randf() < 0.25 + w * 0.15:
-		var crack: AudioStreamPlayer3D = scares.spawn3d(scares.synth("bone_crack"), pos + Vector3(0.0, 2.0, 0.0), 0.35 * w, "Entity", 2.5, rng.randf_range(0.8, 1.4))
+		scares.spawn3d(scares.synth("howler_step", _howler_variant + pace), pos, 0.6 + w * 0.9, "Entity", 3.5, pitch)
+	if not dragging and rng.randf() < 0.06 + w * 0.03:
+		var crack: AudioStreamPlayer3D = scares.spawn3d(scares.synth("bone_crack"), pos + Vector3(0.0, 2.0, 0.0), 0.14 * w, "Entity", 2.5, rng.randf_range(0.5, 0.7))
 		crack.stop()
-		scares.get_tree().create_timer(0.03 + rng.randf() * 0.05, false).timeout.connect(crack.play)
+		scares.get_tree().create_timer(0.05 + rng.randf() * 0.06, false).timeout.connect(crack.play)
 
 # A mannequin footfall: a hollow composite foot on carpet over a concrete slab. Filtered for the head
 # shadow (steps behind you lose their top end, so you can tell where they are) and for walls between.

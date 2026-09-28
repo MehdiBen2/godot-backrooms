@@ -112,6 +112,8 @@ var space_prev := false
 var jump_buffer := 0.0
 var coyote := 0.0
 var land_dip := 0.0
+var quake_amt := 0.0          # 0..1: something heavy walking nearby shaking the floor (and the view)
+var quake_t := 0.0
 var lean := 0.0
 const TURN_ROLL_MAX := 0.045
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
@@ -343,7 +345,14 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		elif b > 0.0:
 			step_triggered = false
 	land_dip *= exp(-dt * 9.0)
-	cam.position = Vector3(0.0, y - land_dip * head_bob, 0.0)
+	# the floor shaking under something heavy: a short low rumble, not a wobble. Squared so light steps
+	# barely register and the close ones hit; scaled by the head-bob setting like the rest of the motion.
+	quake_amt *= exp(-dt * 5.5)
+	quake_t += dt
+	var qk := quake_amt * quake_amt * head_bob
+	var qx := (sin(quake_t * 31.0) + 0.6 * sin(quake_t * 53.0 + 1.7)) * 0.625
+	var qy := (sin(quake_t * 37.0 + 0.4) + 0.6 * sin(quake_t * 61.0 + 2.9)) * 0.625
+	cam.position = Vector3(qx * 0.025 * qk, y - land_dip * head_bob + qy * 0.035 * qk, 0.0)
 	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
 	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
 	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
@@ -355,7 +364,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
 	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
 	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
-	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob
+	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)
@@ -364,8 +373,9 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_off, -1.49, 1.49)
-	pitch_applied = pitch_off
+	var pitch_total := pitch_off + qx * 0.006 * qk
+	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
+	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
@@ -378,6 +388,10 @@ func step_noise() -> float:
 # Something heavy landed nearby (the bacteria's footfalls in a chase): the view dips with the floor
 func jolt(amount: float) -> void:
 	land_dip = maxf(land_dip, clampf(amount, 0.0, 1.0) * 0.035)
+
+# The floor shaking under something heavy nearby: 0..1, the view rumbles and settles
+func quake(amount: float) -> void:
+	quake_amt = maxf(quake_amt, clampf(amount, 0.0, 1.0))
 
 # Adrenaline: the bacteria calls this every frame with whether it is hunting you close by
 func update_adrenaline(dt: float, hunted: bool) -> void:
@@ -418,6 +432,7 @@ func _back_to_spawn() -> void:
 	global_position = level.spawn_pos
 	velocity = Vector3.ZERO
 	land_dip = 0.0
+	quake_amt = 0.0
 	was_airborne = false
 	air_time = 0.0
 

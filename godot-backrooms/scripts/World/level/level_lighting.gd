@@ -23,6 +23,19 @@ const FLICKER_CHANCE := 0.24
 const POOL_SIZE := 12
 const SELECT_RADIUS := 26.0
 const FADE_START := 18.0
+# Far lights: past the main pool every tube you can see still lights the walls round it. Cheap, shadowless,
+# short-ranged point lights (Forward+ clusters them) on the next nearest tubes out to FAR_RADIUS; how many
+# comes from the graphics preset (Gfx `far_lights`). Same range and falloff as the near lights, so a wall
+# 30 m away is lit exactly like the same wall up close (anything else reads as a flat, fake distance).
+const FAR_MAX := 32
+const FAR_RADIUS := 46.0
+const FAR_FADE := 36.0
+# Eye adaptation: exposure follows how much tube light is where you stand and where you look, so a
+# shadowed corner opens up and a blazing hall calms down. Dark zones and power cuts are left dark.
+const EYE_GAIN_DARK := 1.35
+const EYE_GAIN_BRIGHT := 0.85
+const EYE_SPEED := 0.9
+const EYE_PROBE := 8.0              # metres ahead of the camera for "where you look"
 const LIT_DIFFUSER := Color(2.1, 1.95, 1.65)
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const FOG_DENSITY := 0.075
@@ -34,6 +47,35 @@ const BOUNCE_FULL := 1.3
 const ADAPT := 1.6
 const FOG_COLOR := Color("141108")
 const FOG_COLOR_DARK := Color("020201")
+
+# ---- panel ceilings (a ceiling material with baked light panels, see level_geometry.gd panel_ceiling)
+# Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
+# in the middle, four on the diagonals). Only every other cell (a checkerboard) hides a real light behind
+# its panels: that spreads the 12-light pool twice as far as one per cell, and the gaps don't show.
+const PANEL_ENERGY := 1.9
+const PANEL_RANGE := 16.0
+const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
+const PANEL_GLOW := Color(4.2, 3.7, 3.1)   # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
+const PANEL_BURNT_CHANCE := 0.08
+const PANEL_FLICKER_CHANCE := 0.06
+const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]
+
+## Level-wide looks. "dim" is what main.tscn's WorldEnvironment is tuned for; the others are where the
+## environment blends to while you stand in them (classic_mix: the Classic zone, or "atmosphere":
+## "classic" for the whole level). Tune the classic backrooms look here.
+const ATMOSPHERES := {
+	"classic": {
+		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # flat, even yellow fill: far walls never go dark
+		"exposure": 1.05, "tonemap_white": 4.0,       # gentle highlight roll-off: panels clip white, walls don't
+		"glow_threshold": 1.35,                       # only the panels bloom, not the brightly lit walls
+		"glow_intensity": 0.9, "glow_bloom": 0.02, "glow_wide": 0.55,   # wide soft halo round the lights (glow level 5)
+		"ssao_intensity": 2.5,                        # fluorescent light is shadowless: keep only contact AO
+		"haze": Color(0.34, 0.29, 0.16),              # the colour the far distance fades to
+	},
+}
+
+var panels_mm: MultiMesh   # panel ceilings: one instance per fixture, its colour = that cell's panel glow
+var _env_base := {}        # the WorldEnvironment's own (dim) values, read once
 
 var fx: Array = []        # every fixture
 var lit: Array = []       # the non-burnt ones (the light pool ranks these)
@@ -59,6 +101,13 @@ var _shadow_cap := 4
 # ---- atmosphere
 var env: Environment
 var bounce := 1.0
+var eye := 1.0                     # eye-adaptation exposure gain
+var cam_mix := 0.0                 # how far the camera settings lean to the classic look (Classic zone, or softer in Bright)
+var far_pool: Array[OmniLight3D] = []
+var far_fixture: Array = []        # fixture Dictionary or null
+var far_weight: Array[float] = []
+var _far_candidates: Array = []
+var _far_cap := 16
 var grid_glow := 0.0
 var zone_amb := 1.0
 var zone_fog := 1.0
@@ -67,12 +116,14 @@ var reflect_mmi: MultiMeshInstance3D   # the fake floor reflections of bright-zo
 var bright_mix := 0.0              # same idea for Bright zones (a softer version of the classic look)
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
-var base_ambient := -1.0
-var base_white := -1.0
 
 func build_lighting() -> void:
-	_place_fixtures()
-	_build_fixture_meshes()
+	if panel_ceiling != null:
+		_place_panel_fixtures()
+		_build_panel_ceiling()
+	else:
+		_place_fixtures()
+		_build_fixture_meshes()
 	_build_light_pool()
 	_build_floor_reflections()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
@@ -82,15 +133,56 @@ func build_lighting() -> void:
 	_apply_gi()
 	Gfx.changed.connect(_apply_gi)
 
-## Real-time bounce light (SDFGI). VoxelGI and baked lightmaps can only be baked in the editor and these levels are built
-## at load (and their tubes flicker and cut out, which a bake can't follow), so SDFGI is the GI that fits. It is heavy, so
-## it is on by default only for levels with a Classic zone, and only when the preset turns Global illumination on (the
-## menu's "Global illumination" row, i.e. Ultra); a level can force it with "sdfgi": true / false in its .lvl (the editor
-## has a checkbox).
+## Bounce light. Best: the level's baked VoxelGI (tools/bake_level.gd, run by the level editor on every save).
+## Only the geometry is baked, the light bouncing round it is live, so flickering tubes and power cuts bounce
+## too. It is used while the .lvl is unchanged since the bake and the preset allows it (Gfx `baked_gi`: High and
+## Ultra; Ultra adds a second bounce). Without a bake: SDFGI, heavy, so only on Ultra ("ssil") and only for
+## levels with a Classic zone unless the .lvl forces it with "sdfgi": true / false (the editor's REAL-TIME GI).
+const BAKE_VERSION := "1"          # bump when the geometry code changes in a way old bakes no longer match
+var voxel_gi: VoxelGI
+
+func gi_path() -> String:
+	return "res://levels/baked/%s_gi.res" % str(level_meta.get("id", "level"))
+
+## Changes whenever the level file (or BAKE_VERSION) does: a stale bake is never used
+func bake_hash() -> String:
+	return (FileAccess.get_file_as_string("res://levels/" + str(level_meta.get("file", ""))) + BAKE_VERSION).md5_text()
+
+## The box the VoxelGI covers: the whole grid, floor to the highest ceiling, a little margin all round
+func gi_bounds() -> Dictionary:
+	var top := TALL_H if not tall.is_empty() else WALL_H
+	var lo := Vector3(-CELL * 0.5, -0.5, -CELL * 0.5)
+	var hi := Vector3((size - 0.5) * CELL, top + 0.5, (size - 0.5) * CELL)
+	return {"center": (lo + hi) * 0.5, "size": hi - lo}
+
+func _load_baked_gi() -> VoxelGIData:
+	if not ResourceLoader.exists(gi_path()): return null
+	var data := load(gi_path()) as VoxelGIData
+	return data if data != null and str(data.get_meta("lvl_hash", "")) == bake_hash() else null
+
 func _apply_gi() -> void:
 	if env == null: return
+	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat) else null
+	if data != null:
+		if voxel_gi == null:
+			voxel_gi = VoxelGI.new()
+			voxel_gi.position = data.get_meta("center")
+			voxel_gi.size = data.get_meta("size")
+			voxel_gi.subdiv = data.get_meta("subdiv")
+			add_child(voxel_gi)
+		data.interior = true                 # no sky: only the tubes light the place
+		data.energy = 1.15
+		data.propagation = 0.75              # how far bounced light travels from voxel to voxel
+		data.dynamic_range = 4.0
+		data.bias = 1.0
+		data.normal_bias = 0.2
+		data.use_two_bounces = int(Gfx.s.get("shadows", 1)) >= 3   # Ultra: light bounces ceiling -> wall -> floor
+		voxel_gi.data = data
+		voxel_gi.visible = true
+	elif voxel_gi != null:
+		voxel_gi.visible = false
 	var want: bool = level_data.get("sdfgi", not classic.is_empty())
-	env.sdfgi_enabled = want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
+	env.sdfgi_enabled = data == null and want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
 	if env.sdfgi_enabled:
 		env.sdfgi_cascades = 3
 		env.sdfgi_min_cell_size = 0.5
@@ -103,6 +195,7 @@ func _apply_gi() -> void:
 
 func _read_quality() -> void:
 	_lit_cap = clampi(int(Gfx.s.get("lights", POOL_SIZE)), 1, POOL_SIZE)
+	_far_cap = clampi(int(Gfx.s.get("far_lights", 16)), 0, FAR_MAX)
 	_shadow_cap = int(Gfx.s.get("light_shadows", 4)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
 	_rank_timer = 0.0
 
@@ -114,7 +207,7 @@ func _place_fixtures() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if walls.has(c): continue
+			if walls.has(c) or arch_cells.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
@@ -140,6 +233,56 @@ func _place_fixtures() -> void:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
+
+# Panel ceilings: a fixture per open cell (its five panels), a real light only on the checkerboard cells
+func _place_panel_fixtures() -> void:
+	for x in range(1, size - 1):
+		for z in range(1, size - 1):
+			var c := Vector2i(x, z)
+			# thin walls and doors leave most of their cell open, so they still need their ceiling panel
+			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c): continue
+			var pos := Vector3(x * CELL, ceiling_height(c), z * CELL)
+			var is_classic := classic.has(c)
+			var is_bright := bright.has(c)
+			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
+			var burnt := not (is_bright or is_classic) and rng.randf() < chance
+			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
+			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": (x + z) % 2 == 0,
+				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
+				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
+				"index": -1, "cell": fx.size(), "wanted": false})
+	for f in fx:
+		if not f.burnt:
+			f.index = lit.size()
+			lit.append(f)
+
+# One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
+func _build_panel_ceiling() -> void:
+	if fx.is_empty(): return
+	var sh: Shader = load("res://shaders/panel_ceiling.gdshader")
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.set_shader_parameter("albedo_tex", panel_ceiling.albedo_texture)
+	mat.set_shader_parameter("normal_tex", panel_ceiling.normal_texture)
+	mat.set_shader_parameter("orm_tex", panel_ceiling.roughness_texture)
+	mat.set_shader_parameter("emission_tex", panel_ceiling.emission_texture)
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(CELL, CELL)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = quad
+	mm.instance_count = fx.size()
+	var down := Basis(Vector3.RIGHT, PI)              # PlaneMesh faces up; flip it to face the floor
+	for f in fx:
+		mm.set_instance_transform(f.cell, Transform3D(down, f.pos))
+		mm.set_instance_color(f.cell, Color.BLACK if f.burnt else PANEL_GLOW)
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+	panels_mm = mm
 
 func _mesh_world(root: Node, node: Node3D) -> Transform3D:
 	var t := Transform3D.IDENTITY
@@ -235,6 +378,7 @@ func _build_fixture_meshes() -> void:
 func _set_lit_color(f: Dictionary, lvl: float) -> void:
 	if tubes_mm: tubes_mm.set_instance_color(f.index, LIT_DIFFUSER * tint * lvl)
 	if lens_mm: lens_mm.set_instance_color(f.index, LIT_DIFFUSER * tint * (lvl * 0.45))
+	if panels_mm: panels_mm.set_instance_color(f.cell, PANEL_GLOW * tint * lvl)
 
 # Recolour every lit tube; Color.WHITE puts the normal warm white back (random events)
 func set_tint(c: Color) -> void:
@@ -285,14 +429,17 @@ func _build_floor_reflections() -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var box := BoxMesh.new()
-	box.size = Vector3(1.95, 0.02, 0.82)
+	box.size = Vector3(0.7, 0.02, 0.7) if panels_mm else Vector3(1.95, 0.02, 0.82)
 	mm.mesh = box
-	mm.instance_count = items.size()
+	var offs: Array = PANEL_OFFSETS if panels_mm else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
+	mm.instance_count = items.size() * offs.size()
 	var cx := 0.0
 	var cz := 0.0
 	for i in items.size():
 		var f: Dictionary = items[i]
-		mm.set_instance_transform(i, Transform3D(Basis(Vector3.UP, f.rot), Vector3(f.pos.x, -f.pos.y, f.pos.z)))
+		for k in offs.size():
+			var o: Vector2 = offs[k]
+			mm.set_instance_transform(i * offs.size() + k, Transform3D(Basis(Vector3.UP, f.rot), Vector3(f.pos.x + o.x, -f.pos.y, f.pos.z + o.y)))
 		cx += f.pos.x
 		cz += f.pos.z
 	cx /= items.size()
@@ -322,7 +469,7 @@ func _build_light_pool() -> void:
 		l.light_color = LIGHT_COLOR
 		l.light_size = 0.0                   # > 0 turns on PCSS soft shadows, which are expensive; shadow_blur is enough
 		l.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID   # much cheaper than cube shadows, fine for ceiling lights
-		l.omni_range = LIGHT_RANGE
+		l.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		l.omni_attenuation = 1.4
 		l.light_energy = 0.0
 		l.shadow_enabled = false
@@ -342,6 +489,19 @@ func _build_light_pool() -> void:
 		slot_target.append(0.0)
 		slot_on.append(0.0)
 		slot_want.append(false)
+	for i in FAR_MAX:
+		var fl := OmniLight3D.new()
+		fl.light_color = LIGHT_COLOR
+		fl.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
+		fl.omni_attenuation = 1.4
+		fl.shadow_enabled = false
+		fl.light_energy = 0.0
+		fl.visible = false
+		fl.set_meta("gfx_managed", true)
+		add_child(fl)
+		far_pool.append(fl)
+		far_fixture.append(null)
+		far_weight.append(0.0)
 
 func slot_level(i: int) -> float:
 	var f = slot_fixture[i]
@@ -353,16 +513,23 @@ func slot_position(i: int) -> Vector3:
 
 func _rank(p: Vector3) -> void:
 	var max_sq := SELECT_RADIUS * SELECT_RADIUS
+	var far_sq := FAR_RADIUS * FAR_RADIUS
 	_candidates.clear()
 	for f in lit:
 		var dx: float = f.pos.x - p.x
 		var dz: float = f.pos.z - p.z
 		f.dsq = dx * dx + dz * dz
 		f.wanted = false
-		if f.dsq < max_sq: _candidates.append(f)
+		f.far_wanted = false
+		if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
 	_candidates.sort_custom(func(a, b): return a.dsq < b.dsq)
-	var n := mini(_candidates.size(), POOL_SIZE)
-	for i in n: _candidates[i].wanted = true
+	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls)
+	_far_candidates = _candidates.slice(mini(_lit_cap, _candidates.size()), mini(_lit_cap + _far_cap, _candidates.size()))
+	for f in _far_candidates: f.far_wanted = true
+	var n := 0
+	while n < mini(_candidates.size(), POOL_SIZE) and _candidates[n].dsq < max_sq:
+		_candidates[n].wanted = true
+		n += 1
 	_candidates.resize(n)
 
 # Which slots are lit (the nearest `_lit_cap`) and which of those cast shadows (the nearest `_shadow_cap`)
@@ -403,6 +570,7 @@ func _update_pool(delta: float) -> void:
 			f.slot = free
 			slot_assigned.emit(free)
 		_rank_slots()
+		_assign_far()
 	var k := minf(1.0, delta * 5.0)
 	var k_on := minf(1.0, delta * 4.0)
 	var fade_range := SELECT_RADIUS - FADE_START
@@ -420,8 +588,13 @@ func _update_pool(delta: float) -> void:
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var energy: float = LIGHT_ENERGY * (CLASSIC_BOOST if f.classic else 1.0) * f.level * slot_weight[i] * dist_fade * slot_on[i]
+		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * f.level * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
+		if panels_mm:                        # square panels: one point light, no tube ends
+			lb.visible = false
+			l.global_position = f.light_pos
+			l.light_energy = energy
+			continue
 		lb.visible = l.visible and f.dsq < TWIN_RANGE * TWIN_RANGE       # far away the tube reads as a point: skip the twin
 		# one light at each end of the tube, so the ceiling is lit along its whole length, not from a point
 		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF
@@ -429,6 +602,39 @@ func _update_pool(delta: float) -> void:
 		lb.global_position = f.light_pos - axis
 		l.light_energy = energy * 0.5
 		lb.light_energy = energy * 0.5
+	_update_far(k)
+
+# Far lights keep their tube while it stays wanted (no jumping about), fade out when it isn't, and a
+# freed light fades in on the next tube out, so moving through the level never pops.
+func _assign_far() -> void:
+	for i in FAR_MAX:
+		var f = far_fixture[i]
+		if f != null and not f.far_wanted and far_weight[i] < 0.02:
+			f.far = -1
+			far_fixture[i] = null
+	for f in _far_candidates:
+		if f.get("far", -1) != -1: continue
+		var free := far_fixture.find(null)
+		if free == -1: break
+		far_fixture[free] = f
+		far_weight[free] = 0.0
+		f.far = free
+
+func _update_far(k: float) -> void:
+	var fade_range := FAR_RADIUS - FAR_FADE
+	var base := PANEL_ENERGY if panels_mm else LIGHT_ENERGY
+	for i in FAR_MAX:
+		var fl := far_pool[i]
+		var f = far_fixture[i]
+		if f == null:
+			fl.visible = false
+			continue
+		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
+		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * f.level * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
+		fl.visible = energy > 0.002
+		fl.global_position = f.light_pos
+		fl.light_energy = energy
 
 # Failing-tube model: long stable stretches, then a burst of rapid dropouts and re-strikes.
 # Steady tubes only stutter when something disturbs them (a burst already set).
@@ -494,12 +700,9 @@ func _update_atmosphere(delta: float) -> void:
 	Game.fx_classic = classic_mix
 	if reflect_mmi != null:                                              # noclip under the map would show them as huge white panels
 		reflect_mmi.visible = player.global_position.y > 0.0
-	for l in pool + pool_b:                                              # stark white tubes in the classic zone, so the light reads against the yellow walls
+	for l in pool + pool_b + far_pool:                                   # stark white tubes in the classic zone, so the light reads against the yellow walls
 		l.light_color = LIGHT_COLOR.lerp(Color(1.0, 0.99, 0.96), classic_mix)
-	if base_white < 0.0: base_white = env.tonemap_white
-	env.tonemap_white = lerpf(base_white, 4.0, classic_mix)              # gentler highlight roll-off: no clipped white
-	if base_ambient < 0.0: base_ambient = env.ambient_light_energy
-	env.ambient_light_energy = lerpf(base_ambient, 0.55, open_mix)     # flat, washed-out fill light
+	cam_mix = maxf(classic_mix, bright_mix * 0.7)
 	if dark.has(c):
 		za = 0.12; zf = 1.35
 	elif dim.has(c):
@@ -507,14 +710,23 @@ func _update_atmosphere(delta: float) -> void:
 	var k := minf(1.0, delta * ADAPT)
 	bounce += (tube_light_at(player.global_position) - bounce) * k
 	zone_amb += (za - zone_amb) * k
-	zf = lerpf(zf, 0.15, open_mix)                                    # clear air: you see the whole hall
+	# eye adaptation: light where you stand and where you look (a lit hall ahead calms the exposure down,
+	# a wall in shade in front of you opens it up); only where the zone is meant to be readable
+	var cam := get_viewport().get_camera_3d()
+	var ahead := player.global_position
+	if cam: ahead = cam.global_position - cam.global_transform.basis.z * EYE_PROBE
+	var seen := 0.5 * (tube_light_at(player.global_position) + tube_light_at(ahead))
+	var gain := lerpf(1.0, lerpf(EYE_GAIN_DARK, EYE_GAIN_BRIGHT, seen), clampf(zone_amb, 0.0, 1.0) * (1.0 - grid_glow))
+	eye += (gain - eye) * minf(1.0, delta * EYE_SPEED)
+	_blend_env(ATMOSPHERES.classic)
+	zf = lerpf(zf, 0.2, open_mix)                                     # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
 	# power cut: a faint glow so shapes barely read (ATMOSPHERE.gridDownAmbient / gridDownFog)
 	var darkness := 1.0 - minf(1.0, maxf(b * zone_amb, 0.25 * grid_glow))
 	env.fog_light_color = FOG_COLOR.lerp(FOG_COLOR_DARK, darkness)
 	# in big lit halls the distance fades to a warm haze instead of black, so you can read the far walls and ceiling
-	env.fog_light_color = env.fog_light_color.lerp(Color(0.34, 0.29, 0.16), open_mix * (1.0 - darkness))
+	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.classic.haze, open_mix * (1.0 - darkness))
 	env.background_color = env.fog_light_color
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
@@ -522,6 +734,28 @@ func _update_atmosphere(delta: float) -> void:
 	if env.volumetric_fog_enabled:
 		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
 		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
+
+## Blend the WorldEnvironment from its own (dim) values toward an ATMOSPHERES look: the camera settings
+## follow classic_mix (where you stand), the light itself open_mix (which a power cut takes away).
+func _blend_env(a: Dictionary) -> void:
+	if _env_base.is_empty():
+		# kept on the resource: main.tscn's Environment can outlive a level reload with the last blend in it
+		if not env.has_meta("atmo_base"):
+			env.set_meta("atmo_base", {"ambient_energy": env.ambient_light_energy, "ambient_color": env.ambient_light_color,
+				"exposure": env.tonemap_exposure, "tonemap_white": env.tonemap_white,
+				"glow_threshold": env.glow_hdr_threshold, "glow_intensity": env.glow_intensity,
+				"glow_bloom": env.glow_bloom, "glow_wide": env.get_glow_level(5), "ssao_intensity": env.ssao_intensity})
+		_env_base = env.get_meta("atmo_base")
+	var b := _env_base
+	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix)
+	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
+	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * eye
+	env.tonemap_white = lerpf(b.tonemap_white, a.tonemap_white, cam_mix)
+	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
+	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix)
+	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
+	env.set_glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix))
+	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)
 
 func update_lighting(delta: float) -> void:
 	if player == null or pool.is_empty(): return

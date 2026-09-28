@@ -308,7 +308,8 @@ func prewarm_death() -> void:
 	var jobs := [["rasp_loop", 0.0], ["flatline_loop", 0.0], ["neck_snap", 0.0],
 		["static_hit", 0.0], ["stinger", 0.0], ["seize", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
-		["howler_drag", 0.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0], ["wall_knock", 0.0],
+		["howler_step", 10.0], ["howler_step", 11.0], ["howler_step", 12.0], ["howler_step", 13.0],
+		["howler_drag", 0.0], ["howler_drag", 10.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0], ["wall_knock", 0.0],
 		["mannequin_step", 0.0], ["mannequin_step", 1.0], ["mannequin_step", 2.0], ["mannequin_step", 3.0],
 		["mannequin_creak", 0.0], ["mannequin_creak", 1.0], ["mannequin_creak", 2.0]]
 	_prewarm_task = WorkerThreadPool.add_task(func():
@@ -377,8 +378,8 @@ func entity_breathe(level: float, pitch := 1.0) -> void:
 	voice.breathe(level, pitch)
 
 # ------------------------------------------------------------------ footfalls (creature_steps.gd)
-func howler_step(pos: Vector3, weight: float, dragging := false) -> void:
-	steps.howler_step(pos, weight, dragging)
+func howler_step(pos: Vector3, weight: float, dragging := false, run := 0.0) -> void:
+	steps.howler_step(pos, weight, dragging, run)
 
 func mannequin_step(pos: Vector3, weight := 1.0) -> void:
 	steps.mannequin_step(pos, weight)
