@@ -11,7 +11,10 @@ render_mode cull_back;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D orm_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform sampler2D emission_tex : source_color, hint_default_black, filter_linear_mipmap, repeat_enable;
+// Anisotropic like the others. With plain mipmaps the far ceiling (seen almost edge-on) dropped to tiny mips
+// where each bright panel was averaged over its whole tile: the entire far ceiling glowed, and past a certain
+// distance the dead-panel test below failed too, so the switched-off panels lit up as well.
+uniform sampler2D emission_tex : source_color, hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 albedo_tint : source_color = vec3(0.96, 0.9, 0.7);   // the reference ceilings are cream-yellow, not grey
 uniform float tile_size = 0.75;         // metres: BRC_A has 6 x 6 tiles per 4.5 m cell
 uniform float tile_vary = 0.05;         // how much one tile's shade differs from the next
