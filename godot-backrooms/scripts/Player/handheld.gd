@@ -15,10 +15,10 @@ extends RefCounted
 ## player.gd feeds it footfalls and how hard you move, and reads `pitch`, `yaw`, `roll` (rad) and `offset` (m).
 ## Scaled by the head-bob setting: 0 turns all of it off; AMOUNT scales everything.
 
-const AMOUNT := 1.5               # 1.0 = about 1 deg of sway standing; lower it for less
+const AMOUNT := 0.6               # 1.0 = about 1 deg of sway standing (1.5 was far too much)
 # layers: amplitude (rad) and noise speed (roughly Hz)
 const SWAY_PITCH := 0.012
-const SWAY_YAW := 0.009
+const SWAY_YAW := 0.005           # sideways sway is the least comfortable: kept smallest
 const SWAY_ROLL := 0.010
 const SWAY_SPEED := 0.2
 const CORRECT := 0.0025
