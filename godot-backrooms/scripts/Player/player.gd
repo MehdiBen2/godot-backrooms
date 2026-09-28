@@ -87,6 +87,7 @@ var bob_amp := 1.0               # eased per-step bob height from handheld.step_
 var health := 100.0
 var sanity := 100.0
 var sanity_lock := -1.0        # >= 0 pins sanity there (debug console)
+var unnerved := 0.0            # s left: something holding your gaze (the mannequins) stops light calming you
 var insanity := 0.0            # 0..1 how far gone: blur, double vision, the eyes
 var hurt_tick := 0.0
 var battery := 100.0          # flashlight battery, %
@@ -556,8 +557,11 @@ func _update_sanity(dt: float) -> void:
 	var ambient := ambient_light()
 	var torch_lit := flash_on and battery > 0.0
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
+	unnerved = maxf(0.0, unnerved - dt)
 	if sanity_lock >= 0.0:
 		sanity = sanity_lock                      # debug console: `sanity <n>` pins it
+	elif unnerved > 0.0:
+		pass                                      # no calming down while you stare at them (they drain it)
 	elif light_level >= 0.45:
 		var rec := minf(1.0, (light_level - 0.45) / 0.55)
 		sanity = minf(100.0, sanity + 2.2 * (0.4 + 0.6 * rec) * dt)

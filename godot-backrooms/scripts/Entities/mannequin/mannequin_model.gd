@@ -9,12 +9,30 @@ const HEIGHT := 1.85
 const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL", "rollR", "headYaw", "headTilt", "headNod", "lean", "twist", "bob"]
 
 # A second sculpt mixed into the standing crowd for variety. It is one skinned mesh with a simple rig
-# (Hips > LegL, LegR, Spine > ArmL, ArmR, Head), posed through its bones with the same pose Dictionaries
-# as the jointed one (pose_variant), so no two of them stand alike.
+# (Hips > LegL, LegR, Spine > Head, ArmL > ForearmL, ArmR > ForearmR; built by
+# tools/blender/rig_mannequin_variant.py, source art/mannequin_variant.blend), posed through its bones with
+# the same pose Dictionaries as the jointed one (pose_variant), so no two of them stand alike. Each bone's
+# +Y runs down its limb.
 const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
+# How worn each variant is (variant_style): cracked plaster, a missing hand / forearm / arm, a painted-on
+# display-shop outfit, or standing under a dust sheet. Drawn by shaders/mannequin_wear.gdshader.
+const WEAR_SHADER := preload("res://shaders/mannequin_wear.gdshader")
+const SHEET_CHANCE := 0.15
+const CRACK_CHANCE := 0.4
+const MISSING_CHANCE := 0.25
+const DRESSED_CHANCE := 0.3
+const MISSING_PARTS := ["ForearmL", "ForearmR", "ArmL", "ArmR"]
+const OUTFITS := [                            # shirt, bottom: faded shop-window colours
+	[Color(0.42, 0.14, 0.13), Color(0.16, 0.16, 0.18)],
+	[Color(0.2, 0.28, 0.38), Color(0.55, 0.5, 0.42)],
+	[Color(0.62, 0.6, 0.55), Color(0.12, 0.12, 0.14)],
+	[Color(0.25, 0.33, 0.22), Color(0.3, 0.22, 0.16)],
+	[Color(0.5, 0.4, 0.2), Color(0.35, 0.33, 0.36)],
+]
+var _sheet_mesh: ArrayMesh
 
 var parts: Array = []                        # {mesh, xf, pivot, kind, side, ...}
 var hip_pivot := Vector3(0.0, 0.818858, -0.099118)
@@ -203,17 +221,125 @@ func load_variant(host: Node) -> bool:
 	variant_ok = true
 	return true
 
-## A posed copy of the variant sculpt (its own rigged scene), in figure space. Null without a rig.
-func make_variant(pose: Dictionary) -> Node3D:
+## How this one has aged: {sheet, cracks 0..1, missing bone or "", clothes, outfit, sleeves}
+static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
+	var st := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
+	if rng.randf() < SHEET_CHANCE:
+		st.sheet = true
+		return st
+	if rng.randf() < CRACK_CHANCE:
+		st.cracks = rng.randf_range(0.6, 1.0)
+	if rng.randf() < MISSING_CHANCE:
+		st.missing = MISSING_PARTS[rng.randi() % MISSING_PARTS.size()]
+	if rng.randf() < DRESSED_CHANCE:
+		st.clothes = true
+		st.outfit = rng.randi() % OUTFITS.size()
+		st.sleeves = rng.randf() < 0.5
+	return st
+
+## A posed copy of the variant sculpt (its own rigged scene), in figure space, worn per `style`
+## (variant_style). Null without a rig.
+func make_variant(pose: Dictionary, style := {}) -> Node3D:
 	if not variant_rigged:
 		return null
+	if style.get("sheet", false):
+		var covered := Node3D.new()                     # just the sheet: whatever stands under it stays hidden
+		var mi_s := MeshInstance3D.new()
+		mi_s.mesh = _sheet()
+		mi_s.transform = variant_root_xf.affine_inverse()   # the crowd places it through variant_root_xf
+		covered.add_child(mi_s)
+		return covered
 	var n: Node3D = variant_scene.instantiate()
 	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var missing: String = style.get("missing", "")
 	# a Skeleton3D only schedules its update while in the tree: posed before that, it keeps showing its rest
-	sk.ready.connect(func(): pose_variant(sk, pose), CONNECT_ONE_SHOT)
-	for mi in n.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	sk.ready.connect(func():
+		pose_variant(sk, pose)
+		if _vbones.has(missing):                         # broken off: the piece (and what hangs from it) shrinks away
+			sk.set_bone_pose_scale(_vbones[missing], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		if float(style.get("cracks", 0.0)) > 0.0 or style.get("clothes", false):
+			mi.material_overlay = _wear_material(mi, sk, style)
 	return n
+
+func _wear_material(mi: MeshInstance3D, sk: Skeleton3D, style: Dictionary) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = WEAR_SHADER
+	mat.set_shader_parameter("cracks", float(style.get("cracks", 0.0)))
+	mat.set_shader_parameter("clothes", 1.0 if style.get("clothes", false) else 0.0)
+	var outfit: Array = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
+	mat.set_shader_parameter("shirt_color", outfit[0])
+	mat.set_shader_parameter("bottom_color", outfit[1])
+	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", true) else 0.0)
+	# the shader sees skin bind indices, not skeleton bone indices
+	var binds := {}
+	if mi.skin != null:
+		for b in mi.skin.get_bind_count():
+			var nm := String(mi.skin.get_bind_name(b))
+			if nm.is_empty():
+				nm = sk.get_bone_name(mi.skin.get_bind_bone(b))
+			binds[nm] = b
+	mat.set_shader_parameter("bone_chest", binds.get("Spine", -1))
+	mat.set_shader_parameter("bone_pelvis", binds.get("Hips", -1))
+	mat.set_shader_parameter("bone_arm_l", binds.get("ArmL", -1))
+	mat.set_shader_parameter("bone_arm_r", binds.get("ArmR", -1))
+	return mat
+
+## A dust sheet thrown over a standing figure (figure space: feet on y = 0, facing +Z): a round head, the
+## cloth hanging off the shoulders and spreading to the floor in folds, the hem uneven. Built once.
+func _sheet() -> ArrayMesh:
+	if _sheet_mesh != null:
+		return _sheet_mesh
+	const RINGS := 30
+	const SEGS := 44
+	var top := HEIGHT + 0.03
+	var noise := FastNoiseLite.new()
+	noise.seed = 17
+	noise.frequency = 1.3
+	var pts: Array = []
+	for r in RINGS + 1:
+		var t := float(r) / RINGS                      # 0 top .. 1 hem
+		var y := top * (1.0 - t)
+		var rad := 0.0
+		if y > 1.6:                                    # the head under the cloth
+			var u := clampf((top - y) / (top - 1.6), 0.0, 1.0)
+			rad = 0.14 * sqrt(1.0 - (1.0 - u) * (1.0 - u))
+		elif y > 1.42:                                 # neck to shoulders
+			rad = lerpf(0.27, 0.14, (y - 1.42) / 0.18)
+		else:                                          # hanging to the floor, spreading as it goes
+			rad = lerpf(0.4, 0.27, y / 1.42)
+		var ring: Array = []
+		for sgm in SEGS:
+			var a := TAU * float(sgm) / SEGS
+			var hang := clampf((1.42 - y) / 1.42, 0.0, 1.0)
+			var fold := 1.0 + 0.09 * hang * sin(a * 7.0 + noise.get_noise_2d(a * 2.0, y) * 3.0) + 0.04 * noise.get_noise_2d(a * 3.0, y * 4.0)
+			var squash := lerpf(0.62, 0.9, hang) if y < 1.6 else 1.0        # shoulders are wider than deep
+			var yy := y
+			if r == RINGS:                              # the hem: uneven, a few corners lifted
+				yy = 0.015 + maxf(0.0, noise.get_noise_2d(a * 4.0, 5.0)) * 0.12
+			ring.append(Vector3(cos(a) * rad * fold, yy, sin(a) * rad * fold * squash))
+		pts.append(ring)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for r in RINGS:
+		for sgm in SEGS:
+			var n2 := (sgm + 1) % SEGS
+			var a0: Vector3 = pts[r][sgm]
+			var a1: Vector3 = pts[r][n2]
+			var b0: Vector3 = pts[r + 1][sgm]
+			var b1: Vector3 = pts[r + 1][n2]
+			for v in [a0, b0, a1, a1, b0, b1]:
+				st.add_vertex(v)
+	st.generate_normals()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.7, 0.68, 0.62)
+	mat.roughness = 1.0
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	st.set_material(mat)
+	_sheet_mesh = st.commit()
+	return _sheet_mesh
 
 ## Turn one bone by `rot`, a rotation in skeleton space about `pivot` (its own joint when INF). Its parent's
 ## pose still applies on top, so an arm swings with a leaning torso.
@@ -241,8 +367,17 @@ func pose_variant(sk: Skeleton3D, pose: Dictionary) -> void:
 	_vturn(sk, "Head", Basis(Vector3.UP, pose.headYaw) * Basis(Vector3.BACK, pose.headTilt) * Basis(Vector3.RIGHT, pose.headNod))
 	for side in ["L", "R"]:
 		var sg := 1.0 if side == "L" else -1.0
-		var arm := Basis(Vector3.BACK, float(pose["splay" + side]) * sg) * Basis(Vector3.RIGHT, -float(pose["arm" + side]))
+		var swing := float(pose["arm" + side])
+		var arm := Basis(Vector3.BACK, float(pose["splay" + side]) * sg) * Basis(Vector3.RIGHT, -swing)
 		_vturn(sk, "Arm" + side, arm, _varm_l_pivot if side == "L" else Vector3.INF)
+		# a raised arm reaches straight: the elbow opens until the forearm lines up with the upper arm
+		# (hanging, it keeps the sculpt's bend, the hand on the hip)
+		if _vbones.has("Forearm" + side):
+			var k := smoothstep(0.5, 1.3, swing)
+			if k > 0.0:
+				var up := sk.get_bone_global_rest(_vbones["Arm" + side]).basis.y.normalized()
+				var fore := sk.get_bone_global_rest(_vbones["Forearm" + side]).basis.y.normalized()
+				_vturn(sk, "Forearm" + side, Basis(Quaternion.IDENTITY.slerp(Quaternion(fore, up), k)))
 		_vturn(sk, "Leg" + side, Basis(Vector3.RIGHT, -float(pose["leg" + side])) * _vplant(sk, "Leg" + side, VARIANT_PLANT))
 
 # ================================================================= poses

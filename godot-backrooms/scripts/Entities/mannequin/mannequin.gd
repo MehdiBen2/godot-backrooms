@@ -41,6 +41,14 @@ const LIGHT_RANGE := 5.0
 const SETTLE_RANGE := 10.0                   # turn and catch it this close after it moved: its joints creak
 const WHISPER_PATH := "res://audio/entity/mannequin_whisper.mp3"
 const WHISPER_RANGE := 7.0
+# Staring them down: eyes can't stay open forever. After a few seconds of watching, your eyes sting and you
+# start to blink at random, more often and slower the longer you stare, and while the lids are shut nobody is
+# watching: the real one steps, the crowd shifts. Every second you watch costs a little sanity.
+const STARE_STING := 4.0                     # s of staring before the blinks start
+const STARE_RAMP := 10.0                     # s more to reach the full blink urge
+const STARE_BLINK_RATE := 0.35               # blinks per second at full urge
+const STARE_SANITY := 0.25                   # sanity per second while watching them...
+const STARE_SANITY_MAX := 0.6                # ...rising to this after a long stare
 
 var level: Node
 var player: CharacterBody3D
@@ -242,8 +250,12 @@ func _start_hunt() -> void:
 
 # ================================================================= being watched
 # Any part of it inside your view, with nothing solid in between
+## The lids are (nearly) shut: you see nothing, so for this moment nothing is watched
+func eyes_shut() -> bool:
+	return player.blink != null and player.blink.blinking() and Game.fx_blink > 0.55
+
 func seen(pos: Vector3) -> bool:
-	if player.dead or player.frozen or not Game.playing:
+	if player.dead or player.frozen or not Game.playing or eyes_shut():
 		return false
 	var cam: Camera3D = player.cam
 	var d := Vector2(pos.x - cam.global_position.x, pos.z - cam.global_position.z).length()
@@ -499,6 +511,7 @@ func _physics_process(delta: float) -> void:
 		if online:
 			_net_send(delta)
 	if Game.playing:
+		_update_stare(delta)
 		_update_settle()
 		_update_whisper(delta)
 		_update_presence(delta)
@@ -557,6 +570,49 @@ func net_snap() -> void:
 	start_snap()
 
 # ------------------------------------------------------------ presence
+var stare := 0.0                              # s you have been watching them (eases back down when you stop)
+var _watching := false
+var _watch_t := 0.0
+
+## Is any of them in plain sight: the real one, or one of the dozen decoys nearest you
+func _any_in_sight() -> bool:
+	if seen(real_node.position):
+		return true
+	var pp := player.global_position
+	var near: Array = []
+	for d in decoys:
+		var dd := Vector2(d.x - pp.x, d.z - pp.z).length_squared()
+		if dd < 16.0 * 16.0:
+			near.append([dd, d])
+	near.sort_custom(func(a, b): return a[0] < b[0])
+	for k in mini(near.size(), 12):
+		var d: Dictionary = near[k][1]
+		if seen(Vector3(d.x, 0.0, d.z)):
+			return true
+	return false
+
+func _update_stare(delta: float) -> void:
+	if player.dead or player.frozen or player.blink == null:
+		stare = 0.0
+		return
+	_watch_t -= delta
+	if _watch_t <= 0.0:
+		_watch_t = 0.1
+		_watching = _any_in_sight()
+	var watching := _watching
+	if not watching:
+		stare = maxf(0.0, stare - delta * 2.0)
+		return
+	if player.blink.blinking():
+		return
+	stare += delta
+	player.unnerved = 0.5                          # light doesn't calm you while you hold their gaze
+	player.sanity = maxf(0.0, player.sanity - minf(STARE_SANITY + stare * 0.02, STARE_SANITY_MAX) * delta)
+	var urge := clampf((stare - STARE_STING) / STARE_RAMP, 0.0, 1.0)
+	if urge > 0.0 and rng.randf() < urge * STARE_BLINK_RATE * delta:
+		player.blink.blink(1.0 + urge * 0.8)          # tired eyes: the lids stay down a little longer
+		stare *= 0.5
+
 func _in_view(at: Vector3) -> bool:
 	var to := Vector3(at.x - player.global_position.x, 0.0, at.z - player.global_position.z)
 	if to.length() < 0.001:
