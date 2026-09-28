@@ -8,11 +8,11 @@ extends Node3D
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 
 const H := TapeMarks.WIDTH           # the roll is as tall as the tape is wide
-const R_OUT := 0.058                 # outside of the wound tape
-const R_CORE := 0.042                # where the tape meets the cardboard
-const R_IN := 0.036                  # the hole
+const R_OUT := 0.11                  # outside of the wound tape (a fat roll: 250 m on it)
+const R_CORE := 0.06                 # where the tape meets the cardboard
+const R_IN := 0.052                  # the hole
 const SEG := 32
-const TAIL := 0.07                   # the loose end peeling off, m
+const TAIL := 0.14                   # the loose end peeling off, m
 
 static var _edge_mat: StandardMaterial3D
 static var _core_mat: StandardMaterial3D
@@ -34,7 +34,7 @@ func _init() -> void:
 			[Vector2(0, v0), Vector2(1, v0), Vector2(1, v1), Vector2(0, v1)], [n0, n0, n1, n1])
 	# the loose end: a short ribbon carrying on along the tangent, bowing out a little
 	var t0 := Vector3(R_OUT, 0, 0)
-	var t1 := Vector3(R_OUT + 0.012, 0, TAIL)
+	var t1 := Vector3(R_OUT + 0.024, 0, TAIL)
 	TapeMarks.quad(st, Vector3(1, 0, -0.17).normalized(),
 		[t0, t0 + Vector3(0, H, 0), t1 + Vector3(0, H, 0), t1],
 		[Vector2(0, 0), Vector2(1, 0), Vector2(1, TAIL / (H * TapeMarks.TEX_ASPECT)), Vector2(0, TAIL / (H * TapeMarks.TEX_ASPECT))])

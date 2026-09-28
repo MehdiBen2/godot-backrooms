@@ -10,7 +10,7 @@ extends Node3D
 ## The look (glossy vinyl, retroreflective under the torch) is shaders/reflective_tape.gdshader.
 ## Built by level_builder.gd.
 
-const WIDTH := 0.075                 # m: a standard 75 mm roll
+const WIDTH := 0.2                   # m: wide floor-marking tape, easy to spot down a corridor
 const LIFT := 0.004                  # m off the surface
 const LIFT_STEP := 0.0007            # each later strip sits a hair higher, so crossings don't z-fight
 const MAX_PER_LEVEL := 240           # the oldest strip comes off past this

@@ -15,7 +15,7 @@ const BATTERY_PER_CELLS := 60        # roughly one pack per this many open cells
 const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
-const TAPE_PER_CELLS := 180          # rarer than batteries: one roll lasts a long while
+const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 
 var exit_door: Node3D
 
@@ -75,7 +75,7 @@ func _spawn_batteries() -> void:
 
 # ---------------------------------------------------------------- hazard tape
 func _spawn_tape() -> void:
-	_scatter(func(): return TapePickup.new(), TAPE_PER_CELLS, 1, 4)
+	_scatter(func(): return TapePickup.new(), TAPE_PER_CELLS, 1, 2)
 
 ## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),
 ## none right at the spawn point

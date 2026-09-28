@@ -10,10 +10,10 @@ const ITEM_ID := "tape"
 const ITEM_NAME := "Reflective Hazard Tape"
 const ITEM_CODE := "TAPE"
 const STACK := 4
-const ROLL_LENGTH := 25.0      # m of tape on one roll
+const ROLL_LENGTH := 250.0     # m of tape on one roll
 const MODEL_PATH := "res://scripts/World/props/tape_roll.gd"
-const ITEM_DESC := "A roll of black and yellow retroreflective tape, 75 mm wide, 25 m to a roll. " \
-	+ "Hold T on a wall or the floor within reach and drag the view to pull a strip out (up to 4 m), " \
+const ITEM_DESC := "A fat roll of black and yellow retroreflective tape, 20 cm wide, 250 m to a roll. " \
+	+ "Hold T on a wall or the floor within reach and drag the view to pull a strip out (up to 6 m), " \
 	+ "let go to tear it off. The chevrons point the way you pulled. Mark the corridors you have " \
 	+ "already walked: when the halls loop back on themselves, the tape tells you. It catches the " \
 	+ "torch from a long way off."

@@ -6,20 +6,21 @@ extends Node
 ## than MIN_STRIP is balled up and not used.
 ## The rolls are an inventory item (tape_pickup.gd): ROLL_LENGTH of tape each, the one in use is
 ## `roll_left`; when it runs out the next roll comes out.
-## Built by hud.gd, which also draws `pulling` / `length` / `roll_left` as the readout under the
-## crosshair.
+## Built by hud.gd; tape_readout.gd draws the tape mode HUD off `state`, `length`, `limit`,
+## `surface`, `anchor` / `tip`, `roll_left` and the result of the last pull (`result_t`, `result_len`).
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 
 const KEY := KEY_T
-const REACH := 2.4               # m: how far away the first end can be pressed down
-const MAX_STRIP := 4.0           # m in one pull
+const REACH := 3.0               # m: how far away the first end can be pressed down
+const MAX_STRIP := 6.0           # m in one pull
 const MIN_STRIP := 0.12          # m: shorter is not a strip
 const WORLD_MASK := 1            # level geometry only
 const PULL_EASE := 16.0          # 1/s: how quickly the tape catches up with your aim
-const SUPPORT_STEP := 0.1        # m between checks that there is still surface under the strip
+const SUPPORT_STEP := 0.15       # m between checks that there is still surface under the strip
 const GRAIN_EVERY := 0.045       # m of tape per crackle
+const RESULT_TIME := 1.4         # s the readout shows how the last pull went
 const GRAINS := ["tape_grain_0.wav", "tape_grain_1.wav", "tape_grain_2.wav", "tape_grain_3.wav"]
 
 var player: Node                 # player.gd (set by hud.gd)
@@ -29,9 +30,14 @@ var pulling := false
 var length := 0.0                # m pulled out on the strip in hand
 var roll_left := TapePickup.ROLL_LENGTH
 var latched := false             # a press that found nothing to stick to: let go of T first
-var _a := Vector3.ZERO           # the pressed-down end
-var _n := Vector3.UP             # the surface it's on
-var _end := Vector3.ZERO         # the free end, eased
+var state := "idle"              # idle / pull / placed / short / no_surface
+var result_t := 0.0              # s left showing placed / short / no_surface
+var result_len := 0.0            # m in the strip just placed
+var limit := ""                  # what is stopping the strip growing: "" / MAX / ROLL / CORNER / EDGE
+var surface := ""                # WALL / FLOOR / CEILING the strip is on
+var anchor := Vector3.ZERO       # the pressed-down end
+var normal := Vector3.UP         # the surface it's on
+var tip := Vector3.ZERO          # the free end, eased
 var _grain_acc := 0.0
 var _preview: MeshInstance3D
 var _preview_mesh := ArrayMesh.new()
@@ -46,6 +52,9 @@ func _ready() -> void:
 		_sfx.append(p)
 
 func _process(dt: float) -> void:
+	result_t = maxf(0.0, result_t - dt)
+	if not pulling and result_t <= 0.0:
+		state = "idle"
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors \
 		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item(TapePickup.ITEM_ID)
@@ -72,12 +81,18 @@ func _start() -> void:
 	if hit.is_empty() or not (hit.collider is StaticBody3D) or TapeMarks.live == null:
 		latched = true
 		player.dead_click.emit()     # nothing in reach to stick it to
+		_result("no_surface", 0.0)
 		return
 	pulling = true
+	state = "pull"
+	limit = ""
 	latched = false
-	_n = (hit.normal as Vector3).normalized()
-	_a = hit.position
-	_end = _a
+	normal = (hit.normal as Vector3).normalized()
+	anchor = hit.position
+	tip = anchor
+	surface = "WALL"
+	if normal.y > 0.7: surface = "FLOOR"
+	elif normal.y < -0.7: surface = "CEILING"
 	length = 0.0
 	_grain_acc = 0.0
 	_preview_mesh.clear_surfaces()           # the last strip's shape, until the first _pull
@@ -94,17 +109,17 @@ func _pull(dt: float) -> void:
 	var o := cam.global_position
 	var d := -cam.global_transform.basis.z
 	# where the view meets the surface's plane; looking away from it, the tape stays where it was
-	var goal := _end
-	var denom := _n.dot(d)
+	var goal := tip
+	var denom := normal.dot(d)
 	if denom < -0.02:
-		var t := _n.dot(_a - o) / denom
+		var t := normal.dot(anchor - o) / denom
 		if t > 0.0 and t < REACH + MAX_STRIP:
 			goal = o + d * t
 	goal = _supported(goal)
 	var prev := length
-	_end = _end.lerp(goal, minf(1.0, dt * PULL_EASE))
-	length = _a.distance_to(_end)
-	TapeMarks.strip_mesh(_a, _end, _n, TapeMarks.LIFT + TapeMarks.LIFT_STEP * 8.0, _preview_mesh)
+	tip = tip.lerp(goal, minf(1.0, dt * PULL_EASE))
+	length = anchor.distance_to(tip)
+	TapeMarks.strip_mesh(anchor, tip, normal, TapeMarks.LIFT + TapeMarks.LIFT_STEP * 8.0, _preview_mesh)
 	# the roll crackles as it unwinds: one grain every few cm, so it follows how fast you pull
 	_grain_acc += maxf(0.0, length - prev)
 	if _grain_acc >= GRAIN_EVERY:
@@ -114,53 +129,74 @@ func _pull(dt: float) -> void:
 ## The free end, held back to what there is tape and surface for: no longer than MAX_STRIP or
 ## what's left on the roll, no further than the surface goes, not through anything in the way
 func _supported(goal: Vector3) -> Vector3:
-	var v := goal - _a
-	v -= _n * _n.dot(v)                        # stay in the surface's plane
+	var v := goal - anchor
+	v -= normal * normal.dot(v)                        # stay in the surface's plane
 	var want := minf(v.length(), minf(MAX_STRIP, roll_left))
+	limit = ""
+	if v.length() > want + 0.01:
+		limit = "ROLL" if roll_left < MAX_STRIP else "MAX"
 	if want < 0.001:
-		return _a
+		return anchor
 	var dir := v.normalized()
 	var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
-	var lift := _n * 0.03
+	var lift := normal * 0.03
 	# something standing in the way along the surface (the far wall of a corner)
-	var block := PhysicsRayQueryParameters3D.create(_a + lift, _a + lift + dir * want, WORLD_MASK)
+	var block := PhysicsRayQueryParameters3D.create(anchor + lift, anchor + lift + dir * want, WORLD_MASK)
 	block.exclude = [player.get_rid()]
 	var hit := space.intersect_ray(block)
 	if not hit.is_empty():
-		want = maxf(0.0, (hit.position as Vector3).distance_to(_a + lift) - 0.02)
-	# and the surface still under it every SUPPORT_STEP (the end of a wall, a doorway, a pit)
+		want = maxf(0.0, (hit.position as Vector3).distance_to(anchor + lift) - 0.02)
+		limit = "CORNER"
+	# and the surface still under it every SUPPORT_STEP, across its whole width (the end of a
+	# wall, a doorway, a pit)
 	var probe := PhysicsRayQueryParameters3D.create(Vector3.ZERO, Vector3.ZERO, WORLD_MASK)
 	probe.exclude = [player.get_rid()]
+	var side := normal.cross(dir).normalized() * TapeMarks.WIDTH * 0.45
 	var s := SUPPORT_STEP
 	var ok := 0.0
 	while s <= want + SUPPORT_STEP * 0.5:
-		var at := _a + dir * minf(s, want)
-		probe.from = at + _n * 0.05
-		probe.to = at - _n * 0.05
-		var under := space.intersect_ray(probe)
-		if under.is_empty() or (under.normal as Vector3).dot(_n) < 0.95:
+		var at := anchor + dir * minf(s, want)
+		var held := true
+		for off in [Vector3.ZERO, side, -side]:
+			probe.from = at + off + normal * 0.05
+			probe.to = at + off - normal * 0.05
+			var under := space.intersect_ray(probe)
+			if under.is_empty() or (under.normal as Vector3).dot(normal) < 0.95:
+				held = false
+				break
+		if not held:
+			limit = "EDGE"
 			break
 		ok = minf(s, want)
 		s += SUPPORT_STEP
-	return _a + dir * ok
+	return anchor + dir * ok
 
 func _tear_off() -> void:
-	var a := _a
-	var b := _end
-	var n := _n
+	var a := anchor
+	var b := tip
+	var n := normal
 	var l := length
 	_clear()
 	if l < MIN_STRIP or TapeMarks.live == null:
+		_result("short", l)
 		return
 	TapeMarks.live.place(a, b, n)
 	_play("tape_rip.wav", -5.0, randf_range(0.92, 1.08))
 	roll_left -= l
+	_result("placed", l)
 	if roll_left < MIN_STRIP:                  # that roll is done: the next one comes out
 		inventory.remove_item(TapePickup.ITEM_ID)
 		roll_left = TapePickup.ROLL_LENGTH
 
 func _cancel() -> void:
 	_clear()
+	state = "idle"
+	result_t = 0.0
+
+func _result(what: String, l: float) -> void:
+	state = what
+	result_len = l
+	result_t = RESULT_TIME
 
 func _clear() -> void:
 	pulling = false
