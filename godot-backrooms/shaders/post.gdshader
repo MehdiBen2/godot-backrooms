@@ -206,9 +206,16 @@ void fragment() {
 		dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
 		vec3 raw_dirt = texture(lens_dirt_tex, clamp(dirt_uv, 0.0, 1.0)).rgb;
 		// Cut off lifted black pedestal so clear lens areas stay 100% transparent with zero milky haze
-		vec3 dirt_rgb = max(raw_dirt - vec3(0.22), vec3(0.0)) * 1.4;
+		// The dirt photo has coloured bokeh balls and rainbow prism streaks round its edges: used in colour they
+		// lit up as red / green / blue balls whenever you faced a bright light. Dust on a lens shows the colour
+		// of the light behind it, so only the dirt's brightness pattern is used, tinted by that light, and the
+		// prismatic outer rim is faded out.
+		vec2 rim = abs(dirt_uv - 0.5) * 2.0;
+		float rim_fade = 1.0 - smoothstep(0.72, 0.98, max(rim.x, rim.y));
+		float dirt_l = max(dot(raw_dirt, vec3(0.299, 0.587, 0.114)) - 0.22, 0.0) * 1.4 * rim_fade;
 		vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
 		float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
+		vec3 dirt_rgb = dirt_l * mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
 		// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
 		// staring into a light: the dust on the lens lights up and the bulbs halate harder
 		float lens_t = 0.58 - 0.18 * glare;
