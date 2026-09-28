@@ -5,7 +5,7 @@ extends RefCounted
 ## One viewport per model, shared by every row / page that shows it.
 ## Show the texture through outlined() (shaders/item_icon_outline.gdshader) for the orange rim.
 ## The "model" is a scene (.glb / .tscn), or a script that builds its Node3D in _init
-## (World/props/tape_roll.gd), or simply an image (a drawn icon, e.g. the scanner's), used as it is.
+## (World/props/tape_roll.gd, Player/scanner_model.gd), or simply an image (a drawn icon), used as it is.
 
 const SIZE := 256                  # icon resolution, px
 const FILL := 0.86                 # share of the frame the model spans, leaving room for the outline

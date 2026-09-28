@@ -309,7 +309,7 @@ func _build_scanner() -> void:
 	inventory.add_item("scanner", "T.S.R.A. Field Scanner",
 		"Hold Q while an anomaly is near the middle of your view and in plain sight. A complete "
 		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1,
-		"res://textures/items/scanner/scanner_icon.png")
+		"res://scripts/Player/scanner_model.gd")
 	scanner = Scanner.new()
 	scanner.player = player
 	scanner.inventory = inventory
