@@ -64,13 +64,14 @@ $timer.Add_Tick({
     if ($script:proc -and $script:proc.HasExited) {
         $timer.Stop()
         $btn.Enabled = $true; $btn.Text = "PUBLISH"
-        $published = (Test-Path $log) -and ((Get-Content $log -Raw) -match "Published v")
-        if ($published -or $script:proc.ExitCode -eq 0) {
+        # publish.ps1 throws (non-zero exit) on every failure path, so the exit code alone is trustworthy now.
+        if ($script:proc.ExitCode -eq 0) {
             $out.AppendText("`r`n`r`nDONE. Your friend's launcher will offer the update on its next start.")
             $ver.Text = Get-NextVersion
         } else {
-            $out.AppendText("`r`n`r`nFAILED (see the text above).")
+            $out.AppendText("`r`n`r`nFAILED (exit code $($script:proc.ExitCode)) - see the text above.")
         }
+        Remove-Item (Join-Path $env:TEMP "backrooms_publish_notes.txt") -ErrorAction SilentlyContinue
         $script:proc = $null
     }
 })
@@ -85,11 +86,17 @@ $btn.Add_Click({
         [Windows.Forms.MessageBox]::Show("Version must look like v0.1.1", "Backrooms") | Out-Null
         return
     }
-    $n = ($notes.Text -replace '["`]', "'" -replace '\r?\n', ' ').Trim()
+    gh release view $v --repo $repo *> $null
+    if ($LASTEXITCODE -eq 0) {
+        [Windows.Forms.MessageBox]::Show("Release $v already exists on GitHub. Pick a new version.", "Backrooms") | Out-Null
+        return
+    }
     Remove-Item $log, $err -ErrorAction SilentlyContinue
+    $notesFile = Join-Path $env:TEMP "backrooms_publish_notes.txt"
+    Set-Content -Path $notesFile -Value $notes.Text -Encoding utf8   # a file sidesteps all quoting/escaping issues
     $out.Text = "Exporting and publishing $v ... (1-3 minutes, don't close this window)"
     $btn.Enabled = $false; $btn.Text = "PUBLISHING..."
-    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\publish.ps1`" -Version $v -Notes `"$n`""
+    $args = "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\publish.ps1`" -Version $v -NotesFile `"$notesFile`""
     $script:proc = Start-Process powershell -ArgumentList $args -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $log -RedirectStandardError $err
     $null = $script:proc.Handle          # PS 5.1 only keeps ExitCode if the handle is cached

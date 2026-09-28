@@ -157,7 +157,7 @@ func build_lighting() -> void:
 ## too. It is used while the .lvl is unchanged since the bake and the preset allows it (Gfx `baked_gi`: High and
 ## Ultra; Ultra adds a second bounce). Without a bake: SDFGI, heavy, so only on Ultra ("ssil") and only for
 ## levels with a Classic zone unless the .lvl forces it with "sdfgi": true / false (the editor's REAL-TIME GI).
-const BAKE_VERSION := "2"          # bump when the geometry code changes in a way old bakes no longer match
+const BAKE_VERSION := "1"          # bump when the geometry code changes in a way old bakes no longer match
 var voxel_gi: VoxelGI
 
 func gi_path() -> String:
@@ -226,7 +226,9 @@ func _place_fixtures() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if walls.has(c) or arch_cells.has(c): continue
+			# thin walls and doors leave most of their cell open (and now carry the ceiling-step
+			# bulkhead against a neighbouring low room), so they still need a fixture over them
+			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
@@ -244,7 +246,9 @@ func _place_fixtures() -> void:
 			# reference photos. The far-light pool and the baked bounce light keep the gaps between tubes lit.
 			if is_bright or is_classic:
 				if not grid_node: continue
-			elif not (ns or ew or grid_node): continue
+			# a carved cell's own neighbours are open along its passage, so the corridor heuristic
+			# (opposite neighbours both walls) almost never matches it; it still needs its fixture
+			elif not (ns or ew or grid_node or carved.has(c)): continue
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else BURNT_CHANCE)
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)

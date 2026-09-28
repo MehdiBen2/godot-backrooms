@@ -493,10 +493,13 @@ func _build_ceiling_steps() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if walls.has(c): continue
+			# a solid wall cell has no ceiling to step from, but a carved one (a door / thin wall
+			# standing in for the block) opens up to WALL_H / TALL_H same as any open cell, so a
+			# neighbouring low room still needs its bulkhead closing the gap up to that opening
+			if walls.has(c) and not carved.has(c): continue
 			for dv: Vector2i in [Vector2i(1, 0), Vector2i(0, 1)]:
 				var nb: Vector2i = c + dv
-				if walls.has(nb): continue
+				if walls.has(nb) and not carved.has(nb): continue
 				var a := ceiling_height(c)
 				var b2 := ceiling_height(nb)
 				if a == b2: continue

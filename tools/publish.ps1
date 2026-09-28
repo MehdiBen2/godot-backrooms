@@ -1,12 +1,25 @@
 # Export the game, zip it, and publish it as a GitHub Release the launcher will pick up.
-#   .\tools\publish.ps1 v0.2.0 "What changed"
+#   .\tools\publish.ps1 v0.2.0 -Notes "What changed"
+#   .\tools\publish.ps1 v0.2.0 -NotesFile path\to\notes.txt
 # Needs: Godot 4 + export templates (env GODOT or godot on PATH) and the GitHub CLI (gh auth login).
 param(
     [Parameter(Mandatory = $true)][string]$Version,
-    [string]$Notes = ""
+    [string]$Notes = "",
+    [string]$NotesFile = ""
 )
 $ErrorActionPreference = "Stop"
+$repo = "MehdiBen2/godot-backrooms"
 $root = Split-Path $PSScriptRoot -Parent
+
+if ($Version -notmatch '^v\d+\.\d+\.\d+$') { throw "Version must look like v0.1.1 (got '$Version')" }
+
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) not found. Install: winget install GitHub.cli" }
+gh auth status *> $null
+if ($LASTEXITCODE -ne 0) { throw "gh is not signed in. Run: gh auth login" }
+
+gh release view $Version --repo $repo *> $null
+if ($LASTEXITCODE -eq 0) { throw "Release $Version already exists on GitHub. Pick a new version." }
+
 $godot = $env:GODOT
 if (-not $godot) { $cmd = Get-Command godot -ErrorAction SilentlyContinue; if ($cmd) { $godot = $cmd.Source } }
 if (-not $godot) { $godot = (Get-ChildItem "$env:USERPROFILE\Desktop" -Filter "Godot_v4*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch "console" } | Select-Object -First 1).FullName }
@@ -24,5 +37,18 @@ $ErrorActionPreference = "Stop"
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) { throw "Godot export failed" }
 
 Compress-Archive -Path (Join-Path $game "*") -DestinationPath $zip
-gh release create $Version $zip --repo MehdiBen2/godot-backrooms --title $Version --notes $Notes
+
+# Notes always go through a file: a native exe (gh.exe) silently drops an empty-string
+# argument from a variable, so `--notes $Notes` breaks when the notes box is left blank.
+$notesPath = Join-Path $build "notes.md"
+if ($NotesFile -and (Test-Path $NotesFile)) {
+    $text = (Get-Content $NotesFile -Raw -ErrorAction SilentlyContinue)
+    Set-Content -Path $notesPath -Value $(if ([string]::IsNullOrWhiteSpace($text)) { "Automated release $Version." } else { $text }) -Encoding utf8
+} else {
+    Set-Content -Path $notesPath -Value $(if ([string]::IsNullOrWhiteSpace($Notes)) { "Automated release $Version." } else { $Notes }) -Encoding utf8
+}
+
+gh release create $Version $zip --repo $repo --title $Version --notes-file $notesPath
+if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)" }
+
 Write-Host "Published $Version. Launchers will offer the update on next start."

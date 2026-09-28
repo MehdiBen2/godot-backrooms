@@ -41,6 +41,9 @@ var notes_btn: Button
 var pct_label: Label
 var asset_size := 0        # bytes, from the release data (the CDN often omits Content-Length)
 var _t := 0.0
+var _check_timer := 0.0
+var _silent_check := false   # true while a background poll is in flight (no UI disruption)
+const CHECK_INTERVAL := 60.0  # poll for updates every minute so new releases show up fast
 
 const BG_PATH := "res://img/background.png"
 const GREEN := Color("7fae72")
@@ -101,20 +104,29 @@ func _read_local_version() -> String:
 
 # ------------------------------------------------------------------ update check
 
-func check_for_update() -> void:
+func check_for_update(silent := false) -> void:
 	# github.com/<repo>/releases/latest redirects to .../releases/tag/<tag>: the tag comes from that
 	# redirect, which (unlike api.github.com, 60 requests/hour per IP) has no rate limit.
-	_set_state(State.CHECKING)
-	var err := http_check.request("https://github.com/%s/releases/latest" % REPO, PackedStringArray(["User-Agent: backrooms-launcher"]))
-	if err != OK:
+	_check_timer = 0.0
+	if http_check.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		return  # a check is already in flight; don't stack requests
+	_silent_check = silent
+	if not silent:
+		_set_state(State.CHECKING)
+	var err := http_check.request("https://github.com/%s/releases/latest" % REPO,
+		PackedStringArray(["User-Agent: backrooms-launcher", "Cache-Control: no-cache, no-store", "Pragma: no-cache"]))
+	if err != OK and not silent:
 		_go_offline("Could not start the update check.")
 
 
 func _on_check_done(result: int, code: int, headers: PackedStringArray, _body: PackedByteArray) -> void:
+	var silent := _silent_check
+	_silent_check = false
 	# max_redirects = 0, so the 302 we are after is reported as "redirect limit reached"
 	if result != HTTPRequest.RESULT_SUCCESS and result != HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED:
-		_go_offline("Update check failed: no connection.")
-		return
+		if not silent:
+			_go_offline("Update check failed: no connection.")
+		return  # background poll failed quietly: keep whatever state we were in and retry next tick
 	var tag := ""
 	for h in headers:
 		if h.to_lower().begins_with("location:"):
@@ -122,8 +134,11 @@ func _on_check_done(result: int, code: int, headers: PackedStringArray, _body: P
 			if "/releases/tag/" in loc:
 				tag = loc.get_slice("/releases/tag/", 1).uri_decode()
 	if tag == "":
-		_go_offline("Update check failed: no release published yet." if code == 302 or code == 404 else "Update check failed: GitHub returned %d." % code)
+		if not silent:
+			_go_offline("Update check failed: no release published yet." if code == 302 or code == 404 else "Update check failed: GitHub returned %d." % code)
 		return
+	if silent and tag == remote_version:
+		return  # nothing changed: don't touch the UI at all
 	remote_version = tag
 	asset_url = "https://github.com/%s/releases/download/%s/%s" % [REPO, tag, ASSET_NAME]
 	notes = ""
@@ -300,6 +315,12 @@ func _set_state(s: State) -> void:
 			play_btn.text = ("Play" if local_version != "" else "Retry").to_upper()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_IN and state != State.CHECKING \
+			and state != State.DOWNLOADING and state != State.INSTALLING:
+		check_for_update(true)
+
+
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and (e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER) and not play_btn.disabled:
 		_on_play_pressed()
@@ -324,6 +345,11 @@ func _process(dt: float) -> void:
 		_game_pid = -1
 		if state != State.CHECKING:
 			status.text = "Up to date." if state == State.READY else status.text
+	# Poll for updates in the background: silent, so it never interrupts the player.
+	if state != State.CHECKING and state != State.DOWNLOADING and state != State.INSTALLING:
+		_check_timer += dt
+		if _check_timer >= CHECK_INTERVAL:
+			check_for_update(true)
 
 
 func _on_play_pressed() -> void:
