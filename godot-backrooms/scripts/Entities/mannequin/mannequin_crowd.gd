@@ -21,6 +21,7 @@ var shufflers: Array = []                    # {i, seen}: every standing decoy
 var stalker := -1                            # decoy index of the one that creeps toward you
 var tick := 0.0
 var cooldown := 4.0
+var _blink_used := false
 
 func _init(owner: Node3D) -> void:
 	m = owner
@@ -62,7 +63,7 @@ func build(dealt: Array) -> void:
 			for j in model.parts.size():
 				(mms[j] as MultiMesh).set_instance_transform(i, zero)
 			d["g"] = g
-			var vn := model.make_variant(d.pose)
+			var vn := model.make_variant(d.pose, MannequinModel.variant_style(m.rng))
 			if vn != null:                   # rigged: its own posed copy
 				vn.transform = g * model.variant_root_xf
 				m.add_child(vn)
@@ -146,11 +147,18 @@ func update(delta: float) -> void:
 		var d: Dictionary = decoys[s.i]
 		if pp.distance_to(Vector3(d.x, 0.0, d.z)) > SHUFFLE_RANGE:
 			continue
-		if cam.is_position_in_frustum(_head_pos(d.x, d.z)):
+		if cam.is_position_in_frustum(_head_pos(d.x, d.z)) and not m.eyes_shut():
 			s.seen = true
 		elif s.seen:
 			hidden.append(s.i)
 	cooldown -= dt
+	# a blink is a free move: the moment the lids meet, the crowd shifts (once per blink)
+	if m.eyes_shut():
+		if not _blink_used:
+			_blink_used = true
+			cooldown = 0.0
+	else:
+		_blink_used = false
 	if cooldown > 0.0 or hidden.is_empty():
 		return
 	cooldown = m.rng.randf_range(3.0, 8.0)

@@ -42,8 +42,24 @@ func _initialize() -> void:
 	p3.armL = 1.4; p3.headYaw = -0.5                          # one arm reaching
 	poses.append(p3)
 	poses.append(MannequinModel.random_pose(rng))
+	# STYLES=1: the same rest pose in each wear style instead of the pose row
+	var styles: Array = []
+	if OS.get_environment("STYLES") != "":
+		var base := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
+		for mod in [{}, {"cracks": 1.0}, {"missing": "ForearmR"}, {"missing": "ArmL", "cracks": 0.7},
+				{"clothes": true, "outfit": 0}, {"clothes": true, "outfit": 1, "sleeves": false}, {"sheet": true}]:
+			var st := base.duplicate()
+			st.merge(mod, true)
+			styles.append(st)
+		poses.clear()
+		for st in styles:
+			var pz := MannequinModel.rest_pose()
+			pz.headYaw = 0.3
+			poses.append(pz)
+	var only := int(OS.get_environment("ONLY")) if OS.get_environment("ONLY") != "" else -1
 	for i in poses.size():
-		var n := model.make_variant(poses[i])
+		if only >= 0 and i != only: continue
+		var n := model.make_variant(poses[i], styles[i] if i < styles.size() else {})
 		n.transform = Transform3D(Basis.IDENTITY, Vector3((i - 2) * 1.2, 0, 0)) * model.variant_root_xf
 		world.add_child(n)
 	var cam := Camera3D.new()
@@ -51,8 +67,9 @@ func _initialize() -> void:
 	cam.fov = 45.0
 	# each pose on its own, from three-quarters front, then a grid of them
 	for i in poses.size():
+		if only >= 0 and i != only: continue
 		var at := Vector3((i - 2) * 1.2, 0.95, 0)
-		cam.position = at + Vector3(1.6, 0.25, 2.6)
+		cam.position = at + (Vector3(3.2, 0.2, 0.0) if OS.get_environment("SIDE") != "" else Vector3(1.6, 0.25, 2.6))
 		cam.look_at(at, Vector3.UP)
 		await create_timer(0.3).timeout
 		root.get_texture().get_image().save_png("%s_%d.png" % [prefix, i])
