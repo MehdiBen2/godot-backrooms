@@ -1,5 +1,5 @@
 extends Node
-## A.S.R.A. (Threshold Spatial Research Agency) Field Archive: which entities the player has
+## A.S.R.A. (Anomalous Spatial Research Agency) Field Archive: which entities the player has
 ## personally encountered, plus the level/entity dossier catalog the inventory's ARCHIVE tab
 ## renders (scripts/UI/inventory/inventory.gd). Autoload name: Archive.
 ##
@@ -17,6 +17,7 @@ extends Node
 signal entity_discovered(entity_id: String)
 
 const SCANNABLE := "asra_scannable"
+const AGENCY := "ANOMALOUS SPATIAL RESEARCH AGENCY"   # what A.S.R.A. stands for (terminal footer)
 
 const ENTITIES_PATH := "res://levels/asra_entities.json"
 const DOSSIERS_PATH := "res://levels/asra_dossiers.json"

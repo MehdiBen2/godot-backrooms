@@ -493,6 +493,12 @@ func _build_footer() -> Control:
 	h.alignment = BoxContainer.ALIGNMENT_END
 	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# the agency's full name on the left, under the item column; the key hints stay on the right
+	var agency := _label("A.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
+	agency.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	agency.clip_text = true
+	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(agency)
 	for hint in ["UP/DN SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
