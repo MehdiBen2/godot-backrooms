@@ -54,5 +54,13 @@ void fragment() {
 	ROUGHNESS = max(orm.g, 0.55);         // painted steel T-bars and mineral tiles: matte, so a torch lights them
 	METALLIC = 0.0;                       // (the ORM marks the grid as bare metal, which ignores diffuse light)
 	SPECULAR = specular;
-	EMISSION = emit * COLOR.rgb + ALBEDO * ceiling_fill;
+	// Far away a panel and the tiles round it shrink into a pixel or two, and the texture filter averages them
+	// in HDR, before the tonemapper clips anything: a panel glowing at 3.6x white smeared over its whole tile
+	// made the far ceiling glow white. Up close the camera clips each panel to white anyway, so as a panel
+	// shrinks under a few pixels its glow is brought down to 1x: the average then matches what a camera sees.
+	// (UV runs 0..1 across one cell; a panel is about 1/6 of that.)
+	float footprint = max(length(dFdx(UV)), length(dFdy(UV)));
+	float far_k = smoothstep(0.025, 0.1, footprint);
+	float peak = max(max(max(COLOR.r, COLOR.g), COLOR.b), 1.0);
+	EMISSION = emit * COLOR.rgb * mix(1.0, 1.0 / peak, far_k) + ALBEDO * ceiling_fill;
 }
