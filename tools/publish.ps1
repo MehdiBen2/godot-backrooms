@@ -14,11 +14,15 @@ $root = Split-Path $PSScriptRoot -Parent
 if ($Version -notmatch '^v\d+\.\d+\.\d+$') { throw "Version must look like v0.1.1 (got '$Version')" }
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) not found. Install: winget install GitHub.cli" }
+$ErrorActionPreference = "Continue"   # PS 5.1 turns gh's stderr into a terminating error even when redirected, so
+                                      # checks that rely on a non-zero/stderr exit as their expected path need this off
 gh auth status *> $null
-if ($LASTEXITCODE -ne 0) { throw "gh is not signed in. Run: gh auth login" }
-
+$signedIn = ($LASTEXITCODE -eq 0)
 gh release view $Version --repo $repo *> $null
-if ($LASTEXITCODE -eq 0) { throw "Release $Version already exists on GitHub. Pick a new version." }
+$releaseExists = ($LASTEXITCODE -eq 0)
+$ErrorActionPreference = "Stop"
+if (-not $signedIn) { throw "gh is not signed in. Run: gh auth login" }
+if ($releaseExists) { throw "Release $Version already exists on GitHub. Pick a new version." }
 
 $godot = $env:GODOT
 if (-not $godot) { $cmd = Get-Command godot -ErrorAction SilentlyContinue; if ($cmd) { $godot = $cmd.Source } }
