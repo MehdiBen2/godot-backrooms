@@ -1,5 +1,5 @@
 {
-  "_about": "A.S.R.A. Field Archive dossiers, one block per levels/levels.json entry id. \"_default\" is used for any level id not listed here (e.g. a new level added to levels.json). New levels register a block here, keyed by their levels.json \"id\", and list the entity ids (see asra_entities.json) that can appear in them under \"entities\".",
+  "_about": "A.S.R.A. Field Archive dossiers: the [F2] THRESHOLD DOSSIER page in the TAB terminal (scripts/UI/inventory/inventory.gd), one block per levels/levels.json entry, keyed by its \"id\". Fields: designation (ZONE line), threat_classification (THREAT line), metrics (spatial_reliability / temporal_coherence / cognitive_decay / atmosphere_substratum, any may be left out), directives (the numbered MANDATES), entities (ids from asra_entities.json listed under PHENOMENA LOGGED; each shows as unconfirmed until the player scans it with the field scanner), and optionally log_sheet (the LOG SHEET number; derived from the designation when absent). \"_default\" is used for any level id not listed here (e.g. a new level added to levels.json).",
   "level0": {
     "designation": "LEVEL 0 — \"THE LOBBY\"",
     "threat_classification": "CLASS 1",

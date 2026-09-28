@@ -3,16 +3,20 @@ extends Node
 ## personally encountered, plus the level/entity dossier catalog the inventory's ARCHIVE tab
 ## renders (scripts/UI/inventory/inventory.gd). Autoload name: Archive.
 ##
-## Entities/*.gd register a sighting by calling discover("id") from wherever they first become
-## visible/active in-game (see killer.gd debug_spawn(), mannequin.gd debug_spawn(), bacteria.gd
-## summon()/debug_spawn(), mimic.gd appear(), eyes.gd _add()).
-## New entities: add a block to levels/asra_entities.json keyed by that same id, then call
-## discover() from the entity's own "just became visible" point.
+## Entities are logged by scanning them: the A.S.R.A. field scanner (scripts/Player/scanner.gd, hold
+## Q) calls discover("id") once a reading completes, and the HUD toast announces the new entry.
+## Anything scannable joins the SCANNABLE group with its id in the "asra_id" meta, and implements
+## scan_points() -> Array of world positions it can be read from right now (empty while it is away):
+## see bacteria.gd, mannequin.gd, mimic.gd, eyes.gd, killer.gd.
+## New entities: add a block to levels/asra_entities.json keyed by the new id, then give the entity
+## an _enter_tree() + scan_points() like the others.
 ##
 ## New levels: add a block to levels/asra_dossiers.json keyed by the level's levels.json "id",
 ## listing the entity ids (from asra_entities.json) that can appear in it under "entities".
 
 signal entity_discovered(entity_id: String)
+
+const SCANNABLE := "asra_scannable"
 
 const ENTITIES_PATH := "res://levels/asra_entities.json"
 const DOSSIERS_PATH := "res://levels/asra_dossiers.json"
@@ -45,7 +49,8 @@ func entities() -> Dictionary:
 func entity_info(id: String) -> Dictionary:
 	return entities().get(id, {})
 
-## level id (levels/levels.json "id") -> {designation, threat_classification, metrics, directives, entities}
+## level id (levels/levels.json "id") -> {designation, threat_classification, metrics, directives,
+## entities, log_sheet (optional)}
 func dossiers() -> Dictionary:
 	if _dossiers.is_empty():
 		_dossiers = _read_json(DOSSIERS_PATH)
@@ -71,6 +76,12 @@ func discover(entity_id: String) -> void:
 	discovered[entity_id] = true
 	_save()
 	entity_discovered.emit(entity_id)
+
+## Debug console `archive reset`: every entity back to unlogged
+func forget_all() -> void:
+	discovered.clear()
+	_save()
+	entity_discovered.emit("")
 
 func _load() -> void:
 	var cf := ConfigFile.new()

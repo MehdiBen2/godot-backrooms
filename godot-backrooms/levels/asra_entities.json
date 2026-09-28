@@ -1,5 +1,5 @@
 {
-  "_about": "A.S.R.A. entity catalog: entity_id (matches the id each Entities/*.gd script reports to Archive.discover) -> dossier shown once discovered. New entities register a block here and call Archive.discover(\"id\") from wherever they first become visible/active in-game.",
+  "_about": "A.S.R.A. entity catalog: entity_id -> dossier shown once the player logs it with the field scanner (scripts/Player/scanner.gd, hold Q). The id matches the \"asra_id\" meta the entity script sets in _enter_tree(); new entities register a block here and add _enter_tree() + scan_points() like the others (see asra_archive.gd).",
   "mannequin": {
     "code": "ASRA-EN-01",
     "common_name": "Faceless Loiterer",

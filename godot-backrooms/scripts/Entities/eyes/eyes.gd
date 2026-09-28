@@ -215,8 +215,21 @@ func _spawn() -> bool:
 		return true
 	return false
 
+# ---------------------------------------------------------------- A.S.R.A. scanner
+# Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
+func _enter_tree() -> void:
+	add_to_group(Archive.SCANNABLE)
+	set_meta("asra_id", "eyes")
+
+## Where the scanner can take a reading off it right now; empty while it is away
+func scan_points() -> Array:
+	var out := []
+	for w in watchers:
+		if not w.dying and w.lid > 0.3:
+			out.append(w.pos)
+	return out
+
 func _add(p: Vector3) -> void:
-	Archive.discover("eyes")
 	# sized by distance so it always covers the same small angle on screen (about 1 degree per eye):
 	# a fixed 30 cm eye 35 m away would be seven pixels and simply not seen
 	var size: float = p.distance_to(cam.global_position) * rng.randf_range(0.0145, 0.019)

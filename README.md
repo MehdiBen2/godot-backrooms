@@ -49,6 +49,7 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | C / Ctrl | Crouch |
 | Space | Jump |
 | F | Torch on/off |
+| Q (hold) | A.S.R.A. field scanner: hold on an entity near the crosshair to log it |
 | Tab | Inventory (A.S.R.A. field terminal) |
 | ↑ ↓ / F1–F3 or ← → / PgUp PgDn | In the terminal: select item / switch page / scroll |
 | V | Push-to-talk (when voice is set to push-to-talk) |
@@ -84,6 +85,11 @@ Command-line options (also passed by the launcher):
 Levels are ASCII grids in `godot-backrooms/levels/*.lvl`, listed in `levels.json`. Edit them with the level
 editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if the game folder isn't the
 sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `tools/bake_level.gd`.
+
+Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
+entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
+the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and
+unlock once the player scans the entity with the field scanner (debug console: `archive list` / `archive reset`).
 
 ## Releasing
 

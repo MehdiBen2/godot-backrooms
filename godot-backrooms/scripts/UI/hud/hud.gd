@@ -3,6 +3,13 @@ extends CanvasLayer
 ## REC block + objective (top-left), level / timecode / tape mode (top-right), four meters
 ## (bottom-left), key hints (bottom-right), viewfinder corner brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
+## Also owns the TAB terminal (inventory.gd), the A.S.R.A. field scanner (scanner.gd, hold Q) with
+## its reticle (scan_readout.gd), and the "new entry logged" toast (terminal_toast.gd).
+
+const Term := preload("res://scripts/UI/inventory/inventory.gd")
+const Scanner := preload("res://scripts/Player/scanner.gd")
+const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
+const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -18,6 +25,8 @@ var font: FontFile = load("res://fonts/vcr.ttf")
 var pause_root: Control
 var menu: Control
 var inventory: Control
+var scanner: Node
+var toast: Control
 var hud_root: Control
 var hud_fade: Tween
 var shown_vals := {}      # meter name -> displayed value (eased toward the real one)
@@ -58,6 +67,7 @@ func _ready() -> void:
 	_build_hud()
 	_build_pause()
 	_build_inventory()
+	_build_scanner()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -229,7 +239,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "TAB // ITEMS", "ESC // PAUSE"]
+	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "Q // SCAN", "TAB // ITEMS", "ESC // PAUSE"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -278,6 +288,34 @@ func _build_inventory() -> void:
 	inventory = load("res://scripts/UI/inventory/inventory.gd").new()
 	inventory.player = player
 	add_child(inventory)
+
+## The field scanner is the only way to log an entity, so every run starts with one in the
+## terminal. Reticle and toast live in hud_root: they fade with the OSD under the pause menu and the
+## terminal (a scan only runs in play, and the dossier shows the entry anyway).
+func _build_scanner() -> void:
+	inventory.add_item("scanner", "A.S.R.A. Field Scanner",
+		"Hold Q while an anomaly is near the middle of your view and in plain sight. A complete "
+		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1)
+	scanner = Scanner.new()
+	scanner.player = player
+	scanner.inventory = inventory
+	add_child(scanner)
+	var readout := ScanReadout.new()
+	readout.scanner = scanner
+	hud_root.add_child(readout)
+	toast = TerminalToast.new()
+	hud_root.add_child(toast)
+	Archive.entity_discovered.connect(_on_entity_logged)
+
+func _on_entity_logged(id: String) -> void:
+	if id == "":                 # Archive.forget_all(): nothing new to announce
+		return
+	var info := Archive.entity_info(id)
+	toast.push("[NEW ENTRY LOGGED]", [
+		["%s (%s)" % [str(info.get("code", "ASRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
+		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
+		["TAB // [F2] THRESHOLD DOSSIER", Term.MUTED, 16],
+	])
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.

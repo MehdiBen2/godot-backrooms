@@ -7,6 +7,8 @@ audio/terminal/. Standard library only; re-run from anywhere after tweaking:
   terminal_off.wav     power-off: the picture collapsing, a falling zap into static
   terminal_tab.wav     page switch: relay tick, rising two-tone BIOS chirp, a burst of data chatter
   terminal_select.wav  item cursor: a single short blip
+  terminal_scan.wav    field scanner ping, repeated faster (and pitched up) as a reading completes
+  terminal_logged.wav  new entry logged: three rising blips over a soft chord (the HUD toast)
 Every file is peak-normalized to 0.8 (the level of audio/ui_click.wav); loudness is set per sound
 by volume_db in inventory.gd.
 """
@@ -181,8 +183,27 @@ def terminal_select():
     return out
 
 
+def terminal_scan():
+    out = silence(0.16)
+    mix(out, tick(0.002, 6000, 1.5), 0.0, 0.25)
+    mix(out, tone(0.15, 2350, 2250, 'sine', 0.002, 0.035), 0.001, 0.8)     # sonar ping
+    mix(out, tone(0.15, 4700, 4500, 'sine', 0.002, 0.02), 0.001, 0.15)
+    return out
+
+
+def terminal_logged():
+    out = silence(0.55)
+    for i, f in enumerate((1320, 1760, 2640)):
+        mix(out, Biquad('lowpass', 5000).run(tone(0.07, f, None, 'square', 0.002, 0.03)), i * 0.075, 0.3)
+    for f in (1320, 1760, 2640):                                             # the chord it settles on
+        mix(out, tone(0.33, f, None, 'sine', 0.01, 0.12), 0.225, 0.18)
+    return out
+
+
 if __name__ == '__main__':
     write('terminal_on.wav', terminal_on(), fade_out=0.05)
     write('terminal_off.wav', terminal_off(), fade_out=0.04)
     write('terminal_tab.wav', terminal_tab())
     write('terminal_select.wav', terminal_select(), fade_out=0.005)
+    write('terminal_scan.wav', terminal_scan(), fade_out=0.02)
+    write('terminal_logged.wav', terminal_logged(), fade_out=0.06)

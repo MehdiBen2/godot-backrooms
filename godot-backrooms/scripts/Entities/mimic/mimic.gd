@@ -166,8 +166,19 @@ func appear() -> bool:
 	mode = "approach"
 	spawned = true
 	body.visible = true
-	Archive.discover("mimic")
 	return true
+
+# ---------------------------------------------------------------- A.S.R.A. scanner
+# Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
+func _enter_tree() -> void:
+	add_to_group(Archive.SCANNABLE)
+	set_meta("asra_id", "mimic")
+
+## Where the scanner can take a reading off it right now; empty while it is away
+func scan_points() -> Array:
+	if not spawned or body == null or not body.is_visible_in_tree():
+		return []
+	return [body.global_position + Vector3.UP * 1.3]
 
 # Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?
 func clear_ahead(x: float, z: float, a: float, dist: float) -> bool:

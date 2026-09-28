@@ -107,7 +107,6 @@ func vocalize(delta: float, st: String) -> void:
 		var was := voice_state
 		voice_state = st
 		if st == "screech" or (st == "chase" and was != "screech"):
-			Archive.discover("bacteria")
 			scares.entity_call("scream", pos, true)
 			scares.startle(0.7 if was == "lurk" else 0.4)      # out of the dark beside you: much worse
 			_screech_fx(d)
@@ -590,6 +589,18 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e.physical_keycode == KEY_F4:
 		gather_target()
 		begin_stalk(true)
+
+# ---------------------------------------------------------------- A.S.R.A. scanner
+# Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
+func _enter_tree() -> void:
+	add_to_group(Archive.SCANNABLE)
+	set_meta("asra_id", "bacteria")
+
+## Where the scanner can take a reading off it right now; empty while it is away
+func scan_points() -> Array:
+	if process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree():
+		return []
+	return [global_position + Vector3.UP * 1.6]
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:

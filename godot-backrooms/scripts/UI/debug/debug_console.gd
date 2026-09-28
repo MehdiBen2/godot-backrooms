@@ -11,6 +11,7 @@ extends CanvasLayer
 ##   sanity <0-100|off>         pin sanity (blur, eyes, health drain all follow); off releases it
 ##   health <0-100>             set health
 ##   lightout                   trigger the grid power cut event
+##   archive [list|reset]       A.S.R.A. entries logged by the field scanner; reset unlogs them all
 ##   clear                      wipe this log
 ##
 ## Names: bacteria, mannequin, mimic, killer (placeholder model, no AI yet).
@@ -115,7 +116,7 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("spawn <name|all>   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   clear")
+			_print("spawn <name|all>   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   archive [list|reset]   clear")
 			_print("names: " + ", ".join(ORDER))
 		"list":
 			for n in ORDER:
@@ -167,6 +168,14 @@ func _submit(line: String) -> void:
 			_print("health %d" % int(pl2.health))
 		"lightout", "lightsout", "lightsoff":
 			_print("grid lightout: %s" % str(root.get_node("Events").run_event("powerCut")))
+		"archive":
+			if arg == "reset":
+				Archive.forget_all()
+				_print("archive: every entry unlogged")
+			else:
+				for id in Archive.entities():
+					var on := Archive.is_discovered(str(id))
+					_print("  %-10s %s" % [id, "[color=lime]logged[/color]" if on else "[color=gray]not logged[/color]"])
 		"clear":
 			log_label.clear()
 		_:

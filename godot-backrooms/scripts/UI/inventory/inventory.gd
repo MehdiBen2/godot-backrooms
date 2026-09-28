@@ -46,6 +46,8 @@ const TAB_H := 50.0
 const TAB_SLANT := 24.0
 const CHAMFER := 10.0
 const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corner-fitted
+const LINE := 3                  # outline weight: boxes, bars, the sheet and its tabs (shown x WINDOW_SCALE)
+const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -9.0, "off": -9.0, "tab": -10.0, "select": -8.0}
@@ -185,9 +187,9 @@ func _scroll() -> ScrollContainer:
 	s.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	s.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var bar := s.get_v_scroll_bar()
-	bar.custom_minimum_size.x = 10
-	bar.add_theme_stylebox_override("scroll", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 1))
-	bar.add_theme_stylebox_override("scroll_focus", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 1))
+	bar.custom_minimum_size.x = 12
+	bar.add_theme_stylebox_override("scroll", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 2))
+	bar.add_theme_stylebox_override("scroll_focus", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 2))
 	bar.add_theme_stylebox_override("grabber", _box(Color(AMBER, 0.7)))
 	bar.add_theme_stylebox_override("grabber_highlight", _box(AMBER))
 	bar.add_theme_stylebox_override("grabber_pressed", _box(AMBER))
@@ -379,7 +381,7 @@ func _build_frame() -> Control:
 	f.offset_left = FRAME_INSET; f.offset_top = FRAME_INSET
 	f.offset_right = -FRAME_INSET; f.offset_bottom = -FRAME_INSET
 	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	f.add_theme_stylebox_override("panel", _box(Color(0.03, 0.024, 0.01, 0.22), Color(AMBER, 0.85), 3, 16))
+	f.add_theme_stylebox_override("panel", _box(Color(0.03, 0.024, 0.01, 0.22), Color(AMBER, 0.85), FRAME_LINE, 16))
 	return f
 
 func _build_header() -> Control:
@@ -445,8 +447,8 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := PanelContainer.new()
-	var sb := _box(FILL, AMBER, 2, 6)
-	sb.set_content_margin_all(13)
+	var sb := _box(FILL, AMBER, LINE, 6)
+	sb.set_content_margin_all(14)
 	box.add_theme_stylebox_override("panel", sb)
 	box.custom_minimum_size = Vector2(ICON_BOX, ICON_BOX)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -473,8 +475,8 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	meta.add_child(val)
 	col.add_child(meta)
 	var bar := PanelContainer.new()
-	var bsb := _box(FILL, AMBER, 2, 4)
-	bsb.set_content_margin_all(5)
+	var bsb := _box(FILL, AMBER, LINE, 4)
+	bsb.set_content_margin_all(6)
 	bar.add_theme_stylebox_override("panel", bsb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -620,7 +622,7 @@ func _style_row(i: int) -> void:
 	if sel: bg = Color(AMBER, 0.16)
 	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
 	var sb := _box(bg, AMBER)
-	sb.border_width_left = 3 if sel else 0
+	sb.border_width_left = LINE + 1 if sel else 0
 	sb.content_margin_left = 10; sb.content_margin_right = 10
 	sb.content_margin_top = 1; sb.content_margin_bottom = 1
 	p.add_theme_stylebox_override("panel", sb)
@@ -727,7 +729,7 @@ func _build_readout() -> Control:
 		var w := scan_overlay.size.x
 		var y := TAB_H + 6.0 + scan_t * (scan_overlay.size.y - TAB_H - 12.0)
 		scan_overlay.draw_rect(Rect2(3, y - 26.0, w - 6, 26.0), Color(AMBER, 0.07))
-		scan_overlay.draw_line(Vector2(3, y), Vector2(w - 3, y), Color(AMBER, 0.75), 2.0)
+		scan_overlay.draw_line(Vector2(3, y), Vector2(w - 3, y), Color(AMBER, 0.75), LINE)
 	)
 	readout.add_child(scan_overlay)
 	return readout
@@ -751,13 +753,13 @@ func _draw_readout() -> void:
 		var y := 8.0 * (1.0 - tab_lift) if on else 8.0
 		var shape := PackedVector2Array([Vector2(x0, top), Vector2(x0, y), Vector2(x1 - TAB_SLANT, y), Vector2(x1, top)])
 		readout.draw_colored_polygon(shape, FILL if on else Color(FILL, 0.5))
-		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, 2.0, true)
+		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, LINE, true)
 		if on: gap = Vector2(x0, x1)
 	var edge := PackedVector2Array([
 		Vector2(gap.y, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c), Vector2(0, top)])
 	if gap.x > 0.5: edge.append(Vector2(gap.x, top))
-	readout.draw_polyline(edge, AMBER, 2.0, true)
+	readout.draw_polyline(edge, AMBER, LINE, true)
 
 func _style_tab(tab: String) -> void:
 	var b: Button = tab_buttons[tab]
@@ -800,7 +802,7 @@ func _reveal_page(tab: String, delay := 0.0) -> void:
 	var labels := page.find_children("*", "Label", true, false)
 	page_anim = create_tween().set_parallel(true)
 	page.modulate.a = 0.0
-	page_anim.tween_method(func(x: float): page.modulate.a = _flicker(x), 0.0, 1.0, 0.22).set_delay(delay)
+	page_anim.tween_method(func(x: float): page.modulate.a = flicker(x), 0.0, 1.0, 0.22).set_delay(delay)
 	for i in labels.size():
 		var l: Label = labels[i]
 		l.visible_ratio = 0.0
@@ -870,13 +872,13 @@ func _build_dossier_page() -> Control:
 	page_scrolls["DOSSIER"] = scroll
 	v.add_child(scroll)
 	v.add_child(_spacer(12))
-	v.add_child(_hline(Color(AMBER, 0.8), 2))
+	v.add_child(_hline(Color(AMBER, 0.8), LINE))
 	v.add_child(_spacer(12))
 	phenomena_title = _label("PHENOMENA LOGGED:", 21, TEXT, 1)
 	v.add_child(phenomena_title)
 	v.add_child(_spacer(10))
 	var box := PanelContainer.new()
-	var sb := _box(Color(0, 0, 0, 0.3), Color(AMBER, 0.75), 2, 3)
+	var sb := _box(Color(0, 0, 0, 0.3), Color(AMBER, 0.75), LINE, 3)
 	sb.content_margin_left = 16; sb.content_margin_right = 6
 	sb.content_margin_top = 12; sb.content_margin_bottom = 12
 	box.add_theme_stylebox_override("panel", sb)
@@ -894,7 +896,8 @@ func _refresh_dossier() -> void:
 	var d := Archive.current_dossier()
 	var designation := str(d.get("designation", "LEVEL // DESIGNATION PENDING"))
 	_clear(dossier_text)
-	dossier_text.add_child(_label("[LOG SHEET #%03d]" % (100 + absi(designation.hash()) % 900), 21, TEXT, 1))
+	var sheet_no = d.get("log_sheet", 100 + absi(designation.hash()) % 900)
+	dossier_text.add_child(_label("[LOG SHEET #%s]" % str(sheet_no), 21, TEXT, 1))
 	dossier_text.add_child(_spacer(14))
 	dossier_text.add_child(_label("ZONE: " + designation, 21, TEXT, 1, true))
 	dossier_text.add_child(_label("THREAT: <%s>" % str(d.get("threat_classification", "UNDETERMINED")), 21, RED, 1, true))
@@ -918,6 +921,11 @@ func _refresh_dossier() -> void:
 		phenomena_list.add_child(_phenomenon(str(id)))
 	if ids.is_empty():
 		phenomena_list.add_child(_label("NO ANOMALIES CATALOGUED FOR THIS SITE.", 19, TEXT_DIM, 1, true))
+	elif found < ids.size():
+		# entries only come from the field scanner (scripts/Player/scanner.gd): say how, above them
+		var hint := _label("HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY TO LOG IT.", 17, AMBER, 1, true)
+		phenomena_list.add_child(hint)
+		phenomena_list.move_child(hint, 0)
 	phenomena_title.text = "PHENOMENA LOGGED: %d/%d" % [found, ids.size()]
 
 ## Seen: its catalog entry off Archive.entity_info(). Not seen yet: the sheet admits something is
@@ -933,7 +941,7 @@ func _phenomenon(id: String) -> Control:
 		v.add_child(_label("Vector: " + str(info.get("behavior_vector", "")), 19, TEXT_DIM, 1, true))
 		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 19, TEXT, 1, true))
 	else:
-		v.add_child(_label("[UNCONFIRMED: NO DIRECT SIGHTING]", 19, TEXT_DIM, 1))
+		v.add_child(_label("[UNCONFIRMED: NO SCAN ON FILE]", 19, TEXT_DIM, 1))
 		var h := HBoxContainer.new()
 		h.add_theme_constant_override("separation", 8)
 		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -994,7 +1002,7 @@ func set_shown(on: bool) -> void:
 		overlay_mat.set_shader_parameter("glitch", 1.0)
 		anim.tween_property(backdrop, "modulate:a", 1.0, 0.2)
 		anim.tween_property(lens, "scale:y", WINDOW_SCALE, 0.26).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("fade", _flicker(x)), 0.0, 1.0, 0.34)
+		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("fade", flicker(x)), 0.0, 1.0, 0.34)
 		anim.tween_method(func(x: float): overlay_mat.set_shader_parameter("glitch", x), 1.0, 0.0, 0.55).set_delay(0.05)
 		_reveal_page(active_page, 0.2)
 	else:
@@ -1012,8 +1020,9 @@ func _finish_hide() -> void:
 	overlay_mat.set_shader_parameter("fade", 1.0)
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 
-## Alpha curve for the power-on: dim, blink out, flash, settle (matches menu.gd)
-func _flicker(x: float) -> float:
+## Alpha curve for the power-on: dim, blink out, flash, settle (matches menu.gd). Static: the HUD
+## toast (terminal_toast.gd) flickers on with it too.
+static func flicker(x: float) -> float:
 	if x < 0.2: return 0.85 * x / 0.2
 	if x < 0.35: return 0.15
 	if x < 0.5: return 1.0
