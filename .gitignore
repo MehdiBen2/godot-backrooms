@@ -26,3 +26,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 *.swp
+
+# Blender auto-backups
+*.blend1
