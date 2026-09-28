@@ -4,7 +4,7 @@ shader_type canvas_item;
 // scanlines. `amount` fades it in and out; the node's modulate alpha fades it with the HUD.
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear;
 uniform float amount : hint_range(0.0, 1.0) = 0.0;
-uniform vec3 tint = vec3(0.91, 0.714, 0.29);
+uniform vec3 tint = vec3(0.941, 0.659, 0.22);
 
 void fragment() {
 	vec3 c = texture(screen_tex, SCREEN_UV).rgb;

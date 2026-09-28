@@ -34,7 +34,7 @@ uniform float bloom_amt : hint_range(0.0, 4.0) = 0.0;
 uniform float bloom_tint : hint_range(0.0, 1.0) = 0.5;
 uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
 
-const vec3 PHOSPHOR = vec3(1.0, 0.785, 0.319);   // the terminal's amber, brightest channel at 1
+const vec3 PHOSPHOR = vec3(1.0, 0.7, 0.234);   // the terminal's amber, brightest channel at 1
 
 // the node's modulate (its own and its parents'): writing COLOR in fragment() would drop it, so it is
 // caught here and applied at the end — the HUD fades these under the pause menu and the terminal

@@ -27,13 +27,13 @@ const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
 const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
 
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
-const AMBER := Color("e8b64a")
-const AMBER_DIM := Color(0.91, 0.714, 0.29, 0.38)
+const AMBER := Color("f0a838")
+const AMBER_DIM := Color(0.941, 0.659, 0.22, 0.38)
 const TEXT := Color("f2e6b8")
 const TEXT_DIM := Color(0.949, 0.902, 0.722, 0.5)
 const MUTED := Color("b3a57a")
 const GREEN := Color("5de08f")
-const ORANGE := Color("e59d3a")
+const ORANGE := Color("e8702c")      # low: pulled toward red so it still reads apart from AMBER
 const RED := Color("ff4636")
 const FILL := Color(0.035, 0.028, 0.014, 0.8)
 
@@ -46,7 +46,8 @@ const PANEL_RIGHT := 92.0
 const TOP := 118.0
 const BOTTOM := 92.0
 const ICON_BOX := 84.0
-const BAR_H := 36.0
+const BAR_H := 40.0
+const BAR_GAP := 4.0             # dark space between a bar's outline and its segments
 const BAR_SEGMENTS := 20
 const TAB_H := 50.0
 const TAB_SLANT := 24.0
@@ -111,6 +112,7 @@ var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _
 var link_nodes: Array = []           # dossier phenomena rows: a click opens their entry
 var selected_label: Label
 var battery_label: Label
+var cursor: ColorRect
 
 # right-hand sheet
 var readout: Control
@@ -313,7 +315,7 @@ func _build() -> void:
 	overlay_mat.shader = load("res://shaders/ui_vhs_overlay.gdshader")
 	overlay_mat.set_shader_parameter("distortion", LENS_CURVE)
 	overlay_mat.set_shader_parameter("fit_corners", true)
-	overlay_mat.set_shader_parameter("chroma_amt", 0.004)
+	overlay_mat.set_shader_parameter("chroma_amt", 0.0015)
 	overlay_mat.set_shader_parameter("scan_amt", 0.16)
 	overlay_mat.set_shader_parameter("grain_amt", 0.05)
 	overlay_mat.set_shader_parameter("vignette_amt", 0.22)
@@ -327,6 +329,7 @@ func _build() -> void:
 	bloom = CrtBloom.new(content_root, viewport.get_texture())
 	overlay_mat.set_shader_parameter("bloom_tex", bloom.texture())
 	overlay_mat.set_shader_parameter("bloom_amt", BLOOM)
+	overlay_mat.set_shader_parameter("bloom_damp", 0.88)   # lit segments keep their colour, not glow to white
 
 	var screen := Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -413,7 +416,20 @@ func _build_frame() -> Control:
 	f.offset_left = FRAME_INSET; f.offset_top = FRAME_INSET
 	f.offset_right = -FRAME_INSET; f.offset_bottom = -FRAME_INSET
 	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	f.add_theme_stylebox_override("panel", _box(Color(0.03, 0.024, 0.01, 0.22), Color(AMBER, 0.85), FRAME_LINE, 16))
+	f.add_theme_stylebox_override("panel", _box(Color(0.03, 0.022, 0.008, 0.55), Color(AMBER, 0.85), FRAME_LINE, 16))
+	# a rule under the title line and over the key line, like a terminal's status bars
+	for top in [true, false]:
+		var rule := ColorRect.new()
+		rule.color = Color(AMBER, 0.3)
+		rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rule.anchor_right = 1.0
+		rule.offset_left = 30.0; rule.offset_right = -30.0
+		if top:
+			rule.offset_top = 54.0; rule.offset_bottom = 56.0
+		else:
+			rule.anchor_top = 1.0; rule.anchor_bottom = 1.0
+			rule.offset_top = -54.0; rule.offset_bottom = -52.0
+		f.add_child(rule)
 	return f
 
 func _build_header() -> Control:
@@ -508,7 +524,7 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	col.add_child(meta)
 	var bar := PanelContainer.new()
 	var bsb := _box(FILL, AMBER, LINE, 4)
-	bsb.set_content_margin_all(6)
+	bsb.set_content_margin_all(LINE + BAR_GAP)
 	bar.add_theme_stylebox_override("panel", bsb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -594,7 +610,17 @@ func _build_items() -> Control:
 	selected_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(selected_label)
 	battery_label = _label("BATTERY LIFE: 100%", 24, TEXT, 1)
-	v.add_child(battery_label)
+	var last := HBoxContainer.new()
+	last.add_theme_constant_override("separation", 8)
+	last.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	last.add_child(battery_label)
+	cursor = ColorRect.new()                 # the prompt's block cursor, blinking (_process)
+	cursor.color = AMBER
+	cursor.custom_minimum_size = Vector2(13, 22)
+	cursor.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	last.add_child(cursor)
+	v.add_child(last)
 	return v
 
 func _refresh_items() -> void:
@@ -1304,6 +1330,7 @@ func _process(dt: float) -> void:
 	t += dt
 	_update_vitals(dt)
 	_update_battery_line()
+	cursor.self_modulate.a = 1.0 if fmod(t, 1.06) < 0.53 else 0.0
 	_update_link()
 	_update_glitch(dt)
 	overlay_mat.set_shader_parameter("bloom_amt", BLOOM * glow_flicker.update(dt))
