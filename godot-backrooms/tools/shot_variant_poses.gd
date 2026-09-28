@@ -45,10 +45,16 @@ func _initialize() -> void:
 	# STYLES=1: the same rest pose in each wear style instead of the pose row
 	var styles: Array = []
 	if OS.get_environment("STYLES") != "":
-		var base := {"sheet": false, "cracks": 0.0, "missing": "", "clothes": false, "outfit": 0, "sleeves": true}
-		for mod in [{}, {"cracks": 1.0}, {"missing": ["Head"]}, {"missing": ["ArmL", "ArmR"], "cracks": 0.7},
+		var base := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0}
+		var set1 := [{}, {"cracks": 1.0}, {"missing": ["Head"]}, {"missing": ["ArmL", "ArmR"], "cracks": 0.7},
 				{"missing": ["Head", "ArmL", "ArmR"]}, {"missing": ["ForearmR"]},
-				{"clothes": true, "outfit": 0}, {"clothes": true, "outfit": 1, "sleeves": false}, {"sheet": true}]:
+				{"clothes": true, "outfit": 0}, {"clothes": true, "outfit": 1, "sleeves": false}, {"sheet": true}]
+		# STYLES=2: the outfits and the covers
+		var set2 := [{"clothes": true, "outfit": 2}, {"clothes": true, "outfit": 4}, {"clothes": true, "outfit": 5},
+				{"clothes": true, "outfit": 6}, {"clothes": true, "outfit": 7}, {"clothes": true, "outfit": 9},
+				{"sheet": true, "sheet_kind": 0, "seed": 3.0}, {"sheet": true, "sheet_kind": 1, "seed": 9.0},
+				{"sheet": true, "sheet_kind": 2, "seed": 1.0, "clothes": true, "outfit": 4}, {"sheet": true, "sheet_kind": 3, "seed": 5.0}, {"sheet": true, "sheet_kind": 4, "seed": 2.0}, {"sheet": true, "sheet_kind": 4, "seed": 6.0, "clothes": true, "outfit": 5}]
+		for mod in (set2 if OS.get_environment("STYLES") == "2" else set1):
 			var st := base.duplicate()
 			st.merge(mod, true)
 			styles.append(st)

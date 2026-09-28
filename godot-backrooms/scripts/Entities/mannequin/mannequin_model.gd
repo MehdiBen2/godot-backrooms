@@ -33,13 +33,28 @@ const MISSING_SETS := [
 	[["Head"], 1.5],                                     # headless
 	[["Head", "ArmL", "ArmR"], 0.6],                     # just a torso on legs
 ]
-const OUTFITS := [                            # shirt, bottom: faded shop-window colours
-	[Color(0.42, 0.14, 0.13), Color(0.16, 0.16, 0.18)],
-	[Color(0.2, 0.28, 0.38), Color(0.55, 0.5, 0.42)],
-	[Color(0.62, 0.6, 0.55), Color(0.12, 0.12, 0.14)],
-	[Color(0.25, 0.33, 0.22), Color(0.3, 0.22, 0.16)],
-	[Color(0.5, 0.4, 0.2), Color(0.35, 0.33, 0.36)],
+# Display-shop outfits in faded colours: top (+ pattern), bottom, sleeves, trousers or a dress
+const OUTFITS := [
+	{"top": Color(0.42, 0.14, 0.13), "bottom": Color(0.16, 0.16, 0.18), "sleeves": true},
+	{"top": Color(0.2, 0.28, 0.38), "bottom": Color(0.55, 0.5, 0.42), "sleeves": false},
+	{"top": Color(0.62, 0.6, 0.55), "bottom": Color(0.12, 0.12, 0.14), "sleeves": true, "pants": true},
+	{"top": Color(0.25, 0.33, 0.22), "bottom": Color(0.3, 0.22, 0.16), "sleeves": false, "pants": true},
+	{"top": Color(0.18, 0.2, 0.3), "bottom": Color(0.14, 0.14, 0.16), "sleeves": true, "pattern": 1, "pattern_color": Color(0.8, 0.78, 0.7)},
+	{"top": Color(0.5, 0.16, 0.14), "bottom": Color(0.2, 0.2, 0.24), "sleeves": true, "pattern": 2, "pattern_color": Color(0.15, 0.12, 0.1), "pants": true},
+	{"top": Color(0.58, 0.46, 0.2), "sleeves": false, "dress": true},
+	{"top": Color(0.14, 0.14, 0.16), "sleeves": true, "dress": true, "pattern": 3, "pattern_color": Color(0.85, 0.83, 0.76)},
+	{"top": Color(0.45, 0.36, 0.42), "sleeves": false, "dress": true, "pattern": 1, "pattern_color": Color(0.75, 0.72, 0.66)},
+	{"top": Color(0.7, 0.68, 0.62), "bottom": Color(0.25, 0.3, 0.42), "sleeves": false, "pattern": 3, "pattern_color": Color(0.5, 0.15, 0.14), "pants": true},
 ]
+# What goes over the sheeted ones (mannequin_sheet.gdshader kind): linen dust sheet, moving blanket, plastic
+const SHEETS := [
+	{"kind": 0, "tint": Color(0.8, 0.78, 0.72), "weight": 1.0},
+	{"kind": 0, "tint": Color(0.74, 0.68, 0.52), "weight": 0.6},      # yellowed with age
+	{"kind": 1, "tint": Color(0.36, 0.38, 0.36), "weight": 0.6},
+	{"kind": 1, "tint": Color(0.3, 0.34, 0.44), "weight": 0.4},
+	{"kind": 2, "tint": Color(0.9, 0.92, 0.9), "weight": 0.7},        # plastic: the figure shows through
+]
+const SHEET_SHADER := preload("res://shaders/mannequin_sheet.gdshader")
 var _sheet_mesh: ArrayMesh
 
 var parts: Array = []                        # {mesh, xf, pivot, kind, side, ...}
@@ -237,9 +252,19 @@ func load_variant(host: Node) -> bool:
 
 ## How this one has aged: {sheet, cracks 0..1, missing: [bone names], clothes, outfit, sleeves}
 static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
-	var st := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0, "sleeves": true}
+	var st := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0, "sheet_kind": 0,
+		"seed": rng.randf() * 100.0}
 	if rng.randf() < SHEET_CHANCE:
 		st.sheet = true
+		var total := 0.0
+		for sh in SHEETS:
+			total += float(sh.weight)
+		var roll := rng.randf() * total
+		for k in SHEETS.size():
+			roll -= float(SHEETS[k].weight)
+			if roll <= 0.0:
+				st.sheet_kind = k
+				break
 		return st
 	if rng.randf() < CRACK_CHANCE:
 		st.cracks = rng.randf_range(0.6, 1.0)
@@ -256,7 +281,6 @@ static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
 	if rng.randf() < DRESSED_CHANCE:
 		st.clothes = true
 		st.outfit = rng.randi() % OUTFITS.size()
-		st.sleeves = rng.randf() < 0.5
 	return st
 
 ## A posed copy of the variant sculpt (its own rigged scene), in figure space, worn per `style`
@@ -265,11 +289,24 @@ func make_variant(pose: Dictionary, style := {}) -> Node3D:
 	if not variant_rigged:
 		return null
 	if style.get("sheet", false):
-		var covered := Node3D.new()                     # just the sheet: whatever stands under it stays hidden
+		var sheet: Dictionary = SHEETS[int(style.get("sheet_kind", 0)) % SHEETS.size()]
+		var covered := Node3D.new()
 		var mi_s := MeshInstance3D.new()
 		mi_s.mesh = _sheet()
 		mi_s.transform = variant_root_xf.affine_inverse()   # the crowd places it through variant_root_xf
+		var sm := ShaderMaterial.new()
+		sm.shader = SHEET_SHADER
+		sm.set_shader_parameter("kind", int(sheet.kind))
+		sm.set_shader_parameter("tint", sheet.tint)
+		sm.set_shader_parameter("seed", float(style.get("seed", 0.0)))
+		mi_s.material_override = sm
 		covered.add_child(mi_s)
+		if int(sheet.kind) == 2:                         # clear plastic: the figure inside, stood at rest
+			var inner := style.duplicate()
+			inner.sheet = false
+			var fig := make_variant(rest_pose(), inner)
+			if fig != null:
+				covered.add_child(fig)
 		return covered
 	var n: Node3D = variant_scene.instantiate()
 	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
@@ -297,10 +334,14 @@ func _wear_material(mi: MeshInstance3D, style: Dictionary) -> ShaderMaterial:
 		mat.set_shader_parameter("roughness", base.roughness)
 	mat.set_shader_parameter("cracks", float(style.get("cracks", 0.0)))
 	mat.set_shader_parameter("clothes", 1.0 if style.get("clothes", false) else 0.0)
-	var outfit: Array = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
-	mat.set_shader_parameter("shirt_color", outfit[0])
-	mat.set_shader_parameter("bottom_color", outfit[1])
-	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", true) else 0.0)
+	var outfit: Dictionary = OUTFITS[int(style.get("outfit", 0)) % OUTFITS.size()]
+	mat.set_shader_parameter("shirt_color", outfit.top)
+	mat.set_shader_parameter("bottom_color", outfit.get("bottom", outfit.top))
+	mat.set_shader_parameter("sleeves", 1.0 if style.get("sleeves", outfit.get("sleeves", true)) else 0.0)
+	mat.set_shader_parameter("pants", 1.0 if outfit.get("pants", false) else 0.0)
+	mat.set_shader_parameter("dress", 1.0 if outfit.get("dress", false) else 0.0)
+	mat.set_shader_parameter("pattern", int(outfit.get("pattern", 0)))
+	mat.set_shader_parameter("pattern_color", outfit.get("pattern_color", Color.WHITE))
 	return mat
 
 ## A dust sheet thrown over a standing figure (figure space: feet on y = 0, facing +Z): a round head, the
