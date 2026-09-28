@@ -11,6 +11,10 @@ extends Node
 ##                      only once per REREAD_COOLDOWN per entity, so it can't be farmed
 ## and each is marked up by the conditions it was taken in (close range, off-roster sightings,
 ## hazard pay while the player is hurt or losing it, readings filed back to back).
+## Mapping pays too: hazard tape (scripts/Player/tape_tool.gd) calls file_survey() with the grid
+## cells each strip marks, and every cell never marked before on that level files SURVEY_PER_CELL,
+## plus a bonus as the level's survey passes each of SURVEY_MILESTONES. Marked cells are saved per
+## level, so a level's map only pays once.
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
 ## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
 ## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
@@ -34,6 +38,8 @@ const HAZARD_BELOW := 40.0
 const MOMENTUM_WINDOW := 300.0   # a filing within this of the last one adds MOMENTUM_STEP ...
 const MOMENTUM_STEP := 0.1
 const MOMENTUM_MAX := 3          # ... up to this many steps
+const SURVEY_PER_CELL := 1       # RY for each grid cell first marked with tape on a level
+const SURVEY_MILESTONES := [[0.25, 25], [0.5, 50], [0.75, 100]]   # [share of the open cells, bonus RY]
 
 var unit := "RY"
 var tiers: Array = []            # [{code, title, yield, brief}], ascending
@@ -42,6 +48,7 @@ var total := 0                   # lifetime Research Yield
 var sites := {}                  # entity_id -> [level ids it has been read on]
 var supplementals := {}          # entity_id -> supplemental filings so far
 var last_report := {}            # the last file() result (hud.gd reads it for the NEW ENTRY toast)
+var surveyed := {}               # level id -> {"x,y": true}: the cells mapped with tape there
 
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
 var _last_filed := -1.0e9
@@ -192,6 +199,44 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	yield_filed.emit(report)
 	return report
 
+## Hazard tape just went down: `cells` (Vector2i) are the grid cells the strip marks on this level,
+## `open_cells` how many open cells the level has (for the milestones). Returns the report like
+## file() does, kind "survey" ({..., "cells": new cells, "coverage": 0..1}), or kind "" when every
+## cell was already on the map.
+func file_survey(cells: Array, open_cells: int) -> Dictionary:
+	var level := Archive.current_level_id()
+	if level == "":
+		level = "unknown"
+	var done: Dictionary = surveyed.get(level, {})
+	var before := done.size()
+	for c in cells:
+		done["%d,%d" % [c.x, c.y]] = true
+	var fresh := done.size() - before
+	var report := {"id": "", "kind": "", "title": "CORRIDOR MAPPED", "lines": [], "total": 0,
+		"tier_from": tier_index(), "tier_to": tier_index(), "cells": fresh,
+		"coverage": float(done.size()) / float(maxi(open_cells, 1))}
+	if fresh <= 0:
+		return report
+	surveyed[level] = done
+	var lines: Array = [["CORRIDOR MAPPED", fresh * SURVEY_PER_CELL]]
+	if open_cells > 0:
+		for m in SURVEY_MILESTONES:
+			var need: float = open_cells * float(m[0])
+			if before < need and done.size() >= need:
+				lines.append(["SURVEY %d%% COMPLETE" % roundi(float(m[0]) * 100.0), int(m[1])])
+	var gained := 0
+	for ln in lines:
+		gained += int(ln[1])
+	total += gained
+	report.kind = "survey"
+	report.lines = lines
+	report.total = gained
+	report.tier_to = tier_index()
+	last_report = report
+	_save()
+	yield_filed.emit(report)
+	return report
+
 ## Debug console `clearance add <n>`
 func grant(amount: int) -> Dictionary:
 	var from := tier_index()
@@ -208,6 +253,7 @@ func reset() -> void:
 	total = 0
 	sites.clear()
 	supplementals.clear()
+	surveyed.clear()
 	_reread_at.clear()
 	_momentum = 0
 	last_report = {}
@@ -236,6 +282,12 @@ func _load() -> bool:
 	if cf.has_section("supplementals"):
 		for id in cf.get_section_keys("supplementals"):
 			supplementals[id] = int(cf.get_value("supplementals", id, 0))
+	if cf.has_section("survey"):
+		for id in cf.get_section_keys("survey"):
+			var done := {}
+			for k in cf.get_value("survey", id, []):
+				done[str(k)] = true
+			surveyed[id] = done
 	return true
 
 func _save() -> void:
@@ -245,4 +297,6 @@ func _save() -> void:
 		cf.set_value("sites", id, sites[id])
 	for id in supplementals:
 		cf.set_value("supplementals", id, supplementals[id])
+	for id in surveyed:
+		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
 	cf.save(SAVE_PATH)

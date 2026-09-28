@@ -7,10 +7,10 @@ shader_type spatial;
 render_mode cull_disabled;
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
-uniform float retro_strength = 6.0;     // how hard the backing throws the light back
-uniform float retro_tightness = 18.0;   // cone of the return: higher = only close to the light's axis
+uniform float retro_strength = 1.6;     // how hard the backing throws the light back
+uniform float retro_tightness = 24.0;   // cone of the return: higher = only close to the light's axis
 uniform float gloss = 0.14;             // roughness of the vinyl top coat
-uniform float sparkle = 3.0;            // glints off the individual prism cells
+uniform float sparkle = 0.8;            // glints off the individual prism cells
 uniform float sparkle_cells = 26.0;     // prism cells across the tape's width
 
 varying vec2 cell_uv;

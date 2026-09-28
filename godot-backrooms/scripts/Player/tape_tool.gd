@@ -7,7 +7,10 @@ extends Node
 ## The rolls are an inventory item (tape_pickup.gd): ROLL_LENGTH of tape each, the one in use is
 ## `roll_left`; when it runs out the next roll comes out.
 ## Built by hud.gd; tape_readout.gd draws the tape mode HUD off `state`, `length`, `limit`,
-## `surface`, `anchor` / `tip`, `roll_left` and the result of the last pull (`result_t`, `result_len`).
+## `surface`, `anchor` / `tip`, `roll_left` and the result of the last pull (`result_t`, `result_len`,
+## `result_ry`).
+## Each strip also maps the level: the grid cells it marks go to Clearance.file_survey() and pay
+## Research Yield the first time (asra_clearance.gd).
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
@@ -33,6 +36,8 @@ var latched := false             # a press that found nothing to stick to: let g
 var state := "idle"              # idle / pull / placed / short / no_surface
 var result_t := 0.0              # s left showing placed / short / no_surface
 var result_len := 0.0            # m in the strip just placed
+var result_ry := 0               # Research Yield it filed for mapping new ground (0: none new)
+var _open_cells := -1            # the level's open cells (the survey's 100%), counted once
 var limit := ""                  # what is stopping the strip growing: "" / MAX / ROLL / CORNER / EDGE
 var surface := ""                # WALL / FLOOR / CEILING the strip is on
 var anchor := Vector3.ZERO       # the pressed-down end
@@ -185,6 +190,7 @@ func _tear_off() -> void:
 	_play("tape_rip.wav", -5.0, randf_range(0.92, 1.08))
 	roll_left -= l
 	_result("placed", l)
+	result_ry = int(Clearance.file_survey(_cells_marked(a, b, n), _count_open()).get("total", 0))
 	if roll_left < MIN_STRIP:                  # that roll is done: the next one comes out
 		inventory.remove_item(TapePickup.ITEM_ID)
 		roll_left = TapePickup.ROLL_LENGTH
@@ -197,7 +203,36 @@ func _cancel() -> void:
 func _result(what: String, l: float) -> void:
 	state = what
 	result_len = l
+	result_ry = 0
 	result_t = RESULT_TIME
+
+## The level's grid cells a strip a -> b marks: the ones it runs through on a floor or ceiling, the
+## corridor in front of the wall for a strip on a wall
+func _cells_marked(a: Vector3, b: Vector3, n: Vector3) -> Array:
+	var lvl: Node = Game.level
+	var out: Array = []
+	if lvl == null:
+		return out
+	var off := n * 0.5 if absf(n.y) < 0.7 else Vector3.ZERO
+	var steps := maxi(1, ceili(a.distance_to(b) / 1.5))
+	for i in steps + 1:
+		var c: Vector2i = lvl.cell_of(a.lerp(b, float(i) / steps) + off)
+		if not (c in out) and not lvl.walls.has(c) and not lvl.pits.has(c):
+			out.append(c)
+	return out
+
+func _count_open() -> int:
+	var lvl: Node = Game.level
+	if lvl == null:
+		return 0
+	if _open_cells < 0:
+		_open_cells = 0
+		for z in lvl.size:
+			for x in lvl.size:
+				var c := Vector2i(x, z)
+				if not lvl.walls.has(c) and not lvl.pits.has(c):
+					_open_cells += 1
+	return _open_cells
 
 func _clear() -> void:
 	pulling = false

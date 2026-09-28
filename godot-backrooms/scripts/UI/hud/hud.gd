@@ -358,6 +358,13 @@ func _on_yield_filed(report: Dictionary) -> void:
 	match report.get("kind", ""):
 		"first_contact":
 			return
+		"survey":
+			# every strip's own yield shows on the tape readout; the milestones get a toast
+			if (report.lines as Array).size() > 1:
+				var lines: Array = [["%s // %d%% OF THIS LEVEL MAPPED" % [Archive.current_dossier().get("designation", "UNMAPPED SITE"),
+					roundi(float(report.get("coverage", 0.0)) * 100.0)], Term.GREEN, 18]]
+				lines.append_array(_yield_lines(report))
+				toast.push("[SURVEY MILESTONE]", lines)
 		"new_site":
 			var info := Archive.entity_info(str(report.id))
 			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
