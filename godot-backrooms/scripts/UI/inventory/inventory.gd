@@ -70,7 +70,7 @@ const STACK_CELLS := 8           # widest stack gauge on an INV row
 const ROW_ICON := 30.0           # item icon on an inventory row (rendered from its model, item_icon.gd)
 const ROW_H := 34.0              # one inventory slot row; all SLOT_COUNT are listed, empty ones dim
 const INV_TOP := TOP + 4.0 * ICON_BOX + 3.0 * 30.0 + 40.0   # the inventory list, under the vitals
-const RAIL_W := 44.0             # the sheet's scroll rail, in the gap left of it
+const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of it (fits "PG UP")
 const RAIL_GAP := 26.0
 const RAIL_END := 70.0           # arrow + key label at each end of the rail
 const PAGE_ICON := 190.0         # the same icon on the [F1] item record
@@ -514,7 +514,7 @@ func _build_footer() -> Control:
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(agency)
-	for hint in ["UP/DN SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
+	for hint in ["UP/DN/WHEEL SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
 	var close := Button.new()
@@ -658,7 +658,10 @@ func _build_items() -> Control:
 	v.offset_left = COL_X; v.offset_right = COL_X + COL_W
 	v.offset_top = INV_TOP; v.offset_bottom = -BOTTOM
 	v.add_theme_constant_override("separation", 6)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.mouse_filter = Control.MOUSE_FILTER_STOP     # the wheel over the list steps the selection
+	v.gui_input.connect(func(e: InputEvent):
+		if _wheel_items(e): v.accept_event()
+	)
 	var head := HBoxContainer.new()
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title := _label("INVENTORY", 19, MUTED, 3)
@@ -717,7 +720,9 @@ func _item_row(i: int) -> Control:
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.set_meta("hover", false)
 	p.gui_input.connect(func(e: InputEvent):
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		if _wheel_items(e):
+			p.accept_event()
+		elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			var quiet := active_page != "ITEMS"   # the page switch plays its own chirp
 			_select(i, quiet)
 			_select_tab("ITEMS")
@@ -824,6 +829,23 @@ func _select(i: int, quiet := false) -> void:
 	if i != selected and not quiet: _sfx("select")
 	selected = i
 	_refresh_selection()
+
+## Mouse wheel over the inventory: down to the next item, up to the previous, and the sheet turns
+## to [F1] ITEMS to show it, as a click would. True when `e` was a wheel step (the caller eats it)
+func _wheel_items(e: InputEvent) -> bool:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed:
+		return false
+	var step := 0
+	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN: step = 1
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP: step = -1
+	if step == 0:
+		return false
+	var was := selected
+	_move_selection(step)
+	if selected != was:
+		_select_tab("ITEMS")
+	return true
 
 func _move_selection(delta: int) -> void:
 	if items.is_empty():
