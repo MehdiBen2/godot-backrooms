@@ -273,6 +273,7 @@ func _build_pause() -> void:
 
 func _build_inventory() -> void:
 	inventory = load("res://scripts/UI/inventory/inventory.gd").new()
+	inventory.player = player
 	add_child(inventory)
 
 ## Push the menu's saved settings into the audio buses / player (js/game/settings.js)

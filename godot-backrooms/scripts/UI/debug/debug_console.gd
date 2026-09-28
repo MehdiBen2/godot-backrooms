@@ -13,15 +13,16 @@ extends CanvasLayer
 ##   lightout                   trigger the grid power cut event
 ##   clear                      wipe this log
 ##
-## Names: bacteria, mannequin, mimic, watcher.
+## Names: bacteria, mannequin, mimic, watcher, killer (placeholder model, no AI yet).
 
 const ENTITIES := {
 	"bacteria": "Entity",
 	"mannequin": "Mannequin",
 	"mimic": "Mimic",
 	"watcher": "Watcher",
+	"killer": "Killer",
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "watcher"]
+const ORDER := ["bacteria", "mannequin", "mimic", "watcher", "killer"]
 
 var root: Node
 var panel: PanelContainer

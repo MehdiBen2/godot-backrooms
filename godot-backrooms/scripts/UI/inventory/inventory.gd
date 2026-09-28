@@ -18,6 +18,7 @@ const AMBER := Color("ffc107")
 const RED := Color("ff3b30")
 
 var font: FontFile = load("res://fonts/vcr.ttf")
+var player: Node                     # set by hud.gd; VITALS reads live stats off it
 var shown := false
 var fade: Tween
 var panel_tween: Tween
@@ -34,6 +35,17 @@ var overlay_mat: ShaderMaterial
 var t := 0.0
 var glitch_left := 0.0
 var next_glitch := 3.0
+
+# tabs
+var pages := {}                      # tab name -> page Control
+var tab_buttons := {}                # tab name -> Button
+var active_page := "ITEMS"
+var vitals_labels := {}              # stat name -> value Label
+
+# archive / lore (placeholder tab; scripts/World/props pickups can call add_lore())
+const ARCHIVE_CAP := 10
+var lore_entries: Array = []         # {id, title, text}
+var archive_list: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -124,29 +136,28 @@ func _build() -> void:
 			close_requested.emit())
 	add_child(veil)
 
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(center)
-
-	# content_root: sized to match the SubViewport below; its position is what the open/close
-	# animation slides, while everything visual (fisheye + VHS look) lives in the viewport texture
-	const PANEL_SIZE := Vector2(660, 342)
+	# content_root: positioned directly via anchors (not a CenterContainer) so its rect is correct
+	# the instant _build() runs, rather than waiting on a container's first deferred sort — the
+	# CenterContainer version could read a stale (0,0) position on the very first open and get
+	# stuck there. Anchored a little below true centre, clear of the HUD meters at the bottom.
+	const PANEL_SIZE := Vector2(800, 342)
 	content_root = Control.new()
-	content_root.custom_minimum_size = PANEL_SIZE
+	content_root.anchor_left = 0.5; content_root.anchor_right = 0.5
+	content_root.anchor_top = 0.58; content_root.anchor_bottom = 0.58
+	content_root.offset_left = -PANEL_SIZE.x * 0.5; content_root.offset_right = PANEL_SIZE.x * 0.5
+	content_root.offset_top = -PANEL_SIZE.y * 0.5; content_root.offset_bottom = PANEL_SIZE.y * 0.5
 	content_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	center.add_child(content_root)
+	add_child(content_root)
 
 	# Render the panel's own controls into a SubViewport so the composite shader below can
 	# actually warp them (a barrel/fisheye lens needs to resample pixels, not just tint them).
-	# SubViewportContainer forwards mouse input into it, so the slots stay clickable.
+	# The SubViewportContainer forwards mouse input into it (so the slots stay clickable) but is
+	# itself invisible; a TextureRect sampling the same viewport texture draws the distorted
+	# result on top — a plain SubViewportContainer.material proved unreliable for this shader.
 	var vp_container := SubViewportContainer.new()
 	vp_container.stretch = true
 	vp_container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay_mat = ShaderMaterial.new()
-	overlay_mat.shader = load("res://shaders/ui_vhs_overlay.gdshader")
-	overlay_mat.set_shader_parameter("aspect", PANEL_SIZE.x / PANEL_SIZE.y)
-	vp_container.material = overlay_mat
+	vp_container.modulate.a = 0.0
 	content_root.add_child(vp_container)
 
 	var viewport := SubViewport.new()
@@ -154,6 +165,17 @@ func _build() -> void:
 	viewport.transparent_bg = true
 	viewport.disable_3d = true
 	vp_container.add_child(viewport)
+
+	var lens := TextureRect.new()
+	lens.texture = viewport.get_texture()
+	lens.stretch_mode = TextureRect.STRETCH_SCALE
+	lens.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lens.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay_mat = ShaderMaterial.new()
+	overlay_mat.shader = load("res://shaders/ui_vhs_overlay.gdshader")
+	overlay_mat.set_shader_parameter("aspect", PANEL_SIZE.x / PANEL_SIZE.y)
+	lens.material = overlay_mat
+	content_root.add_child(lens)
 
 	var tint := ColorRect.new()
 	tint.color = Color(0.043, 0.035, 0.02, 0.62)
@@ -194,11 +216,38 @@ func _build() -> void:
 	col.add_child(_gradient_rect(1, Color(1, 0.757, 0.027, 0.6), Color(1, 0.757, 0.027, 0.05)))
 	col.add_child(_spacer(16))
 
-	# --- body: slot grid (+ its hint row, left-aligned under it) and the detail pane ---
+	# --- row: left-side tab list (like the pause menu's nav), a divider, then the active page ---
+	# size_flags_vertical EXPAND_FILL: without it, row (and the divider/page area inside it) would
+	# shrink to the tab list's short minimum height instead of filling the panel, leaving the
+	# divider line too short next to the taller grid content beside it.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 18)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(row)
+
+	row.add_child(_build_tab_bar())
+
+	var vdiv := ColorRect.new()
+	vdiv.color = Color(0.9, 0.882, 0.804, 0.12)
+	vdiv.custom_minimum_size = Vector2(1, 0)
+	vdiv.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vdiv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(vdiv)
+
+	var page_host := Control.new()
+	page_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(page_host)
+
+	# --- ITEMS page: slot grid (+ its hint row, left-aligned under it) and the detail pane ---
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 22)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(body)
+	body.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	page_host.add_child(body)
+	pages["ITEMS"] = body
 
 	var left_col := VBoxContainer.new()
 	left_col.add_theme_constant_override("separation", 12)
@@ -252,6 +301,22 @@ func _build() -> void:
 	detail_wrap.add_child(detail)
 	body.add_child(detail_wrap)
 
+	# --- VITALS page: live readout off the player, same numbers the HUD meters show ---
+	var vitals_page := _build_vitals_page()
+	vitals_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vitals_page.visible = false
+	page_host.add_child(vitals_page)
+	pages["VITALS"] = vitals_page
+
+	# --- ARCHIVE page: recovered lore/papers — placeholder until a pickup system exists ---
+	var archive_page := _build_archive_page()
+	archive_page.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	archive_page.visible = false
+	page_host.add_child(archive_page)
+	pages["ARCHIVE"] = archive_page
+
+	for n in tab_buttons: _style_tab(n)
+
 	# Corner brackets, rendered into the viewport too so the lens warps them along with everything else
 	viewport.add_child(_corner(Control.PRESET_TOP_LEFT, 6, 6, true, true))
 	viewport.add_child(_corner(Control.PRESET_TOP_RIGHT, -6 - 22, 6, true, false))
@@ -259,6 +324,124 @@ func _build() -> void:
 	viewport.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -6 - 22, -6 - 22, false, false))
 
 	_refresh()
+
+# ---- tabs -------------------------------------------------------------------------
+func _build_tab_bar() -> VBoxContainer:
+	var bar := VBoxContainer.new()
+	bar.add_theme_constant_override("separation", 4)
+	bar.custom_minimum_size = Vector2(96, 0)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for tab in ["ITEMS", "VITALS", "ARCHIVE"]:
+		var b := _tab_button(tab)
+		b.pressed.connect(_select_tab.bind(tab))
+		tab_buttons[tab] = b
+		bar.add_child(b)
+	return bar
+
+func _tab_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.flat = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.add_theme_font_override("font", _font(3))
+	b.add_theme_font_size_override("font_size", 12)
+	b.custom_minimum_size = Vector2(0, 28)
+	return b
+
+func _style_tab(name: String) -> void:
+	var b: Button = tab_buttons[name]
+	var active: bool = name == active_page
+	var sb := _box(Color(0, 0, 0, 0), RED if active else Color(0.9, 0.882, 0.804, 0.12), Vector4(2, 0, 0, 0))
+	sb.content_margin_left = 12
+	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+		b.add_theme_stylebox_override(s, sb)
+	b.add_theme_color_override("font_color", CREAM if active else Color(0.9, 0.882, 0.804, 0.45))
+	b.add_theme_color_override("font_hover_color", CREAM)
+
+func _select_tab(name: String) -> void:
+	if active_page == name: return
+	active_page = name
+	for n in pages: pages[n].visible = (n == name)
+	for n in tab_buttons: _style_tab(n)
+	_refresh_header_count()
+	if name == "VITALS": _refresh_vitals()
+
+func _refresh_header_count() -> void:
+	if not count_label: return
+	match active_page:
+		"ITEMS": count_label.text = "%d/%d" % [items.size(), SLOT_COUNT]
+		"ARCHIVE": count_label.text = "%d/%d" % [lore_entries.size(), ARCHIVE_CAP]
+		_: count_label.text = ""
+
+# ---- VITALS page: live stats off the player, same numbers the HUD meters already show ----
+func _build_vitals_page() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(_label("VITALS", 11, Color(0.9, 0.882, 0.804, 0.45), 3))
+	var line := ColorRect.new()
+	line.color = Color(0.9, 0.882, 0.804, 0.12)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line)
+	v.add_child(_spacer(8))
+	for stat in ["SANITY", "STAMINA", "HEALTH", "BATTERY"]:
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var n := _label(stat, 12, Color(0.9, 0.882, 0.804, 0.7), 2)
+		n.custom_minimum_size = Vector2(120, 0)
+		row.add_child(n)
+		var val := _label("—", 12, CREAM, 1)
+		vitals_labels[stat] = val
+		row.add_child(val)
+		v.add_child(row)
+	return v
+
+func _refresh_vitals() -> void:
+	if not player: return
+	if vitals_labels.has("SANITY"): vitals_labels["SANITY"].text = "%d%%" % int(round(player.sanity))
+	if vitals_labels.has("STAMINA"): vitals_labels["STAMINA"].text = "%d%%" % int(round(player.stamina))
+	if vitals_labels.has("HEALTH"): vitals_labels["HEALTH"].text = "%d%%" % int(round(player.health))
+	if vitals_labels.has("BATTERY"): vitals_labels["BATTERY"].text = "%d%%" % int(round(player.battery))
+
+# ---- ARCHIVE page: recovered lore/papers — placeholder until a pickup system exists ----
+func _build_archive_page() -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(_label("ARCHIVE PAPERS", 11, Color(0.9, 0.882, 0.804, 0.45), 3))
+	var line := ColorRect.new()
+	line.color = Color(0.9, 0.882, 0.804, 0.12)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line)
+	v.add_child(_spacer(10))
+	archive_list = VBoxContainer.new()
+	archive_list.add_theme_constant_override("separation", 6)
+	archive_list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(archive_list)
+	_refresh_archive()
+	return v
+
+func _refresh_archive() -> void:
+	if not archive_list: return
+	for c in archive_list.get_children(): c.queue_free()
+	if lore_entries.is_empty():
+		archive_list.add_child(_label("NO ENTRIES RECOVERED", 12, Color(0.9, 0.882, 0.804, 0.35), 2))
+	else:
+		for e in lore_entries:
+			archive_list.add_child(_label(str(e.title).to_upper(), 12, CREAM, 1))
+	_refresh_header_count()
+
+## World/props pickups can call this once a real archive-paper pickup exists
+func add_lore(id: String, title: String, text: String) -> void:
+	for e in lore_entries:
+		if e.id == id: return
+	if lore_entries.size() >= ARCHIVE_CAP: return
+	lore_entries.append({"id": id, "title": title, "text": text})
+	_refresh_archive()
 
 func _build_slot(i: int) -> Control:
 	var p := PanelContainer.new()
@@ -320,7 +503,7 @@ func _refresh() -> void:
 			s.icon.color = Color(0, 0, 0, 0)
 			s.qty.text = ""
 		_style_slot(i, false)
-	if count_label: count_label.text = "%d/%d" % [items.size(), SLOT_COUNT]
+	_refresh_header_count()
 	_refresh_detail()
 
 func _refresh_detail() -> void:
@@ -396,6 +579,7 @@ func _process(dt: float) -> void:
 	t += dt
 	if tag_dot: tag_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
 	_update_idle_glitch(dt)
+	if active_page == "VITALS": _refresh_vitals()
 
 ## Every few seconds, a brief tear-glitch burst on the overlay — the tape never sits perfectly
 ## still, echoing the pause menu's random title glitch (menu.gd _update_glitch)

@@ -110,6 +110,14 @@ var slot_weight: Array[float] = []
 var slot_target: Array[float] = []
 var slot_on: Array[float] = []     # 0..1: lit under the quality cap (eased, so a light never pops)
 var slot_want: Array[bool] = []
+# Only the nearest few lights cast shadows (Gfx `light_shadows`), and the tube twins and far lights never
+# do, so an unshadowed light shines straight through walls: a tube in the next corridor would light your
+# floor with no source in sight. Each fixture gets a grid line-of-sight test to the player (f.seen) and an
+# unshadowed light fades out while its tube is behind a wall. Eased, so nothing pops.
+var slot_vis: Array[float] = []    # 0..1: main light allowed (shadowed, or its tube in sight)
+var slot_twin: Array[float] = []   # 0..1: twin allowed (never shadowed, so only while in sight)
+var far_vis: Array[float] = []
+var _door_cells := {}              # doorways let light through; every other wall cell blocks it
 var _rank_timer := 0.0
 var _candidates: Array = []
 var _lit_cap := POOL_SIZE
@@ -137,6 +145,9 @@ var open_mix := 0.0                # how far the air is cleared and the far dist
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
 
 func build_lighting() -> void:
+	for o: Dictionary in objects:
+		if o.type == "door":
+			_door_cells[Vector2i(roundi(o.pos_x), roundi(o.pos_y))] = true
 	if panel_ceiling != null:
 		_place_panel_fixtures()
 		_build_panel_ceiling()
@@ -157,7 +168,7 @@ func build_lighting() -> void:
 ## too. It is used while the .lvl is unchanged since the bake and the preset allows it (Gfx `baked_gi`: High and
 ## Ultra; Ultra adds a second bounce). Without a bake: SDFGI, heavy, so only on Ultra ("ssil") and only for
 ## levels with a Classic zone unless the .lvl forces it with "sdfgi": true / false (the editor's REAL-TIME GI).
-const BAKE_VERSION := "1"          # bump when the geometry code changes in a way old bakes no longer match
+const BAKE_VERSION := "3"          # bump when the geometry code changes in a way old bakes no longer match
 var voxel_gi: VoxelGI
 
 func gi_path() -> String:
@@ -226,9 +237,7 @@ func _place_fixtures() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			# thin walls and doors leave most of their cell open (and now carry the ceiling-step
-			# bulkhead against a neighbouring low room), so they still need a fixture over them
-			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c): continue
+			if walls.has(c) or arch_cells.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
@@ -246,9 +255,7 @@ func _place_fixtures() -> void:
 			# reference photos. The far-light pool and the baked bounce light keep the gaps between tubes lit.
 			if is_bright or is_classic:
 				if not grid_node: continue
-			# a carved cell's own neighbours are open along its passage, so the corridor heuristic
-			# (opposite neighbours both walls) almost never matches it; it still needs its fixture
-			elif not (ns or ew or grid_node or carved.has(c)): continue
+			elif not (ns or ew or grid_node): continue
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else BURNT_CHANCE)
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)
@@ -275,7 +282,9 @@ func _place_panel_fixtures() -> void:
 			# of the texture's panels read as switched-off diffusers
 			var on_grid := x % 2 == 0 and z % 2 == 0
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
-			var burnt := not on_grid or (not (is_bright or is_classic) and rng.randf() < chance)
+			# a door / thin wall stands right under the cell centre, where the light would go: it would sit
+			# inside the partition, so these cells keep their panel but never glow or cast
+			var burnt := not on_grid or carved.has(c) or (not (is_bright or is_classic) and rng.randf() < chance)
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": on_grid,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
@@ -523,6 +532,8 @@ func _build_light_pool() -> void:
 		slot_target.append(0.0)
 		slot_on.append(0.0)
 		slot_want.append(false)
+		slot_vis.append(0.0)
+		slot_twin.append(0.0)
 		var g := OmniLight3D.new()
 		g.light_color = LIGHT_COLOR
 		g.omni_range = CEIL_GLOW_RANGE
@@ -548,6 +559,7 @@ func _build_light_pool() -> void:
 		far_pool.append(fl)
 		far_fixture.append(null)
 		far_weight.append(0.0)
+		far_vis.append(0.0)
 
 func slot_level(i: int) -> float:
 	var f = slot_fixture[i]
@@ -556,6 +568,21 @@ func slot_level(i: int) -> float:
 func slot_position(i: int) -> Vector3:
 	var f = slot_fixture[i]
 	return Vector3.ZERO if f == null else f.light_pos
+
+## Grid line of sight from a light to a point: any wall cell in between blocks it (a doorway doesn't), and
+## so does an off-centre thin wall or door. The two end cells are skipped, the light's own and the target's.
+func _light_sees(a: Vector3, b: Vector3) -> bool:
+	var ca := cell_of(a)
+	var cb := cell_of(b)
+	var dx := b.x - a.x
+	var dz := b.z - a.z
+	var steps := ceili(sqrt(dx * dx + dz * dz) / 0.5)
+	for i in range(1, steps):
+		var t := float(i) / steps
+		var c := Vector2i(roundi((a.x + dx * t) / CELL), roundi((a.z + dz * t) / CELL))
+		if c == ca or c == cb: continue
+		if walls.has(c) and not _door_cells.has(c): return false
+	return not crosses_wall_segment(Vector2(a.x, a.z) / CELL, Vector2(b.x, b.z) / CELL)
 
 func _rank(p: Vector3) -> void:
 	var max_sq := SELECT_RADIUS * SELECT_RADIUS
@@ -567,7 +594,9 @@ func _rank(p: Vector3) -> void:
 		f.dsq = dx * dx + dz * dz
 		f.wanted = false
 		f.far_wanted = false
-		if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
+		if f.dsq < far_sq and f.get("casts", true):
+			f.seen = _light_sees(f.light_pos, p)
+			_candidates.append(f)
 	_candidates.sort_custom(func(a, b): return a.dsq < b.dsq)
 	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls)
 	_far_candidates = _candidates.slice(mini(_lit_cap, _candidates.size()), mini(_lit_cap + _far_cap, _candidates.size()))
@@ -613,6 +642,8 @@ func _update_pool(delta: float) -> void:
 			slot_fixture[free] = f
 			slot_target[free] = 1.0
 			slot_weight[free] = 0.0
+			slot_vis[free] = 1.0 if f.get("seen", true) else 0.0
+			slot_twin[free] = slot_vis[free]
 			f.slot = free
 			slot_assigned.emit(free)
 		_rank_slots()
@@ -635,8 +666,12 @@ func _update_pool(delta: float) -> void:
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var cast: float = 0.0 if f.black > 0.0 else f.level      # a dead tube keeps a faint ember but lights nothing
-		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
+		# a dead tube, or one caught in the dark half of a flicker, keeps a faint ember but lights nothing
+		var cast: float = 0.0 if (f.black > 0.0 or f.level < 0.1) else f.level
+		var seen: bool = f.get("seen", true)
+		slot_vis[i] += ((1.0 if (seen or l.shadow_enabled) else 0.0) - slot_vis[i]) * k
+		slot_twin[i] += ((1.0 if seen else 0.0) - slot_twin[i]) * k
+		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i] * slot_vis[i]
 		l.visible = energy > 0.002
 		var g := ceil_glow[i]
 		# the halo only reads as "coming from this fixture" while its real ceiling is close enough
@@ -653,13 +688,16 @@ func _update_pool(delta: float) -> void:
 			l.global_position = f.light_pos
 			l.light_energy = energy
 			continue
-		lb.visible = l.visible and f.dsq < TWIN_RANGE * TWIN_RANGE       # far away the tube reads as a point: skip the twin
-		# one light at each end of the tube, so the ceiling is lit along its whole length, not from a point
-		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF
+		# one light at each end of the tube, so the ceiling is lit along its whole length, not from a point.
+		# The twin never casts shadows, so behind a wall it hands its share back to the main light, which
+		# slides to the tube's centre.
+		var twin := slot_twin[i] if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0   # far away the tube reads as a point
+		lb.visible = l.visible and twin > 0.01
+		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin
 		l.global_position = f.light_pos + axis
 		lb.global_position = f.light_pos - axis
-		l.light_energy = energy * 0.5
-		lb.light_energy = energy * 0.5
+		l.light_energy = energy * (1.0 - 0.5 * twin)
+		lb.light_energy = energy * 0.5 * twin
 	_update_far(k)
 
 # Far lights keep their tube while it stays wanted (no jumping about), fade out when it isn't, and a
@@ -676,6 +714,7 @@ func _assign_far() -> void:
 		if free == -1: break
 		far_fixture[free] = f
 		far_weight[free] = 0.0
+		far_vis[free] = 1.0 if f.get("seen", true) else 0.0
 		f.far = free
 
 func _update_far(k: float) -> void:
@@ -688,8 +727,10 @@ func _update_far(k: float) -> void:
 			fl.visible = false
 			continue
 		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
+		far_vis[i] += ((1.0 if f.get("seen", true) else 0.0) - far_vis[i]) * k   # shadowless: off while behind a wall
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
+		var cast: float = 0.0 if (f.black > 0.0 or f.level < 0.1) else f.level
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * cast * far_weight[i] * far_vis[i] * (1.0 - t * t * (3.0 - 2.0 * t))
 		fl.visible = energy > 0.002
 		fl.global_position = f.light_pos
 		fl.light_energy = energy
