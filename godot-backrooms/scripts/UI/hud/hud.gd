@@ -290,6 +290,11 @@ func _build_inventory() -> void:
 	inventory = load("res://scripts/UI/inventory/inventory.gd").new()
 	inventory.player = player
 	add_child(inventory)
+	# the torch in your hand (torch_model.gd) is always carried: first on the list
+	inventory.add_item("torch", "Flashlight",
+		"Your hand torch. F switches it on and off; about 75 s of light on a full charge, a quarter "
+		+ "of the drain in a power cut. R loads a carried battery pack into it.", 1, "TRC", 1,
+		"res://models/flashlight.glb")
 
 ## The field scanner is the only way to log an entity, so every run starts with one in the
 ## terminal. Reticle and toast live in hud_root: they fade with the OSD under the pause menu and the
