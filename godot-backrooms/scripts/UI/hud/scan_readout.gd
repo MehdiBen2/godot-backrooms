@@ -202,36 +202,6 @@ func _draw_panel(o: Vector2, st: String, col: Color) -> void:
 		canvas.draw_rect(Rect2(x + sw + 6.0, y + 3.0, 9.0, 16.0), _a(col, 0.85))
 	y += 24.0 + 8.0
 
-	# 2: oscilloscope: noise while searching, a clean wave coming through as the reading locks in
-	var box := Rect2(x, y, inner, SCOPE_H)
-	canvas.draw_rect(box, _a(Color(0, 0, 0, 0.35)))
-	canvas.draw_rect(box, _a(col, 0.35), false, 1.5)
-	for i in range(1, 6):
-		var gx := x + inner * i / 6.0
-		for j in range(0, int(SCOPE_H), 6):
-			canvas.draw_line(Vector2(gx, y + j), Vector2(gx, y + j + 2.0), _a(col, 0.12), 1.0)
-	canvas.draw_line(Vector2(x, y + SCOPE_H * 0.5), Vector2(x + inner, y + SCOPE_H * 0.5), _a(col, 0.12), 1.0)
-	var clean := 0.0
-	var amp := 0.15 + 0.7 * sig
-	if st == "lock":
-		clean = _smooth(p)
-		amp = 0.8
-	elif st == "logged" or st == "on_file":
-		clean = 1.0
-		amp = 0.75
-	var frame: float = floor(t * 24.0)
-	var pts := PackedVector2Array()
-	for i in SCOPE_PTS:
-		var u := float(i) / (SCOPE_PTS - 1)
-		var noise := 0.5 * sin(u * 37.0 + t * 23.0) + 0.3 * sin(u * 91.0 - t * 41.0) + 0.6 * (_hash(i + frame * 97.0) - 0.5)
-		var wave := sin(u * TAU * 3.0 - t * 9.0)
-		var v := lerpf(noise, wave, clean) * amp
-		pts.append(Vector2(x + u * inner, y + SCOPE_H * 0.5 - v * SCOPE_H * 0.42))
-	canvas.draw_polyline(pts, _a(col), 2.0, true)
-	var head := x + fmod(t * 0.8, 1.0) * inner           # the write head crossing the scope
-	canvas.draw_line(Vector2(head, y + 3.0), Vector2(head, y + SCOPE_H - 3.0), _a(col, 0.35), 2.0)
-	y += SCOPE_H + 12.0
-
 	# SIGNAL: how strongly something scannable is ahead (through walls), in cells and in words
 	var word := "NONE"
 	if st == "lock" or st == "logged" or st == "on_file": word = "LOCKED"
