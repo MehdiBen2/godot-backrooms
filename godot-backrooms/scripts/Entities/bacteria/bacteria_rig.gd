@@ -989,4 +989,3 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 				_turn(f_bone, fwd, -sgn * f_splay * 0.18)
 			elif ring_fingers.has(f_bone):
 				_turn(f_bone, fwd, sgn * f_splay * 0.18)
-

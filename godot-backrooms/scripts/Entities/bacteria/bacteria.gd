@@ -480,6 +480,10 @@ func update_fear(delta: float) -> void:
 	Game.presence += (minf(1.0, presence * (1.3 if hunts else 1.0)) * LOUDNESS - Game.presence) * minf(1.0, delta * 2.0)
 	Game.hunted = hunts and dist < 40.0
 	player.update_adrenaline(delta, hunts and dist < player.ADR_RANGE)
+	# on top of the footstep jolts, a steady tremor while it's actively bearing down on you (quake()'s
+	# effect is squared, so this needs to sit well above the footstep hits to read as anything at all)
+	if state == "chase":
+		player.quake(0.4 + 0.35 * clampf(1.0 - dist / 20.0, 0.0, 1.0))
 	var terror := (1.0 - dist / TERROR_DISTANCE) if near else 0.0
 	Game.terror = terror
 	if near:
