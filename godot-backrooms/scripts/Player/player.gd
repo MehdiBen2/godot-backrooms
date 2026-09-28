@@ -368,7 +368,8 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	turn_accum = 0.0
 	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
 	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
-	handheld.update(dt, shake, head_bob)
+	var motion := (1.8 if sprint else (0.6 if crouch else 1.0)) if walking else 0.0
+	handheld.update(dt, motion, shake, head_bob)
 	cam.position += handheld.offset
 	cam.rotation.y = handheld.yaw
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
