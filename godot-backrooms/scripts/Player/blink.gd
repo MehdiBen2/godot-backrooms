@@ -10,9 +10,9 @@ extends Node
 
 signal closed
 
-const CLOSE := 0.09              # s, lids down
-const HOLD := 0.045              # s, shut
-const OPEN := 0.22               # s, lids up (slower, with a settle)
+const CLOSE := 0.1               # s, lids down
+const HOLD := 0.08               # s, shut
+const OPEN := 0.24               # s, lids up (slower, with a settle)
 const TIRED_HOLD := 0.35         # extra s shut per unit of `slow` over 1
 const DOUBLE_CHANCE := 0.3       # a tired blink's chance of a second, quick one
 
@@ -46,13 +46,15 @@ func _process(dt: float) -> void:
 		return
 	var was := _t
 	_t += dt
+	# the shut moment always gets its frame and its signal, even when a slow frame jumps past it
+	if was < _close and _t >= _close:
+		_t = _close
+		closed.emit()
 	if _t < _close:
 		var u := _t / _close
 		Game.fx_blink = lerpf(_from, 1.0, u * u * (3.0 - 2.0 * u))
 	elif _t < _close + _hold:
 		Game.fx_blink = 1.0
-		if was < _close:
-			closed.emit()
 	elif _t < _close + _hold + _open:
 		var v := (_t - _close - _hold) / _open
 		Game.fx_blink = pow(1.0 - v, 2.5)       # quick off the mark, then a slow settle
