@@ -112,6 +112,7 @@ func _ready() -> void:
 	if not model.load_template(self):
 		push_warning("mannequin: model failed to load")
 		return
+	model.load_variant(self)     # optional: crowd looks fine without it, just less varied
 	ready_ok = true
 	reset()
 
@@ -665,5 +666,6 @@ func debug_despawn() -> void:
 func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT
 	visible = true
+	Archive.discover("mannequin")
 	reset()
 	return true

@@ -107,6 +107,7 @@ func vocalize(delta: float, st: String) -> void:
 		var was := voice_state
 		voice_state = st
 		if st == "screech" or (st == "chase" and was != "screech"):
+			Archive.discover("bacteria")
 			scares.entity_call("scream", pos, true)
 			scares.startle(0.7 if was == "lurk" else 0.4)      # out of the dark beside you: much worse
 			_screech_fx(d)
@@ -480,6 +481,10 @@ func update_fear(delta: float) -> void:
 	Game.presence += (minf(1.0, presence * (1.3 if hunts else 1.0)) * LOUDNESS - Game.presence) * minf(1.0, delta * 2.0)
 	Game.hunted = hunts and dist < 40.0
 	player.update_adrenaline(delta, hunts and dist < player.ADR_RANGE)
+	# on top of the footstep jolts, a steady tremor while it's actively bearing down on you (quake()'s
+	# effect is squared, so this needs to sit well above the footstep hits to read as anything at all)
+	if state == "chase":
+		player.quake(0.4 + 0.35 * clampf(1.0 - dist / 20.0, 0.0, 1.0))
 	var terror := (1.0 - dist / TERROR_DISTANCE) if near else 0.0
 	Game.terror = terror
 	if near:

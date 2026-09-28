@@ -216,6 +216,7 @@ func _spawn() -> bool:
 	return false
 
 func _add(p: Vector3) -> void:
+	Archive.discover("eyes")
 	# sized by distance so it always covers the same small angle on screen (about 1 degree per eye):
 	# a fixed 30 cm eye 35 m away would be seven pixels and simply not seen
 	var size: float = p.distance_to(cam.global_position) * rng.randf_range(0.0145, 0.019)

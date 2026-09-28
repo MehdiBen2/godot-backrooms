@@ -20,7 +20,7 @@ Inside the game project:
 | --- | --- |
 | `scripts/GameLogicEngine/` | `Game` and `Gfx` autoloads (game state, level flow, graphics settings), `main.gd` (scene root). |
 | `scripts/Player/` | First-person controller, footsteps, breathing/heart, torch, blink. |
-| `scripts/Entities/` | Monsters: the Bacteria (layered AI + procedural rig), Mannequin, Mimic, Watcher, Eyes. |
+| `scripts/Entities/` | Monsters: the Bacteria (layered AI + procedural rig), Mannequin, Mimic, Eyes. |
 | `scripts/World/` | Level loading from `.lvl` grids, geometry and lighting builders, grid navigation, the outdoor Hills. |
 | `scripts/Audio/` | Ambience, scare director and synthesized scare sounds. |
 | `scripts/Events/` | The event director (power cuts, whispers, ...). |

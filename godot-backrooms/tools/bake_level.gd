@@ -1,8 +1,8 @@
 extends SceneTree
 ## Bakes a level's global illumination: builds the level exactly as the game does, voxelizes its walls,
 ## floors and ceilings into a VoxelGI and saves that to levels/baked/<id>_gi.res. Only the geometry is
-## baked: the bounce light is computed live from whatever tubes are lit, so flicker and power cuts still
-## bounce. The game uses the bake while the .lvl is unchanged (level_lighting.gd _apply_gi) and falls back
+## baked (tubes and panels switched off, see _bake): the bounce light is computed live from whatever
+## tubes are lit, so flicker and power cuts still bounce. The game uses the bake while the .lvl is unchanged (level_lighting.gd _apply_gi) and falls back
 ## to SDFGI otherwise. The level editor runs this after every save.
 ##   godot --path . --script res://tools/bake_level.gd -- --bake-level=<id from levels.json>   (all levels if no id)
 ## Needs a real renderer (not --headless): the voxel data lives on the GPU until it is saved.
@@ -36,6 +36,20 @@ func _bake(meta: Dictionary) -> void:
 		var moving: bool = n.get_parent() != lvl and not (n.get_parent() is StaticBody3D)
 		var see_through: bool = gi.material_override is BaseMaterial3D and (gi.material_override as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 		gi.gi_mode = GeometryInstance3D.GI_MODE_DYNAMIC if (moving or see_through) else GeometryInstance3D.GI_MODE_STATIC
+	# The voxels keep whatever glows at bake time as a permanent light source, and the voxelizer reads the
+	# troffer model's own emissive tube material, not the dark one a burnt-out tube is drawn with (nor the
+	# per-instance colours that switch a lit one off): every tube, dead or alive, would go on lighting its
+	# ceiling in-game. The tube / diffuser meshes stay out of the bake, and the panel ceiling bakes as plain
+	# tiles; the live tubes supply every light.
+	var glowing: Array = [lvl.tubes_mm, lvl.lens_mm, lvl.burnt_tubes_mm, lvl.burnt_lens_mm]
+	for mmi: MultiMeshInstance3D in lvl.find_children("*", "MultiMeshInstance3D", true, false):
+		if mmi.multimesh == null: continue
+		if mmi.multimesh in glowing or mmi == lvl.reflect_mmi:
+			mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		elif mmi.multimesh == lvl.panels_mm:
+			var plain := StandardMaterial3D.new()
+			plain.albedo_texture = (mmi.material_override as ShaderMaterial).get_shader_parameter("albedo_tex")
+			mmi.material_override = plain
 	var box: Dictionary = lvl.gi_bounds()
 	var vgi := VoxelGI.new()
 	vgi.position = box.center

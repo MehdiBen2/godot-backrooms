@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cxc6p8m3bs346"
-path="res://.godot/imported/watcher.png-0e37343c6c29b489a4b48a8d94ed9c94.ctex"
+uid="uid://cpas13g028gih"
+path="res://.godot/imported/Character_Monster_06.png-77c984ab60812582d2dae5696481b4ba.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://textures/entities/watcher.png"
-dest_files=["res://.godot/imported/watcher.png-0e37343c6c29b489a4b48a8d94ed9c94.ctex"]
+source_file="res://models/entities/killer/Character_Monster_06.png"
+dest_files=["res://.godot/imported/Character_Monster_06.png-77c984ab60812582d2dae5696481b4ba.ctex"]
 
 [params]
 
