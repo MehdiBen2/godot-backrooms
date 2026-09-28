@@ -306,8 +306,10 @@ func _update_camcorder(delta: float, seen: float) -> void:
 	if Gfx.post_mat:
 		Gfx.post_mat.set_shader_parameter("wb", Vector3.ONE.lerp(wbv, ff))
 		Gfx.post_mat.set_shader_parameter("black_lift", FF_BLACK_LIFT * ff)
-	# the ceiling: bright with bounced light while the power is on (open_mix already drops in a power cut)
-	var fill := FF_CEIL_FILL * open_mix
+	# the ceiling: bright with bounced light while the power is on (open_mix already drops in a power cut).
+	# Only in the found-footage (classic) levels, lit evenly everywhere: the fill is one value on the shared
+	# ceiling material, so in a dim level a bright zone would light every ceiling, over dead tubes too.
+	var fill := FF_CEIL_FILL * open_mix if atmosphere() == "classic" else 0.0
 	if absf(fill - _ceil_fill) > 0.002:
 		_ceil_fill = fill
 		for m in ceil_mats:
