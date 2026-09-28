@@ -5,7 +5,7 @@ extends RefCounted
 ## One viewport per model, shared by every row / page that shows it.
 ## Show the texture through outlined() (shaders/item_icon_outline.gdshader) for the orange rim.
 ## The "model" is a scene (.glb / .tscn), or a script that builds its Node3D in _init
-## (World/props/tape_roll.gd).
+## (World/props/tape_roll.gd), or simply an image (a drawn icon, e.g. the scanner's), used as it is.
 
 const SIZE := 256                  # icon resolution, px
 const FILL := 0.86                 # share of the frame the model spans, leaving room for the outline
@@ -19,6 +19,8 @@ static var host: Node              # keeps the viewports in the tree (the main v
 static func texture(model_path: String) -> Texture2D:
 	if model_path == "" or not ResourceLoader.exists(model_path):
 		return null
+	if is_image(model_path):
+		return load(model_path)
 	if cache.has(model_path) and is_instance_valid(host):
 		return cache[model_path]
 	if not is_instance_valid(host):
@@ -43,6 +45,7 @@ static func outlined(model_path: String, px: float, color := OUTLINE, rim_px := 
 	mat.shader = OUTLINE_SHADER
 	mat.set_shader_parameter("outline_color", color)
 	mat.set_shader_parameter("outline_px", rim_px)
+	mat.set_shader_parameter("straight_alpha", is_image(model_path))
 	r.material = mat
 	return r
 
@@ -116,6 +119,10 @@ static func _freeze(vp: SubViewport) -> void:
 		await tree.process_frame
 	if is_instance_valid(vp):
 		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+## A drawn icon rather than a model to render
+static func is_image(path: String) -> bool:
+	return path.get_extension().to_lower() in ["png", "jpg", "jpeg", "webp", "svg"]
 
 ## The item's model as a node: a scene instanced, or a model script (see the top) made
 static func instantiate(model_path: String) -> Node3D:

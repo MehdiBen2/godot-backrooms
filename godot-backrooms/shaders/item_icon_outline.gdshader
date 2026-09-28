@@ -9,6 +9,7 @@ render_mode blend_premul_alpha;
 uniform vec4 outline_color : source_color = vec4(0.91, 0.44, 0.17, 1.0);
 uniform float outline_px = 3.0;   // rim width, screen pixels
 uniform float fill_tint = 0.12;   // pull the model's colours toward the rim colour, so it sits in the amber UI
+uniform bool straight_alpha = false;   // a drawn image icon (not premultiplied like the renders)
 
 const int DIRS = 16;
 
@@ -20,6 +21,9 @@ void vertex() {
 
 void fragment() {
 	vec4 col = texture(TEXTURE, UV);
+	if (straight_alpha) {
+		col.rgb *= col.a;
+	}
 	vec2 r = fwidth(UV) * outline_px;
 	float a = 0.0;
 	for (int i = 0; i < DIRS; i++) {
