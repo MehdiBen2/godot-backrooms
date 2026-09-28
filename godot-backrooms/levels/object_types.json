@@ -1,5 +1,5 @@
 {
-  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab.",
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier.",
   "thin_wall": {
     "label": "Thin wall",
     "key": "4",
@@ -28,5 +28,175 @@
     "opening": 1.12,
     "on_cell": "wall",
     "blocks_nav": true
+  },
+  "prop_explosive_barrel": {
+    "label": "Explosive barrel",
+    "color": "b23a2e",
+    "help": "A rusty red hazard drum. Purely decorative clutter",
+    "thickness": 0.65,
+    "scatter": true,
+    "model": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Base_Color.png",
+      "normal": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Roughness.png",
+      "metallic": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Metallic.png"
+    }
+  },
+  "prop_water_barrel": {
+    "label": "Water barrel",
+    "color": "2f6b8a",
+    "help": "A blue plastic drum. Purely decorative clutter",
+    "thickness": 0.65,
+    "scatter": true,
+    "model": "res://models/props/industrial/Water_Barrel/Water_Barrel.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Water_Barrel/Water_Barrel_Base_Color.png",
+      "normal": "res://models/props/industrial/Water_Barrel/Water_Barrel_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/Water_Barrel/Water_Barrel_Roughness.png",
+      "metallic": "res://models/props/industrial/Water_Barrel/Water_Barrel_Metallic.png"
+    }
+  },
+  "prop_gas_can": {
+    "label": "Gas can",
+    "color": "c8451f",
+    "help": "A small jerry can. Purely decorative clutter",
+    "thickness": 0.4,
+    "scatter": true,
+    "model": "res://models/props/industrial/Gas_can/Gas_Canister.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Gas_can/GasCan_Base_Color.png",
+      "normal": "res://models/props/industrial/Gas_can/GasCan_Normal.png",
+      "roughness": "res://models/props/industrial/Gas_can/GasCan_Roughness.png",
+      "metallic": "res://models/props/industrial/Gas_can/GasCan_Metallic.png"
+    }
+  },
+  "prop_gas_cylinder": {
+    "label": "Gas cylinder",
+    "color": "5a7a8a",
+    "help": "A tall pressurised tank. Purely decorative clutter",
+    "thickness": 0.55,
+    "scatter": true,
+    "model": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Base_Color.png",
+      "normal": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Normal.png",
+      "roughness": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Roughness.png",
+      "metallic": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Metallic.png"
+    }
+  },
+  "prop_cable_drum": {
+    "label": "Cable drum",
+    "color": "6b5a3a",
+    "help": "A big wooden cable spool. Purely decorative clutter",
+    "thickness": 1.3,
+    "scatter": true,
+    "model": "res://models/props/industrial/CableDrum/CableDrum.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/CableDrum/CableDrum_Base_Color.png",
+      "normal": "res://models/props/industrial/CableDrum/CableDrum_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/CableDrum/CableDrum_Roughness.png",
+      "metallic": "res://models/props/industrial/CableDrum/CableDrum_Metallic.png"
+    }
+  },
+  "prop_car_jack": {
+    "label": "Car jack",
+    "color": "8a8378",
+    "help": "A hydraulic floor jack. Purely decorative clutter",
+    "thickness": 0.6,
+    "scatter": true,
+    "model": "res://models/props/industrial/Car_Jack/CarJack.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Car_Jack/CarJack_Base_Color.png",
+      "normal": "res://models/props/industrial/Car_Jack/CarJack_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/Car_Jack/CarJack_Roughness.png",
+      "metallic": "res://models/props/industrial/Car_Jack/CarJack_Metallic.png"
+    }
+  },
+  "prop_electrical_box": {
+    "label": "Electrical box",
+    "color": "3d4a3d",
+    "help": "A wall-mount breaker box. Purely decorative clutter",
+    "thickness": 0.4,
+    "scatter": true,
+    "model": "res://models/props/industrial/ElectricalBox/ElectricalBox.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/ElectricalBox/ElectricalBox_Base_Color.png",
+      "normal": "res://models/props/industrial/ElectricalBox/ElectricalBox_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/ElectricalBox/ElectricalBox_Roughness.png",
+      "metallic": "res://models/props/industrial/ElectricalBox/ElectricalBox_Metallic.png"
+    }
+  },
+  "prop_electrical_box2": {
+    "label": "Electrical box (b)",
+    "color": "45403a",
+    "help": "A second breaker box variant. Purely decorative clutter",
+    "thickness": 0.4,
+    "scatter": true,
+    "model": "res://models/props/industrial/ElectricalBox02/ElectricalBox02.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Base_Color.png",
+      "normal": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Roughness.png",
+      "metallic": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Metallic.png"
+    }
+  },
+  "prop_pallet_truck": {
+    "label": "Pallet truck",
+    "color": "d9a441",
+    "help": "A manual pallet jack. Purely decorative clutter",
+    "thickness": 1.4,
+    "scatter": true,
+    "model": "res://models/props/industrial/PalletTruck/PalletTruck.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/PalletTruck/PalletTruck_Base_Color.png",
+      "normal": "res://models/props/industrial/PalletTruck/PalletTruck_Normal.png",
+      "roughness": "res://models/props/industrial/PalletTruck/PalletTruck_Roughness.png",
+      "metallic": "res://models/props/industrial/PalletTruck/PalletTruck_Metallic.png"
+    }
+  },
+  "prop_platform_trolley": {
+    "label": "Platform trolley",
+    "color": "5c5c5c",
+    "help": "A flatbed warehouse trolley. Purely decorative clutter",
+    "thickness": 1.1,
+    "scatter": true,
+    "model": "res://models/props/industrial/Platform_Trolley/Platform_Trolley.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Base_Color.png",
+      "normal": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Roughness.png",
+      "metallic": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Metallic.png"
+    }
+  },
+  "prop_work_light": {
+    "label": "Work light",
+    "color": "e0c34a",
+    "help": "A tripod work lamp with a lit bulb. Purely decorative clutter",
+    "thickness": 0.6,
+    "scatter": true,
+    "model": "res://models/props/industrial/WorkLight/WorkLight.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/WorkLight/WorkLight_Base_Color.png",
+      "normal": "res://models/props/industrial/WorkLight/WorkLight_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/WorkLight/WorkLight_Roughness.png",
+      "metallic": "res://models/props/industrial/WorkLight/WorkLight_Metallic.png",
+      "emissive": "res://models/props/industrial/WorkLight/WorkLight_Emissive.png"
+    }
+  },
+  "prop_work_light2": {
+    "label": "Work light (b)",
+    "color": "e0c34a",
+    "help": "A second work lamp variant with a lit bulb. Purely decorative clutter",
+    "thickness": 0.6,
+    "scatter": true,
+    "model": "res://models/props/industrial/Worklight02/WorkLight02.fbx",
+    "textures": {
+      "albedo": "res://models/props/industrial/Worklight02/WorkLight02_Base_Color.png",
+      "normal": "res://models/props/industrial/Worklight02/WorkLight02_Normal_DirectX.png",
+      "roughness": "res://models/props/industrial/Worklight02/WorkLight02_Roughness.png",
+      "metallic": "res://models/props/industrial/Worklight02/WorkLight02_Metallic.png",
+      "emissive": "res://models/props/industrial/Worklight02/WorkLight02_Emissive.png"
+    }
   }
 }

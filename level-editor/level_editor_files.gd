@@ -6,6 +6,8 @@ extends "res://level_editor_canvas.gd"
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const ATMOS := ["dim", "classic"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage", "Maintenance", "Threshold", "Pool Rooms", "Stairwell", "Office"]
+const SCATTER_PER_CELLS := 25         # roughly one prop per this many open floor cells
+const SCATTER_KEEPOUT := 2            # cells kept clear round spawn / exit / entity / tv and existing objects
 
 var GAME := OS.get_environment("BACKROOMS_GAME_DIR") if OS.has_environment("BACKROOMS_GAME_DIR") \
 	else ProjectSettings.globalize_path("res://").path_join("../godot-backrooms").simplify_path()
@@ -326,6 +328,53 @@ func _bake(id: String) -> void:
 	_bake_pid = OS.create_process(exe, args)
 	if _bake_pid > 0:
 		_status("Saved %s  -  baking lighting in the background..." % str(index[current].file))
+
+## Random clutter, scattered onto open floor: every object type flagged "scatter" in object_types.json
+## (the industrial props), dropped at a random cell with a random rotation and size, clear of spawn / exit
+## / entity / tv and anything already placed. Undoable in one step, same as a paint stroke.
+func _scatter_props() -> void:
+	var kinds: Array = []
+	for t in OBJ_TYPES:
+		if bool(OBJ_INFO[t].get("scatter", false)): kinds.append(t)
+	if kinds.is_empty():
+		_status("No object type has \"scatter\": true in object_types.json")
+		return
+	var keep_clear: Array[Vector2i] = []
+	for m in markers:
+		var c = markers[m]
+		if c != null: keep_clear.append(c)
+	for o: Dictionary in objects:
+		keep_clear.append(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))
+	var open: Array[Vector2i] = []
+	for z in range(1, grid_size - 1):
+		for x in range(1, grid_size - 1):
+			if grid[z][x] != FLOOR: continue
+			var c := Vector2i(x, z)
+			var near := false
+			for k in keep_clear:
+				if absi(c.x - k.x) + absi(c.y - k.y) < SCATTER_KEEPOUT:
+					near = true
+					break
+			if not near: open.append(c)
+	if open.is_empty():
+		_status("No open floor clear enough to scatter onto")
+		return
+	_push_undo()
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var count := clampi(open.size() / SCATTER_PER_CELLS, 4, 40)
+	var placed := 0
+	for i in count:
+		if open.is_empty(): break
+		var c: Vector2i = open.pop_at(rng.randi_range(0, open.size() - 1))
+		var t: String = kinds[rng.randi_range(0, kinds.size() - 1)]
+		objects.append({"type": t, "pos_x": c.x + rng.randf_range(-0.3, 0.3), "pos_y": c.y + rng.randf_range(-0.3, 0.3),
+			"rotation": rng.randf_range(0.0, 360.0), "scale": rng.randf_range(0.8, 1.3)})
+		placed += 1
+	selected = -1
+	_sync_inspector()
+	_mark_dirty()
+	_status("Scattered %d random props" % placed)
 
 func _write(path: String, payload) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)

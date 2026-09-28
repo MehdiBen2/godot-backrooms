@@ -11,6 +11,8 @@ extends "res://level_editor_files.gd"
 ##   drag the round handle to rotate, R / Shift+R rotate, Del delete, Esc deselect, G snap to grid,
 ##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees
 ## The object types (and their keys, colours and sizes) come from the game's levels/object_types.json.
+## Types with a "model" key are decorative clutter (imported meshes, not procedural geometry); those also
+## flagged "scatter": true can be dropped in bulk with the SCATTER PROPS button in the OBJECTS panel.
 
 const BG := Color("0d0c08")
 const PANEL := Color("16140d")
@@ -255,6 +257,12 @@ func _build_ui() -> void:
 		var inf: Dictionary = OBJ_INFO[t]
 		side.add_child(_tool_button("obj:" + t, "%s  (%s)" % [inf.label, inf.key], inf.col,
 			inf.help + ".\nClick places one; keep the button down and drag to aim it. Right click deletes"))
+	var has_scatter := OBJ_TYPES.any(func(t): return bool(OBJ_INFO[t].get("scatter", false)))
+	if has_scatter:
+		var scatter_b := _button("SCATTER PROPS", _scatter_props)
+		scatter_b.tooltip_text = "Drop a random spread of clutter props onto open floor, clear of spawn / exit / entity / tv and anything already placed.\nOne undo step; Ctrl+Z to take it all back"
+		scatter_b.add_theme_color_override("font_color", GOLD)
+		side.add_child(scatter_b)
 	snap_check = CheckBox.new()
 	snap_check.text = "Snap to grid  (G)"
 	snap_check.button_pressed = snap

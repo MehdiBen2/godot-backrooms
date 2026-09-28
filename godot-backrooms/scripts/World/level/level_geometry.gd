@@ -8,6 +8,7 @@ extends "res://scripts/World/level/level_data.gd"
 ## door set into a thin wall, see props/door.gd). Each has its own position, rotation and width.
 
 const Door := preload("res://scripts/World/props/door.gd")
+const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 
@@ -323,13 +324,27 @@ func _build_walls() -> void:
 func _build_objects() -> void:
 	var thin: Array = []
 	var arch: Array = []
+	var props: Array = []
 	for o: Dictionary in objects:
 		match o.type:
 			"door": _build_door(o)
 			"thin_wall": thin.append(o)
 			"arch": arch.append(o)
+			_:
+				if object_info(o.type).has("model"): props.append(o)
 	_build_thin_walls(thin)
 	_build_arches(arch)
+	_build_props(props)
+
+# Decorative clutter (levels/object_types.json entries with a "model" key): one imported mesh each, no
+# effect on the grid, nav or walls. See props/industrial_prop.gd for how the material is put together.
+func _build_props(list: Array) -> void:
+	for o: Dictionary in list:
+		var info := object_info(o.type)
+		var p := IndustrialProp.new()
+		p.transform = object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
+		add_child(p)
+		p.build(str(info.model), info.get("textures", {}))
 
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))

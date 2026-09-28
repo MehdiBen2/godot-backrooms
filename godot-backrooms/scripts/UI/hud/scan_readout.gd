@@ -247,7 +247,7 @@ func _draw_panel(o: Vector2, st: String, col: Color) -> void:
 	elif st == "logged" or st == "on_file":
 		clean = 1.0
 		amp = 0.75
-	var frame := floor(t * 24.0)
+	var frame: float = floor(t * 24.0)
 	var pts := PackedVector2Array()
 	for i in SCOPE_PTS:
 		var u := float(i) / (SCOPE_PTS - 1)
