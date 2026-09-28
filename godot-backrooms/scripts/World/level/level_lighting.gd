@@ -155,6 +155,9 @@ func _apply_gi() -> void:
 	if env.sdfgi_enabled:
 		env.sdfgi_cascades = 3
 		env.sdfgi_min_cell_size = 0.5
+		# cells half as tall as they are wide: more detail at a 3 m ceiling and less bounce light leaking
+		# through the (single-quad) ceiling in the coarse far cascades, which made the far ceiling brighter
+		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_50_PERCENT
 		# Off: SDFGI's probe occlusion approximates AO from the voxel cascades, which lag behind
 		# fast-moving dynamic objects (the player) and show up as a dark halo/blob dragging along
 		# beneath them. The bounce light itself still works fine without it.
@@ -288,7 +291,7 @@ func _update_camcorder(delta: float, seen: float) -> void:
 	# (events recolour them) taken halfway back out, late, the way a camcorder's auto white balance does
 	_wb_t += delta
 	var temp := _wb_noise.get_noise_1d(_wb_t * 3.5) * WB_DRIFT
-	var green := _wb_noise.get_noise_1d(_wb_t * 5.0 + 500.0) * WB_DRIFT * 0.6
+	var green := _wb_noise.get_noise_1d(_wb_t * 5.0 + 500.0) * WB_DRIFT * 0.3   # a green cast reads as sickly, keep it small
 	var lum := (tint.r + tint.g + tint.b) / 3.0
 	var corr := Vector3.ONE
 	if lum > 0.02:

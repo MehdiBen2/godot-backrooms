@@ -82,8 +82,7 @@ var eye := STAND_H
 var was_stepping := false
 var step_triggered := false
 var fov_kick := 0.0
-var handheld := Handheld.new()   # camcorder-in-the-hands offsets: weight, tremor, uneven steps (handheld.gd)
-var pitch_accum := 0.0           # mouse pitch since the last physics tick (rad), for the handheld weight
+var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var bob_amp := 1.0               # eased per-step bob height from handheld.step_amp
 var health := 100.0
 var sanity := 100.0
@@ -189,7 +188,6 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-e.relative.x * sens)
 		turn_accum += -e.relative.x * sens
-		pitch_accum += -e.relative.y * sens
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
@@ -368,11 +366,9 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
 	var yaw_rate := turn_accum / maxf(dt, 0.0001)
 	turn_accum = 0.0
-	var pitch_rate := pitch_accum / maxf(dt, 0.0001)
-	pitch_accum = 0.0
 	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
 	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
-	handheld.update(dt, yaw_rate, pitch_rate, shake, head_bob)
+	handheld.update(dt, shake, head_bob)
 	cam.position += handheld.offset
 	cam.rotation.y = handheld.yaw
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))

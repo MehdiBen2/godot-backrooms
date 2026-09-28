@@ -101,10 +101,12 @@ void fragment() {
 	p.x *= aspect;
 	float r2 = dot(p, p);
 	float max_r2 = 0.25 * (aspect * aspect + 1.0);
-	float zoom = 1.0 + max_r2 * (distortion + chroma_amt) * 1.05;
+	// found footage (classic): a camcorder's gentle barrel, not a fisheye that bends the ceiling grid
+	float dist = distortion * (1.0 - 0.6 * classic);
+	float zoom = 1.0 + max_r2 * (dist + chroma_amt) * 1.05;
 	float chroma = chroma_amt * (1.0 + fear * 1.2 + glitch * 4.0) + fx_shock * 0.012;
 	float threat2 = threat * threat;
-	float f = (1.0 + r2 * distortion) / zoom;
+	float f = (1.0 + r2 * dist) / zoom;
 
 	// VHS: sub-pixel line jitter, a slow rolling tracking band
 	float row = floor(uv.y * res.y * 0.5);
@@ -267,7 +269,7 @@ void fragment() {
 	}
 	col *= grade * wb;
 	// the darkest parts sit on a grey-olive pedestal (a camcorder's black level), highlights untouched
-	col = col * (1.0 - black_lift) + black_lift * vec3(0.78, 0.8, 0.62);
+	col = col * (1.0 - black_lift) + black_lift * vec3(0.8, 0.75, 0.58);    // warm, not green
 	float luma = dot(col, vec3(0.299, 0.587, 0.114));
 	float sat = clamp(0.92 - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
 	col = mix(vec3(luma), col, sat);                        // colour drains with fear
