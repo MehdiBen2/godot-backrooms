@@ -31,7 +31,7 @@ uniform vec3 wb = vec3(1.0);
 uniform float black_lift = 0.0;
 uniform float exhaust = 0.0;
 uniform float adrenaline = 0.0;   // 0..1 burst while running from the bacteria
-uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (player/blink.gd)
+uniform float fx_blink = 0.0;        // 0 open .. 1 shut: the player's own blink (scares.gd)
 uniform int post_quality = 2;      // 0 low (no lens glare / dirt / halation), 1 medium, 2 full
 uniform float insanity = 0.0;     // 0..1 low sanity: swimming blur, double vision, sagging edges
 // Grab / snap screen work (the web's CSS filter + transform on the canvas, and #grab-fade)
@@ -359,35 +359,26 @@ void fragment() {
 		col = mix(col, (col - 0.5) * 1.12 + 0.5, c_amt * 0.6);
 	}
 
-	// blink: the upper lid does most of the travel and meets a lower lid that barely rises, below
-	// the middle of the view, the gap between them narrowing as an almond (the corners close first).
-	// Right against the eye the lid edges are wide soft falloffs, not lines, with a dark band of
-	// lashes hanging under the upper one; shut, they are dark flesh with a little of the light
-	// coming through. The gap closes on a curve so a given fx_blink covers about as much of the view
-	// as the old straight lids did (the mannequins move above 0.55). Near shut the lids run past each
-	// other and the whole view goes to lid, so no seam of the picture survives a closed blink
-	float shut = 0.0;
+	// blink: two eyelids sweep in from the top and bottom, each with a bowed edge and a soft dark
+	// penumbra; the lids themselves are drawn pure black at the very end; what is left of the picture blurs and darkens
+	float blink_lids = 0.0;
 	if (fx_blink > 0.002) {
-		float xs = (SCREEN_UV.x - 0.5) * 2.0;
-		float shape = 1.0 - 0.35 * xs * xs;
-		float gap = pow(1.0 - fx_blink, 1.7) * shape;
-		float seal = smoothstep(0.7, 1.0, fx_blink) * 0.12;
-		float top_edge = 0.6 - gap + seal;
-		float bot_edge = 0.6 + gap * 0.7 - seal;
-		float lid_t = 1.0 - smoothstep(top_edge - 0.05, top_edge + 0.02, SCREEN_UV.y);
-		float lid_b = smoothstep(bot_edge - 0.02, bot_edge + 0.05, SCREEN_UV.y);
-		float lids = max(max(lid_t, lid_b), smoothstep(0.88, 1.0, fx_blink));
-		float lash = (1.0 - smoothstep(top_edge, top_edge + 0.12, SCREEN_UV.y)) * smoothstep(0.1, 0.6, fx_blink);
-		float pen = max(lash, smoothstep(bot_edge - 0.06, bot_edge, SCREEN_UV.y));
-		col *= (1.0 - 0.85 * pen) * (1.0 - 0.55 * fx_blink);
-		vec3 lid = vec3(0.014, 0.004, 0.003) * (0.5 + 0.5 * luma);
-		col = mix(col, lid, lids);
-		shut = lids;
+		float bow = 0.07 * (1.0 - 4.0 * (SCREEN_UV.x - 0.5) * (SCREEN_UV.x - 0.5));
+		float top_edge = fx_blink * 0.5 + bow * fx_blink;
+		float bot_edge = 1.0 - fx_blink * 0.5 - bow * fx_blink * 0.7;
+		float lid_t = 1.0 - smoothstep(top_edge - 0.03, top_edge + 0.01, SCREEN_UV.y);
+		float lid_b = smoothstep(bot_edge - 0.01, bot_edge + 0.03, SCREEN_UV.y);
+		float lids = max(lid_t, lid_b);
+		lids = max(lids, smoothstep(0.9, 1.0, fx_blink));   // shut is shut: no seam where the lids meet
+		float pen = (1.0 - smoothstep(top_edge, top_edge + 0.09, SCREEN_UV.y)) + smoothstep(bot_edge - 0.09, bot_edge, SCREEN_UV.y);
+		col *= 1.0 - 0.7 * fx_blink * clamp(pen, 0.0, 1.0);
+		blink_lids = lids;
 	}
 
 	vec2 fc = FRAGCOORD.xy;
 	col *= 1.0 - 0.015 * vhs * (0.5 + 0.5 * sin(fc.y * 1.57));   // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
-	col += g * (grain * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6) * (1.0 - 0.85 * shut); // organic film grain, all but gone behind shut lids
+	col += g * (grain * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
+	col = mix(col, vec3(0.0), blink_lids);                  // the lids are pure black, over grain and all
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
