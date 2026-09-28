@@ -239,7 +239,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["SHIFT // SPRINT", "C // CROUCH", "F // TORCH", "Q // SCAN", "TAB // ITEMS", "ESC // PAUSE"]
+	var hints := ["Q // SCAN", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))

@@ -9,6 +9,10 @@ const LOD_NEAR := 180.0                     # metres from a chunk's centre where
 const OCC_STEP := 8                         # occluder grid spacing, in terrain cells
 const HOUSE_CELL := 160.0                   # houses are batched per patch this size, so a patch off-screen is culled
 const HOUSE_COUNT := 30
+const GRASS_DENSITY := 1.2                  # blade roots per square metre, before the grass/road/house filter
+const GRASS_RANGE := 70.0                   # blades fade out beyond this distance: cheap since the ground texture reads fine bare
+const GRASS_HEIGHT := 0.55
+const GRASS_WIDTH := 0.08
 const DAY_SECONDS := 720.0                    # one full 24 h day/night cycle in real seconds
 const START_HOUR := 11.0
 const TIME_STEP := 0.1                        # the sky / light are refreshed this often (seconds), not every frame
@@ -19,6 +23,7 @@ var sites: Array[Vector3] = []               # x, terrain height, z of each hous
 var yaws: Array[float] = []
 var spawn_xz := Vector2.ZERO
 var terrain_mat: ShaderMaterial
+var grass_mat: ShaderMaterial
 var _batches := {}                            # "material/cell" -> {st: SurfaceTool, n: int, shadow: bool, mat}, while houses are built
 var env: Environment
 var sky_mat: ShaderMaterial
@@ -49,6 +54,7 @@ func _ready() -> void:
 	_build_terrain()
 	_build_houses()
 	_build_castle()
+	_build_grass()
 	_commit_batches()
 	_apply_time()
 	if standalone:
@@ -420,6 +426,111 @@ func _build_terrain_occluder(hs: PackedFloat32Array, n: int, cell: float, half: 
 	var oi := OccluderInstance3D.new()
 	oi.occluder = occ
 	add_child(oi)
+
+# ---- grass blades -------------------------------------------------------------
+
+## A tapered blade strip, base at y=0, tip at y=`height_m`: UV.y is the height factor the wind
+## shader sways and stretches by.
+func _blade_mesh(width: float, height_m: float, segs: int) -> ArrayMesh:
+	var verts := PackedVector3Array()
+	var norms := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var idx := PackedInt32Array()
+	for s in segs + 1:
+		var t := float(s) / segs
+		var w := width * 0.5 * (1.0 - t)
+		verts.append(Vector3(-w, height_m * t, 0.0))
+		verts.append(Vector3(w, height_m * t, 0.0))
+		norms.append(Vector3.BACK)
+		norms.append(Vector3.BACK)
+		uvs.append(Vector2(0.0, t))
+		uvs.append(Vector2(1.0, t))
+	for s in segs:
+		var a := s * 2
+		idx.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = norms
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+func _grass_noise_tex(seed_val: int, freq: float) -> NoiseTexture2D:
+	var n := FastNoiseLite.new()
+	n.seed = seed_val
+	n.frequency = freq
+	var t := NoiseTexture2D.new()
+	t.width = 256
+	t.height = 256
+	t.seamless = true
+	t.noise = n
+	return t
+
+func _build_grass_material() -> void:
+	grass_mat = ShaderMaterial.new()
+	grass_mat.shader = load("res://shaders/hills/grass.gdshader")
+	grass_mat.set_shader_parameter("bottom_color", Color(0.1, 0.2, 0.05))
+	grass_mat.set_shader_parameter("top_color", Color(0.42, 0.5, 0.16))
+	grass_mat.set_shader_parameter("color_variation_1", Color(0.16, 0.28, 0.07))
+	grass_mat.set_shader_parameter("color_variation_2", Color(0.5, 0.45, 0.2))
+	grass_mat.set_shader_parameter("noise_variation_1", _grass_noise_tex(101, 0.02))
+	grass_mat.set_shader_parameter("noise_variation_2", _grass_noise_tex(202, 0.035))
+	grass_mat.set_shader_parameter("wind_noise", _grass_noise_tex(303, 0.015))
+	grass_mat.set_shader_parameter("Noise1Scale", 12.0)
+	grass_mat.set_shader_parameter("Noise2Scale", 18.0)
+	grass_mat.set_shader_parameter("windNoiseScale", 25.0)
+
+## Grass blades, chunked like the terrain so a chunk off-screen or beyond GRASS_RANGE is culled.
+## Only sampled where surface_at() says "grass" and clear of the house pads.
+func _build_grass() -> void:
+	_build_grass_material()
+	var blade := _blade_mesh(GRASS_WIDTH, GRASS_HEIGHT, 3)
+	var chunks := int(SIZE / CHUNK)
+	var half := SIZE * 0.5
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260927
+	for cj in chunks:
+		for ci in chunks:
+			var cx := ci * CHUNK - half + CHUNK * 0.5
+			var cz := cj * CHUNK - half + CHUNK * 0.5
+			_grass_chunk(blade, cx, cz, rng)
+
+func _grass_chunk(blade: ArrayMesh, cx: float, cz: float, rng: RandomNumberGenerator) -> void:
+	var count := int(CHUNK * CHUNK * GRASS_DENSITY)
+	var xforms: Array[Transform3D] = []
+	for i in count:
+		var x := cx + rng.randf_range(-CHUNK * 0.5, CHUNK * 0.5)
+		var z := cz + rng.randf_range(-CHUNK * 0.5, CHUNK * 0.5)
+		if road_mask(x, z) > 0.4:
+			continue
+		var near_house := false
+		for s in sites:
+			if Vector2(x - s.x, z - s.z).length() < 9.0:
+				near_house = true
+				break
+		if near_house:
+			continue
+		var y := height(x, z)
+		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.75, 1.3))
+		xforms.append(Transform3D(basis, Vector3(x, y, z)))
+	if xforms.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = blade
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	mi.material_override = grass_mat
+	mi.visibility_range_end = GRASS_RANGE
+	mi.visibility_range_end_margin = 10.0
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 # ---- houses & castle ---------------------------------------------------------
 
