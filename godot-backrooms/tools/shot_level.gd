@@ -35,6 +35,19 @@ func _initialize() -> void:
 						c = here
 		player.global_position = Vector3(c.x * level.CELL, 0.1, c.y * level.CELL)
 		await create_timer(0.5).timeout
+	# SPOT=zone:<name> (bright, dark, dim, classic...): stand in the middle of that zone
+	var spot: String = env_or.call("SPOT", "")
+	if spot.begins_with("zone:"):
+		var cells: Dictionary = level.get(spot.substr(5))
+		var sum := Vector2.ZERO
+		for k in cells: sum += Vector2(k)
+		var mid := sum / maxf(cells.size(), 1)
+		var pick: Vector2i = cells.keys()[0]
+		for k in cells:
+			if Vector2(k).distance_to(mid) < Vector2(pick).distance_to(mid): pick = k
+		c = pick
+		player.global_position = Vector3(c.x * level.CELL, 0.1, c.y * level.CELL)
+		await create_timer(0.5).timeout
 	var best := Vector2i(0, 1)
 	var best_n := -1
 	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
