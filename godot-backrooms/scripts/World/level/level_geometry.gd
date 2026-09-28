@@ -17,7 +17,7 @@ var door_leaf_mat: StandardMaterial3D
 var door_hw_mat: StandardMaterial3D
 var door_frame_mat: StandardMaterial3D
 ## The level's ceiling material when it has light panels baked into it (an emission texture, e.g. BRC_A).
-## Then level_lighting.gd builds the ceiling itself, one textured quad per cell with a light behind its
+## Then level_fixtures.gd builds the ceiling itself, one textured quad per cell with a light behind its
 ## panels, instead of the plain ceiling here plus hanging troffers.
 var panel_ceiling: StandardMaterial3D
 
@@ -147,7 +147,7 @@ func _build_surfaces() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if panel_ceiling != null: pass          # built by level_lighting.gd with its lights
+			if panel_ceiling != null: pass          # built by level_fixtures.gd with its lights
 			elif classic.has(c): classic_ceil.append(c)
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
@@ -216,7 +216,7 @@ func _build_floor_collision(floor_cells: Array) -> void:
 		body.add_child(cs)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
-## (the plain quad above, or level_lighting.gd's panel ceiling) has ever carried a collider, so nothing
+## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
 ## has ever stopped a jump, a shove or a tall entity from poking straight through into the unlit plenum
 ## above it - only ever noticed at a low ceiling because that's the one height anything can actually reach.
 func _build_ceiling_collision(floor_cells: Array) -> void:

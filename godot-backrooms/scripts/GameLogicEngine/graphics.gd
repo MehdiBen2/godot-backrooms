@@ -4,7 +4,7 @@ extends Node
 ## integrated / unknown -> Low or Medium, discrete -> High. Ultra adds the extras (4x MSAA,
 ## global illumination, full-size AO, high-res volumetric fog, 8K shadows, 16x filtering).
 ##
-## The biggest costs in this game are the tube lights around you (level_lighting.gd keeps a pool of
+## The biggest costs in this game are the tube lights around you (level_light_pool.gd keeps a pool of
 ## them following you) and their shadows: `lights` is how many are lit at once and `light_shadows` how
 ## many of the nearest cast shadows (each one is six shadow renders a frame). `far_lights` are cheap
 ## shadowless lights on the tubes further out, so distant tubes still light their walls. `smooth` runs the physics
@@ -142,7 +142,7 @@ func apply_scene(root: Node = null) -> void:
 			e.ssr_enabled = s.ssr and not compat
 			e.volumetric_fog_enabled = s.vfog > 0 and not compat
 	# only lights that cast shadows in the scene file / level builder are switched; the rest stay off.
-	# The tube-light pool manages its own (level_lighting.gd reads `lights` / `light_shadows`).
+	# The tube-light pool manages its own (level_light_pool.gd reads `lights` / `light_shadows`).
 	for l in root.find_children("*", "Light3D", true, false):
 		if l.has_meta("gfx_managed"):
 			continue
