@@ -22,16 +22,22 @@ const PlayerScript := preload("res://scripts/Player/player.gd")
 const Bacteria := preload("res://scripts/Entities/bacteria/bacteria.gd")
 const FootstepsScript := preload("res://scripts/Player/footsteps.gd")
 
-const PANEL := Vector2(284, 144)     # canvas px (1920x1080 layout)
+const PANEL := Vector2(322, 168)     # canvas px (1920x1080 layout)
 const CURVE := 0.045                 # lens bulge (ui_vhs_overlay distortion, corner-fitted)
-const ICON := 20.0
-const ROW_GAP := 8
-const BAR_H := 9.0
-const VALUE_W := 40.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
+const ICON := 24.0
+const ROW_GAP := 9
+const BAR_H := 11.0
+const VALUE_W := 46.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
 const IDLE_A := 0.3                  # a row with nothing to say
 const HOLD := 2.5                    # s a row stays up after it goes quiet
 const FAST := 4.0                    # %/s: moving faster than this counts as something happening
 const GLOW := 0.6                    # of the terminal's phosphor glow: less bloom in the corner of your eye
+# it rides with the camera like a display on your kit: it lags a turn, bounces with a step or a
+# crouch, and tilts with a lean (_sway)
+const SWAY_K := 7.0                  # px per rad/s of turn
+const SWAY_MAX := Vector2(16.0, 12.0)
+const BOB_K := 60.0                  # px per metre the eye moves off its eased height
+const ROLL_K := 0.5                  # of the camera's roll
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
@@ -52,6 +58,9 @@ var rows := {}                       # name -> {icon, cells, value, shown}
 var _t := 0.0
 var _heard := 0.0                    # 0..1, eased: how red the NOISE row is
 var _lie_k := 0.0                    # 0..1: how often the readings lie (0 above LIE_BELOW)
+var _prev_f := Vector3.ZERO          # the camera's facing last frame
+var _eye := -1.0                     # eye height over the feet, eased
+var _sway := Vector2.ZERO
 
 func _ready() -> void:
 	super()
@@ -98,7 +107,7 @@ func _row(key: String, icon_path: String) -> Control:
 	var cells := Kit.cells(SEGMENTS, 2.0, false)
 	bar.add_child(cells)
 	row.add_child(bar)
-	var value := Kit.label("", 14, Kit.TEXT, 1)
+	var value := Kit.label("", 15, Kit.TEXT, 1)
 	value.custom_minimum_size.x = VALUE_W
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -124,7 +133,30 @@ func _process(dt: float) -> void:
 	_stat("SANITY", player.sanity, _state(player.sanity, 25.0, 50.0), dt, pulse)
 	_stat("HEALTH", player.health, _state(player.health, 25.0, 50.0), dt, pulse)
 	_update_noise(dt, pulse)
+	_sway_update(dt)
 	mat.set_shader_parameter("bloom_amt", float(mat.get_shader_parameter("bloom_amt")) * GLOW)
+
+## Shifts the CRT picture (not the panel, so the anchors stay put): behind a turn (a turn right leaves
+## it a little to the left, looking up leaves it low), off the eye's quick ups and downs, and tilted
+## with the camera's roll; it eases back to rest when the camera settles
+func _sway_update(dt: float) -> void:
+	var cam: Camera3D = player.get("cam")
+	if cam == null or dt <= 0.0:
+		return
+	var f := -cam.global_transform.basis.z
+	var target := Vector2.ZERO
+	if _prev_f != Vector3.ZERO:
+		var yaw_rate := wrapf(atan2(f.x, f.z) - atan2(_prev_f.x, _prev_f.z), -PI, PI) / dt
+		var pitch_rate := (asin(clampf(f.y, -1.0, 1.0)) - asin(clampf(_prev_f.y, -1.0, 1.0))) / dt
+		target = Vector2(yaw_rate, pitch_rate) * SWAY_K
+	_prev_f = f
+	var eye: float = cam.global_position.y - (player as Node3D).global_position.y
+	_eye = eye if _eye < 0.0 else lerpf(_eye, eye, minf(1.0, dt * 4.0))
+	target.y += (eye - _eye) * BOB_K
+	_sway = _sway.lerp(target.clamp(-SWAY_MAX, SWAY_MAX), minf(1.0, dt * 10.0))
+	screen.position = _sway
+	screen.pivot_offset = screen.size * 0.5
+	screen.rotation = cam.global_rotation.z * ROLL_K
 
 func _state(v: float, crit: float, low: float) -> String:
 	if v < crit: return "critical"
