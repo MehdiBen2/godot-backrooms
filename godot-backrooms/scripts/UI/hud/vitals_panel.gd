@@ -12,18 +12,26 @@ extends "res://scripts/UI/crt/crt_layer.gd"
 ##            red.
 ## Built by hud.gd into hud_root, so it fades with the rest of the OSD under the terminal and the
 ## pause menu, and stops rendering while it is faded out.
+## It keeps out of the way: a row sits faint (IDLE_A, its reading hidden) until it has something to
+## say: moving fast (sprinting, a hit, a battery going in: not the torch's steady drain), low or
+## critical, or NOISE louder than a walk or heard. Then it comes up with its reading beside the bar,
+## and settles back HOLD seconds after it goes quiet.
 
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const Bacteria := preload("res://scripts/Entities/bacteria/bacteria.gd")
 const FootstepsScript := preload("res://scripts/Player/footsteps.gd")
 
-const PANEL := Vector2(424, 222)     # canvas px (1920x1080 layout)
+const PANEL := Vector2(284, 144)     # canvas px (1920x1080 layout)
 const CURVE := 0.045                 # lens bulge (ui_vhs_overlay distortion, corner-fitted)
-const ICON := 30.0
-const ROW_GAP := 12
-const BAR_H := 16.0
-const VALUE_W := 62.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
+const ICON := 20.0
+const ROW_GAP := 8
+const BAR_H := 9.0
+const VALUE_W := 40.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
+const IDLE_A := 0.3                  # a row with nothing to say
+const HOLD := 2.5                    # s a row stays up after it goes quiet
+const FAST := 4.0                    # %/s: moving faster than this counts as something happening
+const GLOW := 0.6                    # of the terminal's phosphor glow: less bloom in the corner of your eye
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
@@ -69,7 +77,7 @@ func _build() -> void:
 ## The icon, then a thin segmented bar in a hairline outline
 func _row(key: String, icon_path: String) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	row.add_theme_constant_override("separation", 10)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon := TextureRect.new()
 	icon.texture = load(icon_path)
@@ -80,22 +88,25 @@ func _row(key: String, icon_path: String) -> Control:
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 	var bar := PanelContainer.new()
-	var sb := Kit.box(Color(Kit.FILL, 0.5), Color(Kit.AMBER, 0.75), 2, 2)
-	sb.set_content_margin_all(4)
+	var sb := Kit.box(Color(Kit.FILL, 0.5), Color(Kit.AMBER, 0.7), 1, 1)
+	sb.set_content_margin_all(2)
 	bar.add_theme_stylebox_override("panel", sb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cells := Kit.cells(SEGMENTS, 3.0, false)
+	var cells := Kit.cells(SEGMENTS, 2.0, false)
 	bar.add_child(cells)
 	row.add_child(bar)
-	var value := Kit.label("", 18, Kit.TEXT, 1)
+	var value := Kit.label("", 14, Kit.TEXT, 1)
 	value.custom_minimum_size.x = VALUE_W
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(value)
-	rows[key] = {"icon": icon, "cells": cells, "value": value, "shown": -1.0, "lie_t": 0.0, "lie": ""}
+	row.modulate.a = IDLE_A
+	value.modulate.a = 0.0
+	rows[key] = {"row": row, "icon": icon, "cells": cells, "value": value, "shown": -1.0, "lie_t": 0.0, "lie": "",
+		"speed": 0.0, "active_t": 0.0, "att": 0.0}
 	return row
 
 func _process(dt: float) -> void:
@@ -112,6 +123,7 @@ func _process(dt: float) -> void:
 	_stat("SANITY", player.sanity, _state(player.sanity, 25.0, 50.0), dt, pulse)
 	_stat("HEALTH", player.health, _state(player.health, 25.0, 50.0), dt, pulse)
 	_update_noise(dt, pulse)
+	mat.set_shader_parameter("bloom_amt", float(mat.get_shader_parameter("bloom_amt")) * GLOW)
 
 func _state(v: float, crit: float, low: float) -> String:
 	if v < crit: return "critical"
@@ -123,6 +135,8 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 	var r: Dictionary = rows[key]
 	value = clampf(value, 0.0, 100.0)
 	var eased: float = value if r.shown < 0.0 else lerpf(r.shown, value, minf(1.0, dt * 8.0))
+	if r.shown >= 0.0 and dt > 0.0:          # how fast it is moving, smoothed
+		r.speed = lerpf(float(r.speed), absf(eased - float(r.shown)) / dt, minf(1.0, dt * 6.0))
 	r.shown = eased
 	var col := Kit.AMBER
 	match state:
@@ -130,6 +144,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 		"critical": col = Color(Kit.RED, pulse)
 	_paint(r, clampi(ceili(eased / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS), col)
 	_value(r, _lie(r, "%d%%" % roundi(eased), dt, false), Kit.TEXT if state == "" else col)
+	_attend(r, state != "", float(r.speed) > FAST, dt)
 
 ## How far your sound carries right now, and whether the Bacteria is in earshot of it
 func _update_noise(dt: float, pulse: float) -> void:
@@ -149,6 +164,7 @@ func _update_noise(dt: float, pulse: float) -> void:
 	var col := Kit.AMBER.lerp(Color(Kit.RED, pulse), _heard)
 	_paint(r, cells, col)
 	_value(r, _lie(r, "%dM" % roundi(eased), dt, true), Kit.TEXT.lerp(col, _heard))   # how far your steps carry
+	_attend(r, _heard > 0.05, reach > Bacteria.HEAR_WALK * 1.05, dt)
 
 ## Low sanity: a reading flicks to a wrong number for a moment (up to about one every two seconds a
 ## row at the worst), sometimes to nothing a number could be; the bars keep telling the truth
@@ -156,11 +172,21 @@ func _lie(r: Dictionary, truth: String, dt: float, metres: bool) -> String:
 	r.lie_t = maxf(0.0, float(r.lie_t) - dt)
 	if r.lie_t <= 0.0 and _lie_k > 0.0 and randf() < _lie_k * 0.5 * dt:
 		r.lie_t = randf_range(0.08, 0.3)
+		r.active_t = maxf(float(r.active_t), r.lie_t + 0.2)   # a lie shows itself, even on a quiet row
 		if randf() < 0.15:
 			r.lie = "??M" if metres else "??%"
 		else:
 			r.lie = ("%dM" % randi_range(0, 40)) if metres else ("%d%%" % randi_range(0, 100))
 	return str(r.lie) if r.lie_t > 0.0 else truth
+
+## Up when it is `alert` (low, critical, heard) or `busy` (moving fast, loud), and HOLD s after;
+## otherwise faint with its reading hidden. Comes up quickly, settles slowly
+func _attend(r: Dictionary, alert: bool, busy: bool, dt: float) -> void:
+	r.active_t = HOLD if busy else maxf(0.0, float(r.active_t) - dt)
+	var want := 1.0 if alert or r.active_t > 0.0 else 0.0
+	r.att = move_toward(float(r.att), want, dt * (6.0 if want > r.att else 1.2))
+	(r.row as Control).modulate.a = lerpf(IDLE_A, 1.0, r.att)
+	(r.value as Control).modulate.a = r.att
 
 ## The reading beside the bar; the text is only set when it changes (a Label reshapes on every set)
 func _value(r: Dictionary, text: String, col: Color) -> void:
