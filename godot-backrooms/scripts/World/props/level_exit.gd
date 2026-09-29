@@ -49,5 +49,5 @@ func _process(_delta: float) -> void:
 	if d < TRIGGER_RADIUS:
 		used = true
 		# a taped trail all the way here documents the route (asra_clearance.gd file_route)
-		Clearance.file_route(TapeMarks.mine_on(Game.level_index), global_position)
+		Clearance.file_route(TapeMarks.mine_on(TapeMarks.MarkStore.key()), global_position)
 		Game.next_level()

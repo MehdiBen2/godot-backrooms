@@ -7,6 +7,17 @@ extends RefCounted
 static func active() -> bool:
 	return true
 
+## Marks belong to one floor of one level: the key the static lists are filed under (Net sends it as the
+## strip's "level" too, so survivors on the same floor see each other's tape)
+static func key() -> int:
+	return Game.level_index * 100 + Game.level_floor
+
+## The file name for the level's meta id on the floor being played (floor 0 keeps the plain id)
+static func file_id(level_id: String) -> String:
+	if level_id == "" or Game.level_floor <= 0:
+		return level_id
+	return "%s_f%d" % [level_id, Game.level_floor]
+
 static func _path(id: String) -> String:
 	if Game.test_level != "" or OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://levels/marks/%s.json" % id)
@@ -21,15 +32,17 @@ static func read(id: String) -> Dictionary:
 	var d = JSON.parse_string(f.get_as_text())
 	return d if d is Dictionary else {}
 
-static func write(id: String, key: String, value: Array) -> void:
+static func write(id: String, key: String, value: Array) -> bool:
 	if not active() or id == "":
-		return
+		return false
 	var d := read(id)
 	d[key] = value
 	DirAccess.make_dir_recursive_absolute(_path(id).get_base_dir())
 	var f := FileAccess.open(_path(id), FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify(d))
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(d))
+	return true
 
 static func v3(a) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))

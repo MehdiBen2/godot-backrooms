@@ -33,6 +33,8 @@ const GRAINS := ["tape_grain_0.wav", "tape_grain_1.wav", "tape_grain_2.wav", "ta
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd
+var cursor_aim := false          # the draw tools panel is open: aim with the mouse cursor (draw_ui.gd)
+var ui_down := false             # ...and the panel's TAPE tool has the left button held
 
 var pulling := false
 var length := 0.0                # m pulled out on the strip in hand
@@ -71,8 +73,8 @@ func _process(dt: float) -> void:
 		state = "idle"
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors \
-		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	var down := can and Input.is_physical_key_pressed(KEY)
+		and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or cursor_aim)
+	var down := can and (Input.is_physical_key_pressed(KEY) or ui_down)
 	if not down:
 		latched = false
 		if pulling:
@@ -93,8 +95,8 @@ func _process(dt: float) -> void:
 
 func _start() -> void:
 	var cam: Camera3D = player.cam
-	var from := cam.global_position
-	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_transform.basis.z * REACH, WORLD_MASK)
+	var from := _origin(cam)
+	var q := PhysicsRayQueryParameters3D.create(from, from + _aim_dir(cam) * REACH, WORLD_MASK)
 	q.exclude = [player.get_rid()]
 	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not (hit.collider is StaticBody3D) or TapeMarks.live == null:
@@ -132,10 +134,21 @@ func _start() -> void:
 	_preview.global_transform = Transform3D.IDENTITY
 	_play("tape_stick.wav", -6.0)
 
+## Where the tape is aimed from and along: the middle of the screen, or through the mouse cursor
+func _origin(cam: Camera3D) -> Vector3:
+	if cursor_aim:
+		return cam.project_ray_origin(cam.get_viewport().get_mouse_position())
+	return cam.global_position
+
+func _aim_dir(cam: Camera3D) -> Vector3:
+	if cursor_aim:
+		return cam.project_ray_normal(cam.get_viewport().get_mouse_position())
+	return -cam.global_transform.basis.z
+
 func _pull(dt: float) -> void:
 	var cam: Camera3D = player.cam
-	var o := cam.global_position
-	var d := -cam.global_transform.basis.z
+	var o := _origin(cam)
+	var d := _aim_dir(cam)
 	# where the view meets the surface's plane; looking away from it, the tape stays where it was
 	var goal := tip
 	var denom := normal.dot(d)

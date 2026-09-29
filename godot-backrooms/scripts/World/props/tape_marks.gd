@@ -35,8 +35,8 @@ var order: Array = []                # ids, oldest first
 
 func _ready() -> void:
 	live = self
-	level_id = str(get_parent().level_meta.get("id", ""))
-	var lv := Game.level_index
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
+	var lv := MarkStore.key()
 	if MarkStore.active() and not _loaded.has(lv):
 		_loaded[lv] = true
 		if not placed.has(lv):
@@ -44,7 +44,7 @@ func _ready() -> void:
 		for d in MarkStore.read(level_id).get("tape", []):
 			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
 				"n": MarkStore.v3(d.n), "t": float(d.t), "by": str(d.by)})
-	for s in placed.get(Game.level_index, []):
+	for s in placed.get(MarkStore.key(), []):
 		_spawn(s)
 
 func _exit_tree() -> void:
@@ -55,33 +55,33 @@ func _exit_tree() -> void:
 func place(a: Vector3, b: Vector3, n: Vector3) -> Dictionary:
 	var s := {"id": "%08x%08x" % [randi(), randi()], "a": a, "b": b, "n": n,
 		"t": Time.get_unix_time_from_system(), "by": Net.my_name()}
-	_store(Game.level_index, s)
-	mine[s.id] = Game.level_index
+	_store(MarkStore.key(), s)
+	mine[s.id] = MarkStore.key()
 	_spawn(s)
-	Net.send_tape([pack(Game.level_index, s)])
-	_save()
+	Net.send_tape([pack(MarkStore.key(), s)])
+	save()
 	return s
 
 ## Take a strip off the wall (tape_tool.gd peeled it) and tell the others
 func remove(id: String) -> void:
-	_forget(Game.level_index, id)
-	Net.send_tape_removed(Game.level_index, id)
-	_save()
+	_forget(MarkStore.key(), id)
+	Net.send_tape_removed(MarkStore.key(), id)
+	save()
 
 ## Write this level's strips to disk (a level-editor test launch only: mark_store.gd)
-func _save() -> void:
+func save() -> bool:
 	var out: Array = []
-	for s in placed.get(Game.level_index, []):
+	for s in placed.get(MarkStore.key(), []):
 		out.append({"id": s.id, "a": MarkStore.arr(s.a), "b": MarkStore.arr(s.b), "n": MarkStore.arr(s.n),
 			"t": s.t, "by": s.by})
-	MarkStore.write(level_id, "tape", out)
+	return MarkStore.write(level_id, "tape", out)
 
 static func is_mine(id: String) -> bool:
 	return mine.has(id)
 
 ## The strip under the point `p` on a surface facing `n`, or {} (the newest one where they cross)
 func strip_at(p: Vector3, n: Vector3) -> Dictionary:
-	var list: Array = placed.get(Game.level_index, [])
+	var list: Array = placed.get(MarkStore.key(), [])
 	for i in range(list.size() - 1, -1, -1):
 		var s: Dictionary = list[i]
 		var sn: Vector3 = s.n
@@ -102,7 +102,7 @@ func strip_at(p: Vector3, n: Vector3) -> Dictionary:
 ## Redraw strip `id` from its start to `k` (0..1) of the way along: it peeling back
 func set_extent(id: String, k: float) -> void:
 	var mi: MeshInstance3D = meshes.get(id)
-	var s := _find(Game.level_index, id)
+	var s := _find(MarkStore.key(), id)
 	if mi == null or s.is_empty():
 		return
 	var a: Vector3 = s.a
@@ -139,11 +139,11 @@ static func receive(level: int, s: Dictionary) -> void:
 	if not _find(level, s.id).is_empty():
 		return
 	_store(level, s)
-	if live != null and is_instance_valid(live) and level == Game.level_index:
+	if live != null and is_instance_valid(live) and level == MarkStore.key():
 		live._spawn(s)
 
 static func receive_removed(level: int, id: String) -> void:
-	if live != null and is_instance_valid(live) and level == Game.level_index:
+	if live != null and is_instance_valid(live) and level == MarkStore.key():
 		live._forget(level, id)
 	else:
 		_drop(level, id)
