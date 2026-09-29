@@ -309,7 +309,7 @@ func prewarm_death() -> void:
 		["static_hit", 0.0], ["stinger", 0.0], ["seize", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
 		["howler_step", 10.0], ["howler_step", 11.0], ["howler_step", 12.0], ["howler_step", 13.0],
-		["howler_drag", 0.0], ["howler_drag", 10.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0], ["wall_knock", 0.0],
+		["howler_far", 0.0], ["howler_far", 1.0], ["howler_far", 2.0], ["howler_far", 3.0], ["howler_drag", 0.0], ["howler_drag", 10.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0], ["wall_knock", 0.0],
 		["mannequin_step", 0.0], ["mannequin_step", 1.0], ["mannequin_step", 2.0], ["mannequin_step", 3.0],
 		["mannequin_creak", 0.0], ["mannequin_creak", 1.0], ["mannequin_creak", 2.0]]
 	_prewarm_task = WorkerThreadPool.add_task(func():

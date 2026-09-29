@@ -29,6 +29,12 @@ func howler_step(pos: Vector3, weight: float, dragging := false, run := 0.0) -> 
 	var pace := 10.0 if run > 0.5 else 0.0          # the walking or the running takes
 	# big and heavy: pitched down, and lower still the harder it comes down
 	var pitch := rng.randf_range(0.95, 1.03) - 0.06 * minf(w, 1.5)
+	# the deep thud carries: gentle falloff (big unit size) and only bass, so it is heard from far off and
+	# through walls as a slow heavy footfall. Louder the further away it is, since up close the real step covers it.
+	var player: Node3D = scares.player
+	var dist := pos.distance_to(player.global_position) if player else 20.0
+	var far_gain := clampf(dist / 14.0, 0.35, 1.0) * (0.55 + 0.45 * minf(w, 1.5)) * (0.75 if dragging else 1.0)
+	scares.spawn3d(scares.synth("howler_far", (_howler_variant + 1) % 4), pos, far_gain * 1.3, "Entity", 18.0, rng.randf_range(0.92, 1.0))
 	if dragging:
 		scares.spawn3d(scares.synth("howler_drag", pace), pos, 0.45 + w * 0.6, "Entity", 3.5, pitch)
 	else:
