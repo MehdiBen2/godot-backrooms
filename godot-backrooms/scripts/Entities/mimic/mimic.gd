@@ -38,13 +38,7 @@ const MODEL_HEIGHT := 2.0
 const SPAWN_MIN := 12.0
 const SPAWN_MAX := 20.0
 const VIEW_CONE := 0.62
-const FLEE_SPEED := 6.2
-const ACCEL := 12.0
-const TURN_RATE := 4.5
-const FLEE_TURN_RATE := 8.0
 const FLEE_DONE_DIST := 26.0
-const STUCK_AFTER := 4.0
-const RELOCATE_AFTER := 12.0
 const CHARGE_STOP := 2.5
 const HIT_DAMAGE := 40.0
 const HIT_STUN := 2.0
@@ -52,7 +46,6 @@ const HIT_COOLDOWN := 8.0
 const CAUGHT_DIST := 6.0             # m: your torch on it this close in a blackout, and it walks off
 const DARK_STAND := 4.0              # m: watched in a blackout, it comes no closer than this
 const LEAVE_SPEED := 3.8             # m/s: leaving, brisk, a survivor in a hurry
-const OFFSETS := [0.0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6, 2.2, -2.2, PI]
 
 # the echo
 const ECHO_START := 120.0            # s of someone's route before it stirs on its own
@@ -99,10 +92,7 @@ var session := false
 var spawned := false
 var wait := 0.0
 var mode := "echo"
-var heading := 0.0
 var speed := 0.0
-var stuck := 0.0
-var stuck_total := 0.0
 var step := 0.0
 var flee_until := 0.0
 var react_at := 0.0
@@ -153,6 +143,8 @@ var pitch := 0.0
 var _torch_was := false
 var clicker: AudioStreamPlayer3D
 var _dark_done := false              # this blackout's try is spent
+var _route_mode := ""                # which mode lure_path was planned for (flee / charge), "" none
+var _route_at := 0.0                 # when to re-plan the way to you (charge)
 var lure_kind := ""                  # dead_end / pit / bacteria: where it is taking you
 var lure_path: Array = []            # waypoints (cell centres; a pit crossing goes straight over the hole)
 var lure_i := 0
@@ -321,11 +313,9 @@ func appear() -> bool:
 		return false
 	var p := t_pos
 	body.global_position = Vector3(spot.x, p.y, spot.y)
-	heading = atan2(p.x - spot.x, p.z - spot.y)
 	speed = 0.0
-	stuck = 0.0
-	stuck_total = 0.0
 	mode = "charge"
+	_route_mode = ""
 	spawned = true
 	body.visible = true
 	disguise_id = _pick_disguise()
@@ -361,26 +351,6 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 	if mode == "echo" and not puppet and not Net.is_online():
 		return {"state": s[0], "detail": "WALKING YOUR ROUTE FROM %d S AGO" % roundi(echo_clock - play_t), "danger": 1}
 	return {"state": s[0], "detail": s[1], "danger": s[2]}
-
-# Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?
-func clear_ahead(x: float, z: float, a: float, dist: float) -> bool:
-	var sx := sin(a)
-	var sz := cos(a)
-	var d := 0.4
-	while d <= dist:
-		var px := x + sx * d
-		var pz := z + sz * d
-		if not nav.open_at(px, pz) or not nav.open_at(px + sz * 0.3, pz - sx * 0.3) or not nav.open_at(px - sz * 0.3, pz + sx * 0.3):
-			return false
-		d += 0.4
-	return true
-
-# The open heading closest to `want`, looking ahead `look` metres; NAN when boxed in
-func steer_to(x: float, z: float, want: float, look: float) -> float:
-	for off in OFFSETS:
-		if clear_ahead(x, z, want + off, look):
-			return want + off
-	return NAN
 
 ## Its feet: silent while it passes for a survivor (theirs make no sound over the net either); only
 ## leaving in a hurry, its cover blown, does it thud off down the hall
@@ -467,48 +437,44 @@ func update_peer(delta: float) -> void:
 		else:
 			react_at = 0.0
 
-	# where it wants to go, and how fast
-	var want := to_player
-	var goal := 0.0
-	var turn := TURN_RATE
+	# where it goes: always along the real way through the halls (breadth-first, gridnav.gd), never
+	# steering blind at a wall (boxed into a corner that turned it in circles)
 	if mode == "flee":
-		want = to_player + PI
-		goal = LEAVE_SPEED
-		turn = FLEE_TURN_RATE
+		if _route_mode != "flee" or lure_i >= lure_path.size():
+			if _route_mode == "flee" and not _seen_by_anyone(pos):
+				_dark_done = _dark_done or charging
+				_vanish()                           # got where it was going, out of sight: gone
+				return
+			_plan_leave()
+		if lure_path.is_empty():
+			speed = 0.0                             # nowhere to go: it stands its ground, like anyone cornered
+			body_yaw = lerp_angle(body_yaw, atan2(dx, dz), minf(1.0, delta * 4.0))
+		else:
+			_walk_path(delta, LEAVE_SPEED)
 	elif mode == "charge":
 		# watched, it walks up to talking distance and stands there, torch on you; back turned, it closes in
+		var goal := 0.0
 		if watched:
 			goal = LURE_SPEED if dist > DARK_STAND else 0.0
 		else:
 			goal = LURE_HURRY if dist > CHARGE_STOP else 0.0
-
-	# steer round walls, then turn and accelerate like a body would
-	var steered := NAN
-	if goal > 0.0:
-		steered = steer_to(pos.x, pos.z, want, 0.8 + speed * 0.5)
-	if not is_nan(steered):
-		heading = heading + clampf(wrapf(steered - heading, -PI, PI), -turn * delta, turn * delta)
-	elif goal > 0.0:
-		goal = 0.0                                # boxed in: stop rather than clip through
-	var misalign := 0.0 if is_nan(steered) else absf(wrapf(steered - heading, -PI, PI))
-	if misalign > 0.6:
-		goal *= 0.7
-	var rate := ACCEL * delta
-	speed += clampf(goal - speed, -rate * 1.5, rate)
-
-	var before := pos.x + pos.z * 1.37
-	if speed > 0.01:
-		var nx := pos.x + sin(heading) * speed * delta
-		var nz := pos.z + cos(heading) * speed * delta
-		if nav.open_at(nx, nz):
-			pos.x = nx
-			pos.z = nz
-		elif nav.open_at(nx, pos.z):
-			pos.x = nx
-		elif nav.open_at(pos.x, nz):
-			pos.z = nz
-		else:
+		if goal == 0.0:
 			speed = 0.0
+			body_yaw = lerp_angle(body_yaw, atan2(dx, dz), minf(1.0, delta * 5.0))
+		elif dist < 9.0 and nav.clear_line(pos.x, pos.z, pp.x, pp.z):
+			var dir := Vector2(dx, dz) / dist       # in plain line: straight to you
+			var np := Vector3(pos.x + dir.x * goal * delta, pos.y, pos.z + dir.y * goal * delta)
+			if nav.open_at(np.x, np.z):
+				body.global_position = np
+			speed = goal
+			body_yaw = lerp_angle(body_yaw, atan2(dx, dz), minf(1.0, delta * 8.0))
+			_route_mode = ""
+		else:
+			if _route_mode != "charge" or t >= _route_at:
+				_route_to(pp)                       # the way to you, kept fresh as you move
+				_route_at = t + 0.5
+			_walk_path(delta, goal)
+	pos = body.global_position
 	pos.y = pp.y
 	body.global_position = pos
 
@@ -525,30 +491,6 @@ func update_peer(delta: float) -> void:
 
 	footsteps(delta, ldist)
 
-	# wedged somewhere: try another way, and if it stays stuck out of sight, start over elsewhere
-	var moved := absf(pos.x + pos.z * 1.37 - before)
-	if goal > 0.0 and moved < 0.002:
-		stuck += delta
-		stuck_total += delta
-	else:
-		stuck = 0.0
-		if speed > 1.0:
-			stuck_total = 0.0
-	if stuck > STUCK_AFTER:
-		heading += (rng.randf() - 0.5) * PI
-		stuck = 0.0
-	if stuck_total > RELOCATE_AFTER and not watched:
-		stuck_total = 0.0
-		if mode == "charge":
-			appear()
-		else:
-			_vanish()
-			return
-
-	# the rig: face where it is going (or at its target when it stands)
-	var standing := speed < 0.3
-	var want_yaw := atan2(dx, dz) if standing else heading
-	body_yaw = lerp_angle(body_yaw, want_yaw, minf(1.0, delta * 10.0))
 	body.rotation.y = body_yaw
 	pitch = 0.0
 	crouch = false
@@ -582,7 +524,6 @@ func _begin_echo(t: float) -> bool:
 		torch_on = st.torch
 		_torch_was = torch_on
 		speed = st.speed
-		heading = st.h
 		mode = "echo"
 		spawned = true
 		body.visible = true
@@ -638,7 +579,6 @@ func _echo_step(delta: float, t: float) -> void:
 	if dist < BOLT_DIST:
 		mode = "flee"
 		flee_until = t + 2.0 + rng.randf()
-		heading = atan2(-dx, -dz)
 		speed = maxf(speed, 2.0)
 		return
 	# watched from close by: after a moment, like anyone, it stops and looks back
@@ -758,6 +698,7 @@ func _plan_lure(t: float) -> bool:
 		return false
 	lure_kind = kind
 	lure_i = 0
+	_route_mode = ""
 	lure_from = here
 	lure_walked = 0.0
 	lure_spoke = false
@@ -860,7 +801,6 @@ func _lure_step(delta: float, t: float) -> void:
 	if dist < LURE_BOLT and lure_kind != "pit":
 		mode = "flee"                               # you caught up with it: it runs
 		flee_until = t + 2.0 + rng.randf()
-		heading = atan2(-dx, -dz)
 		speed = maxf(speed, 2.0)
 		return
 	match lure_state:
@@ -940,6 +880,7 @@ func _power_cut() -> bool:
 ## It gives up on you (or is done with you): it walks off somewhere else, and goes once nobody sees it
 func _start_wander(t: float) -> void:
 	mode = "wander"
+	_route_mode = ""
 	wander_start = t
 	lure_path = []
 	lure_i = 0
@@ -970,7 +911,6 @@ func _wander_step(delta: float, t: float) -> void:
 	if dist < LURE_BOLT:
 		mode = "flee"
 		flee_until = t + 2.0
-		heading = atan2(pos.x - t_pos.x, pos.z - t_pos.z)
 		return
 	_walk_path(delta, LURE_SPEED)
 	if lure_i >= lure_path.size():
@@ -980,6 +920,59 @@ func _wander_step(delta: float, t: float) -> void:
 		return
 	body.rotation.y = body_yaw
 	_animate()
+
+## Leaving: somewhere 3-14 cells' walk away, out of its target's sight, preferring places further from
+## them than from it; the real way there. If the only way out is past them, it walks past them, as a
+## person would. Nothing reachable: lure_path stays empty and it stands its ground.
+func _plan_leave() -> void:
+	_route_mode = "flee"
+	lure_path = []
+	lure_i = 0
+	var here := body.global_position
+	var n: int = nav.n
+	var mine := PackedInt32Array()
+	mine.resize(n * n)
+	if not nav.bfs(GridNav.cell(here.x), GridNav.cell(here.z), mine):
+		return
+	var yours := PackedInt32Array()
+	yours.resize(n * n)
+	var have_yours: bool = nav.bfs(GridNav.cell(t_pos.x), GridNav.cell(t_pos.z), yours)
+	var best: Array = []
+	for x in n:
+		for z in n:
+			var d := mine[x * n + z]
+			if d < 3 or d > 14:
+				continue
+			var p := Vector3(x * GridNav.CELL, here.y, z * GridNav.CELL)
+			if nav.clear_line(t_pos.x, t_pos.z, p.x, p.z):
+				continue                            # still in your sight from there
+			var dy: int = yours[x * n + z] if have_yours else d
+			best.append([float((dy if dy >= 0 else 99) - d) + rng.randf(), Vector2i(x, z)])
+	if best.is_empty():
+		return
+	best.sort_custom(func(a, b): return a[0] > b[0])
+	var cells := _path(mine, best[rng.randi_range(0, mini(4, best.size() - 1))][1])
+	for i in range(1, cells.size()):
+		lure_path.append(_cell_pos(cells[i]))
+	lure_from = here
+
+## The way to `p` through the halls (blackout approach)
+func _route_to(p: Vector3) -> void:
+	_route_mode = "charge"
+	lure_path = []
+	lure_i = 0
+	var here := body.global_position
+	var n: int = nav.n
+	var mine := PackedInt32Array()
+	mine.resize(n * n)
+	var goal := Vector2i(GridNav.cell(p.x), GridNav.cell(p.z))
+	if not nav.bfs(GridNav.cell(here.x), GridNav.cell(here.z), mine) or goal.x < 0 or goal.y < 0 \
+			or goal.x >= n or goal.y >= n or mine[goal.x * n + goal.y] < 0:
+		return
+	var cells := _path(mine, goal)
+	for i in range(1, cells.size()):
+		lure_path.append(_cell_pos(cells[i]))
+	lure_from = here
 
 ## Is the survivor it is after holding a lit torch?
 func _target_torch() -> bool:
@@ -1004,6 +997,7 @@ func _seen_by_anyone(p: Vector3) -> bool:
 ## Gone, unseen; it walks again after a while
 func _vanish() -> void:
 	spawned = false
+	_route_mode = ""
 	body.visible = false
 	mode = "echo"
 	speed = 0.0
