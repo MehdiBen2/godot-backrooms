@@ -38,6 +38,8 @@ const GLOW := 0.6                    # of the terminal's phosphor glow: less blo
 const SWAY_K := 4.5                  # px per rad/s of turn
 const SWAY_MAX := Vector2(10.0, 7.0)
 const BOB_K := 35.0                  # px per metre the eye moves off its eased height
+const HEART_REST := 0.06             # how hard the HEALTH icon swells on a beat at rest ...
+const HEART_SCARED := 0.3            # ... and when the heart is racing (heart.gd stress 1)
 const ROLL_K := 0.3                  # of the camera's roll
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
@@ -132,10 +134,28 @@ func _process(dt: float) -> void:
 	_stat("POWER", bat, _state(bat, PlayerScript.BATTERY_CRIT, PlayerScript.BATTERY_LOW), dt, pulse)
 	_stat("STAMINA", player.stamina, "critical" if player.exhausted else "", dt, pulse)
 	_stat("SANITY", player.sanity, _state(player.sanity, 25.0, 50.0), dt, pulse)
-	_stat("HEALTH", player.health, _state(player.health, 25.0, 50.0), dt, pulse)
+	var racing: bool = Game.heart != null and is_instance_valid(Game.heart) and bool(Game.heart.get("audible"))
+	_stat("HEALTH", player.health, _state(player.health, 25.0, 50.0), dt, pulse, racing)
+	_heartbeat()
 	_update_noise(dt, pulse)
 	_sway_update(dt)
 	mat.set_shader_parameter("bloom_amt", float(mat.get_shader_parameter("bloom_amt")) * GLOW)
+
+## The HEALTH icon swells on each of the heart's beats (heart.gd's own beat clock, so it lands with
+## the sound): a lub at the beat and a smaller dub a fifth of a beat later. At rest it is barely
+## there; as fear drives the heart it beats harder and faster, and once the heart is loud enough to
+## hear, the row comes up (_stat's alert) so a glance down shows it racing
+func _heartbeat() -> void:
+	var icon: TextureRect = rows["HEALTH"].icon
+	var heart: Node = Game.heart
+	if heart == null or not is_instance_valid(heart):
+		icon.scale = Vector2.ONE
+		return
+	var ph := float(heart.get("phase"))
+	var stress := clampf(float(heart.get("stress")), 0.0, 1.0)
+	var beat := maxf(exp(-ph * 22.0), 0.55 * exp(-absf(ph - 0.2) * 30.0))
+	icon.pivot_offset = icon.size * 0.5
+	icon.scale = Vector2.ONE * (1.0 + beat * lerpf(HEART_REST, HEART_SCARED, stress))
 
 ## Shifts the CRT picture (not the panel, so the anchors stay put): behind a turn (a turn right leaves
 ## it a little to the left, looking up leaves it low), off the eye's quick ups and downs, and tilted
@@ -165,7 +185,7 @@ func _state(v: float, crit: float, low: float) -> String:
 	return ""
 
 ## One row: ease toward `value` (0..100) so drains and recoveries glide, then colour it by `state`
-func _stat(key: String, value: float, state: String, dt: float, pulse: float) -> void:
+func _stat(key: String, value: float, state: String, dt: float, pulse: float, alert := false) -> void:
 	var r: Dictionary = rows[key]
 	value = clampf(value, 0.0, 100.0)
 	var eased: float = value if r.shown < 0.0 else lerpf(r.shown, value, minf(1.0, dt * 8.0))
@@ -178,7 +198,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 		"critical": col = Color(Kit.RED, pulse)
 	_paint(r, clampi(ceili(eased / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS), col)
 	_value(r, _lie(r, "%d%%" % roundi(eased), dt, false), Kit.TEXT if state == "" else col)
-	_attend(r, state != "" or eased <= LIGHT_BELOW, float(r.speed) > FAST, dt)
+	_attend(r, alert or state != "" or eased <= LIGHT_BELOW, float(r.speed) > FAST, dt)
 
 ## How far your sound carries right now, and whether the Bacteria is in earshot of it
 func _update_noise(dt: float, pulse: float) -> void:

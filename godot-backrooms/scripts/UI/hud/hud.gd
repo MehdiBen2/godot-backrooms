@@ -20,6 +20,7 @@ const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
+const PlayerScript := preload("res://scripts/Player/player.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -43,6 +44,7 @@ var t := 0.0
 var playing_label: Label
 var time_label: Label
 var rec_dot: Control
+var rec_label: Label      # "REC", or "LOW BATT" now and then once the torch battery is critical
 var post_mat: ShaderMaterial
 var threat_s := 0.0
 var fear_s := 0.0
@@ -213,7 +215,8 @@ func _build_hud() -> void:
 	dot_c.add_child(rec_dot)
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rec.add_child(dot_c)
-	rec.add_child(_label("REC", 15, REC_RED, 3))
+	rec_label = _label("REC", 15, REC_RED, 3)
+	rec.add_child(rec_label)
 	rec.add_child(_label("CAM 04", 15, CREAM, 2))
 	tl.add_child(rec)
 	tl.add_child(_gradient_rect(1, Color(1, 0.231, 0.188, 0.8), Color(1, 0.231, 0.188, 0.15)))
@@ -441,6 +444,23 @@ func _unhandled_input(e: InputEvent) -> void:
 		use_battery()
 		get_viewport().set_input_as_handled()
 
+## The REC dot blinks every 1.2 s; like a real camcorder it hurries as the battery runs down (low:
+## 0.8 s), and once it is critical it blinks every 0.5 s and flips REC to LOW BATT for a moment in
+## every four seconds
+func _update_rec() -> void:
+	var bat: float = float(player.get("battery")) if player else 100.0
+	var period := 1.2
+	var text := "REC"
+	if bat < PlayerScript.BATTERY_CRIT:
+		period = 0.5
+		if fmod(t, 4.0) > 2.6:
+			text = "LOW BATT"
+	elif bat < PlayerScript.BATTERY_LOW:
+		period = 0.8
+	rec_dot.modulate.a = 1.0 if fmod(t, period) < period * 0.5 else 0.0
+	if rec_label.text != text:
+		rec_label.text = text
+
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.
 func set_inventory(on: bool) -> void:
@@ -511,7 +531,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("exhaust", 0.8 if (player and player.get("exhausted")) else 0.0)
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
-	rec_dot.modulate.a = 1.0 if fmod(t, 1.2) < 0.6 else 0.0
+	_update_rec()
 	# Handheld-camera jitter on the viewfinder brackets
 	for i in corners.size():
 		var c := corners[i]
