@@ -3,6 +3,8 @@ extends "res://scripts/Entities/bacteria/bacteria_senses.gd"
 ## leans out to watch, pulling back when you look), it flees (caught, fed, or frightened by the
 ## mannequin) and it lies in wait (lurk: crouched in silence where it guessed you would pass).
 
+const STALK_WALL_GAP := 0.95           # m from the face it hides behind to its middle: close, but its hunch clears it
+
 # ---- stalking
 var stalk_cooldown := STALK_COOLDOWN * 0.5
 var stalk_active := false
@@ -13,7 +15,10 @@ var stalk_moves := 0
 var stalk_hide := Vector3.ZERO
 var stalk_peek := Vector3.ZERO
 var stalk_side := Vector3.ZERO
-var peek_lean_target := 0.0            # the rig leans the body out past the corner by this
+var stalk_look := Vector3.ZERO         # the grid's peek spot: while you can see that, it can still see you
+var stalk_corner := Vector3.ZERO       # the real wall's edge it peeks round (floor level)
+var stalk_wall_n := Vector3.ZERO       # which way the face it hides behind points; ZERO = no clean corner
+var peek_dir := 0.0                    # at its corner: +1 it leans out to its left, -1 to its right; 0 getting there
 var peek_amt := 0.0                    # 0 hidden behind the corner .. 1 leaned out watching you
 var peek_mode := "hide"
 var peek_timer := 0.0
@@ -72,10 +77,85 @@ func find_stalk_spot(who: Vector3, anywhere := false) -> bool:
 				stalk_peek = Vector3(hwx + sx * (edge + 0.15), 0.0, hwz + sz * (edge + 0.15))
 	if not found:
 		return false
-	peek_lean_target = 0.0
+	stalk_look = stalk_peek
+	_fit_corner(who)
 	peek_amt = 0.0
+	peek_dir = 0.0
 	set_goal(stalk_hide.x, stalk_hide.z)
 	return true
+
+# The grid only knows cells. Line its corner up with the real wall: the face it hides behind and where that
+# face ends. Then it hugs the face, hidden just short of the edge, and peeks out just past where you could
+# first see it, with a hand to hook round the edge. Keeps the grid's spots when it isn't a clean outside corner.
+func _fit_corner(who: Vector3) -> void:
+	stalk_wall_n = Vector3.ZERO
+	var s := stalk_side
+	var from := Vector3(stalk_hide.x, 1.5, stalk_hide.z)
+	var hit := _wall_ray(from, from + (Vector3(who.x, 1.5, who.z) - from).limit_length(CELL * 2.0))
+	if hit.is_empty():
+		return
+	var nrm: Vector3 = hit.normal
+	nrm.y = 0.0
+	if nrm.length() < 0.9 or absf(nrm.normalized().dot(s)) > 0.3:
+		return
+	nrm = nrm.normalized()
+	# along the face toward the open side until there's no wall behind it any more: the edge
+	var face: Vector3 = hit.position
+	var lo := 0.0
+	var hi := -1.0
+	var u := 0.1
+	while u <= CELL * 1.5:
+		if not _wall_behind(face + s * u, nrm):
+			hi = u
+			break
+		lo = u
+		u += 0.1
+	if hi < 0.0:
+		return
+	for i in 5:
+		var mid := (lo + hi) * 0.5
+		if _wall_behind(face + s * mid, nrm):
+			lo = mid
+		else:
+			hi = mid
+	var edge := face + s * lo
+	# an outside corner: open floor past the edge, on the far side of the face's line too
+	var past := edge + s * 0.4
+	if not _wall_ray(past + nrm * 0.2, past - nrm * 0.8).is_empty():
+		return
+	edge.y = 0.0
+	# they must be round the corner from it: past the edge, beyond the face
+	var u_p := (who - edge).dot(s)
+	var v_p := (who - edge).dot(nrm)
+	if u_p < 0.5 or v_p > -0.5:
+		return
+	# hugging the face, how far along it they first see its middle
+	var k := STALK_WALL_GAP / (STALK_WALL_GAP - v_p)
+	var seen := -u_p * k / (1.0 - k)
+	# peeking, its body stays short of that: it leans its head and shoulder out, not its legs
+	var hide_u := minf(seen - 1.5, -0.9)
+	var peek_u := clampf(seen - 0.4, hide_u + 0.4, 0.3)
+	var hide := edge + s * hide_u + nrm * STALK_WALL_GAP
+	var peek := edge + s * peek_u + nrm * STALK_WALL_GAP
+	for q: Vector3 in [hide, peek, (hide + peek) * 0.5]:
+		if not nav.open_at(q.x, q.z) or nav.resolve(q, RADIUS).distance_to(q) > 0.01:
+			return
+	if not _wall_ray(hide + Vector3.UP, peek + Vector3.UP).is_empty():
+		return
+	stalk_hide = hide
+	stalk_peek = peek
+	stalk_corner = edge
+	stalk_wall_n = nrm
+
+func _wall_ray(a: Vector3, b: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(a, b)
+	if player != null:
+		q.exclude = [player.get_rid()]
+	return get_world_3d().direct_space_state.intersect_ray(q)
+
+# Is there wall right behind this point on a face that looks along `nrm`?
+func _wall_behind(p: Vector3, nrm: Vector3) -> bool:
+	return not _wall_ray(p + nrm * 0.1, p - nrm * 0.25).is_empty()
 
 # Walking from the hidden cell (hx, hz) toward the seen one (wx, wz): how far until `who` could see it
 func _edge(hx: float, hz: float, wx: float, wz: float, who: Vector3) -> float:
@@ -116,7 +196,7 @@ func start_flee(from = null) -> void:
 	set_state("flee")
 	stalk_active = false
 	lurk_waiting = false
-	peek_lean_target = 0.0
+	peek_dir = 0.0
 	awareness = 0.0
 	stalk_cooldown = STALK_COOLDOWN * (1.0 + rng.randf() * 0.6)
 	var p := global_position
@@ -150,21 +230,28 @@ func end_flee() -> void:
 		pick_spot(5, 18)
 
 func stalk_is_watched() -> bool:
-	var p := global_position
-	if not nav.clear_line(p.x, p.z, tgt.pos.x, tgt.pos.z):
+	if not looking_at_me(0.96):
 		return false
-	return looking_at_me(0.96)
+	if stalk_phase == "peek" and stalk_wall_n != Vector3.ZERO:
+		# at a real corner: can they actually see its head round the edge (the grid's cells are too coarse)
+		var eye: Vector3 = tgt.pos + Vector3.UP * 1.6
+		var head: Vector3 = rig.get_head_global_pos()
+		return _wall_ray(eye + (head - eye).normalized() * 0.6, head).is_empty()
+	var p := global_position
+	return nav.clear_line(p.x, p.z, tgt.pos.x, tgt.pos.z)
 
 # The peek: it doesn't just slide out. It waits hidden, eases past the edge in stop-motion creeps,
-# holds and watches, and pulls back into cover the moment you turn toward it (before it is caught),
-# then tries again a little later, bolder each time.
+# holds and watches, and snaps back into cover the moment you turn toward it (before it is caught),
+# then tries again a little later, bolder each time. The rig does the rest (bacteria_rig.gd _peek_motion,
+# _grip_corner):
+# the hand on the edge, the head leading, the fingers left behind on the corner as it ducks away.
 func _update_peek(dt: float) -> void:
 	var gazed := looking_at_me(0.8)          # in the cone of your view, even if you haven't quite focused
 	peek_gaze = peek_gaze + dt if gazed else maxf(0.0, peek_gaze - dt * 0.7)
 	peek_timer -= dt
 	match peek_mode:
 		"hide":
-			peek_amt = maxf(0.0, peek_amt - dt * 1.6)
+			peek_amt = maxf(0.0, peek_amt - dt * 4.5)
 			if peek_timer <= 0.0 and not gazed:
 				peek_mode = "creep"
 				peek_step = 0.0
@@ -216,6 +303,9 @@ func think_stalk(dt: float) -> void:
 		if Vector2(stalk_hide.x - p.x, stalk_hide.z - p.z).length() < 0.7:
 			stalk_phase = "peek"
 			state_time = 0.0
+			# which way it leans out, fixed now so the arm on the edge doesn't swap as it turns
+			var face := atan2(tgt.pos.x - p.x, tgt.pos.z - p.z)
+			peek_dir = 1.0 if stalk_side.x * cos(face) - stalk_side.z * sin(face) >= 0.0 else -1.0
 			peek_mode = "hide"
 			peek_amt = 0.0
 			peek_timer = rng.randf_range(1.2, 2.8)
@@ -227,7 +317,7 @@ func think_stalk(dt: float) -> void:
 		return
 	_update_peek(dt)
 	# peeking: they moved out of its view -- find a new corner, or give up
-	if not nav.clear_line(stalk_peek.x, stalk_peek.z, tgt.pos.x, tgt.pos.z):
+	if not nav.clear_line(stalk_look.x, stalk_look.z, tgt.pos.x, tgt.pos.z):
 		stalk_lost += dt
 		if stalk_lost > 2.5:
 			stalk_lost = 0.0

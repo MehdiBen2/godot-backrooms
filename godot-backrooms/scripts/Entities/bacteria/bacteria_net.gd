@@ -27,8 +27,12 @@ func send(delta: float) -> void:
 	if e.focus != null and is_instance_valid(e.focus):
 		fid = e.multiplayer.get_unique_id() if e.focus == e.player else Net.id_of(e.focus)
 	var p: Vector3 = e.global_position
+	var c: Vector3 = e.stalk_corner
+	var wn: Vector3 = e.stalk_wall_n
+	var sd: Vector3 = e.stalk_side
 	Net.send_entity([p.x, p.z, e.yaw, maxi(0, e.STATES.find(e.state)), e.speed_now,
-		e.lunge, e.lunge_windup, e.peek_amt, e.staring, e.seen_target, fid, e.process_mode != Node.PROCESS_MODE_DISABLED])
+		e.lunge, e.lunge_windup, e.peek_amt, e.staring, e.seen_target, fid, e.process_mode != Node.PROCESS_MODE_DISABLED,
+		e.peek_dir, c.x, c.z, wn.x, wn.z, sd.x, sd.z])
 
 ## Guest: the host's latest snapshot (Net._entity)
 func apply(t: float, m: Array) -> void:
@@ -52,3 +56,8 @@ func step(delta: float) -> void:
 	e.seen_target = m[9]
 	e.focus = e.player if int(m[10]) == e.multiplayer.get_unique_id() else Net.remotes.get(int(m[10]))
 	e.visible = m[11]
+	# its corner: the rig hooks the same hand round the same edge here
+	e.peek_dir = m[12]
+	e.stalk_corner = Vector3(m[13], 0.0, m[14])
+	e.stalk_wall_n = Vector3(m[15], 0.0, m[16])
+	e.stalk_side = Vector3(m[17], 0.0, m[18])
