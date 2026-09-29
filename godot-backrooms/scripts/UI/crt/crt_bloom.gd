@@ -6,23 +6,38 @@ extends RefCounted
 
 const DOWNSCALE := 2             # keep it 2: ui_bloom.gdshader relies on it
 
-var vps: Array = []              # [horizontal, vertical] SubViewport
-var mats: Array = []
+const WIDE_REACH := 4.5          # the halo's reach, times the tight glow's
+const PASS_DIV := [2, 2, 4, 8]   # size divisors of the passes: tight h, tight v (half), halo h, halo v (quarter, eighth)
 
-func _init(parent: Node, src: Texture2D) -> void:
+var vps: Array = []              # [tight h, tight v] SubViewports, then [halo h, halo v] when `wide`
+var mats: Array = []
+var wide := false
+
+## `wide` adds a second, much broader blur of the tight glow: neon's hot core plus a soft halo that
+## reaches far across the dark (texture_wide())
+func _init(parent: Node, src: Texture2D, with_halo := false) -> void:
+	wide = with_halo
 	var h := _pass(parent, src, Vector2(1, 0), true)
-	_pass(parent, h.get_texture(), Vector2(0, 1), false)
+	var v := _pass(parent, h.get_texture(), Vector2(0, 1), false)
+	if wide:
+		var wh := _pass(parent, v.get_texture(), Vector2(1, 0), false)
+		_pass(parent, wh.get_texture(), Vector2(0, 1), false)
+
+func texture_wide() -> Texture2D:
+	return (vps[3] as SubViewport).get_texture()
 
 func texture() -> Texture2D:
 	return (vps[1] as SubViewport).get_texture()
 
 ## `full`: the source's size in pixels; `reach`: how far the glow spreads, in those pixels
 func resize(full: Vector2i, reach: float) -> void:
-	var half := Vector2i((Vector2(full) / DOWNSCALE).ceil())
 	for i in vps.size():
-		(vps[i] as SubViewport).size = half
-		# 13 taps span +-6 steps; the vertical pass reads the half-resolution horizontal one
-		(mats[i] as ShaderMaterial).set_shader_parameter("spacing", reach / 6.0 / (1.0 if i == 0 else float(DOWNSCALE)))
+		var div: int = PASS_DIV[i]
+		(vps[i] as SubViewport).size = Vector2i((Vector2(full) / float(div)).ceil())
+		# 13 taps span +-6 steps, in texels of the pass's source (full size for pass 0, else the previous pass)
+		var src_div: int = 1 if i == 0 else PASS_DIV[i - 1]
+		var r := reach * (WIDE_REACH if i >= 2 else 1.0)
+		(mats[i] as ShaderMaterial).set_shader_parameter("spacing", r / 6.0 / float(src_div))
 
 ## Render only while the owner is on screen
 func set_running(on: bool) -> void:

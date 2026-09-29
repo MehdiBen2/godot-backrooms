@@ -31,6 +31,11 @@ uniform float glitch : hint_range(0.0, 1.0) = 0.0;
 uniform float fade : hint_range(0.0, 1.0) = 1.0;
 uniform sampler2D bloom_tex : hint_default_black, filter_linear, repeat_disable;
 uniform float bloom_amt : hint_range(0.0, 4.0) = 0.0;
+// neon halo: a second, much wider blur (crt_bloom.gd `wide`), added after the tight glow, with the
+// hottest part of the glow pushed toward white like an overdriven tube
+uniform sampler2D bloom_wide_tex : hint_default_black, filter_linear, repeat_disable;
+uniform float bloom_wide_amt : hint_range(0.0, 6.0) = 0.0;
+uniform float bloom_hot : hint_range(0.0, 1.0) = 0.0;
 uniform float bloom_tint : hint_range(0.0, 1.0) = 0.5;
 uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
 // camcorder OSD dirt (hud.gd's OSD layer; all off by default): a constant sideways red / blue split
@@ -124,6 +129,15 @@ void fragment() {
 	glow = mix(glow, glow_l * PHOSPHOR, bloom_tint);
 	float own = smoothstep(0.3, 0.75, max(col.r, max(col.g, col.b)));
 	col += glow * bloom_amt * (1.0 - bloom_damp * own);
+	if (bloom_wide_amt > 0.0) {
+		vec3 halo = texture(bloom_wide_tex, clamp(pg, 0.0, 1.0)).rgb * inside(pg);
+		float halo_l = max(halo.r, max(halo.g, halo.b));
+		halo = mix(halo, halo_l * PHOSPHOR, bloom_tint);
+		col += halo * bloom_wide_amt;
+		// white-hot core where the tight glow is strongest
+		col += vec3(1.0, 0.93, 0.8) * smoothstep(0.35, 0.9, glow_l) * bloom_hot * bloom_amt * 0.25 * own;
+		glow_l = max(glow_l, halo_l * 0.6);
+	}
 	// where anything is drawn at all, the panel or its glow: grain and tears stay off the bare view
 	float cover = max(alpha, clamp(glow_l * bloom_amt, 0.0, 1.0));
 
