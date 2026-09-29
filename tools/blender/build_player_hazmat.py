@@ -18,6 +18,7 @@ What it does:
    pack and the hose plugs are made rigid on Spine02 so they no longer bend with the arms either.
    Seat: Tripo bound everything up to the belt ~80% to the thighs, so in a crouch the buttocks folded
    in between the legs. The seat now rides the Pelvis bone, handing over to the thighs below the crease.
+   It is also padded out a little (fuller_seat): the suit was modelled flat there.
 2. Clips, all looping cleanly (last frame = first):
    run              the Tripo run, recentred over the origin (it ran 0.5 m in front of it), loop gap closed
    walk             the Tripo in-place walk
@@ -233,6 +234,32 @@ def fix_seat():
 
 
 fix_seat()
+
+
+def fuller_seat(amount=0.038):
+    """The suit's seat was modelled flat; pad it out into two rounded cheeks (the cleft between them stays),
+    pushing the back of the suit backwards and a little down. `amount` is the most it moves (model units;
+    the suit is 1 tall, 2 m in the game)."""
+    me = body.data
+    main = max(geo_islands(me), key=len)                     # the suit itself, not the pouches on it
+    moved = 0
+    for i in main:
+        c = me.vertices[i].co
+        if not (0.36 < c.z < 0.60 and abs(c.x) < 0.15 and c.y > -0.05):
+            continue
+        behind = smoothstep(-0.04, 0.03, c.y)
+        height = math.exp(-((c.z - 0.465) / 0.06) ** 2)
+        cheek = math.exp(-((abs(c.x) - 0.055) / 0.05) ** 2)
+        k = amount * behind * height * cheek
+        if k > 1e-5:
+            c.y += k
+            c.z -= k * 0.25
+            moved += 1
+    me.update()
+    print("seat padded:", moved, "vertices")
+
+
+fuller_seat()
 
 
 # =============================================================== pose solving
