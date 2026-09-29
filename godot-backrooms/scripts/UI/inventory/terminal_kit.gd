@@ -112,7 +112,8 @@ static func scroll_body(s: ScrollContainer, gap: int) -> VBoxContainer:
 
 ## Segmented gauge: `filled` of `n` cells lit in `color` (metadata, set through set_cells). The
 ## rest are a faint ghost of the same colour, or with `dots` a small square each (the INV rows'
-## ". . . .").
+## ". . . ."). Optional extras (set_extras): `trail` cells past the lit ones drawn in `trail_color`,
+## and a `dead` cell drawn as nothing at all.
 static func cells(n: int, gap: float, dots: bool) -> Control:
 	var c := Control.new()
 	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -122,13 +123,20 @@ static func cells(n: int, gap: float, dots: bool) -> Control:
 	c.draw.connect(func():
 		var filled: int = c.get_meta("filled")
 		var col: Color = c.get_meta("color")
+		var trail: int = c.get_meta("trail", 0)
+		var trail_col: Color = c.get_meta("trail_color", Color(col, 0.35))
+		var dead: int = c.get_meta("dead", -1)
 		var w := (c.size.x - gap * (n - 1)) / n
 		var h := c.size.y
 		for i in n:
 			var x := i * (w + gap)
+			if i == dead:
+				continue
 			if i < filled:
 				if dots: c.draw_rect(Rect2(x, h * 0.14, w, h * 0.72), col)
 				else: c.draw_rect(Rect2(x, 0, w, h), col)
+			elif i < trail and not dots:
+				c.draw_rect(Rect2(x, 0, w, h), trail_col)
 			elif dots:
 				var d := minf(w, h) * 0.26
 				c.draw_rect(Rect2(x + (w - d) * 0.5, h * 0.86 - d, d, d), Color(col, 0.6))
@@ -142,6 +150,16 @@ static func set_cells(c: Control, filled: int, col: Color) -> void:
 		return
 	c.set_meta("filled", filled)
 	c.set_meta("color", col)
+	c.queue_redraw()
+
+## A bar's extras (vitals_panel.gd): `trail` cells lit dim past the filled ones in `trail_col` (what
+## was just lost), and `dead` the one cell showing nothing (-1 for none)
+static func set_extras(c: Control, trail: int, trail_col: Color, dead: int) -> void:
+	if c.get_meta("trail", 0) == trail and c.get_meta("dead", -1) == dead and c.get_meta("trail_color", Color()) == trail_col:
+		return
+	c.set_meta("trail", trail)
+	c.set_meta("trail_color", trail_col)
+	c.set_meta("dead", dead)
 	c.queue_redraw()
 
 ## Redaction bars standing in for text not on file yet: the same ones every time for this id

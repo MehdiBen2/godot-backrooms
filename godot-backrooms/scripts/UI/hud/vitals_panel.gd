@@ -41,6 +41,15 @@ const BOB_K := 35.0                  # px per metre the eye moves off its eased 
 const HEART_REST := 0.06             # how hard the HEALTH icon swells on a beat at rest ...
 const HEART_SCARED := 0.3            # ... and when the heart is racing (heart.gd stress 1)
 const ROLL_K := 0.3                  # of the camera's roll
+const SHAKE_PX := 3.0                # shaky hands: the most the picture trembles, scared stiff or winded
+# damage trail: a sudden loss stays on the bar as dim cells, then drains away (_trail)
+const SUDDEN := 2.0                  # % lost in one frame that counts as a hit, not a drain
+const TRAIL_HOLD := 0.7              # s it stays before draining
+const TRAIL_SPEED := 30.0            # %/s it drains at
+const TRAIL_COL := Color(0.949, 0.902, 0.722, 0.5)
+# the panel wears down with your sanity (_wear_update): from WEAR_FROM down to nothing it gets more
+# scanlines, grain and colour drift, tears more often, rows slip sideways and cells die for a moment
+const WEAR_FROM := 60.0
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
@@ -118,7 +127,8 @@ func _row(key: String, icon_path: String) -> Control:
 	row.modulate.a = IDLE_A
 	value.modulate.a = 0.0
 	rows[key] = {"row": row, "icon": icon, "cells": cells, "value": value, "shown": -1.0, "lie_t": 0.0, "lie": "",
-		"speed": 0.0, "active_t": 0.0, "att": 0.0}
+		"speed": 0.0, "active_t": 0.0, "att": 0.0, "last": -1.0, "trail": -1.0, "trail_hold": 0.0,
+		"dead": -1, "dead_t": 0.0, "slip": 0.0, "slip_t": 0.0}
 	return row
 
 func _process(dt: float) -> void:
@@ -138,6 +148,7 @@ func _process(dt: float) -> void:
 	_stat("HEALTH", player.health, _state(player.health, 25.0, 50.0), dt, pulse, racing)
 	_heartbeat()
 	_update_noise(dt, pulse)
+	_wear_update(dt)
 	_sway_update(dt)
 	mat.set_shader_parameter("bloom_amt", float(mat.get_shader_parameter("bloom_amt")) * GLOW)
 
@@ -175,9 +186,41 @@ func _sway_update(dt: float) -> void:
 	_eye = eye if _eye < 0.0 else lerpf(_eye, eye, minf(1.0, dt * 4.0))
 	target.y += (eye - _eye) * BOB_K
 	_sway = _sway.lerp(target.clamp(-SWAY_MAX, SWAY_MAX), minf(1.0, dt * 10.0))
-	screen.position = _sway
+	# shaky hands: a fine 7-12 Hz tremble with fear (the heart's stress) or when winded; still when calm
+	var fear := 0.0
+	if Game.heart != null and is_instance_valid(Game.heart):
+		fear = smoothstep(0.35, 1.0, float(Game.heart.get("stress")))
+	var winded := 1.0 if bool(player.get("exhausted")) else clampf((30.0 - float(player.get("stamina"))) / 30.0, 0.0, 1.0)
+	var shake := maxf(fear, winded * 0.8)
+	var tremor := Vector2(sin(_t * 47.0) + 0.6 * sin(_t * 73.0 + 1.3), sin(_t * 53.0 + 0.7) + 0.6 * sin(_t * 67.0 + 2.1))
+	screen.position = _sway + tremor * 0.6 * SHAKE_PX * shake
 	screen.pivot_offset = screen.size * 0.5
-	screen.rotation = cam.global_rotation.z * ROLL_K
+	screen.rotation = cam.global_rotation.z * ROLL_K + sin(_t * 41.0) * 0.004 * shake
+
+## Low sanity wears the little screen down: more scanlines, grain and colour drift, a tear across it
+## now and then, a row slipping sideways for a moment, a cell going dead, and at the very bottom
+## the whole picture swimming in and out. Nothing at WEAR_FROM, barely readable at 0
+func _wear_update(dt: float) -> void:
+	var k := clampf((WEAR_FROM - float(player.sanity)) / WEAR_FROM, 0.0, 1.0)
+	mat.set_shader_parameter("scan_amt", 0.14 + 0.32 * k)
+	mat.set_shader_parameter("grain_amt", 0.04 + 0.14 * k)
+	mat.set_shader_parameter("chroma_amt", 0.0012 + 0.012 * k)
+	if randf() < k * k * 1.2 * dt:
+		burst(0.2 + 0.5 * k)
+	for key in rows:
+		var r: Dictionary = rows[key]
+		r.slip_t = maxf(0.0, float(r.slip_t) - dt)
+		if r.slip_t <= 0.0 and randf() < k * 0.35 * dt:
+			r.slip_t = randf_range(0.05, 0.18)
+			r.slip = randf_range(-1.0, 1.0) * (4.0 + 14.0 * k)
+		(r.row as Control).position.x = float(r.slip) if r.slip_t > 0.0 else 0.0
+		r.dead_t = maxf(0.0, float(r.dead_t) - dt)
+		if r.dead_t <= 0.0:
+			r.dead = -1
+			if randf() < k * 0.25 * dt:
+				r.dead = randi() % SEGMENTS
+				r.dead_t = randf_range(0.3, 0.3 + 1.5 * k)
+	content.modulate.a = 1.0 - k * k * 0.35 * (0.5 + 0.5 * sin(_t * 1.7 + sin(_t * 4.3)))
 
 func _state(v: float, crit: float, low: float) -> String:
 	if v < crit: return "critical"
@@ -192,6 +235,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float, al
 	if r.shown >= 0.0 and dt > 0.0:          # how fast it is moving, smoothed
 		r.speed = lerpf(float(r.speed), (eased - float(r.shown)) / dt, minf(1.0, dt * 6.0))   # signed: + refilling
 	r.shown = eased
+	_trail(r, value, eased, dt)
 	var col := Kit.AMBER
 	match state:
 		"low": col = Kit.ORANGE
@@ -249,7 +293,21 @@ func _value(r: Dictionary, text: String, col: Color) -> void:
 		l.text = text
 	l.add_theme_color_override("font_color", col)
 
-## The bar's cells and the icon, in the row's colour
+## Damage trail: a sudden loss (more than SUDDEN in one frame: a hit, a sanity shock) leaves the lost
+## part on the bar as dim cells for TRAIL_HOLD s, then drains away; a steady drain never leaves one
+func _trail(r: Dictionary, value: float, eased: float, dt: float) -> void:
+	if float(r.last) >= 0.0 and float(r.last) - value > SUDDEN:
+		r.trail = maxf(float(r.trail), float(r.last))
+		r.trail_hold = TRAIL_HOLD
+	r.last = value
+	r.trail_hold = maxf(0.0, float(r.trail_hold) - dt)
+	if r.trail_hold <= 0.0:
+		r.trail = move_toward(float(r.trail), eased, TRAIL_SPEED * dt)
+	r.trail = maxf(float(r.trail), eased)
+
+## The bar's cells (with its trail and any dead cell) and the icon, in the row's colour
 func _paint(r: Dictionary, cells: int, col: Color) -> void:
 	Kit.set_cells(r.cells, cells, col)
+	var trail := clampi(ceili(float(r.trail) / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS)
+	Kit.set_extras(r.cells, trail, TRAIL_COL, int(r.dead))
 	(r.icon as TextureRect).self_modulate = col
