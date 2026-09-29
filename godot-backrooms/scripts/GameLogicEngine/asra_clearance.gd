@@ -11,11 +11,16 @@ extends Node
 ##                      only once per REREAD_COOLDOWN per entity, so it can't be farmed
 ## and each is marked up by the conditions it was taken in (close range, off-roster sightings,
 ## hazard pay while the player is hurt or losing it, readings filed back to back).
+## Mapping pays too: hazard tape (scripts/Player/tape_tool.gd) calls file_survey() with the grid
+## cells each strip marks, and every cell never marked before on that level files SURVEY_PER_CELL,
+## plus a bonus as the level's survey passes each of SURVEY_MILESTONES. Marked cells are saved per
+## level, so a level's map only pays once.
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
 ## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
 ## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
 ## It also keeps the service record the terminal's [F5] CLEARANCE page shows: lifetime stats
-## (filings by kind, yield by source, per entity, best filing, closest reading) and a filing log.
+## (filings by kind, yield by source, per entity, best filing, closest reading, tape survey per
+## level) and a filing log. The archive starts empty every run; this record doesn't.
 
 signal yield_filed(report: Dictionary)
 
@@ -36,14 +41,16 @@ const HAZARD_BELOW := 40.0
 const MOMENTUM_WINDOW := 300.0   # a filing within this of the last one adds MOMENTUM_STEP ...
 const MOMENTUM_STEP := 0.1
 const MOMENTUM_MAX := 3          # ... up to this many steps
+const SURVEY_PER_CELL := 1       # RY for each grid cell first marked with tape on a level
+const SURVEY_MILESTONES := [[0.25, 25], [0.5, 50], [0.75, 100]]   # [share of the open cells, bonus RY]
 const LOG_MAX := 12              # filings kept in the log, newest first
 
 ## Where yield comes from, in the order the [F5] page lists it: [key, label]. The first three are
-## a filing's core amount (its kind), the rest the markups on it
+## a filing's core amount (its kind), then the markups on it, then hazard-tape mapping (file_survey)
 const SOURCES := [
 	["first_contact", "FIRST CONTACT"], ["new_site", "NEW SITE CONFIRMED"], ["supplemental", "SUPPLEMENTAL DATA"],
 	["proximity", "PROXIMITY PREMIUM"], ["off_roster", "OFF-ROSTER SIGHTING"], ["hazard", "HAZARD PAY"],
-	["momentum", "FIELD MOMENTUM"],
+	["momentum", "FIELD MOMENTUM"], ["survey", "CORRIDOR MAPPED"], ["survey_bonus", "SURVEY MILESTONES"],
 ]
 
 var unit := "RY"
@@ -56,6 +63,8 @@ var last_report := {}            # the last file() result (hud.gd reads it for t
 var stats := {}                  # filings_<kind>, ry_<source key>, best_total/best_id, closest_dist/closest_id, best_momentum
 var entity_yield := {}           # entity_id -> RY filed on it in all
 var filing_log: Array = []       # newest first: {t (unix s), id, kind, total, level, dist}
+var surveyed := {}               # level id -> {"x,y": true}: the cells mapped with tape there
+var survey_open := {}            # level id -> its open cell count, as the tape last reported it ([F5] coverage)
 
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
 var _last_filed := -1.0e9
@@ -148,7 +157,9 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	var kind := ""
 	var title := ""
 	var core := 0
-	if not Archive.is_discovered(entity_id):
+	# first contact off clearance's own saved record, not the archive: the archive starts empty
+	# every level (asra_archive.gd), and re-reading a known entity must not pay first contact again
+	if not sites.has(entity_id):
 		kind = "first_contact"
 		title = "FIRST CONTACT"
 		core = base
@@ -206,6 +217,47 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	yield_filed.emit(report)
 	return report
 
+## Hazard tape just went down: `cells` (Vector2i) are the grid cells the strip marks on this level,
+## `open_cells` how many open cells the level has (for the milestones). Returns the report like
+## file() does, kind "survey" ({..., "cells": new cells, "coverage": 0..1}), or kind "" when every
+## cell was already on the map.
+func file_survey(cells: Array, open_cells: int) -> Dictionary:
+	var level := Archive.current_level_id()
+	if level == "":
+		level = "unknown"
+	var done: Dictionary = surveyed.get(level, {})
+	var before := done.size()
+	for c in cells:
+		done["%d,%d" % [c.x, c.y]] = true
+	var fresh := done.size() - before
+	var report := {"id": "", "kind": "", "title": "CORRIDOR MAPPED", "lines": [], "total": 0,
+		"tier_from": tier_index(), "tier_to": tier_index(), "cells": fresh,
+		"coverage": float(done.size()) / float(maxi(open_cells, 1))}
+	if fresh <= 0:
+		return report
+	surveyed[level] = done
+	var lines: Array = [["CORRIDOR MAPPED", fresh * SURVEY_PER_CELL, "survey"]]
+	if open_cells > 0:
+		for m in SURVEY_MILESTONES:
+			var need: float = open_cells * float(m[0])
+			if before < need and done.size() >= need:
+				lines.append(["SURVEY %d%% COMPLETE" % roundi(float(m[0]) * 100.0), int(m[1]), "survey_bonus"])
+	var gained := 0
+	for ln in lines:
+		gained += int(ln[1])
+	total += gained
+	if open_cells > 0:
+		survey_open[level] = open_cells
+	_record_survey(level, fresh, lines, gained)
+	report.kind = "survey"
+	report.lines = lines
+	report.total = gained
+	report.tier_to = tier_index()
+	last_report = report
+	_save()
+	yield_filed.emit(report)
+	return report
+
 ## Debug console `clearance add <n>`
 func grant(amount: int) -> Dictionary:
 	var from := tier_index()
@@ -227,6 +279,8 @@ func reset() -> void:
 	stats.clear()
 	entity_yield.clear()
 	filing_log.clear()
+	surveyed.clear()
+	survey_open.clear()
 	_reread_at.clear()
 	_momentum = 0
 	last_report = {}
@@ -248,6 +302,27 @@ func _record(entity_id: String, kind: String, lines: Array, gained: int, level: 
 	stats["best_momentum"] = maxi(int(stats.get("best_momentum", 0)), _momentum + 1)
 	_log({"t": int(Time.get_unix_time_from_system()), "id": entity_id, "kind": kind, "total": gained,
 		"level": level, "dist": dist})
+
+## A strip of tape: its stats, and the level's line in the log, which grows while the player keeps
+## taping there rather than one line per strip
+func _record_survey(level: String, fresh: int, lines: Array, gained: int) -> void:
+	_bump("filings_survey", 1)
+	_bump("cells_mapped", fresh)
+	for ln in lines:
+		_bump("ry_" + str(ln[2]), int(ln[1]))
+	var now := int(Time.get_unix_time_from_system())
+	if not filing_log.is_empty() and str(filing_log[0].get("kind", "")) == "survey" and str(filing_log[0].get("level", "")) == level:
+		var e: Dictionary = filing_log[0]
+		e["total"] = int(e.get("total", 0)) + gained
+		e["cells"] = int(e.get("cells", 0)) + fresh
+		e["t"] = now
+		return
+	_log({"t": now, "id": "", "kind": "survey", "total": gained, "level": level, "dist": -1.0, "cells": fresh})
+
+## 0..1 of a level's open cells mapped with tape (0 until the tape has reported the level's size)
+func survey_coverage(level: String) -> float:
+	var open := int(survey_open.get(level, 0))
+	return clampf(float((surveyed.get(level, {}) as Dictionary).size()) / open, 0.0, 1.0) if open > 0 else 0.0
 
 func _bump(key: String, by: int) -> void:
 	stats[key] = int(stats.get(key, 0)) + by
@@ -325,8 +400,15 @@ func _load() -> bool:
 		stats = cf.get_value("record", "stats", {})
 		entity_yield = cf.get_value("record", "entity_yield", {})
 		filing_log = cf.get_value("record", "log", [])
+		survey_open = cf.get_value("record", "survey_open", {})
 	else:
 		_backfill_stats()
+	if cf.has_section("survey"):
+		for id in cf.get_section_keys("survey"):
+			var done := {}
+			for k in cf.get_value("survey", id, []):
+				done[str(k)] = true
+			surveyed[id] = done
 	return true
 
 func _save() -> void:
@@ -339,4 +421,7 @@ func _save() -> void:
 	cf.set_value("record", "stats", stats)
 	cf.set_value("record", "entity_yield", entity_yield)
 	cf.set_value("record", "log", filing_log)
+	cf.set_value("record", "survey_open", survey_open)
+	for id in surveyed:
+		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
 	cf.save(SAVE_PATH)

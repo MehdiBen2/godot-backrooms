@@ -172,8 +172,7 @@ func _submit(line: String) -> void:
 		"archive":
 			if arg == "reset":
 				Archive.forget_all()
-				Clearance.reset()
-				_print("archive: every entry unlogged, clearance back to %s" % Clearance.tier_label())
+				_print("archive: every entry unlogged this run (clearance kept: `clearance reset` clears it)")
 			else:
 				for id in Archive.entities():
 					var on := Archive.is_discovered(str(id))

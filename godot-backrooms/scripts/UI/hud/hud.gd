@@ -5,11 +5,16 @@ extends CanvasLayer
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
 ## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
+## And the reflective hazard tape (tape_tool.gd, hold T) with its tape mode HUD (tape_readout.gd).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
+const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
+const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const TapeTool := preload("res://scripts/Player/tape_tool.gd")
+const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
@@ -26,6 +31,7 @@ var pause_root: Control
 var menu: Control
 var inventory: Control
 var scanner: Node
+var tape: Node
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween
@@ -42,6 +48,7 @@ var player: Node
 var level: Node
 var corners: Array[Control] = []
 var shake_seed := randf() * 1000.0
+var battery_hint_shown := false   # the "[R] to load it" toast, once per run
 
 func _ready() -> void:
 	layer = 5
@@ -68,6 +75,7 @@ func _ready() -> void:
 	_build_pause()
 	_build_inventory()
 	_build_scanner()
+	_build_tape()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -239,7 +247,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -288,6 +296,11 @@ func _build_inventory() -> void:
 	inventory = load("res://scripts/UI/inventory/inventory.gd").new()
 	inventory.player = player
 	add_child(inventory)
+	# the torch in your hand (torch_model.gd) is always carried: first on the list
+	inventory.add_item("torch", "Flashlight",
+		"Your hand torch. F switches it on and off; about 75 s of light on a full charge, a quarter "
+		+ "of the drain in a power cut. R loads a carried battery pack into it.", 1, "TRC", 1,
+		"res://models/flashlight.glb")
 
 ## The field scanner is the only way to log an entity, so every run starts with one in the
 ## terminal. Reticle and toast live in hud_root: they fade with the OSD under the pause menu and the
@@ -295,7 +308,8 @@ func _build_inventory() -> void:
 func _build_scanner() -> void:
 	inventory.add_item("scanner", "T.S.R.A. Field Scanner",
 		"Hold Q while an anomaly is near the middle of your view and in plain sight. A complete "
-		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1)
+		+ "reading logs it to the Threshold Dossier [F2]. Range about 30 m.", 1, "SCN", 1,
+		"res://scripts/Player/scanner_model.gd")
 	scanner = Scanner.new()
 	scanner.player = player
 	scanner.inventory = inventory
@@ -307,6 +321,20 @@ func _build_scanner() -> void:
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
 	Clearance.yield_filed.connect(_on_yield_filed)
+
+## Every run starts with one roll of hazard tape. Its HUD (tape_readout.gd) is only up while T is
+## held and for a moment after.
+func _build_tape() -> void:
+	inventory.add_item(TapePickup.ITEM_ID, TapePickup.ITEM_NAME, TapePickup.ITEM_DESC, 1,
+		TapePickup.ITEM_CODE, TapePickup.STACK, TapePickup.MODEL_PATH)
+	tape = TapeTool.new()
+	tape.player = player
+	tape.inventory = inventory
+	add_child(tape)
+	var readout := TapeReadout.new()
+	readout.tape = tape
+	readout.inventory = inventory
+	hud_root.add_child(readout)
 
 ## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
@@ -320,7 +348,7 @@ func _on_entity_logged(id: String) -> void:
 	var report: Dictionary = Clearance.last_report
 	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
 		lines.append_array(_yield_lines(report))
-	lines.append(["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16])
+	lines.append(["[TAB] [F3] READ THE ENTRY", Term.MUTED, 16])
 	toast.push("[NEW ENTRY LOGGED]", lines)
 	_promotion(report)
 
@@ -330,6 +358,13 @@ func _on_yield_filed(report: Dictionary) -> void:
 	match report.get("kind", ""):
 		"first_contact":
 			return
+		"survey":
+			# every strip's own yield shows on the tape readout; the milestones get a toast
+			if (report.lines as Array).size() > 1:
+				var lines: Array = [["%s // %d%% OF THIS LEVEL MAPPED" % [Archive.current_dossier().get("designation", "UNMAPPED SITE"),
+					roundi(float(report.get("coverage", 0.0)) * 100.0)], Term.GREEN, 18]]
+				lines.append_array(_yield_lines(report))
+				toast.push("[SURVEY MILESTONE]", lines)
 		"new_site":
 			var info := Archive.entity_info(str(report.id))
 			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
@@ -363,6 +398,41 @@ func _promotion(report: Dictionary) -> void:
 			lines.append([str(u.get("text", "")), Term.TEXT, 16, true])
 	lines.append(["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16])
 	toast.push("[CLEARANCE ELEVATED]", lines)
+
+# ---- carried items ------------------------------------------------------------------------
+## Floor pickups (World/props) hand themselves in here; false when there's no room, so the
+## pickup stays where it is
+func pick_up_item(id: String, title: String, desc: String, code: String, stack: int, model: String) -> bool:
+	if not inventory.add_item(id, title, desc, 1, code, stack, model):
+		return false
+	if id == BatteryPickup.ITEM_ID and not battery_hint_shown:
+		battery_hint_shown = true
+		toast.push("[ITEM RECOVERED]", [
+			[title.to_upper(), Term.AMBER, 20],
+			["STACKS UP TO %d" % stack, Term.TEXT, 17],
+			["[R] LOAD ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+			["[TAB] VIEW INVENTORY", Term.MUTED, 16],
+		])
+	return true
+
+## R: load a carried battery pack into the flashlight. Nothing to load or a full battery: the
+## dead click, so the key still answers.
+func use_battery() -> void:
+	if player.battery >= 99.5 or not inventory.has_item(BatteryPickup.ITEM_ID):
+		player.dead_click.emit()
+		return
+	inventory.remove_item(BatteryPickup.ITEM_ID)
+	player.battery = minf(100.0, player.battery + BatteryPickup.CHARGE)
+	var audio: Node = get_parent().get_node_or_null("Audio")
+	if audio:
+		audio.play_world("flash_click_on.wav")
+
+func _unhandled_input(e: InputEvent) -> void:
+	var k := e as InputEventKey
+	if k and k.pressed and not k.echo and k.physical_keycode == KEY_R and Game.playing and not Game.dead \
+			and not player.dead and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		use_battery()
+		get_viewport().set_input_as_handled()
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.

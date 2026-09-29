@@ -17,7 +17,9 @@ const MAX_PLAYERS := 8
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 2
+const PROTOCOL := 3
+const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
+const TAPE_BATCH_MAX := 1000     # strips in one _tape_rpc (a newcomer gets everyone's in one go)
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const CLOUDFLARED_PATHS := [
 	"C:/Program Files (x86)/cloudflared/cloudflared.exe",
@@ -165,6 +167,8 @@ func _on_peer_connected(id: int) -> void:
 		_level.rpc_id(id, Game.level_index)
 		if mq_level >= 0:
 			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
+	if not TapeMarks.mine.is_empty():
+		_tape_rpc.rpc_id(id, TapeMarks.mine)               # the tape we already stuck up, for the newcomer
 	_ensure_remote(id)
 	_update_count()
 
@@ -422,6 +426,30 @@ func _mm_hit_rpc() -> void:
 	var mm := _scene_node("Mimic")
 	if mm != null:
 		mm.hit_player()
+
+# ---- hazard tape: every strip anyone sticks up, everyone sees (tape_marks.gd) ------------------
+## strips: [[level, a, b, n], ...]
+func send_tape(strips: Array) -> void:
+	if is_online() and not multiplayer.get_peers().is_empty():
+		_tape_rpc.rpc(strips)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _tape_rpc(strips: Array) -> void:
+	if not _is_peer(multiplayer.get_remote_sender_id()) or strips.size() > TAPE_BATCH_MAX:
+		return
+	for s in strips:
+		if not (s is Array) or s.size() != 4 or typeof(s[0]) != TYPE_INT:
+			continue
+		var level: int = s[0]
+		if level < 0 or level >= 64 or typeof(s[1]) != TYPE_VECTOR3 or typeof(s[2]) != TYPE_VECTOR3 or typeof(s[3]) != TYPE_VECTOR3:
+			continue
+		var a: Vector3 = s[1]
+		var b: Vector3 = s[2]
+		var n: Vector3 = s[3]
+		if not (a.is_finite() and b.is_finite() and n.is_finite()) or absf(a.x) > MAX_COORD or absf(a.y) > MAX_COORD \
+				or absf(a.z) > MAX_COORD or a.distance_to(b) > 25.0 or absf(n.length() - 1.0) > 0.01:
+			continue
+		TapeMarks.receive(level, a, b, n)
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:

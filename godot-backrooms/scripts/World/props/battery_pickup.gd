@@ -1,10 +1,18 @@
 extends Node3D
-## A battery pack lying on the carpet. Walking over it tops up the flashlight.
-## Spawned at random open cells by level_builder._spawn_batteries.
+## A battery pack lying on the carpet. Walking over it puts it in the inventory, where packs
+## stack (up to STACK); R loads one into the flashlight (hud.gd use_battery). With the stack
+## full it stays on the floor. Spawned at random open cells by level_builder._spawn_batteries.
 
 const TRIGGER_RADIUS := 0.9
-const CHARGE := 45.0           # % of battery restored
+const CHARGE := 45.0           # % of battery one pack restores
+const ITEM_ID := "battery"
+const ITEM_NAME := "AA Battery Pack"
+const ITEM_CODE := "BAT"
+const STACK := 6
+const ITEM_DESC := "A shrink-wrapped pair of AA cells, still holding a charge. Press R to load one " \
+	+ "into the flashlight: +45% battery."
 
+const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 const MODEL_PATH := "res://models/aa_batteries.glb"
 const MODEL_SIZE := 0.3          # metres, longest side
 static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread, so the menu's threaded load would stall on it
@@ -18,7 +26,7 @@ func _ready() -> void:
 	var model: Node3D = model_scene.instantiate()
 	add_child(model)
 	# fit the model to ~MODEL_SIZE along its longest side and rest it on the floor
-	var box := _mesh_aabb(model, Transform3D.IDENTITY)
+	var box := ItemIcon.mesh_aabb(model, Transform3D.IDENTITY)
 	var longest := maxf(box.size.x, maxf(box.size.y, box.size.z))
 	if longest > 0.0:
 		var k := MODEL_SIZE / longest
@@ -38,30 +46,15 @@ func _process(_delta: float) -> void:
 	if used or Game.dead or not Game.playing:
 		return
 	var player: Node3D = get_parent().player
-	if player == null or player.battery >= 100.0:
-		return                           # full battery: leave it for later
+	if player == null:
+		return
 	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z).length()
 	if d < TRIGGER_RADIUS and absf(player.global_position.y - global_position.y) < 2.0:
+		var ui: Node = Game.main.get_node_or_null("UI") if Game.main != null else null
+		if ui == null or not ui.pick_up_item(ITEM_ID, ITEM_NAME, ITEM_DESC, ITEM_CODE, STACK, MODEL_PATH):
+			return                       # stack full: leave it for later
 		used = true
-		player.battery = minf(100.0, player.battery + CHARGE)
-		var audio: Node = Game.main.get_node_or_null("Audio") if Game.main != null else null
+		var audio: Node = Game.main.get_node_or_null("Audio")
 		if audio:
 			audio.play_world("flash_click_on.wav")
 		queue_free()
-
-func _mesh_aabb(n: Node, xf: Transform3D) -> AABB:
-	var out := AABB()
-	var first := true
-	var t: Transform3D = xf
-	if n is Node3D:
-		t = xf * (n as Node3D).transform
-	var mi := n as MeshInstance3D
-	if mi and mi.mesh:
-		out = t * mi.mesh.get_aabb()
-		first = false
-	for ch in n.get_children():
-		var sub := _mesh_aabb(ch, t)
-		if sub.size == Vector3.ZERO: continue
-		out = sub if first else out.merge(sub)
-		first = false
-	return out
