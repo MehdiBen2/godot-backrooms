@@ -79,24 +79,6 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var v := sin(ph) * 0.5 * exp(-t * 15.0) + body[i] * 2.2 * exp(-t * 20.0) + scuff[i] * 0.9 * exp(-t * 40.0)
 				a[i] = v * atk * clampf((0.55 - t) / 0.08, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.55))
-		"vanish":      # the air pressure in the room changes: a slow, dark breath of air draining away
-			# (no pitched sweep: that was the cartoon "whoosh")
-			var a := _buf(3.2)
-			var lp1 := 0.0
-			var lp2 := 0.0
-			var sub_ph := 0.0
-			for i in a.size():
-				var t := float(i) / SR
-				var u := t / 3.2
-				var cutoff := 900.0 * exp(-u * 2.6) + 70.0      # the rush closes down into the dark
-				var k := 1.0 - exp(-TAU * cutoff / SR)
-				var x := rng.randf_range(-1.0, 1.0)
-				lp1 += (x - lp1) * k
-				lp2 += (lp1 - lp2) * k
-				sub_ph += TAU * (30.0 - 6.0 * u) / SR
-				var env := pow(sin(PI * pow(u, 0.6)), 2.0)        # swells in slowly, dies away slowly
-				a[i] = (lp2 * 5.0 + sin(sub_ph) * 0.22 * env) * env
-			w = _wav(_normalize(a, 0.45))
 		"heartbeat":   # lub-dub: two soft, round sub thumps (808-style falling sine), heavily low-passed
 			var a := _buf(0.75)
 			var hits := [[0.0, 1.0, 62.0, 40.0, 13.0], [0.24, 0.62, 70.0, 46.0, 18.0]]   # at, gain, f start, f end, decay

@@ -369,7 +369,6 @@ func _event_power_cut() -> void:
 				var d: float = s[1]
 				scares.play_scare("footThump", sound_spot(d), 0.5 + 0.5 * (1.0 - d / 18.0))
 				haunt(0.4 + 0.4 * (1.0 - d / 18.0)))
-		later(35.0, func(): scares.play_scare("vanish"))
 		later(POWER_CUT_SECONDS, func(): scares.play_scare("restrike")))
 
 # ---------------------------------------------------------------- tilt drift
