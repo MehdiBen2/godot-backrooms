@@ -12,8 +12,10 @@ extends Node3D
 ##         heartbeat. Watch it from close by and, after a moment, it stops and looks back, as anyone
 ##         would, then carries on (NOTICE). Walk right up to it and it bolts (FLEE). It only ever goes
 ##         when nobody is looking. Alone, it walks your own route behind you.
-##  CHARGE A power cut ends the act: it comes at you in the dark, frozen while you look, bolting when
-##         you catch it in your light; reaching you hurts and stuns.
+##  CHARGE A power cut: it comes to you in the dark the way a teammate would, walking, torch on. Watched,
+##         it stops at talking distance and stands there; turn your back and it closes in and strikes
+##         once (it hurts and stuns). Catch it in your torch up close and it walks off. One try per
+##         blackout, then it is gone until the lights are back.
 ## It stirs once there are ECHO_START seconds of anyone's route to walk (or a power cut, or F5).
 ##
 ## In co-op it wears the face of the survivor whose route it walks: their colour and their name tag,
@@ -44,11 +46,12 @@ const FLEE_DONE_DIST := 26.0
 const STUCK_AFTER := 4.0
 const RELOCATE_AFTER := 12.0
 const CHARGE_STOP := 2.5
-const CHARGE_SPEED := 5.6
 const HIT_DAMAGE := 40.0
 const HIT_STUN := 2.0
 const HIT_COOLDOWN := 8.0
-const SPOOK_CHANCE := 0.04
+const CAUGHT_DIST := 6.0             # m: your torch on it this close in a blackout, and it walks off
+const DARK_STAND := 4.0              # m: watched in a blackout, it comes no closer than this
+const LEAVE_SPEED := 3.8             # m/s: leaving, brisk, a survivor in a hurry
 const OFFSETS := [0.0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6, 2.2, -2.2, PI]
 
 # the echo
@@ -149,6 +152,7 @@ var torch_on := false
 var pitch := 0.0
 var _torch_was := false
 var clicker: AudioStreamPlayer3D
+var _dark_done := false              # this blackout's try is spent
 var lure_kind := ""                  # dead_end / pit / bacteria: where it is taking you
 var lure_path: Array = []            # waypoints (cell centres; a pit crossing goes straight over the hole)
 var lure_i := 0
@@ -346,8 +350,8 @@ const SCAN_MODES := {
 	"notice": ["WATCHING YOU", "IT SAW YOU LOOKING - DO NOT WALK UP TO IT", 1],
 	"lure": ["LEADING YOU", "IT WANTS YOU TO FOLLOW - DO NOT", 2],
 	"wander": ["WANDERING OFF", "IT GAVE UP ON YOU", 1],
-	"flee": ["FLEEING", "FASTER THAN YOU - LET IT GO", 0],
-	"charge": ["CHARGING", "COMING AT YOU IN THE DARK - LIGHT IT UP", 2],
+	"flee": ["LEAVING", "IT IS GOING - LET IT GO", 0],
+	"charge": ["APPROACHING", "COMING TO YOU IN THE DARK - DO NOT TURN YOUR BACK", 2],
 }
 
 func scan_behavior(_at: Vector3) -> Dictionary:
@@ -378,19 +382,21 @@ func steer_to(x: float, z: float, want: float, look: float) -> float:
 			return want + off
 	return NAN
 
+## Its feet: silent while it passes for a survivor (theirs make no sound over the net either); only
+## leaving in a hurry, its cover blown, does it thud off down the hall
 func footsteps(delta: float, dist: float) -> void:
 	var pos := body.global_position
-	if mode == "charge" and speed <= 1.0:
-		step = 0.0
-	if (mode == "flee" or mode == "charge") and speed > (1.0 if mode == "charge" else 3.0) and dist < 30.0:
+	if mode == "flee" and speed > 3.0 and dist < 30.0:
 		step -= delta
 		if step <= 0.0:
-			step = 0.27 if mode == "charge" else 0.3
+			step = 0.3
 			scares.play_scare("footThump", Vector3(pos.x, player.global_position.y + 0.2, pos.z), maxf(0.2, 0.75 * (1.0 - dist / 30.0)))
 
 func update_peer(delta: float) -> void:
 	echo_clock += delta
-	var t := echo_clock                             # every timer here runs on game time, like the route
+	var t := echo_clock
+	if not player.grid_down:
+		_dark_done = false                          # the lights are on: the next blackout is a new try                             # every timer here runs on game time, like the route
 	echo.record(delta, echo_clock)
 	if not session:
 		if echo.longest_span() < ECHO_START:
@@ -408,7 +414,8 @@ func update_peer(delta: float) -> void:
 		if wait > 0.0:
 			return
 		if player.grid_down:
-			appear()
+			if not _dark_done:
+				appear()
 		elif not _begin_echo(t):
 			wait = 2.0                              # nowhere it could walk into your view from yet
 		return
@@ -431,39 +438,34 @@ func update_peer(delta: float) -> void:
 		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
 		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
 
-	# decide what it is doing
+	# decide what it is doing. A blackout is one try, never a loop: it comes to you like a teammate
+	# would in the dark, and either strikes once (your back turned) or is caught in your torch and walks
+	# off. Either way it is gone until the lights are back (_dark_done).
 	var charging: bool = player.grid_down
 	if _acting():
-		mode = "charge"                             # the grid went down mid-act: the act is over
+		mode = "charge"                             # the grid went down mid-act: it comes to you instead
 		step = 0.0
 	if not charging and mode == "charge":
 		mode = "flee"                               # the lights are back: out of sight, then gone
 		flee_until = t + 1.0
 	if mode == "flee":
-		if t > flee_until and (dist > FLEE_DONE_DIST or (not watched and dist > 16.0)):
-			if charging:
-				mode = "charge"
-			elif not _seen_by_anyone(pos):
-				_vanish()
-				return
+		if t > flee_until and (dist > FLEE_DONE_DIST or (not watched and dist > 16.0)) and not _seen_by_anyone(pos):
+			_dark_done = charging                   # left in the dark: not again this blackout
+			_vanish()
+			return
 	elif charging:
-		if mode != "charge":
-			mode = "charge"
-			step = 0.0
-		if watched and dist < 40.0:
-			# caught in your light: it reacts after a beat that is never quite the same
+		mode = "charge"
+		# caught full in your torch, close up: like anyone caught out, it turns and walks off
+		if watched and dist < CAUGHT_DIST and _target_torch():
 			if react_at == 0.0:
-				react_at = t + 0.15 + rng.randf() * 1.1
-			if t >= react_at:
+				react_at = t + rng.randf_range(0.3, 0.9)
+			elif t >= react_at:
 				mode = "flee"
-				flee_until = t + 2.0 + rng.randf() * 2.5
+				flee_until = t + 2.0
 				react_at = 0.0
+				_dark_done = true
 		else:
 			react_at = 0.0
-			# ...and sometimes it turns tail for no reason, so the pattern never reads as a script
-			if rng.randf() < SPOOK_CHANCE * delta:
-				mode = "flee"
-				flee_until = t + 1.2 + rng.randf() * 1.8
 
 	# where it wants to go, and how fast
 	var want := to_player
@@ -471,12 +473,14 @@ func update_peer(delta: float) -> void:
 	var turn := TURN_RATE
 	if mode == "flee":
 		want = to_player + PI
-		goal = FLEE_SPEED
+		goal = LEAVE_SPEED
 		turn = FLEE_TURN_RATE
 	elif mode == "charge":
-		# it only runs while you are not looking; look back at it and it freezes, then bolts
-		goal = CHARGE_SPEED if (dist > CHARGE_STOP and not watched) else 0.0
-		turn = FLEE_TURN_RATE
+		# watched, it walks up to talking distance and stands there, torch on you; back turned, it closes in
+		if watched:
+			goal = LURE_SPEED if dist > DARK_STAND else 0.0
+		else:
+			goal = LURE_HURRY if dist > CHARGE_STOP else 0.0
 
 	# steer round walls, then turn and accelerate like a body would
 	var steered := NAN
@@ -508,11 +512,12 @@ func update_peer(delta: float) -> void:
 	pos.y = pp.y
 	body.global_position = pos
 
-	# it reaches you: a blow that stuns and hurts, then it bolts
-	if mode == "charge" and dist < CHARGE_STOP + 0.5 and t >= hit_ready:
+	# it reaches you with your back turned: a blow that stuns and hurts, then it leaves
+	if mode == "charge" and dist < CHARGE_STOP + 0.5 and not watched and t >= hit_ready:
 		hit_ready = t + HIT_COOLDOWN
 		mode = "flee"
 		flee_until = t + 3.0 + rng.randf() * 2.0
+		_dark_done = true
 		if tg.local:
 			hit_player()
 		else:
@@ -976,6 +981,14 @@ func _wander_step(delta: float, t: float) -> void:
 	body.rotation.y = body_yaw
 	_animate()
 
+## Is the survivor it is after holding a lit torch?
+func _target_torch() -> bool:
+	for s in Net.survivors():
+		if s.id == t_id:
+			var n: Node = s.node
+			return (n.flash_on and n.battery > 0.0) if s.local else bool(n.torch_on)
+	return false
+
 ## Could anyone see a body standing at `p` right now? (close behind you counts: you would hear it)
 func _seen_by_anyone(p: Vector3) -> bool:
 	for s in Net.survivors():
@@ -1050,7 +1063,7 @@ func _present() -> void:
 	var acting := _acting()
 	if mouth.playing:
 		_update_mouth(get_physics_process_delta_time())
-	torch.visible = spawned and (torch_on if acting else shown_id != 0)
+	torch.visible = spawned and (torch_on if acting else true)      # in the dark a survivor has theirs on
 	torch.rotation = Vector3(pitch, PI, 0.0)
 	tag.position.y = 1.75 if crouch else 2.25
 	if acting and spawned and torch_on != _torch_was and not Net.is_online() and body.is_visible_in_tree():
@@ -1110,15 +1123,9 @@ func _update_mouth(dt: float) -> void:
 	mouth.volume_db = linear_to_db(maxf(Voice.voice_volume * own, 0.0001))
 
 ## Its body, as a survivor's (remote_player.gd _pick_role / _anim_speed): the same clips at the same
-## speeds, crouching where the route crouched. Only in a charge does it stand wrong: frozen mid-stride
-## while you look at it.
+## speeds, crouching where the route crouched. It never stands wrong: nothing in how it moves gives it away.
 func _animate() -> void:
 	if anim == null or _clips.is_empty():
-		return
-	if mode == "charge" and speed <= 0.6:
-		if anim.is_playing():
-			anim.pause()
-		_role = ""
 		return
 	var moving := speed > MOVING_ABOVE
 	var want := ""
