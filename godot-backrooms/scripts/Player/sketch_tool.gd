@@ -13,6 +13,7 @@ const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const KEY := KEY_B
 const KEY_COLOR := KEY_N
 const KEY_ERASE := KEY_X
+const LensPointer := preload("res://scripts/UI/hud/lens_pointer.gd")
 const CURSOR_REACH := 300.0     # m: with the draw tools panel open the pen reaches this far
 const REACH := 3.0               # m
 const STEP := 0.02               # m between points
@@ -92,7 +93,7 @@ func _aim() -> Dictionary:
 	var from := cam.global_position
 	var dir := -cam.global_transform.basis.z
 	if _cursor():
-		var m := cam.get_viewport().get_mouse_position()
+		var m := LensPointer.render_pos(cam.get_viewport())
 		from = cam.project_ray_origin(m)
 		dir = cam.project_ray_normal(m)
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * (CURSOR_REACH if _cursor() else REACH), WORLD_MASK)

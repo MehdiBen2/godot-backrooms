@@ -19,6 +19,7 @@ const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 
 const KEY := KEY_T
+const LensPointer := preload("res://scripts/UI/hud/lens_pointer.gd")
 const CURSOR_REACH := 300.0     # m: with the draw tools panel open the cursor reaches this far
 const REACH := 3.0               # m: how far away the first end can be pressed down
 const MAX_STRIP := 20.0          # m in one pull
@@ -141,12 +142,12 @@ func _reach() -> float:
 
 func _origin(cam: Camera3D) -> Vector3:
 	if cursor_aim:
-		return cam.project_ray_origin(cam.get_viewport().get_mouse_position())
+		return cam.project_ray_origin(LensPointer.render_pos(cam.get_viewport()))
 	return cam.global_position
 
 func _aim_dir(cam: Camera3D) -> Vector3:
 	if cursor_aim:
-		return cam.project_ray_normal(cam.get_viewport().get_mouse_position())
+		return cam.project_ray_normal(LensPointer.render_pos(cam.get_viewport()))
 	return -cam.global_transform.basis.z
 
 func _pull(dt: float) -> void:
