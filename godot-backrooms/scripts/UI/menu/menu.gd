@@ -119,7 +119,7 @@ func _build() -> void:
 	main.add_child(tag)
 	main.add_child(_spacer(18))
 
-	title_label = _split_title("THE BACKROOMS", 152)
+	title_label = _split_title("THE BACKROOMS", 104)
 	main.add_child(title_label)
 	title_static = Control.new()
 	title_static.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
