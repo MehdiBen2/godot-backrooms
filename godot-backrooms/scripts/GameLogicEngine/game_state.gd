@@ -27,6 +27,8 @@ var heart: Node               # the heartbeat engine (heart.gd): threats feed it
 var pulse := 0.0              # heartbeat envelope 0..1 for the tunnel vision
 var dead := false
 var death_reason := ""
+var run_unix := 0             # unix time this life started (main.gd): the death card counts from it
+var run_yield := 0            # Clearance.total when it started: the card shows what this life filed
 var death_type := DeathType.NONE
 # Grab / snap screen effects, read by the post shader (web: CSS filter/transform on the canvas + #grab-fade)
 var fx_blur := 0.0

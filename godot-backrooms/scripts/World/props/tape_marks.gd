@@ -134,6 +134,15 @@ static func _store(level: int, s: Dictionary) -> void:
 	if list.size() > MAX_PER_LEVEL:
 		mine.erase(list.pop_front().id)
 
+## Metres of tape this PC has stuck up since `unix` and not peeled back off (the death card)
+static func laid_since(unix: float) -> float:
+	var total := 0.0
+	for id in mine:
+		var s := _find(int(mine[id]), str(id))
+		if not s.is_empty() and float(s.get("t", 0.0)) >= unix:
+			total += (s.a as Vector3).distance_to(s.b as Vector3)
+	return total
+
 static func _find(level: int, id: String) -> Dictionary:
 	for s in placed.get(level, []):
 		if s.id == id:

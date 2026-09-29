@@ -302,6 +302,7 @@ func _build_scanner() -> void:
 	readout.scanner = scanner
 	hud_root.add_child(readout)
 	toast = TerminalToast.new()
+	toast.player = player
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
 	Clearance.yield_filed.connect(_on_yield_filed)

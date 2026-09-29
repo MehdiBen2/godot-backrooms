@@ -23,6 +23,9 @@ const SLIDE := 60.0              # how far it slides in from
 const HOLD := 5.0
 const RIGHT := 42.0              # lines up with the HUD's top-right block (hud.gd)
 const TOP := 150.0
+const CORRUPT_BELOW := 40.0      # sanity under this and a toast may arrive with a word gone wrong
+const WRONG_WORDS := ["BEHIND", "NOT REAL", "STAY", "LOOK", "WAKE UP", "IT SEES", "NO EXIT", "YOU", "LIAR", "HELP"]
+const GARBLE := "#%&@$?!/"
 
 var queue: Array = []            # [title, lines]; lines: [[text, color, font size, wrap?], ...]
 var busy := false
@@ -37,6 +40,9 @@ var anim: Tween
 var chime: AudioStreamPlayer
 var font := FontVariation.new()
 var wide := FontVariation.new()  # letter-spaced, for the tab
+var player: Node                 # player.gd (set by hud.gd): its sanity decides the corruption
+var _bad := {}                   # {label, real, fake, t}: the corrupted line, flickering back now and then
+var _word := RegEx.create_from_string("^[A-Z]{4,}$")
 
 func _ready() -> void:
 	anchor_left = 1.0; anchor_right = 1.0
@@ -157,6 +163,8 @@ func _next() -> void:
 			row = l
 		body.add_child(row)
 
+	_corrupt()
+
 	# as wide as its widest line (a sentence takes the full width), and room for the tab
 	var w := W_MAX if not wraps.is_empty() else W_MIN
 	if wraps.is_empty():
@@ -202,6 +210,61 @@ func _next() -> void:
 	anim.chain().tween_property(sheet, "position:x", home_x + SLIDE, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	anim.tween_property(sheet, "modulate:a", 0.0, 0.25)
 	anim.chain().tween_callback(func(): _next.call_deferred())   # not from inside the tween it replaces
+
+## Low sanity: now and then a toast comes in with one word wrong, either garbled or swapped for
+## something it never said. The lower the sanity the likelier (none at CORRUPT_BELOW, every toast 30
+## under it). The true word shows through for a frame or two every so often (_process).
+func _corrupt() -> void:
+	_bad = {}
+	if player == null or not is_instance_valid(player):
+		return
+	var k := clampf((CORRUPT_BELOW - float(player.get("sanity"))) / 30.0, 0.0, 1.0)
+	if k <= 0.0 or randf() > k:
+		return
+	var picks: Array = []                    # [label, word index]
+	for row in body.get_children():
+		var l := row as Label
+		if l == null or l.autowrap_mode != TextServer.AUTOWRAP_OFF:
+			continue
+		var words := l.text.split(" ")
+		for i in words.size():
+			if _word.search(words[i]) != null:
+				picks.append([l, i])
+	if picks.is_empty():
+		return
+	var pick: Array = picks[randi() % picks.size()]
+	var lab: Label = pick[0]
+	var words := lab.text.split(" ")
+	var idx := int(pick[1])
+	var real: String = words[idx]
+	var fake := ""
+	var fits: Array = WRONG_WORDS.filter(func(w): return str(w).length() <= real.length() + 1)
+	if not fits.is_empty() and randf() < 0.5:
+		fake = str(fits[randi() % fits.size()])
+	else:
+		for ch in real:
+			fake += GARBLE[randi() % GARBLE.length()] if randf() < 0.6 else ch
+	var real_text := lab.text
+	words[idx] = fake
+	lab.text = " ".join(words)
+	_bad = {"label": lab, "real": real_text, "fake": lab.text, "t": randf_range(0.8, 2.0)}
+
+func _process(dt: float) -> void:
+	if _bad.is_empty():
+		return
+	if not is_instance_valid(_bad.label):      # the next toast cleared it
+		_bad = {}
+		return
+	var l: Label = _bad.label
+	_bad.t -= dt
+	if _bad.t > 0.0:
+		return
+	if l.text == _bad.fake:                  # the true line, for a blink
+		l.text = _bad.real
+		_bad.t = randf_range(0.05, 0.12)
+	else:
+		l.text = _bad.fake
+		_bad.t = randf_range(0.8, 2.0)
 
 func _set_life(v: float) -> void:
 	life = v

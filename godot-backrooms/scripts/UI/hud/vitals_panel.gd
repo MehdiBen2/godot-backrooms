@@ -27,6 +27,7 @@ const VALUE_W := 62.0              # the reading right of each bar: "83%", or NO
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
+const LIE_BELOW := 40.0              # sanity under this and the readings start to lie now and then
 const ROWS := [
 	["POWER", "res://textures/ui/terminal_battery.png"],
 	["STAMINA", "res://textures/ui/terminal_stamina.png"],
@@ -42,6 +43,7 @@ var fade_src: CanvasItem             # hud_root: nothing to render while it is f
 var rows := {}                       # name -> {icon, cells, value, shown}
 var _t := 0.0
 var _heard := 0.0                    # 0..1, eased: how red the NOISE row is
+var _lie_k := 0.0                    # 0..1: how often the readings lie (0 above LIE_BELOW)
 
 func _ready() -> void:
 	super()
@@ -93,7 +95,7 @@ func _row(key: String, icon_path: String) -> Control:
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(value)
-	rows[key] = {"icon": icon, "cells": cells, "value": value, "shown": -1.0}
+	rows[key] = {"icon": icon, "cells": cells, "value": value, "shown": -1.0, "lie_t": 0.0, "lie": ""}
 	return row
 
 func _process(dt: float) -> void:
@@ -103,6 +105,7 @@ func _process(dt: float) -> void:
 		return
 	_t += dt
 	var pulse := 0.65 + 0.35 * sin(_t * 15.0)
+	_lie_k = clampf((LIE_BELOW - float(player.sanity)) / 30.0, 0.0, 1.0)
 	var bat: float = player.battery
 	_stat("POWER", bat, _state(bat, PlayerScript.BATTERY_CRIT, PlayerScript.BATTERY_LOW), dt, pulse)
 	_stat("STAMINA", player.stamina, "critical" if player.exhausted else "", dt, pulse)
@@ -126,7 +129,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 		"low": col = Kit.ORANGE
 		"critical": col = Color(Kit.RED, pulse)
 	_paint(r, clampi(ceili(eased / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS), col)
-	_value(r, "%d%%" % roundi(eased), Kit.TEXT if state == "" else col)
+	_value(r, _lie(r, "%d%%" % roundi(eased), dt, false), Kit.TEXT if state == "" else col)
 
 ## How far your sound carries right now, and whether the Bacteria is in earshot of it
 func _update_noise(dt: float, pulse: float) -> void:
@@ -145,7 +148,19 @@ func _update_noise(dt: float, pulse: float) -> void:
 	var cells := clampi(ceili(eased / NOISE_MAX * SEGMENTS - 0.01), 0, SEGMENTS)
 	var col := Kit.AMBER.lerp(Color(Kit.RED, pulse), _heard)
 	_paint(r, cells, col)
-	_value(r, "%dM" % roundi(eased), Kit.TEXT.lerp(col, _heard))   # how far your steps carry
+	_value(r, _lie(r, "%dM" % roundi(eased), dt, true), Kit.TEXT.lerp(col, _heard))   # how far your steps carry
+
+## Low sanity: a reading flicks to a wrong number for a moment (up to about one every two seconds a
+## row at the worst), sometimes to nothing a number could be; the bars keep telling the truth
+func _lie(r: Dictionary, truth: String, dt: float, metres: bool) -> String:
+	r.lie_t = maxf(0.0, float(r.lie_t) - dt)
+	if r.lie_t <= 0.0 and _lie_k > 0.0 and randf() < _lie_k * 0.5 * dt:
+		r.lie_t = randf_range(0.08, 0.3)
+		if randf() < 0.15:
+			r.lie = "??M" if metres else "??%"
+		else:
+			r.lie = ("%dM" % randi_range(0, 40)) if metres else ("%d%%" % randi_range(0, 100))
+	return str(r.lie) if r.lie_t > 0.0 else truth
 
 ## The reading beside the bar; the text is only set when it changes (a Label reshapes on every set)
 func _value(r: Dictionary, text: String, col: Color) -> void:
