@@ -5,6 +5,8 @@ extends Control
 ## on screen through shaders/ui_vhs_overlay.gdshader without the lens curve, so it also picks up the
 ## terminal's scanlines, grain and tear glitches. Used by the scanner reticle (scan_readout.gd) and
 ## the new-entry toast (terminal_toast.gd).
+## `aberration` (px, off by default) splits red and blue sideways like a mistracked tube; a burst()
+## throws it wider for a moment.
 ## Place and size it like any Control; `content` is laid out in the same size. It only renders while
 ## `running` is on, so owners switch it on while they have something to show.
 
@@ -20,6 +22,7 @@ var bloom: CrtBloom
 var glow := CrtFlicker.new()
 var glow_scale := 1.0                # of the terminal's glow this layer gets
 var glitch := 0.0                # 0..1 tear burst, decays on its own (burst())
+var aberration := 0.0            # red / blue split at rest, px; 0 leaves it off
 var running := false: set = set_running
 
 func _ready() -> void:
@@ -94,5 +97,8 @@ func _process(dt: float) -> void:
 	if not running:
 		return
 	glitch = maxf(0.0, glitch - dt * 2.5)
-	mat.set_shader_parameter("glitch", maxf(glitch, Game.glitch * 0.8))
+	var g := maxf(glitch, Game.glitch * 0.8)
+	mat.set_shader_parameter("glitch", g)
+	if aberration > 0.0:
+		mat.set_shader_parameter("split_px", aberration * (1.0 + 5.0 * g))
 	mat.set_shader_parameter("bloom_amt", Term.BLOOM * glow_scale * glow.update(dt))
