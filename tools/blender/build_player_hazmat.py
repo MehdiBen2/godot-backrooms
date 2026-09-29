@@ -16,6 +16,8 @@ What it does:
    canister is 100% Head, the hose blends Head > NeckTwist02 > NeckTwist01 > Spine02 over the shoulder
    (with a little Clavicle where it lies on it) and ends on the chest, where it plugs into the pack. The
    pack and the hose plugs are made rigid on Spine02 so they no longer bend with the arms either.
+   Seat: Tripo bound everything up to the belt ~80% to the thighs, so in a crouch the buttocks folded
+   in between the legs. The seat now rides the Pelvis bone, handing over to the thighs below the crease.
 2. Clips, all looping cleanly (last frame = first):
    run              the Tripo run, recentred over the origin (it ran 0.5 m in front of it), loop gap closed
    walk             the Tripo in-place walk
@@ -190,6 +192,47 @@ def fix_hoses():
 
 
 fix_hoses()
+
+
+def fix_seat():
+    """Tripo bound the whole seat, up to the belt above the hip joints, ~80% to the thighs and next to
+    nothing to the pelvis, so in a crouch (thighs folded past level) the buttocks folded forward with the
+    legs and got sucked up between them. The seat now rides the Pelvis bone and hands over to the thighs
+    only below the crease: lower at the back (under the buttocks) than at the front (the groin)."""
+    me = body.data
+    groups = {g.index: g.name for g in body.vertex_groups}
+    legs = ("Thigh", "Calf", "Foot", "ToeBase", "KneeShareBone")
+    changed = 0
+    for v in me.vertices:
+        c = v.co
+        if not (0.36 < c.z < 0.62 and abs(c.x) < 0.16):
+            continue
+        w = {groups[g.group]: g.weight for g in v.groups if g.weight > 0}
+        leg = {k: x for k, x in w.items() if k[2:].startswith(legs)}
+        torso = {k: x for k, x in w.items() if k not in leg}
+        if not leg:
+            continue
+        back = smoothstep(-0.07, 0.0, c.y)                     # 0 front .. 1 back
+        top = 0.53
+        bottom = 0.45 + (0.41 - 0.45) * back                   # the gluteal fold sits lower than the groin
+        t = smoothstep(top, bottom, c.z)                       # share left on the legs
+        tl = sum(leg.values())
+        leg = {k: x / tl for k, x in leg.items()}
+        tt = sum(torso.values())
+        torso_n = {k: x / tt for k, x in torso.items()} if tt > 1e-4 else {}
+        keep = smoothstep(0.50, 0.60, c.z)                     # up at the belt the old torso weights stand
+        new = defaultdict(float)
+        for k, x in leg.items():
+            new[k] += t * x
+        new["Pelvis"] += (1 - t) * (1 - keep if torso_n else 1.0)
+        for k, x in torso_n.items():
+            new[k] += (1 - t) * keep * x
+        set_weights(body, [v.index], dict(new))
+        changed += 1
+    print("seat re-weighted:", changed, "vertices")
+
+
+fix_seat()
 
 
 # =============================================================== pose solving
