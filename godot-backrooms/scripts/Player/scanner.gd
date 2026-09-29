@@ -10,6 +10,11 @@ extends Node
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
 ## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`, and,
 ## by clearance (asra_clearance.gd), `signal_bearing` (C-3 range-finder) and `target_node` (C-4 deep scan).
+## With no anomaly in the sights it also reads hazard tape (tape_marks.gd) under the crosshair:
+## `tape_info` says how long ago the strip went down and who stuck it, so you can tell whether the
+## corridor you're in is one you've already walked.
+
+const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 
 const RANGE := 32.0
 const CONE_COS := 0.9877         # cos 9 deg: the target has to be close to the crosshair
@@ -41,6 +46,7 @@ var result_t := 0.0
 var latched := false             # a reading finished: Q has to be let go before the next one
 var lost_t := 0.0
 var ping_t := 0.0
+var tape_info := {}              # hazard tape under the crosshair while searching: {age, mine, by, length, dist}
 var ping: AudioStreamPlayer
 var denied: AudioStreamPlayer
 
@@ -63,6 +69,7 @@ func _process(dt: float) -> void:
 	if not down:
 		holding = false
 		latched = false
+		tape_info = {}
 		progress = 0.0
 		signal_strength = 0.0
 		signal_dist = 0.0
@@ -75,6 +82,7 @@ func _process(dt: float) -> void:
 	if latched:
 		return                       # keep showing the result until Q is let go
 	var hit := _best_target()
+	tape_info = _tape_under_crosshair() if hit.is_empty() and state != "lock" else {}
 	signal_strength = lerpf(signal_strength, maxf(raw_signal, 0.85 if state == "lock" else 0.0), minf(1.0, dt * 6.0))
 	if raw_signal > 0.02:
 		signal_dist = raw_dist if signal_dist <= 0.0 else lerpf(signal_dist, raw_dist, minf(1.0, dt * 4.0))
@@ -113,6 +121,25 @@ func _complete() -> void:
 	else:
 		state = "logged"
 		Archive.discover(target_id)  # -> entity_discovered -> the HUD toast and its chime
+
+## The hazard tape strip the crosshair is on, within RANGE and in sight: {age (s), mine, by,
+## length, dist}, or {}
+func _tape_under_crosshair() -> Dictionary:
+	var live = TapeMarks.live
+	if live == null or Game.outdoors:
+		return {}
+	var cam: Camera3D = player.cam
+	var from := cam.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_transform.basis.z * RANGE, WORLD_MASK)
+	q.exclude = [player.get_rid()]
+	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return {}
+	var s: Dictionary = live.strip_at(hit.position, hit.normal)
+	if s.is_empty():
+		return {}
+	return {"age": maxf(0.0, Time.get_unix_time_from_system() - float(s.t)), "mine": TapeMarks.is_mine(s.id),
+		"by": str(s.by), "length": (s.a as Vector3).distance_to(s.b), "dist": from.distance_to(hit.position)}
 
 ## Geiger-counter ticks at random (Poisson) gaps: about one a second of background while nothing
 ## is near, more as the signal rises, a rattle as a reading fills

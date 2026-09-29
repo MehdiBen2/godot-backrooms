@@ -3,6 +3,8 @@ extends Node3D
 ## Walking into it goes to the next level in the playlist; the last one wraps to the first.
 ## Papers / unlock are not ported yet, so it is always open.
 
+const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
+
 const TRIGGER_RADIUS := 1.3
 
 var light: OmniLight3D
@@ -46,4 +48,6 @@ func _process(_delta: float) -> void:
 	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z).length()
 	if d < TRIGGER_RADIUS:
 		used = true
+		# a taped trail all the way here documents the route (asra_clearance.gd file_route)
+		Clearance.file_route(TapeMarks.mine_on(Game.level_index), global_position)
 		Game.next_level()

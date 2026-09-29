@@ -76,6 +76,7 @@ func _ready() -> void:
 	_build_inventory()
 	_build_scanner()
 	_build_tape()
+	_show_pending_route.call_deferred()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -356,8 +357,8 @@ func _on_entity_logged(id: String) -> void:
 ## A first contact waits for _on_entity_logged; any of them can raise the clearance tier.
 func _on_yield_filed(report: Dictionary) -> void:
 	match report.get("kind", ""):
-		"first_contact":
-			return
+		"first_contact", "route":
+			return                   # a route is shown by the next level's HUD (_show_pending_route)
 		"survey":
 			# every strip's own yield shows on the tape readout; the milestones get a toast
 			if (report.lines as Array).size() > 1:
@@ -370,6 +371,18 @@ func _on_yield_filed(report: Dictionary) -> void:
 			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
 			lines.append_array(_yield_lines(report))
 			toast.push("[NEW SITE CONFIRMED]", lines)
+	_promotion(report)
+
+## The level before was left with a taped trail to its exit (Clearance.file_route, filed as the
+## level changed): announce it here, once the new level is up
+func _show_pending_route() -> void:
+	var report: Dictionary = Clearance.pending_route
+	if report.is_empty():
+		return
+	Clearance.pending_route = {}
+	var lines: Array = [["%s // TRAIL TO THE EXIT FILED" % str(report.get("designation", "UNMAPPED SITE")), Term.GREEN, 18]]
+	lines.append_array(_yield_lines(report))
+	toast.push("[ROUTE DOCUMENTED]", lines)
 	_promotion(report)
 
 ## "+100 RY  FIRST CONTACT", one row per markup, then the total against the next tier

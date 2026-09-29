@@ -11,11 +11,17 @@ extends Node
 ##                      only once per REREAD_COOLDOWN per entity, so it can't be farmed
 ## and each is marked up by the conditions it was taken in (close range, off-roster sightings,
 ## hazard pay while the player is hurt or losing it, readings filed back to back).
+## Mapping pays too: hazard tape (scripts/Player/tape_tool.gd) calls file_survey() with the grid
+## cells each strip marks, and every cell never marked before on that level files SURVEY_PER_CELL,
+## plus a bonus as the level's survey passes each of SURVEY_MILESTONES. Marked cells are saved per
+## level, so a level's map only pays once.
+## And reaching a level's exit with a taped trail behind you (at least ROUTE_MIN_STRIPS strips of
+## your own) files ROUTE DOCUMENTED through file_route(): ROUTE_BASE, plus the trail's length,
+## plus EXIT MARKED if one of the strips is by the exit. Once per level, saved like the survey.
+## The level changes right after, so that report waits in pending_route for the next level's HUD.
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
 ## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
 ## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
-## It also keeps the service record the terminal's [F5] CLEARANCE page shows: lifetime stats
-## (filings by kind, yield by source, per entity, best filing, closest reading) and a filing log.
 
 signal yield_filed(report: Dictionary)
 
@@ -36,15 +42,14 @@ const HAZARD_BELOW := 40.0
 const MOMENTUM_WINDOW := 300.0   # a filing within this of the last one adds MOMENTUM_STEP ...
 const MOMENTUM_STEP := 0.1
 const MOMENTUM_MAX := 3          # ... up to this many steps
-const LOG_MAX := 12              # filings kept in the log, newest first
-
-## Where yield comes from, in the order the [F5] page lists it: [key, label]. The first three are
-## a filing's core amount (its kind), the rest the markups on it
-const SOURCES := [
-	["first_contact", "FIRST CONTACT"], ["new_site", "NEW SITE CONFIRMED"], ["supplemental", "SUPPLEMENTAL DATA"],
-	["proximity", "PROXIMITY PREMIUM"], ["off_roster", "OFF-ROSTER SIGHTING"], ["hazard", "HAZARD PAY"],
-	["momentum", "FIELD MOMENTUM"],
-]
+const SURVEY_PER_CELL := 1       # RY for each grid cell first marked with tape on a level
+const SURVEY_MILESTONES := [[0.25, 25], [0.5, 50], [0.75, 100]]   # [share of the open cells, bonus RY]
+const ROUTE_MIN_STRIPS := 3      # of your own on the level, for the exit to count as a documented route
+const ROUTE_BASE := 40
+const ROUTE_PER_M := 0.5         # RY per metre of your tape on the level ...
+const ROUTE_TRAIL_MAX := 100     # ... up to this
+const ROUTE_EXIT_MARKED := 25    # one of your strips within ROUTE_EXIT_NEAR of the exit
+const ROUTE_EXIT_NEAR := 8.0
 
 var unit := "RY"
 var tiers: Array = []            # [{code, title, yield, brief}], ascending
@@ -53,9 +58,9 @@ var total := 0                   # lifetime Research Yield
 var sites := {}                  # entity_id -> [level ids it has been read on]
 var supplementals := {}          # entity_id -> supplemental filings so far
 var last_report := {}            # the last file() result (hud.gd reads it for the NEW ENTRY toast)
-var stats := {}                  # filings_<kind>, ry_<source key>, best_total/best_id, closest_dist/closest_id, best_momentum
-var entity_yield := {}           # entity_id -> RY filed on it in all
-var filing_log: Array = []       # newest first: {t (unix s), id, kind, total, level, dist}
+var surveyed := {}               # level id -> {"x,y": true}: the cells mapped with tape there
+var routes := {}                 # level id -> true: a documented route to its exit already filed
+var pending_route := {}          # the last ROUTE DOCUMENTED report, until the next level's HUD shows it
 
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
 var _last_filed := -1.0e9
@@ -148,7 +153,9 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	var kind := ""
 	var title := ""
 	var core := 0
-	if not Archive.is_discovered(entity_id):
+	# first contact off clearance's own saved record, not the archive: the archive starts empty
+	# every level (asra_archive.gd), and re-reading a known entity must not pay first contact again
+	if not sites.has(entity_id):
 		kind = "first_contact"
 		title = "FIRST CONTACT"
 		core = base
@@ -167,21 +174,20 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 	if kind == "":
 		return report
 
-	# [label, RY (a fraction of core until below), source key (SOURCES)]
-	var lines: Array = [[title, core, kind]]
+	var lines: Array = [[title, core]]
 	if dist < CLOSE_RANGE:
-		lines.append(["PROXIMITY PREMIUM", 0.25, "proximity"])
+		lines.append(["PROXIMITY PREMIUM", 0.25])
 	elif dist < NEAR_RANGE:
-		lines.append(["PROXIMITY PREMIUM", 0.1, "proximity"])
+		lines.append(["PROXIMITY PREMIUM", 0.1])
 	if kind != "supplemental" and not (entity_id in Archive.current_dossier().get("entities", [])):
-		lines.append(["OFF-ROSTER SIGHTING", OFF_ROSTER, "off_roster"])
+		lines.append(["OFF-ROSTER SIGHTING", OFF_ROSTER])
 	if player and (float(player.get("sanity")) < HAZARD_BELOW or float(player.get("health")) < HAZARD_BELOW):
-		lines.append(["HAZARD PAY", HAZARD, "hazard"])
+		lines.append(["HAZARD PAY", HAZARD])
 	if kind != "supplemental":
 		_momentum = mini(_momentum + 1, MOMENTUM_MAX) if now - _last_filed <= MOMENTUM_WINDOW else 0
 		_last_filed = now
 		if _momentum > 0:
-			lines.append(["FIELD MOMENTUM x%d" % (_momentum + 1), MOMENTUM_STEP * _momentum, "momentum"])
+			lines.append(["FIELD MOMENTUM x%d" % (_momentum + 1), MOMENTUM_STEP * _momentum])
 	# the markups as whole RY, off the core amount; the filing is what the lines add up to
 	var gained := core
 	for ln in lines.slice(1):
@@ -197,11 +203,87 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 			supplementals[entity_id] = int(supplementals.get(entity_id, 0)) + 1
 			_reread_at[entity_id] = now
 	total += gained
-	_record(entity_id, kind, lines, gained, level, dist)
 	report.lines = lines
 	report.total = gained
 	report.tier_to = tier_index()
 	last_report = report
+	_save()
+	yield_filed.emit(report)
+	return report
+
+## Hazard tape just went down: `cells` (Vector2i) are the grid cells the strip marks on this level,
+## `open_cells` how many open cells the level has (for the milestones). Returns the report like
+## file() does, kind "survey" ({..., "cells": new cells, "coverage": 0..1}), or kind "" when every
+## cell was already on the map.
+func file_survey(cells: Array, open_cells: int) -> Dictionary:
+	var level := Archive.current_level_id()
+	if level == "":
+		level = "unknown"
+	var done: Dictionary = surveyed.get(level, {})
+	var before := done.size()
+	for c in cells:
+		done["%d,%d" % [c.x, c.y]] = true
+	var fresh := done.size() - before
+	var report := {"id": "", "kind": "", "title": "CORRIDOR MAPPED", "lines": [], "total": 0,
+		"tier_from": tier_index(), "tier_to": tier_index(), "cells": fresh,
+		"coverage": float(done.size()) / float(maxi(open_cells, 1))}
+	if fresh <= 0:
+		return report
+	surveyed[level] = done
+	var lines: Array = [["CORRIDOR MAPPED", fresh * SURVEY_PER_CELL]]
+	if open_cells > 0:
+		for m in SURVEY_MILESTONES:
+			var need: float = open_cells * float(m[0])
+			if before < need and done.size() >= need:
+				lines.append(["SURVEY %d%% COMPLETE" % roundi(float(m[0]) * 100.0), int(m[1])])
+	var gained := 0
+	for ln in lines:
+		gained += int(ln[1])
+	total += gained
+	report.kind = "survey"
+	report.lines = lines
+	report.total = gained
+	report.tier_to = tier_index()
+	last_report = report
+	_save()
+	yield_filed.emit(report)
+	return report
+
+## The player walked into this level's exit (level_exit.gd): `strips` is the tape they laid here
+## (TapeMarks.mine_on), `exit_pos` where the exit is. Kind "route", or "" when the trail is too
+## short or this level's route was already filed.
+func file_route(strips: Array, exit_pos: Vector3) -> Dictionary:
+	var level := Archive.current_level_id()
+	if level == "":
+		level = "unknown"
+	var report := {"id": "", "kind": "", "title": "ROUTE DOCUMENTED", "lines": [], "total": 0,
+		"tier_from": tier_index(), "tier_to": tier_index()}
+	if routes.has(level) or strips.size() < ROUTE_MIN_STRIPS:
+		return report
+	var metres := 0.0
+	var marked := false
+	for s in strips:
+		var a: Vector3 = s.a
+		var b: Vector3 = s.b
+		metres += a.distance_to(b)
+		if Geometry3D.get_closest_point_to_segment(exit_pos, a, b).distance_to(exit_pos) < ROUTE_EXIT_NEAR:
+			marked = true
+	var lines: Array = [["ROUTE DOCUMENTED", ROUTE_BASE],
+		["TRAIL %d M // %d STRIPS" % [roundi(metres), strips.size()], mini(ROUTE_TRAIL_MAX, roundi(metres * ROUTE_PER_M))]]
+	if marked:
+		lines.append(["EXIT MARKED", ROUTE_EXIT_MARKED])
+	var gained := 0
+	for ln in lines:
+		gained += int(ln[1])
+	routes[level] = true
+	total += gained
+	report.kind = "route"
+	report.lines = lines
+	report.total = gained
+	report.tier_to = tier_index()
+	report.designation = str(Archive.current_dossier().get("designation", "UNMAPPED SITE"))
+	last_report = report
+	pending_route = report
 	_save()
 	yield_filed.emit(report)
 	return report
@@ -212,8 +294,6 @@ func grant(amount: int) -> Dictionary:
 	total = maxi(0, total + amount)
 	var report := {"id": "", "kind": "grant", "title": "ADMINISTRATIVE ADJUSTMENT",
 		"lines": [["ADMINISTRATIVE ADJUSTMENT", amount]], "total": amount, "tier_from": from, "tier_to": tier_index()}
-	_log({"t": int(Time.get_unix_time_from_system()), "id": "", "kind": "grant", "total": amount,
-		"level": Archive.current_level_id(), "dist": -1.0})
 	_save()
 	yield_filed.emit(report)
 	return report
@@ -224,61 +304,14 @@ func reset() -> void:
 	total = 0
 	sites.clear()
 	supplementals.clear()
-	stats.clear()
-	entity_yield.clear()
-	filing_log.clear()
+	surveyed.clear()
+	routes.clear()
+	pending_route = {}
 	_reread_at.clear()
 	_momentum = 0
 	last_report = {}
 	_save()
 	yield_filed.emit({"id": "", "kind": "reset", "title": "", "lines": [], "total": 0, "tier_from": from, "tier_to": 0})
-
-# ---- service record ([F5] CLEARANCE page) ----------------------------------------
-func _record(entity_id: String, kind: String, lines: Array, gained: int, level: String, dist: float) -> void:
-	_bump("filings_" + kind, 1)
-	for ln in lines:
-		_bump("ry_" + str(ln[2]), int(ln[1]))
-	entity_yield[entity_id] = int(entity_yield.get(entity_id, 0)) + gained
-	if gained > int(stats.get("best_total", 0)):
-		stats["best_total"] = gained
-		stats["best_id"] = entity_id
-	if dist < float(stats.get("closest_dist", INF)):
-		stats["closest_dist"] = dist
-		stats["closest_id"] = entity_id
-	stats["best_momentum"] = maxi(int(stats.get("best_momentum", 0)), _momentum + 1)
-	_log({"t": int(Time.get_unix_time_from_system()), "id": entity_id, "kind": kind, "total": gained,
-		"level": level, "dist": dist})
-
-func _bump(key: String, by: int) -> void:
-	stats[key] = int(stats.get(key, 0)) + by
-
-func _log(entry: Dictionary) -> void:
-	filing_log.push_front(entry)
-	if filing_log.size() > LOG_MAX:
-		filing_log.resize(LOG_MAX)
-
-func stat(key: String, default = 0):
-	return stats.get(key, default)
-
-## Every reading that filed yield
-func filings() -> int:
-	return int(stat("filings_first_contact")) + int(stat("filings_new_site")) + int(stat("filings_supplemental"))
-
-## Levels confirmed per entity, summed
-func sites_confirmed() -> int:
-	var n := 0
-	for id in sites:
-		n += (sites[id] as Array).size()
-	return n
-
-## What this entity's next supplemental reading would file before markups (0: worn down to nothing)
-func next_supplemental(entity_id: String) -> int:
-	var core := roundi(base_yield(entity_id) * SUPPLEMENTAL / pow(2.0, int(supplementals.get(entity_id, 0))))
-	return core if core >= SUPPLEMENTAL_FLOOR else 0
-
-## Seconds until this entity takes a supplemental filing again (0 = now)
-func reread_ready_in(entity_id: String) -> float:
-	return maxf(0.0, REREAD_COOLDOWN - (Time.get_ticks_msec() / 1000.0 - float(_reread_at.get(entity_id, -1.0e9))))
 
 # ---- save -----------------------------------------------------------------------
 ## Saves from before clearance existed: credit every entity already logged with its first contact
@@ -287,27 +320,8 @@ func _backfill() -> void:
 		total += base_yield(str(id))
 		var level := str(Archive.logged_info(str(id)).get("level", ""))
 		sites[str(id)] = [level] if level != "" else []
-	_backfill_stats()
 	if total > 0:
 		_save()
-
-## Saves from before the service record: rebuild what can be from the sites and supplementals
-## (first contacts and new sites at their core amount; markups weren't kept)
-func _backfill_stats() -> void:
-	for id in sites:
-		var base := base_yield(str(id))
-		var n_sites: int = maxi((sites[id] as Array).size(), 1)
-		var y := base + roundi(base * NEW_SITE) * (n_sites - 1)
-		_bump("filings_first_contact", 1)
-		_bump("ry_first_contact", base)
-		_bump("filings_new_site", n_sites - 1)
-		_bump("ry_new_site", roundi(base * NEW_SITE) * (n_sites - 1))
-		for k in int(supplementals.get(id, 0)):
-			var sup := roundi(base * SUPPLEMENTAL / pow(2.0, k))
-			_bump("filings_supplemental", 1)
-			_bump("ry_supplemental", sup)
-			y += sup
-		entity_yield[id] = y
 
 func _load() -> bool:
 	var cf := ConfigFile.new()
@@ -321,12 +335,15 @@ func _load() -> bool:
 	if cf.has_section("supplementals"):
 		for id in cf.get_section_keys("supplementals"):
 			supplementals[id] = int(cf.get_value("supplementals", id, 0))
-	if cf.has_section_key("record", "stats"):
-		stats = cf.get_value("record", "stats", {})
-		entity_yield = cf.get_value("record", "entity_yield", {})
-		filing_log = cf.get_value("record", "log", [])
-	else:
-		_backfill_stats()
+	if cf.has_section("survey"):
+		for id in cf.get_section_keys("survey"):
+			var done := {}
+			for k in cf.get_value("survey", id, []):
+				done[str(k)] = true
+			surveyed[id] = done
+	if cf.has_section("routes"):
+		for id in cf.get_section_keys("routes"):
+			routes[id] = true
 	return true
 
 func _save() -> void:
@@ -336,7 +353,8 @@ func _save() -> void:
 		cf.set_value("sites", id, sites[id])
 	for id in supplementals:
 		cf.set_value("supplementals", id, supplementals[id])
-	cf.set_value("record", "stats", stats)
-	cf.set_value("record", "entity_yield", entity_yield)
-	cf.set_value("record", "log", filing_log)
+	for id in surveyed:
+		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
+	for id in routes:
+		cf.set_value("routes", id, true)
 	cf.save(SAVE_PATH)
