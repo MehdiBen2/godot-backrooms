@@ -123,10 +123,10 @@ func _spacer(h: float) -> Control:
 	return s
 
 # A label with the web's title text-shadow: red fringe right, teal fringe left
-func _split_title(text: String, size: int) -> Label:
-	var main := _label(text, size, TITLE, 4)
-	for fringe in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.55)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.35)]]:
-		var s := _label(text, size, fringe[1], 4)
+func _split_title(text: String, size: int, spacing := 4.0) -> Label:
+	var main := _label(text, size, TITLE, spacing)
+	for fringe in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
+		var s := _label(text, size, fringe[1], spacing)
 		s.position = fringe[0]
 		s.show_behind_parent = true
 		main.add_child(s)

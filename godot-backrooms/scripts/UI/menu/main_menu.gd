@@ -255,15 +255,16 @@ func _build() -> void:
 	col.add_child(tag)
 	tag_row = tag
 	col.add_child(_spacer(18))
-	title_label = _label("THE BACKROOMS", 120, TITLE, 4)
+	title_label = _label("THE BACKROOMS", 84, TITLE, 24)     # smaller and widely tracked: reads as a caption, not a logo
 	fringes = []
-	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.55)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.35)]]:
-		var s := _label("THE BACKROOMS", 120, f[1], 4)
+	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
+		var s := _label("THE BACKROOMS", 84, f[1], 24)
 		s.position = f[0]
 		s.show_behind_parent = true
 		title_label.add_child(s)
 		fringes.append(s)
 	col.add_child(title_label)
+	col.add_child(_spacer(8))
 	sub_label = _label("THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
 	col.add_child(sub_label)
 	col.add_child(_spacer(46))
