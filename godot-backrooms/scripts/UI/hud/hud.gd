@@ -1,11 +1,13 @@
 extends CanvasLayer
 ## Camcorder HUD + pause menu, replicating the web game's #hud (backrooms.html / style.css):
-## REC block + objective (top-left), level / timecode / tape mode (top-right), four meters
-## (bottom-left), key hints (bottom-right), viewfinder corner brackets and the crosshair dot.
+## REC block + objective (top-left), level / timecode / tape mode (top-right), the vitals on the
+## terminal's amber CRT (bottom-left, vitals_panel.gd), key hints (bottom-right), viewfinder corner
+## brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
 ## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
-## And the reflective hazard tape (tape_tool.gd, hold T) with its tape mode HUD (tape_readout.gd).
+## And the reflective hazard tape (tape_tool.gd, hold T) with its tape mode HUD (tape_readout.gd), and
+## the camera flash (flash_tool.gd, G or right click).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
@@ -14,15 +16,16 @@ const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
+const FlashTool := preload("res://scripts/Player/flash_tool.gd")
+const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
+const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("e4e1c6")            # camera OSD off-white
 const TAPE := Color("c9bea0")
 const HINT := Color("9c9268")
 const HINT_STRONG := Color("ded6ad")
-const METER_LABEL := Color("b5a975")
-const METER_VAL := Color("ded6ad")
 const REC_RED := Color("ff3b30")
 const DIM := Color(0.9, 0.88, 0.8, 0.55)
 
@@ -32,10 +35,10 @@ var menu: Control
 var inventory: Control
 var scanner: Node
 var tape: Node
+var flash: Node                          # flash_tool.gd: the camera flash (G / right click)
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween
-var shown_vals := {}      # meter name -> displayed value (eased toward the real one)
 var t := 0.0
 var playing_label: Label
 var time_label: Label
@@ -43,7 +46,7 @@ var rec_dot: Control
 var post_mat: ShaderMaterial
 var threat_s := 0.0
 var fear_s := 0.0
-var meters := {}          # name -> {fill, text}
+var vitals: Control       # vitals_panel.gd: POWER / STAMINA / SANITY / HEALTH / NOISE
 var player: Node
 var level: Node
 var corners: Array[Control] = []
@@ -78,6 +81,7 @@ func _ready() -> void:
 	_build_inventory()
 	_build_scanner()
 	_build_tape()
+	_build_flash()
 	_show_pending_route.call_deferred()
 
 # ---- helpers ------------------------------------------------------------------
@@ -233,14 +237,15 @@ func _build_hud() -> void:
 	tr.add_child(mode)
 	tr.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.788, 0.745, 0.627, 0.6)))
 
-	# --- bottom-left: meters ---
-	var bl := _vbox(16)
-	hud.add_child(bl)
-	bl.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	bl.offset_left = 42; bl.offset_right = 42 + 250 * SCALE; bl.offset_bottom = -32; bl.offset_top = -32
-	bl.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	for m in [["STAMINA", Color("e0d494")], ["HEALTH", Color("c8503c")], ["SANITY", Color("a89d62")], ["BATTERY", Color("39e58c")]]:
-		bl.add_child(_meter(m[0], m[1]))
+	# --- bottom-left: vitals, on the terminal's amber CRT (vitals_panel.gd) ---
+	vitals = VitalsPanel.new()
+	vitals.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	vitals.offset_left = 44; vitals.offset_right = 44 + VitalsPanel.PANEL.x       # inside the corner brackets
+	vitals.offset_top = -34 - VitalsPanel.PANEL.y; vitals.offset_bottom = -34
+	vitals.player = player
+	vitals.entity = get_parent().get_node_or_null("Entity")
+	vitals.fade_src = hud
+	hud.add_child(vitals)
 
 	# --- bottom-right: key hints ---
 	var br := _vbox(6)
@@ -250,7 +255,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "G // FLASH", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -260,30 +265,6 @@ func _build_hud() -> void:
 	br.offset_top = -32 - 44
 	br.offset_right = -42
 	br.offset_bottom = -32
-
-func _meter(name: String, color: Color) -> Control:
-	var block := _vbox(5)
-	var meta := HBoxContainer.new()
-	meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var n := _label(name, 13, METER_LABEL, 2.5)
-	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var v := _label("100%", 13, METER_VAL)
-	meta.add_child(n)
-	meta.add_child(v)
-	block.add_child(meta)
-	var track := ColorRect.new()
-	track.color = Color(1, 1, 1, 0.12)
-	track.custom_minimum_size = Vector2(0, 2)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var fill := ColorRect.new()
-	fill.color = color
-	fill.position = Vector2.ZERO
-	fill.size = Vector2(0, 2)
-	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	track.add_child(fill)
-	block.add_child(track)
-	meters[name] = {"fill": fill, "text": v, "track": track, "base": color, "label": n}
-	return block
 
 # ---- pause menu (same look as the web menu) ----------------------------------------
 func _build_pause() -> void:
@@ -338,6 +319,16 @@ func _build_tape() -> void:
 	readout.tape = tape
 	readout.inventory = inventory
 	hud_root.add_child(readout)
+
+## Every run starts with START camera flashes, one charge each: a way to break a chase, not to win it
+func _build_flash() -> void:
+	inventory.add_item(FlashPickup.ITEM_ID, FlashPickup.ITEM_NAME, FlashPickup.ITEM_DESC, FlashPickup.START,
+		FlashPickup.ITEM_CODE, FlashPickup.STACK, FlashPickup.MODEL_PATH)
+	flash = FlashTool.new()
+	flash.player = player
+	flash.inventory = inventory
+	add_child(flash)
+	vitals.flash = flash
 
 ## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
@@ -492,31 +483,6 @@ func set_paused(on: bool, start := false) -> void:
 	playing_label.text = "|| PAUSE" if on else "► PLAY"
 
 # ---- per-frame values -----------------------------------------------------------------
-func _set_meter(name: String, value: float, cls := "") -> void:
-	var m: Dictionary = meters[name]
-	# Ease the bar toward the real value so drains / recoveries glide instead of stepping
-	value = lerpf(shown_vals.get(name, value), value, minf(1.0, get_process_delta_time() * 8.0))
-	shown_vals[name] = value
-	var fill: ColorRect = m.fill
-	var track: ColorRect = m.track
-	fill.size = Vector2(track.size.x * clampf(value / 100.0, 0.0, 1.0), track.size.y)
-	var txt_s := "%d%%" % int(round(value))
-	if (m.text as Label).text != txt_s:          # only on change: a label re-shapes its text when set
-		(m.text as Label).text = txt_s
-	var col: Color = m.base
-	var txt := METER_VAL
-	var pulse := 0.65 + 0.35 * sin(t * 15.0)
-	match cls:
-		"low": col = Color("e59d3a")
-		"critical":
-			col = Color("ff3b30"); col.a = pulse; txt = Color("ff5545")
-		"exhausted":
-			col = Color("ff3b30"); col.a = pulse
-	fill.color = col
-	if m.get("txt_col") != txt:                   # a theme override every frame is a theme update every frame
-		m["txt_col"] = txt
-		(m.text as Label).add_theme_color_override("font_color", txt)
-
 func _process(dt: float) -> void:
 	t += dt
 	# fear channels for the post shader (game.fear / terror / glitch in the web pipeline)
@@ -558,14 +524,4 @@ func _process(dt: float) -> void:
 		c.offset_right = ox + BRACKET_LEN; c.offset_bottom = oy + BRACKET_LEN
 	var s := int(t)
 	time_label.text = "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
-	if not player: return
-	_set_meter("STAMINA", player.stamina, "exhausted" if player.exhausted else "")
-	_set_meter("HEALTH", player.health, "critical" if player.health < 25.0 else "")
-	var san_cls := ""
-	if player.sanity < 25.0: san_cls = "critical"
-	elif player.sanity < 50.0: san_cls = "low"
-	_set_meter("SANITY", player.sanity, san_cls)
-	var bat_cls := ""
-	if player.battery < 10.0: bat_cls = "critical"
-	elif player.battery < 25.0: bat_cls = "low"
-	_set_meter("BATTERY", player.battery, bat_cls)
+

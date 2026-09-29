@@ -41,6 +41,8 @@ var loopback := false                       # hear yourself (mic test)
 var level := 0.0                            # mic meter 0..1 (about -70 .. 0 dB)
 var transmitting := false
 var speakers := {}                          # peer id -> voice_speaker.gd
+var clips := {}                             # peer id -> [PackedFloat32Array]: their last few utterances (16 kHz mono)
+const CLIPS_KEPT := 4
 
 var _capture: AudioEffectCapture
 var _mic: AudioStreamPlayer
@@ -116,6 +118,19 @@ func set_sensitivity(v: int) -> void:
 func set_volume(pct: int) -> void:
 	voice_volume = pct / 100.0
 	changed.emit()
+
+## One utterance a survivor just finished (voice_speaker.gd); the newest CLIPS_KEPT are kept, on this machine only
+func remember_clip(peer_id: int, samples: PackedFloat32Array) -> void:
+	var list: Array = clips.get(peer_id, [])
+	list.append(samples)
+	if list.size() > CLIPS_KEPT:
+		list.pop_front()
+	clips[peer_id] = list
+
+## Something they said lately, for THE MIMIC to say back in their voice (mimic.gd); empty if they haven't spoken
+func clip_of(peer_id: int) -> PackedFloat32Array:
+	var list: Array = clips.get(peer_id, [])
+	return list.pick_random() if not list.is_empty() else PackedFloat32Array()
 
 func is_speaking(peer_id: int) -> bool:
 	var s = speakers.get(peer_id)
@@ -287,6 +302,9 @@ func _tidy_speakers() -> void:
 			if is_instance_valid(speakers[id]):
 				speakers[id].queue_free()
 			speakers.erase(id)
+	for id in clips.keys():
+		if not Net.remotes.has(id):
+			clips.erase(id)                     # they left: nothing of theirs stays behind
 
 # ---- walls ---------------------------------------------------------------------------------------------
 ## Metres of wall between two points, from the level grid (sampled every WALL_STEP)

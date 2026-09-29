@@ -7,6 +7,13 @@ extends Node3D
 ##         if you go at it (flee). During a power cut it CHARGES you in the dark, frozen while you
 ##         look, bolting when you catch it in your light; reaching you hurts and stuns.
 ## The Peer is dormant until a power cut (or F5) starts a "session".
+##
+## In co-op it wears a real survivor's face: the suit takes their colour and their name tag floats over
+## it, exactly as a teammate's does (remote_player.gd), and now and then it says something they said
+## lately, in their own voice (Voice.clip_of: each machine keeps everyone's last few sentences). It never
+## wears the face of the survivor it is hunting, and nobody ever sees it wearing their own. It even
+## carries a torch. The field scanner is the one thing it can't fool: it locks onto the Mimic, never onto
+## a person, and a deep scan names who it is pretending to be.
 ## Dev keys: F5 toggles the Mimic peer.
 
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
@@ -71,6 +78,22 @@ var _net_t := 0.0
 var anim: AnimationPlayer
 var body_yaw := 0.0
 
+# ---- the disguise (co-op only): whose face it wears, and what it says in their voice
+const VOICE_MIN_DIST := 5.0          # m from its target: it talks from further off, never in your face
+const VOICE_MAX_DIST := 30.0
+const VOICE_GAP := Vector2(18.0, 40.0)   # s between lines, random in this range
+const VOICE_PITCH := 0.94            # a shade low: almost them
+var disguise_id := 0                 # host: the survivor it pretends to be (0: none); sent to the guests
+var shown_id := 0                    # who it looks like on THIS machine (never yourself)
+var voice_n := 0                     # host: counts its lines; a guest plays one when this ticks over
+var _voice_heard := 0
+var _next_voice := 0.0
+var _tint_mats: Array = []           # [StandardMaterial3D, base albedo]: the suit, tinted to its disguise
+var tag: Label3D
+var torch: SpotLight3D
+var mouth: AudioStreamPlayer3D
+var _idle_clip := ""                 # the suit's idle, for standing about like a survivor does
+
 func _ready() -> void:
 	rng.randomize()
 	level = get_parent().get_node("Level")
@@ -98,6 +121,49 @@ func _build_body() -> void:
 		anim = aps[0]
 		if anim.has_animation("run"):
 			anim.get_animation("run").loop_mode = Animation.LOOP_LINEAR
+		for n in anim.get_animation_list():
+			if n.to_lower().begins_with("idle"):
+				_idle_clip = n
+				anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+				break
+	# its own copy of the suit's materials, so it can take a survivor's colour (remote_player.gd _tint)
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		for i in mi.get_surface_override_material_count():
+			var mat := mi.get_active_material(i)
+			if mat is StandardMaterial3D:
+				var c: StandardMaterial3D = mat.duplicate()
+				mi.set_surface_override_material(i, c)
+				_tint_mats.append([c, c.albedo_color])
+	# a name tag, a torch and a voice, all as a survivor's (remote_player.gd), off until it has a face
+	tag = Label3D.new()
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.pixel_size = 0.004
+	tag.font_size = 48
+	tag.outline_size = 12
+	tag.modulate = Color(0.94, 0.91, 0.75)
+	tag.position = Vector3(0, 2.25, 0)
+	tag.no_depth_test = true
+	tag.visible = false
+	body.add_child(tag)
+	torch = SpotLight3D.new()
+	torch.position = Vector3(0.28, 1.4, 0.3)
+	torch.rotation.y = PI                      # the model faces +Z
+	torch.spot_range = 12.0
+	torch.spot_angle = 32.0
+	torch.light_energy = 2.5
+	torch.light_color = Color("fff0c8")
+	torch.shadow_enabled = int(Gfx.s.get("shadows", 1)) > 0
+	torch.shadow_bias = 0.04
+	torch.shadow_normal_bias = 1.5
+	torch.visible = false
+	body.add_child(torch)
+	mouth = AudioStreamPlayer3D.new()
+	mouth.position = Vector3(0, 1.6, 0)
+	mouth.unit_size = 6.0
+	mouth.max_distance = 45.0
+	mouth.pitch_scale = VOICE_PITCH
+	body.add_child(mouth)
 
 # The grid just went down: it comes for you in the dark (called by the power cut event)
 func grid_down() -> void:
@@ -166,6 +232,8 @@ func appear() -> bool:
 	mode = "approach"
 	spawned = true
 	body.visible = true
+	disguise_id = _pick_disguise()
+	_next_voice = now() + rng.randf_range(4.0, 10.0)
 	return true
 
 # ---------------------------------------------------------------- T.S.R.A. scanner
@@ -190,6 +258,8 @@ const SCAN_MODES := {
 
 func scan_behavior(_at: Vector3) -> Dictionary:
 	var s: Array = SCAN_MODES.get(mode, [mode.to_upper(), "", 1])
+	if shown_id != 0:
+		return {"state": s[0], "detail": "WEARING %s'S FACE - IT IS NOT THEM" % Net.label_for(shown_id), "danger": 2}
 	return {"state": s[0], "detail": s[1], "danger": s[2]}
 
 # Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?
@@ -236,6 +306,8 @@ func update_peer(delta: float) -> void:
 		if wait <= 0.0:
 			appear()
 		return
+	if Net.is_online() and (disguise_id == 0 or not _in_game(disguise_id)):
+		disguise_id = _pick_disguise()            # nobody to be yet (a late joiner), or they left
 	var pos := body.global_position
 	var pp: Vector3 = t_pos
 	var lp := player.global_position
@@ -346,6 +418,12 @@ func update_peer(delta: float) -> void:
 
 	footsteps(delta, ldist)
 
+	# in someone's face, it talks: a line of theirs, from where it stands, now and then
+	if disguise_id != 0 and (mode == "approach" or mode == "keepAway") and dist > VOICE_MIN_DIST \
+			and dist < VOICE_MAX_DIST and t >= _next_voice:
+		_next_voice = t + rng.randf_range(VOICE_GAP.x, VOICE_GAP.y)
+		voice_n += 1
+
 	# wedged somewhere: try another way, and if it stays stuck out of sight, start over elsewhere
 	var moved := absf(pos.x + pos.z * 1.37 - before)
 	if goal > 0.0 and moved < 0.002:
@@ -367,13 +445,95 @@ func update_peer(delta: float) -> void:
 	var want_yaw := atan2(dx, dz) if standing else heading
 	body_yaw = lerp_angle(body_yaw, want_yaw, minf(1.0, delta * 10.0))
 	body.rotation.y = body_yaw
-	if anim and anim.has_animation("run"):
-		if speed > 0.6:
-			if not anim.is_playing():
-				anim.play("run")
-			anim.speed_scale = clampf(speed / 4.0, 0.4, 1.6)
-		elif anim.is_playing():
-			anim.pause()
+	_animate()
+
+# ================================================================= the disguise
+## Host: a survivor to pretend to be. Never the one it hunts (they would know it isn't them); a
+## random other one who is in the game. 0 when there is nobody else (and always, offline).
+func _pick_disguise() -> int:
+	if not Net.is_online():
+		return 0
+	var ids: Array = []
+	for s in Net.survivors():
+		if s.id != t_id:
+			ids.append(s.id)
+	return ids.pick_random() if not ids.is_empty() else 0
+
+func _in_game(id: int) -> bool:
+	for s in Net.survivors():
+		if s.id == id:
+			return true
+	return false
+
+## Every machine: wear the face the host chose, unless it is this player's own, then another
+## survivor's (a face you would believe: you can't be over there), or none. Speak when the host says.
+func _update_disguise() -> void:
+	if tag == null:
+		return                                  # the suit's model never loaded: nothing to dress up
+	var want := 0
+	if Net.is_online() and spawned and disguise_id != 0:
+		var me := multiplayer.get_unique_id()
+		if disguise_id != me and Net.remotes.has(disguise_id):
+			want = disguise_id
+		else:
+			for id in Net.remotes:
+				if id != me and is_instance_valid(Net.remotes[id]) and not Net.remotes[id].dead:
+					want = id
+					break
+	if want != shown_id:
+		shown_id = want
+		_wear(want)
+	if voice_n != _voice_heard:
+		_voice_heard = voice_n
+		if shown_id != 0:
+			_say(Voice.clip_of(shown_id))
+	if tag.visible:
+		# the tag goes green while it "talks", like a survivor's on voice chat
+		tag.modulate = Color(0.55, 1.0, 0.6) if mouth.playing else Color(0.94, 0.91, 0.75)
+
+## Take `id`'s colour and name tag (0: back to the plain suit, no tag, no torch)
+func _wear(id: int) -> void:
+	var tint := Color.WHITE
+	if id != 0:
+		tint = Color.WHITE.lerp(Net.PEER_COLORS[id % Net.PEER_COLORS.size()], 0.3)
+		tag.text = Net.label_for(id)
+	for e in _tint_mats:
+		(e[0] as StandardMaterial3D).albedo_color = (e[1] as Color) * tint
+	tag.visible = id != 0
+	torch.visible = id != 0
+
+## Play one of their lines back from where it stands
+func _say(samples: PackedFloat32Array) -> void:
+	if samples.is_empty():
+		return                                  # they haven't said anything it could copy
+	var pcm := PackedByteArray()
+	pcm.resize(samples.size() * 2)
+	for i in samples.size():
+		pcm.encode_s16(i * 2, int(clampf(samples[i], -1.0, 1.0) * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = 16000
+	wav.stereo = false
+	wav.data = pcm
+	mouth.stream = wav
+	mouth.volume_db = linear_to_db(maxf(Voice.voice_volume, 0.0001))
+	mouth.play()
+
+## Running, it runs. Standing, it freezes mid-stride, wrong, unless it is wearing someone: then it
+## idles the way a survivor does (remote_player.gd), so nothing about it gives it away but the scanner.
+func _animate() -> void:
+	if anim == null or not anim.has_animation("run"):
+		return
+	if speed > 0.6:
+		if anim.current_animation != "run" or not anim.is_playing():
+			anim.play("run", 0.2)
+		anim.speed_scale = clampf(speed / 4.0, 0.4, 1.6)
+	elif shown_id != 0 and _idle_clip != "":
+		if anim.current_animation != _idle_clip or not anim.is_playing():
+			anim.play(_idle_clip, 0.3)
+		anim.speed_scale = 1.0
+	elif anim.is_playing():
+		anim.pause()
 
 func hit_player() -> void:
 	if player.dead or player.frozen:
@@ -403,6 +563,7 @@ func _physics_process(delta: float) -> void:
 		update_peer(delta)
 		if online:
 			_net_send(delta)
+	_update_disguise()
 
 # ================================================================= co-op
 func _net_send(delta: float) -> void:
@@ -411,7 +572,7 @@ func _net_send(delta: float) -> void:
 		return
 	_net_t = 0.05
 	var p := body.global_position
-	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode))])
+	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode)), disguise_id, voice_n])
 
 func net_apply(t: float, m: Array) -> void:
 	net_buf.send_interval = 0.05
@@ -425,6 +586,9 @@ func _puppet_step(delta: float) -> void:
 	var m: Array = st.m
 	spawned = m[5]
 	body.visible = spawned
+	if m.size() >= 9:
+		disguise_id = int(m[7])
+		voice_n = int(m[8])
 	if not spawned:
 		return
 	mode = MODES[clampi(int(m[6]), 0, MODES.size() - 1)]
@@ -439,13 +603,7 @@ func _puppet_step(delta: float) -> void:
 		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
 		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
 	footsteps(delta, ldist)
-	if anim and anim.has_animation("run"):
-		if speed > 0.6:
-			if not anim.is_playing():
-				anim.play("run")
-			anim.speed_scale = clampf(speed / 4.0, 0.4, 1.6)
-		elif anim.is_playing():
-			anim.pause()
+	_animate()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):

@@ -137,6 +137,17 @@ func _consider_noise(res: Dictionary, x: float, z: float, radius: float) -> void
 		res.score = score
 		res.heard = {"x": x, "z": z, "radius": radius}
 
+## Would it hear footsteps that carry `radius` m at `pos` right now? The same test its hearing
+## makes (walls in between cut the reach, it hears less while winded, further lying in wait); the
+## HUD's noise meter (vitals_panel.gd) asks, to warn you while you are in earshot.
+func would_hear(pos: Vector3, radius: float) -> bool:
+	if radius <= 0.0 or process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree():
+		return false
+	var p := global_position
+	var r := radius * (LURK_HEAR if state == "lurk" else 1.0)
+	r = (r if nav.clear_line(p.x, p.z, pos.x, pos.z) else r * 0.65) * (0.6 if winded > 0.0 else 1.0)
+	return Vector2(pos.x - p.x, pos.z - p.z).length() <= r
+
 # Is the survivor looking (nearly) straight at it, from under 40 m?
 func looking_at_me(cos_limit: float) -> bool:
 	var p := global_position

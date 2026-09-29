@@ -50,6 +50,7 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | Space | Jump |
 | F | Torch on/off |
 | Q (hold) | T.S.R.A. field scanner: hold on an entity near the crosshair to log it |
+| G / right click | Camera flash (2 per run, rare spares on the floor): blinds the Bacteria for a few seconds if it catches it full in the face. Get out of its sight before its eyes clear and it has lost you; stay close and in view and it comes straight back. A miss is loud |
 | T (hold) | Reflective hazard tape: hold on a wall or the floor, look along it to pull a strip out, let go to stick it. Mark corridors you've already walked. Hold on an existing strip to peel it back off (the tape goes back on the roll). Q on a strip tells you when it went down and who stuck it |
 | Tab | Inventory (T.S.R.A. field terminal) |
 | ↑ ↓ / F1–F5 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |
@@ -67,6 +68,8 @@ Up to 8 players. One PC hosts a WebSocket server on port **8910**.
   `https://….trycloudflare.com` link to share. Without it, share your IP and forward port 8910.
 - **Join:** paste the link (or `ip[:port]`) into JOIN.
 - The host runs the monsters and the event director; everyone else follows the host's level.
+- The Mimic wears a teammate's face in co-op: their colour, their name tag, and now and then something
+  they said lately, in their voice. It never looks like you. Only the field scanner (Q) locks onto it.
 - Everyone must run the same release. Mismatched builds are refused with a *VERSION MISMATCH* message.
   If you change any RPC in `scripts/Net/net.gd`, bump `PROTOCOL` there.
 

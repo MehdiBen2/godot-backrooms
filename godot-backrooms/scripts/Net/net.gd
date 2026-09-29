@@ -17,8 +17,9 @@ const MAX_PLAYERS := 8
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 4
+const PROTOCOL := 5
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
+const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips in one _tape_rpc (a newcomer gets everyone's in one go)
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const CLOUDFLARED_PATHS := [
@@ -464,6 +465,24 @@ func _tape_removed_rpc(level: int, id: String) -> void:
 	if not _is_peer(multiplayer.get_remote_sender_id()) or level < 0 or level >= 64 or id.length() > 32:
 		return
 	TapeMarks.receive_removed(level, id)
+
+# ---- the camera flash (flash_tool.gd): everyone sees and hears it go off; the host's Bacteria,
+# the one that runs its brain, is the one it can blind -------------------------------------------
+func send_flash(origin: Vector3, look: Vector3) -> void:
+	if is_online() and not multiplayer.get_peers().is_empty():
+		_flash_rpc.rpc(origin, look)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _flash_rpc(origin: Vector3, look: Vector3) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not _is_peer(id) or not origin.is_finite() or not look.is_finite() or absf(look.length() - 1.0) > 0.05:
+		return
+	var r: Node3D = remotes.get(id)
+	if r == null or not is_instance_valid(r) or r.target_pos.distance_to(origin) > 4.0:
+		return                            # it has to go off where that survivor actually is
+	FlashTool.burst(origin)
+	if hosting:
+		FlashTool.hit(origin, look)
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:
