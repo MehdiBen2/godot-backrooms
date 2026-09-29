@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://ivw4x8gsile"
-path="res://.godot/imported/hazmat.glb-8ed060f18e35906b3f8f905f06b3911d.scn"
+uid="uid://cciksfeumqo3q"
+path="res://.godot/imported/survivor.glb-8868219d12309628ff3638bade434396.scn"
 
 [deps]
 
-source_file="res://models/player/hazmat.glb"
-dest_files=["res://.godot/imported/hazmat.glb-8ed060f18e35906b3f8f905f06b3911d.scn"]
+source_file="res://models/player/survivor.glb"
+dest_files=["res://.godot/imported/survivor.glb-8868219d12309628ff3638bade434396.scn"]
 
 [params]
 

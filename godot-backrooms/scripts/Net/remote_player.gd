@@ -1,16 +1,14 @@
 extends Node3D
-## Another survivor. Wears the hazmat suit (models/player/hazmat.glb) and plays its clips the way the
-## web game does (js/game/survivorModel.js): idle / run / sprint / crouch idle / crouch walk, and the
-## death clip which holds its last frame. Falls back to a box figure if the model can't load.
+## Another survivor. Wears the hazmat suit (models/player/survivor.glb) and plays its clips through
+## survivor_anim.gd: look-around idle / walk / run / crouch idle / crouch walk, and the death clip which
+## holds its last frame. Falls back to a box figure if the model can't load.
 ## Smoothed towards the last state received.
 
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
-const MODEL := "res://models/player/hazmat.glb"
+const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
+const MODEL := SurvivorAnim.MODEL
 const MODEL_HEIGHT := 2.0       # metres: eye / visor level matches the 1.7 m camera in the idle pose
 const SMOOTH := 12.0
-const MOVING_ABOVE := 0.1       # m/s
-const SPRINT_ABOVE := 3.2       # the player walks 2.4 m/s and sprints about 4
-const FADE := 0.22              # clip cross-fade, seconds
 
 var color := Color("c9a44a")
 
@@ -33,6 +31,7 @@ var light: SpotLight3D
 var tag: Label3D
 var model: Node3D
 var anim: AnimationPlayer
+var _floor: SurvivorAnim.FloorGuard
 var clips := {}                 # role -> animation name found in the model
 var _role := ""
 var _walk := 0.0
@@ -102,18 +101,11 @@ func _load_model() -> void:
 		root.queue_free()
 		return
 	anim = aps[0]
-	# same lookups as the web's findClip(); a missing clip falls back to the nearest one
-	clips = {
-		"run": _find("^run"), "sprint": _find("sprint"), "idle": _find("^idle"),
-		"crouch_idle": _find("crouch.*idle"), "crouch_walk": _find("crouch.*walk"), "death": _find("death"),
-	}
+	clips = SurvivorAnim.find_clips(anim)       # a missing clip falls back to the nearest one
 	if clips["run"] == "" and clips["idle"] == "":
 		root.queue_free()
 		anim = null
 		return
-	for role in clips:
-		if clips[role] != "":
-			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role == "death" else Animation.LOOP_LINEAR
 
 	# stand on the floor, centred, MODEL_HEIGHT tall. The file faces +Z, survivors face -Z.
 	model = Node3D.new()
@@ -121,18 +113,11 @@ func _load_model() -> void:
 	model.add_child(root)
 	root.transform = HazmatFit.fit(root, model, MODEL_HEIGHT)
 	model.rotation.y = PI
+	_floor = SurvivorAnim.FloorGuard.new(model, anim)
 	_tint(root)
 	figure.visible = false
 	_role = ""
 	_play("idle")
-
-func _find(pattern: String) -> String:
-	var re := RegEx.new()
-	re.compile("(?i)" + pattern)
-	for n in anim.get_animation_list():
-		if re.search(n):
-			return n
-	return ""
 
 # the suit takes a little of the survivor's colour so everyone is easy to tell apart
 func _tint(root: Node) -> void:
@@ -146,37 +131,11 @@ func _tint(root: Node) -> void:
 				c.albedo_color = c.albedo_color * tint
 				mi.set_surface_override_material(i, c)
 
-# Stand / crouch x still / moving, like the web's blend: each role falls back to the closest clip
-func _pick_role(moving: bool, sprinting: bool) -> String:
-	if dead:
-		return "death" if clips.get("death", "") != "" else "idle"
-	var want := ""
-	if crouching:
-		want = "crouch_walk" if moving else "crouch_idle"
-	elif moving:
-		want = "sprint" if sprinting else "run"
-	else:
-		want = "idle"
-	var fallback := {"crouch_walk": "run", "crouch_idle": "idle", "sprint": "run", "run": "idle", "idle": "run"}
-	while want != "" and clips.get(want, "") == "":
-		want = fallback.get(want, "")
-	return want
-
 func _play(role: String) -> void:
 	if role == "" or role == _role:
 		return
 	_role = role
-	anim.play(clips[role], FADE)
-	if role == "death":
-		anim.speed_scale = 1.0
-
-# playback speed follows the real movement speed so feet don't slide
-func _anim_speed() -> float:
-	match _role:
-		"run": return clampf(_speed / 2.8, 0.5, 2.0)
-		"sprint": return clampf(_speed / 4.0, 0.7, 1.6)
-		"crouch_walk": return clampf(_speed / 1.4, 0.5, 2.0)
-	return 1.0
+	anim.play(clips[role], SurvivorAnim.FADE)
 
 ## A snapshot from the network: sender clock t (s), feet position, facing, look pitch, ground speed
 func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
@@ -210,8 +169,9 @@ func _process(dt: float) -> void:
 	light.visible = torch_on and not dead and visible
 
 	if anim != null:
-		_play(_pick_role(_speed > MOVING_ABOVE, _speed > SPRINT_ABOVE))
-		anim.speed_scale = _anim_speed()
+		_play(SurvivorAnim.pick_role(clips, _role, _speed, _speed > SurvivorAnim.SPRINT_ABOVE, crouching, dead))
+		anim.speed_scale = SurvivorAnim.speed_scale(_role, _speed)    # feet match the real movement
+		_floor.on = not dead
 		tag.position.y = 0.9 if dead else (1.75 if crouching else 2.25)
 		return
 

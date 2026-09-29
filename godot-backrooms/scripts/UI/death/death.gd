@@ -394,7 +394,7 @@ var respawn_busy: bool:
 func warmup() -> void:
 	if _fade.busy:        # the level was just reloaded behind the fade: leave it alone
 		return
-	ResourceLoader.load_threaded_request("res://models/player/hazmat.glb")
+	ResourceLoader.load_threaded_request(preload("res://scripts/Entities/survivor_anim.gd").MODEL)
 	var sc: Node = Game.main.get_node_or_null("Scares") if Game.main != null and is_instance_valid(Game.main) else null
 	if sc != null:
 		sc.prewarm_death()
