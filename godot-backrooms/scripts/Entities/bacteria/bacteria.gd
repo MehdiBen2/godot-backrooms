@@ -512,7 +512,8 @@ func update_fear(delta: float) -> void:
 		# while something has hold of you (the mannequin's snap) it owns your heart: no proximity
 		# crackle or heartbeat running over its flatline
 		static_timer -= delta
-		if static_timer <= 0.0 and not player.frozen:
+		# not while it hides and watches (stalking, lying in wait): it doesn't give itself away
+		if static_timer <= 0.0 and not player.frozen and state != "stalk" and state != "lurk":
 			scares.entity_static()
 			static_timer = 0.12 + rng.randf() * (0.9 - 0.7 * terror)
 		# not while something else already has hold of you (the mannequin's snap): it would cut that short

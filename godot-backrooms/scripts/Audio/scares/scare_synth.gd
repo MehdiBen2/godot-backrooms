@@ -107,14 +107,19 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 			for i in a.size():
 				a[i] = a[i] / peak * 0.9
 			w = _wav(a)
-		"static":      # entity proximity crackle
+		"static":      # entity proximity crackle: a soft, dull sputter of signal noise
+			# (it was raw white noise gated ~300 times a second: a harsh, high-pitched banging)
 			var a := _buf(0.3)
+			var band := _band(a.size(), 250.0, 1600.0)
 			var gate := 1.0
+			var g := 1.0
 			for i in a.size():
-				if i % 160 == 0:
-					gate = 1.0 if rng.randf() < 0.55 else 0.15
-				a[i] = rng.randf_range(-1.0, 1.0) * gate * exp(-float(i) / SR * 7.0) * 0.35
-			w = _wav(a)
+				var t := float(i) / SR
+				if i % 900 == 0:
+					gate = 1.0 if rng.randf() < 0.6 else 0.3
+				g += (gate - g) * 0.01                      # eased, so the chops don't click
+				a[i] = band[i] * g * minf(1.0, t / 0.02) * exp(-t * 7.0)
+			w = _wav(_normalize(a, 0.22))
 		"static_hit":  # a short dropout of dull signal noise: chopped, band-limited, nothing pitched
 			# (no 1.8 kHz beep and no white-noise crash: that was the TV-snow gag)
 			var a := _buf(0.4)
