@@ -488,7 +488,7 @@ func _update_flashlight(dt: float) -> void:
 	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 6.0 * dt))
 	var lens := cam.global_position
 	if torch != null and torch.visible:
-		lens = torch.global_transform.origin - torch.global_transform.basis.z * TorchModel.LENGTH
+		lens = torch.lens()
 	# Eased so the light can't jump the half-metre when the lens crosses from clear air into a wall.
 	# Over 2 m away is a teleport (respawn, level change), not a step: snap rather than fly across it.
 	var where := _lens_clear_of_walls(cam.global_position, lens)
