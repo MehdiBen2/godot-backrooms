@@ -6,7 +6,7 @@ extends RefCounted
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
 const AMBER := Color("f0a838")
 const AMBER_DIM := Color(0.941, 0.659, 0.22, 0.38)
-const TEXT := Color("f2e6b8")
+const TEXT := Color("dccd9f")
 const TEXT_DIM := Color(0.949, 0.902, 0.722, 0.5)
 const MUTED := Color("b3a57a")
 const GREEN := Color("5de08f")
@@ -14,7 +14,7 @@ const ORANGE := Color("e8702c")      # low: pulled toward red so it still reads 
 const RED := Color("ff4636")
 const FILL := Color(0.035, 0.028, 0.014, 0.8)
 
-const LINE := 6                  # outline weight: boxes, bars, the sheet and its tabs (shown x WINDOW_SCALE)
+const LINE := 4                  # outline weight: boxes, bars, the sheet and its tabs (shown x WINDOW_SCALE)
 
 const FONT := preload("res://fonts/vcr.ttf")
 static var font_cache := {}          # glyph spacing -> FontVariation

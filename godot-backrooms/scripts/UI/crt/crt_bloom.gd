@@ -6,7 +6,7 @@ extends RefCounted
 
 const DOWNSCALE := 2             # keep it 2: ui_bloom.gdshader relies on it
 
-const WIDE_REACH := 2.5          # the halo's reach, times the tight glow's
+const WIDE_REACH := 3.2          # the halo's reach, times the tight glow's
 const PASS_DIV := [2, 2, 4, 8]   # size divisors of the passes: tight h, tight v (half), halo h, halo v (quarter, eighth)
 
 var vps: Array = []              # [tight h, tight v] SubViewports, then [halo h, halo v] when `wide`

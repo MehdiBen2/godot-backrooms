@@ -60,6 +60,7 @@ const TOP := 118.0
 const BOTTOM := 92.0
 const ICON_BOX := 74.0
 const BAR_H := 32.0
+const BAR_LEVEL := Color(0.72, 0.72, 0.72, 1.0)   # the meter segments are the densest lit area: kept dimmer so they don't blow out the glow
 const VITAL_LINE := 3             # thinner outline on the vitals icon boxes and bars
 const BAR_GAP := 4.0             # dark space between a bar's outline and its segments
 const BAR_SEGMENTS := 20
@@ -70,9 +71,9 @@ const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corne
 const LINE := Kit.LINE
 const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
-const BLOOM := 0.9               # phosphor glow strength (ui_vhs_overlay bloom_amt)
-const BLOOM_WIDE := 0.3          # the neon halo's strength (a broad blur added over the tight glow)
-const BLOOM_RADIUS := 8.0       # how far the glow reaches, in screen pixels at 1080p
+const BLOOM := 1.15              # phosphor glow strength (ui_vhs_overlay bloom_amt)
+const BLOOM_WIDE := 0.42         # the neon halo's strength (a broad blur added over the tight glow)
+const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 1080p
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
 # scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
@@ -217,7 +218,7 @@ func _build() -> void:
 	bloom = CrtBloom.new(content_root, viewport.get_texture(), true)
 	overlay_mat.set_shader_parameter("bloom_tex", bloom.texture())
 	overlay_mat.set_shader_parameter("bloom_amt", BLOOM)
-	overlay_mat.set_shader_parameter("bloom_damp", 0.88)   # lit segments keep their colour, not glow to white
+	overlay_mat.set_shader_parameter("bloom_damp", 0.96)   # lit segments keep their colour, not glow to white
 	# neon: the tight glow plus a broad soft halo, and a slightly whiter hot core
 	overlay_mat.set_shader_parameter("bloom_wide_tex", bloom.texture_wide())
 	overlay_mat.set_shader_parameter("bloom_wide_amt", BLOOM_WIDE)
@@ -506,7 +507,7 @@ func _set_stat(key: String, value: float, state: String, dt: float, pulse: float
 		"critical":
 			col = Color(RED, pulse)
 			txt = RED
-	Kit.set_cells(s.cells, clampi(ceili(eased / 100.0 * BAR_SEGMENTS - 0.01), 0, BAR_SEGMENTS), col)
+	Kit.set_cells(s.cells, clampi(ceili(eased / 100.0 * BAR_SEGMENTS - 0.01), 0, BAR_SEGMENTS), col * BAR_LEVEL)
 	(s.icon as TextureRect).self_modulate = col
 	var v: Label = s.value
 	var vt := "%d%%" % int(round(eased))
