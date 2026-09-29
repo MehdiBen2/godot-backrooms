@@ -462,7 +462,7 @@ func apply_settings() -> void:
 
 ## Start screen (first launch) and pause share one menu; only the title block differs
 func set_paused(on: bool, start := false) -> void:
-	menu.show_menu(on)
+	menu.show_menu(on, start)
 	if hud_root:
 		if hud_fade: hud_fade.kill()
 		hud_fade = create_tween()

@@ -6,6 +6,7 @@ extends Control
 const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
 const RED := Color("c4271f")
+const LINK_DIM := Color(0.9, 0.882, 0.804, 0.7)
 const SETTINGS_PATH := "user://settings.cfg"
 const SENS_BASE := 0.0022
 const SENS_MIN := 1
@@ -52,7 +53,8 @@ func _underline(color: Color) -> StyleBoxFlat:
 	return sb
 
 func _link_button(text: String) -> Button:
-	# Plain underlined text, no box; red underline on hover / when active
+	# Plain underlined text, no box. A red underline wipes in from the left on hover and stays
+	# drawn while the link is active (open panel, chosen preset); the text eases to white with it.
 	var b := Button.new()
 	b.text = text.to_upper()
 	b.flat = true
@@ -60,16 +62,49 @@ func _link_button(text: String) -> Button:
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.add_theme_font_override("font", _font(3))
 	b.add_theme_font_size_override("font_size", 12)
-	b.add_theme_color_override("font_color", Color(0.9, 0.882, 0.804, 0.7))
-	b.add_theme_color_override("font_hover_color", Color.WHITE)
-	b.add_theme_color_override("font_pressed_color", Color.WHITE)
-	b.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
-	b.add_theme_stylebox_override("normal", _underline(Color(0.9, 0.882, 0.804, 0.25)))
-	b.add_theme_stylebox_override("hover", _underline(RED))
-	b.add_theme_stylebox_override("pressed", _underline(RED))
-	b.add_theme_stylebox_override("hover_pressed", _underline(RED))
+	var faint := _underline(Color(0.9, 0.882, 0.804, 0.25))
+	for s in ["normal", "hover", "pressed", "hover_pressed"]:
+		b.add_theme_stylebox_override(s, faint)
+	_tint(LINK_DIM, b)
+	var bar := ColorRect.new()
+	bar.color = RED
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	bar.offset_top = -1
+	bar.offset_bottom = 0
+	bar.scale.x = 0.001           # never exactly 0: a zero-scale transform has no inverse
+	b.add_child(bar)
+	b.set_meta("bar", bar)
+	b.mouse_entered.connect(func():
+		b.set_meta("hover", true)
+		_link_state(b))
+	b.mouse_exited.connect(func():
+		b.set_meta("hover", false)
+		_link_state(b))
 	b.pressed.connect(_click)
 	return b
+
+func _set_link_active(b: Button, on: bool) -> void:
+	if b.get_meta("active", false) == on and b.has_meta("tw"):
+		return
+	b.set_meta("active", on)
+	_link_state(b)
+
+func _link_state(b: Button) -> void:
+	var lit: bool = b.get_meta("hover", false) or b.get_meta("active", false)
+	var old: Tween = b.get_meta("tw", null)
+	if old and old.is_valid():
+		old.kill()
+	var tw := b.create_tween().set_parallel(true)
+	tw.tween_property(b.get_meta("bar"), "scale:x", 1.0 if lit else 0.001, 0.22 if lit else 0.3) \
+			.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_method(_tint.bind(b), b.get_theme_color("font_color"), Color.WHITE if lit else LINK_DIM, 0.18)
+	b.set_meta("tw", tw)
+
+## Same colour in every state, so the hover fade is ours and not the theme's instant swap
+func _tint(c: Color, b: Button) -> void:
+	for n in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		b.add_theme_color_override(n, c)
 
 ## Soft, dry UI tick: quiet with a touch of pitch variation so repeats don't sound mechanical
 func _click() -> void:
@@ -212,11 +247,21 @@ func _row_title(text: String) -> Button:
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.add_theme_font_override("font", _font(2))
 	b.add_theme_font_size_override("font_size", 12)
-	b.add_theme_color_override("font_color", Color(0.9, 0.882, 0.804, 0.75))
-	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	var dim := Color(0.9, 0.882, 0.804, 0.75)
+	_tint(dim, b)
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, StyleBoxEmpty.new())
+	b.mouse_entered.connect(func(): _fade_tint(b, Color.WHITE, 0.15))
+	b.mouse_exited.connect(func(): _fade_tint(b, dim, 0.25))
 	return b
+
+func _fade_tint(b: Button, to: Color, dur: float) -> void:
+	var old: Tween = b.get_meta("tint_tw", null)
+	if old and old.is_valid():
+		old.kill()
+	var tw := b.create_tween()
+	tw.tween_method(_tint.bind(b), b.get_theme_color("font_color"), to, dur)
+	b.set_meta("tint_tw", tw)
 
 # ---- controls section --------------------------------------------------------------
 func _kbd(text: String) -> Control:
@@ -234,12 +279,44 @@ func _kbd(text: String) -> Control:
 	return p
 
 ## Alpha curve for the power-on: dim, blink out, flash, settle
-func _flicker(x: float) -> float:
+static func _flicker(x: float) -> float:
 	if x < 0.2: return 0.85 * x / 0.2
 	if x < 0.35: return 0.15
 	if x < 0.5: return 1.0
 	if x < 0.62: return 0.45
 	return 1.0
+
+# ---- motion helpers (static: the title screen, main_menu.gd, shares them) ----------------------
+## Jump a running tween to its end state, so nothing is left half-faded when it gets replaced
+static func _finish(tw: Tween) -> void:
+	if tw and tw.is_valid():
+		tw.custom_step(100.0)
+		tw.kill()
+
+## Fade a list of items in one after another (container-safe: only touches modulate)
+static func _stagger(tw: Tween, items: Array, delay: float, step: float, dur := 0.3) -> void:
+	for i in items.size():
+		var c: CanvasItem = items[i]
+		c.modulate.a = 0.0
+		tw.tween_property(c, "modulate:a", 1.0, dur).set_delay(delay + i * step) \
+				.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+## OSD-style typing: characters appear left to right. Shaped on the full text first, so the label
+## keeps its final size while it types and nothing around it shifts.
+static func _type_in(tw: Tween, l: Label, delay: float, dur: float) -> void:
+	l.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING
+	l.visible_ratio = 0.0
+	tw.tween_property(l, "visible_ratio", 1.0, dur).set_delay(delay)
+
+## The title's red / teal fringes start torn apart and settle onto the letters, like tape tracking
+## locking in, while the title itself flickers on.
+static func _lock_in(tw: Tween, title: Label, fringes: Array, delay: float, dur: float, spread: float) -> void:
+	fringes[0].position = Vector2(spread, 0)
+	fringes[1].position = Vector2(-spread * 0.8, 0)
+	title.modulate.a = 0.0
+	tw.tween_property(fringes[0], "position", Vector2(2, 0), dur).set_delay(delay).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(fringes[1], "position", Vector2(-2, 0), dur).set_delay(delay).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_method(func(x: float): title.modulate.a = _flicker(x), 0.0, 1.0, dur * 0.6).set_delay(delay)
 
 # ---- persistence ------------------------------------------------------------------------------
 func mouse_sens() -> float:

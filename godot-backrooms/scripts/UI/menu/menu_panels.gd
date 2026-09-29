@@ -179,10 +179,7 @@ func _gfx_sync() -> void:
 	for c in gfx_refresh:
 		c.call()
 	for n in gfx_preset_buttons:
-		var b: Button = gfx_preset_buttons[n]
-		var active: bool = Gfx.preset == n
-		b.add_theme_stylebox_override("normal", _underline(RED if active else Color(0.9, 0.882, 0.804, 0.25)))
-		b.add_theme_color_override("font_color", Color.WHITE if active else Color(0.9, 0.882, 0.804, 0.7))
+		_set_link_active(gfx_preset_buttons[n], Gfx.preset == n)
 	if gfx_scale_slider and int(gfx_scale_slider.value) != int(Gfx.s.scale):
 		gfx_scale_slider.value = Gfx.s.scale
 	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for weak PCs. Tube lights and their shadows cost the most. Smooth motion runs the camera at your screen's refresh rate. Adaptive resolution quietly lowers the render size when frames start dropping, and puts it back when they recover."

@@ -44,8 +44,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		if ui.menu.shown and ui.menu.close_panel():
 			return                  # ESC closes the Settings / Controls panel first
 		set_paused(not ui.menu.shown)
-	elif ui.menu.shown and e is InputEventMouseButton and e.pressed:
-		set_paused(false)
+	elif ui.menu.shown and e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		# a click on the empty veil: close an open panel first (like Esc), otherwise resume. Only the
+		# left button, so scrolling the wheel or a stray right click never drops you back into the run.
+		if not ui.menu.close_panel():
+			set_paused(false)
 		get_viewport().set_input_as_handled()   # the click that closes the menu must not also respawn you
 
 # Alt-tab or a click on another window mid-run: pause, rather than leave you unable to move while
