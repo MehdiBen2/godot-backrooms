@@ -1,22 +1,31 @@
 extends Node3D
-## THE MIMIC (js/game/mimicPeer.js). The web game ties it to a chat session with an
-## LLM; offline it is the survivor look-alike:
+## THE MIMIC (js/game/mimicPeer.js). Something that passes for a survivor.
 ##
-##  PEER   a hazmat survivor look-alike that keeps at the edge of your sight. It walks up behind you
-##         while your back is turned (approach), walks off when you face it (keepAway), sprints away
-##         if you go at it (flee). During a power cut it CHARGES you in the dark, frozen while you
-##         look, bolting when you catch it in your light; reaching you hurts and stuns.
-## The Peer is dormant until a power cut (or F5) starts a "session".
+##  ECHO   It walks where someone walked, minutes ago (mimic_echo.gd keeps everyone's last four
+##         minutes: feet, facing, look, crouch, torch). It picks a moment on that route that nobody can
+##         see right now, 8-35 m from you, from which the route brings it into your view within half a
+##         minute, appears there unseen and walks it back in real time: stopping where they stopped,
+##         crouching where they crouched, looking at the walls they looked at, torch on where theirs
+##         was. It isn't coming for you. It is doing what a person did, which is why it passes for one.
+##         It moves and sounds exactly like a survivor on the network (remote_player.gd: the same clips
+##         at the same speeds, silent feet, the torch pitched where it looks) and does not raise your
+##         heartbeat. Watch it from close by and, after a moment, it stops and looks back, as anyone
+##         would, then carries on (NOTICE). Walk right up to it and it bolts (FLEE). It only ever goes
+##         when nobody is looking. Alone, it walks your own route behind you.
+##  CHARGE A power cut ends the act: it comes at you in the dark, frozen while you look, bolting when
+##         you catch it in your light; reaching you hurts and stuns.
+## It stirs once there are ECHO_START seconds of anyone's route to walk (or a power cut, or F5).
 ##
-## In co-op it wears a real survivor's face: the suit takes their colour and their name tag floats over
-## it, exactly as a teammate's does (remote_player.gd), and now and then it says something they said
-## lately, in their own voice (Voice.clip_of: each machine keeps everyone's last few sentences). It never
-## wears the face of the survivor it is hunting, and nobody ever sees it wearing their own. It even
-## carries a torch. The field scanner is the one thing it can't fool: it locks onto the Mimic, never onto
-## a person, and a deep scan names who it is pretending to be.
-## Dev keys: F5 toggles the Mimic peer.
+## In co-op it wears the face of the survivor whose route it walks: their colour and their name tag,
+## exactly as a teammate's (remote_player.gd), and now and then it says something they said lately, in
+## their own voice (Voice.clip_of: each machine keeps everyone's last few sentences). It walks someone
+## else's route than the survivor it is nearest, and nobody ever sees it wearing their own face. The
+## field scanner is the one thing it can't fool: it locks onto the Mimic, never onto a person, and a
+## deep scan says whose face it wears.
+## Dev keys: F5 toggles the Mimic.
 
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
+const MimicEcho := preload("res://scripts/Entities/mimic/mimic_echo.gd")
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
 const MODEL := "res://models/player/hazmat.glb"
@@ -25,16 +34,11 @@ const MODEL_HEIGHT := 2.0
 # MIMIC_PEER config
 const SPAWN_MIN := 12.0
 const SPAWN_MAX := 20.0
-const STOP_AT := 7.0
 const VIEW_CONE := 0.62
-const WALK_SPEED := 1.5
-const JOG_SPEED := 4.0
 const FLEE_SPEED := 6.2
 const ACCEL := 12.0
 const TURN_RATE := 4.5
 const FLEE_TURN_RATE := 8.0
-const KEEP_AWAY_DIST := 10.0
-const FLEE_DIST := 6.0
 const FLEE_DONE_DIST := 26.0
 const STUCK_AFTER := 4.0
 const RELOCATE_AFTER := 12.0
@@ -46,6 +50,26 @@ const HIT_COOLDOWN := 8.0
 const SPOOK_CHANCE := 0.04
 const OFFSETS := [0.0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6, 2.2, -2.2, PI]
 
+# the echo
+const ECHO_START := 120.0            # s of someone's route before it stirs on its own
+const ECHO_MIN_AGE := 45.0           # s: it walks where someone was at least this long ago...
+const ECHO_MAX_AGE := 230.0          # ...and at most this long ago
+const ECHO_NEAR := 8.0               # m from you where it starts, out of sight
+const ECHO_FAR := 35.0
+const ECHO_VIEW := 25.0              # m: the route has to come within your view, this close...
+const ECHO_SHOW_WITHIN := 30.0       # ...within this many seconds of where it starts
+const ECHO_SEG := Vector2(40.0, 90.0)    # s it keeps walking before it goes (once nobody is looking)
+const ECHO_REST := Vector2(40.0, 100.0)  # s before it walks again
+const NOTICE_DIST := 8.0             # m: watched this close, it notices
+const NOTICE_REACT := Vector2(0.4, 1.2)  # s before it does: a person's reaction, never the same twice
+const NOTICE_HOLD := Vector2(1.5, 3.5)   # s it stands and looks back
+const NOTICE_COOLDOWN := 12.0
+const BOLT_DIST := 3.5               # m: walk right up to it and it runs
+# the same animation rules as a survivor on the network (remote_player.gd)
+const MOVING_ABOVE := 0.1
+const SPRINT_ABOVE := 3.2
+const FADE := 0.22
+
 var level: Node
 var player: CharacterBody3D
 var scares: Node
@@ -56,7 +80,7 @@ var rng := RandomNumberGenerator.new()
 var session := false
 var spawned := false
 var wait := 0.0
-var mode := "approach"
+var mode := "echo"
 var heading := 0.0
 var speed := 0.0
 var stuck := 0.0
@@ -68,7 +92,7 @@ var hit_ready := 0.0
 var body: Node3D
 
 # ---- co-op: the host runs the body (hunting the nearest survivor); guests follow it from snapshots.
-const MODES := ["approach", "keepAway", "flee", "charge"]
+const MODES := ["echo", "notice", "flee", "charge"]
 var puppet := false
 var net_buf = SnapBuffer.new()
 var t_id := -1
@@ -92,7 +116,21 @@ var _tint_mats: Array = []           # [StandardMaterial3D, base albedo]: the su
 var tag: Label3D
 var torch: SpotLight3D
 var mouth: AudioStreamPlayer3D
-var _idle_clip := ""                 # the suit's idle, for standing about like a survivor does
+var _clips := {}                     # role -> the suit's clip (remote_player.gd's lookups)
+var _role := ""
+var echo := MimicEcho.new()          # host: everyone's last few minutes
+var echo_src := -1                   # whose route it walks
+var echo_clock := 0.0                # s of game time: the routes are stamped with it and every timer runs
+                                     # on it (not the wall clock: the game can pause or run slow)
+var play_t := 0.0                    # the moment on that route it is at (echo_clock time)
+var seg_end := 0.0
+var notice_until := 0.0
+var notice_ready := 0.0
+var crouch := false                  # its pose, from the route (sent to the guests)
+var torch_on := false
+var pitch := 0.0
+var _torch_was := false
+var clicker: AudioStreamPlayer3D
 
 func _ready() -> void:
 	rng.randomize()
@@ -101,9 +139,6 @@ func _ready() -> void:
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
 	_build_body()
-
-func now() -> float:
-	return Time.get_ticks_msec() / 1000.0
 
 # ================================================================= peer
 func _build_body() -> void:
@@ -121,11 +156,15 @@ func _build_body() -> void:
 		anim = aps[0]
 		if anim.has_animation("run"):
 			anim.get_animation("run").loop_mode = Animation.LOOP_LINEAR
-		for n in anim.get_animation_list():
-			if n.to_lower().begins_with("idle"):
-				_idle_clip = n
-				anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
-				break
+		var patterns := {"run": "^run", "sprint": "sprint", "idle": "^idle", "crouch_idle": "crouch.*idle", "crouch_walk": "crouch.*walk"}
+		for role in patterns:
+			var re := RegEx.new()
+			re.compile("(?i)" + str(patterns[role]))
+			for n in anim.get_animation_list():
+				if re.search(n):
+					_clips[role] = n
+					anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+					break
 	# its own copy of the suit's materials, so it can take a survivor's colour (remote_player.gd _tint)
 	for m in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
@@ -164,6 +203,11 @@ func _build_body() -> void:
 	mouth.max_distance = 45.0
 	mouth.pitch_scale = VOICE_PITCH
 	body.add_child(mouth)
+	clicker = AudioStreamPlayer3D.new()        # its torch switch, alone (a survivor's makes no sound over the net)
+	clicker.position = Vector3(0.28, 1.4, 0.3)
+	clicker.unit_size = 3.0
+	clicker.max_distance = 25.0
+	body.add_child(clicker)
 
 # The grid just went down: it comes for you in the dark (called by the power cut event)
 func grid_down() -> void:
@@ -219,6 +263,7 @@ func spot_around() -> Variant:
 			return Vector2(x, z)
 	return null
 
+## A power cut: it turns up out of your sight, near you, to charge (the echo has its own way in)
 func appear() -> bool:
 	var spot = spot_around()
 	if spot == null:
@@ -229,11 +274,11 @@ func appear() -> bool:
 	speed = 0.0
 	stuck = 0.0
 	stuck_total = 0.0
-	mode = "approach"
+	mode = "charge"
 	spawned = true
 	body.visible = true
 	disguise_id = _pick_disguise()
-	_next_voice = now() + rng.randf_range(4.0, 10.0)
+	_next_voice = echo_clock + rng.randf_range(4.0, 10.0)
 	return true
 
 # ---------------------------------------------------------------- T.S.R.A. scanner
@@ -250,8 +295,8 @@ func scan_points() -> Array:
 
 ## C-4 deep scan (scan_readout.gd): what it is doing right now. danger 0 calm / 1 wary / 2 after you
 const SCAN_MODES := {
-	"approach": ["CLOSING IN", "GAINS GROUND WHILE YOU LOOK AWAY", 1],
-	"keepAway": ["HOLDING DISTANCE", "KEEPS TO THE EDGE OF YOUR SIGHT", 1],
+	"echo": ["RETRACING A ROUTE", "WALKING WHERE A SURVIVOR WALKED MINUTES AGO", 1],
+	"notice": ["WATCHING YOU", "IT SAW YOU LOOKING - DO NOT WALK UP TO IT", 1],
 	"flee": ["FLEEING", "FASTER THAN YOU - LET IT GO", 0],
 	"charge": ["CHARGING", "COMING AT YOU IN THE DARK - LIGHT IT UP", 2],
 }
@@ -260,6 +305,8 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 	var s: Array = SCAN_MODES.get(mode, [mode.to_upper(), "", 1])
 	if shown_id != 0:
 		return {"state": s[0], "detail": "WEARING %s'S FACE - IT IS NOT THEM" % Net.label_for(shown_id), "danger": 2}
+	if mode == "echo" and not puppet and not Net.is_online():
+		return {"state": s[0], "detail": "WALKING YOUR ROUTE FROM %d S AGO" % roundi(echo_clock - play_t), "danger": 1}
 	return {"state": s[0], "detail": s[1], "danger": s[2]}
 
 # Can a body walk from (x, z) heading `a` for `dist` metres without hitting a wall?
@@ -293,8 +340,14 @@ func footsteps(delta: float, dist: float) -> void:
 			scares.play_scare("footThump", Vector3(pos.x, player.global_position.y + 0.2, pos.z), maxf(0.2, 0.75 * (1.0 - dist / 30.0)))
 
 func update_peer(delta: float) -> void:
+	echo_clock += delta
+	var t := echo_clock                             # every timer here runs on game time, like the route
+	echo.record(delta, echo_clock)
 	if not session:
-		return
+		if echo.longest_span() < ECHO_START:
+			return
+		session = true                              # enough of someone's route to walk it back
+		wait = 0.0
 	var tg := Net.nearest_survivor(body.global_position if spawned else player.global_position, t_id)
 	if tg.is_empty():
 		return                                       # nobody alive and in the game
@@ -303,11 +356,16 @@ func update_peer(delta: float) -> void:
 	t_fwd = tg.fwd
 	if not spawned:
 		wait -= delta
-		if wait <= 0.0:
+		if wait > 0.0:
+			return
+		if player.grid_down:
 			appear()
+		elif not _begin_echo(t):
+			wait = 1.0                              # nowhere it could walk into your view from yet
 		return
-	if Net.is_online() and (disguise_id == 0 or not _in_game(disguise_id)):
-		disguise_id = _pick_disguise()            # nobody to be yet (a late joiner), or they left
+	if (mode == "echo" or mode == "notice") and not player.grid_down:
+		_echo_step(delta, t)
+		return
 	var pos := body.global_position
 	var pp: Vector3 = t_pos
 	var lp := player.global_position
@@ -317,19 +375,25 @@ func update_peer(delta: float) -> void:
 	var dist := maxf(Vector2(dx, dz).length(), 0.001)
 	var to_player := atan2(dx, dz)
 	var watched := watched_by(pos.x, pos.z, VIEW_CONE)
-	var t := now()
 	if Game.heart != null:
 		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
 		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
 
 	# decide what it is doing
 	var charging: bool = player.grid_down
-	var home := "charge" if charging else "approach"
+	if mode == "echo" or mode == "notice":
+		mode = "charge"                             # the grid went down mid-act: the act is over
+		step = 0.0
 	if not charging and mode == "charge":
-		mode = "approach"                       # the lights are back
+		mode = "flee"                               # the lights are back: out of sight, then gone
+		flee_until = t + 1.0
 	if mode == "flee":
-		if t > flee_until and (charging or dist > FLEE_DONE_DIST or (not watched and dist > 16.0)):
-			mode = home
+		if t > flee_until and (dist > FLEE_DONE_DIST or (not watched and dist > 16.0)):
+			if charging:
+				mode = "charge"
+			elif not _seen_by_anyone(pos):
+				_vanish()
+				return
 	elif charging:
 		if mode != "charge":
 			mode = "charge"
@@ -348,13 +412,6 @@ func update_peer(delta: float) -> void:
 			if rng.randf() < SPOOK_CHANCE * delta:
 				mode = "flee"
 				flee_until = t + 1.2 + rng.randf() * 1.8
-	elif watched and dist < FLEE_DIST:
-		mode = "flee"
-		flee_until = t + 2.5
-	elif watched and dist < KEEP_AWAY_DIST:
-		mode = "keepAway"
-	elif mode != "approach" and (not watched or dist >= KEEP_AWAY_DIST + 2.0):
-		mode = "approach"
 
 	# where it wants to go, and how fast
 	var want := to_player
@@ -368,13 +425,6 @@ func update_peer(delta: float) -> void:
 		# it only runs while you are not looking; look back at it and it freezes, then bolts
 		goal = CHARGE_SPEED if (dist > CHARGE_STOP and not watched) else 0.0
 		turn = FLEE_TURN_RATE
-	elif mode == "keepAway":
-		want = to_player + PI
-		goal = WALK_SPEED * 1.2
-	elif dist > STOP_AT:
-		goal = JOG_SPEED if dist > 18.0 else WALK_SPEED
-		if watched:
-			goal *= 0.5
 
 	# steer round walls, then turn and accelerate like a body would
 	var steered := NAN
@@ -418,12 +468,6 @@ func update_peer(delta: float) -> void:
 
 	footsteps(delta, ldist)
 
-	# in someone's face, it talks: a line of theirs, from where it stands, now and then
-	if disguise_id != 0 and (mode == "approach" or mode == "keepAway") and dist > VOICE_MIN_DIST \
-			and dist < VOICE_MAX_DIST and t >= _next_voice:
-		_next_voice = t + rng.randf_range(VOICE_GAP.x, VOICE_GAP.y)
-		voice_n += 1
-
 	# wedged somewhere: try another way, and if it stays stuck out of sight, start over elsewhere
 	var moved := absf(pos.x + pos.z * 1.37 - before)
 	if goal > 0.0 and moved < 0.002:
@@ -438,18 +482,178 @@ func update_peer(delta: float) -> void:
 		stuck = 0.0
 	if stuck_total > RELOCATE_AFTER and not watched:
 		stuck_total = 0.0
-		appear()
+		if mode == "charge":
+			appear()
+		else:
+			_vanish()
+			return
 
 	# the rig: face where it is going (or at its target when it stands)
 	var standing := speed < 0.3
 	var want_yaw := atan2(dx, dz) if standing else heading
 	body_yaw = lerp_angle(body_yaw, want_yaw, minf(1.0, delta * 10.0))
 	body.rotation.y = body_yaw
+	pitch = 0.0
+	crouch = false
 	_animate()
 
+# ================================================================= the echo
+## Somewhere on someone's route to be, out of everyone's sight, from which it will walk into view.
+## In co-op the route is someone else's than the survivor it is nearest if it can (they would know
+## where they have been); alone, it is yours.
+func _begin_echo(t: float) -> bool:
+	var sources: Array = []
+	if Net.is_online():
+		for s in Net.survivors():
+			if s.id != t_id:
+				sources.append(s.id)
+	sources.shuffle()
+	sources.append(t_id)                            # nothing good on theirs: its target's own will do
+	for src in sources:
+		var tr: Array = echo.track(src)
+		var start := _pick_start(tr, echo_clock)
+		if start < 0.0:
+			continue
+		var st := echo.sample(tr, start)
+		echo_src = src
+		play_t = start
+		body.global_position = st.p
+		body_yaw = st.h
+		body.rotation.y = body_yaw
+		pitch = st.pitch
+		crouch = st.crouch
+		torch_on = st.torch
+		_torch_was = torch_on
+		speed = st.speed
+		heading = st.h
+		mode = "echo"
+		spawned = true
+		body.visible = true
+		disguise_id = src if Net.is_online() else 0
+		seg_end = t + rng.randf_range(ECHO_SEG.x, ECHO_SEG.y)
+		notice_ready = t + 2.0
+		react_at = 0.0
+		_next_voice = t + rng.randf_range(6.0, 14.0)
+		return true
+	return false
+
+## The start time of a stretch of `tr` worth walking: a moment ECHO_MIN_AGE..ECHO_MAX_AGE ago, where
+## nobody can see it now, ECHO_NEAR..ECHO_FAR from its target, from which the route comes into the
+## target's view within ECHO_SHOW_WITHIN seconds, the way a person comes round a corner. -1: none.
+func _pick_start(tr: Array, t: float) -> float:
+	var n := tr.size()
+	if n < 8:
+		return -1.0
+	var ahead := int(ECHO_SHOW_WITHIN / MimicEcho.RATE)
+	var shows := PackedByteArray()
+	shows.resize(n)
+	for k in n:
+		var p: Vector3 = tr[k].p
+		var d := Vector2(p.x - t_pos.x, p.z - t_pos.z).length()
+		shows[k] = 1 if d < ECHO_VIEW and nav.clear_line(t_pos.x, t_pos.z, p.x, p.z) else 0
+	var picks: Array = []
+	var j := 0
+	while j < n:
+		var age := t - float(tr[j].t)
+		var p: Vector3 = tr[j].p
+		var d := Vector2(p.x - t_pos.x, p.z - t_pos.z).length()
+		if age >= ECHO_MIN_AGE and age <= ECHO_MAX_AGE and d >= ECHO_NEAR and d <= ECHO_FAR and not _seen_by_anyone(p):
+			for k in range(j + 4, mini(n, j + ahead)):
+				if tr[k].cut:
+					break
+				if shows[k] == 1:
+					picks.append(float(tr[j].t))
+					break
+		j += 2
+	return picks.pick_random() if not picks.is_empty() else -1.0
+
+## One frame of the act: walk the route, or stop and look back at someone watching from close by
+func _echo_step(delta: float, t: float) -> void:
+	var pos := body.global_position
+	var dx := t_pos.x - pos.x
+	var dz := t_pos.z - pos.z
+	var dist := Vector2(dx, dz).length()
+	var seen: bool = dist < 45.0 and view_dot(pos.x, pos.z) > VIEW_CONE and nav.clear_line(t_pos.x, t_pos.z, pos.x, pos.z)
+	# someone walks right up to it: it runs
+	if dist < BOLT_DIST:
+		mode = "flee"
+		flee_until = t + 2.0 + rng.randf()
+		heading = atan2(-dx, -dz)
+		speed = maxf(speed, 2.0)
+		return
+	# watched from close by: after a moment, like anyone, it stops and looks back
+	if mode == "echo":
+		if seen and dist < NOTICE_DIST and t >= notice_ready:
+			if react_at == 0.0:
+				react_at = t + rng.randf_range(NOTICE_REACT.x, NOTICE_REACT.y)
+			elif t >= react_at:
+				mode = "notice"
+				react_at = 0.0
+				notice_until = t + rng.randf_range(NOTICE_HOLD.x, NOTICE_HOLD.y)
+				notice_ready = t + NOTICE_COOLDOWN
+				if disguise_id != 0 and rng.randf() < 0.6:
+					_talk(t)                        # and says something, in their voice
+		else:
+			react_at = 0.0
+	var ended := false
+	if mode == "notice":
+		speed = 0.0
+		body_yaw = lerp_angle(body_yaw, atan2(dx, dz), minf(1.0, delta * 5.0))
+		pitch = lerpf(pitch, 0.0, minf(1.0, delta * 5.0))
+		if t >= notice_until:
+			mode = "echo"                           # and carries on where it left off
+	else:
+		play_t += delta
+		var st := echo.sample(echo.track(echo_src), play_t)
+		if st.is_empty():
+			_vanish()
+			return
+		body.global_position = st.p
+		body_yaw = lerp_angle(body_yaw, st.h, minf(1.0, delta * 12.0))
+		pitch = st.pitch
+		crouch = st.crouch
+		torch_on = st.torch
+		speed = st.speed
+		ended = st.end                              # their route stops here (for now): it stands
+	body.rotation.y = body_yaw
+	if disguise_id != 0 and mode == "echo" and dist > VOICE_MIN_DIST and dist < VOICE_MAX_DIST and t >= _next_voice:
+		_talk(t)
+	# it goes when nobody is looking, never in front of anyone
+	if (t >= seg_end or ended) and not _seen_by_anyone(body.global_position):
+		_vanish()
+		return
+	_animate()
+
+## Could anyone see a body standing at `p` right now? (close behind you counts: you would hear it)
+func _seen_by_anyone(p: Vector3) -> bool:
+	for s in Net.survivors():
+		var d := Vector2(p.x - s.pos.x, p.z - s.pos.z)
+		var l := d.length()
+		if l < 4.0:
+			return true
+		var f: Vector3 = s.fwd
+		if l < 45.0 and (f.x * d.x + f.z * d.y) / l > VIEW_CONE - 0.15 and nav.clear_line(s.pos.x, s.pos.z, p.x, p.z):
+			return true
+	return false
+
+## Gone, unseen; it walks again after a while
+func _vanish() -> void:
+	spawned = false
+	body.visible = false
+	mode = "echo"
+	speed = 0.0
+	echo_src = -1
+	disguise_id = 0
+	wait = rng.randf_range(ECHO_REST.x, ECHO_REST.y)
+
+func _talk(t: float) -> void:
+	_next_voice = t + rng.randf_range(VOICE_GAP.x, VOICE_GAP.y)
+	voice_n += 1
+
 # ================================================================= the disguise
-## Host: a survivor to pretend to be. Never the one it hunts (they would know it isn't them); a
-## random other one who is in the game. 0 when there is nobody else (and always, offline).
+## Host, for a charge: a survivor to pretend to be. Never the one it hunts (they would know it isn't
+## them); a random other one who is in the game. 0 when there is nobody else (and always, offline).
+## (Walking a route, it wears the face of whoever walked it: _begin_echo.)
 func _pick_disguise() -> int:
 	if not Net.is_online():
 		return 0
@@ -458,12 +662,6 @@ func _pick_disguise() -> int:
 		if s.id != t_id:
 			ids.append(s.id)
 	return ids.pick_random() if not ids.is_empty() else 0
-
-func _in_game(id: int) -> bool:
-	for s in Net.survivors():
-		if s.id == id:
-			return true
-	return false
 
 ## Every machine: wear the face the host chose, unless it is this player's own, then another
 ## survivor's (a face you would believe: you can't be over there), or none. Speak when the host says.
@@ -490,6 +688,21 @@ func _update_disguise() -> void:
 	if tag.visible:
 		# the tag goes green while it "talks", like a survivor's on voice chat
 		tag.modulate = Color(0.55, 1.0, 0.6) if mouth.playing else Color(0.94, 0.91, 0.75)
+	_present()
+
+## The torch and the tag, as a survivor's: the torch on where the route had it on (or while it wears
+## a face in a charge), pitched where it looks; the tag lower when it crouches. Alone, it even clicks
+## its torch where you clicked yours (a survivor's switch makes no sound over the net, so in co-op it
+## keeps quiet too).
+func _present() -> void:
+	var acting := mode == "echo" or mode == "notice"
+	torch.visible = spawned and (torch_on if acting else shown_id != 0)
+	torch.rotation = Vector3(pitch, PI, 0.0)
+	tag.position.y = 1.75 if crouch else 2.25
+	if acting and spawned and torch_on != _torch_was and not Net.is_online() and body.is_visible_in_tree():
+		clicker.stream = load("res://audio/flash_click_on.wav" if torch_on else "res://audio/flash_click_off.wav")
+		clicker.play()
+	_torch_was = torch_on
 
 ## Take `id`'s colour and name tag (0: back to the plain suit, no tag, no torch)
 func _wear(id: int) -> void:
@@ -500,7 +713,6 @@ func _wear(id: int) -> void:
 	for e in _tint_mats:
 		(e[0] as StandardMaterial3D).albedo_color = (e[1] as Color) * tint
 	tag.visible = id != 0
-	torch.visible = id != 0
 
 ## Play one of their lines back from where it stands
 func _say(samples: PackedFloat32Array) -> void:
@@ -519,21 +731,38 @@ func _say(samples: PackedFloat32Array) -> void:
 	mouth.volume_db = linear_to_db(maxf(Voice.voice_volume, 0.0001))
 	mouth.play()
 
-## Running, it runs. Standing, it freezes mid-stride, wrong, unless it is wearing someone: then it
-## idles the way a survivor does (remote_player.gd), so nothing about it gives it away but the scanner.
+## Its body, as a survivor's (remote_player.gd _pick_role / _anim_speed): the same clips at the same
+## speeds, crouching where the route crouched. Only in a charge does it stand wrong: frozen mid-stride
+## while you look at it.
 func _animate() -> void:
-	if anim == null or not anim.has_animation("run"):
+	if anim == null or _clips.is_empty():
 		return
-	if speed > 0.6:
-		if anim.current_animation != "run" or not anim.is_playing():
-			anim.play("run", 0.2)
-		anim.speed_scale = clampf(speed / 4.0, 0.4, 1.6)
-	elif shown_id != 0 and _idle_clip != "":
-		if anim.current_animation != _idle_clip or not anim.is_playing():
-			anim.play(_idle_clip, 0.3)
-		anim.speed_scale = 1.0
-	elif anim.is_playing():
-		anim.pause()
+	if mode == "charge" and speed <= 0.6:
+		if anim.is_playing():
+			anim.pause()
+		_role = ""
+		return
+	var moving := speed > MOVING_ABOVE
+	var want := ""
+	if crouch:
+		want = "crouch_walk" if moving else "crouch_idle"
+	elif moving:
+		want = "sprint" if speed > SPRINT_ABOVE else "run"
+	else:
+		want = "idle"
+	var fallback := {"crouch_walk": "run", "crouch_idle": "idle", "sprint": "run", "run": "idle", "idle": "run"}
+	while want != "" and not _clips.has(want):
+		want = fallback.get(want, "")
+	if want == "":
+		return
+	if want != _role or not anim.is_playing():
+		_role = want
+		anim.play(_clips[want], FADE)
+	match want:
+		"run": anim.speed_scale = clampf(speed / 2.8, 0.5, 2.0)
+		"sprint": anim.speed_scale = clampf(speed / 4.0, 0.7, 1.6)
+		"crouch_walk": anim.speed_scale = clampf(speed / 1.4, 0.5, 2.0)
+		_: anim.speed_scale = 1.0
 
 func hit_player() -> void:
 	if player.dead or player.frozen:
@@ -572,7 +801,7 @@ func _net_send(delta: float) -> void:
 		return
 	_net_t = 0.05
 	var p := body.global_position
-	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode)), disguise_id, voice_n])
+	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode)), disguise_id, voice_n, crouch, torch_on, pitch])
 
 func net_apply(t: float, m: Array) -> void:
 	net_buf.send_interval = 0.05
@@ -589,6 +818,10 @@ func _puppet_step(delta: float) -> void:
 	if m.size() >= 9:
 		disguise_id = int(m[7])
 		voice_n = int(m[8])
+	if m.size() >= 12:
+		crouch = bool(m[9])
+		torch_on = bool(m[10])
+		pitch = float(m[11])
 	if not spawned:
 		return
 	mode = MODES[clampi(int(m[6]), 0, MODES.size() - 1)]
@@ -599,7 +832,8 @@ func _puppet_step(delta: float) -> void:
 	var pos := body.global_position
 	var lp := player.global_position
 	var ldist := Vector2(lp.x - pos.x, lp.z - pos.z).length()
-	if Game.heart != null and Game.playing and not player.dead:
+	# walking a route it passes for a survivor: your heart has no reason to race (only once it runs or charges)
+	if Game.heart != null and Game.playing and not player.dead and mode != "echo" and mode != "notice":
 		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
 		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
 	footsteps(delta, ldist)
