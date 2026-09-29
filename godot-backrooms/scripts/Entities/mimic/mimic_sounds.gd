@@ -15,6 +15,11 @@ const KEEP := 180.0                  # s it remembers what you did
 const NEAR_CELLS := Vector2i(2, 4)   # the spot: this many cells' walk away...
 const NEAR_M := Vector2(7.0, 18.0)   # ...this far in a straight line, and out of your line of sight
 const STEP_GAP := {"walk": 0.52, "sprint": 0.34, "crouch": 0.8}
+# a footstep at the level of your own (footsteps.gd step(): scuff level, heel weight), heard from a
+# distance: at STEP_UNIT metres a copied step is exactly as loud as yours, further off it fades
+const STEP_LEVEL := {"walk": 0.05, "sprint": 0.08, "crouch": 0.015}
+const HEEL_WEIGHT := {"walk": 0.32, "sprint": 0.45, "crouch": 0.15}
+const STEP_UNIT := 3.0
 
 var mimic: Node                      # mimic.gd
 var clock := 0.0
@@ -127,9 +132,6 @@ func _one(stream: AudioStream, pos: Vector3, db: float, pitch: float) -> void:
 
 ## A few of your own footsteps (your takes, on that floor), walking along the corridor it is in
 func _steps(how: String, c: Vector2i, player: Node) -> void:
-	var fs: Node = player.get("footsteps")
-	if fs == null:
-		return
 	var nav = mimic.nav
 	var dir := Vector2i.ZERO
 	for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
@@ -138,16 +140,33 @@ func _steps(how: String, c: Vector2i, player: Node) -> void:
 			break
 	var from := Vector3(c.x * nav.CELL, player.global_position.y + 0.1, c.y * nav.CELL)
 	var along := Vector3(dir.x, 0, dir.y)
-	var tile: bool = Game.level != null and Game.level.tiles.has(c)
-	var list: Array = fs.sprint if how == "sprint" else fs.walk
 	var gap: float = STEP_GAP[how]
-	var count := randi_range(5, 9)
-	var level_db := -2.0 if how == "sprint" else (-14.0 if how == "crouch" else -6.0)
-	for i in count:
-		var t := i * gap * randf_range(0.93, 1.07)
-		var pos := from + along * (i * gap * (4.5 if how == "sprint" else 2.6))
-		get_tree().create_timer(t).timeout.connect(func():
-			if not is_instance_valid(self) or Game.dead:
-				return
-			_one(list.pick_random(), pos, level_db + (-3.0 if tile else 0.0), randf_range(0.96, 1.04) * (1.1 if tile else 1.0))
-			_one(fs.heel_tile if tile else fs.heel_carpet, pos, level_db - 6.0 + (3.0 if tile else 0.0), randf_range(0.9, 1.1)))
+	var pace: float = 4.5 if how == "sprint" else (1.35 if how == "crouch" else 2.6)
+	for i in randi_range(5, 9):
+		var pos := from + along * (i * gap * pace)
+		get_tree().create_timer(i * gap * randf_range(0.93, 1.07)).timeout.connect(func():
+			if is_instance_valid(self) and not Game.dead:
+				step_at(pos, how))
+
+## One footstep at `pos`, a survivor's on that floor, as loud as your own would be from STEP_UNIT
+## metres (the Mimic's own feet use this too, mimic.gd footsteps)
+func step_at(pos: Vector3, how: String) -> void:
+	var player: Node = mimic.player if mimic != null else null
+	var fs: Node = player.get("footsteps") if player != null else null
+	if fs == null or Game.level == null:
+		return
+	var tile: bool = Game.level.tiles.has(Vector2i(roundi(pos.x / mimic.nav.CELL), roundi(pos.z / mimic.nav.CELL)))
+	var level: float = STEP_LEVEL[how]
+	var list: Array = fs.sprint if how == "sprint" else fs.walk
+	var scuff := _source(pos)
+	scuff.unit_size = STEP_UNIT
+	scuff.stream = list.pick_random()
+	scuff.volume_linear = level * randf_range(0.85, 1.1) * (0.55 if tile else 1.0)
+	scuff.pitch_scale = (0.92 if how == "crouch" else 1.0) * randf_range(0.96, 1.04) * (1.1 if tile else 1.0)
+	scuff.play()
+	var heel := _source(pos)
+	heel.unit_size = STEP_UNIT
+	heel.stream = fs.heel_tile if tile else fs.heel_carpet
+	heel.volume_linear = level * float(HEEL_WEIGHT[how]) * (1.8 if tile else 1.0) * randf_range(0.8, 1.1)
+	heel.pitch_scale = randf_range(0.9, 1.1)
+	heel.play()
