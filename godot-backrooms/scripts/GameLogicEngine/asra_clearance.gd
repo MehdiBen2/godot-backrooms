@@ -20,7 +20,7 @@ extends Node
 ## plus EXIT MARKED if one of the strips is by the exit. Once per level, saved like the survey.
 ## The level changes right after, so that report waits in pending_route for the next level's HUD.
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
-## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
+## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (terminal_page.gd annex),
 ## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
 ## It also keeps the service record the terminal's [F5] CLEARANCE page shows: lifetime stats
 ## (filings by kind, yield by source, per entity, best filing, closest reading, tape survey per

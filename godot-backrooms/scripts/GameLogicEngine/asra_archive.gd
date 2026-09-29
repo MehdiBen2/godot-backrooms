@@ -1,7 +1,8 @@
 extends Node
 ## T.S.R.A. (Threshold Spatial Research Agency) Field Archive: which entities the player has
-## personally encountered, plus the level/entity dossier catalog the inventory's ARCHIVE tab
-## renders (scripts/UI/inventory/inventory.gd). Autoload name: Archive.
+## personally encountered, plus the level/entity dossier catalog the TAB terminal's [F2] DOSSIER and
+## [F3] ENTRIES pages render (scripts/UI/inventory/pages/page_dossier.gd, page_entries.gd).
+## Autoload name: Archive.
 ##
 ## Entities are logged by scanning them: the T.S.R.A. field scanner (scripts/Player/scanner.gd, hold
 ## Q) calls discover("id") once a reading completes, and the HUD toast announces the new entry.

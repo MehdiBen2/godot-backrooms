@@ -4,11 +4,14 @@ extends Control
 ## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
 ## the inventory: all SLOT_COUNT slots numbered (icon, name, a stack's cells and count; free ones
 ## faint), the selection and the torch's battery estimate. On the right, a tabbed sheet, with a
-## scroll rail in the gap beside it (_draw_rail): [F1] ITEMS (the selected item's record), [F2] DOSSIER (the
-## level's threshold dossier and which of its anomalies are logged, from Archive,
+## scroll rail in the gap beside it (_draw_rail). Each of its pages is a script of its own in
+## scripts/UI/inventory/pages/ (terminal_page.gd): [F1] ITEMS (the selected item's record),
+## [F2] DOSSIER (the level's threshold dossier and which of its anomalies are logged, from Archive,
 ## scripts/GameLogicEngine/asra_archive.gd), [F3] ENTRIES (every catalogued entity: pick one with
-## the arrows or a click and read its full entry; new ones are marked until opened) and [F4] PAPERS
-## (recovered lore).
+## the arrows or a click and read its full entry; new ones are marked until opened), [F4] PAPERS
+## (recovered lore) and [F5] CLEARANCE (the player's service record, asra_clearance.gd). This file
+## is the terminal around them: the lens, header, vitals, inventory list, tabs, rail and input.
+## The palette and widget helpers they all use are in terminal_kit.gd.
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
 ## same warp (_through_lens) so hover and clicks land on what is drawn. Its bright parts glow: two
@@ -18,7 +21,7 @@ extends Control
 ## power on / off, a key switch on page switches (which also lift the tab and type the page in behind
 ## a scan line), a lighter tick on item / entry selection.
 ## Toggled with TAB (scripts/GameLogicEngine/main.gd -> hud.gd set_inventory), closed by TAB / ESC
-## or a click outside the window; arrows, F1-F4 and PgUp/PgDn navigate while it is up.
+## or a click outside the window; arrows, F1-F5 and PgUp/PgDn navigate while it is up.
 ## Empty by default: scripts/World/props pickups can call add_item() / add_lore() to populate it.
 
 signal close_requested
@@ -27,17 +30,25 @@ const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
 const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
 const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
+const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")
+const PAGE_SCRIPTS := {
+	"ITEMS": preload("res://scripts/UI/inventory/pages/page_items.gd"),
+	"DOSSIER": preload("res://scripts/UI/inventory/pages/page_dossier.gd"),
+	"ENTRIES": preload("res://scripts/UI/inventory/pages/page_entries.gd"),
+	"PAPERS": preload("res://scripts/UI/inventory/pages/page_papers.gd"),
+	"CLEARANCE": preload("res://scripts/UI/inventory/pages/page_clearance.gd"),
+}
 
-# amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
-const AMBER := Color("f0a838")
-const AMBER_DIM := Color(0.941, 0.659, 0.22, 0.38)
-const TEXT := Color("f2e6b8")
-const TEXT_DIM := Color(0.949, 0.902, 0.722, 0.5)
-const MUTED := Color("b3a57a")
-const GREEN := Color("5de08f")
-const ORANGE := Color("e8702c")      # low: pulled toward red so it still reads apart from AMBER
-const RED := Color("ff4636")
-const FILL := Color(0.035, 0.028, 0.014, 0.8)
+# the palette lives in terminal_kit.gd; the HUD's CRT pieces read it from here (Term.AMBER etc.)
+const AMBER := Kit.AMBER
+const AMBER_DIM := Kit.AMBER_DIM
+const TEXT := Kit.TEXT
+const TEXT_DIM := Kit.TEXT_DIM
+const MUTED := Kit.MUTED
+const GREEN := Kit.GREEN
+const ORANGE := Kit.ORANGE
+const RED := Kit.RED
+const FILL := Kit.FILL
 
 # layout, in the 1920x1080 canvas (stretch mode canvas_items / expand, so width/height only grow)
 const FRAME_INSET := 28.0        # rounded screen border, from the edges
@@ -55,7 +66,7 @@ const TAB_H := 50.0
 const TAB_SLANT := 24.0
 const CHAMFER := 10.0
 const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corner-fitted
-const LINE := 6                  # outline weight: boxes, bars, the sheet and its tabs (shown x WINDOW_SCALE)
+const LINE := Kit.LINE
 const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
 const BLOOM := 1               # phosphor glow strength (ui_vhs_overlay bloom_amt)
@@ -73,8 +84,6 @@ const INV_TOP := TOP + 4.0 * ICON_BOX + 3.0 * 30.0 + 40.0   # the inventory list
 const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of it (fits "PG UP")
 const RAIL_GAP := 26.0
 const RAIL_END := 70.0           # arrow + key label at each end of the rail
-const PAGE_ICON := 190.0         # the same icon on the [F1] item record
-const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE"]
 # short, so four fit on the sheet; the dossier page carries its full title
@@ -82,15 +91,7 @@ const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE"]
 const TAB_TITLES := {"ITEMS": "F1 ITEMS", "DOSSIER": "F2 DOSSIER", "ENTRIES": "F3 ENTRIES", "PAPERS": "F4 PAPERS",
 	"CLEARANCE": "F5 CLEARANCE"}
 const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS", KEY_F5: "CLEARANCE"}
-const METRICS := {
-	"spatial_reliability": "SPATIAL RELIABILITY",
-	"temporal_coherence": "TEMPORAL COHERENCE",
-	"cognitive_decay": "COGNITIVE DECAY",
-	"atmosphere_substratum": "SUBSTRATUM",
-}
 
-var font: FontFile = load("res://fonts/vcr.ttf")
-var font_cache := {}                 # glyph spacing -> FontVariation
 var player: Node                     # set by hud.gd; the vitals read live stats off it
 var shown := false
 var anim: Tween
@@ -123,7 +124,6 @@ var items: Array = []                # {id, name, desc, count, code, stack, icon
 var selected := -1
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
-var link_nodes: Array = []           # dossier phenomena rows: a click opens their entry
 var selected_label: Label
 var slots_label: Label
 var rail: Control                    # scroll rail beside the sheet (_draw_rail)
@@ -134,28 +134,14 @@ var cursor: ColorRect
 var readout: Control
 var tabs_row: HBoxContainer
 var tab_buttons := {}                # tab -> Button
-var pages := {}                      # tab -> page Control
+var pages := {}                      # tab -> its page (terminal_page.gd), built by _build_readout()
 var page_scrolls := {}               # tab -> its ScrollContainer (PgUp / PgDn)
 var active_page := "DOSSIER"
 var tab_lift := 1.0                  # 0..1: the active tab rising out of the row after a switch
 var scan_t := -1.0                   # 0..1 down the sheet while a page redraws, < 0 off
 var scan_overlay: Control
-var item_page: VBoxContainer
-var dossier_text: VBoxContainer
-var phenomena_title: Label
-var phenomena_list: VBoxContainer
-# [F3] ENTRIES
-var entries_title: Label
-var entries_list: VBoxContainer
-var entry_detail: VBoxContainer
-var entry_ids: Array = []            # every catalogued entity, in code order
-var entry_rows: Array = []           # one PanelContainer per entry
-var entry_sel := 0
-var lore_entries: Array = []         # {id, title, text}
-# [F5] CLEARANCE
-var clearance_page: VBoxContainer
-var clearance_new := false           # promoted since the page was last opened: a dot on its tab
-var papers_list: VBoxContainer
+var lore_entries: Array = []         # {id, title, text}, shown on [F4] PAPERS
+var clearance_new := false           # promoted since [F5] CLEARANCE was last opened: a dot on its tab
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -165,126 +151,6 @@ func _ready() -> void:
 	Archive.entity_discovered.connect(_on_entry_logged)
 	Clearance.yield_filed.connect(_refresh_clearance)
 	get_viewport().size_changed.connect(_fit_viewport)
-
-# ---- helpers ------------------------------------------------------------------
-func _font(spacing: float) -> FontVariation:
-	var key := int(spacing)
-	if not font_cache.has(key):
-		var fv := FontVariation.new()
-		fv.base_font = font
-		fv.spacing_glyph = key
-		fv.variation_embolden = 0.4
-		font_cache[key] = fv
-	return font_cache[key]
-
-## VCR OSD Mono has no em/en dash or multiplication sign; anything it lacks would drop to another
-## font mid-line, so archive text is folded onto glyphs it does have
-func _vcr(s: String) -> String:
-	return s.replace("—", "-").replace("–", "-").replace("×", "x")
-
-func _label(text: String, px: int, color: Color, spacing := 1.0, wrap := false) -> Label:
-	var l := Label.new()
-	l.text = _vcr(text)
-	l.add_theme_font_override("font", _font(spacing))
-	l.add_theme_font_size_override("font_size", px)
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-	l.add_theme_constant_override("shadow_offset_x", 0)
-	l.add_theme_constant_override("shadow_offset_y", 2)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING   # type-in keeps the wrapping
-	if wrap:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	return l
-
-func _box(fill: Color, border := Color(0, 0, 0, 0), width := 0, radius := 0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = fill
-	sb.border_color = border
-	sb.set_border_width_all(width)
-	sb.set_corner_radius_all(radius)
-	sb.anti_aliasing = true
-	return sb
-
-func _spacer(h: float) -> Control:
-	var s := Control.new()
-	s.custom_minimum_size = Vector2(0, h)
-	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return s
-
-func _hline(color: Color, h: float) -> ColorRect:
-	var r := ColorRect.new()
-	r.color = color
-	r.custom_minimum_size = Vector2(0, h)
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return r
-
-func _clear(box: Node) -> void:
-	for c in box.get_children():
-		box.remove_child(c)
-		c.queue_free()
-
-## Scroll area with a thin amber bar, as on the concept sheet
-func _scroll() -> ScrollContainer:
-	var s := ScrollContainer.new()
-	s.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	s.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var bar := s.get_v_scroll_bar()
-	bar.custom_minimum_size.x = 12
-	bar.add_theme_stylebox_override("scroll", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 2))
-	bar.add_theme_stylebox_override("scroll_focus", _box(Color(0, 0, 0, 0.35), AMBER_DIM, 2))
-	bar.add_theme_stylebox_override("grabber", _box(Color(AMBER, 0.7)))
-	bar.add_theme_stylebox_override("grabber_highlight", _box(AMBER))
-	bar.add_theme_stylebox_override("grabber_pressed", _box(AMBER))
-	return s
-
-## The VBox a _scroll() holds, kept clear of its bar
-func _scroll_body(scroll: ScrollContainer, gap: int) -> VBoxContainer:
-	var m := MarginContainer.new()
-	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	m.add_theme_constant_override("margin_right", 18)
-	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	scroll.add_child(m)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", gap)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	m.add_child(v)
-	return v
-
-## Segmented gauge: `filled` of `n` cells lit in `color` (metadata, set through _set_cells). The
-## rest are a faint ghost of the same colour, or with `dots` a small square each (the INV rows'
-## ". . . .").
-func _cells(n: int, gap: float, dots: bool) -> Control:
-	var c := Control.new()
-	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	c.set_meta("filled", 0)
-	c.set_meta("color", AMBER)
-	c.draw.connect(func():
-		var filled: int = c.get_meta("filled")
-		var col: Color = c.get_meta("color")
-		var w := (c.size.x - gap * (n - 1)) / n
-		var h := c.size.y
-		for i in n:
-			var x := i * (w + gap)
-			if i < filled:
-				if dots: c.draw_rect(Rect2(x, h * 0.14, w, h * 0.72), col)
-				else: c.draw_rect(Rect2(x, 0, w, h), col)
-			elif dots:
-				var d := minf(w, h) * 0.26
-				c.draw_rect(Rect2(x + (w - d) * 0.5, h * 0.86 - d, d, d), Color(col, 0.6))
-			else:
-				c.draw_rect(Rect2(x, 0, w, h), Color(col, 0.07))
-	)
-	return c
-
-func _set_cells(c: Control, filled: int, col: Color) -> void:
-	if c.get_meta("filled") == filled and c.get_meta("color") == col:
-		return
-	c.set_meta("filled", filled)
-	c.set_meta("color", col)
-	c.queue_redraw()
 
 # ---- layout ---------------------------------------------------------------------
 func _build() -> void:
@@ -371,11 +237,10 @@ func _build() -> void:
 		sfx[n] = sp
 
 	_fit_viewport()
-	_select_tab(active_page, true)
+	select_tab(active_page, true)
 	_refresh_items()
-	_refresh_dossier()
-	_refresh_entries()
-	_refresh_papers()
+	for tab in TABS:
+		_refresh_page(tab)
 
 ## Size the SubViewport to the screen: laid out in canvas units (size_2d_override) but rendered at
 ## the pixel size it is shown at (window resolution x WINDOW_SCALE), so the VCR text stays sharp
@@ -413,7 +278,10 @@ func _forward_mouse(e: InputEvent) -> void:
 	content_root.accept_event()
 	if ev is InputEventMouseMotion:
 		var hand := false
-		for c in clickables + row_nodes + link_nodes + entry_rows:
+		var hover: Array = clickables + row_nodes
+		for tab in pages:
+			hover += pages[tab].hoverables()
+		for c in hover:
 			if is_instance_valid(c) and c.is_visible_in_tree() and c.get_global_rect().has_point(p):
 				hand = true
 				break
@@ -437,7 +305,7 @@ func _build_frame() -> Control:
 	f.offset_left = FRAME_INSET; f.offset_top = FRAME_INSET
 	f.offset_right = -FRAME_INSET; f.offset_bottom = -FRAME_INSET
 	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	f.add_theme_stylebox_override("panel", _box(Color(0.03, 0.022, 0.008, 0.55), Color(AMBER, 0.85), FRAME_LINE, 16))
+	f.add_theme_stylebox_override("panel", Kit.box(Color(0.03, 0.022, 0.008, 0.55), Color(AMBER, 0.85), FRAME_LINE, 16))
 	# a rule under the title line and over the key line, like a terminal's status bars
 	for top in [true, false]:
 		var rule := ColorRect.new()
@@ -459,17 +327,17 @@ func _build_header() -> Control:
 	h.offset_left = FRAME_INSET + 30; h.offset_right = -FRAME_INSET - 30
 	h.offset_top = FRAME_INSET + 14; h.offset_bottom = FRAME_INSET + 44
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := _label("T.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
+	var title := Kit.label("T.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.clip_text = true           # gives way to the clearance readout on narrow screens
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(title)
 	# T.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
-	h.add_child(_label("CLEARANCE: ", 19, MUTED, 2))
-	clearance_label = _label("", 19, AMBER, 2)
+	h.add_child(Kit.label("CLEARANCE: ", 19, MUTED, 2))
+	clearance_label = Kit.label("", 19, AMBER, 2)
 	h.add_child(clearance_label)
-	h.add_child(_spacer_w(12))
-	clearance_cells = _cells(10, 3.0, false)
+	h.add_child(Kit.spacer_w(12))
+	clearance_cells = Kit.cells(10, 3.0, false)
 	clearance_cells.custom_minimum_size = Vector2(130, 0)
 	clearance_cells.size_flags_vertical = Control.SIZE_FILL
 	var bar := MarginContainer.new()
@@ -478,34 +346,28 @@ func _build_header() -> Control:
 	bar.add_theme_constant_override("margin_bottom", 9)
 	bar.add_child(clearance_cells)
 	h.add_child(bar)
-	h.add_child(_spacer_w(12))
-	clearance_yield = _label("", 17, TEXT_DIM, 2)
+	h.add_child(Kit.spacer_w(12))
+	clearance_yield = Kit.label("", 17, TEXT_DIM, 2)
 	h.add_child(clearance_yield)
-	h.add_child(_spacer_w(40))
+	h.add_child(Kit.spacer_w(40))
 	_refresh_clearance()
-	h.add_child(_label("LINK STATUS: ", 19, MUTED, 2))
-	link_label = _label("STABLE", 19, GREEN, 2)
+	h.add_child(Kit.label("LINK STATUS: ", 19, MUTED, 2))
+	link_label = Kit.label("STABLE", 19, GREEN, 2)
 	h.add_child(link_label)
 	return h
-
-func _spacer_w(w: float) -> Control:
-	var c := Control.new()
-	c.custom_minimum_size.x = w
-	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return c
 
 func _refresh_clearance(report := {}) -> void:
 	if not clearance_label:
 		return
 	if int(report.get("tier_to", 0)) != int(report.get("tier_from", 0)):
-		_refresh_dossier()
-		_refresh_entries()
+		_refresh_page("DOSSIER")
+		_refresh_page("ENTRIES")
 		if int(report.get("tier_to", 0)) > int(report.get("tier_from", 0)) and active_page != "CLEARANCE":
 			clearance_new = true
 			if readout: readout.queue_redraw()
-	_refresh_clearance_page()
+	_refresh_page("CLEARANCE")
 	clearance_label.text = Clearance.tier_label()
-	_set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
+	Kit.set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
 	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
 		else "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), Clearance.unit]
 
@@ -518,14 +380,14 @@ func _build_footer() -> Control:
 	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# the agency's full name on the left, under the item column; the key hints stay on the right
-	var agency := _label("T.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
+	var agency := Kit.label("T.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
 	agency.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(agency)
 	for hint in ["UP/DN/WHEEL SELECT", "F1-F5 PAGE", "PGUP/PGDN SCROLL"]:
-		h.add_child(_label(hint, 17, MUTED, 2))
-		h.add_child(_label("•", 17, MUTED))
+		h.add_child(Kit.label(hint, 17, MUTED, 2))
+		h.add_child(Kit.label("•", 17, MUTED))
 	var close := Button.new()
 	close.text = "TAB // CLOSE"
 	close.flat = true
@@ -533,7 +395,7 @@ func _build_footer() -> Control:
 	var sb := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		close.add_theme_stylebox_override(s, sb)
-	close.add_theme_font_override("font", _font(2))
+	close.add_theme_font_override("font", Kit.font(2))
 	close.add_theme_font_size_override("font_size", 17)
 	close.add_theme_color_override("font_color", MUTED)
 	close.add_theme_color_override("font_hover_color", TEXT)
@@ -564,7 +426,7 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := PanelContainer.new()
-	var sb := _box(FILL, AMBER, LINE, 6)
+	var sb := Kit.box(FILL, AMBER, LINE, 6)
 	sb.set_content_margin_all(14)
 	box.add_theme_stylebox_override("panel", sb)
 	box.custom_minimum_size = Vector2(ICON_BOX, ICON_BOX)
@@ -585,19 +447,19 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var meta := HBoxContainer.new()
 	meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := _label(key, 26, TEXT, 3)
+	var title := Kit.label(key, 26, TEXT, 3)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	meta.add_child(title)
-	var val := _label("100%", 26, TEXT, 2)
+	var val := Kit.label("100%", 26, TEXT, 2)
 	meta.add_child(val)
 	col.add_child(meta)
 	var bar := PanelContainer.new()
-	var bsb := _box(FILL, AMBER, LINE, 4)
+	var bsb := Kit.box(FILL, AMBER, LINE, 4)
 	bsb.set_content_margin_all(LINE + BAR_GAP)
 	bar.add_theme_stylebox_override("panel", bsb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cells := _cells(BAR_SEGMENTS, 4.0, false)
+	var cells := Kit.cells(BAR_SEGMENTS, 4.0, false)
 	bar.add_child(cells)
 	col.add_child(bar)
 	row.add_child(col)
@@ -636,7 +498,7 @@ func _set_stat(key: String, value: float, state: String, dt: float, pulse: float
 		"critical":
 			col = Color(RED, pulse)
 			txt = RED
-	_set_cells(s.cells, clampi(ceili(eased / 100.0 * BAR_SEGMENTS - 0.01), 0, BAR_SEGMENTS), col)
+	Kit.set_cells(s.cells, clampi(ceili(eased / 100.0 * BAR_SEGMENTS - 0.01), 0, BAR_SEGMENTS), col)
 	(s.icon as TextureRect).self_modulate = col
 	var v: Label = s.value
 	var vt := "%d%%" % int(round(eased))
@@ -673,13 +535,13 @@ func _build_items() -> Control:
 	)
 	var head := HBoxContainer.new()
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := _label("INVENTORY", 19, MUTED, 3)
+	var title := Kit.label("INVENTORY", 19, MUTED, 3)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	slots_label = _label("0 / %d SLOTS" % SLOT_COUNT, 19, MUTED, 2)
+	slots_label = Kit.label("0 / %d SLOTS" % SLOT_COUNT, 19, MUTED, 2)
 	head.add_child(slots_label)
 	v.add_child(head)
-	v.add_child(_hline(Color(AMBER, 0.35), 2))
+	v.add_child(Kit.hline(Color(AMBER, 0.35), 2))
 	item_rows = VBoxContainer.new()
 	item_rows.add_theme_constant_override("separation", 2)
 	item_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -688,11 +550,11 @@ func _build_items() -> Control:
 	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(fill)
-	selected_label = _label("SELECTED: [NONE]", 24, TEXT, 1)
+	selected_label = Kit.label("SELECTED: [NONE]", 24, TEXT, 1)
 	selected_label.clip_text = true
 	selected_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	v.add_child(selected_label)
-	battery_label = _label("BATTERY LIFE: 100%", 24, TEXT, 1)
+	battery_label = Kit.label("BATTERY LIFE: 100%", 24, TEXT, 1)
 	var last := HBoxContainer.new()
 	last.add_theme_constant_override("separation", 8)
 	last.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -709,7 +571,7 @@ func _build_items() -> Control:
 func _refresh_items() -> void:
 	if not item_rows:
 		return
-	_clear(item_rows)
+	Kit.clear(item_rows)
 	row_nodes.clear()
 	slots_label.text = "%d / %d SLOTS" % [items.size(), SLOT_COUNT]
 	for i in SLOT_COUNT:
@@ -734,7 +596,7 @@ func _item_row(i: int) -> Control:
 		elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			var quiet := active_page != "ITEMS"   # the page switch plays its own chirp
 			_select(i, quiet)
-			_select_tab("ITEMS")
+			select_tab("ITEMS")
 	)
 	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_row(i))
 	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_row(i))
@@ -743,7 +605,7 @@ func _item_row(i: int) -> Control:
 	h.add_theme_constant_override("separation", 12)
 	h.custom_minimum_size.y = ROW_H
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	h.add_child(_label("%02d" % (i + 1), 18, TEXT_DIM, 1))
+	h.add_child(Kit.label("%02d" % (i + 1), 18, TEXT_DIM, 1))
 	# icon slot on every row, empty for items without a model, so the names stay in a column
 	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 2.0) if it.icon != "" else null
 	if icon == null or (icon as TextureRect).texture == null:
@@ -752,7 +614,7 @@ func _item_row(i: int) -> Control:
 	icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(icon)
-	var name_label := _label(str(it.name).to_upper(), 22, TEXT, 1)
+	var name_label := Kit.label(str(it.name).to_upper(), 22, TEXT, 1)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.clip_text = true
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -760,11 +622,11 @@ func _item_row(i: int) -> Control:
 	var labels := [name_label]
 	if it.stack > 1:
 		var n := mini(it.stack, STACK_CELLS)
-		var cells := _cells(n, 5.0, true)
+		var cells := Kit.cells(n, 5.0, true)
 		cells.custom_minimum_size = Vector2(16 * n, 0)
 		cells.set_meta("filled", mini(it.count, n))
 		h.add_child(cells)
-		var count := _label("%d/%d" % [it.count, it.stack], 20, TEXT, 1)
+		var count := Kit.label("%d/%d" % [it.count, it.stack], 20, TEXT, 1)
 		count.custom_minimum_size.x = 56
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		h.add_child(count)
@@ -782,10 +644,10 @@ func _empty_row(i: int) -> Control:
 	var pad := MarginContainer.new()          # lines up with the item rows' panel margin
 	pad.add_theme_constant_override("margin_left", 10)
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pad.add_child(_label("%02d" % (i + 1), 18, Color(TEXT, 0.22), 1))
+	pad.add_child(Kit.label("%02d" % (i + 1), 18, Color(TEXT, 0.22), 1))
 	h.add_child(pad)
-	h.add_child(_spacer_w(ROW_ICON))
-	h.add_child(_label("EMPTY", 18, Color(TEXT, 0.22), 2))
+	h.add_child(Kit.spacer_w(ROW_ICON))
+	h.add_child(Kit.label("EMPTY", 18, Color(TEXT, 0.22), 2))
 	return h
 
 func _style_row(i: int) -> void:
@@ -796,7 +658,7 @@ func _style_row(i: int) -> void:
 	var bg := Color(0, 0, 0, 0)
 	if sel: bg = Color(AMBER, 0.16)
 	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
-	var sb := _box(bg, AMBER)
+	var sb := Kit.box(bg, AMBER)
 	sb.border_width_left = LINE + 1 if sel else 0
 	sb.content_margin_left = 10; sb.content_margin_right = 10
 	sb.content_margin_top = 1; sb.content_margin_bottom = 1
@@ -808,10 +670,10 @@ func _refresh_selection() -> void:
 	for i in row_nodes.size():
 		_style_row(i)
 	if selected >= 0 and selected < items.size():
-		selected_label.text = _vcr("SELECTED: [%s]" % str(items[selected].name).to_upper())
+		selected_label.text = Kit.vcr("SELECTED: [%s]" % str(items[selected].name).to_upper())
 	else:
 		selected_label.text = "SELECTED: [NONE]"
-	_refresh_item_page()
+	_refresh_page("ITEMS")
 
 ## Torch time left at the current drain (player.gd BATTERY_DRAIN, a quarter of it in a power cut)
 func _update_battery_line() -> void:
@@ -835,7 +697,7 @@ func _update_battery_line() -> void:
 func _select(i: int, quiet := false) -> void:
 	if i >= items.size():
 		return
-	if i != selected and not quiet: _sfx("select")
+	if i != selected and not quiet: play_sfx("select")
 	selected = i
 	_refresh_selection()
 
@@ -853,7 +715,7 @@ func _wheel_items(e: InputEvent) -> bool:
 	var was := selected
 	_move_selection(step)
 	if selected != was:
-		_select_tab("ITEMS")
+		select_tab("ITEMS")
 	return true
 
 func _move_selection(delta: int) -> void:
@@ -883,8 +745,8 @@ func _build_readout() -> Control:
 		b.focus_mode = Control.FOCUS_NONE
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.custom_minimum_size = Vector2(0, TAB_H)
-		b.add_theme_font_override("font", _font(2))
-		b.pressed.connect(_select_tab.bind(tab))
+		b.add_theme_font_override("font", Kit.font(2))
+		b.pressed.connect(select_tab.bind(tab))
 		tab_buttons[tab] = b
 		clickables.append(b)
 		tabs_row.add_child(b)
@@ -899,22 +761,12 @@ func _build_readout() -> Control:
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	readout.add_child(body)
 
-	var items_scroll := _scroll()
-	item_page = _scroll_body(items_scroll, 6)
-	pages["ITEMS"] = items_scroll
-	page_scrolls["ITEMS"] = items_scroll
-	pages["DOSSIER"] = _build_dossier_page()
-	pages["ENTRIES"] = _build_entries_page()
-	var papers_scroll := _scroll()
-	papers_list = _scroll_body(papers_scroll, 8)
-	pages["PAPERS"] = papers_scroll
-	page_scrolls["PAPERS"] = papers_scroll
-	var clearance_scroll := _scroll()
-	clearance_page = _scroll_body(clearance_scroll, 4)
-	pages["CLEARANCE"] = clearance_scroll
-	page_scrolls["CLEARANCE"] = clearance_scroll
 	for tab in TABS:
-		body.add_child(pages[tab])
+		var page = PAGE_SCRIPTS[tab].new(self)
+		pages[tab] = page
+		body.add_child(page.build())
+		if page.scroll_box:
+			page_scrolls[tab] = page.scroll_box
 
 	# drawn over the page text while it redraws (_reveal_page): a bright line with a faint trail
 	scan_overlay = Control.new()
@@ -970,29 +822,29 @@ func _style_tab(tab: String) -> void:
 	sb.content_margin_top = 0.0 if on else 8.0
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, sb)
-	b.add_theme_font_override("font", _font(2 if on else 1))
+	b.add_theme_font_override("font", Kit.font(2 if on else 1))
 	b.add_theme_font_size_override("font_size", 20 if on else 15)
 	for s in ["font_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(s, TEXT if on else TEXT_DIM)
 	b.add_theme_color_override("font_hover_color", TEXT)
 
-func _select_tab(tab: String, force := false, focus_new := true) -> void:
+func select_tab(tab: String, force := false, focus_new := true) -> void:
 	if tab == active_page and not force:
 		return
 	active_page = tab
 	for k in pages:
-		pages[k].visible = k == tab
+		pages[k].root.visible = k == tab
 	for k in tab_buttons:
 		_style_tab(k)
 	readout.queue_redraw()
 	if tab == "ENTRIES" and focus_new:
-		_focus_unread()
+		pages.ENTRIES.focus_unread()
 	if tab == "CLEARANCE":
 		clearance_new = false
-		_refresh_clearance_page()            # the re-read cooldowns tick while it is closed
+		_refresh_page("CLEARANCE")            # the re-read cooldowns tick while it is closed
 	if force:
 		return
-	_sfx("tab")
+	play_sfx("tab")
 	glitch_left = 0.07                        # a short tear on the overlay as the page changes
 	if tab_anim: tab_anim.kill()
 	tab_anim = create_tween()
@@ -1003,7 +855,7 @@ func _select_tab(tab: String, force := false, focus_new := true) -> void:
 ## line of text types itself in, top to bottom
 func _reveal_page(tab: String, delay := 0.0) -> void:
 	if page_anim: page_anim.kill()
-	var page: Control = pages[tab]
+	var page: Control = pages[tab].root
 	var labels := page.find_children("*", "Label", true, false)
 	page_anim = create_tween().set_parallel(true)
 	page.modulate.a = 0.0
@@ -1031,14 +883,29 @@ func _set_scan(v: float) -> void:
 	scan_t = v
 	scan_overlay.queue_redraw()
 
-func _sfx(n: String) -> void:
+## Rebuild one page of the sheet (nothing before _build_readout() has made them)
+func _refresh_page(tab: String) -> void:
+	if pages.has(tab):
+		pages[tab].refresh()
+
+## [F3] straight to this entity's entry (the dossier's phenomena rows)
+func open_entry(id: String) -> void:
+	pages.ENTRIES.open_entry(id)
+
+func _on_entry_logged(_id: String) -> void:
+	_refresh_page("DOSSIER")
+	_refresh_page("ENTRIES")
+	if readout:
+		readout.queue_redraw()
+
+func play_sfx(n: String) -> void:
 	var sp: AudioStreamPlayer = sfx.get(n)
 	if sp:
 		sp.pitch_scale = randf_range(0.97, 1.03)   # repeats shouldn't sound mechanical
 		sp.play()
 
 func _cycle_tab(delta: int) -> void:
-	_select_tab(TABS[wrapi(TABS.find(active_page) + delta, 0, TABS.size())])
+	select_tab(TABS[wrapi(TABS.find(active_page) + delta, 0, TABS.size())])
 
 ## Scroll rail in the gap left of the sheet: the active page's position, with PG UP / PG DN at its
 ## ends, lit when there is more that way. Click an end to page, the track to jump, or use the wheel
@@ -1076,7 +943,7 @@ func _draw_rail() -> void:
 	var pos: float = ext.pos
 	var more_up := ratio < 1.0 and pos > 0.005
 	var more_down := ratio < 1.0 and pos < 0.995
-	var f := _font(2)
+	var f := Kit.font(2)
 	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, 30), Vector2(cx + 12, 30), Vector2(cx, 12)]),
 		AMBER if more_up else AMBER_DIM)
 	rail.draw_string(f, Vector2(0, 54), "PG UP", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_up else TEXT_DIM)
@@ -1116,634 +983,6 @@ func _scroll_page(delta: int) -> void:
 	if s:
 		s.scroll_vertical += delta * int(s.size.y * 0.8)
 
-# [F1] the selected item's record
-func _refresh_item_page() -> void:
-	if not item_page:
-		return
-	_clear(item_page)
-	if selected < 0 or selected >= items.size():
-		item_page.add_child(_label("[ITEM RECORD // NO SELECTION]", 21, TEXT, 1))
-		item_page.add_child(_spacer(12))
-		item_page.add_child(_label("NO ITEMS CARRIED.", 21, TEXT_DIM, 1, true))
-		return
-	var it: Dictionary = items[selected]
-	item_page.add_child(_label("[ITEM RECORD // SLOT %02d OF %02d]" % [selected + 1, SLOT_COUNT], 21, TEXT, 1))
-	item_page.add_child(_spacer(12))
-	if it.icon != "":
-		var frame := PanelContainer.new()       # the icon in a bordered square, like the vitals'
-		var sb := _box(Color(AMBER, 0.05), AMBER_DIM, 2)
-		sb.set_content_margin_all(10)
-		frame.add_theme_stylebox_override("panel", sb)
-		frame.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		frame.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
-		item_page.add_child(frame)
-		item_page.add_child(_spacer(12))
-	item_page.add_child(_label("DESIGNATION: " + str(it.name).to_upper(), 21, TEXT, 1, true))
-	item_page.add_child(_label("CODE: " + str(it.code), 21, TEXT, 1))
-	item_page.add_child(_label("QUANTITY: %d / %d" % [it.count, it.stack], 21, TEXT, 1))
-	if str(it.desc) != "":
-		item_page.add_child(_spacer(12))
-		item_page.add_child(_label(str(it.desc), 21, TEXT_DIM, 1, true))
-
-# [F2] level dossier over the logged phenomena. New levels / entities register in
-# levels/asra_dossiers.json / levels/asra_entities.json (see the top of asra_archive.gd).
-func _build_dossier_page() -> Control:
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var scroll := _scroll()
-	scroll.size_flags_stretch_ratio = 1.6
-	dossier_text = _scroll_body(scroll, 4)
-	page_scrolls["DOSSIER"] = scroll
-	v.add_child(scroll)
-	v.add_child(_spacer(12))
-	v.add_child(_hline(Color(AMBER, 0.8), LINE))
-	v.add_child(_spacer(12))
-	phenomena_title = _label("PHENOMENA LOGGED:", 21, TEXT, 1)
-	v.add_child(phenomena_title)
-	v.add_child(_spacer(10))
-	var box := PanelContainer.new()
-	var sb := _box(Color(0, 0, 0, 0.3), Color(AMBER, 0.75), LINE, 3)
-	sb.content_margin_left = 16; sb.content_margin_right = 6
-	sb.content_margin_top = 12; sb.content_margin_bottom = 12
-	box.add_theme_stylebox_override("panel", sb)
-	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ps := _scroll()
-	phenomena_list = _scroll_body(ps, 16)
-	box.add_child(ps)
-	v.add_child(box)
-	return v
-
-func _refresh_dossier() -> void:
-	if not dossier_text:
-		return
-	var d := Archive.current_dossier()
-	var designation := str(d.get("designation", "LEVEL // DESIGNATION PENDING"))
-	_clear(dossier_text)
-	var sheet_no = d.get("log_sheet", 100 + absi(designation.hash()) % 900)
-	dossier_text.add_child(_label("THRESHOLD DOSSIER // LOG SHEET #%s" % str(sheet_no), 21, TEXT, 1))
-	dossier_text.add_child(_spacer(14))
-	dossier_text.add_child(_label("ZONE: " + designation, 21, TEXT, 1, true))
-	dossier_text.add_child(_label("THREAT: <%s>" % str(d.get("threat_classification", "UNDETERMINED")), 21, RED, 1, true))
-	dossier_text.add_child(_spacer(14))
-	var metrics: Dictionary = d.get("metrics", {})
-	for key in METRICS:
-		if metrics.has(key):
-			dossier_text.add_child(_label("- %s: %s" % [METRICS[key], str(metrics[key])], 21, TEXT, 1, true))
-	var directives: Array = d.get("directives", [])
-	if not directives.is_empty():
-		dossier_text.add_child(_spacer(14))
-		dossier_text.add_child(_label("MANDATES:", 21, TEXT, 1))
-		for i in directives.size():
-			dossier_text.add_child(_label("%d. %s" % [i + 1, str(directives[i])], 21, TEXT, 1, true))
-	var cl: Dictionary = d.get("classified", {})
-	if not cl.is_empty():
-		_annex(dossier_text, designation, [["SITE HISTORY", cl.get("history", "")], ["SURVIVAL GUIDANCE", cl.get("survival", [])],
-			["SURVEY NOTE", cl.get("survey_note", "")], ["INCIDENT REPORT", cl.get("incident", "")]], 19)
-
-	_clear(phenomena_list)
-	link_nodes.clear()
-	var ids := Archive.level_entities(Archive.current_level_id())
-	var found := 0
-	for id in ids:
-		if Archive.is_discovered(str(id)): found += 1
-		phenomena_list.add_child(_phenomenon(str(id)))
-	if ids.is_empty():
-		phenomena_list.add_child(_label("NO ANOMALIES CATALOGUED FOR THIS SITE.", 19, TEXT_DIM, 1, true))
-	elif found < ids.size():
-		# entries only come from the field scanner (scripts/Player/scanner.gd): say how, above them
-		var hint := _label("HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY TO LOG IT.", 17, AMBER, 1, true)
-		phenomena_list.add_child(hint)
-		phenomena_list.move_child(hint, 0)
-	if not ids.is_empty():
-		phenomena_list.add_child(_label("CLICK AN ENTRY OR PRESS F3 TO READ IT IN FULL.", 15, MUTED, 1, true))
-	phenomena_title.text = "PHENOMENA LOGGED: %d/%d" % [found, ids.size()]
-
-## One line per anomaly catalogued for this level: its code and name once it is logged (and the
-## protocol to follow), redacted until then. A click opens its full entry on [F3] ENTRIES.
-func _phenomenon(id: String) -> Control:
-	var p := PanelContainer.new()
-	p.mouse_filter = Control.MOUSE_FILTER_STOP
-	p.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0)))
-	p.gui_input.connect(func(e: InputEvent):
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			_open_entry(id)
-	)
-	p.mouse_entered.connect(func(): p.add_theme_stylebox_override("panel", _box(Color(AMBER, 0.07))))
-	p.mouse_exited.connect(func(): p.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0))))
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 3)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if Archive.is_discovered(id):
-		var info := Archive.entity_info(id)
-		v.add_child(_label("[CONFIRMED] %s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], 19, GREEN, 1, true))
-		v.add_child(_label("Protocol: " + str(info.get("directive", "")), 17, TEXT, 1, true))
-	else:
-		v.add_child(_label("[UNCONFIRMED] NO SCAN ON FILE", 19, TEXT_DIM, 1))
-		v.add_child(_redacted(id, 3))
-	p.add_child(v)
-	link_nodes.append(p)
-	return p
-
-## Redaction bars standing in for text not on file yet: the same ones every time for this id
-func _redacted(id: String, bars: int) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 8)
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var rng := RandomNumberGenerator.new()
-	rng.seed = id.hash() + bars
-	for i in bars:
-		var bar := ColorRect.new()
-		bar.color = Color(TEXT, 0.22)
-		bar.custom_minimum_size = Vector2(rng.randi_range(50, 150), 14)
-		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		h.add_child(bar)
-	return h
-
-# [F3] every catalogued entity: a list on the left, the chosen entry on the right
-func _build_entries_page() -> Control:
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	entries_title = _label("[ANOMALY ENTRIES]", 21, TEXT, 1)
-	v.add_child(entries_title)
-	v.add_child(_spacer(14))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(row)
-	var list_scroll := _scroll()
-	list_scroll.custom_minimum_size.x = 250
-	entries_list = _scroll_body(list_scroll, 6)
-	row.add_child(list_scroll)
-	var div := ColorRect.new()
-	div.color = Color(AMBER, 0.35)
-	div.custom_minimum_size = Vector2(2, 0)
-	div.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(div)
-	var detail_scroll := _scroll()
-	detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	entry_detail = _scroll_body(detail_scroll, 6)
-	row.add_child(detail_scroll)
-	page_scrolls["ENTRIES"] = detail_scroll
-	return v
-
-func _refresh_entries() -> void:
-	if not entries_list:
-		return
-	var all := Archive.entities()
-	entry_ids = all.keys()
-	entry_ids.sort_custom(func(a, b): return str(all[a].get("code", "")) < str(all[b].get("code", "")))
-	var logged := 0
-	for id in entry_ids:
-		if Archive.is_discovered(str(id)): logged += 1
-	entries_title.text = "[ANOMALY ENTRIES // %d OF %d LOGGED]" % [logged, entry_ids.size()]
-	_clear(entries_list)
-	entry_rows.clear()
-	for i in entry_ids.size():
-		var row := _entry_row(i, str(entry_ids[i]))
-		entries_list.add_child(row)
-		entry_rows.append(row)
-	entry_sel = clampi(entry_sel, 0, maxi(entry_ids.size() - 1, 0))
-	for i in entry_rows.size():
-		_style_entry_row(i)
-	_show_entry()
-
-## A list row: the code (and NEW until it is opened), the name under it; redacted until logged
-func _entry_row(i: int, id: String) -> Control:
-	var logged := Archive.is_discovered(id)
-	var info := Archive.entity_info(id)
-	var p := PanelContainer.new()
-	p.mouse_filter = Control.MOUSE_FILTER_STOP
-	p.set_meta("hover", false)
-	p.gui_input.connect(func(e: InputEvent):
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			_select_entry(i)
-	)
-	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_entry_row(i))
-	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_entry_row(i))
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var top := HBoxContainer.new()
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var code := _label(str(info.get("code", "TSRA-EN-??")) if logged else "TSRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
-	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(code)
-	var badge := _label("NEW", 15, AMBER, 2)
-	badge.visible = Archive.is_unread(id)
-	top.add_child(badge)
-	v.add_child(top)
-	var nm := _label(str(info.get("common_name", id)).to_upper() if logged else "UNREGISTERED", 15, TEXT_DIM, 1)
-	nm.clip_text = true
-	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	v.add_child(nm)
-	p.add_child(v)
-	p.set_meta("code", code)
-	p.set_meta("badge", badge)
-	p.set_meta("logged", logged)
-	return p
-
-func _style_entry_row(i: int) -> void:
-	if i >= entry_rows.size():
-		return
-	var p: PanelContainer = entry_rows[i]
-	var sel := i == entry_sel
-	var bg := Color(0, 0, 0, 0)
-	if sel: bg = Color(AMBER, 0.16)
-	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
-	var sb := _box(bg, AMBER)
-	sb.border_width_left = LINE if sel else 0
-	sb.content_margin_left = 12; sb.content_margin_right = 10
-	sb.content_margin_top = 5; sb.content_margin_bottom = 5
-	p.add_theme_stylebox_override("panel", sb)
-	var logged: bool = p.get_meta("logged")
-	(p.get_meta("code") as Label).add_theme_color_override("font_color", AMBER if sel else (TEXT if logged else TEXT_DIM))
-
-func _select_entry(i: int, quiet := false) -> void:
-	if entry_ids.is_empty():
-		return
-	i = clampi(i, 0, entry_ids.size() - 1)
-	if i != entry_sel and not quiet: _sfx("select")
-	entry_sel = i
-	for j in entry_rows.size():
-		_style_entry_row(j)
-	_show_entry()
-
-## [F3] from the dossier's phenomena list: straight to that entity's entry (built before the page
-## switch, so it types in with the rest of the page)
-func _open_entry(id: String) -> void:
-	var i := entry_ids.find(id)
-	if i >= 0 and i != entry_sel:
-		entry_sel = i
-		for j in entry_rows.size():
-			_style_entry_row(j)
-		_show_entry()
-	_select_tab("ENTRIES", false, false)
-	_mark_seen()
-
-## The entry on show is no longer new once it has been opened on [F3]
-func _mark_seen() -> void:
-	if entry_ids.is_empty() or not shown or active_page != "ENTRIES":
-		return
-	var id := str(entry_ids[entry_sel])
-	if Archive.is_discovered(id) and Archive.is_unread(id):
-		Archive.mark_read(id)
-		(entry_rows[entry_sel].get_meta("badge") as Label).visible = false
-		readout.queue_redraw()
-
-## Arriving on [F3] with something new logged: that one first
-func _focus_unread() -> void:
-	for i in entry_ids.size():
-		if Archive.is_unread(str(entry_ids[i])):
-			_select_entry(i, true)
-			return
-
-func _show_entry() -> void:
-	if not entry_detail:
-		return
-	_clear(entry_detail)
-	if entry_ids.is_empty():
-		entry_detail.add_child(_label("NO ENTRIES CATALOGUED.", 19, TEXT_DIM, 1))
-		return
-	var id := str(entry_ids[entry_sel])
-	var info := Archive.entity_info(id)
-	_mark_seen()
-	if Archive.is_discovered(id):
-		entry_detail.add_child(_label(str(info.get("code", "TSRA-EN-??")), 26, AMBER, 2))
-		entry_detail.add_child(_label(str(info.get("common_name", id)).to_upper(), 21, TEXT, 1, true))
-		entry_detail.add_child(_label("THREAT CLASS: " + str(info.get("threat_class", "Undetermined")), 18, RED, 1, true))
-		if info.has("description"):
-			_entry_section("OVERVIEW", str(info.description))
-		_entry_section("BEHAVIOUR VECTOR", str(info.get("behavior_vector", "")))
-		_entry_section("FIELD PROTOCOL", str(info.get("directive", "")))
-		var cl: Dictionary = info.get("classified", {})
-		if not cl.is_empty():
-			_annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
-				["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 18)
-	else:
-		entry_detail.add_child(_label("TSRA-EN-??", 26, TEXT_DIM, 2))
-		entry_detail.add_child(_label("UNREGISTERED ANOMALY", 21, TEXT_DIM, 1))
-		entry_detail.add_child(_spacer(14))
-		for n in [4, 3, 4, 2]:
-			entry_detail.add_child(_redacted(id + str(n), n))
-		entry_detail.add_child(_spacer(12))
-		entry_detail.add_child(_label("NO SCAN ON FILE. HOLD Q WITH THE FIELD SCANNER ON IT TO LOG THIS ENTRY.", 17, AMBER, 1, true))
-	var sites := Archive.sites_of(id)
-	_entry_section("KNOWN SITES", "\n".join(sites) if not sites.is_empty() else "NONE ON RECORD")
-	var when := Archive.logged_info(id)
-	if when.has("t"):
-		var level_id := str(when.get("level", ""))
-		var where := str(Archive.dossiers().get(level_id, {}).get("designation", level_id))
-		entry_detail.add_child(_spacer(12))
-		entry_detail.add_child(_label("LOGGED %s // %s" % [_local_time(int(when.t)), where], 15, MUTED, 1, true))
-
-func _entry_section(title: String, body: String) -> void:
-	entry_detail.add_child(_spacer(12))
-	entry_detail.add_child(_label(title, 15, MUTED, 2))
-	entry_detail.add_child(_label(body, 18, TEXT, 1, true))
-
-## The CLASSIFIED ANNEX of a dossier or an entry: its sections in full once the player's clearance
-## unlocks "classified" (asra_clearance.gd), until then each title over redaction bars and the tier
-## that releases them. sections: [[title, text or Array of paragraphs]]; an Array under a title with
-## "PROTOCOL" / "GUIDANCE" in it is numbered. Empty sections are left out.
-func _annex(box: VBoxContainer, key: String, sections: Array, px: int) -> void:
-	var open := Clearance.has_unlock("classified")
-	var code := Clearance.unlock_code("classified")
-	box.add_child(_spacer(18))
-	box.add_child(_hline(Color(AMBER if open else RED, 0.5), 2))
-	box.add_child(_spacer(10))
-	if open:
-		box.add_child(_label("CLASSIFIED ANNEX // RELEASED AT %s" % code, 17, AMBER, 2, true))
-	else:
-		box.add_child(_label("CLASSIFIED ANNEX // %s CLEARANCE REQUIRED" % code, 17, RED, 2, true))
-	for sec in sections:
-		var body = sec[1]
-		if (body is String and body == "") or (body is Array and body.is_empty()):
-			continue
-		box.add_child(_spacer(10))
-		box.add_child(_label(str(sec[0]), 15, MUTED, 2))
-		if not open:
-			var rows: int = body.size() if body is Array else 2
-			for r in clampi(rows, 1, 4):
-				box.add_child(_redacted(key + str(sec[0]) + str(r), 2 + (r + str(sec[0]).length()) % 3))
-			continue
-		if body is Array:
-			var numbered: bool = "PROTOCOL" in str(sec[0]) or "GUIDANCE" in str(sec[0])
-			for i in body.size():
-				box.add_child(_label(("%d. %s" % [i + 1, str(body[i])]) if numbered else str(body[i]), px, TEXT, 1, true))
-		else:
-			box.add_child(_label(str(body), px, TEXT, 1, true))
-	if not open:
-		box.add_child(_spacer(10))
-		box.add_child(_label("YOUR CLEARANCE: %s. FILE READINGS WITH THE FIELD SCANNER TO RAISE IT." % Clearance.tier_label(), 15, AMBER, 1, true))
-
-## Unix seconds -> "YYYY-MM-DD HH:MM" on this machine's clock
-func _local_time(unix: int) -> String:
-	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
-	var d := Time.get_datetime_dict_from_unix_time(unix + bias)
-	return "%04d-%02d-%02d %02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute]
-
-func _on_entry_logged(_id: String) -> void:
-	_refresh_dossier()
-	_refresh_entries()
-	if readout:
-		readout.queue_redraw()
-
-# [F5] the player's T.S.R.A. service record (asra_clearance.gd): where they stand, the ladder and
-# what each tier grants, how their yield was earned, per entity, the filing log and the rules
-const SCANNER_SCRIPT := preload("res://scripts/Player/scanner.gd")
-const CL_BAR := 20                   # cells in the page's bars
-
-func _refresh_clearance_page(_report := {}) -> void:
-	if not clearance_page:
-		return
-	var box := clearance_page
-	_clear(box)
-	var ti := Clearance.tier_index()
-	var cur := Clearance.tier()
-	var unit := Clearance.unit
-	box.add_child(_label("[T.S.R.A. PERSONNEL FILE // FIELD CLEARANCE]", 21, TEXT, 1))
-	box.add_child(_spacer(12))
-
-	# -- status
-	box.add_child(_label("CLEARANCE HELD", 15, MUTED, 2))
-	box.add_child(_label(Clearance.tier_label(), 26, AMBER, 2, true))
-	box.add_child(_label(str(cur.get("brief", "")), 17, TEXT_DIM, 1, true))
-	box.add_child(_spacer(8))
-	var to_next := Clearance.next_threshold() - Clearance.total
-	if Clearance.is_max_tier():
-		box.add_child(_bar_row("LIFETIME YIELD", 1.0, "%d %s" % [Clearance.total, unit], GREEN))
-		box.add_child(_label("MAXIMUM CLEARANCE. THE AGENCY HAS NOTHING LEFT TO GIVE YOU.", 16, GREEN, 1, true))
-	else:
-		var nxt := Clearance.tier(ti + 1)
-		box.add_child(_bar_row("TO %s" % str(nxt.get("code", "")), Clearance.tier_progress(), "%d / %d" % [Clearance.total, Clearance.next_threshold()], AMBER))
-		box.add_child(_kv("NEXT PROMOTION", "%s IN %d %s" % [str(nxt.get("title", "")), to_next, unit], TEXT))
-		for i in range(ti + 1, Clearance.tiers.size()):
-			var u: Dictionary = Clearance.tier(i).get("unlock", {})
-			if not u.is_empty():
-				box.add_child(_kv("NEXT PRIVILEGE", "%s AT %s (%d %s TO GO)" % [str(u.get("name", "")), str(Clearance.tier(i).get("code", "")),
-					int(Clearance.tier(i).get("yield", 0)) - Clearance.total, unit], AMBER))
-				break
-
-	# -- ladder
-	_cl_section(box, "CLEARANCE LADDER")
-	for i in Clearance.tiers.size():
-		var td: Dictionary = Clearance.tiers[i]
-		var tag := "HELD" if i < ti else ("CURRENT" if i == ti else "LOCKED")
-		var col := GREEN if i < ti else (AMBER if i == ti else TEXT_DIM)
-		var row := _kv("%s  %s" % [str(td.get("code", "")), str(td.get("title", ""))], "%s // %d %s" % [tag, int(td.get("yield", 0)), unit], col)
-		box.add_child(row)
-		var u: Dictionary = td.get("unlock", {})
-		if not u.is_empty():
-			box.add_child(_label("      GRANTS: " + str(u.get("name", "")), 15, col if i <= ti else Color(TEXT_DIM, 0.35), 1, true))
-
-	# -- privileges
-	_cl_section(box, "PRIVILEGES")
-	for td in Clearance.tiers:
-		var u: Dictionary = td.get("unlock", {})
-		if u.is_empty():
-			continue
-		var on := Clearance.has_unlock(str(u.get("id", "")))
-		box.add_child(_kv(str(u.get("name", "")), "ACTIVE" if on else "LOCKED // %s" % str(td.get("code", "")), GREEN if on else TEXT_DIM))
-		box.add_child(_label(str(u.get("text", "")), 16, TEXT if on else TEXT_DIM, 1, true))
-		box.add_child(_spacer(4))
-	var cal := Clearance.scan_time_scale()
-	box.add_child(_kv("SCANNER CALIBRATION", "READING TIME %.2f S (-%d%%)" % [SCANNER_SCRIPT.SCAN_TIME * cal, roundi((1.0 - cal) * 100.0)], GREEN if ti > 0 else TEXT_DIM))
-	box.add_child(_label("Every tier held shaves 5% off the time a reading takes.", 16, TEXT_DIM, 1, true))
-
-	# -- performance
-	_cl_section(box, "FIELD PERFORMANCE")
-	var n := Clearance.filings()
-	box.add_child(_kv("LIFETIME YIELD", "%d %s" % [Clearance.total, unit], AMBER))
-	box.add_child(_kv("READINGS FILED", "%d  (%d FIRST CONTACT // %d NEW SITE // %d SUPPLEMENTAL)" % [n,
-		int(Clearance.stat("filings_first_contact")), int(Clearance.stat("filings_new_site")), int(Clearance.stat("filings_supplemental"))], TEXT))
-	# on file = ever logged (clearance's record); the archive itself starts empty every run
-	var on_file := 0
-	var this_run := 0
-	for id in Archive.entities():
-		if Clearance.sites.has(id): on_file += 1
-		if Archive.is_discovered(str(id)): this_run += 1
-	box.add_child(_kv("ENTITIES ON FILE", "%d / %d  (%d LOGGED THIS RUN)" % [on_file, Archive.entities().size(), this_run], TEXT))
-	box.add_child(_kv("SITES CONFIRMED", str(Clearance.sites_confirmed()), TEXT))
-	box.add_child(_kv("AVERAGE FILING", "%d %s" % [roundi(float(_cl_scan_yield()) / n), unit] if n > 0 else "NO DATA", TEXT))
-	var best_id := str(Clearance.stat("best_id", ""))
-	box.add_child(_kv("BEST SINGLE FILING", "%d %s // %s" % [int(Clearance.stat("best_total")), unit, _cl_code(best_id)] if best_id != "" else "NO DATA", TEXT))
-	var near_id := str(Clearance.stat("closest_id", ""))
-	box.add_child(_kv("CLOSEST READING", "%.1f M // %s" % [float(Clearance.stat("closest_dist", 0.0)), _cl_code(near_id)] if near_id != "" else "NO DATA",
-		RED if near_id != "" and float(Clearance.stat("closest_dist", 99.0)) < 4.0 else TEXT))
-	box.add_child(_kv("BEST MOMENTUM STREAK", "x%d" % int(Clearance.stat("best_momentum", 1)) if n > 0 else "NO DATA", TEXT))
-	box.add_child(_kv("AGENCY ASSESSMENT", _cl_assessment(n), AMBER))
-	box.add_child(_kv("CELLS MAPPED WITH TAPE", "%d  (%d STRIPS)" % [int(Clearance.stat("cells_mapped")), int(Clearance.stat("filings_survey"))], TEXT))
-	box.add_child(_spacer(10))
-	box.add_child(_label("YIELD BY SOURCE", 15, MUTED, 2))
-	var most := 1
-	for src in Clearance.SOURCES:
-		most = maxi(most, int(Clearance.stat("ry_" + str(src[0]))))
-	for src in Clearance.SOURCES:
-		var v := int(Clearance.stat("ry_" + str(src[0])))
-		box.add_child(_bar_row(str(src[1]), float(v) / most, "%d %s" % [v, unit], AMBER if v > 0 else TEXT_DIM))
-
-	# -- per entity
-	_cl_section(box, "YIELD BY ENTITY")
-	var all := Archive.entities()
-	var ids: Array = all.keys()
-	ids.sort_custom(func(a, b): return str(all[a].get("code", "")) < str(all[b].get("code", "")))
-	for id in ids:
-		var info: Dictionary = all[id]
-		if not Clearance.sites.has(id):
-			box.add_child(_kv("TSRA-EN-??  UNREGISTERED", "0 " + unit, TEXT_DIM))
-			box.add_child(_label("      NO SCAN ON FILE // FIRST CONTACT PENDING", 15, TEXT_DIM, 1, true))
-			continue
-		box.add_child(_kv("%s  %s" % [str(info.get("code", "")), str(info.get("common_name", id)).to_upper()],
-			"%d %s" % [int(Clearance.entity_yield.get(id, 0)), unit], TEXT))
-		var sup := Clearance.next_supplemental(str(id))
-		var wait := Clearance.reread_ready_in(str(id))
-		var next := "RE-READS EXHAUSTED"
-		if sup > 0:
-			next = "NEXT RE-READ %d %s" % [sup, unit] + (" IN %d S" % ceili(wait) if wait > 0.0 else " // READY")
-		box.add_child(_label("      THREAT %s // SITES %d // RE-READS %d // %s" % [str(info.get("threat_class", "?")).to_upper(),
-			(Clearance.sites.get(id, []) as Array).size(), int(Clearance.supplementals.get(id, 0)), next], 15, MUTED, 1, true))
-
-	# -- tape survey, per level
-	_cl_section(box, "CORRIDOR SURVEY")
-	var levels: Array = Clearance.surveyed.keys()
-	var here := Archive.current_level_id()
-	if here != "" and not (here in levels):
-		levels.push_front(here)
-	for level in levels:
-		var cells := (Clearance.surveyed.get(level, {}) as Dictionary).size()
-		var cov := Clearance.survey_coverage(str(level))
-		var where := str(Archive.dossiers().get(level, {}).get("designation", str(level).to_upper()))
-		if where.count("\"") >= 2:
-			where = where.get_slice("\"", 1)       # LEVEL 2 - "THE YELLOW HALLS" -> THE YELLOW HALLS
-		var fig := "%d CELLS // %d%%" % [cells, roundi(cov * 100.0)] if int(Clearance.survey_open.get(level, 0)) > 0 else "%d CELLS" % cells
-		box.add_child(_bar_row(_vcr(where), cov, fig, GREEN if cov >= 0.75 else (AMBER if cells > 0 else TEXT_DIM)))
-	box.add_child(_label("Mark walls and floors with hazard tape. Every cell mapped for the first time files yield; a level's map pays once.", 15, TEXT_DIM, 1, true))
-
-	# -- log
-	_cl_section(box, "FILING LOG // LAST %d" % Clearance.LOG_MAX)
-	if Clearance.filing_log.is_empty():
-		box.add_child(_label("NO FILINGS ON RECORD. HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY.", 16, TEXT_DIM, 1, true))
-	for e in Clearance.filing_log:
-		var kind := str(e.get("kind", ""))
-		var what := str({"first_contact": "FIRST CONTACT", "new_site": "NEW SITE", "supplemental": "SUPPLEMENTAL", "grant": "ADJUSTMENT",
-			"survey": "CORRIDOR MAPPED"}.get(kind, kind.to_upper()))
-		var d := float(e.get("dist", -1.0))
-		var where := "%s%s" % [_cl_code(str(e.get("id", ""))) if str(e.get("id", "")) != "" else "ADMIN", " @ %.1f M" % d if d >= 0.0 else ""]
-		if kind == "survey":
-			where = "%d CELLS" % int(e.get("cells", 0))
-		box.add_child(_kv("%s  %s // %s" % [_local_time(int(e.get("t", 0))).substr(5), what, where],
-			"%+d %s" % [int(e.get("total", 0)), unit], GREEN if kind == "first_contact" else TEXT))
-
-	# -- rules
-	_cl_section(box, "YIELD SCHEDULE")
-	var b1 := Clearance.BASE + Clearance.PER_CLASS
-	var b5 := Clearance.BASE + Clearance.PER_CLASS * 5
-	box.add_child(_kv("FIRST CONTACT", "%d-%d %s BY THREAT CLASS" % [b1, b5, unit], TEXT))
-	box.add_child(_kv("NEW SITE CONFIRMED", "%d%% OF FIRST CONTACT" % roundi(Clearance.NEW_SITE * 100.0), TEXT))
-	box.add_child(_kv("SUPPLEMENTAL DATA", "%d%%, HALVING EACH TIME // 1 PER %d S" % [roundi(Clearance.SUPPLEMENTAL * 100.0), int(Clearance.REREAD_COOLDOWN)], TEXT))
-	box.add_child(_kv("PROXIMITY PREMIUM", "+25%% UNDER %d M // +10%% UNDER %d M" % [int(Clearance.CLOSE_RANGE), int(Clearance.NEAR_RANGE)], TEXT))
-	box.add_child(_kv("OFF-ROSTER SIGHTING", "+%d%% IF THE DOSSIER DOESN'T LIST IT" % roundi(Clearance.OFF_ROSTER * 100.0), TEXT))
-	box.add_child(_kv("HAZARD PAY", "+%d%% UNDER %d SANITY OR HEALTH" % [roundi(Clearance.HAZARD * 100.0), int(Clearance.HAZARD_BELOW)], TEXT))
-	box.add_child(_kv("FIELD MOMENTUM", "+%d%% PER FILING WITHIN %d MIN (MAX +%d%%)" % [roundi(Clearance.MOMENTUM_STEP * 100.0),
-		int(Clearance.MOMENTUM_WINDOW / 60.0), roundi(Clearance.MOMENTUM_STEP * Clearance.MOMENTUM_MAX * 100.0)], TEXT))
-	box.add_child(_kv("CORRIDOR MAPPED", "%d %s PER CELL FIRST TAPED" % [Clearance.SURVEY_PER_CELL, unit], TEXT))
-	var ms: Array = []
-	for m in Clearance.SURVEY_MILESTONES:
-		ms.append("+%d AT %d%%" % [int(m[1]), roundi(float(m[0]) * 100.0)])
-	box.add_child(_kv("SURVEY MILESTONES", " // ".join(ms), TEXT))
-	box.add_child(_spacer(6))
-	box.add_child(_label("Readings of a known entity on a known site pay a trickle, then nothing. The agency pays for new information, not for staring.", 15, TEXT_DIM, 1, true))
-
-## A section title over a thin rule
-func _cl_section(box: VBoxContainer, title: String) -> void:
-	box.add_child(_spacer(18))
-	box.add_child(_label(title, 15, MUTED, 2))
-	box.add_child(_hline(Color(AMBER, 0.35), 2))
-	box.add_child(_spacer(4))
-
-## "KEY ...... VALUE": the key on the left, the value right-aligned in `col`
-func _kv(key: String, value: String, col: Color) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 16)
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var k := _label(key, 17, TEXT_DIM if col != TEXT_DIM else Color(TEXT_DIM, 0.35), 1)
-	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	k.clip_text = true
-	k.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(k)
-	var v := _label(value, 17, col, 1)
-	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h.add_child(v)
-	return h
-
-## A label, a bar of CL_BAR cells filled to `frac`, and the figure
-func _bar_row(key: String, frac: float, value: String, col: Color) -> Control:
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 12)
-	h.custom_minimum_size.y = 24          # a slim bar in a taller row: the bars stay apart
-	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var k := _label(key, 15, TEXT_DIM, 1)
-	k.custom_minimum_size.x = 230
-	k.clip_text = true
-	k.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(k)
-	var cells := _cells(CL_BAR, 2.0, false)
-	cells.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cells.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cells.custom_minimum_size.y = 10
-	_set_cells(cells, roundi(clampf(frac, 0.0, 1.0) * CL_BAR) if frac > 0.0 else 0, col)
-	if frac > 0.0 and cells.get_meta("filled") == 0:
-		_set_cells(cells, 1, col)            # anything at all shows as one cell
-	h.add_child(cells)
-	var v := _label(value, 15, col, 1)
-	v.custom_minimum_size.x = 150
-	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	h.add_child(v)
-	return h
-
-## Yield from scanner readings alone (tape surveys and adjustments left out): the per-entity totals
-func _cl_scan_yield() -> int:
-	var y := 0
-	for id in Clearance.entity_yield:
-		y += int(Clearance.entity_yield[id])
-	return y
-
-func _cl_code(id: String) -> String:
-	return str(Archive.entity_info(id).get("code", "TSRA-EN-??")) if id != "" else "-"
-
-## The agency's one-line verdict, off the average filing
-func _cl_assessment(n: int) -> String:
-	if n == 0:
-		return "PENDING FIRST FILING"
-	var avg := float(_cl_scan_yield()) / n
-	if avg < 60.0: return "BELOW EXPECTATIONS"
-	if avg < 140.0: return "MEETS EXPECTATIONS"
-	if avg < 220.0: return "EXCEEDS EXPECTATIONS"
-	return "EXEMPLARY // FLAGGED FOR REVIEW"
-
-# [F4] recovered papers
-func _refresh_papers() -> void:
-	if not papers_list:
-		return
-	_clear(papers_list)
-	papers_list.add_child(_label("[RECOVERED PAPERS // %d OF %d]" % [lore_entries.size(), ARCHIVE_CAP], 21, TEXT, 1))
-	papers_list.add_child(_spacer(12))
-	if lore_entries.is_empty():
-		papers_list.add_child(_label("NO PAPERS RECOVERED.", 21, TEXT_DIM, 1))
-		return
-	for i in lore_entries.size():
-		var e: Dictionary = lore_entries[i]
-		papers_list.add_child(_label("%02d. %s" % [i + 1, str(e.title).to_upper()], 21, AMBER, 1, true))
-		if str(e.text) != "":
-			papers_list.add_child(_label(str(e.text), 19, TEXT_DIM, 1, true))
-		papers_list.add_child(_spacer(10))
-
 # ---- open / close, input, per frame ------------------------------------------------------
 ## Power-on: the picture opens out of a bright line like a CRT warming up, its alpha stuttering
 ## (same flicker curve as the pause menu, menu.gd _flicker) while the overlay throws a short
@@ -1763,10 +1002,10 @@ func set_shown(on: bool) -> void:
 		_fit_viewport()
 		if selected == -1 and not items.is_empty(): selected = 0
 		_refresh_selection()
-		_refresh_dossier()
-		_refresh_entries()
-		_refresh_clearance_page()
-		_sfx("on")
+		_refresh_page("DOSSIER")
+		_refresh_page("ENTRIES")
+		_refresh_page("CLEARANCE")
+		play_sfx("on")
 		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
 		lens.scale = Vector2(WINDOW_SCALE, WINDOW_SCALE * 0.01)
@@ -1779,7 +1018,7 @@ func set_shown(on: bool) -> void:
 		_reveal_page(active_page, 0.2)
 		glow_flicker.kick(0.45, true)       # the glow stutters up as the tube warms
 	else:
-		_sfx("off")
+		play_sfx("off")
 		anim.tween_property(lens, "scale:y", WINDOW_SCALE * 0.01, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		anim.tween_property(self, "modulate:a", 0.0, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 		anim.chain().tween_callback(_finish_hide)
@@ -1815,12 +1054,12 @@ func _input(e: InputEvent) -> void:
 		KEY_UP, KEY_DOWN:            # the arrows move whichever list the page shows
 			var step := -1 if k.physical_keycode == KEY_UP else 1
 			if active_page == "ENTRIES":
-				_select_entry(entry_sel + step)
+				pages.ENTRIES.step(step)
 			else:
 				_move_selection(step)
 		KEY_LEFT: _cycle_tab(-1)
 		KEY_RIGHT: _cycle_tab(1)
-		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5: _select_tab(TAB_KEYS[k.physical_keycode])
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5: select_tab(TAB_KEYS[k.physical_keycode])
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return
@@ -1901,6 +1140,6 @@ func item_count(id: String) -> int:
 func add_lore(id: String, title: String, text: String) -> void:
 	for e in lore_entries:
 		if e.id == id: return
-	if lore_entries.size() >= ARCHIVE_CAP: return
+	if lore_entries.size() >= PAGE_SCRIPTS.PAPERS.CAP: return
 	lore_entries.append({"id": id, "title": title, "text": text})
-	_refresh_papers()
+	_refresh_page("PAPERS")

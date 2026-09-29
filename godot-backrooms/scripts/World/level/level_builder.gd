@@ -1,6 +1,7 @@
 extends "res://scripts/World/level/level_lighting.gd"
-## Builds a backrooms level from levels/levels.json (the same data the web game uses) and runs it:
-## a port of the web game's level.js. The work is split into layers, each extending the one before:
+## Builds a backrooms level from levels/levels.json (edited with the level editor in level-editor/)
+## and runs it; it began as a port of the web game's level.js. The work is split into layers, each
+## extending the one before:
 ## level_data.gd (the grid), level_geometry.gd (walls, floors, ceilings, pits, grime), level_fixtures.gd
 ## (the troffers, flicker, power cuts), level_light_pool.gd (the real lights that follow you) and
 ## level_lighting.gd (GI, fog, eye adaptation, glare). This last layer

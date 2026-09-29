@@ -11,7 +11,7 @@ const SIZE := 256                  # icon resolution, px
 const FILL := 0.86                 # share of the frame the model spans, leaving room for the outline
 const VIEW_DIR := Vector3(0.9, 0.75, 1.25)   # camera direction from the model: a 3/4 view from above
 const OUTLINE_SHADER := preload("res://shaders/item_icon_outline.gdshader")
-const OUTLINE := Color("e8702c")   # inventory.gd ORANGE
+const OUTLINE := Color("e8702c")   # terminal_kit.gd ORANGE
 
 static var cache := {}             # model path -> ViewportTexture
 static var host: Node              # keeps the viewports in the tree (the main viewport's root)
