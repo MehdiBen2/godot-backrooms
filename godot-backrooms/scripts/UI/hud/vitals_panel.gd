@@ -110,7 +110,8 @@ func _row(key: String, icon_path: String) -> Control:
 	return row
 
 func _process(dt: float) -> void:
-	running = fade_src == null or fade_src.modulate.a > 0.01
+	# nothing to show while it is faded out, or once you are dead (the death card has the corner)
+	running = (fade_src == null or fade_src.modulate.a > 0.01) and not Game.dead
 	super(dt)
 	if not running or player == null:
 		return

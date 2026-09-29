@@ -4,7 +4,7 @@ extends CanvasLayer
 ## over a dark gradient and a red-black vignette:
 ##   ■ STOP
 ##   RECORDING ENDED
-##   CAM 04 // 00:14:37          (the tape counter when it stopped: Game.time)
+##   CAM 04 // 00:14:37          (the HUD's tape counter when it stopped, hud.gd `t`)
 ##   CAUSE           THE HOWLER
 ##   ENTRIES LOGGED  2           (this life: the archive starts empty every level start)
 ##   RESEARCH YIELD  +340 RY     (Clearance.total since main.gd noted it at the start: Game.run_yield)
@@ -153,7 +153,12 @@ func _build(killer: String) -> void:
 	title.add_theme_constant_override("shadow_offset_x", 2)
 	title.add_theme_constant_override("shadow_offset_y", 0)
 	_box.add_child(title)
-	_box.add_child(_label("CAM 04 // " + _counter(Game.time), 4.0, 16, DIM_CREAM))
+	# the same counter the HUD was showing (hud.gd keeps its own clock), else the play time
+	var counter := Game.time
+	var ui: Node = Game.main.get_node_or_null("UI") if Game.main != null and is_instance_valid(Game.main) else null
+	if ui != null and "t" in ui:
+		counter = float(ui.get("t"))
+	_box.add_child(_label("CAM 04 // " + _counter(counter), 4.0, 16, DIM_CREAM))
 	var rule := ColorRect.new()
 	rule.custom_minimum_size = Vector2(0, 1)
 	rule.color = LINE_CREAM
