@@ -154,8 +154,6 @@ func play_scare(name: String, a = null, b = null) -> void:
 		"footThump":
 			var v := float(b) if b != null else 0.8
 			spawn3d(synth("thump"), a, v * 0.9, "Scares", 4.0, rng.randf_range(0.85, 1.1))
-		"vanish":
-			spawn_flat(synth("vanish"), 0.5)
 		"restrike":
 			if _stream(TUBE_RESTRIKE) != null:
 				spawn_flat(_stream(TUBE_RESTRIKE), 0.8)
