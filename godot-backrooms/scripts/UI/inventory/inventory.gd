@@ -58,8 +58,9 @@ const PANEL_W := 830.0           # right-hand tabbed sheet; the middle stays cle
 const PANEL_RIGHT := 92.0
 const TOP := 118.0
 const BOTTOM := 92.0
-const ICON_BOX := 84.0
-const BAR_H := 40.0
+const ICON_BOX := 74.0
+const BAR_H := 32.0
+const VITAL_LINE := 3             # thinner outline on the vitals icon boxes and bars
 const BAR_GAP := 4.0             # dark space between a bar's outline and its segments
 const BAR_SEGMENTS := 20
 const TAB_H := 50.0
@@ -69,7 +70,7 @@ const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corne
 const LINE := Kit.LINE
 const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
-const BLOOM := 0.7               # phosphor glow strength (ui_vhs_overlay bloom_amt)
+const BLOOM := 0.9               # phosphor glow strength (ui_vhs_overlay bloom_amt)
 const BLOOM_WIDE := 0.3          # the neon halo's strength (a broad blur added over the tight glow)
 const BLOOM_RADIUS := 8.0       # how far the glow reaches, in screen pixels at 1080p
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
@@ -433,8 +434,8 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := PanelContainer.new()
-	var sb := Kit.box(FILL, AMBER, LINE, 6)
-	sb.set_content_margin_all(14)
+	var sb := Kit.box(FILL, AMBER, VITAL_LINE, 6)
+	sb.set_content_margin_all(12)
 	box.add_theme_stylebox_override("panel", sb)
 	box.custom_minimum_size = Vector2(ICON_BOX, ICON_BOX)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -454,15 +455,15 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var meta := HBoxContainer.new()
 	meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := Kit.label(key, 26, TEXT, 3)
+	var title := Kit.label(key, 24, TEXT, 3)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	meta.add_child(title)
-	var val := Kit.label("100%", 26, TEXT, 2)
+	var val := Kit.label("100%", 24, TEXT, 2)
 	meta.add_child(val)
 	col.add_child(meta)
 	var bar := PanelContainer.new()
-	var bsb := Kit.box(FILL, AMBER, LINE, 4)
-	bsb.set_content_margin_all(LINE + BAR_GAP)
+	var bsb := Kit.box(FILL, AMBER, VITAL_LINE, 4)
+	bsb.set_content_margin_all(VITAL_LINE + BAR_GAP)
 	bar.add_theme_stylebox_override("panel", bsb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
