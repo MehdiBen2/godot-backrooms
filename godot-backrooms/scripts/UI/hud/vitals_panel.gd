@@ -13,8 +13,8 @@ extends "res://scripts/UI/crt/crt_layer.gd"
 ## Built by hud.gd into hud_root, so it fades with the rest of the OSD under the terminal and the
 ## pause menu, and stops rendering while it is faded out.
 ## It keeps out of the way: a row sits faint (IDLE_A, its reading hidden) until it has something to
-## say: moving fast (sprinting, a hit, a battery going in: not the torch's steady drain), low or
-## critical, or NOISE louder than a walk or heard. Then it comes up with its reading beside the bar,
+## say: refilling (stamina getting its breath back, a battery going in; a drain never lights it), at
+## or under LIGHT_BELOW, low or critical, or NOISE louder than a walk or heard. Then it comes up with its reading beside the bar,
 ## and settles back HOLD seconds after it goes quiet.
 
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")
@@ -30,7 +30,8 @@ const BAR_H := 11.0
 const VALUE_W := 46.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
 const IDLE_A := 0.3                  # a row with nothing to say
 const HOLD := 2.5                    # s a row stays up after it goes quiet
-const FAST := 4.0                    # %/s: moving faster than this counts as something happening
+const FAST := 4.0                    # %/s: rising faster than this counts as refilling
+const LIGHT_BELOW := 50.0            # %: at or under this a row stays up
 const GLOW := 0.6                    # of the terminal's phosphor glow: less bloom in the corner of your eye
 # it rides with the camera like a display on your kit: it lags a turn, bounces with a step or a
 # crouch, and tilts with a lean (_sway)
@@ -169,7 +170,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 	value = clampf(value, 0.0, 100.0)
 	var eased: float = value if r.shown < 0.0 else lerpf(r.shown, value, minf(1.0, dt * 8.0))
 	if r.shown >= 0.0 and dt > 0.0:          # how fast it is moving, smoothed
-		r.speed = lerpf(float(r.speed), absf(eased - float(r.shown)) / dt, minf(1.0, dt * 6.0))
+		r.speed = lerpf(float(r.speed), (eased - float(r.shown)) / dt, minf(1.0, dt * 6.0))   # signed: + refilling
 	r.shown = eased
 	var col := Kit.AMBER
 	match state:
@@ -177,7 +178,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 		"critical": col = Color(Kit.RED, pulse)
 	_paint(r, clampi(ceili(eased / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS), col)
 	_value(r, _lie(r, "%d%%" % roundi(eased), dt, false), Kit.TEXT if state == "" else col)
-	_attend(r, state != "", float(r.speed) > FAST, dt)
+	_attend(r, state != "" or eased <= LIGHT_BELOW, float(r.speed) > FAST, dt)
 
 ## How far your sound carries right now, and whether the Bacteria is in earshot of it
 func _update_noise(dt: float, pulse: float) -> void:
@@ -212,7 +213,7 @@ func _lie(r: Dictionary, truth: String, dt: float, metres: bool) -> String:
 			r.lie = ("%dM" % randi_range(0, 40)) if metres else ("%d%%" % randi_range(0, 100))
 	return str(r.lie) if r.lie_t > 0.0 else truth
 
-## Up when it is `alert` (low, critical, heard) or `busy` (moving fast, loud), and HOLD s after;
+## Up when it is `alert` (low, critical, half gone, heard) or `busy` (refilling, loud), and HOLD s after;
 ## otherwise faint with its reading hidden. Comes up quickly, settles slowly
 func _attend(r: Dictionary, alert: bool, busy: bool, dt: float) -> void:
 	r.active_t = HOLD if busy else maxf(0.0, float(r.active_t) - dt)
