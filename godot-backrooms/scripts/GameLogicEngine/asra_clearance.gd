@@ -315,6 +315,8 @@ func grant(amount: int) -> Dictionary:
 	total = maxi(0, total + amount)
 	var report := {"id": "", "kind": "grant", "title": "ADMINISTRATIVE ADJUSTMENT",
 		"lines": [["ADMINISTRATIVE ADJUSTMENT", amount]], "total": amount, "tier_from": from, "tier_to": tier_index()}
+	_log({"t": int(Time.get_unix_time_from_system()), "id": "", "kind": "grant", "total": amount,
+		"level": Archive.current_level_id(), "dist": -1.0})
 	_save()
 	yield_filed.emit(report)
 	return report

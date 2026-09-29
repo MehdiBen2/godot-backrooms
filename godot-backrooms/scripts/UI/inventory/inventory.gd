@@ -2,8 +2,9 @@ extends Control
 ## Inventory as an T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
 ## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
-## carried items as `INV:` rows with a stack gauge, the selection and the torch's battery
-## estimate. On the right, a tabbed sheet: [F1] ITEMS (the selected item's record), [F2] DOSSIER (the
+## the inventory: all SLOT_COUNT slots numbered (icon, name, a stack's cells and count; free ones
+## faint), the selection and the torch's battery estimate. On the right, a tabbed sheet, with a
+## scroll rail in the gap beside it (_draw_rail): [F1] ITEMS (the selected item's record), [F2] DOSSIER (the
 ## level's threshold dossier and which of its anomalies are logged, from Archive,
 ## scripts/GameLogicEngine/asra_archive.gd), [F3] ENTRIES (every catalogued entity: pick one with
 ## the arrows or a click and read its full entry; new ones are marked until opened) and [F4] PAPERS
@@ -25,6 +26,7 @@ signal close_requested
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtBloom := preload("res://scripts/UI/crt/crt_bloom.gd")
 const CrtFlicker := preload("res://scripts/UI/crt/crt_flicker.gd")
+const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 
 # amber phosphor palette; low / critical states match the HUD meters (hud.gd _set_meter)
 const AMBER := Color("f0a838")
@@ -65,6 +67,13 @@ const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
+const ROW_ICON := 30.0           # item icon on an inventory row (rendered from its model, item_icon.gd)
+const ROW_H := 34.0              # one inventory slot row; all SLOT_COUNT are listed, empty ones dim
+const INV_TOP := TOP + 4.0 * ICON_BOX + 3.0 * 30.0 + 40.0   # the inventory list, under the vitals
+const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of it (fits "PG UP")
+const RAIL_GAP := 26.0
+const RAIL_END := 70.0           # arrow + key label at each end of the rail
+const PAGE_ICON := 190.0         # the same icon on the [F1] item record
 const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE"]
@@ -110,12 +119,14 @@ var clearance_yield: Label
 var link_state := ""
 
 # items
-var items: Array = []                # {id, name, desc, count, code, stack}
+var items: Array = []                # {id, name, desc, count, code, stack, icon (model path or "")}
 var selected := -1
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
 var link_nodes: Array = []           # dossier phenomena rows: a click opens their entry
 var selected_label: Label
+var slots_label: Label
+var rail: Control                    # scroll rail beside the sheet (_draw_rail)
 var battery_label: Label
 var cursor: ColorRect
 
@@ -349,6 +360,7 @@ func _build() -> void:
 	screen.add_child(_build_vitals())
 	screen.add_child(_build_items())
 	screen.add_child(_build_readout())
+	screen.add_child(_build_rail())
 	screen.add_child(_build_footer())
 
 	for n in SFX:
@@ -511,7 +523,7 @@ func _build_footer() -> Control:
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(agency)
-	for hint in ["UP/DN SELECT", "F1-F5 PAGE", "PGUP/PGDN SCROLL"]:
+	for hint in ["UP/DN/WHEEL SELECT", "F1-F5 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
 	var close := Button.new()
@@ -648,20 +660,34 @@ func _update_link() -> void:
 		link_label.add_theme_color_override("font_color", col)
 	link_label.modulate.a = (1.0 if fmod(t, 0.5) < 0.3 else 0.25) if state == "DEGRADED" else 1.0
 
-# ---- items: INV rows with a stack gauge, selection, battery estimate ---------------
+# ---- items: numbered slot rows, selection, battery estimate ------------------------
 func _build_items() -> Control:
 	var v := VBoxContainer.new()
-	v.anchor_top = 1.0; v.anchor_bottom = 1.0
+	v.anchor_bottom = 1.0
 	v.offset_left = COL_X; v.offset_right = COL_X + COL_W
-	v.offset_top = -BOTTOM; v.offset_bottom = -BOTTOM
-	v.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	v.offset_top = INV_TOP; v.offset_bottom = -BOTTOM
 	v.add_theme_constant_override("separation", 6)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.mouse_filter = Control.MOUSE_FILTER_STOP     # the wheel over the list steps the selection
+	v.gui_input.connect(func(e: InputEvent):
+		if _wheel_items(e): v.accept_event()
+	)
+	var head := HBoxContainer.new()
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var title := _label("INVENTORY", 19, MUTED, 3)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	slots_label = _label("0 / %d SLOTS" % SLOT_COUNT, 19, MUTED, 2)
+	head.add_child(slots_label)
+	v.add_child(head)
+	v.add_child(_hline(Color(AMBER, 0.35), 2))
 	item_rows = VBoxContainer.new()
-	item_rows.add_theme_constant_override("separation", 4)
+	item_rows.add_theme_constant_override("separation", 2)
 	item_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(item_rows)
-	v.add_child(_spacer(10))
+	var fill := Control.new()                # pushes the selection lines to the bottom
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(fill)
 	selected_label = _label("SELECTED: [NONE]", 24, TEXT, 1)
 	selected_label.clip_text = true
 	selected_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
@@ -685,22 +711,27 @@ func _refresh_items() -> void:
 		return
 	_clear(item_rows)
 	row_nodes.clear()
-	if items.is_empty():
-		item_rows.add_child(_label("INV: ---- [ NO ITEMS CARRIED ]", 24, TEXT_DIM, 1))
-	for i in items.size():
-		var row := _item_row(i)
-		item_rows.add_child(row)
-		row_nodes.append(row)
+	slots_label.text = "%d / %d SLOTS" % [items.size(), SLOT_COUNT]
+	for i in SLOT_COUNT:
+		if i < items.size():
+			var row := _item_row(i)
+			item_rows.add_child(row)
+			row_nodes.append(row)
+		else:
+			item_rows.add_child(_empty_row(i))
 	_refresh_selection()
 
-## "INV: ALM  [> ▮▮▮ . . . . . ]": code, then one cell per unit up to the item's stack size
+## "01  [icon]  BATTERY PACK      ▮ . . . . .   1/6": slot, icon, name, then for a stack one cell
+## per unit it holds and the count
 func _item_row(i: int) -> Control:
 	var it: Dictionary = items[i]
 	var p := PanelContainer.new()
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.set_meta("hover", false)
 	p.gui_input.connect(func(e: InputEvent):
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		if _wheel_items(e):
+			p.accept_event()
+		elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			var quiet := active_page != "ITEMS"   # the page switch plays its own chirp
 			_select(i, quiet)
 			_select_tab("ITEMS")
@@ -709,24 +740,53 @@ func _item_row(i: int) -> Control:
 	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_row(i))
 
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
+	h.add_theme_constant_override("separation", 12)
+	h.custom_minimum_size.y = ROW_H
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var labels := [
-		_label("INV: " + str(it.code).rpad(4), 24, TEXT, 1),
-		_label("[>", 24, TEXT, 1),
-		_label("]", 24, TEXT, 1),
-	]
-	var n := mini(it.stack, STACK_CELLS)
-	var cells := _cells(n, 6.0, true)
-	cells.custom_minimum_size = Vector2(26 * n, 0)
-	cells.set_meta("filled", mini(it.count, n))
-	h.add_child(labels[0])
-	h.add_child(labels[1])
-	h.add_child(cells)
-	h.add_child(labels[2])
+	h.add_child(_label("%02d" % (i + 1), 18, TEXT_DIM, 1))
+	# icon slot on every row, empty for items without a model, so the names stay in a column
+	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 2.0) if it.icon != "" else null
+	if icon == null or (icon as TextureRect).texture == null:
+		icon = Control.new()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(icon)
+	var name_label := _label(str(it.name).to_upper(), 22, TEXT, 1)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.clip_text = true
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(name_label)
+	var labels := [name_label]
+	if it.stack > 1:
+		var n := mini(it.stack, STACK_CELLS)
+		var cells := _cells(n, 5.0, true)
+		cells.custom_minimum_size = Vector2(16 * n, 0)
+		cells.set_meta("filled", mini(it.count, n))
+		h.add_child(cells)
+		var count := _label("%d/%d" % [it.count, it.stack], 20, TEXT, 1)
+		count.custom_minimum_size.x = 56
+		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		h.add_child(count)
+		labels.append(count)
 	p.add_child(h)
 	p.set_meta("labels", labels)
 	return p
+
+## A free slot: its number and EMPTY, faint, so the list shows how much room is left
+func _empty_row(i: int) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	h.custom_minimum_size.y = ROW_H
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pad := MarginContainer.new()          # lines up with the item rows' panel margin
+	pad.add_theme_constant_override("margin_left", 10)
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.add_child(_label("%02d" % (i + 1), 18, Color(TEXT, 0.22), 1))
+	h.add_child(pad)
+	h.add_child(_spacer_w(ROW_ICON))
+	h.add_child(_label("EMPTY", 18, Color(TEXT, 0.22), 2))
+	return h
 
 func _style_row(i: int) -> void:
 	if i >= row_nodes.size():
@@ -778,6 +838,23 @@ func _select(i: int, quiet := false) -> void:
 	if i != selected and not quiet: _sfx("select")
 	selected = i
 	_refresh_selection()
+
+## Mouse wheel over the inventory: down to the next item, up to the previous, and the sheet turns
+## to [F1] ITEMS to show it, as a click would. True when `e` was a wheel step (the caller eats it)
+func _wheel_items(e: InputEvent) -> bool:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed:
+		return false
+	var step := 0
+	if mb.button_index == MOUSE_BUTTON_WHEEL_DOWN: step = 1
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_UP: step = -1
+	if step == 0:
+		return false
+	var was := selected
+	_move_selection(step)
+	if selected != was:
+		_select_tab("ITEMS")
+	return true
 
 func _move_selection(delta: int) -> void:
 	if items.is_empty():
@@ -963,6 +1040,77 @@ func _sfx(n: String) -> void:
 func _cycle_tab(delta: int) -> void:
 	_select_tab(TABS[wrapi(TABS.find(active_page) + delta, 0, TABS.size())])
 
+## Scroll rail in the gap left of the sheet: the active page's position, with PG UP / PG DN at its
+## ends, lit when there is more that way. Click an end to page, the track to jump, or use the wheel
+## over it. It stands in for the pages' own scrollbars, which are hidden (they still scroll).
+func _build_rail() -> Control:
+	rail = Control.new()
+	rail.anchor_left = 1.0; rail.anchor_right = 1.0; rail.anchor_bottom = 1.0
+	rail.offset_right = -PANEL_RIGHT - PANEL_W - RAIL_GAP
+	rail.offset_left = rail.offset_right - RAIL_W
+	rail.offset_top = TOP + TAB_H; rail.offset_bottom = -BOTTOM
+	rail.mouse_filter = Control.MOUSE_FILTER_STOP
+	rail.draw.connect(_draw_rail)
+	rail.gui_input.connect(_rail_input)
+	clickables.append(rail)
+	for k in page_scrolls:
+		(page_scrolls[k] as ScrollContainer).vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	return rail
+
+## {ratio: visible part of the page, pos: 0 top .. 1 bottom}; ratio 1 when it all fits
+func _page_extent() -> Dictionary:
+	var sc: ScrollContainer = page_scrolls.get(active_page)
+	if sc == null:
+		return {"ratio": 1.0, "pos": 0.0}
+	var bar := sc.get_v_scroll_bar()
+	if bar.max_value <= bar.page + 0.5:
+		return {"ratio": 1.0, "pos": 0.0}
+	return {"ratio": bar.page / bar.max_value, "pos": clampf(bar.value / (bar.max_value - bar.page), 0.0, 1.0)}
+
+func _draw_rail() -> void:
+	var w := rail.size.x
+	var h := rail.size.y
+	var cx := w * 0.5
+	var ext := _page_extent()
+	var ratio: float = ext.ratio
+	var pos: float = ext.pos
+	var more_up := ratio < 1.0 and pos > 0.005
+	var more_down := ratio < 1.0 and pos < 0.995
+	var f := _font(2)
+	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, 30), Vector2(cx + 12, 30), Vector2(cx, 12)]),
+		AMBER if more_up else AMBER_DIM)
+	rail.draw_string(f, Vector2(0, 54), "PG UP", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_up else TEXT_DIM)
+	rail.draw_string(f, Vector2(0, h - 44), "PG DN", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_down else TEXT_DIM)
+	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, h - 30), Vector2(cx + 12, h - 30), Vector2(cx, h - 12)]),
+		AMBER if more_down else AMBER_DIM)
+	var y0 := RAIL_END
+	var track := h - RAIL_END * 2.0
+	rail.draw_line(Vector2(cx, y0), Vector2(cx, y0 + track), Color(AMBER, 0.3), 2.0)
+	var th := maxf(40.0, track * ratio)
+	var ty := y0 + (track - th) * pos
+	rail.draw_rect(Rect2(cx - 5, ty, 10, th), AMBER if ratio < 1.0 else AMBER_DIM)
+
+func _rail_input(e: InputEvent) -> void:
+	var mb := e as InputEventMouseButton
+	if mb == null or not mb.pressed:
+		return
+	var sc: ScrollContainer = page_scrolls.get(active_page)
+	if sc == null:
+		return
+	match mb.button_index:
+		MOUSE_BUTTON_WHEEL_UP: sc.scroll_vertical -= 60
+		MOUSE_BUTTON_WHEEL_DOWN: sc.scroll_vertical += 60
+		MOUSE_BUTTON_LEFT:
+			var y := mb.position.y
+			if y < RAIL_END:
+				_scroll_page(-1)
+			elif y > rail.size.y - RAIL_END:
+				_scroll_page(1)
+			else:
+				var bar := sc.get_v_scroll_bar()
+				var k := clampf((y - RAIL_END) / (rail.size.y - RAIL_END * 2.0), 0.0, 1.0)
+				sc.scroll_vertical = int(k * maxf(0.0, bar.max_value - bar.page))
+
 func _scroll_page(delta: int) -> void:
 	var s: ScrollContainer = page_scrolls.get(active_page)
 	if s:
@@ -981,6 +1129,16 @@ func _refresh_item_page() -> void:
 	var it: Dictionary = items[selected]
 	item_page.add_child(_label("[ITEM RECORD // SLOT %02d OF %02d]" % [selected + 1, SLOT_COUNT], 21, TEXT, 1))
 	item_page.add_child(_spacer(12))
+	if it.icon != "":
+		var frame := PanelContainer.new()       # the icon in a bordered square, like the vitals'
+		var sb := _box(Color(AMBER, 0.05), AMBER_DIM, 2)
+		sb.set_content_margin_all(10)
+		frame.add_theme_stylebox_override("panel", sb)
+		frame.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		frame.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
+		item_page.add_child(frame)
+		item_page.add_child(_spacer(12))
 	item_page.add_child(_label("DESIGNATION: " + str(it.name).to_upper(), 21, TEXT, 1, true))
 	item_page.add_child(_label("CODE: " + str(it.code), 21, TEXT, 1))
 	item_page.add_child(_label("QUANTITY: %d / %d" % [it.count, it.stack], 21, TEXT, 1))
@@ -1675,6 +1833,7 @@ func _process(dt: float) -> void:
 	_update_vitals(dt)
 	_update_battery_line()
 	cursor.self_modulate.a = 1.0 if fmod(t, 1.06) < 0.53 else 0.0
+	rail.queue_redraw()
 	_update_link()
 	_update_glitch(dt)
 	overlay_mat.set_shader_parameter("bloom_amt", BLOOM * glow_flicker.update(dt))
@@ -1698,8 +1857,9 @@ func _update_glitch(dt: float) -> void:
 # ---- public API: World/props pickups can call these -------------------------------------
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
 ## pickup can stay on the floor. `code` is the 3-4 letter tag on the INV row (default: from the
-## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS).
-func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS, model := "") -> bool:
+## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS);
+## `icon` is the item's model (res:// .glb): its icon is rendered from it, with an orange outline.
+func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS, icon := "") -> bool:
 	for it in items:
 		if it.id == id:
 			if it.count >= it.stack:
@@ -1712,7 +1872,7 @@ func add_item(id: String, title: String, desc: String, count := 1, code := "", s
 	if code == "":
 		code = title.replace(" ", "")
 	stack = maxi(stack, 1)
-	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack, "model": model})
+	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack, "icon": icon})
 	if selected == -1:
 		selected = 0
 	_refresh_items()
@@ -1732,6 +1892,11 @@ func has_item(id: String) -> bool:
 	for it in items:
 		if it.id == id: return true
 	return false
+
+func item_count(id: String) -> int:
+	for it in items:
+		if it.id == id: return it.count
+	return 0
 
 func add_lore(id: String, title: String, text: String) -> void:
 	for e in lore_entries:
