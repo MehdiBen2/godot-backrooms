@@ -1664,7 +1664,7 @@ func _update_glitch(dt: float) -> void:
 ## Returns false when nothing fits (SLOT_COUNT kinds already carried, or this stack is full), so a
 ## pickup can stay on the floor. `code` is the 3-4 letter tag on the INV row (default: from the
 ## name); `stack` is the most of this item carried, and its gauge width (up to STACK_CELLS).
-func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS) -> bool:
+func add_item(id: String, title: String, desc: String, count := 1, code := "", stack := STACK_CELLS, model := "") -> bool:
 	for it in items:
 		if it.id == id:
 			if it.count >= it.stack:
@@ -1677,7 +1677,7 @@ func add_item(id: String, title: String, desc: String, count := 1, code := "", s
 	if code == "":
 		code = title.replace(" ", "")
 	stack = maxi(stack, 1)
-	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack})
+	items.append({"id": id, "name": title, "desc": desc, "count": mini(count, stack), "code": code.to_upper().left(4), "stack": stack, "model": model})
 	if selected == -1:
 		selected = 0
 	_refresh_items()
