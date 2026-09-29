@@ -249,9 +249,7 @@ func _build() -> void:
 ## Back to the title screen (drops any multiplayer session first)
 func _leave_to_main_menu() -> void:
 	Net.leave()
-	Game.playing = false
-	Game.dead = false
-	Game.respawned = false
+	Game.end_run()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 

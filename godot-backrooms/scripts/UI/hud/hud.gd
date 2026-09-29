@@ -341,44 +341,60 @@ func _on_entity_logged(id: String) -> void:
 	if id == "":                 # Archive.forget_all(): nothing new to announce
 		return
 	var info := Archive.entity_info(id)
-	var lines: Array = [
-		["%s (%s)" % [str(info.get("code", "TSRA-EN-??")), str(info.get("common_name", id)).to_upper()], Term.GREEN, 20],
-		["THREAT: " + str(info.get("threat_class", "Undetermined")), Term.RED, 18],
-	]
+	var lines: Array = [{"kind": "head", "code": str(info.get("code", "TSRA-EN-??")),
+		"name": str(info.get("common_name", id)).to_upper(),
+		"tag": str(info.get("threat_class", "Undetermined")).to_upper(), "tag_color": Term.RED}]
 	var report: Dictionary = Clearance.last_report
 	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
 		lines.append_array(_yield_lines(report))
-	lines.append(["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16])
-	toast.push("[NEW ENTRY LOGGED]", lines)
+	lines.append({"kind": "keys", "keys": ["TAB", "F3"], "text": "READ THE FULL ENTRY"})
+	toast.push("NEW ENTRY LOGGED", lines)
 	_promotion(report)
 
 ## New sites get a toast of their own; supplemental readings only show on the reticle.
 ## A first contact waits for _on_entity_logged; any of them can raise the clearance tier.
 func _on_yield_filed(report: Dictionary) -> void:
+	var site := str(Archive.current_dossier().get("designation", "UNMAPPED SITE")).to_upper()
 	match report.get("kind", ""):
 		"first_contact":
 			return
 		"survey":
 			# every strip's own yield shows on the tape readout; the milestones get a toast
 			if (report.lines as Array).size() > 1:
-				var lines: Array = [["%s // %d%% OF THIS LEVEL MAPPED" % [Archive.current_dossier().get("designation", "UNMAPPED SITE"),
-					roundi(float(report.get("coverage", 0.0)) * 100.0)], Term.GREEN, 18]]
+				var lines: Array = [{"kind": "head", "code": site,
+					"name": "%d%% OF THIS LEVEL MAPPED" % roundi(float(report.get("coverage", 0.0)) * 100.0), "size": 22}]
 				lines.append_array(_yield_lines(report))
-				toast.push("[SURVEY MILESTONE]", lines)
+				toast.push("SURVEY MILESTONE", lines)
 		"new_site":
 			var info := Archive.entity_info(str(report.id))
-			var lines: Array = [["%s // %s" % [str(info.get("code", "TSRA-EN-??")), Archive.current_dossier().get("designation", "UNMAPPED SITE")], Term.GREEN, 18]]
+			var lines: Array = [{"kind": "head", "code": "%s  //  %s" % [str(info.get("code", "TSRA-EN-??")), site],
+				"name": str(info.get("common_name", report.id)).to_upper()}]
 			lines.append_array(_yield_lines(report))
-			toast.push("[NEW SITE CONFIRMED]", lines)
+			toast.push("NEW SITE CONFIRMED", lines)
 	_promotion(report)
 
-## "+100 RY  FIRST CONTACT", one row per markup, then the total against the next tier
+## One row per markup ("FIRST CONTACT ... +100 RY"), what the filing came to, then clearance toward
+## the next tier as a gauge that fills with what this filing added
 func _yield_lines(report: Dictionary) -> Array:
-	var out: Array = []
+	var unit := Clearance.unit
+	var out: Array = [{"kind": "rule"}]
 	for ln in report.get("lines", []):
-		out.append(["+%d %s  %s" % [int(ln[1]), Clearance.unit, str(ln[0])], Term.AMBER, 17])
-	var tail := "MAX CLEARANCE" if Clearance.is_max_tier() else "%d / %d" % [Clearance.total, Clearance.next_threshold()]
-	out.append(["FILED +%d %s  //  %s" % [int(report.get("total", 0)), Clearance.unit, tail], Term.TEXT, 18])
+		out.append({"kind": "pair", "left": str(ln[0]), "right": "+%d %s" % [int(ln[1]), unit]})
+	var filed := int(report.get("total", 0))
+	out.append({"kind": "pair", "left": "FILED", "right": "+%d %s" % [filed, unit], "color": Term.TEXT, "strong": true})
+	var i := Clearance.tier_index()
+	var code := str(Clearance.tier().get("code", ""))
+	if Clearance.is_max_tier():
+		out.append({"kind": "bar", "left": code + "  //  MAX CLEARANCE", "right": "%d %s" % [Clearance.total, unit],
+			"from": 1.0, "to": 1.0})
+		return out
+	var lo := int(Clearance.tier(i).get("yield", 0))
+	var span := float(maxi(Clearance.next_threshold() - lo, 1))
+	var before := Clearance.total - filed
+	# a filing that crossed into this tier starts its gauge empty
+	var from := 0.0 if Clearance.tier_index(before) < i else float(before - lo) / span
+	out.append({"kind": "bar", "left": "CLEARANCE " + code, "from": from, "to": Clearance.tier_progress(),
+		"right": "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), unit]})
 	return out
 
 func _promotion(report: Dictionary) -> void:
@@ -387,17 +403,19 @@ func _promotion(report: Dictionary) -> void:
 		return
 	var t := Clearance.tier(to)
 	var lines: Array = [
-		[Clearance.tier_label(to), Term.GREEN, 21],
-		[str(t.get("brief", "")), Term.TEXT, 16, true],
+		{"kind": "head", "code": str(t.get("code", "")), "name": str(t.get("title", "")).to_upper(), "size": 22},
+		{"kind": "text", "text": str(t.get("brief", "")), "wrap": true},
 	]
 	# every tier passed on the way up, in case one filing jumps more than one
 	for i in range(int(report.get("tier_from", 0)) + 1, to + 1):
 		var u: Dictionary = Clearance.tier(i).get("unlock", {})
 		if not u.is_empty():
-			lines.append(["UNLOCKED: " + str(u.get("name", "")), Term.AMBER, 18])
-			lines.append([str(u.get("text", "")), Term.TEXT, 16, true])
-	lines.append(["SCANNER CALIBRATION: READING TIME -%d%%" % roundi(5.0 * to), Term.MUTED, 16])
-	toast.push("[CLEARANCE ELEVATED]", lines)
+			lines.append({"kind": "rule"})
+			lines.append({"kind": "pair", "left": "UNLOCKED", "right": str(u.get("name", "")).to_upper(), "color": Term.GREEN})
+			lines.append({"kind": "text", "text": str(u.get("text", "")), "size": 15, "color": Term.TEXT_DIM, "wrap": true})
+	lines.append({"kind": "rule"})
+	lines.append({"kind": "pair", "left": "SCANNER CALIBRATION", "right": "READING TIME -%d%%" % roundi(5.0 * to)})
+	toast.push("CLEARANCE ELEVATED", lines)
 
 # ---- carried items ------------------------------------------------------------------------
 ## Floor pickups (World/props) hand themselves in here; false when there's no room, so the
@@ -407,10 +425,11 @@ func pick_up_item(id: String, title: String, desc: String, code: String, stack: 
 		return false
 	if id == BatteryPickup.ITEM_ID and not battery_hint_shown:
 		battery_hint_shown = true
-		toast.push("[ITEM RECOVERED]", [
-			[title.to_upper(), Term.AMBER, 20],
-			["STACKS UP TO %d  //  TAB TO VIEW" % stack, Term.TEXT, 17],
-			["[R] LOADS ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+		toast.push("ITEM RECOVERED", [
+			{"kind": "head", "code": code, "name": title.to_upper(), "tag": "STACKS TO %d" % stack, "tag_color": Term.AMBER},
+			{"kind": "rule"},
+			{"kind": "keys", "keys": ["R"], "text": "LOAD ONE INTO THE FLASHLIGHT"},
+			{"kind": "keys", "keys": ["TAB"], "text": "SEE WHAT YOU CARRY"},
 		])
 	return true
 

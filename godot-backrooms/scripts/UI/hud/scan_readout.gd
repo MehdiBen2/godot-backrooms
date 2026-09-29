@@ -11,6 +11,10 @@ extends Control
 ## - on a lock, corner marks travel out of the focus box onto the target, the way autofocus snaps
 ##   to a subject, with a small tag beside it (name, range); a new entry blinks them twice. From C-4
 ##   the tag adds a DEEP SCAN line: what the entity is doing right now (its scan_behavior())
+## - a signal meter under the chip (segments with a peak that holds, then falls back), the sensing
+##   field marked out round the middle of the view, the instrument's name and your clearance code on
+##   it, and interference in the picture (the grade's grain and slipping lines) that clears as the
+##   signal firms up and is gone on a lock
 ## The marks, scale and text are drawn inside a crt_layer.gd so they glow, flicker and tear like
 ## the TAB terminal. Lines are thin (LINE_W): it sits over the view while you play. Every string is
 ## measured and trimmed to the room it has (_fit).
@@ -28,6 +32,10 @@ const MINOR := [3, 4, 7, 15, 25]
 const CHIP_TOP := 42.0
 const LINE_W := 1.5
 const BEARING_AHEAD := 6.0       # degrees: a signal this close to the view reads DEAD AHEAD (C-3)
+const METER_SEGS := 20
+const METER_TOP := CHIP_TOP + 30.0
+const FIELD := Vector2(0.56, 0.56)   # the sensing field's marks, as a share of the screen
+const FIELD_ARM := 26.0
 const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED ON", "logged": "ENTRY LOGGED", "on_file": "ALREADY ON FILE"}
 const HINT := {
 	"idle": "",
@@ -50,6 +58,9 @@ var last_state := "idle"
 var snap := 1.0                  # 0..1: the lock marks travelling from the focus box to the target
 var confirm := 0.0               # seconds left of the "logged" double blink
 var unfold := 1.0                # 0..1: the scale drawing out from the middle as scan mode comes on
+var peak := 0.0                  # the meter's peak-hold segment, 0..1
+var peak_hold := 0.0             # seconds before the peak starts to fall back
+var interference := 1.0          # eased (1 - signal): the grade's grain and slipping lines
 var fit_cache := {}
 
 func _ready() -> void:
@@ -94,6 +105,17 @@ func _process(dt: float) -> void:
 		layer.running = false
 		return
 	grade_mat.set_shader_parameter("amount", _smooth(alpha))
+	var sig: float = scanner.signal_strength
+	var clear := 1.0 if _locked(st) else sig
+	interference = move_toward(interference, 1.0 - clear, dt * 2.5)
+	grade_mat.set_shader_parameter("interference", interference)
+	if sig >= peak:
+		peak = sig
+		peak_hold = 0.9
+	else:
+		peak_hold -= dt
+		if peak_hold <= 0.0:
+			peak = move_toward(peak, sig, dt * 0.5)
 	if not layer.running:        # coming on: the scale draws out through a tear
 		layer.running = true
 		unfold = 0.0
@@ -122,7 +144,9 @@ func _draw_canvas() -> void:
 	if st == "logged": col = Term.GREEN
 	elif st == "on_file": col = Term.TEXT
 	var c := canvas.size * 0.5
+	_draw_field(c)
 	_draw_chip(c.x)
+	_draw_meter(c.x, col, st)
 	_draw_focus(c, st)
 	_draw_lock(c, st, col)
 	_draw_scale(c.x, canvas.size.y - SCALE_BOTTOM, st, col)
@@ -137,6 +161,43 @@ func _draw_chip(cx: float) -> void:
 	var x := cx - (w + 18.0) * 0.5
 	canvas.draw_rect(Rect2(x, CHIP_TOP + 4.0, 9.0, 9.0), _a(Term.AMBER))
 	_text(Vector2(x + 18.0, CHIP_TOP + 16.0), label, 18, _a(Term.AMBER), w + 4.0, HORIZONTAL_ALIGNMENT_LEFT, wide)
+
+## The signal meter under the chip: SIG, then a row of segments lit to the signal, with the peak
+## segment held a moment after the signal drops. On a lock it fills in the result colour.
+func _draw_meter(cx: float, col: Color, st: String) -> void:
+	var seg := Vector2(8.0, 6.0)
+	var gap := 3.0
+	var w := METER_SEGS * (seg.x + gap) - gap
+	var x0 := cx - w * 0.5 + 16.0
+	var y := METER_TOP
+	_text(Vector2(x0 - 12.0, y + seg.y + 1.0), "SIG", 13, _a(Term.TEXT, 0.55), 40.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	var locked := _locked(st)
+	var lit := roundi((1.0 if locked else float(scanner.signal_strength)) * METER_SEGS)
+	var pk := clampi(roundi(peak * METER_SEGS) - 1, 0, METER_SEGS - 1)
+	for i in METER_SEGS:
+		var r := Rect2(x0 + i * (seg.x + gap), y, seg.x, seg.y)
+		if i < lit:
+			canvas.draw_rect(r, _a(col if locked else Term.AMBER, 0.9))
+		elif i == pk and peak > 0.03 and not locked:
+			canvas.draw_rect(r, _a(Term.AMBER, 0.6))
+		else:
+			canvas.draw_rect(r, _a(Term.TEXT, 0.12))
+
+## The sensing field: thin corner marks and centre ticks round the middle of the view, the
+## instrument's name over its top-left corner and the clearance it reads at over the top-right
+func _draw_field(c: Vector2) -> void:
+	var fs := canvas.size * FIELD
+	var r := Rect2(c - fs * 0.5, fs)
+	var k := _a(Term.TEXT, 0.26)
+	_brackets(r, FIELD_ARM, k, LINE_W)
+	for m in [Vector2(r.get_center().x, r.position.y), Vector2(r.get_center().x, r.end.y)]:
+		canvas.draw_line(m - Vector2(0.0, 5.0), m + Vector2(0.0, 5.0), k, LINE_W)
+	for m in [Vector2(r.position.x, r.get_center().y), Vector2(r.end.x, r.get_center().y)]:
+		canvas.draw_line(m - Vector2(5.0, 0.0), m + Vector2(5.0, 0.0), k, LINE_W)
+	var ty := r.position.y - 10.0
+	_text(Vector2(r.position.x, ty), "T.S.R.A. FIELD SCANNER", 13, _a(Term.TEXT, 0.4), fs.x * 0.45)
+	_text(Vector2(r.end.x, ty), "CLEARANCE " + str(Clearance.tier().get("code", "C-0")), 13, _a(Term.TEXT, 0.4),
+		fs.x * 0.45, HORIZONTAL_ALIGNMENT_RIGHT)
 
 ## Four corner brackets: the box, and how long their arms are
 func _brackets(r: Rect2, arm: float, color: Color, width: float) -> void:
