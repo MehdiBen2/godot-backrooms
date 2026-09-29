@@ -132,9 +132,9 @@ func _fit_corner(who: Vector3) -> void:
 	# hugging the face, how far along it they first see its middle
 	var k := STALK_WALL_GAP / (STALK_WALL_GAP - v_p)
 	var seen := -u_p * k / (1.0 - k)
-	# peeking, its body stays short of that: it leans its head and shoulder out, not its legs
+	# peeking, a sliver of its body shows past the edge, with the head and shoulder leaned well out
 	var hide_u := minf(seen - 1.5, -0.9)
-	var peek_u := clampf(seen - 0.4, hide_u + 0.4, 0.3)
+	var peek_u := clampf(seen + 0.15, hide_u + 0.4, 0.5)
 	var hide := edge + s * hide_u + nrm * STALK_WALL_GAP
 	var peek := edge + s * peek_u + nrm * STALK_WALL_GAP
 	for q: Vector3 in [hide, peek, (hide + peek) * 0.5]:

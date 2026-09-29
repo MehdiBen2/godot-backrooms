@@ -299,9 +299,14 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		if interested:
 			var look_dir := Vector2(to_p.x, to_p.z).normalized()
 			if st == "stalk" and e.peek_dir != 0.0:
-				# behind its corner it looks along the wall to the edge; only leaning out does it turn to you
+				# behind its corner it looks along the wall to the edge; it turns its long skull to you only
+				# once its head is clear past the edge, or the skull would swing through the wall
 				var sd: Vector3 = e.stalk_side
-				look_dir = look_dir.lerp(Vector2(sd.x, sd.z), 1.0 - head_out)
+				var clear := head_out
+				if e.stalk_wall_n != Vector3.ZERO:
+					var hu: float = (get_head_global_pos() - e.stalk_corner).dot(sd)
+					clear = minf(clear, clampf((hu - 0.2) / 0.5, 0.0, 1.0))
+				look_dir = look_dir.lerp(Vector2(sd.x, sd.z), 1.0 - clear)
 			# turned further than a neck should
 			look_rel = clampf(wrapf(atan2(look_dir.x, look_dir.y) - e.yaw, -PI, PI), -2.3, 2.3)
 		else:
