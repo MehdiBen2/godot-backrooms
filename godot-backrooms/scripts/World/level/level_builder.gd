@@ -1,11 +1,12 @@
 extends "res://scripts/World/level/level_lighting.gd"
-## Builds a backrooms level from levels/levels.json (the same data the web game uses) and runs it:
-## a port of the web game's level.js. The work is split into layers, each extending the one before:
+## Builds a backrooms level from levels/levels.json (edited with the level editor in level-editor/)
+## and runs it; it began as a port of the web game's level.js. The work is split into layers, each
+## extending the one before:
 ## level_data.gd (the grid), level_geometry.gd (walls, floors, ceilings, pits, grime), level_fixtures.gd
 ## (the troffers, flicker, power cuts), level_light_pool.gd (the real lights that follow you) and
 ## level_lighting.gd (GI, fog, eye adaptation, glare). This last layer
-## puts them together and adds the exit, the battery packs, the rolls of hazard tape and the tape
-## already stuck up in this level (tape_marks.gd).
+## puts them together and adds the exit, the battery packs, the rolls of hazard tape, the spare camera
+## flashes and the tape already stuck up in this level (tape_marks.gd).
 ##
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
@@ -16,6 +17,8 @@ const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
+const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
+const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
 
 var exit_door: Node3D
 
@@ -27,6 +30,7 @@ func _ready() -> void:
 	_build_exit()
 	_spawn_batteries()
 	_spawn_tape()
+	_spawn_flashes()
 	var marks := TapeMarks.new()
 	marks.name = "TapeMarks"
 	add_child(marks)
@@ -76,6 +80,10 @@ func _spawn_batteries() -> void:
 # ---------------------------------------------------------------- hazard tape
 func _spawn_tape() -> void:
 	_scatter(func(): return TapePickup.new(), TAPE_PER_CELLS, 1, 2)
+
+# ---------------------------------------------------------------- camera flashes
+func _spawn_flashes() -> void:
+	_scatter(func(): return FlashPickup.new(), FLASH_PER_CELLS, 1, 2)
 
 ## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),
 ## none right at the spawn point

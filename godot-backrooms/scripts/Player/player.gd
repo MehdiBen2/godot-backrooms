@@ -408,6 +408,11 @@ func jolt(amount: float) -> void:
 func quake(amount: float) -> void:
 	quake_amt = maxf(quake_amt, clampf(amount, 0.0, 1.0))
 
+# Face to face with the bacteria up close: your torch arm jerks up in front of your face
+func flinch() -> void:
+	if torch != null and not dead and not frozen:
+		torch.flinch()
+
 # Adrenaline: the bacteria calls this every frame with whether it is hunting you close by
 func update_adrenaline(dt: float, hunted: bool) -> void:
 	if dead or frozen: hunted = false
@@ -488,7 +493,7 @@ func _update_flashlight(dt: float) -> void:
 	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 6.0 * dt))
 	var lens := cam.global_position
 	if torch != null and torch.visible:
-		lens = torch.global_transform.origin - torch.global_transform.basis.z * TorchModel.LENGTH
+		lens = torch.lens()
 	# Eased so the light can't jump the half-metre when the lens crosses from clear air into a wall.
 	# Over 2 m away is a teleport (respawn, level change), not a step: snap rather than fly across it.
 	var where := _lens_clear_of_walls(cam.global_position, lens)

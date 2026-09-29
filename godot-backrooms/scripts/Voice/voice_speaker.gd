@@ -5,6 +5,9 @@ extends Node3D
 ## Walls: the level grid is sampled between you and them. Every metre of wall drags a two-stage low-pass down
 ## (a shout through a door is a dull mumble, through two rooms it is barely there) and lowers the volume.
 ## Each speaker owns a small audio bus (Voice_<id>) holding those filters, so occlusion is per person.
+##
+## It also keeps what they said: each utterance (TAKE_MIN..TAKE_MAX s, cut at the first silence) goes to
+## Voice.remember_clip(), and THE MIMIC (mimic.gd) plays one back when it is wearing their face.
 
 const Adpcm := preload("res://scripts/Voice/adpcm.gd")
 const RATE := 16000
@@ -19,6 +22,8 @@ const MUFFLE_PER_M := 0.6             # cutoff *= exp(-this * metres of wall)
 const MIN_CUTOFF := 380.0
 const DB_PER_M := 2.2
 const MAX_WALL_DB := 14.0
+const TAKE_MIN := 0.6                 # s: shorter than this is a cough, not something worth repeating
+const TAKE_MAX := 4.0                 # s kept of one utterance (the start of it)
 
 var id := 0
 var spatial := true                   # false = the "hear yourself" test: plain stereo, no walls
@@ -37,6 +42,7 @@ var _lp2: AudioEffectLowPassFilter
 var _cut := OPEN_CUTOFF
 var _wall_db := 0.0
 var _occl_t := 0.0
+var _take := PackedFloat32Array()     # what they are saying right now, for Voice.remember_clip
 
 func setup(peer_id: int, is_spatial := true) -> void:
 	id = peer_id
@@ -87,6 +93,8 @@ func feed(block: PackedByteArray) -> void:
 	var samples: PackedFloat32Array = Adpcm.decode_block(block)
 	if samples.is_empty():
 		return
+	if spatial and _take.size() < int(TAKE_MAX * RATE):
+		_take.append_array(samples)
 	var frame := PackedVector2Array()
 	frame.resize(samples.size())
 	for i in samples.size():
@@ -101,6 +109,10 @@ func speaking() -> bool:
 
 func _process(dt: float) -> void:
 	_push()
+	if not _take.is_empty() and not speaking():       # they stopped talking: keep it if it is a real sentence
+		if _take.size() >= int(TAKE_MIN * RATE):
+			Voice.remember_clip(id, _take)
+		_take = PackedFloat32Array()
 	var player: Node = _p3 if spatial else _p2
 	if player == null:
 		return

@@ -11,7 +11,7 @@ const SHUFFLE_POOL := 10                     # the this-many standing decoys nea
 const SHUFFLE_RANGE := 16.0
 const STALK_STEP := 0.9
 const STALK_MIN_DIST := 2.2                  # it never crowds closer than this by itself
-const VARIANT_CHANCE := 0.18                 # of the standing decoys, how many wear the plain sculpt
+const VARIANT_CHANCE := 0.32                 # of the standing decoys, how many wear a plain sculpt (any one of them)
 
 var m: Node3D                                # mannequin.gd
 var decoys: Array = []                       # {x, z, yaw, pose, g, body, variant}
@@ -60,16 +60,18 @@ func build(dealt: Array) -> void:
 		var is_variant: bool = model.variant_ok and mode == "stand" and m.rng.randf() < VARIANT_CHANCE
 		d["variant"] = is_variant
 		if is_variant:
+			var vidx: int = m.rng.randi() % model.variant_count()   # which sculpt this decoy wears
+			d["vidx"] = vidx
 			for j in model.parts.size():
 				(mms[j] as MultiMesh).set_instance_transform(i, zero)
 			d["g"] = g
-			var vn := model.make_variant(d.pose, MannequinModel.variant_style(m.rng))
+			var vn := model.make_variant(d.pose, MannequinModel.variant_style(m.rng), vidx)
 			if vn != null:                   # rigged: its own posed copy
-				vn.transform = g * model.variant_root_xf
+				vn.transform = g * model.variant_root_xf_at(vidx)
 				m.add_child(vn)
 				d["vnode"] = vn
 			else:                            # no rig: the shared mesh at rest
-				variant_mm.set_instance_transform(i, g * model.variant_xf)
+				variant_mm.set_instance_transform(i, g * model.variant_xf_at(vidx))
 		else:
 			var xfs := model.part_transforms(d.pose)
 			var base := MannequinModel.mode_base(mode, m.rng)
@@ -113,11 +115,12 @@ func _place(i: int, x: float, z: float, yaw: float) -> void:
 	d.yaw = yaw
 	d.g = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, 0.0, z))
 	if d.get("variant", false):
+		var vidx: int = d.get("vidx", 0)
 		var vn = d.get("vnode")
 		if vn != null and is_instance_valid(vn):
-			(vn as Node3D).transform = d.g * m.model.variant_root_xf
+			(vn as Node3D).transform = d.g * m.model.variant_root_xf_at(vidx)
 		else:
-			variant_mm.set_instance_transform(i, d.g * m.model.variant_xf)
+			variant_mm.set_instance_transform(i, d.g * m.model.variant_xf_at(vidx))
 	else:
 		var xfs: Array = m.model.part_transforms(d.pose)
 		for j in xfs.size():

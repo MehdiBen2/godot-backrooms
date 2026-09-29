@@ -27,6 +27,8 @@ var heart: Node               # the heartbeat engine (heart.gd): threats feed it
 var pulse := 0.0              # heartbeat envelope 0..1 for the tunnel vision
 var dead := false
 var death_reason := ""
+var run_unix := 0             # unix time this life started (main.gd): the death card counts from it
+var run_yield := 0            # Clearance.total when it started: the card shows what this life filed
 var death_type := DeathType.NONE
 # Grab / snap screen effects, read by the post shader (web: CSS filter/transform on the canvas + #grab-fade)
 var fx_blur := 0.0
@@ -75,7 +77,6 @@ var _overlay: DeathOverlay = null
 var _death_t := 0.0
 # This life's numbers for the death screen's RECORDING ENDED sheet (death_overlay.gd)
 var distance := 0.0           # metres walked, on the flat
-var run_yield0 := 0           # Clearance.total when this life began
 var _last_pos := Vector3.ZERO
 var _have_pos := false
 
@@ -108,7 +109,6 @@ func bind(p: Node, l: Node, m: Node) -> void:
 	main = m
 	outdoors = false          # a fresh scene always starts in the backrooms
 	distance = 0.0
-	run_yield0 = Clearance.total
 	_have_pos = false
 
 func _track_distance() -> void:
@@ -122,14 +122,22 @@ func _track_distance() -> void:
 	_last_pos = p
 	_have_pos = true
 
-## What the death screen lists: this life's time on tape, distance, entries logged and yield filed
+## What the death screen lists for this life: the HUD's tape counter when it stopped (hud.gd keeps
+## its own clock; the play time if there is no HUD), distance walked, entries logged, the yield filed
+## (against run_yield, noted by main.gd) and the tape still up from it
 func run_stats() -> Dictionary:
+	var counter := time
+	var ui: Node = main.get_node_or_null("UI") if main != null and is_instance_valid(main) else null
+	if ui != null and "t" in ui:
+		counter = float(ui.get("t"))
+	var tape_marks: GDScript = load("res://scripts/World/props/tape_marks.gd")
 	return {
-		"time": time,
+		"counter": counter,
 		"distance": distance,
 		"logged": Archive.discovered.size(),
-		"yield": maxi(0, Clearance.total - run_yield0),
+		"yield": maxi(0, Clearance.total - run_yield),
 		"unit": Clearance.unit,
+		"tape": tape_marks.laid_since(float(run_unix)) if run_unix > 0 else 0.0,
 		"level": load("res://scripts/World/level/level_data.gd").current_level_tag(),
 	}
 

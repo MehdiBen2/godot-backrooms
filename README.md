@@ -50,9 +50,10 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | Space | Jump |
 | F | Torch on/off |
 | Q (hold) | T.S.R.A. field scanner: hold on an entity near the crosshair to log it |
-| T (hold) | Reflective hazard tape: hold on a wall or the floor, look along it to pull a strip out, let go to stick it. Mark corridors you've already walked |
+| G / right click | Camera flash (2 per run, rare spares on the floor): blinds the Bacteria for a few seconds if it catches it full in the face. Get out of its sight before its eyes clear and it has lost you; stay close and in view and it comes straight back. A miss is loud |
+| T (hold) | Reflective hazard tape: hold on a wall or the floor, look along it to pull a strip out, let go to stick it. Mark corridors you've already walked. Hold on an existing strip to peel it back off (the tape goes back on the roll). Q on a strip tells you when it went down and who stuck it |
 | Tab | Inventory (T.S.R.A. field terminal) |
-| ↑ ↓ / F1–F4 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |
+| ↑ ↓ / F1–F5 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |
 | V | Push-to-talk (when voice is set to push-to-talk) |
 | Esc | Pause / settings |
 | F11 or Alt+Enter | Fullscreen |
@@ -67,6 +68,9 @@ Up to 8 players. One PC hosts a WebSocket server on port **8910**.
   `https://….trycloudflare.com` link to share. Without it, share your IP and forward port 8910.
 - **Join:** paste the link (or `ip[:port]`) into JOIN.
 - The host runs the monsters and the event director; everyone else follows the host's level.
+- The Mimic walks where someone walked a few minutes ago, step for step (stops, crouches, torch and
+  all), wearing their face in co-op: their colour, their name tag, and now and then something they said
+  lately, in their voice. It never looks like you. Only the field scanner (Q) locks onto it.
 - Everyone must run the same release. Mismatched builds are refused with a *VERSION MISMATCH* message.
   If you change any RPC in `scripts/Net/net.gd`, bump `PROTOCOL` there.
 
@@ -92,6 +96,12 @@ entities appear there) comes from `levels/asra_dossiers.json`, keyed by the leve
 the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and
 unlock once the player scans the entity with the field scanner; they are read on the terminal's [F3] ENTRIES page
 (debug console: `archive list` / `archive reset`).
+
+Scanning also earns Research Yield toward the player's T.S.R.A. clearance tier (`levels/asra_clearance.json`;
+yield rules in `scripts/GameLogicEngine/asra_clearance.gd`). Tiers unlock the dossiers' classified annexes (C-2),
+the scanner's range-finder (C-3) and its deep scan (C-4). The terminal's [F5] CLEARANCE page is the player's
+service record: tier ladder, privileges, yield by source and by entity, and the filing log (debug console:
+`clearance`, `clearance add <n>`, `clearance reset`).
 
 ## Releasing
 

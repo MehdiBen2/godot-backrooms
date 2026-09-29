@@ -18,6 +18,7 @@ var screen: TextureRect
 var mat: ShaderMaterial
 var bloom: CrtBloom
 var glow := CrtFlicker.new()
+var glow_scale := 1.0                # of the terminal's glow this layer gets
 var glitch := 0.0                # 0..1 tear burst, decays on its own (burst())
 var running := false: set = set_running
 
@@ -94,4 +95,4 @@ func _process(dt: float) -> void:
 		return
 	glitch = maxf(0.0, glitch - dt * 2.5)
 	mat.set_shader_parameter("glitch", maxf(glitch, Game.glitch * 0.8))
-	mat.set_shader_parameter("bloom_amt", Term.BLOOM * glow.update(dt))
+	mat.set_shader_parameter("bloom_amt", Term.BLOOM * glow_scale * glow.update(dt))

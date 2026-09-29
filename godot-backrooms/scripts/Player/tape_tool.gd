@@ -9,6 +9,9 @@ extends Node
 ## Built by hud.gd; tape_readout.gd draws the tape mode HUD off `state`, `length`, `limit`,
 ## `surface`, `anchor` / `tip`, `roll_left` and the result of the last pull (`result_t`, `result_len`,
 ## `result_ry`).
+## Hold T on a strip already stuck up (anyone's) and it peels back off, end first; held to the
+## end, it comes away and its length goes back on the roll (a roll comes back into the inventory
+## if you had none left). Let go early and it presses back down.
 ## Each strip also maps the level: the grid cells it marks go to Clearance.file_survey() and pay
 ## Research Yield the first time (asra_clearance.gd).
 
@@ -23,7 +26,9 @@ const WORLD_MASK := 1            # level geometry only
 const PULL_EASE := 16.0          # 1/s: how quickly the tape catches up with your aim
 const SUPPORT_STEP := 0.15       # m between checks that there is still surface under the strip
 const GRAIN_EVERY := 0.045       # m of tape per crackle
-const RESULT_TIME := 1.4         # s the readout shows how the last pull went
+const PEEL_SPEED := 9.0          # m/s a strip peels back
+const PEEL_MIN := 0.35           # s: even a short one takes this long
+const RESULT_TIME := 1.4        # s the readout shows how the last pull went
 const GRAINS := ["tape_grain_0.wav", "tape_grain_1.wav", "tape_grain_2.wav", "tape_grain_3.wav"]
 
 var player: Node                 # player.gd (set by hud.gd)
@@ -33,7 +38,9 @@ var pulling := false
 var length := 0.0                # m pulled out on the strip in hand
 var roll_left := TapePickup.ROLL_LENGTH
 var latched := false             # a press that found nothing to stick to: let go of T first
-var state := "idle"              # idle / pull / placed / short / no_surface
+var peeling := false
+var peel_full := 0.0             # m in the strip being peeled
+var state := "idle"              # idle / pull / placed / short / no_surface / no_tape / peel / peeled
 var result_t := 0.0              # s left showing placed / short / no_surface
 var result_len := 0.0            # m in the strip just placed
 var result_ry := 0               # Research Yield it filed for mapping new ground (0: none new)
@@ -44,6 +51,8 @@ var anchor := Vector3.ZERO       # the pressed-down end
 var normal := Vector3.UP         # the surface it's on
 var tip := Vector3.ZERO          # the free end, eased
 var _grain_acc := 0.0
+var _peel := {}                  # the strip being peeled (tape_marks.gd)
+var _peel_k := 1.0               # how much of it is still stuck down
 var _preview: MeshInstance3D
 var _preview_mesh := ArrayMesh.new()
 var _sfx: Array[AudioStreamPlayer] = []
@@ -58,19 +67,24 @@ func _ready() -> void:
 
 func _process(dt: float) -> void:
 	result_t = maxf(0.0, result_t - dt)
-	if not pulling and result_t <= 0.0:
+	if not pulling and not peeling and result_t <= 0.0:
 		state = "idle"
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors \
-		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item(TapePickup.ITEM_ID)
+		and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	var down := can and Input.is_physical_key_pressed(KEY)
 	if not down:
 		latched = false
 		if pulling:
 			if can: _tear_off()
 			else: _cancel()          # menu / terminal / death mid-pull: the strip goes back on the roll
+		elif peeling:
+			_stop_peel()             # let go early: it presses back down
 		return
 	if latched:
+		return
+	if peeling:
+		_peel_step(dt)
 		return
 	if not pulling:
 		_start()
@@ -87,6 +101,15 @@ func _start() -> void:
 		latched = true
 		player.dead_click.emit()     # nothing in reach to stick it to
 		_result("no_surface", 0.0)
+		return
+	var on: Dictionary = TapeMarks.live.strip_at(hit.position, hit.normal)
+	if not on.is_empty():
+		_begin_peel(on)
+		return
+	if not inventory.has_item(TapePickup.ITEM_ID):
+		latched = true
+		player.dead_click.emit()     # no roll left
+		_result("no_tape", 0.0)
 		return
 	pulling = true
 	state = "pull"
@@ -194,6 +217,67 @@ func _tear_off() -> void:
 	if roll_left < MIN_STRIP:                  # that roll is done: the next one comes out
 		inventory.remove_item(TapePickup.ITEM_ID)
 		roll_left = TapePickup.ROLL_LENGTH
+
+# ---- peeling a strip back off ---------------------------------------------------------------
+func _begin_peel(s: Dictionary) -> void:
+	peeling = true
+	state = "peel"
+	limit = "PEEL"
+	_peel = s
+	_peel_k = 1.0
+	anchor = s.a
+	normal = s.n
+	tip = s.b
+	peel_full = anchor.distance_to(tip)
+	length = peel_full
+	_grain_acc = 0.0
+	surface = "WALL"
+	if normal.y > 0.7: surface = "FLOOR"
+	elif normal.y < -0.7: surface = "CEILING"
+	_play(GRAINS[randi() % GRAINS.size()], -6.0, 0.8)
+
+func _peel_step(dt: float) -> void:
+	var live = TapeMarks.live
+	if live == null or not live.has_strip(_peel.id):
+		peeling = false                          # someone else took it first
+		state = "idle"
+		length = 0.0
+		return
+	var prev := length
+	_peel_k -= dt / maxf(PEEL_MIN, peel_full / PEEL_SPEED)
+	if _peel_k <= 0.0:
+		_finish_peel()
+		return
+	live.set_extent(_peel.id, _peel_k)
+	tip = anchor.lerp(_peel.b, _peel_k)
+	length = peel_full * _peel_k
+	_grain_acc += maxf(0.0, prev - length)
+	if _grain_acc >= GRAIN_EVERY * 3.0:      # peeling crackles coarser than unrolling
+		_grain_acc = fmod(_grain_acc, GRAIN_EVERY * 3.0)
+		_play(GRAINS[randi() % GRAINS.size()], -8.0, randf_range(0.7, 0.95))
+
+func _finish_peel() -> void:
+	TapeMarks.live.remove(_peel.id)
+	peeling = false
+	latched = true                               # T is still down: don't start a new strip at once
+	length = 0.0
+	if inventory.has_item(TapePickup.ITEM_ID):
+		roll_left = minf(TapePickup.ROLL_LENGTH, roll_left + peel_full)
+	else:
+		inventory.add_item(TapePickup.ITEM_ID, TapePickup.ITEM_NAME, TapePickup.ITEM_DESC, 1,
+			TapePickup.ITEM_CODE, TapePickup.STACK, TapePickup.MODEL_PATH)
+		roll_left = maxf(peel_full, MIN_STRIP)
+	_play("tape_rip.wav", -6.0, randf_range(0.75, 0.9))
+	_result("peeled", peel_full)
+
+func _stop_peel() -> void:
+	var live = TapeMarks.live
+	if live != null and live.has_strip(_peel.id):
+		live.set_extent(_peel.id, 1.0)
+	peeling = false
+	length = 0.0
+	state = "idle"
+	result_t = 0.0
 
 func _cancel() -> void:
 	_clear()

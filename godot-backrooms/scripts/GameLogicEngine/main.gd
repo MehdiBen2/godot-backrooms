@@ -11,6 +11,8 @@ func _ready() -> void:
 	level.player = player
 	Game.bind(player, level, self)
 	Archive.forget_all()          # no save feature yet: every level start logs entities from scratch
+	Game.run_unix = int(Time.get_unix_time_from_system())
+	Game.run_yield = Clearance.total
 	Game.dead = false
 	Death.warmup.call_deferred()
 	ui.apply_settings()

@@ -153,16 +153,16 @@ func play_scare(name: String, a = null, b = null) -> void:
 	match name:
 		"footThump":
 			var v := float(b) if b != null else 0.8
-			spawn3d(synth("thump"), a, v * 1.6, "Scares", 4.0, rng.randf_range(0.85, 1.1))
+			spawn3d(synth("thump"), a, v * 0.9, "Scares", 4.0, rng.randf_range(0.85, 1.1))
 		"vanish":
-			spawn_flat(synth("vanish"), 0.6)
+			spawn_flat(synth("vanish"), 0.5)
 		"restrike":
 			if _stream(TUBE_RESTRIKE) != null:
 				spawn_flat(_stream(TUBE_RESTRIKE), 0.8)
 		"drone":
 			spawn_flat(synth("drone", float(a) if a != null else 14.0), 0.9)
 		"staticHit":
-			spawn_flat(synth("static_hit"), 0.7 * (float(a) if a != null else 1.0))
+			spawn_flat(synth("static_hit"), 0.55 * (float(a) if a != null else 1.0))
 		"gridOff", "gridoff":
 			grid_off(a if a is Vector3 else Vector3.INF)
 
@@ -204,7 +204,7 @@ func entity_static() -> void:
 	spawn_flat(synth("static"), 0.5, "Scares", rng.randf_range(0.9, 1.15))
 
 func startle(amount := 0.5) -> void:
-	spawn_flat(synth("stinger"), clampf(amount * 1.2, 0.1, 1.2))
+	spawn_flat(synth("stinger"), clampf(amount * 0.8, 0.1, 0.8))
 
 # The bite (tithuh-blood-the-screaming, from the web game). The grab calls this for the bite and each
 # rip after it: the scream plays ONCE per death, the rips get the synthesized wet hit only.

@@ -4,8 +4,11 @@ extends Control
 ## bright carpet and wallpaper:
 ## - on the strip's free end in the view: a ring, a short leader and a tag with the length (and,
 ##   in orange, what stops the strip growing: EDGE / CORNER / MAX / ROLL LOW)
-## - under the crosshair, a small panel: TAPE and the length over a bar, the roll under it; after
-##   a pull, PLACED and the Research Yield the strip earned for mapping
+## - beside the crosshair, a small panel: TAPE and the length over a bar, the roll under it; after
+##   a pull, PLACED and the Research Yield the strip earned for mapping; PEELING / RECOVERED when
+##   a strip comes back off (tape_tool.gd). It sits on the side of the
+##   crosshair away from the strip (the left, unless the strip runs off to the left), so it never
+##   covers the tape; the length tag goes on the other side.
 ##
 ##   ┌──────────────────────────────┐
 ##   │ TAPE                  3.42 M │
@@ -18,7 +21,9 @@ const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 
 const SCALE := 1.15              # hud.gd SCALE
 const WIDTH := 270.0
-const BELOW := 70.0              # px from the crosshair down to the panel
+const GAP := 44.0                # px between the crosshair and the panel's near edge
+const RAISE := 20.0              # the panel's middle sits this far above the crosshair
+const FLIP_MARGIN := 90.0        # px the strip has to be over on the panel's side before it moves
 const PX := 15                   # text size before SCALE
 const TEXT := Color("f2ecd2")    # brighter than the meters: this sits mid-screen over lit carpet
 const LABEL := Color("e8d9a0")
@@ -27,7 +32,7 @@ const FILL := Color("f4c21a")    # the tape's yellow
 const LOW := Color("ff9a3a")
 const GOOD := Color("9fe08a")
 const BACK := Color(0.02, 0.02, 0.015, 0.62)
-const LIMITS := {"MAX": "MAX", "ROLL": "ROLL LOW", "CORNER": "CORNER", "EDGE": "EDGE"}
+const LIMITS := {"MAX": "MAX", "ROLL": "ROLL LOW", "CORNER": "CORNER", "EDGE": "EDGE", "PEEL": "PEELING"}
 
 var tape: Node                   # tape_tool.gd (set by hud.gd)
 var inventory: Node
@@ -42,6 +47,8 @@ var status: Label
 var marker: Control              # the ring and tag on the strip's end
 var shown := 0.0                 # the bar, eased after the tape
 var alpha := 0.0
+var side := -1.0                 # the panel's side of the crosshair: -1 left, 1 right
+var panel_x := 0.0               # eased left edge of the panel, from the crosshair
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -65,12 +72,11 @@ func _build_panel() -> void:
 	sb.set_content_margin_all(10)
 	sb.content_margin_left = 14
 	panel.add_theme_stylebox_override("panel", sb)
-	panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	panel.anchor_left = 0.5; panel.anchor_right = 0.5
 	panel.anchor_top = 0.5; panel.anchor_bottom = 0.5
-	var w := WIDTH * SCALE
-	panel.offset_left = -w * 0.5; panel.offset_right = w * 0.5
-	panel.offset_top = BELOW; panel.offset_bottom = BELOW
-	panel.grow_vertical = Control.GROW_DIRECTION_END
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel_x = -GAP - WIDTH * SCALE
+	_place_panel()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	var v := VBoxContainer.new()
@@ -131,7 +137,15 @@ func _process(dt: float) -> void:
 	marker.queue_redraw()
 	if alpha <= 0.0:
 		return
-	var roll := "ROLL %.1f M" % maxf(0.0, float(tape.roll_left) - float(tape.length))
+	if st == "pull" or st == "peel":
+		_pick_side()
+	var goal := -GAP - WIDTH * SCALE if side < 0.0 else GAP
+	panel_x = goal if alpha < 0.05 else lerpf(panel_x, goal, minf(1.0, dt * 10.0))
+	_place_panel()
+	var on_roll := float(tape.roll_left) - float(tape.length)
+	if st == "peel":                              # peeling winds it back on
+		on_roll = minf(TapePickup.ROLL_LENGTH, float(tape.roll_left) + float(tape.peel_full) - float(tape.length))
+	var roll := "ROLL %.1f M" % maxf(0.0, on_roll)
 	var rolls: int = inventory.item_count(TapePickup.ITEM_ID) if inventory else 1
 	if rolls > 1:
 		roll += "  x%d" % rolls
@@ -171,14 +185,57 @@ func _process(dt: float) -> void:
 			_text(value, "--")
 			_text(foot, "NOTHING IN REACH")
 			_text(status, "")
+		"no_tape":
+			_text(title, "NO TAPE")
+			_text(value, "")
+			_text(foot, "FIND A ROLL, OR PEEL A STRIP BACK")
+			_text(status, "")
+		"peel":
+			_text(title, "PEELING")
+			_text(value, "%.2f M" % tape.length)
+			_text(foot, roll)
+			_text(status, "HOLD")
+			_color(status, DIM)
+			frac = tape.length / maxf(float(tape.peel_full), 0.01)
+			fill_col = LOW
+		"peeled":
+			_text(title, "RECOVERED")
+			_text(value, "%.2f M" % tape.result_len)
+			_text(foot, roll)
+			_text(status, "")
 	_color(foot, foot_col)
 	shown = lerpf(shown, clampf(frac, 0.0, 1.0), minf(1.0, dt * 14.0))
 	fill.color = fill_col
 	fill.size = Vector2(track.size.x * shown, track.size.y)
 
+func _place_panel() -> void:
+	panel.offset_left = panel_x
+	panel.offset_right = panel_x + WIDTH * SCALE
+	panel.offset_top = -RAISE
+	panel.offset_bottom = -RAISE
+
+## The panel goes on the side of the crosshair the strip isn't on: where the stuck end shows on
+## screen (or, off screen / behind you, which way it lies), with some slack so it doesn't flicker
+## across as the strip swings past the middle
+func _pick_side() -> void:
+	var cam: Camera3D = tape.player.cam
+	if cam == null:
+		return
+	var a: Vector3 = tape.anchor
+	var cx := size.x * 0.5
+	var dx := 0.0
+	if not cam.is_position_behind(a):
+		dx = cam.unproject_position(a).x - cx
+	else:
+		dx = (cam.global_transform.affine_inverse() * a).x * 1000.0
+	if side < 0.0 and dx < -FLIP_MARGIN:
+		side = 1.0
+	elif side > 0.0 and dx > FLIP_MARGIN:
+		side = -1.0
+
 ## The ring on the strip's free end, a leader up and out, and the length on a dark tag
 func _draw_marker() -> void:
-	if alpha <= 0.0 or not tape or tape.state != "pull":
+	if alpha <= 0.0 or not tape or not (tape.state == "pull" or tape.state == "peel"):
 		return
 	var cam: Camera3D = tape.player.cam
 	var tip: Vector3 = tape.tip
@@ -193,11 +250,13 @@ func _draw_marker() -> void:
 	marker.draw_arc(p, 10.0, 0.0, TAU, 32, shadow, 5.0, true)
 	marker.draw_arc(p, 10.0, 0.0, TAU, 32, Color(col, a), 2.5, true)
 	marker.draw_circle(p, 2.5, Color(col, a))
-	# leader: up and to the side with room on screen
-	var side := 1.0 if p.x < size.x - 260.0 else -1.0
-	var k := p + Vector2(side * 30.0, -34.0)
-	var e := k + Vector2(side * 70.0, 0.0)
-	var pts := PackedVector2Array([p + Vector2(side * 7.0, -7.0), k, e])
+	# leader: up and to the side, away from the panel
+	var tag_side := -side                   # the other side from the panel ...
+	if p.x + tag_side * 260.0 > size.x - 20.0 or p.x + tag_side * 260.0 < 20.0:
+		tag_side = -tag_side                         # ... unless the screen ends there
+	var k := p + Vector2(tag_side * 30.0, -34.0)
+	var e := k + Vector2(tag_side * 70.0, 0.0)
+	var pts := PackedVector2Array([p + Vector2(tag_side * 7.0, -7.0), k, e])
 	marker.draw_polyline(pts, shadow, 4.5, true)
 	marker.draw_polyline(pts, Color(col, a), 2.0, true)
 	# the tag: length, and what stops it in orange under it
@@ -208,11 +267,11 @@ func _draw_marker() -> void:
 	var tw := maxf(font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, big).x,
 		font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, small).x)
 	var h := float(big) + (float(small) + 4.0 if sub != "" else 0.0) + 10.0
-	var x := e.x + 6.0 if side > 0.0 else e.x - 6.0 - tw - 16.0
+	var x := e.x + 6.0 if tag_side > 0.0 else e.x - 6.0 - tw - 16.0
 	var box := Rect2(x, e.y - big * 0.5 - 6.0, tw + 16.0, h)
 	marker.draw_rect(box, Color(BACK, BACK.a * a))
-	marker.draw_rect(Rect2(box.position.x if side > 0.0 else box.end.x - 3.0, box.position.y, 3.0, box.size.y), Color(col, a))
-	var tx := box.position.x + 8.0 + (1.0 if side > 0.0 else 0.0)
+	marker.draw_rect(Rect2(box.position.x if tag_side > 0.0 else box.end.x - 3.0, box.position.y, 3.0, box.size.y), Color(col, a))
+	var tx := box.position.x + 8.0 + (1.0 if tag_side > 0.0 else 0.0)
 	marker.draw_string_outline(font, Vector2(tx, box.position.y + 5.0 + big * 0.85), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, 4, Color(0, 0, 0, 0.9 * a))
 	marker.draw_string(font, Vector2(tx, box.position.y + 5.0 + big * 0.85), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, big, Color(TEXT, a))
 	if sub != "":

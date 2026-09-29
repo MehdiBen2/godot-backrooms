@@ -39,24 +39,45 @@ const NEAR_BOOST := 1.8                # extra level at point-blank (x2.8 overal
 const NEAR_PITCH := 0.08               # how far the bed drops in pitch as it closes in
 # tension = the mood each bed suits; gain = level trim between the recordings (tune by ear);
 # tag = which threat this bed is favoured for when it's the nearest one ("" = fine anywhere, no pull)
+# Tiers come from measuring each recording (level range over time, sudden hits per minute, brightness):
+#   calm   - steady, no hits, dark: the empty-office buzz you walk through
+#   uneasy - still quiet, but something moves in it now and then
+#   tense  - swells, booms and hits; for when something is actually out there
 const TRACKS := [
-	{"file": "ambient1.mp3", "tension": 0.15, "gain": 1.0, "tag": ""},
-	{"file": "ambient-drone.wav", "tension": 0.2, "gain": 1.0, "tag": ""},
-	{"file": "mleckert82-spooky-ambience-212885.mp3", "tension": 0.3, "gain": 1.0, "tag": ""},
-	{"file": "creepy-ambience_C_minor.wav", "tension": 0.35, "gain": 1.0, "tag": ""},
-	{"file": "creepy-ambience-long-hollow-loop_130bpm.wav", "tension": 0.45, "gain": 1.0, "tag": "Entity"},
-	{"file": "dragon-studio-dark-horror-ambient-05-425468.mp3", "tension": 0.5, "gain": 1.0, "tag": ""},
-	{"file": "universfield-horror-background-atmosphere-026-30-352879.mp3", "tension": 0.6, "gain": 1.0, "tag": ""},
-	{"file": "haunted-ambience_A#_major.wav", "tension": 0.65, "gain": 1.0, "tag": "Mannequin"},
+	# calm (range 3-10 dB, no hits)
+	{"file": "ambient1.mp3", "tension": 0.05, "gain": 1.0, "tag": ""},                          # flattest of all, long
+	{"file": "ambient-drone.wav", "tension": 0.1, "gain": 1.0, "tag": ""},                      # plain drone, short
+	{"file": "creepy-ambience_C_minor.wav", "tension": 0.15, "gain": 1.0, "tag": ""},           # low, slowly shifting
+	{"file": "creepy-ambience-long-hollow-loop_130bpm.wav", "tension": 0.25, "gain": 1.0, "tag": "Entity"},   # deep hollow pulse
+	# uneasy (a few events, brighter)
+	{"file": "mleckert82-spooky-ambience-212885.mp3", "tension": 0.35, "gain": 1.0, "tag": ""},
+	{"file": "universfield-horror-background-atmosphere-026-30-352879.mp3", "tension": 0.5, "gain": 1.0, "tag": ""},
+	# tense (range 15-28 dB, booms and hits)
+	{"file": "haunted-ambience_A#_major.wav", "tension": 0.6, "gain": 1.0, "tag": "Mannequin"},
 	{"file": "universfield-creepy-tension-background-30-352872.mp3", "tension": 0.7, "gain": 1.0, "tag": "Mimic"},
+	{"file": "dragon-studio-dark-horror-ambient-05-425468.mp3", "tension": 0.75, "gain": 1.0, "tag": ""},   # sub-bass booms, widest range
 	{"file": "universfield-dark-horror-soundscape-345814.mp3", "tension": 0.8, "gain": 1.0, "tag": ""},
 	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0, "tag": "Entity"},
 ]
+# While tension is under this, every bed at or under it counts as an equally good fit (the calm pool), so a
+# quiet walk rotates through all of them instead of the one nearest in tension winning every time.
+const CALM_POOL := 0.3
 # how much a track tagged for the nearest threat is favoured over an untagged one, scaled by `near`
 const ENTITY_PULL := 2.2
 # A far-off event is now and then this instead of footfalls: something that should not be down here
 const DISTANT_STING := "hgoliya08-scary-sound-effect-298866.mp3"
 const STING_CHANCE := 0.18
+# A track unplayed this long gets up to this much extra weight in _pick() (scales in), so all TRACKS get
+# a turn over a long session instead of the 2-3 closest in tension hogging the airtime.
+const STARVED_AFTER := 90.0
+const STARVED_BONUS := 2.0
+# Liminal dead air: instead of always starting a new bed once the gap ends, sometimes let the silence run
+# long (nothing at all, no hum of a bed) before the next one picks up. Only when things are calm - a hunt
+# or a close threat should never go quiet.
+const SILENCE_CHANCE := 0.4
+const SILENCE_MIN := 25.0
+const SILENCE_MAX := 70.0
+const SILENCE_TENSION_MAX := 0.4          # never rolled at or above this tension
 
 var audio: Node
 var player: Node
@@ -85,6 +106,9 @@ var sag := 0.0                         # a moment where the bed drags out of tun
 var sag_target := 0.0
 var sag_timer := 20.0
 var _threats := {}                     # NEAR_RANGE key -> node (looked up once)
+var _since_played := {}                # track idx -> seconds since it last played (starved bonus in _pick())
+var _in_silence := false               # a liminal silence is running (no bed; the fluorescent hum carries on)
+var _just_silent := false              # true right after a liminal silence, so the next gap always ends in a bed
 
 func _ready() -> void:
 	rng.randomize()
@@ -133,6 +157,8 @@ func _pick() -> int:
 		if live.has(i) or _stream(i) == null:
 			continue
 		var d: float = (tension - TRACKS[i].tension) / 0.28
+		if tension < CALM_POOL and TRACKS[i].tension <= CALM_POOL:
+			d = 0.0                                # calm: any calm bed fits as well as any other
 		var w := exp(-d * d) + 0.03
 		var tag: String = TRACKS[i].tag
 		if tag != "":
@@ -141,6 +167,10 @@ func _pick() -> int:
 			w *= (1.0 + ENTITY_PULL * near) if tag == near_key else (1.0 - 0.7 * near)
 		if recent.has(i):
 			w *= 0.05
+		# gone unplayed a while: nudged back in so a long session cycles through all of TRACKS instead of
+		# just the 2-3 closest in tension to whatever mood keeps coming up
+		var since: float = _since_played.get(i, STARVED_AFTER)
+		w *= 1.0 + STARVED_BONUS * clampf((since - STARVED_AFTER) / STARVED_AFTER, 0.0, 1.0)
 		weights[i] = maxf(w, 0.001)
 		total += weights[i]
 	if total <= 0.0:
@@ -177,8 +207,11 @@ func _start(i: int) -> void:
 	if recent.size() > 2:
 		recent.pop_front()
 	switch_cd = SWITCH_GAP
+	_since_played[i] = 0.0
 
 func _schedule(dt: float) -> void:
+	for i in _since_played:
+		_since_played[i] += dt
 	if audio.outdoor_mix > 0.5:               # under the open sky: let the horror beds fade out and start no new one
 		for v in voices:
 			v.dying = true
@@ -189,11 +222,24 @@ func _schedule(dt: float) -> void:
 		if not v.dying:
 			current = v
 	if current == null:
+		# things turned tense mid-silence: cut it short so a hunt never plays out in dead air
+		if _in_silence and (tension >= SILENCE_TENSION_MAX or near > 0.2):
+			gap_timer = minf(gap_timer, 1.0)
 		gap_timer -= dt * (1.0 + 6.0 * near)
 		if gap_timer <= 0.0:
+			_in_silence = false
+			# liminal dead air: skip starting anything this once and let the silence run long, so the
+			# place doesn't always have a bed under it. Never right after another silence (that would
+			# just be two long silences back to back) and never once things are tense.
+			if not _just_silent and tension < SILENCE_TENSION_MAX and rng.randf() < SILENCE_CHANCE:
+				gap_timer = rng.randf_range(SILENCE_MIN, SILENCE_MAX)
+				_just_silent = true
+				_in_silence = true
+				return
 			var i := _pick()
 			if i >= 0:
 				_start(i)
+				_just_silent = false
 			gap_timer = 20.0                       # nothing importable yet: try again shortly
 		return
 	# the mood has moved on from what is playing: crossfade to a better fit
@@ -237,7 +283,7 @@ func _update_voices(dt: float) -> void:
 			p.pitch_scale = maxf(0.5, pitch * v.dp)
 			strongest = maxf(strongest, fade)
 		i -= 1
-	audio.hum_user_target = 1.0 - 0.7 * strongest         # the synthesized hum sinks under a recorded bed
+	audio.hum_user_target = 1.0 - 0.7 * strongest        # the synthesized hum sinks under a recorded bed
 
 # Each bed wanders on its own: a new level / pitch goal every few seconds, eased into slowly
 func _drift(v: Dictionary, dt: float) -> void:

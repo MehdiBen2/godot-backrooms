@@ -74,17 +74,18 @@
     "code": "TSRA-EN-04",
     "common_name": "Reflected Subject",
     "threat_class": "Class 3",
-    "description": "A figure in a standard-issue T.S.R.A. hazmat suit that keeps to the edge of the subject's sight. It closes in while the subject's back is turned, withdraws when faced, and runs if pursued. It has only ever been recorded after a power failure.",
-    "behavior_vector": "Adopts the subject's own gait and silhouette at range before approaching under cover of misidentification.",
-    "directive": "Treat any unexplained figure matching your own profile as hostile. Do not approach to confirm.",
+    "description": "A figure in a standard-issue T.S.R.A. hazmat suit, going about its business: walking a corridor, stopping to look at a wall, crouching, switching its torch on and off. It is retracing a route a surveyor walked minutes earlier, step for step. Seen from close by, it stops and looks back.",
+    "behavior_vector": "Replays a survivor's recent movements in real time and in their likeness, entering view the way a person rounds a corner. Leaves only when unobserved.",
+    "directive": "Treat any figure where no one should be as hostile until scanned. Do not approach to confirm.",
     "classified": {
       "origin": "Every suit it has been seen wearing carries the serial number of a surveyor listed as missing. The serials never repeat. The agency has quietly stopped issuing new suits under those numbers.",
       "survival": [
-        "Face it. It only gains ground while you are turned away.",
-        "Do not chase it. It is faster than you and will draw you off your route.",
-        "During a power cut it changes: it charges you in the dark, freezing whenever you look at it. Put your torch on it and it breaks off and bolts.",
+        "It is not coming for you. It is walking where someone walked. If it moves exactly the way you did a few minutes ago, it is not a person.",
+        "Do not walk up to it. Get close and it runs, faster than you, and it knows where you have been.",
+        "It never disappears while it is watched. If a teammate won't leave your sight, keep looking.",
+        "During a power cut it drops the act: it charges you in the dark, freezing whenever you look at it. Put your torch on it and it breaks off and bolts.",
         "If it reaches you it hits hard and leaves you stunned. Get out of the dark before you check your wounds.",
-        "In co-op, confirm every teammate by voice before you walk up to them. It wears the same suit you do."
+        "In co-op it wears a teammate's face and speaks in their voice. The field scanner locks onto it. It never locks onto a person."
       ],
       "field_notes": [
         "\"It waved. I waved back. Neither of us was in any hurry after that.\" - Surveyor J. Bakr, C-1 (retired)"

@@ -5,6 +5,9 @@ shader_type canvas_item;
 // Tone mapping (ACES) and bloom come from the Godot environment.
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D lens_dirt_tex : filter_linear, repeat_disable;
+// Smears, fingerprints and fine scratches on the front glass (textures/lens_smudge.png, a Texturelabs
+// LensFX plate levelled to grey): a second layer over the dust, broader and lit by softer light
+uniform sampler2D lens_smudge_tex : hint_default_black, filter_linear, repeat_disable;
 uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.30;
 uniform float chroma_amt = 0.0028;
@@ -17,6 +20,10 @@ uniform float vhs_color_offset_multiplier : hint_range(0.0, 0.1) = 0.004;
 uniform float vhs_color_offset : hint_range(-0.1, 0.1) = 0.005;
 uniform float vhs_blur_amount : hint_range(0.0, 3.0) = 1.0;
 uniform float dirt_amt = 0.04;
+uniform float dirt_base = 0.2;     // always-on dust (lens_dirt.png), lit by the scene behind it
+uniform float smudge_amt = 0.25;
+uniform float smudge_base = 0.4;   // always-on share of the smudge layer, before the bright-light boost
+uniform float smudge_soft = 0.15;  // grease on the glass softens the picture where it's smeared
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
 uniform float glare = 0.0;        // 0..1 looking straight into a lit tube / panel (level_lighting.gd): lens dirt, halation, streaks swell
@@ -199,7 +206,7 @@ void fragment() {
 		col = mix(col, yuv_to_rgb(vec3(yuv_l.x, yuv_c.yz)), vhs);
 	}
 
-	// Camera lens dirt: subtle dust specks catching direct bright lights only, and lens halation around
+	// Camera lens dirt: dust specks and smudges catching the light (strongest facing a lamp), and lens halation around
 	// the bulbs (both off on the low preset: no extra texture reads at all)
 	if (post_quality >= 1) {
 		vec2 dirt_uv = uv;
@@ -215,11 +222,24 @@ void fragment() {
 		float dirt_l = max(dot(raw_dirt, vec3(0.299, 0.587, 0.114)) - 0.22, 0.0) * 1.4 * rim_fade;
 		vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
 		float luma_local = dot(local_light, vec3(0.299, 0.587, 0.114));
-		vec3 dirt_rgb = dirt_l * mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
-		// Only illuminate when facing actual bright light sources (ceiling fixtures / high glare)
+		vec3 light_tint = mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
+		vec3 dirt_rgb = dirt_l * light_tint;
+		// the lens is never clean: the dust always catches a little of whatever light is behind it on screen
+		// (so it's gone in the dark and faint on a dim wall), mostly wiped away in a Classic zone
+		float lens_clean = 1.0 - 0.7 * classic;
+		col += dirt_rgb * local_light * dirt_base * lens_clean;
 		// staring into a light: the dust on the lens lights up and the bulbs halate harder
 		float lens_t = 0.58 - 0.18 * glare;
 		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90);
+		// Smudges and scratches: a smear scatters light over a wider area than a dust speck, so a faint
+		// haze of it is always there and it flares up toward a tube; the grease also softens the picture a
+		// little under it
+		float smudge = texture(lens_smudge_tex, clamp(dirt_uv, 0.0, 1.0)).r * lens_clean;
+		if (smudge > 0.004) {
+			col = mix(col, textureLod(screen_tex, uvg, 2.0).rgb, clamp(smudge * smudge_soft, 0.0, 0.5));
+			float smudge_lit = smudge_base + smoothstep(lens_t - 0.3, 0.95, luma_local) * (1.0 + 2.5 * glare);
+			col += smudge * light_tint * local_light * smudge_lit * smudge_amt;
+		}
 		if (luma_local > lens_t) {
 			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - lens_t) * halation_amt * (1.0 + 2.0 * glare);
 		}

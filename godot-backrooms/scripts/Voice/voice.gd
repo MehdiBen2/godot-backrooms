@@ -41,6 +41,9 @@ var loopback := false                       # hear yourself (mic test)
 var level := 0.0                            # mic meter 0..1 (about -70 .. 0 dB)
 var transmitting := false
 var speakers := {}                          # peer id -> voice_speaker.gd
+var clips := {}                             # peer id -> [{pcm, score}]: their last few utterances worth repeating
+const CLIPS_KEPT := 6
+const CLIP_MIN_SCORE := 4.0                 # a clean call (3) said apart or out of sight (+1 each): anything less, never used
 
 var _capture: AudioEffectCapture
 var _mic: AudioStreamPlayer
@@ -116,6 +119,123 @@ func set_sensitivity(v: int) -> void:
 func set_volume(pct: int) -> void:
 	voice_volume = pct / 100.0
 	changed.emit()
+
+## One utterance a survivor just finished (voice_speaker.gd), kept on this machine only if it is the kind
+## of thing someone calls out to a teammate. Nothing here understands words; it goes by what a call
+## sounds like and when it is made:
+##   - said while they were apart from everyone else, out of sight (where "where are you?", "over
+##     here", "come here" get said), and not with a monster close to them
+##   - short and clear: 0.7-3 s, a handful of syllables, steadily voiced, not screamed or clipped
+## Anything scoring under CLIP_MIN_SCORE is dropped: the Mimic would rather say nothing than something
+## that gives it away. The newest CLIPS_KEPT that pass are kept, trimmed of silence, with soft ends.
+func remember_clip(peer_id: int, samples: PackedFloat32Array) -> void:
+	var pcm := _trim(samples)
+	var score := _clip_score(pcm) + _call_context(peer_id)
+	if score < CLIP_MIN_SCORE:
+		return
+	var list: Array = clips.get(peer_id, [])
+	list.append({"pcm": pcm, "score": score})
+	if list.size() > CLIPS_KEPT:
+		list.pop_front()
+	clips[peer_id] = list
+
+## Something they called out lately, for THE MIMIC to say back in their voice (mimic.gd): the better a
+## call it sounds, the likelier. Empty if they haven't said anything worth repeating.
+func clip_of(peer_id: int) -> PackedFloat32Array:
+	var list: Array = clips.get(peer_id, [])
+	if list.is_empty():
+		return PackedFloat32Array()
+	var total := 0.0
+	for c in list:
+		total += float(c.score)
+	var r := randf() * total
+	for c in list:
+		r -= float(c.score)
+		if r <= 0.0:
+			return c.pcm
+	return list[-1].pcm
+
+const CLIP_RATE := 16000
+const FRAME_S := 0.02
+
+## How much an utterance sounds like a clear call, from its shape alone (0 .. about 4)
+func _clip_score(pcm: PackedFloat32Array) -> float:
+	var dur := pcm.size() / float(CLIP_RATE)
+	if dur < 0.6 or dur > 4.0:
+		return -10.0
+	# 20 ms energy frames, the loud ones, and the syllables (energy peaks at least 100 ms apart)
+	var fl := int(FRAME_S * CLIP_RATE)
+	var env := PackedFloat32Array()
+	var clipped := 0
+	for f in range(0, pcm.size() - fl, fl):
+		var e := 0.0
+		for i in fl:
+			var v := pcm[f + i]
+			e += v * v
+			if absf(v) > 0.97: clipped += 1
+		env.append(sqrt(e / fl))
+	if env.size() < 10:
+		return -10.0
+	var peak := 0.0
+	for e in env: peak = maxf(peak, e)
+	if peak < 0.02:
+		return -10.0                                 # a mumble, or breath on the mic
+	var voiced := 0
+	var syllables := 0
+	var last_peak := -100
+	for i in range(1, env.size() - 1):
+		if env[i] > peak * 0.18: voiced += 1
+		if env[i] > peak * 0.35 and env[i] >= env[i - 1] and env[i] >= env[i + 1] and i - last_peak >= 5:
+			syllables += 1
+			last_peak = i
+	var voiced_ratio := voiced / float(env.size())
+	var score := 0.0
+	score += 1.0 if dur >= 0.7 and dur <= 3.0 else 0.3
+	score += 1.0 if syllables >= 2 and syllables <= 7 else (0.3 if syllables <= 10 else -1.5)   # a long rant isn't a call
+	score += 1.0 if voiced_ratio >= 0.35 and voiced_ratio <= 0.92 else -0.5    # a word or two with gaps, not static
+	if clipped > pcm.size() * 0.01:
+		score -= 2.0                                 # screaming into the mic: nobody calls a teammate like that
+	return score
+
+## When it was said: apart from everyone, out of sight, nothing hunting them (a teammate calling out)
+func _call_context(peer_id: int) -> float:
+	var r = Net.remotes.get(peer_id)
+	if r == null or not is_instance_valid(r):
+		return 0.0
+	var at: Vector3 = r.target_pos
+	var nearest := INF
+	var in_sight := false
+	for s in Net.survivors():
+		if s.id == peer_id:
+			continue
+		var d: float = at.distance_to(s.pos)
+		nearest = minf(nearest, d)
+		if d < 30.0 and wall_thickness(at, s.pos) < 0.5:
+			in_sight = true
+	var score := 0.0
+	if nearest > 10.0: score += 1.0
+	if not in_sight: score += 1.0
+	var ent: Node = Game.main.get_node_or_null("Entity") if Game.main != null and is_instance_valid(Game.main) else null
+	if ent != null and ent.is_visible_in_tree() and at.distance_to(ent.global_position) < 20.0:
+		score -= 1.5                                 # shouting at a monster, not calling a friend
+	return score
+
+## Cut the silence off both ends (the voice gate lets a little through) and fade the edges in and out
+func _trim(pcm: PackedFloat32Array) -> PackedFloat32Array:
+	var n := pcm.size()
+	var a := 0
+	var b := n - 1
+	while a < n and absf(pcm[a]) < 0.02: a += 1
+	while b > a and absf(pcm[b]) < 0.02: b -= 1
+	a = maxi(0, a - int(0.04 * CLIP_RATE))
+	b = mini(n - 1, b + int(0.08 * CLIP_RATE))
+	var out := pcm.slice(a, b + 1)
+	var fade := mini(int(0.015 * CLIP_RATE), out.size() / 4)
+	for i in fade:
+		var k := i / float(fade)
+		out[i] *= k
+		out[out.size() - 1 - i] *= k
+	return out
 
 func is_speaking(peer_id: int) -> bool:
 	var s = speakers.get(peer_id)
@@ -287,6 +407,9 @@ func _tidy_speakers() -> void:
 			if is_instance_valid(speakers[id]):
 				speakers[id].queue_free()
 			speakers.erase(id)
+	for id in clips.keys():
+		if not Net.remotes.has(id):
+			clips.erase(id)                     # they left: nothing of theirs stays behind
 
 # ---- walls ---------------------------------------------------------------------------------------------
 ## Metres of wall between two points, from the level grid (sampled every WALL_STEP)

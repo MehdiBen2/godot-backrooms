@@ -35,6 +35,11 @@ const REST_TIME := 20.0
 const LONG_PAUSE_EVERY := 3
 const LONG_PAUSE_TIME := 300.0
 const LOUDNESS := 1.0
+# The real one's body: usually the jointed sculpt (model.parts), but sometimes wears one of the crowd's
+# rigged variant sculpts instead (model's VARIANT_MODELS), re-rolled every reset() so which killer you get
+# varies room to room. Its "align" arm-centering pose key (mannequin_snap.gd's reach) isn't implemented for
+# the variant rigs - untested how their kill-pose hand placement reads, so playtest a variant-bodied kill.
+const REAL_VARIANT_CHANCE := 0.3
 # Presence
 const HEART_RANGE := 7.0
 const LIGHT_RANGE := 5.0
@@ -65,6 +70,11 @@ var decoys: Array:
 	get: return crowd.decoys if crowd else []
 var real_node: Node3D
 var real_meshes: Array = []
+var real_variant_idx := -1                 # -1 = classic jointed body; >= 0 = which model variant sculpt
+var real_sk: Skeleton3D                    # only set when real_variant_idx >= 0
+var real_vbones := {}
+var real_vprofile := {}
+var real_arm_l_pivot := Vector3.INF
 var real_pose := {}
 var real_yaw := 0.0
 var hunt := {}
@@ -120,7 +130,7 @@ func _ready() -> void:
 	if not model.load_template(self):
 		push_warning("mannequin: model failed to load")
 		return
-	model.load_variant(self)     # optional: crowd looks fine without it, just less varied
+	model.load_variant(self, rng)     # optional: crowd looks fine without it, just less varied
 	ready_ok = true
 	reset()
 
@@ -205,11 +215,28 @@ func _build_real(r: Dictionary) -> void:
 	real_node = Node3D.new()
 	add_child(real_node)
 	real_meshes.clear()
-	for pt in model.parts:
-		var mi := MeshInstance3D.new()
-		mi.mesh = pt.mesh
-		real_node.add_child(mi)
-		real_meshes.append(mi)
+	real_sk = null
+	real_variant_idx = -1
+	var cand: Array = []
+	for idx in model.variant_count():
+		if model.variant_is_rigged(idx):
+			cand.append(idx)
+	if not cand.is_empty() and rng.randf() < REAL_VARIANT_CHANCE:
+		real_variant_idx = cand[rng.randi() % cand.size()]
+	if real_variant_idx >= 0:
+		var body := model.spawn_variant_body(real_variant_idx)
+		real_node.add_child(body.node)
+		body.node.transform = model.variant_root_xf_at(real_variant_idx)
+		real_sk = body.sk
+		real_vbones = body.vbones
+		real_vprofile = body.profile
+		real_arm_l_pivot = body.arm_l_pivot
+	else:
+		for pt in model.parts:
+			var mi := MeshInstance3D.new()
+			mi.mesh = pt.mesh
+			real_node.add_child(mi)
+			real_meshes.append(mi)
 	real_node.position = Vector3(r.x, 0.0, r.z)
 	_last_real_pos = real_node.position
 	real_yaw = r.yaw
@@ -237,6 +264,10 @@ func _build_real(r: Dictionary) -> void:
 ## Pose the real one
 func set_pose(pose: Dictionary) -> void:
 	real_pose = pose
+	if real_variant_idx >= 0:
+		if real_sk != null:
+			model.pose_variant(real_sk, pose, real_vbones, real_vprofile, real_arm_l_pivot)
+		return
 	var xfs := model.part_transforms(pose)
 	for j in real_meshes.size():
 		(real_meshes[j] as MeshInstance3D).transform = xfs[j]

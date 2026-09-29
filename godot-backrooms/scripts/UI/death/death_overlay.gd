@@ -1,10 +1,16 @@
 extends CanvasLayer
-## The death screen (the web game's #death-screen): a dark gradient from the bottom, a red-black
-## vignette, and bottom-left "[dot] SIGNAL LOST / YOU DIED / <killer>". That holds a moment, then
-## tears out like a tape losing tracking and the camcorder's end card comes up in its place:
-## "[stop] STOP // LEVEL / RECORDING ENDED" over this life's numbers (Game.run_stats()), counting up
-## one row after another, then the respawn prompt. Built by Game.kill_player(); it animates itself
-## off its own clock `t` (so skip() can jump it to the end) and is freed on the respawn.
+## The death screen (the web game's #death-screen): the picture drops into a burst of tape static
+## that settles to a faint snow, over a dark gradient and a red-black vignette, with bottom-left
+## "[dot] SIGNAL LOST / YOU DIED / <killer>". That holds a moment, then tears out like a tape losing
+## tracking (a second, shorter burst: the tape stopping) and the camcorder's end card comes up in its
+## place:
+##   ■ STOP // LEVEL 1
+##   RECORDING ENDED
+##   CAM 04 // 00:14:37          (the HUD's tape counter when it stopped)
+##   CAUSE / DISTANCE / ENTRIES LOGGED / RESEARCH YIELD / TAPE LAID   (Game.run_stats())
+## the numbers counting up one row after another, then the respawn prompt. Built by
+## Game.kill_player(); it animates itself off its own clock `t` (so skip() can jump it to the end)
+## and is freed on the respawn.
 
 const DIM_CREAM := Color(0.902, 0.882, 0.804, 0.55)
 const KILLER_CREAM := Color(0.902, 0.882, 0.804, 0.50)
@@ -23,12 +29,29 @@ const ROWS_AT := REC_IN + 0.6      # first stat row
 const ROW_STEP := 0.14
 const ROW_DUR := 0.6               # each value counts up over this
 const SHEET_W := 520.0
+const STOP_BURST := 0.28           # s of full static as the picture drops
+const SNOW := 0.07                 # the static that stays under the card
+const STATIC_SHADER := """
+shader_type canvas_item;
+// tape static: fresh snow every frame in 2 px grains, rows jittering in brightness, and a darker
+// tracking band rolling up the picture
+uniform float amount = 1.0;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void fragment() {
+	vec2 px = floor(FRAGCOORD.xy / 2.0);
+	float n = h(px + fract(TIME * 13.7) * 311.0);
+	float row = h(vec2(px.y, floor(TIME * 30.0)));
+	float band = 1.0 - 0.45 * smoothstep(0.1, 0.0, abs(fract(UV.y + TIME * 0.35) - 0.5));
+	COLOR = vec4(vec3(n * (0.55 + 0.45 * row) * band), amount);
+}
+"""
 
 var ready_at := 1.6                # seconds before a click is taken (Game.RESPAWN_READY)
 var t := 0.0
 var done_at := 0.0                 # the whole card is in: the prompt shows, a click respawns
 var shown := 1.0                   # eased out while the pause menu is over the death screen
 var _root: Control
+var _static_mat: ShaderMaterial
 var _veil: TextureRect
 var _anchor: Control
 var _box: VBoxContainer
@@ -38,6 +61,7 @@ var _rec_anchor: Control
 var _rec: VBoxContainer
 var _rec_tag: Label
 var _rec_title: Label
+var _rec_counter: Label
 var _rules: Array[ColorRect] = []
 var _rows: Array = []              # [row, value label, target, kind]
 var _respawn: Control
@@ -107,8 +131,15 @@ func _corner_box(parent: Control) -> VBoxContainer:
 func _build(killer: String, stats: Dictionary) -> void:
 	_root = _ignore(Control.new())
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_root.modulate.a = 0.0
 	add_child(_root)
+	var snow := ColorRect.new()
+	snow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var sh := Shader.new()
+	sh.code = STATIC_SHADER
+	_static_mat = ShaderMaterial.new()
+	_static_mat.shader = sh
+	snow.material = _static_mat
+	_root.add_child(_ignore(snow))
 	# linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,0) 75%)
 	_root.add_child(_gradient([0.0, 0.45, 0.75, 1.0],
 		[Color(0, 0, 0, 0.85), Color(0, 0, 0, 0.35), Color(0, 0, 0, 0), Color(0, 0, 0, 0)],
@@ -178,15 +209,17 @@ func _build(killer: String, stats: Dictionary) -> void:
 	_rec_title.add_theme_constant_override("shadow_offset_x", 2)
 	_rec_title.add_theme_constant_override("shadow_offset_y", 0)
 	_rec.add_child(_rec_title)
-	_rec.add_child(_spacer(22))
+	_rec_counter = _label("CAM 04 // " + _format(float(stats.get("counter", 0.0)), "time", 1.0), 4.0, 16, DIM_CREAM)
+	_rec.add_child(_rec_counter)
+	_rec.add_child(_spacer(18))
 
 	_rec.add_child(_rule())
 	var unit := str(stats.get("unit", "RY"))
 	_row("CAUSE", killer.to_upper(), "text")
-	_row("TIME ON TAPE", float(stats.get("time", 0.0)), "time")
 	_row("DISTANCE", float(stats.get("distance", 0.0)), "metres")
 	_row("ENTRIES LOGGED", float(stats.get("logged", 0)), "count")
 	_row("RESEARCH YIELD", float(stats.get("yield", 0)), "yield:" + unit)
+	_row("TAPE LAID", float(stats.get("tape", 0.0)), "tape")
 	_rec.add_child(_rule())
 	_rec.add_child(_spacer(30))
 
@@ -240,14 +273,18 @@ func _format(value, kind: String, u: float) -> String:
 	match kind:
 		"text":
 			return str(value)
-		"time":
+		"time":                      # the HUD's tape counter: 00:14:37
 			var s := float(value) * u
-			return "%d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, int(s) % 60]
+			return "%02d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, int(s) % 60]
+		"tape":
+			return "%d M" % roundi(float(value) * u) if float(value) >= 0.5 else "NONE"
 		"metres":
 			return "%d M" % roundi(float(value) * u)
 		"count":
 			return "%02d" % roundi(float(value) * u)
 	if kind.begins_with("yield:"):
+		if float(value) <= 0.0:
+			return "NONE FILED"
 		return "+%d %s" % [roundi(float(value) * u), kind.substr(6)]
 	return str(value)
 
@@ -282,8 +319,13 @@ func _process(dt: float) -> void:
 	shown = move_toward(shown, 0.0 if paused else 1.0, dt * 5.0)
 	if not paused:
 		t += dt
-	# #death-screen transition: opacity 0.5s ease-out
-	_root.modulate.a = clampf(t / 0.5, 0.0, 1.0) * shown
+	_root.modulate.a = shown
+	# full static as the picture drops, easing to a faint snow; a shorter hit as the tape stops
+	var burst := 1.0 if t < STOP_BURST else lerpf(1.0, SNOW, clampf((t - STOP_BURST) / 0.5, 0.0, 1.0))
+	var stop := t - SWAP
+	if stop >= 0.0 and stop < TEAR + 0.3:
+		burst = maxf(burst, 0.55 * (1.0 - stop / (TEAR + 0.3)))
+	_static_mat.set_shader_parameter("amount", burst)
 	_update_death_block()
 	_update_end_card()
 
@@ -291,8 +333,8 @@ func _update_death_block() -> void:
 	if t >= SWAP + TEAR:
 		_box.visible = false
 		return
-	# .death-box animation: deathIn 1.2s ease-out (fade + translateY 8px -> 0), a beat after the hit
-	var p := _ease_out((t - 0.25) / 1.2)
+	# .death-box animation: deathIn 1.2s ease-out (fade + translateY 8px -> 0), out of the static
+	var p := _ease_out((t - STOP_BURST) / 1.2)
 	_box.modulate.a = p
 	_anchor.position = Vector2(0.0, 8.0 * (1.0 - p))
 	# .death-tag i blink: 1.1s steps(1) infinite (50% on, 50% off)
@@ -317,6 +359,7 @@ func _update_end_card() -> void:
 	_rec_anchor.position.y = 10.0 * (1.0 - _ease_out(u / 0.8))
 	_rec_tag.visible_ratio = clampf(u / 0.35, 0.0, 1.0)
 	_rec_title.visible_ratio = clampf((u - 0.08) / 0.45, 0.0, 1.0)
+	_rec_counter.visible_ratio = clampf((u - 0.4) / 0.3, 0.0, 1.0)
 	_rules[0].scale.x = maxf(0.001, _ease_out((t - (ROWS_AT - 0.2)) / 0.5))
 	_rules[1].scale.x = maxf(0.001, _ease_out((t - (done_at - 0.45)) / 0.5))
 	for i in _rows.size():

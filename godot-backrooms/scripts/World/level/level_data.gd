@@ -1,6 +1,6 @@
 extends Node3D
-## THE LEVEL, layer 1: the grid it is built from. Reads levels/levels.json (the playlist the web
-## game and tools/level_editor.py share) and the .lvl it points at. Grid rows are z, characters are x:
+## THE LEVEL, layer 1: the grid it is built from. Reads levels/levels.json (the playlist, edited
+## with the level editor in level-editor/) and the .lvl it points at. Grid rows are z, characters are x:
 ## '#' wall, '.' floor, 'O' pit (v1 files also used 'T' thin wall, 'A' archway, 'D' door; those load as
 ## objects now). Zones paint extra properties onto cells (tall / low ceilings, tile floors, bright / dim /
 ## dark lighting, flickering tubes, grime). Doors, arches and thin walls are free-placed "objects".
@@ -53,9 +53,9 @@ var level_name := "LEVEL 0"
 var player: Node3D
 var rng := RandomNumberGenerator.new()
 
-# The same files the web game and tools/level_editor.py use: levels/levels.json is the playlist
-# ([{id, name, file}]) and each file is a .lvl (JSON: size, spawn, exit, entity, tv, grid, zones).
-# The Python editor mirrors saves straight into this folder.
+# levels/levels.json is the playlist ([{id, name, file}]) and each file is a .lvl (JSON: size, spawn,
+# exit, entity, tv, grid, zones). The level editor (level-editor/level_editor_files.gd, a separate
+# Godot app) reads and saves them in place: this folder, or the one BACKROOMS_GAME_DIR points at.
 static func read_index() -> Array:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string("res://levels/levels.json"))
 	var out: Array = parsed if parsed is Array else []
