@@ -35,6 +35,7 @@ uniform float bloom_amt : hint_range(0.0, 4.0) = 0.0;
 // hottest part of the glow pushed toward white like an overdriven tube
 uniform sampler2D bloom_wide_tex : hint_default_black, filter_linear, repeat_disable;
 uniform float bloom_wide_amt : hint_range(0.0, 6.0) = 0.0;
+uniform float saturation : hint_range(0.0, 2.0) = 1.0;
 uniform float bloom_hot : hint_range(0.0, 1.0) = 0.0;
 uniform float bloom_tint : hint_range(0.0, 1.0) = 0.5;
 uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
@@ -138,6 +139,7 @@ void fragment() {
 		col += vec3(1.0, 0.93, 0.8) * smoothstep(0.35, 0.9, glow_l) * bloom_hot * bloom_amt * 0.25 * own;
 		glow_l = max(glow_l, halo_l * 0.6);
 	}
+	col = mix(vec3(dot(col, vec3(0.299, 0.587, 0.114))), col, saturation);
 	// where anything is drawn at all, the panel or its glow: grain and tears stay off the bare view
 	float cover = max(alpha, clamp(glow_l * bloom_amt, 0.0, 1.0));
 

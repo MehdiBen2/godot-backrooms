@@ -69,9 +69,9 @@ const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corne
 const LINE := Kit.LINE
 const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
-const BLOOM := 1               # phosphor glow strength (ui_vhs_overlay bloom_amt)
-const BLOOM_WIDE := 0.7          # the neon halo's strength (a broad blur added over the tight glow)
-const BLOOM_RADIUS := 11.0       # how far the glow reaches, in screen pixels at 1080p
+const BLOOM := 0.7               # phosphor glow strength (ui_vhs_overlay bloom_amt)
+const BLOOM_WIDE := 0.3          # the neon halo's strength (a broad blur added over the tight glow)
+const BLOOM_RADIUS := 8.0       # how far the glow reaches, in screen pixels at 1080p
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
 # scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
@@ -220,7 +220,9 @@ func _build() -> void:
 	# neon: the tight glow plus a broad soft halo, and a slightly whiter hot core
 	overlay_mat.set_shader_parameter("bloom_wide_tex", bloom.texture_wide())
 	overlay_mat.set_shader_parameter("bloom_wide_amt", BLOOM_WIDE)
-	overlay_mat.set_shader_parameter("bloom_hot", 0.2)
+	overlay_mat.set_shader_parameter("bloom_hot", 0.0)
+	overlay_mat.set_shader_parameter("bloom_tint", 0.85)   # glow in the pure amber, not washed out
+	overlay_mat.set_shader_parameter("saturation", 1.25)
 
 	var screen := Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
