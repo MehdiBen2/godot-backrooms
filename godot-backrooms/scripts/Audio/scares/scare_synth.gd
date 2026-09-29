@@ -292,9 +292,9 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var t := float(i) / SR
 				var f := 38.0 + 3.0 * v_i + 34.0 * exp(-t * 22.0)
 				ph += TAU * f / SR
-				var hit := minf(1.0, t / 0.012) * exp(-t * 9.0)
+				var strike := minf(1.0, t / 0.012) * exp(-t * 9.0)
 				var bloom := minf(1.0, t / 0.08) * exp(-t * 3.2)
-				var v := (sin(ph) + 0.5 * sin(2.0 * ph)) * hit + body[i] * 2.2 * hit + sin(ph * 0.5) * 0.5 * bloom
+				var v := (sin(ph) + 0.5 * sin(2.0 * ph)) * strike + body[i] * 2.2 * strike + sin(ph * 0.5) * 0.5 * bloom
 				a[i] = v * clampf((dur - t) / 0.12, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.9))
 		"howler_drag": # its short, limping leg: set down lighter, then dragged a beat through the pile.
