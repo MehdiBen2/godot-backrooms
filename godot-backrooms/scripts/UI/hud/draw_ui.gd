@@ -199,7 +199,7 @@ func sync_from_tool() -> void:
 	for i in _swatches.size():
 		var sw: Button = _swatches[i]
 		var c: Color = SketchMarks.COLORS[i]
-		var on := sketch.color.is_equal_approx(c)
+		var on: bool = sketch.color.is_equal_approx(c)
 		for n in ["normal", "hover", "pressed"]:
 			var sb := StyleBoxFlat.new()
 			sb.bg_color = c
