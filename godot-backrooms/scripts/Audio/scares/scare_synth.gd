@@ -219,8 +219,8 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				ph_b += TAU * 155.6 * (1.0 - 0.02 * t) / SR
 				var swell := (sin(ph_a) + sin(ph_b)) * 0.16 * (1.0 - exp(-t * 14.0)) * exp(-t * 3.2)
 				ph_sub += TAU * (44.0 + 10.0 * exp(-t * 18.0)) / SR
-				var hit := sin(ph_sub) * 0.55 * minf(1.0, t / 0.01) * exp(-t * 9.0)
-				a[i] = (gasp + swell + hit) * clampf((1.1 - t) / 0.15, 0.0, 1.0)
+				var thump := sin(ph_sub) * 0.55 * minf(1.0, t / 0.01) * exp(-t * 9.0)
+				a[i] = (gasp + swell + thump) * clampf((1.1 - t) / 0.15, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.6))
 		"seize":       # it has you: a body blow, the floor dropping out, a dissonant cluster that swells and dies
 			var a := _buf(1.8)

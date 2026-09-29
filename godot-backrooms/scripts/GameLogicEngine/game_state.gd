@@ -215,7 +215,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if _death_t < RESPAWN_READY:
 		return
-	var press := (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) \
+	var press: bool = (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) \
 		or (e is InputEventKey and e.pressed and not e.echo \
 			and (e.keycode == KEY_SPACE or e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER))
 	if not press:

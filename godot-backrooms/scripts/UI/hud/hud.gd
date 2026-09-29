@@ -585,4 +585,3 @@ func _process(dt: float) -> void:
 		c.offset_right = ox + BRACKET_LEN; c.offset_bottom = oy + BRACKET_LEN
 	var s := int(t)
 	time_label.text = "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
-
