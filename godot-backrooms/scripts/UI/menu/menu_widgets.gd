@@ -16,7 +16,6 @@ const FOV_MIN := 60
 const FOV_MAX := 100
 const FOV_DEFAULT := 75
 var font: FontFile = load("res://fonts/vcr.ttf")
-var title_font: FontFile = load("res://fonts/archivo_title.ttf")   # heavy condensed grotesque, only for the title
 var last_address := ""
 var click_player: AudioStreamPlayer
 var volumes := {"master": 1.0, "ambient": 1.0, "footsteps": 1.0, "hum": 1.0, "breathing": 1.0}
@@ -123,24 +122,11 @@ func _spacer(h: float) -> Control:
 	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return s
 
-# The title face: tight tracking, a wider word gap, and the line box trimmed close to the caps so it
-# sits in the column like the VCR lines around it
-static func _title_font(base: FontFile, size: int) -> FontVariation:
-	var fv := FontVariation.new()
-	fv.base_font = base
-	fv.spacing_glyph = -2
-	fv.spacing_space = int(size * 0.06)
-	fv.set_spacing(TextServer.SPACING_TOP, -int(size * 0.1))
-	fv.set_spacing(TextServer.SPACING_BOTTOM, -int(size * 0.12))
-	return fv
-
 # A label with the web's title text-shadow: red fringe right, teal fringe left
-func _split_title(text: String, size: int) -> Label:
-	var main := _label(text, size, TITLE)
-	main.add_theme_font_override("font", _title_font(title_font, size))
+func _split_title(text: String, size: int, spacing := 4.0) -> Label:
+	var main := _label(text, size, TITLE, spacing)
 	for fringe in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
-		var s := _label(text, size, fringe[1])
-		s.add_theme_font_override("font", _title_font(title_font, size))
+		var s := _label(text, size, fringe[1], spacing)
 		s.position = fringe[0]
 		s.show_behind_parent = true
 		main.add_child(s)
