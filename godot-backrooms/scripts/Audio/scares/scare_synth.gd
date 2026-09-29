@@ -264,65 +264,66 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				a[i] = (sin(TAU * 46.0 * t) + sin(TAU * 48.6 * t)) * 0.28 * env * wob
 			w = _wav(a)
 		"howler_step": # THE BACTERIA's footfall. arg = variant 0..3 (no two in a row alike), +10 = running.
-			# A huge soft-soled foot: the heel touches, then the whole weight rolls down onto it a beat
-			# later. Carpet crushed flat over the slab, the slab taking the load, the room answering low.
-			# No hard transients: every layer fades in over milliseconds, nothing clicks.
+			# A huge bare, damp foot: a fleshy slap on the carpet, a short round thud through the slab, and a
+			# wet peel-and-stick as the sole settles. Short and dry-tailed: the old long sub rumble read as a
+			# cartoon "whump". Every layer fades in over milliseconds, nothing clicks.
 			var v_i := int(arg) % 10
 			var run := 1.0 if arg >= 10.0 else 0.0
-			var dur := 0.95
+			var dur := 0.55
 			var a := _buf(dur)
-			var body := _noise_lp(a.size(), 120.0 + 14.0 * v_i)     # flesh and weight meeting the floor
-			var sub := _noise_lp(a.size(), 42.0 + 5.0 * v_i)        # the slab under the carpet flexing
-			var roll := lerpf(0.07, 0.035, run) + 0.008 * v_i       # heel strike -> weight down
-			var atk := lerpf(0.02, 0.011, run)                      # soft onset; running comes down harder
-			var decay := lerpf(7.5, 5.5, run)
-			var f0 := 40.0 + 4.0 * v_i - 6.0 * run
-			var k_hi := 1.0 - exp(-TAU * 1100.0 / SR)               # carpet pile: a soft mid band, not a hiss
-			var k_lo := 1.0 - exp(-TAU * 220.0 / SR)
+			var body := _noise_lp(a.size(), 170.0 + 18.0 * v_i)      # flesh meeting the floor
+			var wet := _noise_lp(a.size(), 900.0 + 120.0 * v_i)      # the damp skin, uneven per take
+			var flutter := _noise_lp(a.size(), 38.0)                  # irregular: the sole peeling, not a buzz
+			var k_hi := 1.0 - exp(-TAU * 2200.0 / SR)
+			var k_lo := 1.0 - exp(-TAU * 300.0 / SR)
 			var hi := 0.0
 			var lo := 0.0
 			var ph := 0.0
+			var atk := lerpf(0.005, 0.003, run)
+			var f0 := 62.0 + 3.0 * v_i - 8.0 * run
+			var stick_at := lerpf(0.05, 0.035, run) + 0.006 * v_i
 			for i in a.size():
 				var t := float(i) / SR
 				var x := rng.randf_range(-1.0, 1.0)
 				hi += (x - hi) * k_hi
 				lo += (hi - lo) * k_lo
-				var e1 := minf(1.0, t / atk) * exp(-t * 22.0)                     # heel
-				var t2 := maxf(0.0, t - roll)
-				var e2 := minf(1.0, t2 / (atk * 1.6)) * exp(-t2 * decay) if t >= roll else 0.0   # the weight
-				ph += TAU * (f0 + 26.0 * exp(-t2 * 13.0)) / SR
-				var v := body[i] * (1.6 * e1 + 3.0 * e2)
-				v += sub[i] * (3.2 + 1.6 * run) * e2
-				v += sin(ph) * (0.6 + 0.25 * run) * e2
-				v += (hi - lo) * 0.55 * (0.5 * e1 + e2 * exp(-t2 * 16.0)) * (0.7 + 0.5 * run)
-				v += sub[i] * (0.9 + 0.8 * run) * minf(1.0, t / 0.09) * exp(-t * 2.6)   # the room, long and low
-				a[i] = v * clampf((dur - t) / 0.1, 0.0, 1.0)
+				var slap := minf(1.0, t / atk) * exp(-t * lerpf(38.0, 48.0, run))
+				var thud := minf(1.0, t / 0.008) * exp(-t * lerpf(15.0, 19.0, run))
+				var ts := maxf(0.0, t - stick_at)
+				var stick := minf(1.0, ts / 0.01) * exp(-ts * 22.0) if t >= stick_at else 0.0
+				ph += TAU * (f0 + 30.0 * exp(-t * 26.0)) / SR
+				var v := (hi - lo) * 1.5 * slap * (0.8 + 0.5 * run)         # the slap of skin on pile
+				v += body[i] * 3.2 * thud
+				v += sin(ph) * (0.75 + 0.3 * run) * thud                      # weight, kept short so it stays a step
+				v += wet[i] * (0.5 + 2.2 * absf(flutter[i]) * 6.0) * stick * 0.7   # the wet stick as it lifts
+				a[i] = v * clampf((dur - t) / 0.06, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.9))
 		"howler_drag": # its short, limping leg: set down lighter, then dragged a beat through the pile.
 			# arg 10 = running: a shorter, harder scuff
 			var run := 1.0 if arg >= 10.0 else 0.0
-			var dur := lerpf(0.85, 0.6, run)
+			var dur := lerpf(0.6, 0.45, run)
 			var a := _buf(dur)
-			var body := _noise_lp(a.size(), 135.0)
-			var sub := _noise_lp(a.size(), 48.0)
-			var k_hi := 1.0 - exp(-TAU * 950.0 / SR)
-			var k_lo := 1.0 - exp(-TAU * 180.0 / SR)
+			var body := _noise_lp(a.size(), 190.0)
+			var press := _noise_lp(a.size(), 9.0)                     # uneven pressure as it slides
+			var k_hi := 1.0 - exp(-TAU * 1500.0 / SR)
+			var k_lo := 1.0 - exp(-TAU * 260.0 / SR)
 			var hi := 0.0
 			var lo := 0.0
-			var drag_len := lerpf(0.6, 0.38, run)
+			var ph := 0.0
+			var drag_len := lerpf(0.36, 0.24, run)
 			for i in a.size():
 				var t := float(i) / SR
 				var x := rng.randf_range(-1.0, 1.0)
 				hi += (x - hi) * k_hi
 				lo += (hi - lo) * k_lo
-				var contact := minf(1.0, t / 0.018) * exp(-t * 10.0)
-				var drag := pow(sin(PI * clampf((t - 0.07) / drag_len, 0.0, 1.0)), 1.5)
-				var v := body[i] * 2.0 * contact + sub[i] * 2.6 * contact
-				v += sin(TAU * (46.0 + 16.0 * exp(-t * 16.0)) * t) * 0.45 * contact
-				# the foot scuffing through the pile: slow, uneven pressure, no buzz
-				v += (hi - lo) * drag * 0.8 * (0.7 + 0.3 * sin(TAU * 6.0 * t + 1.3 * sin(TAU * 2.3 * t)))
-				a[i] = v * clampf((dur - t) / 0.08, 0.0, 1.0)
-			w = _wav(_normalize(a, 0.75))
+				var contact := minf(1.0, t / 0.006) * exp(-t * 22.0)
+				var slide := clampf((t - 0.05) / 0.04, 0.0, 1.0) * clampf((0.05 + drag_len - t) / 0.08, 0.0, 1.0)
+				ph += TAU * (58.0 + 22.0 * exp(-t * 24.0)) / SR
+				var v := body[i] * 2.4 * contact + sin(ph) * 0.5 * contact
+				# skin dragged through pile: rough band noise whose pressure wanders, never a steady wobble
+				v += (hi - lo) * slide * (0.35 + 3.0 * absf(press[i])) * 0.7
+				a[i] = v * clampf((dur - t) / 0.06, 0.0, 1.0)
+			w = _wav(_normalize(a, 0.7))
 		"heel":        # your heel on carpet laid over concrete: the low knock the recorded scuffs lack
 			var a := _buf(0.14)
 			var nz := _noise_lp(a.size(), 380.0)

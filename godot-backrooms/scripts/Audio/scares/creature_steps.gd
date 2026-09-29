@@ -23,7 +23,7 @@ func _init(owner: Node) -> void:
 # THE BACTERIA's footfall (js howlerStep). weight 0..~2: heavier the faster it moves and the closer it
 # is; run 0..1: walking it rolls its weight down slow and soft, running it slams down. On the Entity bus,
 # so walls between you muffle it like its voice. It limps: every other foot is the short leg, which lands
-# lighter and is dragged through the pile. Rarely a joint gives a dull crack under the load.
+# lighter and is dragged through the pile.
 func howler_step(pos: Vector3, weight: float, dragging := false, run := 0.0) -> void:
 	var w := clampf(weight, 0.05, 2.0)
 	var pace := 10.0 if run > 0.5 else 0.0          # the walking or the running takes
@@ -35,10 +35,6 @@ func howler_step(pos: Vector3, weight: float, dragging := false, run := 0.0) -> 
 		# never the same take twice in a row
 		_howler_variant = (_howler_variant + 1 + rng.randi() % 3) % 4
 		scares.spawn3d(scares.synth("howler_step", _howler_variant + pace), pos, 0.6 + w * 0.9, "Entity", 3.5, pitch)
-	if not dragging and rng.randf() < 0.06 + w * 0.03:
-		var crack: AudioStreamPlayer3D = scares.spawn3d(scares.synth("bone_crack"), pos + Vector3(0.0, 2.0, 0.0), 0.14 * w, "Entity", 2.5, rng.randf_range(0.5, 0.7))
-		crack.stop()
-		scares.get_tree().create_timer(0.05 + rng.randf() * 0.06, false).timeout.connect(crack.play)
 
 # A mannequin footfall: a hollow composite foot on carpet over a concrete slab. Filtered for the head
 # shadow (steps behind you lose their top end, so you can tell where they are) and for walls between.
