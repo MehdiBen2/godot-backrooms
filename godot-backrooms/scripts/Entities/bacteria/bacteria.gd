@@ -2,7 +2,8 @@ extends "res://scripts/Entities/bacteria/bacteria_stalk.gd"
 ## THE BACTERIA (the Howler). Port of js/game/entity.js.
 ##
 ## AI: roam -> investigate (noise / glimpse) -> screech (first sighting) -> chase -> search (lost you);
-## stunned when shot; stalk (peeks from behind a corner) -> flee when you look at it or come close;
+## stunned when shot, blinded by a camera flash (flashed: get out of its sight before its eyes clear
+## and it has lost you); stalk (peeks from behind a corner) -> flee when you look at it or come close;
 ## lurk (lost you: it waits in silence where you were heading and springs when you walk into it).
 ## Senses: bacteria_senses.gd. Body and gait: bacteria_rig.gd. The kill: bacteria_grab.gd.
 ##
@@ -32,6 +33,14 @@ var voice_timer := 3.0
 var occl_timer := 0.0
 var static_timer := 0.0
 var disturb_timer := 0.0
+var blinded := false                  # this stun is a camera flash: coming to, it may have lost you
+
+# The camera flash (scripts/Player/flash_tool.gd)
+const FLASH_RANGE := 16.0             # m: further off it is just a light going off somewhere
+const FLASH_CONE := 0.6               # cos: how near the middle of the frame it has to be
+const FLASH_BLIND := 4.5              # s it reels, blind
+const FLASH_REACQUIRE := 12.0         # m: still in plain sight this close when its eyes clear, it's back on you
+const FLASH_POP := 14.0               # m: how far the pop carries (a flash that misses gives you away)
 
 func _ready() -> void:
 	rng.randomize()
@@ -426,10 +435,13 @@ func _physics_process(delta: float) -> void:
 	if stun_timer > 0.0:
 		stun_timer -= delta
 		if stun_timer <= 0.0:
-			enraged = 6.0
-			awareness = 1.0
-			set_state("chase")
-			set_goal(last_known.x, last_known.z)
+			if blinded:
+				_come_to()
+			else:
+				enraged = 6.0
+				awareness = 1.0
+				set_state("chase")
+				set_goal(last_known.x, last_known.z)
 		rig.animate(delta, 0.0, "stunned")
 		vocalize(delta, "stunned")
 		rotation.y = yaw
@@ -545,6 +557,7 @@ func summon(x: float, z: float, tx: float, tz: float) -> void:
 	global_position = Vector3(x, 0.0, z)
 	vel = Vector3.ZERO
 	stun_timer = 0.0
+	blinded = false
 	enraged = 0.0
 	yaw = atan2(tx - x, tz - z)
 	rotation.y = yaw
@@ -562,6 +575,7 @@ func summon(x: float, z: float, tx: float, tz: float) -> void:
 func stun(seconds: float, kx: float, kz: float) -> void:
 	stun_timer = maxf(stun_timer, seconds)
 	global_position += Vector3(kx, 0.0, kz)
+	blinded = false
 	global_position = nav.resolve(global_position, RADIUS)
 	set_state("stunned")
 	var l := maxf(Vector2(kx, kz).length(), 0.001)
@@ -570,8 +584,60 @@ func stun(seconds: float, kx: float, kz: float) -> void:
 	last_seen_time = 0.0
 	yaw = atan2(-kx, -kz)
 
+## A camera flash went off at `origin`, aimed along `look` (flash_tool.gd; in co-op the host runs
+## this for everyone's flashes). Caught in it (close enough, near the middle of the frame, nothing in
+## between) it is blinded for FLASH_BLIND; otherwise it only hears the pop. True when it was blinded.
+func flashed(origin: Vector3, look: Vector3) -> bool:
+	if puppet or process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree() or grab.active():
+		return false
+	var p := global_position
+	var to := p + Vector3.UP * 1.6 - origin
+	var flat := Vector2(to.x, to.z)
+	var d := flat.length()
+	var aimed := to.normalized().dot(look) > FLASH_CONE
+	var point_blank := d < 2.5 and flat.normalized().dot(Vector2(look.x, look.z).normalized()) > 0.2
+	if d > FLASH_RANGE or not (aimed or point_blank) or not nav.clear_line(origin.x, origin.z, p.x, p.z):
+		hear(origin, FLASH_POP)
+		return false
+	blind(FLASH_BLIND, origin)
+	return true
+
+## Blinded: it reels for `seconds`, facing where the flash came from, and can't see a thing. All it
+## knows is where you were when it went off. What happens when its eyes clear is _come_to().
+func blind(seconds: float, from: Vector3) -> void:
+	var p := global_position
+	stun_timer = maxf(stun_timer, seconds)
+	set_state("stunned")
+	blinded = true
+	enraged = 0.0
+	lunge = 0.0
+	lunge_windup = 0.0
+	awareness = 0.0
+	last_known = Vector3(from.x, 0.0, from.z)
+	last_vel = Vector3.ZERO
+	last_seen_time = 0.0
+	yaw = atan2(from.x - p.x, from.z - p.z)
+
+## Its eyes clear after a flash. Whoever it hunts still in plain sight and close: straight back after
+## them, furious. Round a corner or far enough down the hall: it has lost them, and does what it
+## does when it loses someone (give_up: wander off toward where they were, or wait there).
+func _come_to() -> void:
+	blinded = false
+	gather_target()
+	var p := global_position
+	if not tgt.dead and distance_to_target() < FLASH_REACQUIRE and nav.clear_line(p.x, p.z, tgt.pos.x, tgt.pos.z):
+		enraged = 3.0
+		awareness = 1.0
+		last_known = Vector3(tgt.pos.x, 0.0, tgt.pos.z)
+		last_seen_time = 0.0
+		set_state("chase")
+		set_goal(tgt.pos.x, tgt.pos.z)
+	else:
+		give_up()
+
 func run_away() -> void:
 	stun_timer = 0.0
+	blinded = false
 	enraged = 0.0
 	pause = 0.0
 	lunge = 0.0
@@ -611,7 +677,7 @@ const SCAN_STATES := {
 	"chase": ["IN PURSUIT", "HUNTING YOU - BREAK LINE OF SIGHT", 2],
 	"screech": ["SCREECHING", "IT HAS SEEN YOU", 2],
 	"stalk": ["STALKING", "WATCHING YOU FROM COVER - FACE IT", 1],
-	"stunned": ["STUNNED", "DISORIENTED", 0],
+	"stunned": ["STUNNED", "DISORIENTED - GET OUT OF ITS SIGHT", 0],
 	"flee": ["RETREATING", "BREAKING OFF", 0],
 	"lurk": ["LYING IN WAIT", "AMBUSH - DO NOT WALK INTO IT", 2],
 }

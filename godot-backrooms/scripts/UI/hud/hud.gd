@@ -5,7 +5,8 @@ extends CanvasLayer
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
 ## its reticle (scan_readout.gd), and the "new entry logged" / clearance toasts (terminal_toast.gd).
-## And the reflective hazard tape (tape_tool.gd, hold T) with its tape mode HUD (tape_readout.gd).
+## And the reflective hazard tape (tape_tool.gd, hold T) with its tape mode HUD (tape_readout.gd), and
+## the camera flash (flash_tool.gd, G or right click).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
@@ -14,6 +15,8 @@ const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
+const FlashTool := preload("res://scripts/Player/flash_tool.gd")
+const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
@@ -32,6 +35,7 @@ var menu: Control
 var inventory: Control
 var scanner: Node
 var tape: Node
+var flash: Node                          # flash_tool.gd: the camera flash (G / right click)
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween
@@ -76,6 +80,7 @@ func _ready() -> void:
 	_build_inventory()
 	_build_scanner()
 	_build_tape()
+	_build_flash()
 	_show_pending_route.call_deferred()
 
 # ---- helpers ------------------------------------------------------------------
@@ -248,7 +253,7 @@ func _build_hud() -> void:
 	hud.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
+	var hints := ["Q // SCAN", "G // FLASH", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
@@ -336,6 +341,15 @@ func _build_tape() -> void:
 	readout.tape = tape
 	readout.inventory = inventory
 	hud_root.add_child(readout)
+
+## Every run starts with START camera flashes, one charge each: a way to break a chase, not to win it
+func _build_flash() -> void:
+	inventory.add_item(FlashPickup.ITEM_ID, FlashPickup.ITEM_NAME, FlashPickup.ITEM_DESC, FlashPickup.START,
+		FlashPickup.ITEM_CODE, FlashPickup.STACK, FlashPickup.MODEL_PATH)
+	flash = FlashTool.new()
+	flash.player = player
+	flash.inventory = inventory
+	add_child(flash)
 
 ## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
