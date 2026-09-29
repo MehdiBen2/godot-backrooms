@@ -25,7 +25,21 @@ var glitch_timer := 2.0
 var head_yaw := 0.0            # head turn relative to the body (jerks toward what it watches)
 var head_yaw_goal := 0.0
 var head_hop := 0.0
-var peek_lean := 0.0
+# ---- peeking round a corner (bacteria_stalk.gd says how far out it is: e.peek_amt)
+var peek_lean := 0.0           # the chest leaning out past the edge, along the wall (e.stalk_side)
+var peek_tilt := 0.0           # the head laid over on its side (+ = top toward its right)
+var head_out := 0.0            # how far out the head is: it goes first, and snaps back first
+var peek_prev := 0.0
+var peek_rise := false         # creeping further out this frame
+var ducked := 0.0              # > 0 just after it ducked back into cover: everything snaps in
+var grip_w := 0.0              # its leading hand hooked round the wall's edge, 0 .. 1
+var grip_hold := 0.0           # ducked away, its fingers stay on the edge this much longer
+var grip_gone := false         # let go after ducking away; it takes hold again as it creeps back out
+var grip_arm := ""             # "l" / "r": the arm that has hold
+var grip_at := Vector3.ZERO    # the edge it took hold of (floor level) and how high: fixed as the body moves
+var grip_n := Vector3.ZERO     # that corner's wall face and its way along it, kept while the hand lets go
+var grip_s := Vector3.ZERO
+var tap_clock := 0.0
 var bank := 0.0                # leaning into a turn (+ = to its left)
 var surge := 0.0               # pitching forward as it speeds up, back as it brakes
 var stomp := 0.0               # the dip as a foot takes its weight, 1 on landing
@@ -115,20 +129,16 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 			P.reach_a = 1.35; P.reach_b = 1.35; P.out_a = 0.35; P.out_b = 0.35; P.elbow_a = 0.5; P.elbow_b = 0.5
 			P.finger_splay = 0.6
 	elif st == "stalk":
-		# Low behind the corner, leading hand gripping and hooking the wall's edge, head tilted nearly flat
-		P.still = 1.0; P.hunch = 0.4; P.crouch = 0.55; P.neck = 0.3; P.head_pitch = -0.15; P.claw = 1.5
-		var peek_side := -1.0 if peek_lean > 0.02 else 1.0
-		P.head_roll = -1.55 * peek_side * lerpf(0.5, 1.0, e.peek_amt)
-		var grip := "a" if peek_side > 0.0 else "b"
-		var other := "b" if grip == "a" else "a"
-		# gripping hand hooks forward around the corner edge, claws digging into the wall
-		P["reach_" + grip] = 0.8 + 0.35 * e.peek_amt
-		P["out_" + grip] = 0.95
-		P["elbow_" + grip] = 0.85
-		# non-gripping arm tucked close to the ribs
-		P["reach_" + other] = -0.1
-		P["out_" + other] = 0.1
-		P["elbow_" + other] = 0.4
+		if e.peek_dir == 0.0:
+			# sneaking up on its corner: folded low, long arms carried low and ahead, head down
+			P.hunch = 0.95; P.crouch = 0.4; P.neck = 0.3; P.head_pitch = -0.25; P.claw = 0.9
+			P.reach_a = 0.45; P.reach_b = 0.45; P.out_a = 0.15; P.out_b = 0.15; P.elbow_a = 0.7; P.elbow_b = 0.7
+		else:
+			# pressed flat behind the corner, upright so its hunch clears the wall; the head is laid over on
+			# its side by _peek_motion, the leading hand hooked round the edge by _grip_corner
+			P.still = 1.0; P.hunch = 0.2; P.crouch = 0.7; P.neck = 0.25; P.head_pitch = -0.1; P.claw = 1.2
+			# both arms hang close at its sides, out of sight, whenever a hand isn't hooked on the edge
+			P.reach_a = -0.25; P.reach_b = -0.25; P.out_a = 0.1; P.out_b = 0.1; P.elbow_a = 0.5; P.elbow_b = 0.5
 	elif st == "grab":
 		# Seizing and ripping the player: arms wrap around the camera, claws clench and tear
 		var snatching: bool = anim_time < 0.45
@@ -214,6 +224,7 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	bank += (bank_goal - bank) * minf(1.0, delta * 5.0)
 	surge += (clampf(accel * 0.025, -0.12, 0.2) - surge) * minf(1.0, delta * 4.0)
 
+	_peek_motion(delta, st)
 	_pose_targets(st, run, moving)
 	_update_squeeze(delta, move_speed, st)
 	if squeeze > 0.001:
@@ -239,7 +250,6 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	var rate := 14.0 if (st == "screech" or st == "stunned" or st == "grab") else (9.0 if st == "chase" else (2.2 if quiet else 3.5))
 	for k in pose:
 		pose[k] = lerpf(pose[k], pose_t[k], 1.0 - exp(-rate * delta))
-	peek_lean += (e.peek_lean_target - peek_lean) * minf(1.0, delta * 4.0)
 	skel.reset_bone_poses()
 
 	var w := gait_w
@@ -287,8 +297,13 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	var look_rel := 0.0
 	if pose.look > 0.4:
 		if interested:
+			var look_dir := Vector2(to_p.x, to_p.z).normalized()
+			if st == "stalk" and e.peek_dir != 0.0:
+				# behind its corner it looks along the wall to the edge; only leaning out does it turn to you
+				var sd: Vector3 = e.stalk_side
+				look_dir = look_dir.lerp(Vector2(sd.x, sd.z), 1.0 - head_out)
 			# turned further than a neck should
-			look_rel = clampf(wrapf(atan2(to_p.x, to_p.z) - e.yaw, -PI, PI), -2.3, 2.3)
+			look_rel = clampf(wrapf(atan2(look_dir.x, look_dir.y) - e.yaw, -PI, PI), -2.3, 2.3)
 		else:
 			look_rel = sin(clock * 0.35) * 0.55 + (0.5 if moving else 0.0) * sin(clock * 0.9)
 	head_hop -= delta
@@ -318,16 +333,20 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 	_turn(_b("chest"), right, pose.hunch * 0.45 + breath + sway + surge * 1.2 + land * 0.14 \
 		+ _noise(1.0, tj) * 0.1 * twitch + thrash * _noise(3.0, clock * 14.0) * 0.3 + screech_shiver * 1.4)
 	_turn(_b("chest"), up, -sin(phase) * (0.14 + run * 0.18) * w)
-	_turn(_b("chest"), fwd, peek_lean * 0.85 + sin(phase) * 0.08 * w + 0.05 * alive - bank * 0.5)
+	_turn(_b("chest"), fwd, sin(phase) * 0.08 * w + 0.05 * alive - bank * 0.5)
+	# peeking: tipped straight along the wall toward the edge, whichever way it faces
+	var lean_axis: Vector3 = global_transform.basis.inverse() * Vector3.UP.cross(e.stalk_side)
+	if peek_lean > 0.0001 and lean_axis.length_squared() > 0.01:
+		_turn(_b("chest"), lean_axis.normalized(), peek_lean * 0.85)
 
 	# ---- neck and head: the maw stays aimed where it looks however far it is folded over
 	var fold: float = pose.hunch * 0.45 + pose.neck * 0.5
 	_turn(_b("neck"), right, pose.neck * 0.5 + _noise(30.0, tj) * 0.1 * twitch + screech_shiver * 1.3)
 	_turn(_b("neck"), up, head_yaw * 0.35)
-	_turn(_b("neck"), fwd, pose.head_roll * 0.25 + bank * 0.4)
+	_turn(_b("neck"), fwd, pose.head_roll * 0.25 + bank * 0.4 + peek_tilt * 0.35)
 	_turn(_b("head"), right, pose.head_pitch * 0.6 - fold * pose.look * 0.75 - surge * 0.8 * pose.look + _noise(31.0, tj) * 0.2 * twitch)
 	_turn(_b("head"), up, head_yaw * 0.65)
-	_turn(_b("head"), fwd, pose.head_roll * 0.75 + bank * 0.5 + _noise(32.0, tj) * 0.15 * twitch)
+	_turn(_b("head"), fwd, pose.head_roll * 0.75 + bank * 0.5 + peek_tilt * 0.65 + _noise(32.0, tj) * 0.15 * twitch)
 	_glitch_turn("neck", g_angle)
 	_glitch_turn("head", g_angle)
 
@@ -486,6 +505,10 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 		# Forearm is a pure elbow hinge - pitch only, never twisted on other axes
 		_turn(_b("fore_" + arm_side), right, -(elbow * 0.85 + reach * 0.15))
 
+		# leaning out round a corner, the arm not on the edge hangs straight down instead of tipping with it
+		if peek_lean > 0.0001 and lean_axis.length_squared() > 0.01 and (arm_side != grip_arm or grip_w <= 0.0):
+			_turn(_b("arm_" + arm_side), lean_axis.normalized(), -peek_lean * 0.85)
+
 		# ducking under a low ceiling or an arch's crown: both arms rise up ahead of the head, elbows
 		# bending in, as if bracing against / feeling out the roof it's folding itself under
 		var duck: float = clampf(pose.get("duck_reach", 0.0), 0.0, 1.0)
@@ -517,3 +540,116 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 				_turn(f_bone, fwd, -sgn * f_splay * 0.18)
 			elif ring_fingers.has(f_bone):
 				_turn(f_bone, fwd, sgn * f_splay * 0.18)
+
+	_grip_corner(delta, st)
+
+# ================================================================= peeking round a corner
+# The entity only says how far out it is (e.peek_amt, in stop-motion steps) and which way (e.peek_dir).
+# This makes it read: the head goes first in a quick jerk and the chest follows, the head lies over flat on
+# its side the further out it gets, slowly tipping as it watches; and when it ducks back (peek_amt dropping
+# fast) the head and chest snap in together.
+func _peek_motion(delta: float, st: String) -> void:
+	var at_corner: bool = st == "stalk" and e.peek_dir != 0.0
+	var amt: float = e.peek_amt if at_corner else 0.0
+	if amt < peek_prev - maxf(delta, 0.02) * 1.5:
+		ducked = 0.5
+	peek_rise = amt > peek_prev + 0.001
+	peek_prev = amt
+	ducked = maxf(0.0, ducked - delta)
+	var head_rate := 18.0 if ducked > 0.0 else (8.0 if amt > head_out else 3.0)
+	head_out += (amt - head_out) * (1.0 - exp(-head_rate * delta))
+	var lean_goal: float = 0.85 * amt if at_corner else 0.0
+	peek_lean += (lean_goal - peek_lean) * (1.0 - exp(-(12.0 if ducked > 0.0 else 3.5) * delta))
+	var tilt_goal := 0.0
+	if at_corner:
+		tilt_goal = -e.peek_dir * (lerpf(0.45, 1.5, head_out) + sin(clock * 0.6) * 0.18 * head_out)
+	peek_tilt += (tilt_goal - peek_tilt) * (1.0 - exp(-(14.0 if ducked > 0.0 else 4.0) * delta))
+
+# Which way to bow the gripping arm's elbow (a world direction for _arm_ik): of all the places the elbow
+# could be with the wrist on the edge, the one that keeps it back behind the edge and out off the wall,
+# jutting up like a folded insect leg. A fixed direction can't: the arm comes at the edge from all angles.
+func _grip_elbow(wrist: Vector3, s: Vector3, n: Vector3) -> Vector3:
+	var fingers: Array = bones.get("fingers_" + grip_arm, [])
+	var A := get_bone_global_pos("arm_" + grip_arm)
+	var B := get_bone_global_pos("fore_" + grip_arm)
+	var l1 := A.distance_to(B)
+	var l2 := B.distance_to(skel.global_transform * skel.get_bone_global_pose(fingers[0]).origin) if not fingers.is_empty() else l1
+	var to := wrist - A
+	var d := clampf(to.length(), absf(l1 - l2) + 0.001, (l1 + l2) * 0.999)
+	var dir := to.normalized()
+	var ca := clampf((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d), -1.0, 1.0)
+	var mid := A + dir * (l1 * ca)
+	var r := l1 * sqrt(1.0 - ca * ca)
+	var u := (Vector3.UP - dir * dir.y).normalized() if absf(dir.y) < 0.99 else (s - dir * dir.dot(s)).normalized()
+	var v := dir.cross(u)
+	var best := u
+	var best_score := -INF
+	for i in 16:
+		var a := TAU * i / 16.0
+		var off := u * cos(a) + v * sin(a)
+		var el: Vector3 = mid + off * r - Vector3(grip_at.x, 0.0, grip_at.z)
+		var score := minf(-el.dot(s), 0.6) + minf(el.dot(n), 0.6) * 1.5 + el.y * 0.3
+		if score > best_score:
+			best_score = score
+			best = off
+	return best
+
+# The leading hand hooks round the wall's edge: the wrist on the corner, the long fingers wrapped round onto
+# the face beyond, fanned along the edge with the claw tips dug in. It takes hold as soon as it reaches its
+# corner, so the first you may see of it is the fingers. Every so often they drum on the wall one after
+# another. When it ducks back they stay on the edge a moment longer, then slide back out of sight; they
+# take hold again as it creeps back out.
+func _grip_corner(delta: float, st: String) -> void:
+	var n: Vector3 = e.stalk_wall_n
+	var at_corner: bool = st == "stalk" and e.peek_dir != 0.0 and n != Vector3.ZERO
+	var goal := 0.0
+	if at_corner:
+		if grip_w < 0.01:
+			grip_arm = "l" if e.peek_dir * side_flip > 0.0 else "r"
+		if ducked > 0.0 and grip_hold <= 0.0 and not grip_gone and grip_w > 0.5:
+			grip_hold = rng.randf_range(0.9, 1.6)
+		if peek_rise:
+			grip_gone = false
+			grip_hold = 0.0
+		elif grip_hold > 0.0:
+			grip_hold -= delta
+			if grip_hold <= 0.0:
+				grip_gone = true
+		goal = 0.0 if grip_gone else 1.0
+	else:
+		grip_hold = 0.0
+		grip_gone = false
+	if grip_w < 0.01 and goal > 0.0 and grip_arm != "":
+		# taking hold: about level with your face, far enough under its shoulder that the long arm reaches
+		# down to it with the elbow still back behind the edge
+		grip_at = e.stalk_corner
+		grip_at.y = clampf(get_bone_global_pos("arm_" + grip_arm).y - 2.0, 1.1, 2.2)
+		grip_n = n
+		grip_s = e.stalk_side
+	grip_w = move_toward(grip_w, goal, delta * (2.2 if goal > grip_w else (1.6 if at_corner else 6.0)))
+	if grip_w <= 0.0 or grip_arm == "" or grip_n == Vector3.ZERO:
+		return
+	n = grip_n
+	var s := grip_s
+	var w := smoothstep(0.0, 1.0, grip_w)
+	# the hand arcs up and comes down on the edge; letting go it slides back along the face out of sight
+	var slide := (1.0 - grip_w) * 0.8 if (grip_gone or not at_corner) else 0.0
+	var wrist: Vector3 = grip_at + s * (0.06 - slide) + n * 0.14 + Vector3.UP * sin(grip_w * PI) * 0.3
+	_arm_ik(grip_arm, wrist, _grip_elbow(wrist, s, n), w)
+	var inv := skel.global_transform.basis.inverse()
+	tap_clock += delta
+	var tc := fmod(tap_clock, 3.4)
+	var groups: Array = ["finger_index_", "finger_mid_", "finger_ring_"]
+	var fan: Array = [0.5, 0.0, -0.5]
+	for j in 3:
+		var chain: Array = bones.get(groups[j] + grip_arm, [])
+		if chain.size() < 2:
+			continue
+		# they close round the edge one by one (and let go the same way)
+		var fw := clampf((grip_w - 0.15 * j) / 0.55, 0.0, 1.0) * w
+		# drumming: each lifts off the wall and taps back down, a beat after the one before
+		var tap := sin(clampf((tc - 0.16 * j) / 0.22, 0.0, 1.0) * PI) * grip_w
+		var knuckle: Vector3 = (-n * 0.85 + s * (0.35 + tap * 0.5) + Vector3.UP * fan[j] * 0.5).normalized()
+		var tip: Vector3 = (-n * 0.7 - s * (0.55 - tap * 1.1) + Vector3.UP * fan[j] * 0.25).normalized()
+		_aim_bone(chain[0], inv * knuckle, fw)
+		_aim_bone(chain[1], inv * tip, fw)

@@ -281,6 +281,46 @@ func _leg_ik(leg: String, target_w: Vector3, weight: float) -> void:
 			if fn.dot(tn) < 0.99999:
 				_rotate_skel(a_i, Basis(Quaternion(fn, tn)))
 
+# Two-bone IK for an arm: the wrist (where the fingers join the forearm) onto `target_w`, the elbow bowed
+# out toward the world direction `pole_w`, blended in by `weight`
+func _arm_ik(side: String, target_w: Vector3, pole_w: Vector3, weight: float) -> void:
+	var a_i := _b("arm_" + side)
+	var b_i := _b("fore_" + side)
+	var fingers: Array = bones.get("fingers_" + side, [])
+	if a_i < 0 or b_i < 0 or fingers.is_empty() or weight <= 0.0:
+		return
+	var inv := skel.global_transform.affine_inverse()
+	var A := skel.get_bone_global_pose(a_i).origin
+	var B := skel.get_bone_global_pose(b_i).origin
+	var C := skel.get_bone_global_pose(fingers[0]).origin
+	var l1 := A.distance_to(B)
+	var l2 := B.distance_to(C)
+	var to := inv * target_w - A
+	if l1 < 0.0001 or l2 < 0.0001 or to.length_squared() < 0.000001:
+		return
+	var d := clampf(to.length(), absf(l1 - l2) + 0.001, (l1 + l2) * 0.999)
+	var dir := to.normalized()
+	var pole := inv.basis * pole_w
+	var bend := pole - dir * pole.dot(dir)
+	if bend.length_squared() < 0.000001:
+		bend = (B - A) - dir * (B - A).dot(dir)
+	bend = bend.normalized()
+	var ca := clampf((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d), -1.0, 1.0)
+	var elbow := A + dir * (l1 * ca) + bend * (l1 * sqrt(1.0 - ca * ca))
+	_aim_bone(a_i, elbow - A, weight)
+	B = skel.get_bone_global_pose(b_i).origin
+	_aim_bone(b_i, A + dir * d - B, weight)
+
+# Swing `bone` (by `weight`) so the way it runs, its own +Y, points along `dir` (skeleton space)
+func _aim_bone(bone: int, dir: Vector3, weight: float) -> void:
+	if bone < 0 or weight <= 0.0 or dir.length_squared() < 0.000001:
+		return
+	var from := skel.get_bone_global_pose(bone).basis.y.normalized()
+	var to := dir.normalized()
+	if from.dot(to) > 0.99999:
+		return
+	_rotate_skel(bone, Basis(Quaternion.IDENTITY.slerp(Quaternion(from, to), weight)))
+
 # Black mist pooled around its feet and curling off its body: a flat ground haze it drags with it,
 # plus a handful of big soft wisps that climb its legs and dissolve, thicker and faster while it hunts.
 const MIST_PUFF_COUNT := 7

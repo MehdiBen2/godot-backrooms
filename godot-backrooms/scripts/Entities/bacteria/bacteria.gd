@@ -352,16 +352,16 @@ func move(delta: float) -> void:
 		if not is_nan(look_yaw):
 			turn_toward(look_yaw, 2.0, delta)
 	elif state == "stalk" and stalk_phase == "peek" and stalk_active:
-		# face them and ease out past the edge of the wall, leaning the rest of the way
-		turn_toward(atan2(tgt.pos.x - p.x, tgt.pos.z - p.z), 3.0, delta)
+		# turned half toward them, half along the wall to its edge, it eases out past the edge in quick
+		# shuffles (the rig leans it the rest of the way), and darts back behind it when it ducks away
+		var to_t := Vector2(tgt.pos.x - p.x, tgt.pos.z - p.z).normalized()
+		turn_toward(atan2(to_t.x + stalk_side.x, to_t.y + stalk_side.z), 3.0, delta)
 		var spot := stalk_hide.lerp(stalk_peek, peek_amt)
 		dir = Vector3(spot.x - p.x, 0.0, spot.z - p.z)
 		var d := dir.length()
 		if d > 0.03:
-			speed = minf(0.9, d * 2.5)
+			speed = minf(3.0 if peek_mode == "hide" else 1.6, d * 5.0)
 			dir /= d
-		var right := stalk_side.x * cos(yaw) - stalk_side.z * sin(yaw)
-		peek_lean_target = -signf(right) * 0.58 * peek_amt
 	elif state == "screech":
 		if seen_target:
 			turn_toward(atan2(tgt.pos.x - p.x, tgt.pos.z - p.z), TURN_RATE, delta)
