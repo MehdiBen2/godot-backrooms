@@ -56,7 +56,6 @@ const REC_RED := Color("ff3b30")
 const AMBER := Color("ffc107")
 const INK := Color(0.9, 0.882, 0.804)   # cream at varying alpha
 var font: FontFile = load("res://fonts/vcr.ttf")
-var title_font: FontFile = load("res://fonts/archivo_title.ttf")   # heavy condensed grotesque, only for the title
 
 
 func _ready() -> void:
@@ -618,16 +617,8 @@ func _build_ui() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_END
 	margin.add_child(box)
 
-	# same face and trim as the game's title (scripts/UI/menu/menu_widgets.gd _title_font)
-	var title := _label("THE BACKROOMS", 76, TITLE)
-	var tf := FontVariation.new()
-	tf.base_font = title_font
-	tf.spacing_glyph = -1
-	tf.spacing_space = 5
-	tf.set_spacing(TextServer.SPACING_TOP, -8)
-	tf.set_spacing(TextServer.SPACING_BOTTOM, -9)
-	title.add_theme_font_override("font", tf)
-	title.add_theme_color_override("font_shadow_color", Color(0.627, 0.078, 0.059, 0.4))
+	var title := _label("THE BACKROOMS", 52, TITLE, 6)
+	title.add_theme_color_override("font_shadow_color", Color(0.627, 0.078, 0.059, 0.55))
 	title.add_theme_constant_override("shadow_offset_x", 2)
 	box.add_child(title)
 
