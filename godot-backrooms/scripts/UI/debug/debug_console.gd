@@ -31,6 +31,12 @@ var log_label: RichTextLabel
 var input: LineEdit
 var history: Array = []
 var history_at := 0
+const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
+const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
+var dbg_model: Node3D
+var dbg_anim: AnimationPlayer
+var dbg_anims: Array[String] = []
+var dbg_anims_idx := 0
 
 func _ready() -> void:
 	layer = 100
@@ -83,6 +89,15 @@ func _input(e: InputEvent) -> void:
 	elif panel.visible and e.physical_keycode == KEY_DOWN:
 		_recall(1)
 		get_viewport().set_input_as_handled()
+	elif not panel.visible and e.physical_keycode == KEY_M:
+		_model_command("")
+		get_viewport().set_input_as_handled()
+	elif not panel.visible and e.physical_keycode == KEY_COMMA:
+		_model_command("prev")
+		get_viewport().set_input_as_handled()
+	elif not panel.visible and e.physical_keycode == KEY_PERIOD:
+		_model_command("next")
+		get_viewport().set_input_as_handled()
 
 func _toggle(on: bool) -> void:
 	if on and (Game.dead or root.ui.menu.shown):
@@ -117,8 +132,9 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("spawn <name|all>   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   archive [list|reset]   clearance [reset|add n]   clear")
+			_print("spawn <name|all>   despawn <name|all>   heart [0-1|off]   eyes [n|off|auto|clear]   sanity <0-100|off>   health <0-100>   list   tp mannequin   lightout   archive [list|reset]   clearance [reset|add n]   model   stalk   clear")
 			_print("names: " + ", ".join(ORDER))
+			_print("model [next|prev|off|<clip>]: summon the survivor suit 2.5 m ahead. Keys (console closed): M summon/dismiss, , prev clip, . next clip")
 		"list":
 			for n in ORDER:
 				var on := _active(n)
@@ -183,6 +199,11 @@ func _submit(line: String) -> void:
 			elif arg == "add" and parts.size() > 2 and parts[2].is_valid_int():
 				Clearance.grant(parts[2].to_int())
 			_print("clearance %s  %d %s  (next tier at %d)" % [Clearance.tier_label(), Clearance.total, Clearance.unit, Clearance.next_threshold()])
+		"model":
+			_model_command(arg)
+		"stalk":
+			var ok: bool = root.get_node("Entity").debug_stalk()
+			_print("bacteria stalking" if ok else "[color=orange]no stalk spot found here, try another spot[/color]")
 		"clear":
 			log_label.clear()
 		_:
@@ -223,3 +244,64 @@ func _apply(name: String, spawn: bool) -> void:
 	else:
 		n.debug_despawn()
 	_print("%s %s" % [name, "spawned" if spawn else "despawned"])
+
+## Summons a visible copy of the survivor suit 2.5 m in front of you, facing you. The player's own
+## body (player_shadow.gd) is shadow-only and sits under the camera, so it can't be used for this.
+func _model_command(arg: String) -> void:
+	var player = root.get_node_or_null("Player")
+	if player == null:
+		return
+	if arg == "off" or (arg == "" and is_instance_valid(dbg_model)):
+		if is_instance_valid(dbg_model):
+			dbg_model.queue_free()
+		dbg_model = null
+		_print("model dismissed")
+		return
+	if not is_instance_valid(dbg_model) and not _summon_model(player):
+		_print("[color=orange]survivor model missing or has no animations[/color]")
+		return
+	if arg == "next" or arg == "prev":
+		dbg_anims_idx = posmod(dbg_anims_idx + (1 if arg == "next" else -1), dbg_anims.size())
+	elif arg != "" and dbg_anims.has(arg):
+		dbg_anims_idx = dbg_anims.find(arg)
+	elif arg != "":
+		_print("[color=orange]unknown clip: %s. clips: %s[/color]" % [arg, ", ".join(dbg_anims)])
+		return
+	_play_model_clip()
+
+func _summon_model(player: Node3D) -> bool:
+	var packed := load(SurvivorAnim.MODEL) as PackedScene
+	if packed == null:
+		return false
+	var inst: Node3D = packed.instantiate()
+	var aps := inst.find_children("*", "AnimationPlayer", true, false)
+	if aps.is_empty():
+		inst.queue_free()
+		return false
+	dbg_model = Node3D.new()
+	dbg_model.name = "DebugModel"
+	root.add_child(dbg_model)
+	var holder := Node3D.new()
+	dbg_model.add_child(holder)
+	holder.add_child(inst)
+	inst.transform = HazmatFit.fit(inst, holder, 2.0)
+	holder.rotation.y = PI
+	var ap: AnimationPlayer = aps[0]
+	SurvivorAnim.find_clips(ap)
+	dbg_anim = ap
+	dbg_anims.clear()
+	for n in ap.get_animation_list():
+		if n != "RESET":
+			dbg_anims.append(str(n))
+			ap.get_animation(n).loop_mode = Animation.LOOP_LINEAR
+	dbg_anims_idx = 0
+	var fwd := -player.global_transform.basis.z
+	fwd.y = 0.0
+	dbg_model.global_position = player.global_position + fwd.normalized() * 2.5
+	dbg_model.rotation.y = player.rotation.y
+	return not dbg_anims.is_empty()
+
+func _play_model_clip() -> void:
+	var clip: String = dbg_anims[dbg_anims_idx]
+	dbg_anim.play(clip)
+	_print("model clip %d/%d: %s" % [dbg_anims_idx + 1, dbg_anims.size(), clip])

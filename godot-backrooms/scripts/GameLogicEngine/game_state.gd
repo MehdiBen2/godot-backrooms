@@ -61,6 +61,7 @@ var dev_keys := OS.is_debug_build() or OS.get_cmdline_user_args().has("--dev") o
 # Level-editor test launch: --test-level=<id from levels.json> boots straight into that level (skipping
 # the title screen) and --noclip lets you fly through walls to look around.
 var test_level := _launch_arg("--test-level=")
+var test_spawn := _launch_arg("--test-spawn=")     # "x,z" cell: the editor's TEST HERE
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
 
 static func _launch_arg(prefix: String) -> String:

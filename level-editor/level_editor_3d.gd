@@ -1,0 +1,279 @@
+extends SubViewportContainer
+## The editor's 3D view: the level as simple boxes you can orbit, so you can see walls, floors, painted
+## materials, zones and objects at a glance. It is rebuilt from the editor's data (grid, zones, paint,
+## objects) whenever something changes while it is open; nothing here is saved.
+##   right drag orbit   middle drag / Shift+right drag pan   wheel zoom   WASD pan   C toggles the ceiling
+## 1 cell = 1 unit; the game's cell is 4.5 m and its wall 2.7 m, hence WALL_H.
+
+const WALL_H := 0.6
+const TALL_H := 1.4
+const LOW_H := 0.42
+const REBUILD_DELAY := 0.25
+
+var ed                                   # the level editor (grid, zones, paint, objects, materials, GAME)
+var vp: SubViewport
+var world: Node3D
+var cam: Camera3D
+var hud: Label
+var ceiling_check: CheckBox
+var target := Vector3.ZERO
+var yaw := 0.6
+var pitch := -0.9
+var dist := 30.0
+var stale := true
+var _delay := 0.0
+var _tex_cache := {}                     # pbr name -> StandardMaterial3D
+var _flat_cache := {}                    # Color -> StandardMaterial3D
+
+func _init(editor) -> void:
+	ed = editor
+	stretch = true
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_CLICK
+	visible = false
+	vp = SubViewport.new()
+	vp.own_world_3d = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	add_child(vp)
+	world = Node3D.new()
+	vp.add_child(world)
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color("0d0c08")
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("8a8676")
+	env.ambient_light_energy = 0.8
+	var we := WorldEnvironment.new()
+	we.environment = env
+	vp.add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.rotation = Vector3(-0.9, 0.6, 0.0)
+	sun.light_energy = 1.1
+	sun.shadow_enabled = true
+	vp.add_child(sun)
+	cam = Camera3D.new()
+	cam.far = 500.0
+	vp.add_child(cam)
+	hud = Label.new()
+	hud.position = Vector2(10, 8)
+	hud.add_theme_font_size_override("font_size", 13)
+	hud.add_theme_color_override("font_color", Color("cdb86a"))
+	hud.text = "3D VIEW   right drag orbit   middle drag pan   wheel zoom   WASD move"
+	add_child(hud)
+	ceiling_check = CheckBox.new()
+	ceiling_check.text = "Ceiling"
+	ceiling_check.position = Vector2(10, 30)
+	ceiling_check.toggled.connect(func(_on): stale = true)
+	add_child(ceiling_check)
+	_place_camera()
+
+func mark_stale() -> void:
+	stale = true
+	_delay = REBUILD_DELAY
+
+func open() -> void:
+	visible = true
+	var n: int = ed.grid_size
+	target = Vector3(n * 0.5, 0.0, n * 0.5)
+	dist = n * 0.9
+	_place_camera()
+	stale = true
+	_delay = 0.0
+	grab_focus()
+
+func _process(dt: float) -> void:
+	if not visible: return
+	if stale:
+		_delay -= dt
+		if _delay <= 0.0:
+			stale = false
+			_rebuild()
+	var dir := Vector2.ZERO
+	if has_focus() or get_global_rect().has_point(get_global_mouse_position()):
+		dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
+		if Input.is_key_pressed(KEY_A): dir.x -= 1.0
+		if Input.is_key_pressed(KEY_D): dir.x += 1.0
+		if Input.is_key_pressed(KEY_W): dir.y -= 1.0
+		if Input.is_key_pressed(KEY_S): dir.y += 1.0
+	if dir != Vector2.ZERO and not Input.is_key_pressed(KEY_CTRL):
+		var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+		var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+		target += (right * dir.x + fwd * -dir.y).limit_length(1.0) * dist * 0.8 * dt
+		_place_camera()
+
+func _place_camera() -> void:
+	var off := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)) * dist
+	cam.look_at_from_position(target + off, target, Vector3.UP)
+
+func _gui_input(e: InputEvent) -> void:
+	if e is InputEventMouseMotion:
+		var m: InputEventMouseMotion = e
+		if m.button_mask & MOUSE_BUTTON_MASK_MIDDLE or (m.button_mask & MOUSE_BUTTON_MASK_RIGHT and m.shift_pressed):
+			var right := Vector3(cos(yaw), 0.0, -sin(yaw))
+			var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+			target += (-right * m.relative.x + fwd * m.relative.y) * dist * 0.0018
+			_place_camera()
+		elif m.button_mask & MOUSE_BUTTON_MASK_RIGHT:
+			yaw -= m.relative.x * 0.006
+			pitch = clampf(pitch - m.relative.y * 0.006, -1.55, -0.05)
+			_place_camera()
+	elif e is InputEventMouseButton and e.pressed:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP: dist = maxf(dist * 0.88, 2.0)
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: dist = minf(dist * 1.14, 300.0)
+		else: return
+		_place_camera()
+	elif e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_C and not e.ctrl_pressed:
+		ceiling_check.button_pressed = not ceiling_check.button_pressed
+
+# ---------------------------------------------------------------- materials
+func _flat(col: Color) -> StandardMaterial3D:
+	if not _flat_cache.has(col):
+		var m := StandardMaterial3D.new()
+		m.albedo_color = col
+		m.roughness = 0.9
+		if col.a < 1.0: m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_flat_cache[col] = m
+	return _flat_cache[col]
+
+## A surface material (a pbr name or "default:<slot>", see the editor's _surface_key) as the editor's thumbnail,
+## tiled by world position; its average colour if it has no texture
+func _pbr(key: String) -> StandardMaterial3D:
+	if _tex_cache.has(key): return _tex_cache[key]
+	var t: Dictionary = ed._thumb(key)
+	var m := StandardMaterial3D.new()
+	m.roughness = 0.9
+	if t.tex != null:
+		m.albedo_texture = t.tex
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3.ONE * 0.5
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	else:
+		m.albedo_color = t.avg
+	_tex_cache[key] = m
+	return m
+
+# ---------------------------------------------------------------- building
+func _clear() -> void:
+	for c in world.get_children(): c.queue_free()
+
+## One MultiMesh of `mesh` (a unit box / quad, scaled per instance) for every transform in `xfs`
+func _batch(mesh: Mesh, mat: Material, xfs: Array) -> void:
+	if xfs.is_empty(): return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = xfs.size()
+	for i in xfs.size(): mm.set_instance_transform(i, xfs[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	world.add_child(mmi)
+
+func _box_xf(centre: Vector3, size: Vector3, yaw_rad := 0.0) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, yaw_rad) * Basis.from_scale(size), centre)
+
+func _wall_height(c: Vector2i) -> float:
+	var all_low := true
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var n := c + Vector2i(dx, dz)
+			if ed.zones["tall"].has(n): return TALL_H
+			if not ed.zones["low"].has(n): all_low = false
+	return LOW_H if all_low else WALL_H
+
+func _rebuild() -> void:
+	_clear()
+	var n: int = ed.grid_size
+	var unit := BoxMesh.new()
+	unit.size = Vector3.ONE
+	var quad := QuadMesh.new()
+	quad.orientation = PlaneMesh.FACE_Y
+	quad.size = Vector2.ONE
+	var by_mat := {"wall": {}, "floor": {}, "ceiling": {}}       # slot -> {pbr name or "": [transforms]}
+	var pits: Array = []
+	for z in n:
+		for x in n:
+			var c := Vector2i(x, z)
+			var ch: String = ed.grid[z][x]
+			if ch == ed.WALL:
+				var h := _wall_height(c)
+				by_mat["wall"].get_or_add(ed._surface_key("wall", c), []).append(_box_xf(Vector3(x, h * 0.5, z), Vector3(1, h, 1)))
+				continue
+			if ch == ed.PIT:
+				pits.append(_box_xf(Vector3(x, -0.05, z), Vector3(1, 0.1, 1)))
+				continue
+			by_mat["floor"].get_or_add(ed._surface_key("floor", c), []).append(_box_xf(Vector3(x, 0.0, z), Vector3(1, 1, 1)))
+			if ceiling_check.button_pressed:
+				var h := _wall_height(c)
+				by_mat["ceiling"].get_or_add(ed._surface_key("ceiling", c), []).append(Transform3D(Basis(Vector3.RIGHT, PI), Vector3(x, h + 0.02, z)))
+	_flat_cache.clear()
+	for slot in by_mat:
+		for key in by_mat[slot]:
+			_batch(unit if slot == "wall" else quad, _pbr(key), by_mat[slot][key])
+	_batch(unit, _flat(Color("050505")), pits)
+	# zones: a translucent tint on the floor, a little above it
+	for zn in ed.ZONES:
+		var xfs: Array = []
+		for c: Vector2i in ed.zones[zn]:
+			xfs.append(_box_xf(Vector3(c.x, 0.012 + 0.002 * ed.ZONES.keys().find(zn), c.y), Vector3(0.96, 1, 0.96)))
+		var col: Color = ed.ZONES[zn]
+		col.a = 0.55
+		var zm := _flat(col)
+		zm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_batch(quad, zm, xfs)
+	for m in ed.MARKERS:
+		var mc = ed.markers[m]
+		if mc == null: continue
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = 0.06
+		mesh.bottom_radius = 0.12
+		mesh.height = 0.9
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.position = Vector3(mc.x, 0.45, mc.y)
+		var mm := _flat(ed.MARKERS[m])
+		mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mi.material_override = mm
+		world.add_child(mi)
+	for o: Dictionary in ed.objects:
+		_object(o, unit)
+
+func _object(o: Dictionary, unit: Mesh) -> void:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var h := _wall_height(c)
+	var info: Dictionary = ed.OBJ_INFO.get(o.type, {})
+	var col: Color = info.get("col", Color("a39c8a"))
+	var yaw_rad := -deg_to_rad(o.rotation)             # map rotation is clockwise seen from above
+	var pos := Vector3(o.pos_x, 0.0, o.pos_y)
+	var depth := float(info.get("thickness", 0.3)) / 4.5      # metres -> cells
+	var span: float = o.scale
+	var wall_mat := _pbr(ed._surface_key("wall", Vector2i(-1, -1)))
+	var parts: Array = []                              # [local centre, size, material]
+	match o.type:
+		"thin_wall":
+			parts.append([Vector3(0, h * 0.5, 0), Vector3(depth, h, span), wall_mat])
+		"arch":
+			var pillar := float(info.get("pillar", 0.75)) / 4.5
+			var r := span * 0.5 - pillar
+			var top := 0.42                              # crown, flattened to a lintel
+			for side in [-1.0, 1.0]:
+				parts.append([Vector3(0, h * 0.5, side * (r + pillar * 0.5)), Vector3(1, h, pillar), wall_mat])
+			parts.append([Vector3(0, (h + top) * 0.5, 0), Vector3(1, h - top, r * 2.0), wall_mat])
+		"door":
+			var frame := _flat(Color("6b4a2e"))
+			parts.append([Vector3(0, h * 0.42, 0), Vector3(depth, h * 0.84, span * 0.8), frame])
+			parts.append([Vector3(0, h * 0.92, 0), Vector3(depth * 1.4, h * 0.16, span), wall_mat])
+			for side in [-1.0, 1.0]:
+				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
+		_:
+			var s := 0.28 * span
+			parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])
+	var xf := Transform3D(Basis(Vector3.UP, yaw_rad), pos)
+	for p in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = unit
+		mi.transform = xf * Transform3D(Basis.from_scale(p[1]), p[0])
+		mi.material_override = p[2]
+		world.add_child(mi)

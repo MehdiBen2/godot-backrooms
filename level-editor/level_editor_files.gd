@@ -9,11 +9,7 @@ const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage"
 const SCATTER_PER_CELLS := 25         # roughly one prop per this many open floor cells
 const SCATTER_KEEPOUT := 2            # cells kept clear round spawn / exit / entity / tv and existing objects
 
-var GAME := OS.get_environment("BACKROOMS_GAME_DIR") if OS.has_environment("BACKROOMS_GAME_DIR") \
-	else ProjectSettings.globalize_path("res://").path_join("../godot-backrooms").simplify_path()
-
 var data: Dictionary = {}
-var materials := {}                  # slot -> pbr name
 var filter := ""
 var level_list: ItemList
 var size_spin: SpinBox
@@ -21,7 +17,6 @@ var gi_pick: OptionButton
 var atmo_pick: OptionButton
 var slot_picks := {}
 var slot_previews := {}
-var pbr_names: Array = []
 var name_dialog: ConfirmationDialog
 var name_edit: LineEdit
 var name_hint: Label
@@ -65,6 +60,12 @@ func _open(i: int) -> void:
 		zones[z] = {}
 		for c in data.get("zones", {}).get(z, []):
 			zones[z][Vector2i(c[0], c[1])] = true
+	paint = {"wall": {}, "floor": {}, "ceiling": {}}
+	for slot in PAINT_SLOTS:
+		var by_mat: Dictionary = data.get("paint", {}).get(slot, {})
+		for id in by_mat:
+			for c in by_mat[id]:
+				paint[slot][Vector2i(c[0], c[1])] = str(id)
 	markers = {}
 	for m in MARKERS:
 		var c = data.get(m)
@@ -87,7 +88,9 @@ func _open(i: int) -> void:
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
 	undo_stack.clear()
+	redo_stack.clear()
 	dirty = false
+	if preview3d != null and preview3d.visible: preview3d.mark_stale()
 	_refresh_list()
 	_fit()
 	_update_title()
@@ -256,17 +259,24 @@ func _godot_path() -> String:
 		return OS.get_executable_path()        # running from the Godot editor: it is Godot itself
 	return ""
 
-## Save, then launch the game straight into this level with noclip on
-func _test_level() -> void:
+var _test_pid := -1
+
+## Save, then launch the game straight into this level with noclip on. `here`: start on the cell under the
+## mouse instead of the spawn marker. A test window still open from the last run is closed first.
+func _test_level(here := false) -> void:
 	if current < 0: return
 	var exe := _godot_path()
 	if exe == "":
 		godot_dialog.popup_centered_ratio(0.6)
 		return
 	save()
+	if _test_pid > 0 and OS.is_process_running(_test_pid):
+		OS.kill(_test_pid)
 	var args := ["--path", GAME, "--", "--test-level=" + str(index[current].id), "--noclip"]
-	var pid := OS.create_process(exe, args)
-	_status("Testing %s in noclip (WASD, Space up, C down, Shift fast)" % str(index[current].name) if pid > 0 else "Could not start " + exe)
+	if here and hover.x >= 1 and hover.y >= 1 and hover.x < grid_size - 1 and hover.y < grid_size - 1 and grid[hover.y][hover.x] != WALL:
+		args.append("--test-spawn=%d,%d" % [hover.x, hover.y])
+	_test_pid = OS.create_process(exe, args)
+	_status("Testing %s in noclip (WASD, Space up, C down, Shift fast)" % str(index[current].name) if _test_pid > 0 else "Could not start " + exe)
 
 # ---------------------------------------------------------------- save
 func _current_payload() -> Dictionary:
@@ -290,6 +300,18 @@ func _current_payload() -> Dictionary:
 		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
 		zd[z] = list
 	out["zones"] = zd
+	var pd := {}
+	for slot in PAINT_SLOTS:
+		var by_mat := {}
+		for c: Vector2i in paint[slot]:
+			if c.x < grid_size and c.y < grid_size:
+				if not by_mat.has(paint[slot][c]): by_mat[paint[slot][c]] = []
+				by_mat[paint[slot][c]].append([c.x, c.y])
+		for id in by_mat:
+			by_mat[id].sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
+		if not by_mat.is_empty(): pd[slot] = by_mat
+	if pd.is_empty(): out.erase("paint")
+	else: out["paint"] = pd
 	match gi_pick.selected:
 		1: out["sdfgi"] = true
 		2: out["sdfgi"] = false
@@ -397,6 +419,9 @@ func _resize(n: int) -> void:
 	for zn in zones:
 		for c: Vector2i in zones[zn].keys():
 			if c.x >= n - 1 or c.y >= n - 1: zones[zn].erase(c)
+	for slot in paint:
+		for c: Vector2i in paint[slot].keys():
+			if c.x >= n - 1 or c.y >= n - 1: paint[slot].erase(c)
 	for m in markers:
 		var c = markers[m]
 		if c != null and (c.x >= n - 1 or c.y >= n - 1): markers[m] = null
@@ -412,15 +437,7 @@ func _set_material(slot: String, id: String) -> void:
 	_preview(slot)
 	_mark_dirty()
 
+## The swatch beside a level material picker: the material, or the game's default look when none is set
 func _preview(slot: String) -> void:
 	var id := str(materials.get(slot, ""))
-	var path := GAME.path_join("textures/pbr/%s/%s_Color.jpg" % [id, id])
-	if not FileAccess.file_exists(path):
-		path = path.get_basename() + ".png"
-	var tex: Texture2D = null
-	if id != "" and FileAccess.file_exists(path):
-		var img := Image.load_from_file(path)
-		if img != null:
-			img.resize(192, 192)
-			tex = ImageTexture.create_from_image(img)
-	(slot_previews[slot] as TextureRect).texture = tex
+	(slot_previews[slot] as TextureRect).texture = _thumb(id if id != "" else "default:" + slot).tex

@@ -51,7 +51,28 @@ func _has_pbr(slot: String) -> bool:
 func _pbr_or(slot: String, _world := false) -> StandardMaterial3D:
 	if not _has_pbr(slot):
 		return null
-	var id := str(level_data.get("materials", {}).get(slot, ""))
+	return _pbr_by_id(str(level_data.get("materials", {}).get(slot, "")))
+
+## The .lvl's "paint" ({wall|floor|ceiling} -> {pbr name -> [[x, z], ...]}, the editor's material brush):
+## cells that override the level's material for that surface. slot -> {Vector2i: pbr name}
+var _painted := {}
+func painted(slot: String) -> Dictionary:
+	if _painted.is_empty():
+		for sl in ["wall", "floor", "ceiling"]:
+			var cells := {}
+			for id in level_data.get("paint", {}).get(sl, {}):
+				if not ResourceLoader.exists("res://textures/pbr/%s/%s.tres" % [id, id]): continue
+				for c in level_data["paint"][sl][id]:
+					cells[Vector2i(c[0], c[1])] = str(id)
+			_painted[sl] = cells
+	return _painted[slot]
+
+var _paint_mats := {}
+func _painted_mat(id: String) -> StandardMaterial3D:
+	if not _paint_mats.has(id): _paint_mats[id] = _pbr_by_id(id)
+	return _paint_mats[id]
+
+func _pbr_by_id(id: String) -> StandardMaterial3D:
 	var m: StandardMaterial3D = (load("res://textures/pbr/%s/%s.tres" % [id, id]) as StandardMaterial3D).duplicate()
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
@@ -165,21 +186,31 @@ func _build_surfaces() -> void:
 	var classic_ceil := []
 	var ceil_cells := []
 	var floor_cells := []
+	var paint_floor := {}                    # pbr name -> cells the editor's material brush covered
+	var paint_ceil := {}
+	var pf := painted("floor")
+	var pc := painted("ceiling")
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if panel_ceiling != null: pass          # built by level_fixtures.gd with its lights
+			elif pc.has(c): paint_ceil.get_or_add(pc[c], []).append(c)
 			elif classic.has(c): classic_ceil.append(c)
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
 			floor_cells.append(c)
-			if classic.has(c): classic_floor.append(c)
+			if pf.has(c): paint_floor.get_or_add(pf[c], []).append(c)
+			elif classic.has(c): classic_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
 	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), _fillable_ceiling(ceil_m), true).layers = CEIL_LAYER
+	for id in paint_floor:
+		_cell_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
+	for id in paint_ceil:
+		_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true).layers = CEIL_LAYER
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
@@ -292,12 +323,23 @@ func _build_walls() -> void:
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
 	_build_occluder(groups)
+	# cells painted with a material get their own group per (height, material)
+	var pw := painted("wall")
+	if not pw.is_empty():
+		for height in groups.keys():
+			var keep := []
+			for c in groups[height]:
+				if pw.has(c): groups.get_or_add("%s|%s" % [height, pw[c]], []).append(c)
+				else: keep.append(c)
+			groups[height] = keep
 	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat}
 	var body := StaticBody3D.new()
 	add_child(body)
-	for height in groups.keys():
-		var list: Array = groups[height]
+	for key in groups.keys():
+		var list: Array = groups[key]
 		if list.is_empty(): continue
+		var height: float = float(str(key).get_slice("|", 0))
+		var mat: Material = _painted_mat(str(key).get_slice("|", 1)) if key is String else mats[key]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		var box := BoxMesh.new()
@@ -315,7 +357,7 @@ func _build_walls() -> void:
 			body.add_child(cs)
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
-		mmi.material_override = mats[height]
+		mmi.material_override = mat
 		add_child(mmi)
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,

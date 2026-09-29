@@ -45,6 +45,7 @@ var bright := {}
 var dark := {}
 var dim := {}
 var flicker := {}
+var mannequin := {}   # cells where the mannequin room stands (painted in the level editor)
 var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
 var spawn_pos := Vector3.ZERO
 var level_data := {}
@@ -153,7 +154,7 @@ func _parse(d: Dictionary) -> void:
 		elif info.get("blocks_nav", false):
 			_block_span(o, float(info.get("thickness", 0.3)) * 0.5)
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic"]:
+	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "mannequin"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
@@ -167,6 +168,9 @@ func _parse(d: Dictionary) -> void:
 				if not (walls.has(v) or dark.has(v) or dim.has(v)): classic[v] = true
 	var s: Array = d.get("spawn", [4, 4])
 	spawn_pos = Vector3(s[0] * CELL, 0.1, s[1] * CELL)
+	var at := Game.test_spawn.split(",")           # level editor "test from here": start on the cell it picked
+	if at.size() == 2 and not walls.has(Vector2i(int(at[0]), int(at[1]))):
+		spawn_pos = Vector3(int(at[0]) * CELL, 0.1, int(at[1]) * CELL)
 	level_name = str(level_meta.get("name", "LEVEL 0"))
 
 ## "dim" (the default: failing tubes, light that dies in the fog) or "classic" (the whole level lit bright

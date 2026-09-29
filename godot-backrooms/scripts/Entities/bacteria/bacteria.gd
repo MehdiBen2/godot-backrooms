@@ -680,8 +680,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		if nav.open_at(p.x, p.z):
 			summon(p.x, p.z, player.global_position.x, player.global_position.z)
 	elif e.physical_keycode == KEY_F4:
-		gather_target()
-		begin_stalk(true)
+		debug_stalk()
 
 # ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
@@ -724,6 +723,13 @@ func debug_despawn() -> void:
 	process_mode = Node.PROCESS_MODE_DISABLED
 	visible = false
 	scares.entity_breathe(0.0)
+
+func debug_stalk() -> bool:
+	if process_mode == Node.PROCESS_MODE_DISABLED:
+		process_mode = Node.PROCESS_MODE_INHERIT
+		visible = true
+	gather_target()
+	return begin_stalk(true)
 
 func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT

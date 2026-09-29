@@ -22,7 +22,7 @@ const POSE_KEYS := MannequinModel.POSE_KEYS
 
 # MANNEQUIN config (js/config.js)
 const COUNT := 60
-const ROOM := Rect2i(33, 19, 8, 3)           # cell rectangle x0,z0 and size (x1 = 41, z1 = 22)
+const ROOM := Rect2i(33, 19, 8, 3)           # fallback when the level paints no Mannequin zone: cell rectangle x0,z0 and size
 const SPACING := 1.5
 const RADIUS := 0.34
 const WAKE_DISTANCE := 17.0
@@ -55,6 +55,9 @@ const STARE_BLINK_RATE := 0.35               # blinks per second at full urge
 const STARE_SANITY := 0.25                   # sanity per second while watching them...
 const STARE_SANITY_MAX := 0.6                # ...rising to this after a long stare
 
+var room_cells: Array[Vector2i] = []
+var room_near := {}                          # room cells and their neighbours
+var room_box := Rect2i()
 var level: Node
 var player: CharacterBody3D
 var scares: Node
@@ -124,6 +127,7 @@ func _ready() -> void:
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
 	n = nav.n
+	_find_room()
 	flow.resize(n * n)
 	crowd = MannequinCrowd.new(self)
 	snap = MannequinSnap.new(self)
@@ -135,12 +139,31 @@ func _ready() -> void:
 	reset()
 
 # ================================================================= room
+## The room's cells: the level's painted Mannequin zone (level editor), else the fixed ROOM rectangle
+func _find_room() -> void:
+	room_cells.clear()
+	room_near.clear()
+	for c: Vector2i in level.mannequin:
+		room_cells.append(c)
+	if room_cells.is_empty():
+		for x in range(ROOM.position.x, ROOM.end.x + 1):
+			for z in range(ROOM.position.y, ROOM.end.y + 1):
+				room_cells.append(Vector2i(x, z))
+	var lo := room_cells[0]
+	var hi := room_cells[0]
+	for c in room_cells:
+		lo = Vector2i(mini(lo.x, c.x), mini(lo.y, c.y))
+		hi = Vector2i(maxi(hi.x, c.x), maxi(hi.y, c.y))
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				room_near[c + Vector2i(dx, dz)] = true
+	room_box = Rect2i(lo, hi - lo)
+
 func room_slots(count: int) -> Array:
 	var cells: Array = []
-	for x in range(ROOM.position.x, ROOM.end.x + 1):
-		for z in range(ROOM.position.y, ROOM.end.y + 1):
-			if not nav.blocked(x, z):
-				cells.append(Vector2i(x, z))
+	for c in room_cells:
+		if not nav.blocked(c.x, c.y):
+			cells.append(c)
 	var slots: Array = []
 	if cells.is_empty():
 		return slots
@@ -161,12 +184,16 @@ func room_slots(count: int) -> Array:
 	return slots
 
 func room_centre() -> Vector3:
-	return Vector3((ROOM.position.x + ROOM.end.x) / 2.0 * CELL, 0.0, (ROOM.position.y + ROOM.end.y) / 2.0 * CELL)
+	var sum := Vector2.ZERO
+	for c in room_cells:
+		sum += Vector2(c)
+	sum /= room_cells.size()
+	return Vector3(sum.x * CELL, 0.0, sum.y * CELL)
 
 func in_room(p: Vector3) -> bool:
 	var x := GridNav.cell(p.x)
 	var z := GridNav.cell(p.z)
-	return x >= ROOM.position.x - 1 and x <= ROOM.end.x + 1 and z >= ROOM.position.y - 1 and z <= ROOM.end.y + 1
+	return room_near.has(Vector2i(x, z))
 
 # Re-deal the room: everyone gets a new spot and a new pose, and one of them is the real one
 func reset() -> void:
@@ -721,9 +748,9 @@ func warp_to_room() -> void:
 	# the open cell in (or at the doorway of) the room that is clearest of mannequins
 	var best := Vector2i(-1, -1)
 	var best_d := -1.0
-	for x in range(ROOM.position.x - 1, ROOM.end.x + 2):
-		for z in range(ROOM.position.y - 1, ROOM.end.y + 2):
-			if nav.blocked(x, z):
+	for x in range(room_box.position.x - 1, room_box.end.x + 2):
+		for z in range(room_box.position.y - 1, room_box.end.y + 2):
+			if nav.blocked(x, z) or not room_near.has(Vector2i(x, z)):
 				continue
 			var md := INF
 			for d in decoys:

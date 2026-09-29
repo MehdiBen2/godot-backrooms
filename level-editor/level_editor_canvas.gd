@@ -16,7 +16,9 @@ const THIN := "T"                    # v1 tiles, converted into objects when a l
 const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
-	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a")}
+	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
+	"mannequin": Color("e8e0d0")}
+const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
 	THIN: Color("7a7364"), ARCH: Color("8a7a52"), DOOR: Color("6b4a2e")}
@@ -30,6 +32,8 @@ var current := -1
 var grid_size := 46
 var grid: Array = []                 # grid[z] is an Array of one-char strings
 var zones := {}                      # zone -> {Vector2i: true}
+var paint := {"wall": {}, "floor": {}, "ceiling": {}}   # slot -> {Vector2i: pbr name}: per-cell material overrides
+var paint_mat := ""                  # the material the paint tools lay down
 var markers := {}                    # marker -> Vector2i or null
 var tool := "base:" + WALL
 var brush := 1
@@ -56,6 +60,23 @@ var align := true                    # turn doors / arches / thin walls to fit t
 var OBJ_TYPES: Array = []            # the object types, in levels/object_types.json order
 var OBJ_INFO := {}                   # type -> its object_types.json entry, plus "col" as a Color
 var insp_undo := -1                  # the object the inspector already pushed an undo step for
+var redo_stack: Array = []
+
+var GAME := OS.get_environment("BACKROOMS_GAME_DIR") if OS.has_environment("BACKROOMS_GAME_DIR") \
+	else ProjectSettings.globalize_path("res://").path_join("../godot-backrooms").simplify_path()
+var materials := {}                  # slot -> pbr name: the level-wide material of each surface
+var pbr_names: Array = []            # the folders in the game's textures/pbr/
+
+# How the map is shown (the bar above it)
+var view_ceiling := false            # show the ceiling's materials instead of the floor's
+var show_tex := true                 # draw the real textures on cells
+var show_zones := true
+var show_paint := true               # outline painted materials and list them
+var show_objects := true
+var show_grid := true
+# How a click paints: "brush" (drag the brush), "rect" (drag a rectangle), "fill" (the connected area)
+var mode := "brush"
+var rect_from := Vector2i(-1, -1)    # where a rectangle drag started
 
 var font: FontFile = load("res://fonts/vcr.ttf")
 var canvas: Control
@@ -92,71 +113,405 @@ func _update_info() -> void:
 	info.text = "%dx%d   %d open   %d objects   %s" % [grid_size, grid_size, open_cells, objects.size(), ("WARN: " + ", ".join(warn)) if not warn.is_empty() else "OK"]
 	info.add_theme_color_override("font_color", RED if not warn.is_empty() else DIM)
 
+var preview3d: Control               # level_editor_3d.gd: rebuilt when the map changes while it is open
+
 func _mark_dirty() -> void:
 	dirty = true
+	if preview3d != null and preview3d.visible: preview3d.mark_stale()
 	_update_title()
 	canvas.queue_redraw()
 
 # ---------------------------------------------------------------- canvas
 func _fit() -> void:
 	if canvas == null: return
+	if canvas.size.x < 32.0:             # not laid out yet (the level opens before the first frame)
+		if not canvas.resized.is_connected(_fit): canvas.resized.connect(_fit, CONNECT_ONE_SHOT)
+		return
 	zoom = clampf(minf(canvas.size.x, canvas.size.y) / maxf(grid_size, 1) * 0.96, 6.0, 40.0)
 	pan = (canvas.size - Vector2(grid_size, grid_size) * zoom) / 2.0
 	canvas.queue_redraw()
 
+## Every material keeps one bright colour (from its name), used for its outlines and marks on the map
+func _paint_colour(id: String) -> Color:
+	return Color.from_hsv(fmod(float(hash(id) & 0xffff) / 65535.0, 1.0), 0.7, 1.0)
+
+# ---------------------------------------------------------------- material thumbnails
+# How a surface looks when the level sets no material: the game's own Level 0 textures
+const DEFAULT_TEX := {"wall": "textures/wall_color.png", "floor": "textures/l0_carpet_color.webp",
+	"ceiling": "textures/l0_ceiling_color.webp", "tiles": "textures/tiles_color.png"}
+# ...and the tint the game puts over each (level_geometry.gd _mat / _wall_material)
+const DEFAULT_TINT := {"wall": Color(1.0, 0.98, 0.88), "floor": Color(1.0, 0.94, 0.75), "ceiling": Color(0.89, 0.85, 0.74)}
+const THUMB := 128
+const DIRS4 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+const WALL_SHADE := Color(0.42, 0.4, 0.36)      # wall tops drawn darker than the floor round them
+const DEEP_WALL := Color("1d1a14")               # wall mass with no open side
+var _thumbs := {}                    # key -> {tex, avg}
+
+## The colour map of a folder in the game's textures/pbr/: its <name>_Color file, else what its .tres uses as albedo
+func _pbr_colour_path(id: String) -> String:
+	var dir := GAME.path_join("textures/pbr/" + id)
+	for ext in ["jpg", "png", "webp"]:
+		var p := dir.path_join("%s_Color.%s" % [id, ext])
+		if FileAccess.file_exists(p): return p
+	var tres := FileAccess.get_file_as_string(dir.path_join(id + ".tres"))
+	var m := RegEx.create_from_string('albedo_texture = ExtResource\\("([^"]+)"\\)').search(tres)
+	if m != null:
+		var r := RegEx.create_from_string('path="res://([^"]+)" id="%s"' % m.get_string(1)).search(tres)
+		if r != null: return GAME.path_join(r.get_string(1))
+	return ""
+
+## A small texture of a material and its average colour. `key` is a pbr name, or "default:<slot>" for the
+## game's built-in look. Thumbnails are cached in user://thumbs so the editor opens fast next time.
+func _thumb(key: String) -> Dictionary:
+	if _thumbs.has(key): return _thumbs[key]
+	var e := {"tex": null, "avg": _paint_colour(key)}
+	var path := ""
+	if key.begins_with("default:"): path = GAME.path_join(str(DEFAULT_TEX.get(key.get_slice(":", 1), "")))
+	elif key != "": path = _pbr_colour_path(key)
+	if path != "" and FileAccess.file_exists(path):
+		var cache := "user://thumbs/%s_v2.png" % key.replace(":", "_")
+		var img: Image = null
+		if FileAccess.file_exists(cache) and FileAccess.get_modified_time(cache) >= FileAccess.get_modified_time(path):
+			img = Image.load_from_file(cache)
+		if img == null:
+			img = Image.load_from_file(path)
+			if img != null:
+				if img.is_compressed(): img.decompress()
+				img.convert(Image.FORMAT_RGBA8)
+				img.resize(THUMB, THUMB, Image.INTERPOLATE_LANCZOS)
+				var tint: Color = DEFAULT_TINT.get(key.get_slice(":", 1), Color.WHITE) if key.begins_with("default:") else Color.WHITE
+				if tint != Color.WHITE:
+					for y in THUMB:
+						for x in THUMB:
+							img.set_pixel(x, y, img.get_pixel(x, y) * tint)
+				DirAccess.make_dir_recursive_absolute("user://thumbs")
+				img.save_png(cache)
+		if img != null:
+			var sum := Color(0, 0, 0, 0)
+			var n := 0.0
+			for y in range(0, img.get_height(), 8):
+				for x in range(0, img.get_width(), 8):
+					sum += img.get_pixel(x, y)
+					n += 1.0
+			e.avg = Color(sum.r / n, sum.g / n, sum.b / n)
+			img.generate_mipmaps()
+			e.tex = ImageTexture.create_from_image(img)
+	_thumbs[key] = e
+	return e
+
+## What a cell's surface is made of: its painted material, else the level's, else "default:<slot>".
+## A Tiles zone floor uses the level's tiles material, as in the game.
+func _surface_key(slot: String, c: Vector2i) -> String:
+	if paint.has(slot) and paint[slot].has(c): return paint[slot][c]
+	var s := slot
+	if slot == "floor" and zones.has("tiles") and zones["tiles"].has(c): s = "tiles"
+	var id := str(materials.get(s, ""))
+	return id if id != "" else "default:" + s
+
+func _nice_key(k: String) -> String:
+	return "default" if k.begins_with("default:") else k
+
+# ---------------------------------------------------------------- drawing
 func _cell_at(p: Vector2) -> Vector2i:
 	var q := (p - pan) / zoom
 	return Vector2i(floori(q.x), floori(q.y))
 
+func _in_grid(c: Vector2i) -> bool:
+	return c.x >= 0 and c.y >= 0 and c.x < grid_size and c.y < grid_size
+
+func _cell_rect(c: Vector2i) -> Rect2:
+	return Rect2(pan + Vector2(c) * zoom, Vector2(zoom, zoom))
+
+## The strip `w` wide along side `d` of `r`, inside it
+func _edge(r: Rect2, d: Vector2i, w: float) -> Rect2:
+	if d.x > 0: return Rect2(r.end.x - w, r.position.y, w, r.size.y)
+	if d.x < 0: return Rect2(r.position.x, r.position.y, w, r.size.y)
+	if d.y > 0: return Rect2(r.position.x, r.end.y - w, r.size.x, w)
+	return Rect2(r.position.x, r.position.y, r.size.x, w)
+
+## A little label on a dark pill, its top-left corner at `p`
+func _tag(p: Vector2, text: String, col: Color, size := 11) -> void:
+	var ts := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size)
+	canvas.draw_rect(Rect2(p, ts + Vector2(6, 2)), Color(0, 0, 0, 0.78))
+	canvas.draw_string(font, p + Vector2(3, 1 + font.get_ascent(size)), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+
 func _draw_canvas() -> void:
 	canvas.draw_rect(Rect2(Vector2.ZERO, canvas.size), Color("080704"))
-	for z in grid_size:
-		for x in grid_size:
-			canvas.draw_rect(Rect2(pan + Vector2(x, z) * zoom, Vector2(zoom, zoom)), BASE_COLORS.get(grid[z][x], Color.BLACK))
-	for zn in ZONES:
-		var col: Color = ZONES[zn]
-		col.a = 0.5
-		for c: Vector2i in zones[zn]:
-			canvas.draw_rect(Rect2(pan + Vector2(c) * zoom + Vector2.ONE, Vector2(zoom, zoom) - Vector2(2, 2)), col)
-	if zoom >= 10.0:
-		for i in grid_size + 1:
-			canvas.draw_line(pan + Vector2(i, 0) * zoom, pan + Vector2(i, grid_size) * zoom, Color(0, 0, 0, 0.3))
-			canvas.draw_line(pan + Vector2(0, i) * zoom, pan + Vector2(grid_size, i) * zoom, Color(0, 0, 0, 0.3))
-	for o: Dictionary in objects:
-		_draw_object(o, 1.0)
-	for m in MARKERS:
-		var c = markers[m]
-		if c != null:
-			var p: Vector2 = pan + (Vector2(c) + Vector2(0.5, 0.5)) * zoom
-			canvas.draw_circle(p, zoom * 0.42, MARKERS[m])
-			canvas.draw_arc(p, zoom * 0.42, 0, TAU, 20, Color.BLACK, 1.5)
-			canvas.draw_string(font, p + Vector2(-zoom * 0.2, zoom * 0.2), m.substr(0, 1).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, int(zoom * 0.6), Color.BLACK)
+	# only the cells on screen
+	var lo := Vector2i(maxi(0, floori(-pan.x / zoom)), maxi(0, floori(-pan.y / zoom)))
+	var hi := Vector2i(mini(grid_size - 1, floori((canvas.size.x - pan.x) / zoom)), mini(grid_size - 1, floori((canvas.size.y - pan.y) / zoom)))
+	var tex_on := show_tex and zoom >= 5.0
+	var surf := "ceiling" if view_ceiling else "floor"
+	for z in range(lo.y, hi.y + 1):
+		for x in range(lo.x, hi.x + 1):
+			_draw_cell(Vector2i(x, z), tex_on, surf)
+	_draw_shading(lo, hi)
+	if show_zones: _draw_zones()
+	if show_paint: _draw_paint_marks()
+	if show_grid: _draw_grid(lo, hi)
+	if show_objects:
+		for o: Dictionary in objects:
+			_draw_object(o, 1.0)
+	_draw_markers()
 	if _object_tool():
-		if hover_obj >= 0 and hover_obj != selected and drag == "":
+		if not show_objects: pass
+		elif hover_obj >= 0 and hover_obj != selected and drag == "":
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
 			var ghost := {"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale}
 			_draw_object(ghost, 0.45)
 			_draw_arrow(ghost, Color(SEL, 0.5))
-	elif hover.x >= 0 and not tool.begins_with("mark:"):
-		var half := brush / 2
-		for dz in brush:
-			for dx in brush:
-				var c := hover + Vector2i(dx - half, dz - half)
-				canvas.draw_rect(Rect2(pan + Vector2(c) * zoom, Vector2(zoom, zoom)), Color(1, 1, 1, 0.22))
-	elif hover.x >= 0:
-		canvas.draw_rect(Rect2(pan + Vector2(hover) * zoom, Vector2(zoom, zoom)), Color(1, 1, 1, 0.3))
-	if selected >= 0:
+	else:
+		_draw_hover()
+	if selected >= 0 and show_objects:
 		_draw_gizmo(objects[selected])
 	canvas.draw_rect(Rect2(pan, Vector2(grid_size, grid_size) * zoom), GOLD, false, 1.5)
+	_draw_rulers()
+	if show_paint: _draw_legend()
+	if view_ceiling:
+		_tag(Vector2(canvas.size.x * 0.5 - 90, 8), "CEILING VIEW  (C: floor)", GOLD, 14)
 
+func _draw_cell(c: Vector2i, tex_on: bool, surf: String) -> void:
+	var r := _cell_rect(c)
+	var ch: String = grid[c.y][c.x]
+	if ch == WALL:
+		var exposed := false
+		for d: Vector2i in DIRS4:
+			var n := c + d
+			if _in_grid(n) and grid[n.y][n.x] != WALL: exposed = true
+		if not exposed:
+			canvas.draw_rect(r, DEEP_WALL)
+			if zoom >= 10.0:       # hatched like the solid mass on a floor plan; the lines join up cell to cell
+				var hc := Color(1, 1, 1, 0.045)
+				canvas.draw_line(r.position + Vector2(0, zoom), r.position + Vector2(zoom, 0), hc)
+				canvas.draw_line(r.position + Vector2(0, zoom * 0.5), r.position + Vector2(zoom * 0.5, 0), hc)
+				canvas.draw_line(r.position + Vector2(zoom * 0.5, zoom), r.position + Vector2(zoom, zoom * 0.5), hc)
+			return
+		if not tex_on:
+			canvas.draw_rect(r, BASE_COLORS[WALL])
+			return
+		var tw := _thumb(_surface_key("wall", c))
+		if tw.tex != null: canvas.draw_texture_rect(tw.tex, r, false, WALL_SHADE)
+		else: canvas.draw_rect(r, (tw.avg as Color) * WALL_SHADE)
+		return
+	if ch == PIT:
+		canvas.draw_rect(r, Color("030303"))
+		canvas.draw_rect(r.grow(-zoom * 0.14), Color("100e0a"), false, maxf(1.0, zoom * 0.06))
+		return
+	if not tex_on:
+		canvas.draw_rect(r, BASE_COLORS.get(ch, BASE_COLORS[FLOOR]))
+		return
+	var t := _thumb(_surface_key(surf, c))
+	if t.tex != null: canvas.draw_texture_rect(t.tex, r, false, Color(0.9, 0.9, 0.95) if view_ceiling else Color.WHITE)
+	else: canvas.draw_rect(r, t.avg)
+
+## Contact shadows where floor meets wall (as if looking down into the rooms), and a lit rim on the wall tops
+func _draw_shading(lo: Vector2i, hi: Vector2i) -> void:
+	if zoom < 6.0: return
+	var s1 := zoom * 0.1
+	var s2 := zoom * 0.26
+	var rim := maxf(1.0, zoom * 0.06)
+	for z in range(lo.y, hi.y + 1):
+		for x in range(lo.x, hi.x + 1):
+			if grid[z][x] == WALL: continue
+			var c := Vector2i(x, z)
+			var r := _cell_rect(c)
+			for d: Vector2i in DIRS4:
+				var n := c + d
+				if not _in_grid(n) or grid[n.y][n.x] != WALL: continue
+				canvas.draw_rect(_edge(r, d, s2), Color(0, 0, 0, 0.16))
+				canvas.draw_rect(_edge(r, d, s1), Color(0, 0, 0, 0.3))
+				canvas.draw_rect(_edge(_cell_rect(n), -d, rim), Color(1, 0.95, 0.8, 0.3))
+
+func _draw_grid(lo: Vector2i, hi: Vector2i) -> void:
+	if zoom < 7.0: return
+	for i in range(lo.x, hi.x + 2):
+		canvas.draw_line(pan + Vector2(i, lo.y) * zoom, pan + Vector2(i, hi.y + 1) * zoom, Color(0, 0, 0, 0.34 if i % 5 == 0 else 0.13))
+	for i in range(lo.y, hi.y + 2):
+		canvas.draw_line(pan + Vector2(lo.x, i) * zoom, pan + Vector2(hi.x + 1, i) * zoom, Color(0, 0, 0, 0.34 if i % 5 == 0 else 0.13))
+
+## Cell numbers along the map's top and left edges, kept on screen when the map is scrolled past them
+func _draw_rulers() -> void:
+	if zoom < 4.0: return
+	var step := 5 if zoom >= 9.0 else 10
+	var ty := clampf(pan.y - 17.0, 2.0, canvas.size.y - 17.0)
+	var lx := clampf(pan.x - 4.0, 26.0, canvas.size.x)
+	for i in range(0, grid_size, step):
+		var x := pan.x + (i + 0.5) * zoom
+		if x > 0 and x < canvas.size.x:
+			var w := font.get_string_size(str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+			_tag(Vector2(x - w * 0.5 - 3, ty), str(i), DIM, 10)
+		var y := pan.y + (i + 0.5) * zoom
+		if y > 0 and y < canvas.size.y:
+			var w := font.get_string_size(str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
+			_tag(Vector2(lx - w - 6, y - 7), str(i), DIM, 10)
+
+## The top-left cell of every separate patch in `cells` (side-by-side neighbours make one patch)
+func _patch_tops(cells: Dictionary) -> Array:
+	var seen := {}
+	var tops: Array = []
+	for start: Vector2i in cells:
+		if seen.has(start): continue
+		var best := start
+		var todo: Array = [start]
+		seen[start] = true
+		while not todo.is_empty():
+			var c: Vector2i = todo.pop_back()
+			if c.y < best.y or (c.y == best.y and c.x < best.x): best = c
+			for d: Vector2i in DIRS4:
+				var n: Vector2i = c + d
+				if cells.has(n) and not seen.has(n):
+					seen[n] = true
+					todo.append(n)
+		tops.append(best)
+	return tops
+
+## An outline `w` wide round each patch of `cells`, `inset` pixels in from the cell edges
+func _outline_cells(cells: Dictionary, col: Color, w: float, inset: float) -> void:
+	for c: Vector2i in cells:
+		var r := _cell_rect(c).grow(-inset)
+		for d: Vector2i in DIRS4:
+			if not cells.has(c + d): canvas.draw_rect(_edge(r, d, w), col)
+
+## Each zone as a light wash with a solid outline round every patch, and its name on the patch
+func _draw_zones() -> void:
+	var w := maxf(1.5, zoom * 0.07)
+	var i := 0
+	for zn in ZONES:
+		var cells: Dictionary = zones[zn]
+		if cells.is_empty(): continue
+		var col: Color = ZONES[zn]
+		for c: Vector2i in cells:
+			canvas.draw_rect(_cell_rect(c), Color(col, 0.16))
+		_outline_cells(cells, col, w, 1.0 + (i % 3) * w)       # overlapping zones step their outlines inwards
+		if zoom >= 9.0:
+			for top: Vector2i in _patch_tops(cells):
+				_tag(pan + Vector2(top) * zoom + Vector2(3, 3 + (i % 3) * 14), zn.to_upper(), col, 10)
+		i += 1
+
+## Painted materials: an outline in the material's own colour round each painted patch, and its name, for
+## the surfaces this view shows. The floor view also flags painted ceilings with a corner mark.
+func _draw_paint_marks() -> void:
+	var w := maxf(1.5, zoom * 0.08)
+	for slot in (["ceiling"] if view_ceiling else ["floor", "wall"]):
+		var by_mat := {}
+		for c: Vector2i in paint[slot]:
+			if not by_mat.has(paint[slot][c]): by_mat[paint[slot][c]] = {}
+			by_mat[paint[slot][c]][c] = true
+		for id in by_mat:
+			var col := _paint_colour(id)
+			_outline_cells(by_mat[id], Color(0, 0, 0, 0.6), w + 2.0, w * 0.5)
+			_outline_cells(by_mat[id], col, w, w * 0.5 + 1.0)
+			if zoom >= 9.0:
+				for top: Vector2i in _patch_tops(by_mat[id]):
+					_tag(pan + (Vector2(top) + Vector2(0, 1)) * zoom + Vector2(3, -17), id, col, 10)
+	if not view_ceiling:
+		var k := maxf(4.0, zoom * 0.32)
+		for c: Vector2i in paint["ceiling"]:
+			var e := _cell_rect(c).end
+			var col := _paint_colour(paint["ceiling"][c])
+			canvas.draw_colored_polygon(PackedVector2Array([e, e - Vector2(k, 0), e - Vector2(0, k)]), col)
+
+## Bottom-left of the map: every material painted on this level and how many cells of each surface
+func _draw_legend() -> void:
+	var rows := {}
+	for slot in PAINT_SLOTS:
+		for c in paint[slot]:
+			var id: String = paint[slot][c]
+			if not rows.has(id): rows[id] = {"floor": 0, "wall": 0, "ceiling": 0}
+			rows[id][slot] += 1
+	if rows.is_empty(): return
+	var lines := {}
+	var width := 90.0
+	for id in rows:
+		var parts := []
+		for slot in PAINT_SLOTS:
+			if rows[id][slot] > 0: parts.append("%s %d" % [slot, rows[id][slot]])
+		lines[id] = "%s   %s" % [id, "  ".join(parts)]
+		width = maxf(width, font.get_string_size(lines[id], HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 44)
+	var lh := 22.0
+	var box := Rect2(8, canvas.size.y - 14 - lh * (rows.size() + 1), width, lh * (rows.size() + 1) + 6)
+	canvas.draw_rect(box, Color(0, 0, 0, 0.8))
+	canvas.draw_rect(box, Color("3a3522"), false, 1.0)
+	canvas.draw_string(font, box.position + Vector2(8, 16), "PAINTED MATERIALS", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD)
+	var y := box.position.y + lh
+	for id in rows:
+		var sw := Rect2(box.position.x + 8, y + 2, 18, 18)
+		var t := _thumb(id)
+		if t.tex != null: canvas.draw_texture_rect(t.tex, sw, false)
+		else: canvas.draw_rect(sw, t.avg)
+		canvas.draw_rect(sw, _paint_colour(id), false, 2.0)
+		canvas.draw_string(font, Vector2(sw.end.x + 8, y + 16), lines[id], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, CREAM)
+		y += lh
+
+func _draw_markers() -> void:
+	for m in MARKERS:
+		var c = markers[m]
+		if c == null: continue
+		var p: Vector2 = pan + (Vector2(c) + Vector2(0.5, 0.5)) * zoom
+		var rad := maxf(zoom * 0.42, 7.0)
+		canvas.draw_circle(p + Vector2(1.5, 2.0), rad, Color(0, 0, 0, 0.5))
+		canvas.draw_circle(p, rad, MARKERS[m])
+		canvas.draw_arc(p, rad, 0, TAU, 24, Color.BLACK, 1.5)
+		var fs := maxi(8, int(rad * 1.2))
+		var letter: String = str(m).substr(0, 1).to_upper()
+		var ls := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		canvas.draw_string(font, p + Vector2(-ls.x * 0.5, fs * 0.36), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.BLACK)
+		if zoom >= 12.0:
+			_tag(p + Vector2(rad + 4, -8), m.to_upper(), MARKERS[m], 10)
+
+## What the current tool is about to do under the mouse: the brush footprint, the rectangle being dragged,
+## or the cell a fill starts from, filled with the colour or material it lays down
+func _draw_hover() -> void:
+	if hover.x < 0: return
+	if tool.begins_with("mark:"):
+		var r := _cell_rect(hover)
+		canvas.draw_rect(r, Color(MARKERS.get(tool.get_slice(":", 1), Color.WHITE), 0.4))
+		canvas.draw_rect(r, Color.WHITE, false, 1.5)
+		return
+	var m := _mode_now()
+	var cells: Array
+	if rect_from.x >= 0: cells = _rect_cells(rect_from, hover)
+	elif m == "fill": cells = [hover]
+	else: cells = _brush_cells(hover)
+	var area := {}
+	for c: Vector2i in cells:
+		if _in_grid(c): area[c] = true
+	var tex: Texture2D = null
+	if tool.begins_with("paint:") and paint_mat != "": tex = _thumb(paint_mat).tex
+	var col := _tool_colour()
+	for c: Vector2i in area:
+		if tex != null: canvas.draw_texture_rect(tex, _cell_rect(c), false, Color(1, 1, 1, 0.8))
+		else: canvas.draw_rect(_cell_rect(c), Color(col, 0.5))
+	_outline_cells(area, Color.WHITE, 1.5, 0.0)
+	if rect_from.x >= 0:
+		var sz := (hover - rect_from).abs() + Vector2i.ONE
+		_tag(mouse_px + Vector2(14, 10), "%d x %d" % [sz.x, sz.y], CREAM, 12)
+	elif m == "fill":
+		_tag(mouse_px + Vector2(14, 10), "FILL", CREAM, 12)
+
+func _tool_colour() -> Color:
+	var what := tool.get_slice(":", 1)
+	match tool.get_slice(":", 0):
+		"base": return Color("8a7f68") if what == WALL else BASE_COLORS.get(what, Color.WHITE)
+		"zone": return ZONES.get(what, Color.WHITE)
+		"paint": return _paint_colour(paint_mat)
+	return Color.WHITE
+
+## Ctrl held = fill, Shift held = rectangle, otherwise the mode picked in the bar over the map
+func _mode_now() -> String:
+	if Input.is_key_pressed(KEY_CTRL): return "fill"
+	if Input.is_key_pressed(KEY_SHIFT): return "rect"
+	return mode
+
+# ---------------------------------------------------------------- input
 func _canvas_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			var before := (mb.position - pan) / zoom
-			zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 4.0, 60.0)
+			zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 4.0, 80.0)
 			pan = mb.position - before * zoom
 			canvas.queue_redraw()
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
@@ -166,11 +521,26 @@ func _canvas_input(ev: InputEvent) -> void:
 		elif (mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT) and _object_tool():
 			_object_press(mb)
 		elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
-			painting = mb.pressed
+			var c := _cell_at(mb.position)
+			if not mb.pressed:
+				if rect_from.x >= 0:
+					_apply_cells(_rect_cells(rect_from, c.clamp(Vector2i.ZERO, Vector2i(grid_size - 1, grid_size - 1))))
+					rect_from = Vector2i(-1, -1)
+				painting = false
+				canvas.queue_redraw()
+				return
 			erasing = mb.button_index == MOUSE_BUTTON_RIGHT
-			if mb.pressed:
-				_push_undo()
-				_apply(_cell_at(mb.position))
+			if mb.alt_pressed and not erasing and tool.begins_with("paint:"):
+				_eyedrop(c)
+				return
+			if not _in_grid(c): return
+			_push_undo()
+			var m := "brush" if tool.begins_with("mark:") else _mode_now()
+			if m == "fill": _apply_cells(_flood_cells(c))
+			elif m == "rect": rect_from = c
+			else:
+				painting = true
+				_apply(c)
 	elif ev is InputEventMouseMotion:
 		var mm := ev as InputEventMouseMotion
 		mouse_px = mm.position
@@ -181,8 +551,8 @@ func _canvas_input(ev: InputEvent) -> void:
 		elif painting:
 			_apply(_cell_at(mm.position))
 		var c := _cell_at(mm.position)
-		hover = c if c.x >= 0 and c.y >= 0 and c.x < grid_size and c.y < grid_size else Vector2i(-1, -1)
-		hover_obj = _obj_at(mm.position) if _object_tool() and drag == "" else -1
+		hover = c if _in_grid(c) else Vector2i(-1, -1)
+		hover_obj = _obj_at(mm.position) if _object_tool() and show_objects and drag == "" else -1
 		canvas.mouse_default_cursor_shape = Control.CURSOR_CROSS
 		if _object_tool() and (_on_handle(mm.position) or drag == "rotate"):
 			canvas.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -193,48 +563,139 @@ func _canvas_input(ev: InputEvent) -> void:
 		elif hover_obj >= 0:
 			_status(_describe(objects[hover_obj]) + "   click to select, drag to move, right click deletes")
 		elif hover.x >= 0:
-			var tags := []
-			for z in ZONES:
-				if zones[z].has(hover): tags.append(z)
-			var p := _pos_at(mm.position)
-			_status("cell %d, %d   (%.2f, %.2f)   %s" % [hover.x, hover.y, p.x, p.y, ",".join(tags)])
+			_status(_describe_cell(hover))
 		canvas.queue_redraw()
 
-func _apply(c: Vector2i) -> void:
-	var kind := tool.get_slice(":", 0)
-	var what := tool.get_slice(":", 1)
-	if kind == "mark":
-		if c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1:
-			markers[what] = null if erasing else c
-		_mark_dirty()
-		return
+## The status line for a cell: where it is, what its surfaces are made of (painted or the level's) and its zones
+func _describe_cell(c: Vector2i) -> String:
+	var bits := ["cell %d, %d" % [c.x, c.y]]
+	var slots := ["wall"] if grid[c.y][c.x] == WALL else (["pit"] if grid[c.y][c.x] == PIT else ["floor", "ceiling"])
+	for slot in slots:
+		if slot == "pit":
+			bits.append("pit")
+			continue
+		bits.append("%s: %s%s" % [slot, _nice_key(_surface_key(slot, c)), " (painted)" if paint[slot].has(c) else ""])
+	var tags := []
+	for z in ZONES:
+		if zones[z].has(c): tags.append(z)
+	if not tags.is_empty(): bits.append("zones: " + ", ".join(tags))
+	return "    ".join(bits)
+
+func _brush_cells(c: Vector2i) -> Array:
+	var out: Array = []
 	var half := brush / 2
 	for dz in brush:
 		for dx in brush:
-			var p := c + Vector2i(dx - half, dz - half)
-			if p.x < 1 or p.y < 1 or p.x >= grid_size - 1 or p.y >= grid_size - 1: continue
-			if kind == "base":
-				grid[p.y][p.x] = (FLOOR if what == WALL else WALL) if erasing else what
-				if grid[p.y][p.x] == WALL:      # solid cells: the game drops any zone tag on load
-					for z in zones: zones[z].erase(p)
-			elif kind == "zone" and grid[p.y][p.x] != WALL:
-				if erasing: zones[what].erase(p)
-				else: zones[what][p] = true
+			out.append(c + Vector2i(dx - half, dz - half))
+	return out
+
+func _rect_cells(a: Vector2i, b: Vector2i) -> Array:
+	var out: Array = []
+	for z in range(mini(a.y, b.y), maxi(a.y, b.y) + 1):
+		for x in range(mini(a.x, b.x), maxi(a.x, b.x) + 1):
+			out.append(Vector2i(x, z))
+	return out
+
+## The area a fill click covers: cells joined side by side to `start` that look the same to the current tool
+## (same terrain, same zone state, or the same material on that surface). Wall paint clicked on a floor
+## cell does the walls round the whole open area instead: "paint this room's walls".
+func _flood_cells(start: Vector2i) -> Array:
+	var kind := tool.get_slice(":", 0)
+	var what := tool.get_slice(":", 1)
+	var room_walls: bool = kind == "paint" and what == "wall" and grid[start.y][start.x] != WALL
+	var key := func(c: Vector2i) -> String:
+		var wall: bool = grid[c.y][c.x] == WALL
+		if room_walls: return "open" if not wall else "stop"
+		match kind:
+			"base": return grid[c.y][c.x]
+			"zone": return "stop" if wall else str(zones[what].has(c))
+			"paint":
+				if (what == "wall") != wall: return "stop"
+				return _surface_key(what, c)
+		return "stop"
+	var want: String = key.call(start)
+	if want == "stop": return []
+	var seen := {start: true}
+	var todo: Array = [start]
+	while not todo.is_empty():
+		var c: Vector2i = todo.pop_back()
+		for d: Vector2i in DIRS4:
+			var n: Vector2i = c + d
+			if n.x < 1 or n.y < 1 or n.x >= grid_size - 1 or n.y >= grid_size - 1 or seen.has(n): continue
+			if key.call(n) == want:
+				seen[n] = true
+				todo.append(n)
+	if not room_walls: return seen.keys()
+	var walls := {}
+	for c: Vector2i in seen:
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				var n := c + Vector2i(dx, dz)
+				if _in_grid(n) and grid[n.y][n.x] == WALL: walls[n] = true
+	return walls.keys()
+
+func _apply(c: Vector2i) -> void:
+	if tool.begins_with("mark:"):
+		if c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1:
+			markers[tool.get_slice(":", 1)] = null if erasing else c
+		_mark_dirty()
+		return
+	_apply_cells(_brush_cells(c))
+
+func _apply_cells(cells: Array) -> void:
+	var kind := tool.get_slice(":", 0)
+	var what := tool.get_slice(":", 1)
+	for p: Vector2i in cells:
+		if kind == "paint" and what == "wall":
+			if not _in_grid(p) or grid[p.y][p.x] != WALL: continue      # the border walls can be painted too
+		elif p.x < 1 or p.y < 1 or p.x >= grid_size - 1 or p.y >= grid_size - 1: continue
+		if kind == "base":
+			grid[p.y][p.x] = (FLOOR if what == WALL else WALL) if erasing else what
+			if grid[p.y][p.x] == WALL:      # solid cells: the game drops any zone tag on load
+				for z in zones: zones[z].erase(p)
+		elif kind == "paint":
+			if what != "wall" and grid[p.y][p.x] == WALL: continue
+			if erasing: paint[what].erase(p)
+			elif paint_mat != "": paint[what][p] = paint_mat
+		elif kind == "zone" and grid[p.y][p.x] != WALL:
+			if erasing: zones[what].erase(p)
+			else: zones[what][p] = true
 	_mark_dirty()
 
-func _push_undo() -> void:
+## Take the material under the mouse into the brush (I, or Alt+click with a paint tool)
+func _eyedrop(c: Vector2i) -> void:
+	if not _in_grid(c): return
+	var slot := "wall"
+	if grid[c.y][c.x] != WALL:
+		slot = "ceiling" if view_ceiling or tool == "paint:ceiling" else "floor"
+	var k := _surface_key(slot, c)
+	if k.begins_with("default:") or k == "":
+		_status("The %s here is the game's default look: nothing to pick" % slot)
+		return
+	_set_paint_mat(k)
+	_select_tool("paint:" + slot)
+	_status("Picked %s from the %s" % [k, slot])
+
+## Overridden by level_editor.gd, which also updates the buttons
+func _select_tool(id: String) -> void:
+	tool = id
+
+func _set_paint_mat(id: String) -> void:
+	paint_mat = id
+
+# ---------------------------------------------------------------- undo
+func _snapshot() -> Dictionary:
 	var z := {}
 	for k in zones: z[k] = zones[k].duplicate()
-	undo_stack.append({"grid": grid.duplicate(true), "zones": z, "markers": markers.duplicate(), "size": grid_size,
-		"objects": objects.duplicate(true), "selected": selected})
-	if undo_stack.size() > 80: undo_stack.pop_front()
-	insp_undo = -1
+	var pt := {}
+	for k in paint: pt[k] = paint[k].duplicate()
+	return {"grid": grid.duplicate(true), "zones": z, "paint": pt, "markers": markers.duplicate(), "size": grid_size,
+		"objects": objects.duplicate(true), "selected": selected}
 
-func _undo() -> void:
-	if undo_stack.is_empty(): return
-	var s: Dictionary = undo_stack.pop_back()
+func _restore(s: Dictionary) -> void:
 	grid = s.grid
 	zones = s.zones
+	paint = s.paint
 	markers = s.markers
 	grid_size = s.size
 	objects = s.objects
@@ -242,6 +703,26 @@ func _undo() -> void:
 	drag = ""
 	_sync_inspector()
 	_mark_dirty()
+
+func _push_undo() -> void:
+	undo_stack.append(_snapshot())
+	if undo_stack.size() > 80: undo_stack.pop_front()
+	redo_stack.clear()
+	insp_undo = -1
+
+func _undo() -> void:
+	if undo_stack.is_empty():
+		_status("Nothing to undo")
+		return
+	redo_stack.append(_snapshot())
+	_restore(undo_stack.pop_back())
+
+func _redo() -> void:
+	if redo_stack.is_empty():
+		_status("Nothing to redo")
+		return
+	undo_stack.append(_snapshot())
+	_restore(redo_stack.pop_back())
 
 # ---------------------------------------------------------------- objects
 func _object_tool() -> bool:
