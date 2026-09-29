@@ -34,10 +34,10 @@ const FAST := 4.0                    # %/s: moving faster than this counts as so
 const GLOW := 0.6                    # of the terminal's phosphor glow: less bloom in the corner of your eye
 # it rides with the camera like a display on your kit: it lags a turn, bounces with a step or a
 # crouch, and tilts with a lean (_sway)
-const SWAY_K := 7.0                  # px per rad/s of turn
-const SWAY_MAX := Vector2(16.0, 12.0)
-const BOB_K := 60.0                  # px per metre the eye moves off its eased height
-const ROLL_K := 0.5                  # of the camera's roll
+const SWAY_K := 4.5                  # px per rad/s of turn
+const SWAY_MAX := Vector2(10.0, 7.0)
+const BOB_K := 35.0                  # px per metre the eye moves off its eased height
+const ROLL_K := 0.3                  # of the camera's roll
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
