@@ -1,7 +1,8 @@
 extends Node3D
 ## The torch in your hand (models/flashlight.glb), low-right in view, held by your right arm
 ## (models/player/playerarms.glb; the left arm is hidden): the arm brings it up when you switch it on and
-## lowers it out of view when you switch it off. Swings with your stride, dips while you sprint.
+## lowers it out of view when you switch it off. Swings with your stride, dips while you sprint, and jerks
+## up across your face when something is right in front of you (flinch()).
 ## A child of the camera, built by the player. Without the arms model the torch floats on its own.
 
 const MODEL := "res://models/flashlight.glb"
@@ -13,6 +14,7 @@ const ARMS_SCALE := 0.6           # the arms model is built about 1.7x life size
 const GRIP_BACK := 0.018          # the fist closes on the handle this far behind the torch's middle
 const PICKUP := "TorchPickup"     # arm swings the torch up into view (played backwards to put it away)
 const HOLD := "TorchHold"         # held up, breathing
+const FLINCH := "TorchFlinch"     # thrown up across the face, trembling, then slowly back down
 
 var raise := 0.0
 var lower := 0.0
@@ -21,6 +23,7 @@ var _torch: Node3D                # the fitted flashlight
 var _anim: AnimationPlayer
 var _grip: Node3D                 # TorchGrip, riding the right hand bone
 var _on := false
+var _flinching := false
 
 func _init() -> void:
 	name = "TorchModel"
@@ -122,9 +125,29 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		POS.z)
 	rotation = Vector3(ROT.x - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02)
 
+## The arm jerks up to shield your face. With the torch off it comes up from below for it and goes back
+## down after. A flinch already under way plays out.
+func flinch() -> void:
+	if _anim == null or _anim.current_animation == FLINCH:
+		return
+	_flinching = true
+	visible = true
+	_anim.clear_queue()
+	_anim.play(FLINCH, 0.06)
+
 ## Switching on plays the pickup, switching off plays it backwards; a switch mid-way turns it round
-## where it is. `raise` follows the pickup (0 lowered .. 1 up).
+## where it is. `raise` follows the pickup (0 lowered .. 1 up). A switch during a flinch waits for it.
 func _update_arm(shown: bool) -> void:
+	if _flinching:
+		_on = shown
+		if _anim.current_animation == FLINCH:
+			raise = 1.0
+			return
+		_flinching = false
+		if _on:
+			_anim.play(HOLD, 0.2)
+		else:
+			_anim.play_backwards(PICKUP, 0.15)
 	if shown != _on:
 		_on = shown
 		var mid := _anim.current_animation == PICKUP and _anim.is_playing()

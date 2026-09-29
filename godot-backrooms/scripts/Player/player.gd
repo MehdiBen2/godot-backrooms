@@ -408,6 +408,11 @@ func jolt(amount: float) -> void:
 func quake(amount: float) -> void:
 	quake_amt = maxf(quake_amt, clampf(amount, 0.0, 1.0))
 
+# Face to face with the bacteria up close: your torch arm jerks up in front of your face
+func flinch() -> void:
+	if torch != null and not dead and not frozen:
+		torch.flinch()
+
 # Adrenaline: the bacteria calls this every frame with whether it is hunting you close by
 func update_adrenaline(dt: float, hunted: bool) -> void:
 	if dead or frozen: hunted = false
