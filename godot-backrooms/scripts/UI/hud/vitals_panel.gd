@@ -18,11 +18,11 @@ const PlayerScript := preload("res://scripts/Player/player.gd")
 const Bacteria := preload("res://scripts/Entities/bacteria/bacteria.gd")
 const FootstepsScript := preload("res://scripts/Player/footsteps.gd")
 
-const PANEL := Vector2(236, 144)     # canvas px (1920x1080 layout)
+const PANEL := Vector2(350, 222)     # canvas px (1920x1080 layout)
 const CURVE := 0.045                 # lens bulge (ui_vhs_overlay distortion, corner-fitted)
-const ICON := 20.0
-const ROW_GAP := 8
-const BAR_H := 9.0
+const ICON := 30.0
+const ROW_GAP := 12
+const BAR_H := 16.0
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
@@ -66,7 +66,7 @@ func _build() -> void:
 ## The icon, then a thin segmented bar in a hairline outline
 func _row(key: String, icon_path: String) -> Control:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 14)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var icon := TextureRect.new()
 	icon.texture = load(icon_path)
@@ -77,14 +77,14 @@ func _row(key: String, icon_path: String) -> Control:
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
 	var bar := PanelContainer.new()
-	var sb := Kit.box(Color(Kit.FILL, 0.5), Color(Kit.AMBER, 0.7), 1, 1)
-	sb.set_content_margin_all(2)
+	var sb := Kit.box(Color(Kit.FILL, 0.5), Color(Kit.AMBER, 0.75), 2, 2)
+	sb.set_content_margin_all(4)
 	bar.add_theme_stylebox_override("panel", sb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
 	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var cells := Kit.cells(SEGMENTS, 2.0, false)
+	var cells := Kit.cells(SEGMENTS, 3.0, false)
 	bar.add_child(cells)
 	row.add_child(bar)
 	rows[key] = {"icon": icon, "cells": cells, "shown": -1.0}
