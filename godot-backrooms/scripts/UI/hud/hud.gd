@@ -348,7 +348,7 @@ func _on_entity_logged(id: String) -> void:
 	var report: Dictionary = Clearance.last_report
 	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
 		lines.append_array(_yield_lines(report))
-	lines.append(["TAB // [F3] ENTRIES TO READ IT", Term.MUTED, 16])
+	lines.append(["[TAB] [F3] READ THE ENTRY", Term.MUTED, 16])
 	toast.push("[NEW ENTRY LOGGED]", lines)
 	_promotion(report)
 
@@ -409,8 +409,9 @@ func pick_up_item(id: String, title: String, desc: String, code: String, stack: 
 		battery_hint_shown = true
 		toast.push("[ITEM RECOVERED]", [
 			[title.to_upper(), Term.AMBER, 20],
-			["STACKS UP TO %d  //  TAB TO VIEW" % stack, Term.TEXT, 17],
-			["[R] LOADS ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+			["STACKS UP TO %d" % stack, Term.TEXT, 17],
+			["[R] LOAD ONE INTO THE FLASHLIGHT", Term.MUTED, 16],
+			["[TAB] VIEW INVENTORY", Term.MUTED, 16],
 		])
 	return true
 
