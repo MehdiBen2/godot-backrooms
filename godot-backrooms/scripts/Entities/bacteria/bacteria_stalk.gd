@@ -241,8 +241,9 @@ func stalk_is_watched() -> bool:
 	return nav.clear_line(p.x, p.z, tgt.pos.x, tgt.pos.z)
 
 # The peek: it doesn't just slide out. It waits hidden, eases past the edge in stop-motion creeps,
-# holds and watches, and snaps back into cover the moment you turn toward it (before it is caught),
-# then tries again a little later, bolder each time. The rig does the rest (bacteria_rig.gd _peek_motion,
+# holds and watches, and snaps back into cover when you keep looking at it, then tries again a little
+# later, bolder each time. It would rather peek while you look away, but it comes out under your gaze too;
+# hold its eye long enough (STALK_STARE) and it bolts. The rig does the rest (bacteria_rig.gd _peek_motion,
 # _grip_corner):
 # the hand on the edge, the head leading, the fingers left behind on the corner as it ducks away.
 func _update_peek(dt: float) -> void:
@@ -252,9 +253,11 @@ func _update_peek(dt: float) -> void:
 	match peek_mode:
 		"hide":
 			peek_amt = maxf(0.0, peek_amt - dt * 4.5)
-			if peek_timer <= 0.0 and not gazed:
+			# it would rather you weren't looking, but after a while it dares to come out anyway
+			if peek_timer <= 0.0 and (not gazed or peek_timer <= -1.5):
 				peek_mode = "creep"
 				peek_step = 0.0
+				peek_gaze = 0.0
 		"creep":
 			# stop-motion: hold, then a quick shuffle further out
 			peek_step -= dt
@@ -264,12 +267,13 @@ func _update_peek(dt: float) -> void:
 			if peek_amt >= 1.0:
 				peek_mode = "watch"
 				peek_timer = rng.randf_range(2.5, 6.0)
-			elif peek_gaze > 0.35 + 0.25 * peek_count:
+				peek_gaze = 0.0                 # out now: it holds your eye a while before it ducks
+			elif peek_amt < 0.6 and peek_gaze > 2.5 + 0.5 * peek_count:
 				_peek_retreat()
 		"watch":
 			# unblinking, with a tiny creep forward and back
 			peek_amt = clampf(0.98 + sin(rig.clock * 1.3) * 0.04, 0.0, 1.0)
-			if peek_gaze > 0.5 + 0.3 * peek_count:
+			if peek_gaze > 3.0 + 0.5 * peek_count:
 				_peek_retreat()
 			elif peek_timer <= 0.0:
 				# lose interest for a moment, then look again from cover
@@ -294,7 +298,7 @@ func think_stalk(dt: float) -> void:
 	if stalk_is_watched():
 		stalk_watched += dt
 		# caught sneaking up: it runs at once. Watching from its corner: a beat of eye contact first
-		if (stalk_phase == "approach" and state_time > 1.0) or stalk_watched > STALK_WATCHED:
+		if (stalk_phase == "approach" and state_time > 1.0) or stalk_watched > STALK_STARE:
 			start_flee()
 			return
 	else:

@@ -43,6 +43,7 @@ const STALK_MIN_DIST := 9.0
 const STALK_MAX_DIST := 26.0
 const STALK_TIME := 14.0
 const STALK_WATCHED := 0.5
+const STALK_STARE := 2.5          # s of eye contact it holds, leaned out round its corner, before it bolts
 const STALK_FLUSH_DIST := 6.0
 const MANNEQUIN_FEAR_RANGE := 12.0
 const FLEE_SPEED := 9.5
