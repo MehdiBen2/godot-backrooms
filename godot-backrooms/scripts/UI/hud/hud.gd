@@ -365,7 +365,7 @@ func _on_entity_logged(id: String) -> void:
 	var report: Dictionary = Clearance.last_report
 	if report.get("id", "") == id and report.get("kind", "") == "first_contact":
 		lines.append_array(_yield_lines(report))
-	lines.append({"kind": "keys", "keys": ["TAB", "F3"], "text": "READ THE FULL ENTRY"})
+	lines.append({"kind": "keys", "keys": ["TAB", "F3"], "text": "READ ENTRY"})
 	toast.push("NEW ENTRY LOGGED", lines)
 	_promotion(report)
 
