@@ -1,16 +1,19 @@
 extends Control
 ## Field scanner HUD (scripts/Player/scanner.gd): holding Q puts the camcorder in scan mode, built
 ## like a camera's focus aids rather than a sci-fi panel:
-## - the view is graded toward the terminal's amber and closed in at the edges like a lens
-##   (shaders/scan_grade.gdshader), with a "SCAN MODE" chip at the top
-## - a focus-distance scale along the bottom, 1 to 30 m on a log axis like a lens barrel. While
-##   searching, a band on it marks roughly how far the signal is (scanner.signal_dist); it narrows
-##   as the signal firms up. On a lock a needle marks the exact range, and a hairline under the
-##   scale fills with the reading. The band and the signal's range come with clearance C-3 (the
+## - the view goes through a fisheye lens and is graded toward the terminal's amber, closed in at the
+##   edges (shaders/scan_grade.gdshader). The marks are drawn through the very same lens (the
+##   layer's corner-fitted barrel, LENS), so they stay on what they mark; it bends in as scan mode
+##   comes on
+## - a focus-distance scale along the bottom, 1 to 30 m on a log axis like a lens barrel, with the
+##   status over its left end. While searching, a band on it marks roughly how far the signal is
+##   (scanner.signal_dist), narrowing as the signal firms up; on a lock a plain needle marks the
+##   exact range, its figure over it. The band and the signal's bearing come with clearance C-3 (the
 ##   range-finder, asra_clearance.gd), along with chevrons by the focus box pointing the way to turn
 ## - on a lock, corner marks travel out of the focus box onto the target, the way autofocus snaps
-##   to a subject, with a small tag beside it (name, range); a new entry blinks them twice. From C-4
-##   the tag adds a DEEP SCAN line: what the entity is doing right now (its scan_behavior())
+##   to a subject. Under them the reading fills a hairline as wide as the box, over the name and how
+##   far through it is; a new entry blinks them twice. From C-4 a DEEP SCAN line follows: what the
+##   entity is doing right now (its scan_behavior())
 ## The marks, scale and text are drawn inside a crt_layer.gd so they glow, flicker and tear like
 ## the TAB terminal. Lines are thin (LINE_W): it sits over the view while you play. Every string is
 ## measured and trimmed to the room it has (_fit).
@@ -25,17 +28,10 @@ const SCALE_BOTTOM := 123.0      # its baseline, up from the bottom edge
 const SCALE_MAX := 32.0          # metres at the right end (scanner RANGE)
 const MAJOR := [1, 2, 5, 10, 20, 30]
 const MINOR := [3, 4, 7, 15, 25]
-const CHIP_TOP := 42.0
+const LENS := 0.16               # fisheye strength, the view's and the marks' (ui_vhs_overlay distortion)
 const LINE_W := 1.5
 const BEARING_AHEAD := 6.0       # degrees: a signal this close to the view reads DEAD AHEAD (C-3)
-const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED ON", "logged": "ENTRY LOGGED", "on_file": "ALREADY ON FILE"}
-const HINT := {
-	"idle": "",
-	"search": "",
-	"lock": "KEEP IT IN VIEW",
-	"logged": "TAB // F3 TO READ IT",
-	"on_file": "NOTHING NEW RECORDED",
-}
+const STATUS := {"idle": "", "search": "SEARCHING", "lock": "LOCKED", "logged": "LOGGED", "on_file": "ON FILE"}
 
 var scanner: Node
 var layer: CrtLayer
@@ -43,7 +39,7 @@ var canvas: Control
 var grade: ColorRect
 var grade_mat: ShaderMaterial
 var font := FontVariation.new()
-var wide := FontVariation.new()  # letter-spaced: the chip and the status word
+var wide := FontVariation.new()  # a touch letter-spaced: the tape readout
 var alpha := 0.0
 var t := 0.0
 var last_state := "idle"
@@ -59,7 +55,7 @@ func _ready() -> void:
 	font.spacing_glyph = 1
 	font.variation_embolden = 0.4
 	wide.base_font = font.base_font
-	wide.spacing_glyph = 4
+	wide.spacing_glyph = 2
 	wide.variation_embolden = 0.4
 	# the grade reads the screen, so it goes under the layer: the marks stay their own colour
 	grade = ColorRect.new()
@@ -73,6 +69,8 @@ func _ready() -> void:
 	layer = CrtLayer.new()
 	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(layer)
+	layer.mat.set_shader_parameter("fit_corners", true)
+	layer.mat.set_shader_parameter("chroma_amt", 0.004)   # a little colour fringing toward the rim
 	canvas = Control.new()
 	canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -94,6 +92,11 @@ func _process(dt: float) -> void:
 		layer.running = false
 		return
 	grade_mat.set_shader_parameter("amount", _smooth(alpha))
+	# the lens bends in with scan mode, the view and the marks together so they stay aligned
+	var lens := LENS * _smooth(alpha)
+	grade_mat.set_shader_parameter("distortion", lens)
+	grade_mat.set_shader_parameter("aspect", size.x / maxf(size.y, 1.0))
+	layer.mat.set_shader_parameter("distortion", lens)
 	if not layer.running:        # coming on: the scale draws out through a tear
 		layer.running = true
 		unfold = 0.0
@@ -122,7 +125,6 @@ func _draw_canvas() -> void:
 	if st == "logged": col = Term.GREEN
 	elif st == "on_file": col = Term.TEXT
 	var c := canvas.size * 0.5
-	_draw_chip(c.x)
 	_draw_focus(c, st)
 	_draw_lock(c, st, col)
 	_draw_tape(c, st)
@@ -153,14 +155,6 @@ static func _ago(secs: float) -> String:
 func _locked(st: String) -> bool:
 	return st == "lock" or st == "logged" or st == "on_file"
 
-## "SCAN MODE" at the top middle, a small square before it
-func _draw_chip(cx: float) -> void:
-	var label := "SCAN MODE"
-	var w := _text_w(label, 18, wide)
-	var x := cx - (w + 18.0) * 0.5
-	canvas.draw_rect(Rect2(x, CHIP_TOP + 4.0, 9.0, 9.0), _a(Term.AMBER))
-	_text(Vector2(x + 18.0, CHIP_TOP + 16.0), label, 18, _a(Term.AMBER), w + 4.0, HORIZONTAL_ALIGNMENT_LEFT, wide)
-
 ## Four corner brackets: the box, and how long their arms are
 func _brackets(r: Rect2, arm: float, color: Color, width: float) -> void:
 	for corner in [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]:
@@ -190,7 +184,8 @@ func _draw_focus(c: Vector2, st: String) -> void:
 	canvas.draw_line(c - Vector2(9.0, 0.0), c + Vector2(9.0, 0.0), _a(Term.TEXT, k), LINE_W)
 	canvas.draw_line(c - Vector2(0.0, 9.0), c + Vector2(0.0, 9.0), _a(Term.TEXT, k), LINE_W)
 
-## Corner marks on the target itself, and a tag beside them on a short leader: name, then range
+## Corner marks on the target itself; under them (over them near the bottom of the screen) the
+## reading as a hairline the box's width, the name and how far through it is, and the C-4 deep scan
 func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	if not _locked(st):
 		return
@@ -215,39 +210,40 @@ func _draw_lock(c: Vector2, st: String, col: Color) -> void:
 	var tag := "UNIDENTIFIED"
 	if Archive.is_discovered(scanner.target_id):
 		tag = str(Archive.entity_info(scanner.target_id).get("common_name", scanner.target_id)).to_upper()
-	var tw := minf(_text_w(tag, 19), 320.0)
-	if Clearance.has_unlock("deep_scan"):
-		tw = 320.0                   # room for the deep scan lines under the tag
-	# on the right of the marks, or the left when the right runs off the screen
-	var side := 1.0
-	var ax := r.end.x + 4.0
-	if ax + 68.0 + tw > canvas.size.x - 40.0:
-		side = -1.0
-		ax = r.position.x - 4.0
-	var a := Vector2(ax, r.position.y + 9.0)
-	var b := a + Vector2(33.0 * side, -24.0)
-	var d := b + Vector2(27.0 * side, 0.0)
-	canvas.draw_polyline(PackedVector2Array([a, b, d]), _a(col, 0.6), LINE_W)
-	var align := HORIZONTAL_ALIGNMENT_LEFT if side > 0.0 else HORIZONTAL_ALIGNMENT_RIGHT
-	_text(Vector2(d.x + 8.0 * side, d.y + 7.0), tag, 19, k, 320.0, align)
-	_text(Vector2(d.x + 8.0 * side, d.y + 28.0), "%.1f M" % dist, 16, _a(Term.TEXT, 0.7), 160.0, align)
-	# C-4 deep scan: what it is doing right now, live, from the entity itself
 	var node: Node = scanner.target_node
-	if Clearance.has_unlock("deep_scan") and is_instance_valid(node) and node.has_method("scan_behavior"):
-		var bh: Dictionary = node.scan_behavior(scanner.target_pos)
-		var danger := int(bh.get("danger", 0))
-		var dcol: Color = Term.RED if danger >= 2 else (Term.ORANGE if danger == 1 else Term.GREEN)
-		if danger >= 2 and int(t * 4.0) % 2 == 1:
-			dcol = Color(dcol, 0.55)
-		_text(Vector2(d.x + 8.0 * side, d.y + 54.0), "DEEP SCAN: " + str(bh.get("state", "")), 17, _a(dcol), 320.0, align)
-		# the detail a clause a line (" // " or " - " between them), so none of it trails off
-		var y := d.y + 74.0
-		for part in str(bh.get("detail", "")).replace(" - ", " // ").split(" // ", false):
-			_text(Vector2(d.x + 8.0 * side, y), part, 15, _a(Term.TEXT, 0.75), 320.0, align)
-			y += 19.0
+	var deep: bool = Clearance.has_unlock("deep_scan") and is_instance_valid(node) and node.has_method("scan_behavior")
+	var bh: Dictionary = {}
+	var parts: Array = []
+	if deep:
+		bh = node.scan_behavior(scanner.target_pos)
+		parts = Array(str(bh.get("detail", "")).replace(" - ", " // ").split(" // ", false))
+	var w := maxf(r.size.x, 190.0)
+	var x0 := clampf(r.get_center().x - w * 0.5, 40.0, canvas.size.x - 40.0 - w)
+	var block := 30.0 + (26.0 + parts.size() * 19.0 if deep else 0.0)
+	var y := r.end.y + 12.0
+	if y + block > canvas.size.y - SCALE_BOTTOM - 70.0:
+		y = r.position.y - 12.0 - block
+	var frac: float = scanner.progress if st == "lock" else 1.0
+	canvas.draw_rect(Rect2(x0, y, w, 2.0), _a(col, 0.2))
+	canvas.draw_rect(Rect2(x0, y, w * frac, 2.0), k)
+	var pw := _text(Vector2(x0 + w, y + 22.0), "%d%%" % roundi(frac * 100.0), 15, _a(Term.TEXT, 0.65), 60.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	_text(Vector2(x0, y + 22.0), tag, 17, k, w - pw - 12.0)
+	if not deep:
+		return
+	# C-4 deep scan: what it is doing right now, live, from the entity itself; a clause a line
+	var danger := int(bh.get("danger", 0))
+	var dcol: Color = Term.RED if danger >= 2 else (Term.ORANGE if danger == 1 else Term.GREEN)
+	if danger >= 2 and int(t * 4.0) % 2 == 1:
+		dcol = Color(dcol, 0.55)
+	var dw := maxf(w, 320.0)
+	_text(Vector2(x0, y + 48.0), "DEEP SCAN: " + str(bh.get("state", "")), 15, _a(dcol), dw)
+	var ly := y + 67.0
+	for part in parts:
+		_text(Vector2(x0, ly), str(part), 14, _a(Term.TEXT, 0.7), dw)
+		ly += 19.0
 
-## The focus-distance scale: status over it on the left, the detail on the right; the signal's band
-## or the lock's needle on it; the reading's hairline and the next step under it
+## The focus-distance scale: the status over its left end and a word or two over its right; the
+## signal's band (its rough range over it) or the lock's needle (the exact range over it) on it
 func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 	var w := SCALE_W
 	var x0 := cx - w * 0.5
@@ -264,17 +260,15 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 				if sig > 0.66: word = "STRONG"
 				elif sig > 0.33: word = "MODERATE"
 				detail = "SIGNAL " + word
-				if ranged:               # C-3: how far, and which way to turn
+				if ranged:               # C-3: which way to turn (how far is on the band)
 					var b: float = scanner.signal_bearing
-					var way := "DEAD AHEAD" if absf(b) < BEARING_AHEAD else "%d DEG %s" % [roundi(absf(b)), "RIGHT" if b > 0.0 else "LEFT"]
-					detail = "SIGNAL %s // %d M // %s" % [word, roundi(scanner.signal_dist), way]
-		"lock": detail = "READING %d%%" % roundi(scanner.progress * 100.0)
+					detail += "  " + ("DEAD AHEAD" if absf(b) < BEARING_AHEAD else "%d DEG %s" % [roundi(absf(b)), "RIGHT" if b > 0.0 else "LEFT"])
 		"logged", "on_file":
 			detail = str(Archive.entity_info(scanner.target_id).get("code", "TSRA-EN-??"))
 			if scanner.last_yield > 0:
-				detail += " // +%d %s" % [scanner.last_yield, Clearance.unit]
-	var sw := _text(Vector2(x0, by - 36.0), str(STATUS.get(st, "")), 20, _a(col), w * 0.45, HORIZONTAL_ALIGNMENT_LEFT, wide)
-	_text(Vector2(x0 + w, by - 36.0), detail, 17, _a(Term.TEXT, 0.9), w - sw - 24.0, HORIZONTAL_ALIGNMENT_RIGHT)
+				detail += "  +%d %s" % [scanner.last_yield, Clearance.unit]
+	var sw := _text(Vector2(x0, by - 42.0), str(STATUS.get(st, "")), 18, _a(col), w * 0.4)
+	_text(Vector2(x0 + w, by - 42.0), detail, 15, _a(Term.TEXT, 0.8), w - sw - 24.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	# the band: roughly where the signal is, narrowing as it firms up (C-3 range-finder only)
 	if ranged and st == "search" and sig > 0.06 and scanner.signal_dist > 0.0:
@@ -283,37 +277,31 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 		var l := maxf(_scale_x(x0, scanner.signal_dist * exp(-spread)), cx - half)
 		var rr := minf(_scale_x(x0, scanner.signal_dist * exp(spread)), cx + half)
 		if rr > l:
-			canvas.draw_rect(Rect2(l, by - 15.0, rr - l, 15.0), _a(Term.AMBER, 0.12 + 0.18 * sig))
+			canvas.draw_rect(Rect2(l, by - 12.0, rr - l, 12.0), _a(Term.AMBER, 0.12 + 0.18 * sig))
 		if absf(mid - cx) <= half:
-			canvas.draw_rect(Rect2(mid - 2.0, by - 15.0, 4.0, 15.0), _a(Term.AMBER, 0.7))
+			canvas.draw_line(Vector2(mid, by - 12.0), Vector2(mid, by), _a(Term.AMBER, 0.8), 2.0)
+			_text(Vector2(mid, by - 18.0), "~%d" % roundi(scanner.signal_dist), 14, _a(Term.AMBER, 0.8), 60.0, HORIZONTAL_ALIGNMENT_CENTER)
 
-	canvas.draw_line(Vector2(cx - half, by), Vector2(cx + half, by), _a(Term.TEXT, 0.55), LINE_W)
+	canvas.draw_line(Vector2(cx - half, by), Vector2(cx + half, by), _a(Term.TEXT, 0.5), LINE_W)
 	for m in MINOR:
 		var x := _scale_x(x0, m)
 		if absf(x - cx) <= half:
-			canvas.draw_line(Vector2(x, by - 7.0), Vector2(x, by), _a(Term.TEXT, 0.4), LINE_W)
+			canvas.draw_line(Vector2(x, by - 6.0), Vector2(x, by), _a(Term.TEXT, 0.35), LINE_W)
 	for m in MAJOR:
 		var x := _scale_x(x0, m)
 		if absf(x - cx) <= half:
-			canvas.draw_line(Vector2(x, by - 15.0), Vector2(x, by), _a(Term.TEXT, 0.75), 2.0)
-			_text(Vector2(x, by + 26.0), str(m), 16, _a(Term.TEXT, 0.7), 40.0, HORIZONTAL_ALIGNMENT_CENTER)
+			canvas.draw_line(Vector2(x, by - 12.0), Vector2(x, by), _a(Term.TEXT, 0.7), LINE_W)
+			_text(Vector2(x, by + 22.0), str(m), 15, _a(Term.TEXT, 0.6), 40.0, HORIZONTAL_ALIGNMENT_CENTER)
 	if unfold >= 1.0:
-		_text(Vector2(_scale_x(x0, 30.0) + 22.0, by + 26.0), "M", 16, _a(Term.TEXT, 0.7), 20.0)
+		_text(Vector2(_scale_x(x0, 30.0) + 20.0, by + 22.0), "M", 15, _a(Term.TEXT, 0.6), 20.0)
 
 	if not _locked(st):
 		return
-	# the needle at the exact range
+	# the needle at the exact range, its figure over it
 	var nx := _scale_x(x0, scanner.target_dist)
 	if absf(nx - cx) <= half:
-		canvas.draw_line(Vector2(nx, by - 27.0), Vector2(nx, by + 3.0), _a(col), 3.0)
-		canvas.draw_colored_polygon(PackedVector2Array([
-			Vector2(nx - 9.0, by - 39.0), Vector2(nx + 9.0, by - 39.0), Vector2(nx, by - 27.0)]), _a(col))
-	# the reading, then what to do next
-	var frac: float = scanner.progress if st == "lock" else 1.0
-	var py := by + 42.0
-	canvas.draw_rect(Rect2(cx - half, py, half * 2.0, 3.0), _a(col, 0.18))
-	canvas.draw_rect(Rect2(cx - half, py, half * 2.0 * frac, 3.0), _a(col))
-	_text(Vector2(cx, py + 28.0), str(HINT.get(st, "")), 16, _a(Term.TEXT, 0.6), w, HORIZONTAL_ALIGNMENT_CENTER, wide)
+		canvas.draw_line(Vector2(nx, by - 16.0), Vector2(nx, by + 4.0), _a(col), 2.0)
+		_text(Vector2(nx, by - 22.0), "%.1f" % scanner.target_dist, 15, _a(col), 70.0, HORIZONTAL_ALIGNMENT_CENTER)
 
 ## Where `metres` sits on the scale (log axis, 1 m at the left end)
 func _scale_x(x0: float, metres: float) -> float:
