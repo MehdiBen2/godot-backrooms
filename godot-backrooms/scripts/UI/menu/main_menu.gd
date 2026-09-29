@@ -81,6 +81,7 @@ const ROW_H := 50.0
 const W := preload("res://scripts/UI/menu/menu_widgets.gd")   # shared motion helpers
 
 var font: FontFile = load("res://fonts/vcr.ttf")
+var title_font: FontFile = load("res://fonts/archivo_title.ttf")
 var bg_root: Control
 var bg_a: TextureRect
 var bg_b: TextureRect
@@ -255,10 +256,12 @@ func _build() -> void:
 	col.add_child(tag)
 	tag_row = tag
 	col.add_child(_spacer(18))
-	title_label = _label("THE BACKROOMS", 120, TITLE, 4)
+	title_label = _label("THE BACKROOMS", 176, TITLE)
+	title_label.add_theme_font_override("font", W._title_font(title_font, 176))
 	fringes = []
-	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.55)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.35)]]:
-		var s := _label("THE BACKROOMS", 120, f[1], 4)
+	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
+		var s := _label("THE BACKROOMS", 176, f[1])
+		s.add_theme_font_override("font", W._title_font(title_font, 176))
 		s.position = f[0]
 		s.show_behind_parent = true
 		title_label.add_child(s)
