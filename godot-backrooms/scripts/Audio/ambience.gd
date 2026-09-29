@@ -57,6 +57,17 @@ const ENTITY_PULL := 2.2
 # A far-off event is now and then this instead of footfalls: something that should not be down here
 const DISTANT_STING := "hgoliya08-scary-sound-effect-298866.mp3"
 const STING_CHANCE := 0.18
+# A track unplayed this long gets up to this much extra weight in _pick() (scales in), so all TRACKS get
+# a turn over a long session instead of the 2-3 closest in tension hogging the airtime.
+const STARVED_AFTER := 90.0
+const STARVED_BONUS := 2.0
+# Liminal dead air: instead of always starting a new bed once the gap ends, sometimes let the silence run
+# long (nothing at all, no hum of a bed) before the next one picks up. Only when things are calm - a hunt
+# or a close threat should never go quiet.
+const SILENCE_CHANCE := 0.3
+const SILENCE_MIN := 30.0
+const SILENCE_MAX := 80.0
+const SILENCE_TENSION_MAX := 0.4          # never rolled at or above this tension
 
 var audio: Node
 var player: Node
@@ -85,6 +96,8 @@ var sag := 0.0                         # a moment where the bed drags out of tun
 var sag_target := 0.0
 var sag_timer := 20.0
 var _threats := {}                     # NEAR_RANGE key -> node (looked up once)
+var _since_played := {}                # track idx -> seconds since it last played (starved bonus in _pick())
+var _just_silent := false              # true right after a liminal silence, so the next gap always ends in a bed
 
 func _ready() -> void:
 	rng.randomize()
@@ -141,6 +154,10 @@ func _pick() -> int:
 			w *= (1.0 + ENTITY_PULL * near) if tag == near_key else (1.0 - 0.7 * near)
 		if recent.has(i):
 			w *= 0.05
+		# gone unplayed a while: nudged back in so a long session cycles through all of TRACKS instead of
+		# just the 2-3 closest in tension to whatever mood keeps coming up
+		var since: float = _since_played.get(i, STARVED_AFTER)
+		w *= 1.0 + STARVED_BONUS * clampf((since - STARVED_AFTER) / STARVED_AFTER, 0.0, 1.0)
 		weights[i] = maxf(w, 0.001)
 		total += weights[i]
 	if total <= 0.0:
@@ -177,8 +194,11 @@ func _start(i: int) -> void:
 	if recent.size() > 2:
 		recent.pop_front()
 	switch_cd = SWITCH_GAP
+	_since_played[i] = 0.0
 
 func _schedule(dt: float) -> void:
+	for i in _since_played:
+		_since_played[i] += dt
 	if audio.outdoor_mix > 0.5:               # under the open sky: let the horror beds fade out and start no new one
 		for v in voices:
 			v.dying = true
@@ -191,9 +211,17 @@ func _schedule(dt: float) -> void:
 	if current == null:
 		gap_timer -= dt * (1.0 + 6.0 * near)
 		if gap_timer <= 0.0:
+			# liminal dead air: skip starting anything this once and let the silence run long, so the
+			# place doesn't always have a bed under it. Never right after another silence (that would
+			# just be two long silences back to back) and never once things are tense.
+			if not _just_silent and tension < SILENCE_TENSION_MAX and rng.randf() < SILENCE_CHANCE:
+				gap_timer = rng.randf_range(SILENCE_MIN, SILENCE_MAX)
+				_just_silent = true
+				return
 			var i := _pick()
 			if i >= 0:
 				_start(i)
+				_just_silent = false
 			gap_timer = 20.0                       # nothing importable yet: try again shortly
 		return
 	# the mood has moved on from what is playing: crossfade to a better fit

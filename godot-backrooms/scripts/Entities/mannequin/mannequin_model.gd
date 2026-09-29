@@ -8,12 +8,21 @@ const MODEL := "res://models/entities/creepy_mannequin.glb"
 const HEIGHT := 1.85
 const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL", "rollR", "headYaw", "headTilt", "headNod", "lean", "twist", "bob"]
 
-# A second sculpt mixed into the standing crowd for variety. It is one skinned mesh with a simple rig
-# (Hips > LegL, LegR, Spine > Head, ArmL > ForearmL, ArmR > ForearmR; built by
-# tools/blender/rig_mannequin_variant.py, source art/mannequin_variant.blend), posed through its bones with
-# the same pose Dictionaries as the jointed one (pose_variant), so no two of them stand alike. Each bone's
-# +Y runs down its limb.
-const VARIANT_MODEL := "res://models/entities/mannequin_variant.glb"
+# A second sculpt mixed into the standing crowd for variety; load_variant() picks one of these per run.
+# mannequin_variant.glb is one skinned mesh with a simple rig (Hips > LegL, LegR, Spine > Head, ArmL >
+# ForearmL, ArmR > ForearmR; built by tools/blender/rig_mannequin_variant.py, source art/mannequin_variant.blend),
+# posed through its bones with the same pose Dictionaries as the jointed one (pose_variant), so no two of
+# them stand alike. Each bone's +Y runs down its limb. mannequinvar3.glb carries its own unrelated humanoid
+# rig (Pelvis/Spine01/L_Upperarm/...) from a different auto-rig tool, so it is posed through RIG_PROFILES
+# below instead of the hardcoded bone names: same pose Dictionary, mapped to whichever names that rig uses.
+const VARIANT_MODELS := ["res://models/entities/mannequin_variant.glb", "res://models/entities/mannequinvar3.glb"]
+# role -> bone name for each entry in VARIANT_MODELS, so pose_variant() works on either rig. "spine" is the
+# single bone twist/lean turns (mannequin_variant.glb only has one torso bone; mannequinvar3.glb's nearest
+# equivalent is the waist, just below its two spine bones).
+const RIG_PROFILES := [
+	{"spine": "Spine", "head": "Head", "armL": "ArmL", "armR": "ArmR", "forearmL": "ForearmL", "forearmR": "ForearmR", "legL": "LegL", "legR": "LegR"},
+	{"spine": "Waist", "head": "Head", "armL": "L_Upperarm", "armR": "R_Upperarm", "forearmL": "L_Forearm", "forearmR": "R_Forearm", "legL": "L_Thigh", "legR": "R_Thigh"},
+]
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
@@ -33,6 +42,9 @@ const MISSING_SETS := [
 	[["Head"], 1.5],                                     # headless
 	[["Head", "ArmL", "ArmR"], 0.6],                     # just a torso on legs
 ]
+# MISSING_SETS names the mannequin_variant.glb rig's own bones; this maps each one to its RIG_PROFILES role
+# so make_variant can carry the same "missing" set over to whichever rig actually got loaded.
+const MISSING_ROLE := {"ForearmL": "forearmL", "ForearmR": "forearmR", "ArmL": "armL", "ArmR": "armR", "Head": "head"}
 # Display-shop outfits in faded colours: top (+ pattern), bottom, sleeves, trousers or a dress
 const OUTFITS := [
 	{"top": Color(0.42, 0.14, 0.13), "bottom": Color(0.16, 0.16, 0.18), "sleeves": true},
@@ -63,14 +75,17 @@ var norm_xf := Transform3D.IDENTITY          # model space -> figure space
 var ok := false
 var _top_x := Vector2.ZERO                   # x extent of the last arm's shoulder slice
 
+## One entry per VARIANT_MODELS index that loaded successfully: {scene, root_xf, xf, mesh, rigged, profile,
+## vbones, arm_l_pivot}. Both currently-shipped variants are rigged, so every decoy that rolls a variant
+## (mannequin_crowd.gd) picks a random loaded index and gets its own posed copy - no longer one model per run.
+var _variants: Array = []
+var variant_ok := false                      # true once at least one entry loaded
+var variant_rigged := false                  # true if any loaded entry is rigged (gates the plain-mesh fallback)
+# Back-compat aliases mirroring _variants[0], read by the offline pose/screenshot tools (tools/shot_variant_poses.gd)
 var variant_mesh: Mesh
-var variant_xf := Transform3D.IDENTITY       # model space -> figure space, feet on y = 0, HEIGHT tall
-var variant_ok := false
+var variant_xf := Transform3D.IDENTITY
 var variant_scene: PackedScene
-var variant_root_xf := Transform3D.IDENTITY  # scene root -> figure space (the whole rigged scene is instanced)
-var variant_rigged := false
-var _vbones := {}                            # bone name -> index
-var _varm_l_pivot := Vector3.INF             # corrected left shoulder (skeleton space), see load_variant
+var variant_root_xf := Transform3D.IDENTITY
 
 func _part_kind(node: Node) -> String:
 	var name := ""
@@ -199,17 +214,36 @@ func load_template(host: Node) -> bool:
 	ok = true
 	return true
 
-## Load the plain variant sculpt: a single static mesh, normalised the same way (feet on y = 0, HEIGHT tall).
-func load_variant(host: Node) -> bool:
-	var packed := load(VARIANT_MODEL) as PackedScene
+## Load every VARIANT_MODELS sculpt, normalised the same way (feet on y = 0, HEIGHT tall). `rng` is accepted
+## for backward compatibility (older callers used it to pick a single model) but is no longer needed: all of
+## them load, and mannequin_crowd.gd rolls a random one per decoy that becomes a variant.
+func load_variant(host: Node, _rng: RandomNumberGenerator = null) -> bool:
+	for idx in VARIANT_MODELS.size():
+		var entry := _load_one_variant(host, idx)
+		if entry.is_empty():
+			continue
+		_variants.append(entry)
+		variant_ok = true
+		if entry.rigged:
+			variant_rigged = true
+	if not _variants.is_empty():
+		var v0: Dictionary = _variants[0]
+		variant_mesh = v0.mesh
+		variant_xf = v0.xf
+		variant_scene = v0.scene
+		variant_root_xf = v0.root_xf
+	return variant_ok
+
+func _load_one_variant(host: Node, idx: int) -> Dictionary:
+	var packed := load(VARIANT_MODELS[idx]) as PackedScene
 	if packed == null:
-		return false
+		return {}
 	var root: Node3D = packed.instantiate()
 	host.add_child(root)
 	var meshes := root.find_children("*", "MeshInstance3D", true, false)
 	if meshes.is_empty():
 		root.queue_free()
-		return false
+		return {}
 	var mi := meshes[0] as MeshInstance3D
 	var xf := Transform3D.IDENTITY
 	var p: Node = mi
@@ -218,37 +252,50 @@ func load_variant(host: Node) -> bool:
 			xf = (p as Node3D).transform * xf
 		p = p.get_parent()
 	var b := xf * mi.get_aabb()
+	var vbones := {}
+	var profile := {}
+	var rigged := false
+	var arm_l_pivot := Vector3.INF
 	var skels := root.find_children("*", "Skeleton3D", true, false)
 	if not skels.is_empty():
 		var sk := skels[0] as Skeleton3D
 		for i in sk.get_bone_count():
-			_vbones[sk.get_bone_name(i)] = i
-		variant_rigged = ["Spine", "Head", "ArmL", "ArmR", "LegL", "LegR"].all(func(n): return _vbones.has(n))
+			vbones[sk.get_bone_name(i)] = i
+		profile = RIG_PROFILES[idx]
+		rigged = profile.values().all(func(n): return vbones.has(n))
 		# The rig's left shoulder joint sits at hip height (the right one is at the shoulder), so swinging
 		# ArmL about its own origin would pivot the arm from the waist. Mirror the right shoulder instead.
-		if variant_rigged:
-			var r: Vector3 = sk.get_bone_global_rest(_vbones.ArmR).origin
-			var l: Vector3 = sk.get_bone_global_rest(_vbones.ArmL).origin
+		if rigged:
+			var r: Vector3 = sk.get_bone_global_rest(vbones[profile.armR]).origin
+			var l: Vector3 = sk.get_bone_global_rest(vbones[profile.armL]).origin
 			if absf(l.y - r.y) > 0.1:
-				_varm_l_pivot = Vector3(-r.x, r.y, r.z)
+				arm_l_pivot = Vector3(-r.x, r.y, r.z)
 	root.queue_free()
 	if b.size.y <= 0.0:
-		return false
+		return {}
 	var s := HEIGHT / b.size.y
 	var c := b.get_center()
 	var norm := Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3(-c.x, -b.position.y, -c.z) * s)
-	variant_mesh = mi.mesh
 	# the model's vertex colours are piece ids for mannequin_wear.gdshader, not a tint: the importer
 	# would multiply the albedo by them (a dark red figure) wherever the plain material is still used
-	for sf in variant_mesh.get_surface_count():
-		var sm := variant_mesh.surface_get_material(sf) as StandardMaterial3D
+	for sf in mi.mesh.get_surface_count():
+		var sm := mi.mesh.surface_get_material(sf) as StandardMaterial3D
 		if sm != null:
 			sm.vertex_color_use_as_albedo = false
-	variant_xf = norm * xf
-	variant_root_xf = norm
-	variant_scene = packed
-	variant_ok = true
-	return true
+	return {"scene": packed, "root_xf": norm, "xf": norm * xf, "mesh": mi.mesh, "rigged": rigged,
+		"profile": profile, "vbones": vbones, "arm_l_pivot": arm_l_pivot}
+
+func variant_count() -> int:
+	return _variants.size()
+
+func variant_is_rigged(idx: int) -> bool:
+	return _variants[idx].rigged
+
+func variant_root_xf_at(idx: int) -> Transform3D:
+	return _variants[idx].root_xf
+
+func variant_xf_at(idx: int) -> Transform3D:
+	return _variants[idx].xf
 
 ## How this one has aged: {sheet, cracks 0..1, missing: [bone names], clothes, outfit, sleeves}
 static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
@@ -283,17 +330,18 @@ static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
 		st.outfit = rng.randi() % OUTFITS.size()
 	return st
 
-## A posed copy of the variant sculpt (its own rigged scene), in figure space, worn per `style`
-## (variant_style). Null without a rig.
-func make_variant(pose: Dictionary, style := {}) -> Node3D:
-	if not variant_rigged:
+## A posed copy of variant sculpt `idx` (its own rigged scene), in figure space, worn per `style`
+## (variant_style). Null without a rig. `idx` defaults to 0 for older callers that only knew one variant.
+func make_variant(pose: Dictionary, style := {}, idx := 0) -> Node3D:
+	if idx < 0 or idx >= _variants.size() or not _variants[idx].rigged:
 		return null
+	var v: Dictionary = _variants[idx]
 	if style.get("sheet", false):
 		var sheet: Dictionary = SHEETS[int(style.get("sheet_kind", 0)) % SHEETS.size()]
 		var covered := Node3D.new()
 		var mi_s := MeshInstance3D.new()
 		mi_s.mesh = _sheet()
-		mi_s.transform = variant_root_xf.affine_inverse()   # the crowd places it through variant_root_xf
+		mi_s.transform = v.root_xf.affine_inverse()   # the crowd places it through variant_root_xf_at(idx)
 		var sm := ShaderMaterial.new()
 		sm.shader = SHEET_SHADER
 		sm.set_shader_parameter("kind", int(sheet.kind))
@@ -304,21 +352,27 @@ func make_variant(pose: Dictionary, style := {}) -> Node3D:
 		if int(sheet.kind) == 2:                         # clear plastic: the figure inside, stood at rest
 			var inner := style.duplicate()
 			inner.sheet = false
-			var fig := make_variant(rest_pose(), inner)
+			var fig := make_variant(rest_pose(), inner, idx)
 			if fig != null:
 				covered.add_child(fig)
 		return covered
-	var n: Node3D = variant_scene.instantiate()
+	var n: Node3D = v.scene.instantiate()
 	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
 	var missing = style.get("missing", [])
 	if missing is String:
 		missing = [missing] if missing != "" else []
-	# a Skeleton3D only schedules its update while in the tree: posed before that, it keeps showing its rest
+	var vbones: Dictionary = v.vbones
+	var profile: Dictionary = v.profile
+	var arm_l_pivot: Vector3 = v.arm_l_pivot
+	# a Skeleton3D only schedules its update while in the tree: posed before that, it keeps showing its rest.
+	# vbones/profile/arm_l_pivot are captured here by value so a later make_variant() call (a different
+	# decoy, maybe a different variant) can't change what this closure sees once its own sk finally readies.
 	sk.ready.connect(func():
-		pose_variant(sk, pose)
+		pose_variant(sk, pose, vbones, profile, arm_l_pivot)
 		for bone in missing:                              # broken off: the piece (and what hangs from it) shrinks away
-			if _vbones.has(bone):
-				sk.set_bone_pose_scale(_vbones[bone], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
+			var actual: String = profile.get(MISSING_ROLE.get(bone, ""), bone)
+			if vbones.has(actual):
+				sk.set_bone_pose_scale(vbones[actual], Vector3.ONE * 0.001), CONNECT_ONE_SHOT)
 	for m in n.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -399,9 +453,10 @@ func _sheet() -> ArrayMesh:
 	return _sheet_mesh
 
 ## Turn one bone by `rot`, a rotation in skeleton space about `pivot` (its own joint when INF). Its parent's
-## pose still applies on top, so an arm swings with a leaning torso.
-func _vturn(sk: Skeleton3D, bone: String, rot: Basis, pivot := Vector3.INF) -> void:
-	var i: int = _vbones[bone]
+## pose still applies on top, so an arm swings with a leaning torso. `vbones` is the loaded variant's own
+## bone-name -> index map (mannequin_variant.glb and mannequinvar3.glb use different bone names).
+func _vturn(sk: Skeleton3D, vbones: Dictionary, bone: String, rot: Basis, pivot := Vector3.INF) -> void:
+	var i: int = vbones[bone]
 	var g := sk.get_bone_global_rest(i)
 	var rest := sk.get_bone_rest(i)
 	sk.set_bone_pose_rotation(i, (rest.basis * (g.basis.inverse() * rot * g.basis)).get_rotation_quaternion())
@@ -411,31 +466,35 @@ func _vturn(sk: Skeleton3D, bone: String, rot: Basis, pivot := Vector3.INF) -> v
 		sk.set_bone_pose_position(i, pg.affine_inverse() * (pivot + rot * (g.origin - pivot)))
 
 ## How far (0..1) to turn a limb bone from where it points at rest toward straight down
-func _vplant(sk: Skeleton3D, bone: String, k: float) -> Basis:
-	var d := sk.get_bone_global_rest(_vbones[bone]).basis.y.normalized()
+func _vplant(sk: Skeleton3D, vbones: Dictionary, bone: String, k: float) -> Basis:
+	var d := sk.get_bone_global_rest(vbones[bone]).basis.y.normalized()
 	if d.dot(Vector3.DOWN) > 0.9999 or k <= 0.0:
 		return Basis.IDENTITY
 	return Basis(Quaternion.IDENTITY.slerp(Quaternion(d, Vector3.DOWN), k))
 
-## The variant in a pose Dictionary (POSE_KEYS), the same axes and signs as part_transforms()
-func pose_variant(sk: Skeleton3D, pose: Dictionary) -> void:
+## The variant in a pose Dictionary (POSE_KEYS), the same axes and signs as part_transforms(). `vbones` and
+## `profile` are the loaded variant's own (from _variants[idx]), so this works for either rig.
+func pose_variant(sk: Skeleton3D, pose: Dictionary, vbones: Dictionary, profile: Dictionary, arm_l_pivot := Vector3.INF) -> void:
 	sk.reset_bone_poses()
-	_vturn(sk, "Spine", Basis(Vector3.UP, pose.twist) * Basis(Vector3.RIGHT, pose.lean))
-	_vturn(sk, "Head", Basis(Vector3.UP, pose.headYaw) * Basis(Vector3.BACK, pose.headTilt) * Basis(Vector3.RIGHT, pose.headNod))
+	_vturn(sk, vbones, profile.spine, Basis(Vector3.UP, pose.twist) * Basis(Vector3.RIGHT, pose.lean))
+	_vturn(sk, vbones, profile.head, Basis(Vector3.UP, pose.headYaw) * Basis(Vector3.BACK, pose.headTilt) * Basis(Vector3.RIGHT, pose.headNod))
 	for side in ["L", "R"]:
 		var sg := 1.0 if side == "L" else -1.0
 		var swing := float(pose["arm" + side])
 		var arm := Basis(Vector3.BACK, float(pose["splay" + side]) * sg) * Basis(Vector3.RIGHT, -swing)
-		_vturn(sk, "Arm" + side, arm, _varm_l_pivot if side == "L" else Vector3.INF)
+		var arm_bone: String = profile["arm" + side]
+		var forearm_bone: String = profile["forearm" + side]
+		_vturn(sk, vbones, arm_bone, arm, arm_l_pivot if side == "L" else Vector3.INF)
 		# a raised arm reaches straight: the elbow opens until the forearm lines up with the upper arm
 		# (hanging, it keeps the sculpt's bend, the hand on the hip)
-		if _vbones.has("Forearm" + side):
+		if vbones.has(forearm_bone):
 			var k := smoothstep(0.5, 1.3, swing)
 			if k > 0.0:
-				var up := sk.get_bone_global_rest(_vbones["Arm" + side]).basis.y.normalized()
-				var fore := sk.get_bone_global_rest(_vbones["Forearm" + side]).basis.y.normalized()
-				_vturn(sk, "Forearm" + side, Basis(Quaternion.IDENTITY.slerp(Quaternion(fore, up), k)))
-		_vturn(sk, "Leg" + side, Basis(Vector3.RIGHT, -float(pose["leg" + side])) * _vplant(sk, "Leg" + side, VARIANT_PLANT))
+				var up := sk.get_bone_global_rest(vbones[arm_bone]).basis.y.normalized()
+				var fore := sk.get_bone_global_rest(vbones[forearm_bone]).basis.y.normalized()
+				_vturn(sk, vbones, forearm_bone, Basis(Quaternion.IDENTITY.slerp(Quaternion(fore, up), k)))
+		var leg_bone: String = profile["leg" + side]
+		_vturn(sk, vbones, leg_bone, Basis(Vector3.RIGHT, -float(pose["leg" + side])) * _vplant(sk, vbones, leg_bone, VARIANT_PLANT))
 
 # ================================================================= poses
 static func rest_pose() -> Dictionary:

@@ -1,13 +1,63 @@
 {
- "res://audio/player/body_fall.mp3": {
+ "res://audio/player/breath/breath_01_calm.wav": {
+  "peak": -14.41,
+  "rms": -32.18,
+  "length": 5.864
+ },
+ "res://audio/player/breath/breath_02_alert.wav": {
+  "peak": -6.27,
+  "rms": -25.95,
+  "length": 6.705
+ },
+ "res://audio/player/breath/breath_03_strained.wav": {
+  "peak": -4.09,
+  "rms": -22.7,
+  "length": 9.018
+ },
+ "res://audio/player/breath/breath_04_tense.wav": {
+  "peak": -3.02,
+  "rms": -18.24,
+  "length": 9.76
+ },
+ "res://audio/player/breath/breath_05_distressed.wav": {
+  "peak": -2.88,
+  "rms": -18.85,
+  "length": 8.363
+ },
+ "res://audio/player/breath/breath_06_panicked.wav": {
+  "peak": -12.2,
+  "rms": -32.64,
+  "length": 8.381
+ },
+ "res://audio/player/caught/bacteria_snactched_voice.mp3": {
+  "peak": -4.62,
+  "rms": -19.26,
+  "length": 5.712
+ },
+ "res://audio/player/caught/bacteria_snatched_voice_scream_test.mp3": {
+  "peak": -0.58,
+  "rms": -16.37,
+  "length": 3.897
+ },
+ "res://audio/player/death/bite/bitedeathsound.mp3": {
+  "peak": -5.03,
+  "rms": -19.16,
+  "length": 1.698
+ },
+ "res://audio/player/death/body_fall.mp3": {
   "peak": -1.0,
   "rms": -15.26,
   "length": 1.512
  },
- "res://audio/player/gasp/death.mp3": {
+ "res://audio/player/death/death.mp3": {
   "peak": -4.06,
   "rms": -17.94,
   "length": 0.936
+ },
+ "res://audio/player/death/neck_snap/floraphonic-necksnap-10-218514.mp3": {
+  "peak": -0.43,
+  "rms": -13.77,
+  "length": 0.432
  },
  "res://audio/player/gasp/gasp_2.mp3": {
   "peak": -11.08,
@@ -219,15 +269,35 @@
   "rms": -27.89,
   "length": 6.452
  },
+ "res://audio/ambients/ambient-drone.wav": {
+  "peak": -3.18,
+  "rms": -15.22,
+  "length": 15.36
+ },
  "res://audio/ambients/ambient1.mp3": {
   "peak": -3.43,
   "rms": -17.56,
   "length": 128.064
  },
+ "res://audio/ambients/creepy-ambience-long-hollow-loop_130bpm.wav": {
+  "peak": -0.66,
+  "rms": -17.49,
+  "length": 53.591
+ },
+ "res://audio/ambients/creepy-ambience_C_minor.wav": {
+  "peak": -3.56,
+  "rms": -16.86,
+  "length": 33.415
+ },
  "res://audio/ambients/dragon-studio-dark-horror-ambient-05-425468.mp3": {
   "peak": -0.87,
   "rms": -16.49,
   "length": 21.72
+ },
+ "res://audio/ambients/haunted-ambience_A#_major.wav": {
+  "peak": -2.62,
+  "rms": -17.98,
+  "length": 42.179
  },
  "res://audio/ambients/hgoliya08-scary-sound-effect-298866.mp3": {
   "peak": -1.25,
@@ -238,6 +308,21 @@
   "peak": -1.85,
   "rms": -19.17,
   "length": 28.186
+ },
+ "res://audio/ambients/outdoor/crickets_night.mp3": {
+  "peak": -20.45,
+  "rms": -35.54,
+  "length": 11.452
+ },
+ "res://audio/ambients/outdoor/forest_day.mp3": {
+  "peak": -33.82,
+  "rms": -46.27,
+  "length": 44.736
+ },
+ "res://audio/ambients/outdoor/wind_loop.wav": {
+  "peak": -2.74,
+  "rms": -18.15,
+  "length": 24.0
  },
  "res://audio/ambients/universfield-creepy-tension-background-30-352872.mp3": {
   "peak": -9.2,

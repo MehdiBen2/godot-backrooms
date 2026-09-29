@@ -120,7 +120,7 @@ func _ready() -> void:
 	if not model.load_template(self):
 		push_warning("mannequin: model failed to load")
 		return
-	model.load_variant(self)     # optional: crowd looks fine without it, just less varied
+	model.load_variant(self, rng)     # optional: crowd looks fine without it, just less varied
 	ready_ok = true
 	reset()
 
