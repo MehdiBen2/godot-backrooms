@@ -42,6 +42,14 @@ const FLASH_BLIND := 4.5              # s it reels, blind
 const FLASH_REACQUIRE := 12.0         # m: still in plain sight this close when its eyes clear, it's back on you
 const FLASH_POP := 14.0               # m: how far the pop carries (a flash that misses gives you away)
 
+# Face it up close and you flinch (player.flinch(): the torch arm jerks up across your face). Once per
+# encounter: it has to be out of reach or out of your sight for FLINCH_REARM before it happens again.
+const FLINCH_RANGE := 4.5             # m
+const FLINCH_CONE := 0.8              # cos: how near the middle of your view it has to be
+const FLINCH_REARM := 4.0             # s
+var flinch_armed := true
+var flinch_away := 0.0
+
 func _ready() -> void:
 	rng.randomize()
 	level = get_parent().get_node("Level")
@@ -498,6 +506,7 @@ func update_fear(delta: float) -> void:
 		player.quake(0.4 + 0.35 * clampf(1.0 - dist / 20.0, 0.0, 1.0))
 	var terror := (1.0 - dist / TERROR_DISTANCE) if near else 0.0
 	Game.terror = terror
+	_check_flinch(delta, dist)
 	if near:
 		player.sanity = maxf(0.0, player.sanity - 15.0 * terror * delta)
 		# while something has hold of you (the mannequin's snap) it owns your heart: no proximity
@@ -533,6 +542,24 @@ func update_fear(delta: float) -> void:
 	# frozen = the mannequin is already snapping your neck, or a survivor's blow has you stunned
 	if dist < KILL_DISTANCE and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not grab.active() and stun_timer <= 0.0:
 		grab.start()
+
+# You look straight at it, close, nothing in between: you flinch (see FLINCH_RANGE)
+func _check_flinch(delta: float, dist: float) -> void:
+	var cam: Camera3D = player.cam
+	var eye := cam.global_position
+	var p := global_position
+	var facing: bool = dist < FLINCH_RANGE and not player.dead and not player.frozen and is_visible_in_tree() \
+		and (p + Vector3.UP * 1.2 - eye).normalized().dot(-cam.global_transform.basis.z) > FLINCH_CONE \
+		and nav.clear_line(eye.x, eye.z, p.x, p.z)
+	if not facing:
+		flinch_away += delta
+		if flinch_away > FLINCH_REARM:
+			flinch_armed = true
+		return
+	flinch_away = 0.0
+	if flinch_armed:
+		flinch_armed = false
+		player.flinch()
 
 # ================================================================= public API (dev / other systems)
 ## Guest: the host's latest snapshot (Net._entity)
