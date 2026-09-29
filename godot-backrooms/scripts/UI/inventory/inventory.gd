@@ -67,10 +67,12 @@ const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge on an INV row
 const ARCHIVE_CAP := 10
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
-const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS"]
+const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE"]
 # short, so four fit on the sheet; the dossier page carries its full title
-const TAB_TITLES := {"ITEMS": "[F1] ITEMS", "DOSSIER": "[F2] DOSSIER", "ENTRIES": "[F3] ENTRIES", "PAPERS": "[F4] PAPERS"}
-const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS"}
+# five across the 830 px sheet: bare "F1" keys, and _style_tab keeps the tabs behind small
+const TAB_TITLES := {"ITEMS": "F1 ITEMS", "DOSSIER": "F2 DOSSIER", "ENTRIES": "F3 ENTRIES", "PAPERS": "F4 PAPERS",
+	"CLEARANCE": "F5 CLEARANCE"}
+const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS", KEY_F5: "CLEARANCE"}
 const METRICS := {
 	"spatial_reliability": "SPATIAL RELIABILITY",
 	"temporal_coherence": "TEMPORAL COHERENCE",
@@ -139,6 +141,9 @@ var entry_ids: Array = []            # every catalogued entity, in code order
 var entry_rows: Array = []           # one PanelContainer per entry
 var entry_sel := 0
 var lore_entries: Array = []         # {id, title, text}
+# [F5] CLEARANCE
+var clearance_page: VBoxContainer
+var clearance_new := false           # promoted since the page was last opened: a dot on its tab
 var papers_list: VBoxContainer
 
 func _ready() -> void:
@@ -483,6 +488,10 @@ func _refresh_clearance(report := {}) -> void:
 	if int(report.get("tier_to", 0)) != int(report.get("tier_from", 0)):
 		_refresh_dossier()
 		_refresh_entries()
+		if int(report.get("tier_to", 0)) > int(report.get("tier_from", 0)) and active_page != "CLEARANCE":
+			clearance_new = true
+			if readout: readout.queue_redraw()
+	_refresh_clearance_page()
 	clearance_label.text = Clearance.tier_label()
 	_set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
 	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
@@ -502,7 +511,7 @@ func _build_footer() -> Control:
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(agency)
-	for hint in ["UP/DN SELECT", "F1-F4 PAGE", "PGUP/PGDN SCROLL"]:
+	for hint in ["UP/DN SELECT", "F1-F5 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(_label(hint, 17, MUTED, 2))
 		h.add_child(_label("•", 17, MUTED))
 	var close := Button.new()
@@ -775,7 +784,7 @@ func _move_selection(delta: int) -> void:
 		return
 	_select(clampi(maxi(selected, 0) + delta, 0, items.size() - 1))
 
-# ---- right-hand sheet: [F1] ITEMS / [F2] THRESHOLD DOSSIER / [F3] PAPERS -----------------
+# ---- right-hand sheet: [F1] ITEMS / [F2] DOSSIER / [F3] ENTRIES / [F4] PAPERS / [F5] CLEARANCE --
 func _build_readout() -> Control:
 	readout = Control.new()
 	readout.anchor_left = 1.0; readout.anchor_right = 1.0; readout.anchor_bottom = 1.0
@@ -823,6 +832,10 @@ func _build_readout() -> Control:
 	papers_list = _scroll_body(papers_scroll, 8)
 	pages["PAPERS"] = papers_scroll
 	page_scrolls["PAPERS"] = papers_scroll
+	var clearance_scroll := _scroll()
+	clearance_page = _scroll_body(clearance_scroll, 4)
+	pages["CLEARANCE"] = clearance_scroll
+	page_scrolls["CLEARANCE"] = clearance_scroll
 	for tab in TABS:
 		body.add_child(pages[tab])
 
@@ -862,8 +875,8 @@ func _draw_readout() -> void:
 		readout.draw_colored_polygon(shape, FILL if on else Color(FILL, 0.5))
 		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, LINE, true)
 		if on: gap = Vector2(x0, x1)
-		if tab == "ENTRIES" and Archive.has_unread():   # something newly logged and not read yet
-			readout.draw_circle(Vector2(x1 - TAB_SLANT - 6.0, y + 10.0), 5.0, AMBER)
+		if (tab == "ENTRIES" and Archive.has_unread()) or (tab == "CLEARANCE" and clearance_new):
+			readout.draw_circle(Vector2(x1 - TAB_SLANT - 6.0, y + 10.0), 5.0, AMBER)   # something new, not seen yet
 	var edge := PackedVector2Array([
 		Vector2(gap.y, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c), Vector2(0, top)])
@@ -875,12 +888,13 @@ func _style_tab(tab: String) -> void:
 	var on := tab == active_page
 	b.text = TAB_TITLES[tab]
 	var sb := StyleBoxEmpty.new()
-	sb.content_margin_left = 18
-	sb.content_margin_right = 18 + TAB_SLANT
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14 + TAB_SLANT
 	sb.content_margin_top = 0.0 if on else 8.0
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, sb)
-	b.add_theme_font_size_override("font_size", 22 if on else 16)
+	b.add_theme_font_override("font", _font(2 if on else 1))
+	b.add_theme_font_size_override("font_size", 20 if on else 15)
 	for s in ["font_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(s, TEXT if on else TEXT_DIM)
 	b.add_theme_color_override("font_hover_color", TEXT)
@@ -896,6 +910,9 @@ func _select_tab(tab: String, force := false, focus_new := true) -> void:
 	readout.queue_redraw()
 	if tab == "ENTRIES" and focus_new:
 		_focus_unread()
+	if tab == "CLEARANCE":
+		clearance_new = false
+		_refresh_clearance_page()            # the re-read cooldowns tick while it is closed
 	if force:
 		return
 	_sfx("tab")
@@ -1319,6 +1336,204 @@ func _on_entry_logged(_id: String) -> void:
 	if readout:
 		readout.queue_redraw()
 
+# [F5] the player's T.S.R.A. service record (asra_clearance.gd): where they stand, the ladder and
+# what each tier grants, how their yield was earned, per entity, the filing log and the rules
+const SCANNER_SCRIPT := preload("res://scripts/Player/scanner.gd")
+const CL_BAR := 20                   # cells in the page's bars
+
+func _refresh_clearance_page(_report := {}) -> void:
+	if not clearance_page:
+		return
+	var box := clearance_page
+	_clear(box)
+	var ti := Clearance.tier_index()
+	var cur := Clearance.tier()
+	var unit := Clearance.unit
+	box.add_child(_label("[T.S.R.A. PERSONNEL FILE // FIELD CLEARANCE]", 21, TEXT, 1))
+	box.add_child(_spacer(12))
+
+	# -- status
+	box.add_child(_label("CLEARANCE HELD", 15, MUTED, 2))
+	box.add_child(_label(Clearance.tier_label(), 26, AMBER, 2, true))
+	box.add_child(_label(str(cur.get("brief", "")), 17, TEXT_DIM, 1, true))
+	box.add_child(_spacer(8))
+	var to_next := Clearance.next_threshold() - Clearance.total
+	if Clearance.is_max_tier():
+		box.add_child(_bar_row("LIFETIME YIELD", 1.0, "%d %s" % [Clearance.total, unit], GREEN))
+		box.add_child(_label("MAXIMUM CLEARANCE. THE AGENCY HAS NOTHING LEFT TO GIVE YOU.", 16, GREEN, 1, true))
+	else:
+		var nxt := Clearance.tier(ti + 1)
+		box.add_child(_bar_row("TO %s" % str(nxt.get("code", "")), Clearance.tier_progress(), "%d / %d" % [Clearance.total, Clearance.next_threshold()], AMBER))
+		box.add_child(_kv("NEXT PROMOTION", "%s IN %d %s" % [str(nxt.get("title", "")), to_next, unit], TEXT))
+		for i in range(ti + 1, Clearance.tiers.size()):
+			var u: Dictionary = Clearance.tier(i).get("unlock", {})
+			if not u.is_empty():
+				box.add_child(_kv("NEXT PRIVILEGE", "%s AT %s (%d %s TO GO)" % [str(u.get("name", "")), str(Clearance.tier(i).get("code", "")),
+					int(Clearance.tier(i).get("yield", 0)) - Clearance.total, unit], AMBER))
+				break
+
+	# -- ladder
+	_cl_section(box, "CLEARANCE LADDER")
+	for i in Clearance.tiers.size():
+		var td: Dictionary = Clearance.tiers[i]
+		var tag := "HELD" if i < ti else ("CURRENT" if i == ti else "LOCKED")
+		var col := GREEN if i < ti else (AMBER if i == ti else TEXT_DIM)
+		var row := _kv("%s  %s" % [str(td.get("code", "")), str(td.get("title", ""))], "%s // %d %s" % [tag, int(td.get("yield", 0)), unit], col)
+		box.add_child(row)
+		var u: Dictionary = td.get("unlock", {})
+		if not u.is_empty():
+			box.add_child(_label("      GRANTS: " + str(u.get("name", "")), 15, col if i <= ti else Color(TEXT_DIM, 0.35), 1, true))
+
+	# -- privileges
+	_cl_section(box, "PRIVILEGES")
+	for td in Clearance.tiers:
+		var u: Dictionary = td.get("unlock", {})
+		if u.is_empty():
+			continue
+		var on := Clearance.has_unlock(str(u.get("id", "")))
+		box.add_child(_kv(str(u.get("name", "")), "ACTIVE" if on else "LOCKED // %s" % str(td.get("code", "")), GREEN if on else TEXT_DIM))
+		box.add_child(_label(str(u.get("text", "")), 16, TEXT if on else TEXT_DIM, 1, true))
+		box.add_child(_spacer(4))
+	var cal := Clearance.scan_time_scale()
+	box.add_child(_kv("SCANNER CALIBRATION", "READING TIME %.2f S (-%d%%)" % [SCANNER_SCRIPT.SCAN_TIME * cal, roundi((1.0 - cal) * 100.0)], GREEN if ti > 0 else TEXT_DIM))
+	box.add_child(_label("Every tier held shaves 5% off the time a reading takes.", 16, TEXT_DIM, 1, true))
+
+	# -- performance
+	_cl_section(box, "FIELD PERFORMANCE")
+	var n := Clearance.filings()
+	box.add_child(_kv("LIFETIME YIELD", "%d %s" % [Clearance.total, unit], AMBER))
+	box.add_child(_kv("READINGS FILED", "%d  (%d FIRST CONTACT // %d NEW SITE // %d SUPPLEMENTAL)" % [n,
+		int(Clearance.stat("filings_first_contact")), int(Clearance.stat("filings_new_site")), int(Clearance.stat("filings_supplemental"))], TEXT))
+	var logged := 0
+	for id in Archive.entities():
+		if Archive.is_discovered(str(id)): logged += 1
+	box.add_child(_kv("ENTITIES LOGGED", "%d / %d" % [logged, Archive.entities().size()], TEXT))
+	box.add_child(_kv("SITES CONFIRMED", str(Clearance.sites_confirmed()), TEXT))
+	box.add_child(_kv("AVERAGE FILING", "%d %s" % [roundi(float(Clearance.total) / n), unit] if n > 0 else "NO DATA", TEXT))
+	var best_id := str(Clearance.stat("best_id", ""))
+	box.add_child(_kv("BEST SINGLE FILING", "%d %s // %s" % [int(Clearance.stat("best_total")), unit, _cl_code(best_id)] if best_id != "" else "NO DATA", TEXT))
+	var near_id := str(Clearance.stat("closest_id", ""))
+	box.add_child(_kv("CLOSEST READING", "%.1f M // %s" % [float(Clearance.stat("closest_dist", 0.0)), _cl_code(near_id)] if near_id != "" else "NO DATA",
+		RED if near_id != "" and float(Clearance.stat("closest_dist", 99.0)) < 4.0 else TEXT))
+	box.add_child(_kv("BEST MOMENTUM STREAK", "x%d" % int(Clearance.stat("best_momentum", 1)) if n > 0 else "NO DATA", TEXT))
+	box.add_child(_kv("AGENCY ASSESSMENT", _cl_assessment(n), AMBER))
+	box.add_child(_spacer(10))
+	box.add_child(_label("YIELD BY SOURCE", 15, MUTED, 2))
+	var most := 1
+	for src in Clearance.SOURCES:
+		most = maxi(most, int(Clearance.stat("ry_" + str(src[0]))))
+	for src in Clearance.SOURCES:
+		var v := int(Clearance.stat("ry_" + str(src[0])))
+		box.add_child(_bar_row(str(src[1]), float(v) / most, "%d %s" % [v, unit], AMBER if v > 0 else TEXT_DIM))
+
+	# -- per entity
+	_cl_section(box, "YIELD BY ENTITY")
+	var all := Archive.entities()
+	var ids: Array = all.keys()
+	ids.sort_custom(func(a, b): return str(all[a].get("code", "")) < str(all[b].get("code", "")))
+	for id in ids:
+		var info: Dictionary = all[id]
+		if not Archive.is_discovered(str(id)):
+			box.add_child(_kv("TSRA-EN-??  UNREGISTERED", "0 " + unit, TEXT_DIM))
+			box.add_child(_label("      NO SCAN ON FILE // FIRST CONTACT PENDING", 15, TEXT_DIM, 1, true))
+			continue
+		box.add_child(_kv("%s  %s" % [str(info.get("code", "")), str(info.get("common_name", id)).to_upper()],
+			"%d %s" % [int(Clearance.entity_yield.get(id, 0)), unit], TEXT))
+		var sup := Clearance.next_supplemental(str(id))
+		var wait := Clearance.reread_ready_in(str(id))
+		var next := "RE-READS EXHAUSTED"
+		if sup > 0:
+			next = "NEXT RE-READ %d %s" % [sup, unit] + (" IN %d S" % ceili(wait) if wait > 0.0 else " // READY")
+		box.add_child(_label("      THREAT %s // SITES %d // RE-READS %d // %s" % [str(info.get("threat_class", "?")).to_upper(),
+			(Clearance.sites.get(id, []) as Array).size(), int(Clearance.supplementals.get(id, 0)), next], 15, MUTED, 1, true))
+
+	# -- log
+	_cl_section(box, "FILING LOG // LAST %d" % Clearance.LOG_MAX)
+	if Clearance.filing_log.is_empty():
+		box.add_child(_label("NO FILINGS ON RECORD. HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY.", 16, TEXT_DIM, 1, true))
+	for e in Clearance.filing_log:
+		var kind := str(e.get("kind", ""))
+		var what := str({"first_contact": "FIRST CONTACT", "new_site": "NEW SITE", "supplemental": "SUPPLEMENTAL", "grant": "ADJUSTMENT"}.get(kind, kind.to_upper()))
+		var d := float(e.get("dist", -1.0))
+		var where := "%s%s" % [_cl_code(str(e.get("id", ""))) if str(e.get("id", "")) != "" else "ADMIN", " @ %.1f M" % d if d >= 0.0 else ""]
+		box.add_child(_kv("%s  %s // %s" % [_local_time(int(e.get("t", 0))).substr(5), what, where],
+			"%+d %s" % [int(e.get("total", 0)), unit], GREEN if kind == "first_contact" else TEXT))
+
+	# -- rules
+	_cl_section(box, "YIELD SCHEDULE")
+	var b1 := Clearance.BASE + Clearance.PER_CLASS
+	var b5 := Clearance.BASE + Clearance.PER_CLASS * 5
+	box.add_child(_kv("FIRST CONTACT", "%d-%d %s BY THREAT CLASS" % [b1, b5, unit], TEXT))
+	box.add_child(_kv("NEW SITE CONFIRMED", "%d%% OF FIRST CONTACT" % roundi(Clearance.NEW_SITE * 100.0), TEXT))
+	box.add_child(_kv("SUPPLEMENTAL DATA", "%d%%, HALVING EACH TIME // 1 PER %d S" % [roundi(Clearance.SUPPLEMENTAL * 100.0), int(Clearance.REREAD_COOLDOWN)], TEXT))
+	box.add_child(_kv("PROXIMITY PREMIUM", "+25%% UNDER %d M // +10%% UNDER %d M" % [int(Clearance.CLOSE_RANGE), int(Clearance.NEAR_RANGE)], TEXT))
+	box.add_child(_kv("OFF-ROSTER SIGHTING", "+%d%% IF THE DOSSIER DOESN'T LIST IT" % roundi(Clearance.OFF_ROSTER * 100.0), TEXT))
+	box.add_child(_kv("HAZARD PAY", "+%d%% UNDER %d SANITY OR HEALTH" % [roundi(Clearance.HAZARD * 100.0), int(Clearance.HAZARD_BELOW)], TEXT))
+	box.add_child(_kv("FIELD MOMENTUM", "+%d%% PER FILING WITHIN %d MIN (MAX +%d%%)" % [roundi(Clearance.MOMENTUM_STEP * 100.0),
+		int(Clearance.MOMENTUM_WINDOW / 60.0), roundi(Clearance.MOMENTUM_STEP * Clearance.MOMENTUM_MAX * 100.0)], TEXT))
+	box.add_child(_spacer(6))
+	box.add_child(_label("Readings of a known entity on a known site pay a trickle, then nothing. The agency pays for new information, not for staring.", 15, TEXT_DIM, 1, true))
+
+## A section title over a thin rule
+func _cl_section(box: VBoxContainer, title: String) -> void:
+	box.add_child(_spacer(18))
+	box.add_child(_label(title, 15, MUTED, 2))
+	box.add_child(_hline(Color(AMBER, 0.35), 2))
+	box.add_child(_spacer(4))
+
+## "KEY ...... VALUE": the key on the left, the value right-aligned in `col`
+func _kv(key: String, value: String, col: Color) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var k := _label(key, 17, TEXT_DIM if col != TEXT_DIM else Color(TEXT_DIM, 0.35), 1)
+	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	k.clip_text = true
+	k.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(k)
+	var v := _label(value, 17, col, 1)
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h.add_child(v)
+	return h
+
+## A label, a bar of CL_BAR cells filled to `frac`, and the figure
+func _bar_row(key: String, frac: float, value: String, col: Color) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	h.custom_minimum_size.y = 24          # a slim bar in a taller row: the bars stay apart
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var k := _label(key, 15, TEXT_DIM, 1)
+	k.custom_minimum_size.x = 230
+	k.clip_text = true
+	k.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(k)
+	var cells := _cells(CL_BAR, 2.0, false)
+	cells.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cells.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cells.custom_minimum_size.y = 10
+	_set_cells(cells, roundi(clampf(frac, 0.0, 1.0) * CL_BAR) if frac > 0.0 else 0, col)
+	if frac > 0.0 and cells.get_meta("filled") == 0:
+		_set_cells(cells, 1, col)            # anything at all shows as one cell
+	h.add_child(cells)
+	var v := _label(value, 15, col, 1)
+	v.custom_minimum_size.x = 150
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h.add_child(v)
+	return h
+
+func _cl_code(id: String) -> String:
+	return str(Archive.entity_info(id).get("code", "TSRA-EN-??")) if id != "" else "-"
+
+## The agency's one-line verdict, off the average filing
+func _cl_assessment(n: int) -> String:
+	if n == 0:
+		return "PENDING FIRST FILING"
+	var avg := float(Clearance.total) / n
+	if avg < 60.0: return "BELOW EXPECTATIONS"
+	if avg < 140.0: return "MEETS EXPECTATIONS"
+	if avg < 220.0: return "EXCEEDS EXPECTATIONS"
+	return "EXEMPLARY // FLAGGED FOR REVIEW"
+
 # [F4] recovered papers
 func _refresh_papers() -> void:
 	if not papers_list:
@@ -1357,6 +1572,7 @@ func set_shown(on: bool) -> void:
 		_refresh_selection()
 		_refresh_dossier()
 		_refresh_entries()
+		_refresh_clearance_page()
 		_sfx("on")
 		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
@@ -1411,7 +1627,7 @@ func _input(e: InputEvent) -> void:
 				_move_selection(step)
 		KEY_LEFT: _cycle_tab(-1)
 		KEY_RIGHT: _cycle_tab(1)
-		KEY_F1, KEY_F2, KEY_F3, KEY_F4: _select_tab(TAB_KEYS[k.physical_keycode])
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5: _select_tab(TAB_KEYS[k.physical_keycode])
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return
