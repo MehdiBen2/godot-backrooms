@@ -19,6 +19,7 @@ const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 
 const KEY := KEY_T
+const CURSOR_REACH := 300.0     # m: with the draw tools panel open the cursor reaches this far
 const REACH := 3.0               # m: how far away the first end can be pressed down
 const MAX_STRIP := 20.0          # m in one pull
 const MIN_STRIP := 0.12          # m: shorter is not a strip
@@ -96,7 +97,7 @@ func _process(dt: float) -> void:
 func _start() -> void:
 	var cam: Camera3D = player.cam
 	var from := _origin(cam)
-	var q := PhysicsRayQueryParameters3D.create(from, from + _aim_dir(cam) * REACH, WORLD_MASK)
+	var q := PhysicsRayQueryParameters3D.create(from, from + _aim_dir(cam) * _reach(), WORLD_MASK)
 	q.exclude = [player.get_rid()]
 	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not (hit.collider is StaticBody3D) or TapeMarks.live == null:
@@ -135,6 +136,9 @@ func _start() -> void:
 	_play("tape_stick.wav", -6.0)
 
 ## Where the tape is aimed from and along: the middle of the screen, or through the mouse cursor
+func _reach() -> float:
+	return CURSOR_REACH if cursor_aim else REACH
+
 func _origin(cam: Camera3D) -> Vector3:
 	if cursor_aim:
 		return cam.project_ray_origin(cam.get_viewport().get_mouse_position())
@@ -154,7 +158,7 @@ func _pull(dt: float) -> void:
 	var denom := normal.dot(d)
 	if denom < -0.02:
 		var t := normal.dot(anchor - o) / denom
-		if t > 0.0 and t < REACH + MAX_STRIP:
+		if t > 0.0 and t < _reach() + MAX_STRIP:
 			goal = o + d * t
 	goal = _supported(goal)
 	var prev := length

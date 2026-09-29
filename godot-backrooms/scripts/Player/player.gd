@@ -220,11 +220,15 @@ func _physics_process(dt: float) -> void:
 				flash_spill.visible = false
 				flash_spill.light_energy = 0.0
 		return
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not Game.draw_mode:
 		return
-	if Game.noclip:
+	if Game.noclip or Game.draw_mode:
 		_fly(dt)
+		_was_flying = true
 		return
+	if _was_flying:
+		_was_flying = false
+		shape.disabled = false         # the draw tools panel closed: solid again
 	var crouch := _key(KEY_C) or _key(KEY_CTRL)
 	var dir := Vector2.ZERO
 	if _key(KEY_W) or _key(KEY_UP): dir.y -= 1
@@ -294,6 +298,8 @@ func _physics_process(dt: float) -> void:
 # Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
 ## Noclip (editor test launch): free flight along the camera, straight through walls and floors.
 ## WASD move, Space up, C/Ctrl down, Shift fast.
+var _was_flying := false
+
 func _fly(dt: float) -> void:
 	shape.disabled = true
 	var dir := Vector3.ZERO

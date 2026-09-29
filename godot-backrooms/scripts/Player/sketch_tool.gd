@@ -13,6 +13,7 @@ const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const KEY := KEY_B
 const KEY_COLOR := KEY_N
 const KEY_ERASE := KEY_X
+const CURSOR_REACH := 300.0     # m: with the draw tools panel open the pen reaches this far
 const REACH := 3.0               # m
 const STEP := 0.02               # m between points
 const LINE_STEP := 0.01          # m between points on a straight line
@@ -94,7 +95,7 @@ func _aim() -> Dictionary:
 		var m := cam.get_viewport().get_mouse_position()
 		from = cam.project_ray_origin(m)
 		dir = cam.project_ray_normal(m)
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * REACH, WORLD_MASK)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * (CURSOR_REACH if _cursor() else REACH), WORLD_MASK)
 	q.exclude = [player.get_rid()]
 	var hit: Dictionary = player.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty() or not (hit.collider is StaticBody3D):

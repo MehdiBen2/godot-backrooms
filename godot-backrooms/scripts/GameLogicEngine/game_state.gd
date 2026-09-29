@@ -66,6 +66,8 @@ var test_spawn := _launch_arg("--test-spawn=")     # "x,z" cell: the editor's TE
 # taking the stairs, the stairs you took: {x, y, kind} where kind is the stairs type to arrive beside
 var level_floor := int(_launch_arg("--test-floor="))
 var floor_link := {}
+# The draw tools panel (draw_ui.gd) is open: the player flies like noclip and can move with the cursor free
+var draw_mode := false
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
 
 static func _launch_arg(prefix: String) -> String:

@@ -6,7 +6,7 @@ extends CanvasLayer
 ##  - MARKER: hold the left button and drag to draw (sketch_tool.gd), with a colour, width, wobble, opacity,
 ##    solid / dashed / dotted, and FREEHAND or a straight LINE
 ##  - ERASER: hold the left button over a sketch line to rub it out
-## Hold the right button to look and walk (the mouse is captured while it is down). SAVE writes the tape
+## While it is open you fly like noclip (WASD, Space up, C down, Shift fast); hold the right button to look. SAVE writes the tape
 ## and the sketches to disk now (they are also written as each one is placed).
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
@@ -151,7 +151,7 @@ func _build() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.custom_minimum_size = Vector2(PANEL_W - 24, 0)
 	v.add_child(_status)
-	v.add_child(_label("Right mouse held: look / walk\nY: close", 11, Color(0.6, 0.58, 0.5)))
+	v.add_child(_label("WASD move (Space up, C down, Shift fast)\nRight mouse held: look\nY: close", 11, Color(0.6, 0.58, 0.5)))
 	_set_tool(tool)
 
 func _label(text: String, size: int, color: Color) -> Label:
@@ -290,6 +290,7 @@ func _open() -> void:
 func _close(recapture: bool) -> void:
 	open = false
 	visible = false
+	Game.draw_mode = false
 	cursor_mode = false
 	world_lmb = false
 	_rmb_look = false
@@ -319,6 +320,7 @@ func _process(_dt: float) -> void:
 	elif not _rmb_look and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE      # the inventory or console gave it back: the panel is still open
 	cursor_mode = not _rmb_look and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
+	Game.draw_mode = true
 	var lmb := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 	if lmb and not _lmb_prev:
 		_lmb_ui = _over_panel()
