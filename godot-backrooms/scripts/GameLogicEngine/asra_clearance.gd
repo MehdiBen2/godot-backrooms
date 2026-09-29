@@ -15,6 +15,10 @@ extends Node
 ## cells each strip marks, and every cell never marked before on that level files SURVEY_PER_CELL,
 ## plus a bonus as the level's survey passes each of SURVEY_MILESTONES. Marked cells are saved per
 ## level, so a level's map only pays once.
+## And reaching a level's exit with a taped trail behind you (at least ROUTE_MIN_STRIPS strips of
+## your own) files ROUTE DOCUMENTED through file_route(): ROUTE_BASE, plus the trail's length,
+## plus EXIT MARKED if one of the strips is by the exit. Once per level, saved like the survey.
+## The level changes right after, so that report waits in pending_route for the next level's HUD.
 ## hud.gd turns the report into the terminal toasts; inventory.gd shows the tier in its header.
 ## Tiers unlock things (has_unlock): C-2 the classified annexes in the dossiers (inventory.gd),
 ## C-3 the scanner's range-finder and C-4 its deep scan (scan_readout.gd, scanner.gd).
@@ -40,6 +44,12 @@ const MOMENTUM_STEP := 0.1
 const MOMENTUM_MAX := 3          # ... up to this many steps
 const SURVEY_PER_CELL := 1       # RY for each grid cell first marked with tape on a level
 const SURVEY_MILESTONES := [[0.25, 25], [0.5, 50], [0.75, 100]]   # [share of the open cells, bonus RY]
+const ROUTE_MIN_STRIPS := 3      # of your own on the level, for the exit to count as a documented route
+const ROUTE_BASE := 40
+const ROUTE_PER_M := 0.5         # RY per metre of your tape on the level ...
+const ROUTE_TRAIL_MAX := 100     # ... up to this
+const ROUTE_EXIT_MARKED := 25    # one of your strips within ROUTE_EXIT_NEAR of the exit
+const ROUTE_EXIT_NEAR := 8.0
 
 var unit := "RY"
 var tiers: Array = []            # [{code, title, yield, brief}], ascending
@@ -49,6 +59,8 @@ var sites := {}                  # entity_id -> [level ids it has been read on]
 var supplementals := {}          # entity_id -> supplemental filings so far
 var last_report := {}            # the last file() result (hud.gd reads it for the NEW ENTRY toast)
 var surveyed := {}               # level id -> {"x,y": true}: the cells mapped with tape there
+var routes := {}                 # level id -> true: a documented route to its exit already filed
+var pending_route := {}          # the last ROUTE DOCUMENTED report, until the next level's HUD shows it
 
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
 var _last_filed := -1.0e9
@@ -237,6 +249,45 @@ func file_survey(cells: Array, open_cells: int) -> Dictionary:
 	yield_filed.emit(report)
 	return report
 
+## The player walked into this level's exit (level_exit.gd): `strips` is the tape they laid here
+## (TapeMarks.mine_on), `exit_pos` where the exit is. Kind "route", or "" when the trail is too
+## short or this level's route was already filed.
+func file_route(strips: Array, exit_pos: Vector3) -> Dictionary:
+	var level := Archive.current_level_id()
+	if level == "":
+		level = "unknown"
+	var report := {"id": "", "kind": "", "title": "ROUTE DOCUMENTED", "lines": [], "total": 0,
+		"tier_from": tier_index(), "tier_to": tier_index()}
+	if routes.has(level) or strips.size() < ROUTE_MIN_STRIPS:
+		return report
+	var metres := 0.0
+	var marked := false
+	for s in strips:
+		var a: Vector3 = s.a
+		var b: Vector3 = s.b
+		metres += a.distance_to(b)
+		if Geometry3D.get_closest_point_to_segment(exit_pos, a, b).distance_to(exit_pos) < ROUTE_EXIT_NEAR:
+			marked = true
+	var lines: Array = [["ROUTE DOCUMENTED", ROUTE_BASE],
+		["TRAIL %d M // %d STRIPS" % [roundi(metres), strips.size()], mini(ROUTE_TRAIL_MAX, roundi(metres * ROUTE_PER_M))]]
+	if marked:
+		lines.append(["EXIT MARKED", ROUTE_EXIT_MARKED])
+	var gained := 0
+	for ln in lines:
+		gained += int(ln[1])
+	routes[level] = true
+	total += gained
+	report.kind = "route"
+	report.lines = lines
+	report.total = gained
+	report.tier_to = tier_index()
+	report.designation = str(Archive.current_dossier().get("designation", "UNMAPPED SITE"))
+	last_report = report
+	pending_route = report
+	_save()
+	yield_filed.emit(report)
+	return report
+
 ## Debug console `clearance add <n>`
 func grant(amount: int) -> Dictionary:
 	var from := tier_index()
@@ -254,6 +305,8 @@ func reset() -> void:
 	sites.clear()
 	supplementals.clear()
 	surveyed.clear()
+	routes.clear()
+	pending_route = {}
 	_reread_at.clear()
 	_momentum = 0
 	last_report = {}
@@ -288,6 +341,9 @@ func _load() -> bool:
 			for k in cf.get_value("survey", id, []):
 				done[str(k)] = true
 			surveyed[id] = done
+	if cf.has_section("routes"):
+		for id in cf.get_section_keys("routes"):
+			routes[id] = true
 	return true
 
 func _save() -> void:
@@ -299,4 +355,6 @@ func _save() -> void:
 		cf.set_value("supplementals", id, supplementals[id])
 	for id in surveyed:
 		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
+	for id in routes:
+		cf.set_value("routes", id, true)
 	cf.save(SAVE_PATH)

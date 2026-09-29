@@ -125,7 +125,30 @@ func _draw_canvas() -> void:
 	_draw_chip(c.x)
 	_draw_focus(c, st)
 	_draw_lock(c, st, col)
+	_draw_tape(c, st)
 	_draw_scale(c.x, canvas.size.y - SCALE_BOTTOM, st, col)
+
+## Hazard tape under the crosshair (scanner.tape_info): what it is, how long ago it went down and
+## who stuck it, under the focus box. Your own tape says so in green: you have walked this way.
+func _draw_tape(c: Vector2, st: String) -> void:
+	var info: Dictionary = scanner.tape_info
+	if st != "search" or info.is_empty():
+		return
+	var y := c.y + FOCUS.y * 0.5 + 34.0
+	_text(Vector2(c.x, y), "HAZARD TAPE // %.1f M // %d M AWAY" % [float(info.length), roundi(float(info.dist))], 19,
+		_a(Term.AMBER), 520.0, HORIZONTAL_ALIGNMENT_CENTER, wide)
+	_text(Vector2(c.x, y + 26.0), "PLACED " + _ago(float(info.age)), 18, _a(Term.TEXT), 520.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var who := "BY YOU // YOU HAVE BEEN HERE" if info.mine else ("BY " + str(info.by) if str(info.by) != "" else "BY ANOTHER SURVIVOR")
+	_text(Vector2(c.x, y + 50.0), who, 17, _a(Term.GREEN if info.mine else Term.MUTED), 520.0, HORIZONTAL_ALIGNMENT_CENTER, wide)
+
+## "12 S AGO", "4 MIN 12 S AGO", "1 H 05 MIN AGO"
+static func _ago(secs: float) -> String:
+	var s := int(secs)
+	if s < 60:
+		return "%d S AGO" % s
+	if s < 3600:
+		return "%d MIN %02d S AGO" % [s / 60, s % 60]
+	return "%d H %02d MIN AGO" % [s / 3600, (s / 60) % 60]
 
 func _locked(st: String) -> bool:
 	return st == "lock" or st == "logged" or st == "on_file"

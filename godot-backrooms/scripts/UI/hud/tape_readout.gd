@@ -5,7 +5,8 @@ extends Control
 ## - on the strip's free end in the view: a ring, a short leader and a tag with the length (and,
 ##   in orange, what stops the strip growing: EDGE / CORNER / MAX / ROLL LOW)
 ## - beside the crosshair, a small panel: TAPE and the length over a bar, the roll under it; after
-##   a pull, PLACED and the Research Yield the strip earned for mapping. It sits on the side of the
+##   a pull, PLACED and the Research Yield the strip earned for mapping; PEELING / RECOVERED when
+##   a strip comes back off (tape_tool.gd). It sits on the side of the
 ##   crosshair away from the strip (the left, unless the strip runs off to the left), so it never
 ##   covers the tape; the length tag goes on the other side.
 ##
@@ -31,7 +32,7 @@ const FILL := Color("f4c21a")    # the tape's yellow
 const LOW := Color("ff9a3a")
 const GOOD := Color("9fe08a")
 const BACK := Color(0.02, 0.02, 0.015, 0.62)
-const LIMITS := {"MAX": "MAX", "ROLL": "ROLL LOW", "CORNER": "CORNER", "EDGE": "EDGE"}
+const LIMITS := {"MAX": "MAX", "ROLL": "ROLL LOW", "CORNER": "CORNER", "EDGE": "EDGE", "PEEL": "PEELING"}
 
 var tape: Node                   # tape_tool.gd (set by hud.gd)
 var inventory: Node
@@ -136,12 +137,15 @@ func _process(dt: float) -> void:
 	marker.queue_redraw()
 	if alpha <= 0.0:
 		return
-	if st == "pull":
+	if st == "pull" or st == "peel":
 		_pick_side()
 	var goal := -GAP - WIDTH * SCALE if side < 0.0 else GAP
 	panel_x = goal if alpha < 0.05 else lerpf(panel_x, goal, minf(1.0, dt * 10.0))
 	_place_panel()
-	var roll := "ROLL %.1f M" % maxf(0.0, float(tape.roll_left) - float(tape.length))
+	var on_roll := float(tape.roll_left) - float(tape.length)
+	if st == "peel":                              # peeling winds it back on
+		on_roll = minf(TapePickup.ROLL_LENGTH, float(tape.roll_left) + float(tape.peel_full) - float(tape.length))
+	var roll := "ROLL %.1f M" % maxf(0.0, on_roll)
 	var rolls: int = inventory.item_count(TapePickup.ITEM_ID) if inventory else 1
 	if rolls > 1:
 		roll += "  x%d" % rolls
@@ -181,6 +185,24 @@ func _process(dt: float) -> void:
 			_text(value, "--")
 			_text(foot, "NOTHING IN REACH")
 			_text(status, "")
+		"no_tape":
+			_text(title, "NO TAPE")
+			_text(value, "")
+			_text(foot, "FIND A ROLL, OR PEEL A STRIP BACK")
+			_text(status, "")
+		"peel":
+			_text(title, "PEELING")
+			_text(value, "%.2f M" % tape.length)
+			_text(foot, roll)
+			_text(status, "HOLD")
+			_color(status, DIM)
+			frac = tape.length / maxf(float(tape.peel_full), 0.01)
+			fill_col = LOW
+		"peeled":
+			_text(title, "RECOVERED")
+			_text(value, "%.2f M" % tape.result_len)
+			_text(foot, roll)
+			_text(status, "")
 	_color(foot, foot_col)
 	shown = lerpf(shown, clampf(frac, 0.0, 1.0), minf(1.0, dt * 14.0))
 	fill.color = fill_col
@@ -213,7 +235,7 @@ func _pick_side() -> void:
 
 ## The ring on the strip's free end, a leader up and out, and the length on a dark tag
 func _draw_marker() -> void:
-	if alpha <= 0.0 or not tape or tape.state != "pull":
+	if alpha <= 0.0 or not tape or not (tape.state == "pull" or tape.state == "peel"):
 		return
 	var cam: Camera3D = tape.player.cam
 	var tip: Vector3 = tape.tip
