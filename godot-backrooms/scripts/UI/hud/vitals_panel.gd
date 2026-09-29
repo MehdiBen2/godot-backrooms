@@ -18,11 +18,12 @@ const PlayerScript := preload("res://scripts/Player/player.gd")
 const Bacteria := preload("res://scripts/Entities/bacteria/bacteria.gd")
 const FootstepsScript := preload("res://scripts/Player/footsteps.gd")
 
-const PANEL := Vector2(350, 222)     # canvas px (1920x1080 layout)
+const PANEL := Vector2(424, 222)     # canvas px (1920x1080 layout)
 const CURVE := 0.045                 # lens bulge (ui_vhs_overlay distortion, corner-fitted)
 const ICON := 30.0
 const ROW_GAP := 12
 const BAR_H := 16.0
+const VALUE_W := 62.0              # the reading right of each bar: "83%", or NOISE's reach "12M"
 const SEGMENTS := 16
 const NOISE_MAX := Bacteria.HEAR_SPRINT * FootstepsScript.TILE_NOISE   # the loudest a step gets
 const POP_TIME := 0.8                # s the meter holds a flash's pop
@@ -38,7 +39,7 @@ var player: Node                     # player.gd (set by hud.gd)
 var entity: Node                     # bacteria.gd, for would_hear (set by hud.gd; may be null)
 var flash: Node                      # flash_tool.gd: its pop counts as noise
 var fade_src: CanvasItem             # hud_root: nothing to render while it is faded out
-var rows := {}                       # name -> {icon, cells, shown}
+var rows := {}                       # name -> {icon, cells, value, shown}
 var _t := 0.0
 var _heard := 0.0                    # 0..1, eased: how red the NOISE row is
 
@@ -87,7 +88,12 @@ func _row(key: String, icon_path: String) -> Control:
 	var cells := Kit.cells(SEGMENTS, 3.0, false)
 	bar.add_child(cells)
 	row.add_child(bar)
-	rows[key] = {"icon": icon, "cells": cells, "shown": -1.0}
+	var value := Kit.label("", 18, Kit.TEXT, 1)
+	value.custom_minimum_size.x = VALUE_W
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(value)
+	rows[key] = {"icon": icon, "cells": cells, "value": value, "shown": -1.0}
 	return row
 
 func _process(dt: float) -> void:
@@ -120,6 +126,7 @@ func _stat(key: String, value: float, state: String, dt: float, pulse: float) ->
 		"low": col = Kit.ORANGE
 		"critical": col = Color(Kit.RED, pulse)
 	_paint(r, clampi(ceili(eased / 100.0 * SEGMENTS - 0.01), 0, SEGMENTS), col)
+	_value(r, "%d%%" % roundi(eased), Kit.TEXT if state == "" else col)
 
 ## How far your sound carries right now, and whether the Bacteria is in earshot of it
 func _update_noise(dt: float, pulse: float) -> void:
@@ -136,7 +143,16 @@ func _update_noise(dt: float, pulse: float) -> void:
 	var eased: float = reach if r.shown < 0.0 else lerpf(r.shown, reach, minf(1.0, dt * (14.0 if reach > r.shown else 3.0)))
 	r.shown = eased
 	var cells := clampi(ceili(eased / NOISE_MAX * SEGMENTS - 0.01), 0, SEGMENTS)
-	_paint(r, cells, Kit.AMBER.lerp(Color(Kit.RED, pulse), _heard))
+	var col := Kit.AMBER.lerp(Color(Kit.RED, pulse), _heard)
+	_paint(r, cells, col)
+	_value(r, "%dM" % roundi(eased), Kit.TEXT.lerp(col, _heard))   # how far your steps carry
+
+## The reading beside the bar; the text is only set when it changes (a Label reshapes on every set)
+func _value(r: Dictionary, text: String, col: Color) -> void:
+	var l: Label = r.value
+	if l.text != text:
+		l.text = text
+	l.add_theme_color_override("font_color", col)
 
 ## The bar's cells and the icon, in the row's colour
 func _paint(r: Dictionary, cells: int, col: Color) -> void:

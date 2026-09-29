@@ -170,8 +170,12 @@ func _next() -> void:
 			l.clip_text = true
 			l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 			l.custom_minimum_size.x = inner
+	# a wrapping label works out its height from its current width, which is still ~0 before the
+	# box lays it out (a letter a line: a sheet down to the floor), so give it its width first
 	for l in wraps:
 		(l as Label).custom_minimum_size.x = inner
+		(l as Label).size = Vector2(inner, 0.0)
+		(l as Label).update_minimum_size()
 	body.size = Vector2(inner, 0.0)
 	var h := TAB_H + 10.0 + body.get_combined_minimum_size().y + 16.0
 	sheet.size = Vector2(w, h)
