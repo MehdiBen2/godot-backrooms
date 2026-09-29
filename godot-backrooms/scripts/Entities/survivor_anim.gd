@@ -15,10 +15,10 @@ const MOVING_ABOVE := 0.1       # m/s
 const SPRINT_ABOVE := 3.2       # the player moves 2.6 m/s and sprints about 4.5
 ## Ground speed (m/s) each clip covers at speed_scale 1 with the suit fitted 2 m tall; playback follows the
 ## real speed so the feet don't slide, within a range that still looks like the same gait. The walk's
-## stride is short for 2.6 m/s, so it is capped at a brisk pace (the feet slip a little) rather than
-## pedalling at double speed.
+## stride is short for 2.6 m/s, so its playback is capped at a natural walking cadence (~2 steps a
+## second): the legs keep a calm pace and the feet slip a little instead of pedalling.
 const NATIVE := {"walk": 1.2, "run": 4.2, "sprint": 4.2, "crouch_walk": 1.4}
-const SCALE_RANGE := {"walk": Vector2(0.6, 1.75), "run": Vector2(0.6, 1.5), "sprint": Vector2(0.7, 1.6), "crouch_walk": Vector2(0.5, 2.0)}
+const SCALE_RANGE := {"walk": Vector2(0.6, 1.25), "run": Vector2(0.6, 1.5), "sprint": Vector2(0.7, 1.6), "crouch_walk": Vector2(0.5, 2.0)}
 
 const PATTERNS := {
 	"idle": "look|^idle", "walk": "^walk", "run": "^run", "sprint": "sprint",
