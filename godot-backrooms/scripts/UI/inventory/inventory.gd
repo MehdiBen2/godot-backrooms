@@ -1404,12 +1404,15 @@ func _refresh_clearance_page(_report := {}) -> void:
 	box.add_child(_kv("LIFETIME YIELD", "%d %s" % [Clearance.total, unit], AMBER))
 	box.add_child(_kv("READINGS FILED", "%d  (%d FIRST CONTACT // %d NEW SITE // %d SUPPLEMENTAL)" % [n,
 		int(Clearance.stat("filings_first_contact")), int(Clearance.stat("filings_new_site")), int(Clearance.stat("filings_supplemental"))], TEXT))
-	var logged := 0
+	# on file = ever logged (clearance's record); the archive itself starts empty every run
+	var on_file := 0
+	var this_run := 0
 	for id in Archive.entities():
-		if Archive.is_discovered(str(id)): logged += 1
-	box.add_child(_kv("ENTITIES LOGGED", "%d / %d" % [logged, Archive.entities().size()], TEXT))
+		if Clearance.sites.has(id): on_file += 1
+		if Archive.is_discovered(str(id)): this_run += 1
+	box.add_child(_kv("ENTITIES ON FILE", "%d / %d  (%d LOGGED THIS RUN)" % [on_file, Archive.entities().size(), this_run], TEXT))
 	box.add_child(_kv("SITES CONFIRMED", str(Clearance.sites_confirmed()), TEXT))
-	box.add_child(_kv("AVERAGE FILING", "%d %s" % [roundi(float(Clearance.total) / n), unit] if n > 0 else "NO DATA", TEXT))
+	box.add_child(_kv("AVERAGE FILING", "%d %s" % [roundi(float(_cl_scan_yield()) / n), unit] if n > 0 else "NO DATA", TEXT))
 	var best_id := str(Clearance.stat("best_id", ""))
 	box.add_child(_kv("BEST SINGLE FILING", "%d %s // %s" % [int(Clearance.stat("best_total")), unit, _cl_code(best_id)] if best_id != "" else "NO DATA", TEXT))
 	var near_id := str(Clearance.stat("closest_id", ""))
@@ -1417,6 +1420,7 @@ func _refresh_clearance_page(_report := {}) -> void:
 		RED if near_id != "" and float(Clearance.stat("closest_dist", 99.0)) < 4.0 else TEXT))
 	box.add_child(_kv("BEST MOMENTUM STREAK", "x%d" % int(Clearance.stat("best_momentum", 1)) if n > 0 else "NO DATA", TEXT))
 	box.add_child(_kv("AGENCY ASSESSMENT", _cl_assessment(n), AMBER))
+	box.add_child(_kv("CELLS MAPPED WITH TAPE", "%d  (%d STRIPS)" % [int(Clearance.stat("cells_mapped")), int(Clearance.stat("filings_survey"))], TEXT))
 	box.add_child(_spacer(10))
 	box.add_child(_label("YIELD BY SOURCE", 15, MUTED, 2))
 	var most := 1
@@ -1433,7 +1437,7 @@ func _refresh_clearance_page(_report := {}) -> void:
 	ids.sort_custom(func(a, b): return str(all[a].get("code", "")) < str(all[b].get("code", "")))
 	for id in ids:
 		var info: Dictionary = all[id]
-		if not Archive.is_discovered(str(id)):
+		if not Clearance.sites.has(id):
 			box.add_child(_kv("TSRA-EN-??  UNREGISTERED", "0 " + unit, TEXT_DIM))
 			box.add_child(_label("      NO SCAN ON FILE // FIRST CONTACT PENDING", 15, TEXT_DIM, 1, true))
 			continue
@@ -1447,15 +1451,34 @@ func _refresh_clearance_page(_report := {}) -> void:
 		box.add_child(_label("      THREAT %s // SITES %d // RE-READS %d // %s" % [str(info.get("threat_class", "?")).to_upper(),
 			(Clearance.sites.get(id, []) as Array).size(), int(Clearance.supplementals.get(id, 0)), next], 15, MUTED, 1, true))
 
+	# -- tape survey, per level
+	_cl_section(box, "CORRIDOR SURVEY")
+	var levels: Array = Clearance.surveyed.keys()
+	var here := Archive.current_level_id()
+	if here != "" and not (here in levels):
+		levels.push_front(here)
+	for level in levels:
+		var cells := (Clearance.surveyed.get(level, {}) as Dictionary).size()
+		var cov := Clearance.survey_coverage(str(level))
+		var where := str(Archive.dossiers().get(level, {}).get("designation", str(level).to_upper()))
+		if where.count("\"") >= 2:
+			where = where.get_slice("\"", 1)       # LEVEL 2 - "THE YELLOW HALLS" -> THE YELLOW HALLS
+		var fig := "%d CELLS // %d%%" % [cells, roundi(cov * 100.0)] if int(Clearance.survey_open.get(level, 0)) > 0 else "%d CELLS" % cells
+		box.add_child(_bar_row(_vcr(where), cov, fig, GREEN if cov >= 0.75 else (AMBER if cells > 0 else TEXT_DIM)))
+	box.add_child(_label("Mark walls and floors with hazard tape. Every cell mapped for the first time files yield; a level's map pays once.", 15, TEXT_DIM, 1, true))
+
 	# -- log
 	_cl_section(box, "FILING LOG // LAST %d" % Clearance.LOG_MAX)
 	if Clearance.filing_log.is_empty():
 		box.add_child(_label("NO FILINGS ON RECORD. HOLD Q WITH THE FIELD SCANNER ON AN ANOMALY.", 16, TEXT_DIM, 1, true))
 	for e in Clearance.filing_log:
 		var kind := str(e.get("kind", ""))
-		var what := str({"first_contact": "FIRST CONTACT", "new_site": "NEW SITE", "supplemental": "SUPPLEMENTAL", "grant": "ADJUSTMENT"}.get(kind, kind.to_upper()))
+		var what := str({"first_contact": "FIRST CONTACT", "new_site": "NEW SITE", "supplemental": "SUPPLEMENTAL", "grant": "ADJUSTMENT",
+			"survey": "CORRIDOR MAPPED"}.get(kind, kind.to_upper()))
 		var d := float(e.get("dist", -1.0))
 		var where := "%s%s" % [_cl_code(str(e.get("id", ""))) if str(e.get("id", "")) != "" else "ADMIN", " @ %.1f M" % d if d >= 0.0 else ""]
+		if kind == "survey":
+			where = "%d CELLS" % int(e.get("cells", 0))
 		box.add_child(_kv("%s  %s // %s" % [_local_time(int(e.get("t", 0))).substr(5), what, where],
 			"%+d %s" % [int(e.get("total", 0)), unit], GREEN if kind == "first_contact" else TEXT))
 
@@ -1471,6 +1494,11 @@ func _refresh_clearance_page(_report := {}) -> void:
 	box.add_child(_kv("HAZARD PAY", "+%d%% UNDER %d SANITY OR HEALTH" % [roundi(Clearance.HAZARD * 100.0), int(Clearance.HAZARD_BELOW)], TEXT))
 	box.add_child(_kv("FIELD MOMENTUM", "+%d%% PER FILING WITHIN %d MIN (MAX +%d%%)" % [roundi(Clearance.MOMENTUM_STEP * 100.0),
 		int(Clearance.MOMENTUM_WINDOW / 60.0), roundi(Clearance.MOMENTUM_STEP * Clearance.MOMENTUM_MAX * 100.0)], TEXT))
+	box.add_child(_kv("CORRIDOR MAPPED", "%d %s PER CELL FIRST TAPED" % [Clearance.SURVEY_PER_CELL, unit], TEXT))
+	var ms: Array = []
+	for m in Clearance.SURVEY_MILESTONES:
+		ms.append("+%d AT %d%%" % [int(m[1]), roundi(float(m[0]) * 100.0)])
+	box.add_child(_kv("SURVEY MILESTONES", " // ".join(ms), TEXT))
 	box.add_child(_spacer(6))
 	box.add_child(_label("Readings of a known entity on a known site pay a trickle, then nothing. The agency pays for new information, not for staring.", 15, TEXT_DIM, 1, true))
 
@@ -1521,6 +1549,13 @@ func _bar_row(key: String, frac: float, value: String, col: Color) -> Control:
 	h.add_child(v)
 	return h
 
+## Yield from scanner readings alone (tape surveys and adjustments left out): the per-entity totals
+func _cl_scan_yield() -> int:
+	var y := 0
+	for id in Clearance.entity_yield:
+		y += int(Clearance.entity_yield[id])
+	return y
+
 func _cl_code(id: String) -> String:
 	return str(Archive.entity_info(id).get("code", "TSRA-EN-??")) if id != "" else "-"
 
@@ -1528,7 +1563,7 @@ func _cl_code(id: String) -> String:
 func _cl_assessment(n: int) -> String:
 	if n == 0:
 		return "PENDING FIRST FILING"
-	var avg := float(Clearance.total) / n
+	var avg := float(_cl_scan_yield()) / n
 	if avg < 60.0: return "BELOW EXPECTATIONS"
 	if avg < 140.0: return "MEETS EXPECTATIONS"
 	if avg < 220.0: return "EXCEEDS EXPECTATIONS"
