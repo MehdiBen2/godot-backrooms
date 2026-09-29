@@ -92,7 +92,7 @@ func _set_link_active(b: Button, on: bool) -> void:
 
 func _link_state(b: Button) -> void:
 	var lit: bool = b.get_meta("hover", false) or b.get_meta("active", false)
-	var old: Tween = b.get_meta("tw", null)
+	var old: Tween = b.get_meta("tw") if b.has_meta("tw") else null   # a null default still errors when missing
 	if old and old.is_valid():
 		old.kill()
 	var tw := b.create_tween().set_parallel(true)
@@ -256,7 +256,7 @@ func _row_title(text: String) -> Button:
 	return b
 
 func _fade_tint(b: Button, to: Color, dur: float) -> void:
-	var old: Tween = b.get_meta("tint_tw", null)
+	var old: Tween = b.get_meta("tint_tw") if b.has_meta("tint_tw") else null   # a null default still errors when missing
 	if old and old.is_valid():
 		old.kill()
 	var tw := b.create_tween()

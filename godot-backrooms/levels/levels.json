@@ -1,12 +1,12 @@
 [
   {
-    "file": "level_2_yellow_halls.lvl",
-    "id": "level_2_yellow_halls",
-    "name": "Level 2: The Yellow Halls"
-  },
-  {
     "file": "level0.lvl",
     "id": "level0",
     "name": "Level 1: The Lobby"
+  },
+  {
+    "file": "level_2_yellow_halls.lvl",
+    "id": "level_2_yellow_halls",
+    "name": "Level 2: The Yellow Halls"
   }
 ]
