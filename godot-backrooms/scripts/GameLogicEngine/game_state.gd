@@ -62,6 +62,10 @@ var dev_keys := OS.is_debug_build() or OS.get_cmdline_user_args().has("--dev") o
 # the title screen) and --noclip lets you fly through walls to look around.
 var test_level := _launch_arg("--test-level=")
 var test_spawn := _launch_arg("--test-spawn=")     # "x,z" cell: the editor's TEST HERE
+# Which floor of the level you are on (0 = the ground floor; the .lvl's "floors" hold the others) and, after
+# taking the stairs, the stairs you took: {x, y, kind} where kind is the stairs type to arrive beside
+var level_floor := int(_launch_arg("--test-floor="))
+var floor_link := {}
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
 
 static func _launch_arg(prefix: String) -> String:
@@ -238,8 +242,19 @@ func _respawn() -> void:
 func change_level(idx: int) -> void:
 	if Death.respawn_busy:
 		return
+	level_floor = 0
+	floor_link = {}
 	level_index = posmod(idx, maxi(level_count, 1))
 	Net.broadcast_level(level_index)      # co-op: the host takes everyone along
+	Death.respawn_transition(restart)
+
+## Take the stairs: the same level, floor `f`, arriving beside that floor's `arrive_kind` stairs nearest `from`
+## (cells). One floor is built at a time, so this is a reload through the same static dissolve as a level change.
+func change_floor(f: int, from: Vector2, arrive_kind: String) -> void:
+	if Death.respawn_busy:
+		return
+	level_floor = f
+	floor_link = {"x": from.x, "y": from.y, "kind": arrive_kind}
 	Death.respawn_transition(restart)
 
 func next_level() -> void:

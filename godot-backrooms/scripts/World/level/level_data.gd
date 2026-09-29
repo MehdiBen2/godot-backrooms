@@ -48,6 +48,8 @@ var flicker := {}
 var mannequin := {}   # cells where the mannequin room stands (painted in the level editor)
 var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
 var spawn_pos := Vector3.ZERO
+var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
+var has_spawn_yaw := false
 var level_data := {}
 var level_meta := {}
 var level_name := "LEVEL 0"
@@ -90,6 +92,23 @@ static func object_types() -> Dictionary:
 static func object_info(type: String) -> Dictionary:
 	return object_types().get(type, {})
 
+## One floor of a level as a plain level: floor 0 is the file itself, any other its "floors" entry laid over
+## it (grid, zones, paint, objects and markers are per floor; size, materials and the look are shared).
+## A floor that doesn't exist falls back to the ground floor.
+const FLOOR_KEYS := ["grid", "zones", "paint", "objects", "spawn", "exit", "entity", "tv"]
+static func floor_data(d: Dictionary, f: int) -> Dictionary:
+	if f == 0: return d
+	var fl = d.get("floors", {}).get(str(f))
+	if not (fl is Dictionary): return d
+	var out := d.duplicate()
+	for k in FLOOR_KEYS:
+		out[k] = fl.get(k)
+	if out["grid"] == null: out["grid"] = d["grid"]
+	for k in ["zones", "paint"]:
+		if out[k] == null: out[k] = {}
+	if out["objects"] == null: out["objects"] = []
+	return out
+
 static func read_level(meta: Dictionary) -> Dictionary:
 	if meta.has("data"):                              # old baked format
 		return meta["data"]
@@ -106,7 +125,7 @@ func load_current() -> void:
 	Game.level_count = levels.size()
 	level_index = clampi(Game.level_index, 0, levels.size() - 1)
 	level_meta = levels[level_index]
-	level_data = read_level(level_meta)
+	level_data = floor_data(read_level(level_meta), Game.level_floor)
 	_parse(level_data)
 
 func _parse(d: Dictionary) -> void:
@@ -166,12 +185,49 @@ func _parse(d: Dictionary) -> void:
 			for z in size:
 				var v := Vector2i(x, z)
 				if not (walls.has(v) or dark.has(v) or dim.has(v)): classic[v] = true
-	var s: Array = d.get("spawn", [4, 4])
+	var s = d.get("spawn")
+	if not (s is Array and s.size() >= 2): s = _first_open()
 	spawn_pos = Vector3(s[0] * CELL, 0.1, s[1] * CELL)
+	_arrive_by_stairs()
 	var at := Game.test_spawn.split(",")           # level editor "test from here": start on the cell it picked
 	if at.size() == 2 and not walls.has(Vector2i(int(at[0]), int(at[1]))):
 		spawn_pos = Vector3(int(at[0]) * CELL, 0.1, int(at[1]) * CELL)
 	level_name = str(level_meta.get("name", "LEVEL 0"))
+
+## Arriving by the stairs (Game.floor_link): stand one cell back from the matching stairs on this floor
+## (the one nearest where you left), facing away from them. No match: the nearest open cell to that spot.
+func _arrive_by_stairs() -> void:
+	if Game.floor_link.is_empty(): return
+	var from := Vector2(Game.floor_link.x, Game.floor_link.y)
+	var best: Dictionary = {}
+	for o: Dictionary in objects:
+		if o.type == Game.floor_link.kind and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):
+			best = o
+	var target := from
+	var face := Vector2.ZERO
+	if not best.is_empty():
+		var dir := Vector2.from_angle(deg_to_rad(best.rotation))      # the way the stairs run (their local +x on the map)
+		target = Vector2(best.pos_x, best.pos_y) - dir
+		face = -dir
+	var c := _nearest_open(Vector2i(roundi(target.x), roundi(target.y)))
+	spawn_pos = Vector3(c.x * CELL, 0.1, c.y * CELL)
+	if face != Vector2.ZERO:
+		spawn_yaw = atan2(-face.x, -face.y)
+		has_spawn_yaw = true
+
+func _nearest_open(c: Vector2i) -> Vector2i:
+	for r in range(0, size):
+		for dz in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dz)) != r: continue
+				var n := c + Vector2i(dx, dz)
+				if n.x > 0 and n.y > 0 and n.x < size - 1 and n.y < size - 1 and not walls.has(n) and not pits.has(n):
+					return n
+	return c
+
+func _first_open() -> Array:
+	var c := _nearest_open(Vector2i(size / 2, size / 2))
+	return [c.x, c.y]
 
 ## "dim" (the default: failing tubes, light that dies in the fog) or "classic" (the whole level lit bright
 ## and steady, clear air). New level-wide looks go here and in level_lighting.gd's ATMOSPHERES.

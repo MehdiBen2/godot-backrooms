@@ -8,6 +8,7 @@ extends Node3D
 
 func _ready() -> void:
 	player.global_position = level.spawn_pos
+	if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
 	level.player = player
 	Game.bind(player, level, self)
 	Archive.forget_all()          # no save feature yet: every level start logs entities from scratch

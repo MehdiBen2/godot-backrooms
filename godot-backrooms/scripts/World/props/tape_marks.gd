@@ -19,18 +19,31 @@ const MAX_PER_LEVEL := 240           # the oldest strip comes off past this
 const TEXTURE := "res://textures/items/hazard_tapes/hazardous_tapes.jpg"
 const TEX_ASPECT := 998.0 / 561.0    # the texture's height over its width: one repeat is this many widths
 const SHADER := preload("res://shaders/reflective_tape.gdshader")
+const MarkStore := preload("res://scripts/World/props/mark_store.gd")
 const PICK_SLACK := 0.04             # m around a strip that still counts as aiming at it
 
 static var placed := {}              # level index -> Array of strips (see the top)
 static var mine := {}                # id -> level index: the strips stuck up on this PC
 static var live = null               # the TapeMarks of the level loaded right now
 static var _mat: ShaderMaterial
+static var _loaded := {}             # levels whose saved strips (mark_store.gd) are in `placed`
+
+var level_id := ""
 
 var meshes := {}                     # id -> MeshInstance3D
 var order: Array = []                # ids, oldest first
 
 func _ready() -> void:
 	live = self
+	level_id = str(get_parent().level_meta.get("id", ""))
+	var lv := Game.level_index
+	if MarkStore.active() and not _loaded.has(lv):
+		_loaded[lv] = true
+		if not placed.has(lv):
+			placed[lv] = []
+		for d in MarkStore.read(level_id).get("tape", []):
+			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
+				"n": MarkStore.v3(d.n), "t": float(d.t), "by": str(d.by)})
 	for s in placed.get(Game.level_index, []):
 		_spawn(s)
 
@@ -46,12 +59,22 @@ func place(a: Vector3, b: Vector3, n: Vector3) -> Dictionary:
 	mine[s.id] = Game.level_index
 	_spawn(s)
 	Net.send_tape([pack(Game.level_index, s)])
+	_save()
 	return s
 
 ## Take a strip off the wall (tape_tool.gd peeled it) and tell the others
 func remove(id: String) -> void:
 	_forget(Game.level_index, id)
 	Net.send_tape_removed(Game.level_index, id)
+	_save()
+
+## Write this level's strips to disk (a level-editor test launch only: mark_store.gd)
+func _save() -> void:
+	var out: Array = []
+	for s in placed.get(Game.level_index, []):
+		out.append({"id": s.id, "a": MarkStore.arr(s.a), "b": MarkStore.arr(s.b), "n": MarkStore.arr(s.n),
+			"t": s.t, "by": s.by})
+	MarkStore.write(level_id, "tape", out)
 
 static func is_mine(id: String) -> bool:
 	return mine.has(id)

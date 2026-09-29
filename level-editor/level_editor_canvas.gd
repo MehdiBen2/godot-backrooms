@@ -77,6 +77,18 @@ var show_grid := true
 # How a click paints: "brush" (drag the brush), "rect" (drag a rectangle), "fill" (the connected area)
 var mode := "brush"
 var rect_from := Vector2i(-1, -1)    # where a rectangle drag started
+var hover_raw := Vector2i(-1, -1)    # the cell under the mouse even outside the map (drawing there grows it)
+var auto_walls := true               # floor rectangles are drawn as rooms: a wall round a floor
+var scatter := 100                   # % of the cells a paint stroke actually paints (random variation)
+var paint_mix: Array = []            # more materials painted at random alongside paint_mat
+var stroke_seed := 0                 # new each click, so scatter / mix are stable while you drag over a cell
+const MAX_SIZE := 160
+
+# Floors: the level's other floors, kept aside while you edit one. The live grid / zones / paint / markers /
+# objects are floor `floor_idx`; floor_store holds every other floor (int -> the same set of fields).
+var floor_idx := 0
+var floor_store := {}
+var show_onion := true               # the floor below (or above) drawn faintly under this one
 
 var font: FontFile = load("res://fonts/vcr.ttf")
 var canvas: Control
@@ -108,9 +120,15 @@ func _update_info() -> void:
 		for ch in row:
 			if ch == FLOOR or ch == ARCH: open_cells += 1
 	var warn := []
+	var ground: Dictionary = markers if floor_idx == 0 else floor_store.get(0, {}).get("markers", {})
 	for m in ["spawn", "exit"]:
-		if markers.get(m) == null: warn.append("no " + m)
-	info.text = "%dx%d   %d open   %d objects   %s" % [grid_size, grid_size, open_cells, objects.size(), ("WARN: " + ", ".join(warn)) if not warn.is_empty() else "OK"]
+		var found = ground.get(m)
+		if m == "exit":                        # an exit can be on any floor
+			for f in floor_store:
+				if floor_store[f].markers.get("exit") != null: found = true
+			if markers.get("exit") != null: found = true
+		if found == null: warn.append("no " + m)
+	info.text = "%s   %dx%d   %d open   %d objects   %s" % [_floor_name(floor_idx), grid_size, grid_size, open_cells, objects.size(), ("WARN: " + ", ".join(warn)) if not warn.is_empty() else "OK"]
 	info.add_theme_color_override("font_color", RED if not warn.is_empty() else DIM)
 
 var preview3d: Control               # level_editor_3d.gd: rebuilt when the map changes while it is open
@@ -237,6 +255,12 @@ func _tag(p: Vector2, text: String, col: Color, size := 11) -> void:
 
 func _draw_canvas() -> void:
 	canvas.draw_rect(Rect2(Vector2.ZERO, canvas.size), Color("080704"))
+	if _can_grow() and zoom >= 7.0:             # the space round the map you can draw into
+		var off := Vector2(fposmod(pan.x, zoom), fposmod(pan.y, zoom))
+		for i in int(canvas.size.x / zoom) + 2:
+			canvas.draw_line(Vector2(off.x + i * zoom, 0), Vector2(off.x + i * zoom, canvas.size.y), Color(1, 1, 1, 0.035))
+		for i in int(canvas.size.y / zoom) + 2:
+			canvas.draw_line(Vector2(0, off.y + i * zoom), Vector2(canvas.size.x, off.y + i * zoom), Color(1, 1, 1, 0.035))
 	# only the cells on screen
 	var lo := Vector2i(maxi(0, floori(-pan.x / zoom)), maxi(0, floori(-pan.y / zoom)))
 	var hi := Vector2i(mini(grid_size - 1, floori((canvas.size.x - pan.x) / zoom)), mini(grid_size - 1, floori((canvas.size.y - pan.y) / zoom)))
@@ -246,6 +270,7 @@ func _draw_canvas() -> void:
 		for x in range(lo.x, hi.x + 1):
 			_draw_cell(Vector2i(x, z), tex_on, surf)
 	_draw_shading(lo, hi)
+	if show_onion: _draw_onion()
 	if show_zones: _draw_zones()
 	if show_paint: _draw_paint_marks()
 	if show_grid: _draw_grid(lo, hi)
@@ -324,6 +349,23 @@ func _draw_shading(lo: Vector2i, hi: Vector2i) -> void:
 				canvas.draw_rect(_edge(r, d, s1), Color(0, 0, 0, 0.3))
 				canvas.draw_rect(_edge(_cell_rect(n), -d, rim), Color(1, 0.95, 0.8, 0.3))
 
+## The floor below this one (the one above, on the lowest floor) as a faint cyan outline of its open space,
+## and its stairs, so floors line up
+func _draw_onion() -> void:
+	var other := floor_idx - 1 if floor_store.has(floor_idx - 1) else floor_idx + 1
+	if not floor_store.has(other): return
+	var fd: Dictionary = floor_store[other]
+	var open := {}
+	for z in grid_size:
+		for x in grid_size:
+			if fd.grid[z][x] != WALL: open[Vector2i(x, z)] = true
+	var col := Color(0.35, 0.85, 1.0, 0.55)
+	_outline_cells(open, col, maxf(1.0, zoom * 0.05), 0.0)
+	for o: Dictionary in fd.objects:
+		if str(o.type).begins_with("stairs_"): _draw_object(o, 0.35)
+	if zoom >= 9.0:
+		_tag(Vector2(canvas.size.x - 200, 8), "cyan: " + _floor_name(other), col, 11)
+
 func _draw_grid(lo: Vector2i, hi: Vector2i) -> void:
 	if zoom < 7.0: return
 	for i in range(lo.x, hi.x + 2):
@@ -347,8 +389,9 @@ func _draw_rulers() -> void:
 			var w := font.get_string_size(str(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x
 			_tag(Vector2(lx - w - 6, y - 7), str(i), DIM, 10)
 
-## The top-left cell of every separate patch in `cells` (side-by-side neighbours make one patch)
-func _patch_tops(cells: Dictionary) -> Array:
+## The top-left cell of every separate patch in `cells` (side-by-side neighbours make one patch) of at least
+## `min_cells` cells
+func _patch_tops(cells: Dictionary, min_cells := 1) -> Array:
 	var seen := {}
 	var tops: Array = []
 	for start: Vector2i in cells:
@@ -356,15 +399,17 @@ func _patch_tops(cells: Dictionary) -> Array:
 		var best := start
 		var todo: Array = [start]
 		seen[start] = true
+		var count := 0
 		while not todo.is_empty():
 			var c: Vector2i = todo.pop_back()
+			count += 1
 			if c.y < best.y or (c.y == best.y and c.x < best.x): best = c
 			for d: Vector2i in DIRS4:
 				var n: Vector2i = c + d
 				if cells.has(n) and not seen.has(n):
 					seen[n] = true
 					todo.append(n)
-		tops.append(best)
+		if count >= min_cells: tops.append(best)
 	return tops
 
 ## An outline `w` wide round each patch of `cells`, `inset` pixels in from the cell edges
@@ -404,7 +449,7 @@ func _draw_paint_marks() -> void:
 			_outline_cells(by_mat[id], Color(0, 0, 0, 0.6), w + 2.0, w * 0.5)
 			_outline_cells(by_mat[id], col, w, w * 0.5 + 1.0)
 			if zoom >= 9.0:
-				for top: Vector2i in _patch_tops(by_mat[id]):
+				for top: Vector2i in _patch_tops(by_mat[id], 4):      # scattered specks go unlabelled (the legend has them)
 					_tag(pan + (Vector2(top) + Vector2(0, 1)) * zoom + Vector2(3, -17), id, col, 10)
 	if not view_ceiling:
 		var k := maxf(4.0, zoom * 0.32)
@@ -464,30 +509,42 @@ func _draw_markers() -> void:
 ## What the current tool is about to do under the mouse: the brush footprint, the rectangle being dragged,
 ## or the cell a fill starts from, filled with the colour or material it lays down
 func _draw_hover() -> void:
-	if hover.x < 0: return
+	var grow := _can_grow()
+	var at := hover_raw if grow else hover
+	if at.x < -1000 or (not grow and hover.x < 0): return
 	if tool.begins_with("mark:"):
 		var r := _cell_rect(hover)
 		canvas.draw_rect(r, Color(MARKERS.get(tool.get_slice(":", 1), Color.WHITE), 0.4))
 		canvas.draw_rect(r, Color.WHITE, false, 1.5)
 		return
-	var m := _mode_now()
+	var m := "rect" if tool == "gen" else _mode_now()
 	var cells: Array
-	if rect_from.x >= 0: cells = _rect_cells(rect_from, hover)
-	elif m == "fill": cells = [hover]
-	else: cells = _brush_cells(hover)
+	if rect_from.x >= 0: cells = _rect_cells(rect_from, at)
+	elif m == "fill" or tool == "gen": cells = [at]
+	else: cells = _brush_cells(at)
 	var area := {}
 	for c: Vector2i in cells:
-		if _in_grid(c): area[c] = true
+		if grow or _in_grid(c): area[c] = true
 	var tex: Texture2D = null
 	if tool.begins_with("paint:") and paint_mat != "": tex = _thumb(paint_mat).tex
 	var col := _tool_colour()
+	var room := rect_from.x >= 0 and auto_walls and tool == "base:" + FLOOR and absi(at.x - rect_from.x) >= 2 and absi(at.y - rect_from.y) >= 2
+	var lo := rect_from.min(at)
+	var hi := rect_from.max(at)
 	for c: Vector2i in area:
-		if tex != null: canvas.draw_texture_rect(tex, _cell_rect(c), false, Color(1, 1, 1, 0.8))
+		var ring := room and (c.x == lo.x or c.y == lo.y or c.x == hi.x or c.y == hi.y)
+		if ring: canvas.draw_rect(_cell_rect(c), Color(0.15, 0.13, 0.1, 0.85))
+		elif tex != null: canvas.draw_texture_rect(tex, _cell_rect(c), false, Color(1, 1, 1, 0.8))
 		else: canvas.draw_rect(_cell_rect(c), Color(col, 0.5))
 	_outline_cells(area, Color.WHITE, 1.5, 0.0)
 	if rect_from.x >= 0:
-		var sz := (hover - rect_from).abs() + Vector2i.ONE
-		_tag(mouse_px + Vector2(14, 10), "%d x %d" % [sz.x, sz.y], CREAM, 12)
+		var sz := (at - rect_from).abs() + Vector2i.ONE
+		var what := "GENERATE " if tool == "gen" else ("ROOM " if room else "")
+		_tag(mouse_px + Vector2(14, 10), "%s%d x %d" % [what, sz.x, sz.y], CREAM, 12)
+	elif tool == "gen":
+		_tag(mouse_px + Vector2(14, 10), "drag the area to generate", CREAM, 12)
+	elif grow and not _in_grid(at):
+		_tag(mouse_px + Vector2(14, 10), "draws outside: the map grows", CREAM, 12)
 	elif m == "fill":
 		_tag(mouse_px + Vector2(14, 10), "FILL", CREAM, 12)
 
@@ -497,6 +554,7 @@ func _tool_colour() -> Color:
 		"base": return Color("8a7f68") if what == WALL else BASE_COLORS.get(what, Color.WHITE)
 		"zone": return ZONES.get(what, Color.WHITE)
 		"paint": return _paint_colour(paint_mat)
+		"gen": return Color("3fd1a0")
 	return Color.WHITE
 
 ## Ctrl held = fill, Shift held = rectangle, otherwise the mode picked in the bar over the map
@@ -524,7 +582,7 @@ func _canvas_input(ev: InputEvent) -> void:
 			var c := _cell_at(mb.position)
 			if not mb.pressed:
 				if rect_from.x >= 0:
-					_apply_cells(_rect_cells(rect_from, c.clamp(Vector2i.ZERO, Vector2i(grid_size - 1, grid_size - 1))))
+					_apply_rect(rect_from, c if _can_grow() else c.clamp(Vector2i.ZERO, Vector2i(grid_size - 1, grid_size - 1)))
 					rect_from = Vector2i(-1, -1)
 				painting = false
 				canvas.queue_redraw()
@@ -533,9 +591,11 @@ func _canvas_input(ev: InputEvent) -> void:
 			if mb.alt_pressed and not erasing and tool.begins_with("paint:"):
 				_eyedrop(c)
 				return
-			if not _in_grid(c): return
+			if not _in_grid(c) and not _can_grow(): return
 			_push_undo()
-			var m := "brush" if tool.begins_with("mark:") else _mode_now()
+			stroke_seed = randi()
+			var m := "brush" if tool.begins_with("mark:") else ("rect" if tool == "gen" else _mode_now())
+			if m == "fill" and not _in_grid(c): m = "brush"
 			if m == "fill": _apply_cells(_flood_cells(c))
 			elif m == "rect": rect_from = c
 			else:
@@ -552,6 +612,7 @@ func _canvas_input(ev: InputEvent) -> void:
 			_apply(_cell_at(mm.position))
 		var c := _cell_at(mm.position)
 		hover = c if _in_grid(c) else Vector2i(-1, -1)
+		hover_raw = c
 		hover_obj = _obj_at(mm.position) if _object_tool() and show_objects and drag == "" else -1
 		canvas.mouse_default_cursor_shape = Control.CURSOR_CROSS
 		if _object_tool() and (_on_handle(mm.position) or drag == "rotate"):
@@ -645,6 +706,9 @@ func _apply(c: Vector2i) -> void:
 func _apply_cells(cells: Array) -> void:
 	var kind := tool.get_slice(":", 0)
 	var what := tool.get_slice(":", 1)
+	if _can_grow() and not erasing:
+		var off := _grow_to(cells)
+		if off != Vector2i.ZERO: cells = cells.map(func(c): return c + off)
 	for p: Vector2i in cells:
 		if kind == "paint" and what == "wall":
 			if not _in_grid(p) or grid[p.y][p.x] != WALL: continue      # the border walls can be painted too
@@ -656,11 +720,43 @@ func _apply_cells(cells: Array) -> void:
 		elif kind == "paint":
 			if what != "wall" and grid[p.y][p.x] == WALL: continue
 			if erasing: paint[what].erase(p)
-			elif paint_mat != "": paint[what][p] = paint_mat
+			elif paint_mat != "":
+				var hv := absi(hash([p, stroke_seed]))
+				if scatter < 100 and hv % 100 >= scatter: continue
+				var mix: Array = [paint_mat] + paint_mix
+				paint[what][p] = mix[(hv / 100) % mix.size()]
 		elif kind == "zone" and grid[p.y][p.x] != WALL:
 			if erasing: zones[what].erase(p)
 			else: zones[what][p] = true
 	_mark_dirty()
+
+## A dragged rectangle: the generator's area, a room when auto walls is on (floor inside a wall ring), or
+## just every cell in it
+func _apply_rect(a: Vector2i, b: Vector2i) -> void:
+	var cells := _rect_cells(a, b)
+	if tool == "gen":
+		var off := _grow_to(cells)
+		_generate(Rect2i(a.min(b) + off, (a - b).abs() + Vector2i.ONE))
+		return
+	var room := auto_walls and tool == "base:" + FLOOR and not erasing and absi(a.x - b.x) >= 2 and absi(a.y - b.y) >= 2
+	if not room:
+		_apply_cells(cells)
+		return
+	var off := _grow_to(cells)
+	var lo := a.min(b) + off
+	var hi := a.max(b) + off
+	for p: Vector2i in _rect_cells(lo, hi):
+		if p.x < 1 or p.y < 1 or p.x >= grid_size - 1 or p.y >= grid_size - 1: continue
+		var ring := p.x == lo.x or p.y == lo.y or p.x == hi.x or p.y == hi.y
+		grid[p.y][p.x] = WALL if ring else FLOOR
+		if ring:
+			for z in zones: zones[z].erase(p)
+	_mark_dirty()
+	_status("Room %d x %d with walls round it (auto walls). Carve doorways with the Floor brush" % [hi.x - lo.x - 1, hi.y - lo.y - 1])
+
+## level_editor_gen.gd
+func _generate(_area: Rect2i) -> void:
+	pass
 
 ## Take the material under the mouse into the brush (I, or Alt+click with a paint tool)
 func _eyedrop(c: Vector2i) -> void:
@@ -684,23 +780,188 @@ func _set_paint_mat(id: String) -> void:
 	paint_mat = id
 
 # ---------------------------------------------------------------- undo
-func _snapshot() -> Dictionary:
+# ---------------------------------------------------------------- floors
+func _live_floor() -> Dictionary:
+	return {"grid": grid, "zones": zones, "paint": paint, "markers": markers, "objects": objects}
+
+func _load_floor(fd: Dictionary) -> void:
+	grid = fd.grid
+	zones = fd.zones
+	paint = fd.paint
+	markers = fd.markers
+	objects = fd.objects
+
+func _copy_floor(fd: Dictionary) -> Dictionary:
 	var z := {}
-	for k in zones: z[k] = zones[k].duplicate()
+	for k in fd.zones: z[k] = fd.zones[k].duplicate()
 	var pt := {}
-	for k in paint: pt[k] = paint[k].duplicate()
-	return {"grid": grid.duplicate(true), "zones": z, "paint": pt, "markers": markers.duplicate(), "size": grid_size,
-		"objects": objects.duplicate(true), "selected": selected}
+	for k in fd.paint: pt[k] = fd.paint[k].duplicate()
+	return {"grid": fd.grid.duplicate(true), "zones": z, "paint": pt, "markers": fd.markers.duplicate(), "objects": fd.objects.duplicate(true)}
+
+## A new floor: solid everywhere (draw its rooms in), no zones, paint, markers or objects
+func _new_floor() -> Dictionary:
+	var g: Array = []
+	for z in grid_size:
+		var row := []
+		row.resize(grid_size)
+		row.fill(WALL)
+		g.append(row)
+	var zd := {}
+	for z in ZONES: zd[z] = {}
+	var mk := {}
+	for m in MARKERS: mk[m] = null
+	return {"grid": g, "zones": zd, "paint": {"wall": {}, "floor": {}, "ceiling": {}}, "markers": mk, "objects": []}
+
+## Every floor, the live one included: int -> its fields
+func _all_floors() -> Dictionary:
+	var all := floor_store.duplicate()
+	all[floor_idx] = _live_floor()
+	return all
+
+func _floor_numbers() -> Array:
+	var ks: Array = _all_floors().keys()
+	ks.sort()
+	return ks
+
+func _floor_name(f: int) -> String:
+	if f == 0: return "Ground floor"
+	return ("Floor %d" % f) if f > 0 else ("Basement %d" % -f)
+
+func _switch_floor(f: int) -> void:
+	if f == floor_idx or not floor_store.has(f): return
+	floor_store[floor_idx] = _live_floor()
+	_load_floor(floor_store[f])
+	floor_store.erase(f)
+	floor_idx = f
+	selected = -1
+	hover_obj = -1
+	drag = ""
+	rect_from = Vector2i(-1, -1)
+	_floors_changed()
+	_sync_inspector()
+	if preview3d != null and preview3d.visible: preview3d.mark_stale()
+	_update_info()
+	canvas.queue_redraw()
+	_status("Editing " + _floor_name(f))
+
+## Overridden by level_editor.gd to refresh the floor picker
+func _floors_changed() -> void:
+	pass
+
+# ---------------------------------------------------------------- growing the map
+## Re-lay every floor on an n x n grid with its old cell (x, z) at (x, z) + off. Cells, zones, paint,
+## markers and objects that end up outside are dropped; the new border is wall.
+func _reframe(n: int, off: Vector2i) -> void:
+	var all := _all_floors()
+	var inner := func(c: Vector2i) -> bool: return c.x >= 1 and c.y >= 1 and c.x < n - 1 and c.y < n - 1
+	for f in all:
+		var fd: Dictionary = all[f]
+		var ng: Array = []
+		for z in n:
+			var row := []
+			for x in n:
+				var o := Vector2i(x, z) - off
+				var inside := o.x >= 0 and o.y >= 0 and o.x < grid_size and o.y < grid_size
+				var edge := x == 0 or z == 0 or x == n - 1 or z == n - 1
+				row.append(WALL if edge or not inside else fd.grid[o.y][o.x])
+			ng.append(row)
+		fd.grid = ng
+		for k in fd.zones:
+			var moved := {}
+			for c: Vector2i in fd.zones[k]:
+				if inner.call(c + off): moved[c + off] = true
+			fd.zones[k] = moved
+		for k in fd.paint:
+			var moved := {}
+			for c: Vector2i in fd.paint[k]:
+				var d: Vector2i = c + off
+				if d.x >= 0 and d.y >= 0 and d.x < n and d.y < n: moved[d] = fd.paint[k][c]
+			fd.paint[k] = moved
+		for m in fd.markers:
+			var c = fd.markers[m]
+			if c != null: fd.markers[m] = (c + off) if inner.call(c + off) else null
+		var kept: Array = []
+		for o: Dictionary in fd.objects:
+			o.pos_x += off.x
+			o.pos_y += off.y
+			if o.pos_x >= 0 and o.pos_y >= 0 and o.pos_x <= n - 1 and o.pos_y <= n - 1: kept.append(o)
+		fd.objects = kept
+	grid_size = n
+	for f in all:
+		if f == floor_idx: _load_floor(all[f])
+		else: floor_store[f] = all[f]
+	selected = -1
+	_sync_inspector()
+
+## Drawing outside the map grows it (every floor) so `cells` land inside with a wall border round them.
+## Returns how far existing cells moved (drawing above / left of the map shifts everything down / right).
+func _grow_to(cells: Array) -> Vector2i:
+	if cells.is_empty(): return Vector2i.ZERO
+	var mn := Vector2i(1, 1)
+	var mx := Vector2i(grid_size - 2, grid_size - 2)
+	for c: Vector2i in cells:
+		mn = mn.min(c)
+		mx = mx.max(c)
+	if mn.x >= 1 and mn.y >= 1 and mx.x <= grid_size - 2 and mx.y <= grid_size - 2:
+		return Vector2i.ZERO
+	var off := Vector2i(maxi(0, 1 - mn.x), maxi(0, 1 - mn.y))
+	var n := maxi(grid_size + maxi(off.x, off.y), maxi(mx.x, mx.y) + maxi(off.x, off.y) + 2)
+	if n > MAX_SIZE:
+		_status("The map can't grow past %d x %d" % [MAX_SIZE, MAX_SIZE])
+		n = MAX_SIZE
+	_reframe(n, off)
+	pan -= Vector2(off) * zoom                  # the map moves under the mouse, not the view
+	if rect_from.x >= 0: rect_from += off
+	_status("Map grown to %d x %d" % [grid_size, grid_size])
+	return off
+
+## Tools that may draw outside the map (and so grow it)
+func _can_grow() -> bool:
+	return tool == "base:" + FLOOR or tool == "base:" + PIT or tool == "gen"
+
+## Shrink every floor to what is used (open cells and markers) plus a wall border
+func _trim() -> void:
+	var mn := Vector2i(grid_size, grid_size)
+	var mx := Vector2i(-1, -1)
+	var all := _all_floors()
+	for f in all:
+		var fd: Dictionary = all[f]
+		for z in grid_size:
+			for x in grid_size:
+				if fd.grid[z][x] != WALL:
+					mn = mn.min(Vector2i(x, z))
+					mx = mx.max(Vector2i(x, z))
+		for m in fd.markers:
+			if fd.markers[m] != null:
+				mn = mn.min(fd.markers[m])
+				mx = mx.max(fd.markers[m])
+	if mx.x < 0:
+		_status("Nothing to trim to: the level has no open floor")
+		return
+	_push_undo()
+	var n := maxi(maxi(mx.x - mn.x, mx.y - mn.y) + 3, 8)
+	_reframe(n, Vector2i(1, 1) - mn)
+	_mark_dirty()
+	_fit()
+	_status("Trimmed to %d x %d" % [n, n])
+
+# ---------------------------------------------------------------- undo
+## Undo steps hold the whole level (every floor): growing the map or adding a floor touches them all
+func _snapshot() -> Dictionary:
+	var fl := {}
+	var all := _all_floors()
+	for f in all: fl[f] = _copy_floor(all[f])
+	return {"floors": fl, "floor": floor_idx, "size": grid_size, "selected": selected}
 
 func _restore(s: Dictionary) -> void:
-	grid = s.grid
-	zones = s.zones
-	paint = s.paint
-	markers = s.markers
+	floor_store = s.floors
+	floor_idx = s.floor
+	_load_floor(floor_store[floor_idx])
+	floor_store.erase(floor_idx)
 	grid_size = s.size
-	objects = s.objects
 	selected = s.selected if s.selected < objects.size() else -1
 	drag = ""
+	_floors_changed()
 	_sync_inspector()
 	_mark_dirty()
 
@@ -794,6 +1055,8 @@ func _open_cell(c: Vector2i) -> bool:
 func _object_press(mb: InputEventMouseButton) -> void:
 	if not mb.pressed:
 		if drag != "":
+			if selected >= 0 and str(objects[selected].type).begins_with("stairs_") and drag in ["place", "rotate"]:
+				_sync_stairs_partner(objects[selected])
 			drag = ""
 			_sync_inspector()
 		return
@@ -818,9 +1081,63 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
 		objects.append({"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale})
+		if tool.begins_with("obj:stairs_"):
+			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
+			objects[-1].pos_y = roundf(p.y)
+			objects[-1].scale = 1.0
+			_link_stairs(objects[-1])
 		_select(objects.size() - 1)
 		drag = "place"                   # keep the button down and drag away to aim it
 		_mark_dirty()
+
+## Stairs join two floors. The new flight's cell is made right for it (floor under stairs up, a pit for stairs
+## down) and the floor it leads to gets the opposite flight at the same spot, with open floor to arrive on
+## beside it; that floor is created if the level doesn't have it yet.
+func _link_stairs(o: Dictionary) -> void:
+	var up: bool = o.type == "stairs_up"
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var dir := Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
+	if not _in_grid(c): return
+	grid[c.y][c.x] = FLOOR if up else PIT
+	if _in_grid(c - dir) and grid[c.y - dir.y][c.x - dir.x] == WALL: grid[c.y - dir.y][c.x - dir.x] = FLOOR
+	var f := floor_idx + (1 if up else -1)
+	var created := false
+	if not floor_store.has(f):
+		floor_store[f] = _new_floor()
+		created = true
+		_floors_changed()
+	var fd: Dictionary = floor_store[f]
+	var kind := "stairs_down" if up else "stairs_up"
+	for other: Dictionary in fd.objects:
+		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
+			_status("Linked to the %s already on %s" % [kind.replace("_", " "), _floor_name(f)])
+			return
+	fd.objects.append({"type": kind, "pos_x": o.pos_x, "pos_y": o.pos_y, "rotation": o.rotation, "scale": 1.0})
+	fd.grid[c.y][c.x] = PIT if up else FLOOR
+	var a := c - dir                               # where you arrive on that floor: open it, and a little landing
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var n := a + Vector2i(dx, dz)
+			if n.x >= 1 and n.y >= 1 and n.x < grid_size - 1 and n.y < grid_size - 1 and n != c and fd.grid[n.y][n.x] == WALL:
+				fd.grid[n.y][n.x] = FLOOR
+	_status("%s%s got the matching %s here (PageUp / PageDown to go there)" % [("Made " if created else ""), _floor_name(f), kind.replace("_", " ")])
+
+## A flight was turned: turn its partner on the next floor the same way (arrival stays beside it)
+func _sync_stairs_partner(o: Dictionary) -> void:
+	var f := floor_idx + (1 if o.type == "stairs_up" else -1)
+	if not floor_store.has(f): return
+	var kind := "stairs_down" if o.type == "stairs_up" else "stairs_up"
+	var fd: Dictionary = floor_store[f]
+	for other: Dictionary in fd.objects:
+		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
+			other.rotation = o.rotation
+			var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+			var a := c - Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
+			for g in [grid, fd.grid]:                  # both floors: open where you step off
+				if a.x >= 1 and a.y >= 1 and a.x < grid_size - 1 and a.y < grid_size - 1 and g[a.y][a.x] == WALL:
+					g[a.y][a.x] = FLOOR
+			_mark_dirty()
+			return
 
 func _object_drag(p: Vector2) -> void:
 	if selected < 0:
@@ -956,6 +1273,20 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 			for s: float in [-d, d]:
 				canvas.draw_dashed_line(xf * (Vector2(s, -half + p) * zoom), xf * (Vector2(s, half - p) * zoom),
 					Color(col, alpha * 0.8), 1.5, maxf(zoom * 0.12, 3.0))
+		"stairs_up", "stairs_down":
+			# the flight seen from above: its treads across the run, the far end (top / bottom) darker
+			var d := 0.5
+			_fill(_local_rect(xf, -d, -half, d, half), Color(col, alpha * 0.85))
+			for i in range(1, 12):
+				var x := -d + i / 12.0
+				canvas.draw_line(xf * (Vector2(x, -half) * zoom), xf * (Vector2(x, half) * zoom), Color(0, 0, 0, alpha * 0.45), 1.0)
+			_fill(_local_rect(xf, d - 0.12, -half, d, half), Color(0, 0, 0, alpha * 0.8))
+			if zoom >= 12.0:
+				var lbl := "UP" if o.type == "stairs_up" else "DN"
+				var fs := int(clampf(zoom * 0.35, 9, 18))
+				var p := xf.origin - Vector2(font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, -fs * 0.35)
+				canvas.draw_string(font, p, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
+			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
 		_:
 			# thin walls, and any type the editor has no plan drawing for: a slab its thickness by its width
 			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)

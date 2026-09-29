@@ -1,5 +1,5 @@
-extends "res://level_editor_canvas.gd"
-## Level editor, part 2: the level files. Reads and writes levels.json and the .lvl files (including legacy
+extends "res://level_editor_gen.gd"
+## Level editor, part 3: the level files. Reads and writes levels.json and the .lvl files (including legacy
 ## migration), creates / duplicates / renames / moves / deletes levels, resizes the grid, sets materials,
 ## bakes GI and launches the game on the current level. level_editor.gd builds the window around it.
 
@@ -48,33 +48,12 @@ func _open(i: int) -> void:
 	current = clampi(i, 0, index.size() - 1)
 	data = JSON.parse_string(FileAccess.get_file_as_string(GAME.path_join("levels/" + str(index[current].file))))
 	grid_size = int(data.get("size", data.grid.size()))
-	grid = []
-	for z in grid_size:
-		var row: String = data.grid[z] if z < data.grid.size() else ""
-		var arr := []
-		for x in grid_size:
-			arr.append(row[x] if x < row.length() else WALL)
-		grid.append(arr)
-	zones = {}
-	for z in ZONES:
-		zones[z] = {}
-		for c in data.get("zones", {}).get(z, []):
-			zones[z][Vector2i(c[0], c[1])] = true
-	paint = {"wall": {}, "floor": {}, "ceiling": {}}
-	for slot in PAINT_SLOTS:
-		var by_mat: Dictionary = data.get("paint", {}).get(slot, {})
-		for id in by_mat:
-			for c in by_mat[id]:
-				paint[slot][Vector2i(c[0], c[1])] = str(id)
-	markers = {}
-	for m in MARKERS:
-		var c = data.get(m)
-		markers[m] = Vector2i(c[0], c[1]) if c is Array and c.size() >= 2 else null
-	objects = []
-	for o in data.get("objects", []):
-		if o is Dictionary and str(o.get("type", "")) != "":     # unknown types are kept as they are, drawn as slabs
-			objects.append({"type": str(o.type), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
-				"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, 4.0)})
+	floor_idx = 0
+	floor_store = {}
+	_load_floor(_parse_floor(data))
+	for k in data.get("floors", {}):
+		if data.floors[k] is Dictionary and int(k) != 0: floor_store[int(k)] = _parse_floor(data.floors[k])
+	_floors_changed()
 	var migrated := _migrate_legacy()
 	selected = -1
 	hover_obj = -1
@@ -96,6 +75,72 @@ func _open(i: int) -> void:
 	_update_title()
 	_sync_inspector()
 	_status("Opened " + str(index[current].file) + ("   (%d old door / arch / thin wall tiles are objects now; save to keep)" % migrated if migrated > 0 else ""))
+
+## One floor of a .lvl (the file itself for the ground floor, a "floors" entry for the others) as editor fields
+func _parse_floor(d: Dictionary) -> Dictionary:
+	var fd := _new_floor()
+	var rows: Array = d.get("grid", []) if d.get("grid") is Array else []
+	for z in mini(grid_size, rows.size()):
+		var row: String = rows[z]
+		for x in mini(grid_size, row.length()):
+			fd.grid[z][x] = row[x]
+	var zd = d.get("zones")
+	if zd is Dictionary:
+		for z in ZONES:
+			for c in zd.get(z, []):
+				fd.zones[z][Vector2i(c[0], c[1])] = true
+	var pd = d.get("paint")
+	if pd is Dictionary:
+		for slot in PAINT_SLOTS:
+			var by_mat: Dictionary = pd.get(slot, {})
+			for id in by_mat:
+				for c in by_mat[id]:
+					fd.paint[slot][Vector2i(c[0], c[1])] = str(id)
+	for m in MARKERS:
+		var c = d.get(m)
+		fd.markers[m] = Vector2i(c[0], c[1]) if c is Array and c.size() >= 2 else null
+	var objs = d.get("objects")
+	if objs is Array:
+		for o in objs:
+			if o is Dictionary and str(o.get("type", "")) != "":     # unknown types are kept as they are, drawn as slabs
+				fd.objects.append({"type": str(o.type), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
+					"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, 4.0)})
+	return fd
+
+## One floor's fields as .lvl keys (grid, objects, zones, paint, markers)
+func _serialize_floor(fd: Dictionary) -> Dictionary:
+	var out := {}
+	var g: Array = []
+	for row in fd.grid:
+		g.append("".join(PackedStringArray(row)))
+	out["grid"] = g
+	var objs := []
+	for o: Dictionary in fd.objects:
+		objs.append({"type": o.type, "pos_x": snappedf(o.pos_x, 0.001), "pos_y": snappedf(o.pos_y, 0.001),
+			"rotation": snappedf(fposmod(o.rotation, 360.0), 0.01), "scale": snappedf(o.scale, 0.001)})
+	out["objects"] = objs
+	var zd := {}
+	for z in ZONES:
+		var list := []
+		for c: Vector2i in fd.zones[z]:
+			if fd.grid[c.y][c.x] not in [WALL, THIN, DOOR]: list.append([c.x, c.y])
+		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
+		zd[z] = list
+	out["zones"] = zd
+	var pd := {}
+	for slot in PAINT_SLOTS:
+		var by_mat := {}
+		for c: Vector2i in fd.paint[slot]:
+			if c.x < grid_size and c.y < grid_size:
+				if not by_mat.has(fd.paint[slot][c]): by_mat[fd.paint[slot][c]] = []
+				by_mat[fd.paint[slot][c]].append([c.x, c.y])
+		for id in by_mat:
+			by_mat[id].sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
+		if not by_mat.is_empty(): pd[slot] = by_mat
+	if not pd.is_empty(): out["paint"] = pd
+	for m in MARKERS:
+		out[m] = [fd.markers[m].x, fd.markers[m].y] if fd.markers[m] != null else null
+	return out
 
 ## v1 levels painted thin walls, arches and doors as tiles. Turn each into an object facing the way its
 ## corridor runs (the same rule the game's level_data.gd open_axis() uses), leaving a wall under a door /
@@ -209,16 +254,18 @@ func _on_name_confirmed() -> void:
 	current = index.size() - 1
 	_open(current)
 
+## A new level: a small room in solid ground. Draw rooms out from it (the map grows as you draw past its
+## edge), or drag the Generate tool over an area.
 func _blank_level(nm: String) -> Dictionary:
-	var s := 46
+	var s := 24
 	var g: Array = []
 	for z in s:
 		var row := ""
 		for x in s:
-			row += WALL if (x == 0 or z == 0 or x == s - 1 or z == s - 1) else FLOOR
+			row += FLOOR if (x >= 8 and x <= 15 and z >= 9 and z <= 14) else WALL
 		g.append(row)
-	return {"format": "backrooms_level", "version": 2, "name": nm, "size": s, "spawn": [4, 4], "exit": [s - 5, s - 5],
-		"entity": [s / 2, s / 2], "tv": null, "grid": g, "zones": {}, "objects": []}
+	return {"format": "backrooms_level", "version": 2, "name": nm, "size": s, "spawn": [9, 11], "exit": null,
+		"entity": [14, 13], "tv": null, "grid": g, "zones": {}, "objects": []}
 
 func _ask_delete() -> void:
 	if current < 0 or index.size() <= 1:
@@ -261,8 +308,8 @@ func _godot_path() -> String:
 
 var _test_pid := -1
 
-## Save, then launch the game straight into this level with noclip on. `here`: start on the cell under the
-## mouse instead of the spawn marker. A test window still open from the last run is closed first.
+## Save, then launch the game straight into this level. TEST plays normally from the spawn marker; `here`
+## (TEST HERE) starts on the cell under the mouse with noclip on. A test window still open from the last run is closed first.
 func _test_level(here := false) -> void:
 	if current < 0: return
 	var exe := _godot_path()
@@ -272,54 +319,39 @@ func _test_level(here := false) -> void:
 	save()
 	if _test_pid > 0 and OS.is_process_running(_test_pid):
 		OS.kill(_test_pid)
-	var args := ["--path", GAME, "--", "--test-level=" + str(index[current].id), "--noclip"]
+	var args := ["--path", GAME, "--", "--test-level=" + str(index[current].id)]
+	if floor_idx != 0: args.append("--test-floor=%d" % floor_idx)
+	if here: args.append("--noclip")
 	if here and hover.x >= 1 and hover.y >= 1 and hover.x < grid_size - 1 and hover.y < grid_size - 1 and grid[hover.y][hover.x] != WALL:
 		args.append("--test-spawn=%d,%d" % [hover.x, hover.y])
 	_test_pid = OS.create_process(exe, args)
-	_status("Testing %s in noclip (WASD, Space up, C down, Shift fast)" % str(index[current].name) if _test_pid > 0 else "Could not start " + exe)
+	if _test_pid <= 0:
+		_status("Could not start " + exe)
+	elif here:
+		_status("Testing %s in noclip (WASD, Space up, C down, Shift fast)" % str(index[current].name))
+	else:
+		_status("Testing %s" % str(index[current].name))
 
 # ---------------------------------------------------------------- save
 func _current_payload() -> Dictionary:
-	var g: Array = []
-	for row in grid:
-		g.append("".join(PackedStringArray(row)))
 	var out := data.duplicate()
 	out["version"] = 2                   # v2: doors / arches / thin walls live in "objects", not the grid
 	out["size"] = grid_size
-	out["grid"] = g
-	var objs := []
-	for o: Dictionary in objects:
-		objs.append({"type": o.type, "pos_x": snappedf(o.pos_x, 0.001), "pos_y": snappedf(o.pos_y, 0.001),
-			"rotation": snappedf(fposmod(o.rotation, 360.0), 0.01), "scale": snappedf(o.scale, 0.001)})
-	out["objects"] = objs
-	var zd := {}
-	for z in ZONES:
-		var list := []
-		for c: Vector2i in zones[z]:
-			if grid[c.y][c.x] not in [WALL, THIN, DOOR]: list.append([c.x, c.y])
-		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
-		zd[z] = list
-	out["zones"] = zd
-	var pd := {}
-	for slot in PAINT_SLOTS:
-		var by_mat := {}
-		for c: Vector2i in paint[slot]:
-			if c.x < grid_size and c.y < grid_size:
-				if not by_mat.has(paint[slot][c]): by_mat[paint[slot][c]] = []
-				by_mat[paint[slot][c]].append([c.x, c.y])
-		for id in by_mat:
-			by_mat[id].sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
-		if not by_mat.is_empty(): pd[slot] = by_mat
-	if pd.is_empty(): out.erase("paint")
-	else: out["paint"] = pd
+	out.erase("paint")
+	var all := _all_floors()
+	var ground := _serialize_floor(all[0])
+	for k in ground: out[k] = ground[k]
+	var floors := {}
+	for f in all:
+		if f != 0: floors[str(f)] = _serialize_floor(all[f])
+	if floors.is_empty(): out.erase("floors")
+	else: out["floors"] = floors
 	match gi_pick.selected:
 		1: out["sdfgi"] = true
 		2: out["sdfgi"] = false
 		_: out.erase("sdfgi")
 	if atmo_pick.selected <= 0: out.erase("atmosphere")
 	else: out["atmosphere"] = ATMOS[atmo_pick.selected]
-	for m in MARKERS:
-		out[m] = [markers[m].x, markers[m].y] if markers[m] != null else null
 	var mats := {}
 	for slot in SLOTS:
 		if str(materials.get(slot, "")) != "": mats[slot] = materials[slot]
@@ -334,7 +366,6 @@ func save() -> void:
 	dirty = false
 	_update_title()
 	_status("Saved " + str(index[current].file))
-	_bake(str(index[current].id))
 
 ## Bake the saved level's bounce light (the game's tools/bake_level.gd: a VoxelGI of its walls, floors and
 ## ceilings) in the background. Takes 30 s to 2 min depending on size; until it lands the game falls back to SDFGI.
@@ -407,29 +438,41 @@ func _write(path: String, payload) -> void:
 
 func _resize(n: int) -> void:
 	_push_undo()
-	var ng: Array = []
-	for z in n:
-		var row := []
-		for x in n:
-			var edge := x == 0 or z == 0 or x == n - 1 or z == n - 1
-			row.append(WALL if edge or z >= grid_size or x >= grid_size else grid[z][x])
-		ng.append(row)
-	grid = ng
-	grid_size = n
-	for zn in zones:
-		for c: Vector2i in zones[zn].keys():
-			if c.x >= n - 1 or c.y >= n - 1: zones[zn].erase(c)
-	for slot in paint:
-		for c: Vector2i in paint[slot].keys():
-			if c.x >= n - 1 or c.y >= n - 1: paint[slot].erase(c)
-	for m in markers:
-		var c = markers[m]
-		if c != null and (c.x >= n - 1 or c.y >= n - 1): markers[m] = null
-	objects = objects.filter(func(o): return o.pos_x <= n - 1 and o.pos_y <= n - 1)
-	selected = -1
-	_sync_inspector()
+	_reframe(clampi(n, 8, MAX_SIZE), Vector2i.ZERO)
 	_mark_dirty()
 	_fit()
+
+# ---------------------------------------------------------------- floors
+## A new floor above the top one (dir 1) or below the bottom one (-1), and go to it
+func _add_floor(dir: int) -> void:
+	var fs := _floor_numbers()
+	var f: int = (fs[-1] + 1) if dir > 0 else (fs[0] - 1)
+	_push_undo()
+	floor_store[f] = _new_floor()
+	_switch_floor(f)
+	_mark_dirty()
+	_status("Added %s. Draw its rooms, then join it with Stairs up / down (keys 7 / 8)" % _floor_name(f))
+
+func _delete_floor() -> void:
+	if floor_idx == 0:
+		_status("The ground floor can't be deleted")
+		return
+	_push_undo()
+	var gone := floor_idx
+	var to := gone - 1 if gone > 0 else gone + 1
+	_load_floor(floor_store[to])
+	floor_store.erase(to)
+	floor_idx = to
+	selected = -1
+	_floors_changed()
+	_sync_inspector()
+	_mark_dirty()
+	_status("Deleted %s (Ctrl+Z brings it back)" % _floor_name(gone))
+
+func _step_floor(d: int) -> void:
+	var fs := _floor_numbers()
+	var i := fs.find(floor_idx) + d
+	if i >= 0 and i < fs.size(): _switch_floor(fs[i])
 
 # ---------------------------------------------------------------- materials
 func _set_material(slot: String, id: String) -> void:

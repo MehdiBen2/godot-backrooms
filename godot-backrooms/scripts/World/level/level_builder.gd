@@ -15,6 +15,7 @@ const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const BATTERY_PER_CELLS := 60        # roughly one pack per this many open cells
 const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
@@ -34,6 +35,9 @@ func _ready() -> void:
 	var marks := TapeMarks.new()
 	marks.name = "TapeMarks"
 	add_child(marks)
+	var sketches := SketchMarks.new()
+	sketches.name = "SketchMarks"
+	add_child(sketches)
 
 func _process(delta: float) -> void:
 	update_lighting(delta)
@@ -90,8 +94,7 @@ func _spawn_flashes() -> void:
 func _scatter(make: Callable, per_cells: int, lo: int, hi: int) -> void:
 	var r := RandomNumberGenerator.new()
 	r.randomize()
-	var s: Array = level_data.get("spawn", [4, 4])
-	var spawn_c := Vector2i(s[0], s[1])
+	var spawn_c := Vector2i(roundi(spawn_pos.x / CELL), roundi(spawn_pos.z / CELL))
 	var open: Array[Vector2i] = []
 	for z in size:
 		for x in size:

@@ -267,6 +267,13 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 			parts.append([Vector3(0, h * 0.92, 0), Vector3(depth * 1.4, h * 0.16, span), wall_mat])
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
+		"stairs_up", "stairs_down":
+			var rise := 0.35 * (1.0 if o.type == "stairs_up" else -1.0)       # 3 m in cell units, about
+			var steps := 8
+			for i in steps:
+				var top := rise * (i + 1) / steps
+				var base := 0.0 if rise > 0 else rise
+				parts.append([Vector3(-0.5 + (i + 0.5) / steps, (top + base) * 0.5, 0), Vector3(1.0 / steps, absf(top - base) + 0.01, span), _flat(col)])
 		_:
 			var s := 0.28 * span
 			parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])

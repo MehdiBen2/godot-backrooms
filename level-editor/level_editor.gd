@@ -28,6 +28,8 @@ var snap_check: CheckBox
 var rot_check: CheckBox
 var align_check: CheckBox
 var paint_name: Label
+var floor_pick: OptionButton
+var seed_spin: SpinBox
 var swatch_buttons := {}             # pbr name -> its swatch in PAINT MATERIALS
 var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
@@ -147,11 +149,11 @@ func _build_ui() -> void:
 	title_label.custom_minimum_size = Vector2(80, 0)
 	tb.add_child(title_label)
 	var test_b := _button("TEST  F5", _test_level)
-	test_b.tooltip_text = "Save, then open this level in the game with noclip (fly through walls)"
+	test_b.tooltip_text = "Save, then play this level in the game from the spawn marker (normal gameplay)"
 	test_b.add_theme_color_override("font_color", Color("2fd968"))
 	tb.add_child(test_b)
 	var here_b := _button("TEST HERE  F6", func(): _test_level(true))
-	here_b.tooltip_text = "Like TEST, but start on the cell under the mouse instead of at the spawn marker"
+	here_b.tooltip_text = "Start on the cell under the mouse with noclip on (fly through walls)"
 	here_b.add_theme_color_override("font_color", Color("2fd968"))
 	tb.add_child(here_b)
 	var view_b := _button("3D  F4", _toggle_3d)
@@ -202,12 +204,16 @@ func _build_ui() -> void:
 	lv.add_child(size_row)
 	size_row.add_child(_label("SIZE", 16, DIM))
 	size_spin = SpinBox.new()
-	size_spin.min_value = 16
-	size_spin.max_value = 96
+	size_spin.min_value = 8
+	size_spin.max_value = MAX_SIZE
+	size_spin.tooltip_text = "The map is square. It also grows by itself when you draw Floor, Pit or Generate past its edge"
 	size_spin.value = grid_size
 	size_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_row.add_child(size_spin)
 	size_row.add_child(_button("RESIZE", func(): _resize(int(size_spin.value))))
+	var trim_b := _button("TRIM", _trim)
+	trim_b.tooltip_text = "Shrink the map (every floor) to the space in use, plus a wall border"
+	size_row.add_child(trim_b)
 
 	var gi_row := HBoxContainer.new()
 	lv.add_child(gi_row)
@@ -244,6 +250,26 @@ func _build_ui() -> void:
 	hb.add_theme_constant_override("h_separation", 5)
 	hb.add_theme_constant_override("v_separation", 4)
 	bar.add_child(hb)
+	hb.add_child(_label("FLOOR", 12, GOLD))
+	floor_pick = OptionButton.new()
+	floor_pick.add_theme_font_size_override("font_size", 13)
+	floor_pick.tooltip_text = "Which floor of the level you are editing (PageUp / PageDown).\nStairs up / down (keys 7 / 8) join floors; the game loads one floor at a time"
+	floor_pick.item_selected.connect(func(i): _switch_floor(floor_pick.get_item_id(i) - 1000))
+	hb.add_child(floor_pick)
+	for fb in [["+ UP", func(): _add_floor(1), "Add a floor above the top one"], ["+ DOWN", func(): _add_floor(-1), "Add a basement below the bottom one"],
+			["DEL", _delete_floor, "Delete this floor (not the ground floor). Ctrl+Z brings it back"]]:
+		var b := _button(fb[0], fb[1])
+		b.tooltip_text = fb[2]
+		b.add_theme_font_size_override("font_size", 13)
+		hb.add_child(b)
+	var onion := CheckBox.new()
+	onion.text = "Other floor"
+	onion.tooltip_text = "Draw the floor below (or above) as a faint cyan outline, to line floors and stairs up"
+	onion.button_pressed = show_onion
+	onion.add_theme_font_size_override("font_size", 13)
+	onion.toggled.connect(func(on): show_onion = on; canvas.queue_redraw())
+	hb.add_child(onion)
+	hb.add_child(VSeparator.new())
 	hb.add_child(_label("MODE", 12, DIM))
 	var mode_group := ButtonGroup.new()
 	for m in [["brush", "Brush  B", "Drag to paint with the brush ([ ] changes its size)"],
@@ -286,7 +312,7 @@ func _build_ui() -> void:
 	canvas.add_child(preview3d)
 
 	# right: tools
-	var right := _panel(290)
+	var right := _panel(330)
 	body.add_child(right)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -307,6 +333,78 @@ func _build_ui() -> void:
 	brow.add_child(brush_label)
 	brow.add_child(_button("+", func(): _set_brush(brush + 1)))
 	brow.add_child(_label("  [ ]", 12, DIM))
+	var aw := CheckBox.new()
+	aw.text = "Auto walls"
+	aw.button_pressed = auto_walls
+	aw.tooltip_text = "Floor drawn as a rectangle (Rectangle mode, or Shift+drag) becomes a room: floor with a wall all round it.\nDrawing Floor past the map's edge grows the map, a wall border kept round everything"
+	aw.toggled.connect(func(on): auto_walls = on)
+	ter.add_child(aw)
+
+	var gen := _section(side, "GENERATE")
+	gen.add_child(_note("Pick the Generate tool and drag an area (it can reach past the map, which grows). Rooms join whatever floor is next to the area. REGENERATE rolls the last area again."))
+	var gen_b := _tool_button("gen", "Generate area  (drag)", Color("3fd1a0"), "Drag a rectangle: it is filled with generated rooms / corridors")
+	gen.add_child(gen_b)
+	var ggrid := GridContainer.new()
+	ggrid.columns = 2
+	gen.add_child(ggrid)
+	ggrid.add_child(_label("Style", 13, DIM))
+	var style_pick := OptionButton.new()
+	var styles := [["mixed", "Mixed"], ["rooms", "Rooms"], ["maze", "Maze"], ["pillars", "Pillar hall"]]
+	for st in styles: style_pick.add_item(st[1])
+	style_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	style_pick.item_selected.connect(func(i): gen_style = styles[i][0])
+	ggrid.add_child(style_pick)
+	ggrid.add_child(_label("Seed", 13, DIM))
+	var srow2 := HBoxContainer.new()
+	seed_spin = SpinBox.new()
+	seed_spin.max_value = 99999
+	seed_spin.value = gen_seed
+	seed_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	seed_spin.value_changed.connect(func(v): gen_seed = int(v))
+	srow2.add_child(seed_spin)
+	var dice := _button("?", func(): seed_spin.value = randi() % 100000)
+	dice.tooltip_text = "Random seed"
+	srow2.add_child(dice)
+	ggrid.add_child(srow2)
+	for row in [["Room min", "gen_room_min", 3, 12, "Smallest room side, in cells"], ["Room max", "gen_room_max", 5, 30, "Rooms wider than this are always split"],
+			["Corridor", "gen_corridor", 1, 3, "Maze corridor width, in cells"]]:
+		ggrid.add_child(_label(row[0], 13, DIM))
+		var sp := SpinBox.new()
+		sp.min_value = row[2]
+		sp.max_value = row[3]
+		sp.value = get(row[1])
+		sp.tooltip_text = row[4]
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sp.value_changed.connect(func(v): set(row[1], int(v)))
+		ggrid.add_child(sp)
+	ggrid.add_child(_label("Density", 13, DIM))
+	var dens := HSlider.new()
+	dens.min_value = 0.0
+	dens.max_value = 1.0
+	dens.step = 0.05
+	dens.value = gen_density
+	dens.tooltip_text = "More doorways, loops and pillars; high values knock rooms together into halls"
+	dens.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dens.value_changed.connect(func(v): gen_density = v)
+	ggrid.add_child(dens)
+	for cb_def in [["Doors in doorways", "gen_doors"], ["Random room zones", "gen_zones"]]:
+		var cb := CheckBox.new()
+		cb.text = cb_def[0]
+		cb.button_pressed = get(cb_def[1])
+		cb.add_theme_font_size_override("font_size", 13)
+		cb.toggled.connect(func(on): set(cb_def[1], on))
+		gen.add_child(cb)
+	var grow := HBoxContainer.new()
+	gen.add_child(grow)
+	var regen := _button("REGENERATE", _regenerate)
+	regen.tooltip_text = "Roll the last generated area again with a new seed"
+	regen.add_theme_color_override("font_color", Color("3fd1a0"))
+	regen.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grow.add_child(regen)
+	var whole := _button("WHOLE LEVEL", _generate_whole)
+	whole.tooltip_text = "Generate over this entire floor (stairs are kept). Ctrl+Z takes it back"
+	whole.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grow.add_child(whole)
 
 	var pnt := _section(side, "PAINT MATERIALS")
 	pnt.add_child(_note("Pick a material, pick a surface, drag over cells. Right click puts the level material back. Alt+click or I picks up the material under the mouse. Ctrl+click fills an area; wall paint Ctrl+clicked on a floor does that room's walls."))
@@ -321,8 +419,28 @@ func _build_ui() -> void:
 		sb.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		srow.add_child(sb)
-	paint_name = _label("", 14, CREAM)
+	paint_name = _label("", 13, CREAM)
+	paint_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	paint_name.custom_minimum_size = Vector2(200, 0)
 	pnt.add_child(paint_name)
+	var scrow := HBoxContainer.new()
+	pnt.add_child(scrow)
+	scrow.add_child(_label("Scatter", 13, DIM))
+	var sc := HSlider.new()
+	sc.min_value = 5
+	sc.max_value = 100
+	sc.step = 5
+	sc.value = scatter
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.tooltip_text = "Paint only this share of the cells, at random (e.g. 10% stained carpet over a room)"
+	var sc_lbl := _label("100%", 13, CREAM)
+	sc.value_changed.connect(func(v):
+		scatter = int(v)
+		sc_lbl.text = "%d%%" % scatter
+		_set_paint_mat(paint_mat))
+	scrow.add_child(sc)
+	scrow.add_child(sc_lbl)
+	pnt.add_child(_note("Ctrl+click swatches to mix materials: each painted cell takes one of them at random."))
 	var sgrid := GridContainer.new()
 	sgrid.columns = 4
 	sgrid.add_theme_constant_override("h_separation", 4)
@@ -341,7 +459,13 @@ func _build_ui() -> void:
 		for st in ["normal", "hover", "pressed", "hover_pressed"]:
 			b.add_theme_stylebox_override(st, picked if st.contains("pressed") else _box(Color("1d1a10"), LINE if st == "normal" else CREAM, 0, 3))
 		b.pressed.connect(func():
-			_set_paint_mat(n)
+			if Input.is_key_pressed(KEY_CTRL) and n != paint_mat:
+				if paint_mix.has(n): paint_mix.erase(n)
+				else: paint_mix.append(n)
+				_set_paint_mat(paint_mat)
+			else:
+				paint_mix.clear()
+				_set_paint_mat(n)
 			if not tool.begins_with("paint:"): _select_tool("paint:" + ("ceiling" if view_ceiling else "floor")))
 		swatch_buttons[n] = b
 		sgrid.add_child(b)
@@ -439,6 +563,8 @@ func _build_ui() -> void:
 	bot.add_child(bb)
 	status = _label("", 14, DIM)
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.clip_text = true                   # a long message must never widen the window
+	status.custom_minimum_size = Vector2(100, 0)
 	bb.add_child(status)
 	info = _label("", 14, DIM)
 	bb.add_child(info)
@@ -555,6 +681,18 @@ func _set_mode(m: String) -> void:
 	_status({"brush": "Brush: drag to paint", "rect": "Rectangle: drag a box", "fill": "Fill: click fills the connected area"}[m])
 	canvas.queue_redraw()
 
+func _floors_changed() -> void:
+	if floor_pick == null: return
+	floor_pick.clear()
+	var fs := _floor_numbers()
+	fs.reverse()                               # top floor first, like a building's directory
+	for f in fs:
+		floor_pick.add_item(_floor_name(f), f + 1000)
+		if f == floor_idx: floor_pick.select(floor_pick.item_count - 1)
+
+func _gen_ui_sync() -> void:
+	if seed_spin: seed_spin.set_value_no_signal(gen_seed)
+
 func _set_view(ceiling: bool) -> void:
 	view_ceiling = ceiling
 	if view_buttons.size() == 2: view_buttons[1 if ceiling else 0].button_pressed = true
@@ -562,8 +700,10 @@ func _set_view(ceiling: bool) -> void:
 
 func _set_paint_mat(id: String) -> void:
 	paint_mat = id
-	for n in swatch_buttons: swatch_buttons[n].button_pressed = n == id
-	if paint_name: paint_name.text = "Brush: " + id
+	paint_mix.erase(id)
+	for n in swatch_buttons: swatch_buttons[n].button_pressed = n == id or paint_mix.has(n)
+	if paint_name:
+		paint_name.text = "Brush: " + " + ".join([id] + paint_mix) + ("   (%d%% of cells)" % scatter if scatter < 100 else "")
 	canvas.queue_redraw()
 
 func _toggle_3d() -> void:
@@ -659,6 +799,8 @@ func _input(ev: InputEvent) -> void:
 		KEY_BRACKETLEFT: _set_brush(brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(brush + 1)
 		KEY_F: _fit()
+		KEY_PAGEUP: _step_floor(1)
+		KEY_PAGEDOWN: _step_floor(-1)
 		KEY_B: _set_mode("brush")
 		KEY_M: _set_mode("rect")
 		KEY_K: _set_mode("fill")

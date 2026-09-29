@@ -29,6 +29,25 @@
     "on_cell": "wall",
     "blocks_nav": true
   },
+  "stairs_up": {
+    "label": "Stairs up",
+    "key": "7",
+    "color": "3fd1a0",
+    "help": "A flight of steps up to the floor above. Walk up it (towards the arrow) to go there; you arrive beside that floor's Stairs down nearest this spot. Put it square on a floor cell",
+    "thickness": 4.5,
+    "on_cell": "wall",
+    "blocks_nav": false,
+    "rise": 3.0
+  },
+  "stairs_down": {
+    "label": "Stairs down",
+    "key": "8",
+    "color": "2f8fd1",
+    "help": "A flight of steps down to the floor below, sunk into its cell (the editor makes the cell a pit). Walk down it (towards the arrow) to go there; you arrive beside that floor's Stairs up nearest this spot",
+    "thickness": 4.5,
+    "blocks_nav": false,
+    "rise": 3.0
+  },
   "prop_explosive_barrel": {
     "label": "Explosive barrel",
     "color": "b23a2e",
