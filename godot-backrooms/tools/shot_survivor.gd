@@ -14,20 +14,19 @@ const DECEL := 22.0
 # label, seconds, target speed (m/s), sprinting, crouching, dead
 const PLAN := [
 	["idle", 2.0, 0.0, false, false, false],
-	["walk", 2.0, 1.0, false, false, false],
-	["run", 2.5, 2.6, false, false, false],
-	["sprint", 2.0, 4.55, true, false, false],
-	["run", 1.5, 2.6, false, false, false],
+	["walk", 3.0, 2.6, false, false, false],
+	["sprint", 2.5, 4.55, true, false, false],
+	["walk", 2.0, 2.6, false, false, false],
 	["idle", 1.5, 0.0, false, false, false],
 	["crouch_idle", 2.0, 0.0, false, true, false],
 	["crouch_walk", 3.0, 1.35, false, true, false],
 	["crouch_idle", 1.5, 0.0, false, true, false],
-	["run", 1.5, 2.6, false, false, false],
+	["walk", 1.5, 2.6, false, false, false],
 	["crouch_walk", 2.0, 1.35, false, true, false],
 	["idle", 1.5, 0.0, false, false, false],
 	["dead", 3.0, 0.0, false, false, true],
 ]
-const SNAP_AT := [0.0, 0.08, 0.16, 0.24, 0.6]    # seconds into each segment
+const SNAP_AT := [0.0, 0.08, 0.16, 0.24, 0.6, 0.75, 0.9, 1.05]    # seconds into each segment
 
 func _initialize() -> void:
 	var prefix := OS.get_environment("SHOT") if OS.get_environment("SHOT") != "" else "res://survivor"

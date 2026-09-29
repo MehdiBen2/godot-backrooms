@@ -4,7 +4,8 @@ extends RefCounted
 ## teammate, your own shadow and the thing copying them all move the same way.
 ##
 ##   idle_lookaround  standing, breathing, turning to scan the room
-##   walk / run       on your feet (walk only when slow: the player's 2.6 m/s already reads as a run)
+##   walk             moving normally (the player's 2.6 m/s, a survivor's walk)
+##   run              sprinting
 ##   crouch_idle      squatting still        crouch_walk   creeping, heel to toe
 ##   death            falls onto its back and holds the last frame
 
@@ -12,21 +13,19 @@ const MODEL := "res://models/player/survivor.glb"
 const FADE := 0.22              # clip cross-fade, seconds
 const MOVING_ABOVE := 0.1       # m/s
 const SPRINT_ABOVE := 3.2       # the player moves 2.6 m/s and sprints about 4.5
-## Walk below WALK_BELOW m/s, and only go back to running above RUN_ABOVE: the gap keeps a body that is
-## slowing down or speeding up from flickering between the two.
-const WALK_BELOW := 1.6
-const RUN_ABOVE := 2.0
 ## Ground speed (m/s) each clip covers at speed_scale 1 with the suit fitted 2 m tall; playback follows the
-## real speed so the feet don't slide, within a range that still looks like the same gait.
+## real speed so the feet don't slide, within a range that still looks like the same gait. The walk's
+## stride is short for 2.6 m/s, so it is capped at a brisk pace (the feet slip a little) rather than
+## pedalling at double speed.
 const NATIVE := {"walk": 1.2, "run": 4.2, "sprint": 4.2, "crouch_walk": 1.4}
-const SCALE_RANGE := {"walk": Vector2(0.6, 1.8), "run": Vector2(0.6, 1.5), "sprint": Vector2(0.7, 1.6), "crouch_walk": Vector2(0.5, 2.0)}
+const SCALE_RANGE := {"walk": Vector2(0.6, 1.75), "run": Vector2(0.6, 1.5), "sprint": Vector2(0.7, 1.6), "crouch_walk": Vector2(0.5, 2.0)}
 
 const PATTERNS := {
 	"idle": "look|^idle", "walk": "^walk", "run": "^run", "sprint": "sprint",
 	"crouch_idle": "crouch.*idle", "crouch_walk": "crouch.*walk", "death": "death",
 }
 ## A role the model has no clip for plays the nearest one it does have.
-const FALLBACK := {"crouch_walk": "walk", "crouch_idle": "idle", "sprint": "run", "walk": "run", "run": "idle", "idle": "run"}
+const FALLBACK := {"crouch_walk": "walk", "crouch_idle": "idle", "sprint": "run", "run": "walk", "walk": "run", "idle": "walk"}
 
 ## role -> animation name in `anim` ("" when the model has none). Every clip loops except death.
 static func find_clips(anim: AnimationPlayer) -> Dictionary:
@@ -43,18 +42,15 @@ static func find_clips(anim: AnimationPlayer) -> Dictionary:
 			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role == "death" else Animation.LOOP_LINEAR
 	return clips
 
-## The role to play. `current` is the one playing now (for the walk / run hysteresis). "" if nothing fits.
-static func pick_role(clips: Dictionary, current: String, speed: float, sprinting: bool, crouching: bool, dead: bool) -> String:
+## The role to play: walk when moving, run when sprinting. `_current` is the role playing now. "" if nothing fits.
+static func pick_role(clips: Dictionary, _current: String, speed: float, sprinting: bool, crouching: bool, dead: bool) -> String:
 	var want := "idle"
 	if dead:
 		want = "death"
 	elif crouching:
 		want = "crouch_walk" if speed > MOVING_ABOVE else "crouch_idle"
 	elif speed > MOVING_ABOVE:
-		if sprinting:
-			want = "sprint"
-		else:
-			want = "walk" if speed < (RUN_ABOVE if current == "walk" else WALK_BELOW) else "run"
+		want = "sprint" if sprinting else "walk"
 	var tried := {}
 	while clips.get(want, "") == "" and not tried.has(want):
 		tried[want] = true
