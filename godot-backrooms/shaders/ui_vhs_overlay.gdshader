@@ -33,6 +33,13 @@ uniform sampler2D bloom_tex : hint_default_black, filter_linear, repeat_disable;
 uniform float bloom_amt : hint_range(0.0, 4.0) = 0.0;
 uniform float bloom_tint : hint_range(0.0, 1.0) = 0.5;
 uniform float bloom_damp : hint_range(0.0, 1.0) = 0.6;
+// camcorder OSD dirt (hud.gd's OSD layer; all off by default): a constant sideways red / blue split
+// in px, a faint ghost of the picture trailing `ghost_px` to the right like tape, and a small
+// frame-to-frame brightness flicker
+uniform float split_px = 0.0;
+uniform float ghost_px = 0.0;
+uniform float ghost_amt = 0.0;
+uniform float flicker_amt = 0.0;
 
 const vec3 PHOSPHOR = vec3(1.0, 0.7, 0.234);   // the terminal's amber, brightest channel at 1
 
@@ -96,12 +103,21 @@ void fragment() {
 	float split = abs(jit) * 0.5;
 	pr.x += split;
 	pb.x -= split;
+	pr.x += split_px * TEXTURE_PIXEL_SIZE.x;
+	pb.x -= split_px * TEXTURE_PIXEL_SIZE.x;
 
 	vec4 tr = texture(TEXTURE, clamp(pr, 0.0, 1.0)) * inside(pr);
 	vec4 tg = texture(TEXTURE, clamp(pg, 0.0, 1.0)) * inside(pg);
 	vec4 tb = texture(TEXTURE, clamp(pb, 0.0, 1.0)) * inside(pb);
 	vec3 col = vec3(tr.r, tg.g, tb.b);
 	float alpha = max(tr.a, max(tg.a, tb.a));
+	if (ghost_amt > 0.0) {
+		vec2 gq = pg - vec2(ghost_px * TEXTURE_PIXEL_SIZE.x, 0.0);
+		vec4 gh = texture(TEXTURE, clamp(gq, 0.0, 1.0)) * inside(gq);
+		col += gh.rgb * ghost_amt;
+		alpha = max(alpha, gh.a * ghost_amt);
+	}
+	col *= 1.0 - flicker_amt * hash12(vec2(floor(TIME * 24.0), 7.0));
 
 	vec3 glow = texture(bloom_tex, clamp(pg, 0.0, 1.0)).rgb * inside(pg);
 	float glow_l = max(glow.r, max(glow.g, glow.b));

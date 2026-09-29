@@ -21,9 +21,10 @@ const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
 const PlayerScript := preload("res://scripts/Player/player.gd")
+const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
-const CREAM := Color("e4e1c6")            # camera OSD off-white
+const CREAM := Color("d6cfb2")            # camera OSD off-white, a little dirty: never paper white
 const TAPE := Color("c9bea0")
 const HINT := Color("9c9268")
 const HINT_STRONG := Color("ded6ad")
@@ -45,6 +46,7 @@ var playing_label: Label
 var time_label: Label
 var rec_dot: Control
 var rec_label: Label      # "REC", or "LOW BATT" now and then once the torch battery is critical
+var osd: CrtLayer         # the camcorder's burned-in text and viewfinder corners, dirtied (_build_hud)
 var post_mat: ShaderMaterial
 var threat_s := 0.0
 var fear_s := 0.0
@@ -190,11 +192,29 @@ func _build_hud() -> void:
 	add_child(hud)
 	hud_root = hud
 
+	# The camcorder's own text and corners are burned into the tape, not drawn over it: they go
+	# through a CRT layer with a sideways red / blue split, a faint ghost trailing to the right,
+	# grain, scanlines and a little flicker, like the co-op name tags seen through the camera
+	osd = CrtLayer.new()
+	osd.set_anchors_preset(Control.PRESET_FULL_RECT)
+	osd.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(osd)
+	osd.mat.set_shader_parameter("split_px", 1.6)
+	osd.mat.set_shader_parameter("ghost_px", 5.0)
+	osd.mat.set_shader_parameter("ghost_amt", 0.22)
+	osd.mat.set_shader_parameter("flicker_amt", 0.07)
+	osd.mat.set_shader_parameter("scan_amt", 0.12)
+	osd.mat.set_shader_parameter("grain_amt", 0.08)
+	osd.mat.set_shader_parameter("bloom_tint", 0.0)      # its glow stays the text's own colour
+	osd.glow_scale = 0.4
+	osd.running = true
+	var osd_root := osd.content
+
 	# Corner brackets (16 px from top/bottom, 18 px from the sides)
-	hud.add_child(_corner(Control.PRESET_TOP_LEFT, 18, 16, true, true))
-	hud.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - BRACKET_LEN, 16, true, false))
-	hud.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
-	hud.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
+	osd_root.add_child(_corner(Control.PRESET_TOP_LEFT, 18, 16, true, true))
+	osd_root.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - BRACKET_LEN, 16, true, false))
+	osd_root.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
+	osd_root.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
 
 	# Crosshair: a 3 px dot
 	var dot := ColorRect.new()
@@ -208,7 +228,7 @@ func _build_hud() -> void:
 	# --- top-left: REC + objective ---
 	var tl := _vbox(5)
 	tl.position = Vector2(42, 32)
-	hud.add_child(tl)
+	osd_root.add_child(tl)
 	var rec := _hbox(8)
 	rec_dot = _round_dot(8 * SCALE, REC_RED)
 	var dot_c := CenterContainer.new()
@@ -225,7 +245,7 @@ func _build_hud() -> void:
 	var tr := _vbox(4)
 	tr.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	tr.offset_left = -42 - 320; tr.offset_right = -42; tr.offset_top = 32; tr.offset_bottom = 32
-	hud.add_child(tr)
+	osd_root.add_child(tr)
 	var title := _label(str(level.level_name).to_upper(), 13, TAPE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tr.add_child(title)
@@ -255,7 +275,7 @@ func _build_hud() -> void:
 	br.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	br.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	br.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	hud.add_child(br)
+	osd_root.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
 	var hints := ["Q // SCAN", "G // FLASH", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
@@ -532,6 +552,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
 	_update_rec()
+	osd.running = hud_root.modulate.a > 0.01     # nothing to render while the OSD is faded out
 	# Handheld-camera jitter on the viewfinder brackets
 	for i in corners.size():
 		var c := corners[i]
