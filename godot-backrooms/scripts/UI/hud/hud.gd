@@ -15,6 +15,7 @@ const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const DrawUI := preload("res://scripts/UI/hud/draw_ui.gd")
 const SketchTool := preload("res://scripts/Player/sketch_tool.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
@@ -347,6 +348,13 @@ func _build_tape() -> void:
 	var sketch := SketchTool.new()
 	sketch.player = player
 	add_child(sketch)
+	if Game.test_level != "" or Game.dev_keys:      # the mouse-driven draw tools panel (Y)
+		var draw := DrawUI.new()
+		draw.player = player
+		draw.tape = tape
+		draw.sketch = sketch
+		sketch.ui = draw
+		add_child(draw)
 
 ## Every run starts with START camera flashes, one charge each: a way to break a chase, not to win it
 func _build_flash() -> void:
