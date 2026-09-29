@@ -68,6 +68,8 @@ Up to 8 players. One PC hosts a WebSocket server on port **8910**.
   `https://….trycloudflare.com` link to share. Without it, share your IP and forward port 8910.
 - **Join:** paste the link (or `ip[:port]`) into JOIN.
 - The host runs the monsters and the event director; everyone else follows the host's level.
+- The Mimic wears a teammate's face in co-op: their colour, their name tag, and now and then something
+  they said lately, in their voice. It never looks like you. Only the field scanner (Q) locks onto it.
 - Everyone must run the same release. Mismatched builds are refused with a *VERSION MISMATCH* message.
   If you change any RPC in `scripts/Net/net.gd`, bump `PROTOCOL` there.
 
