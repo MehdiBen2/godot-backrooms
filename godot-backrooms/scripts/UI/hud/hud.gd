@@ -65,6 +65,8 @@ func _ready() -> void:
 	mat.shader = load("res://shaders/post.gdshader")
 	if ResourceLoader.exists("res://textures/lens_dirt.png"):
 		mat.set_shader_parameter("lens_dirt_tex", load("res://textures/lens_dirt.png"))
+	if ResourceLoader.exists("res://textures/lens_smudge.png"):
+		mat.set_shader_parameter("lens_smudge_tex", load("res://textures/lens_smudge.png"))
 	post.material = mat
 	post_mat = mat
 	Gfx.register_post(mat)

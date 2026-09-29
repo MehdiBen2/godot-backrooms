@@ -5,6 +5,9 @@ shader_type canvas_item;
 // Tone mapping (ACES) and bloom come from the Godot environment.
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D lens_dirt_tex : filter_linear, repeat_disable;
+// Smears, fingerprints and fine scratches on the front glass (textures/lens_smudge.png, a Texturelabs
+// LensFX plate levelled to grey): a second layer over the dust, broader and lit by softer light
+uniform sampler2D lens_smudge_tex : hint_default_black, filter_linear, repeat_disable;
 uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.30;
 uniform float chroma_amt = 0.0028;
@@ -17,6 +20,8 @@ uniform float vhs_color_offset_multiplier : hint_range(0.0, 0.1) = 0.004;
 uniform float vhs_color_offset : hint_range(-0.1, 0.1) = 0.005;
 uniform float vhs_blur_amount : hint_range(0.0, 3.0) = 1.0;
 uniform float dirt_amt = 0.04;
+uniform float smudge_amt = 0.22;
+uniform float smudge_soft = 0.35;  // grease on the glass softens the picture where it's smeared
 uniform float halation_amt = 0.08;
 uniform float glare_amt = 0.35;
 uniform float glare = 0.0;        // 0..1 looking straight into a lit tube / panel (level_lighting.gd): lens dirt, halation, streaks swell
@@ -220,6 +225,16 @@ void fragment() {
 		// staring into a light: the dust on the lens lights up and the bulbs halate harder
 		float lens_t = 0.58 - 0.18 * glare;
 		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90);
+		// Smudges and scratches: a smear scatters light over a wider area than a dust speck, so it starts to
+		// show under ordinary ceiling light and flares up when staring into a tube; the grease also softens
+		// the picture a little under it. Cleaned off with the rest of the lens in a Classic zone.
+		float smudge = texture(lens_smudge_tex, clamp(dirt_uv, 0.0, 1.0)).r * (1.0 - 0.8 * classic);
+		if (smudge > 0.004) {
+			col = mix(col, textureLod(screen_tex, uvg, 2.0).rgb, clamp(smudge * smudge_soft, 0.0, 0.5));
+			vec3 smudge_tint = mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.6);
+			float smudge_lit = smoothstep(lens_t - 0.3, 0.95, luma_local) * (1.0 + 2.5 * glare);
+			col += smudge * smudge_tint * local_light * smudge_lit * smudge_amt;
+		}
 		if (luma_local > lens_t) {
 			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - lens_t) * halation_amt * (1.0 + 2.0 * glare);
 		}
