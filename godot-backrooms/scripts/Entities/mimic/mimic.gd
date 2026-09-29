@@ -31,7 +31,8 @@ const MimicEcho := preload("res://scripts/Entities/mimic/mimic_echo.gd")
 const MimicSounds := preload("res://scripts/Entities/mimic/mimic_sounds.gd")
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const MODEL := "res://models/player/hazmat.glb"
+const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
+const MODEL := SurvivorAnim.MODEL
 const MODEL_HEIGHT := 2.0
 
 # MIMIC_PEER config
@@ -76,10 +77,6 @@ const LURE_BOLT := 2.5               # m: catch up with it and it runs
 const LURE_BAIT_SHORT := 3           # cells short of the Bacteria it stops
 const LURE_HEAR := 35.0              # m: the noise it makes there, for the Bacteria
 const LURE_CUT_GAP := 200.0          # s since the last power cut before a dead end can cut the lights
-# the same animation rules as a survivor on the network (remote_player.gd)
-const MOVING_ABOVE := 0.1
-const SPRINT_ABOVE := 3.2
-const FADE := 0.22
 
 var level: Node
 var player: CharacterBody3D
@@ -127,7 +124,8 @@ var torch: SpotLight3D
 var mouth: AudioStreamPlayer3D
 var _mouth_cut := 20000.0
 var _mouth_db := 0.0
-var _clips := {}                     # role -> the suit's clip (remote_player.gd's lookups)
+var _clips := {}                     # role -> the suit's clip (survivor_anim.gd, as a survivor's)
+var _floor: SurvivorAnim.FloorGuard   # keeps its feet out of the floor between clips
 var _role := ""
 var echo := MimicEcho.new()          # host: everyone's last few minutes
 var echo_src := -1                   # whose route it walks
@@ -181,17 +179,9 @@ func _build_body() -> void:
 	var aps := root.find_children("*", "AnimationPlayer", true, false)
 	if not aps.is_empty():
 		anim = aps[0]
-		if anim.has_animation("run"):
-			anim.get_animation("run").loop_mode = Animation.LOOP_LINEAR
-		var patterns := {"run": "^run", "sprint": "sprint", "idle": "^idle", "crouch_idle": "crouch.*idle", "crouch_walk": "crouch.*walk"}
-		for role in patterns:
-			var re := RegEx.new()
-			re.compile("(?i)" + str(patterns[role]))
-			for n in anim.get_animation_list():
-				if re.search(n):
-					_clips[role] = n
-					anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
-					break
+		_floor = SurvivorAnim.FloorGuard.new(root, anim)    # it never dies on screen: always on
+		_clips = SurvivorAnim.find_clips(anim)
+		_clips["death"] = ""                     # it never dies on screen: never pick that clip
 	# its own copy of the suit's materials, so it can take a survivor's colour (remote_player.gd _tint)
 	for m in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
@@ -1116,32 +1106,18 @@ func _update_mouth(dt: float) -> void:
 	var own: float = sp.volume if sp != null and is_instance_valid(sp) else 1.0
 	mouth.volume_db = linear_to_db(maxf(Voice.voice_volume * own, 0.0001))
 
-## Its body, as a survivor's (remote_player.gd _pick_role / _anim_speed): the same clips at the same
-## speeds, crouching where the route crouched. It never stands wrong: nothing in how it moves gives it away.
+## Its body, as a survivor's (survivor_anim.gd): the same clips at the same speeds, crouching where the
+## route crouched. It never stands wrong: nothing in how it moves gives it away.
 func _animate() -> void:
 	if anim == null or _clips.is_empty():
 		return
-	var moving := speed > MOVING_ABOVE
-	var want := ""
-	if crouch:
-		want = "crouch_walk" if moving else "crouch_idle"
-	elif moving:
-		want = "sprint" if speed > SPRINT_ABOVE else "run"
-	else:
-		want = "idle"
-	var fallback := {"crouch_walk": "run", "crouch_idle": "idle", "sprint": "run", "run": "idle", "idle": "run"}
-	while want != "" and not _clips.has(want):
-		want = fallback.get(want, "")
+	var want := SurvivorAnim.pick_role(_clips, _role, speed, speed > SurvivorAnim.SPRINT_ABOVE, crouch, false)
 	if want == "":
 		return
 	if want != _role or not anim.is_playing():
 		_role = want
-		anim.play(_clips[want], FADE)
-	match want:
-		"run": anim.speed_scale = clampf(speed / 2.8, 0.5, 2.0)
-		"sprint": anim.speed_scale = clampf(speed / 4.0, 0.7, 1.6)
-		"crouch_walk": anim.speed_scale = clampf(speed / 1.4, 0.5, 2.0)
-		_: anim.speed_scale = 1.0
+		anim.play(_clips[want], SurvivorAnim.FADE)
+	anim.speed_scale = SurvivorAnim.speed_scale(want, speed)
 
 func hit_player() -> void:
 	if player.dead or player.frozen:

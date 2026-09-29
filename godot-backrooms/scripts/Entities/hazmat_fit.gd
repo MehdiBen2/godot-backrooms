@@ -1,8 +1,8 @@
 extends RefCounted
-## Fits the hazmat rig (models/player/hazmat.glb) into a box: soles on the origin, centred on x/z, `height` tall.
-## The file is baked into metres (tools/retarget_hazmat.py in the web repo), so the mesh bounds give the true
-## sole and crown; the skeleton's rest-pose bones (which stop at the ankles and the crown) only centre it on
-## x/z, and stand in for the mesh if its bounds look wrong. Call before setting root.transform.
+## Fits the hazmat rig (models/player/survivor.glb) into a box: soles on the origin, centred on x/z, `height`
+## tall. The mesh bounds give the true sole and crown (the file is 1 unit tall, from
+## tools/blender/build_player_hazmat.py); the skeleton's rest-pose bones only centre it on x/z, and stand in
+## for the mesh if its bounds look wrong. Call before setting root.transform.
 
 static func fit(root: Node3D, stop: Node, height: float) -> Transform3D:
 	var sks := root.find_children("*", "Skeleton3D", true, false)

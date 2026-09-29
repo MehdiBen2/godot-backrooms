@@ -2,24 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cyepwmtgripxt"
-path.s3tc="res://.godot/imported/hazmat_Image_0.jpg-90bd6b2e80ed3314e745a7aa54511f07.s3tc.ctex"
+uid="uid://o3mfk75sleka"
+path="res://.godot/imported/survivor_suit_basecolor.jpg-69ef8f0b2982c90742f3a106b5699d58.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
-"md5": "b745a3b87ad4a830c9d094da5f59498e"
+"md5": "60b00c6c8ca82fc549affe9f3b3a2129"
 }
 
 [deps]
 
-source_file="res://models/player/hazmat_Image_0.jpg"
-dest_files=["res://.godot/imported/hazmat_Image_0.jpg-90bd6b2e80ed3314e745a7aa54511f07.s3tc.ctex"]
+source_file="res://models/player/survivor_suit_basecolor.jpg"
+dest_files=["res://.godot/imported/survivor_suit_basecolor.jpg-69ef8f0b2982c90742f3a106b5699d58.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

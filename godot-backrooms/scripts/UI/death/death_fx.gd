@@ -4,6 +4,8 @@ extends "res://scripts/UI/death/death_blood.gd"
 ## survivor topples onto its back where you stood.
 ## The blood itself lives in death_blood.gd.
 
+const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
+
 var _grow: Array = []
 var _ragdoll: Node3D = null
 var _ragdoll_t := 0.0
@@ -64,7 +66,7 @@ func _process(delta: float) -> void:
 
 ## A hazmat survivor stands where you were and falls onto its back.
 func _hazmat_scene() -> PackedScene:
-	var path := "res://models/player/hazmat.glb"
+	var path := SurvivorAnim.MODEL
 	if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_LOADED:
 		return ResourceLoader.load_threaded_get(path) as PackedScene
 	return load(path) as PackedScene
@@ -117,7 +119,7 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 		var c := box.get_center()
 		var flip := Basis(Vector3.UP, PI)
 		root.transform = Transform3D(flip * Basis.from_scale(Vector3(sc, sc, sc)), flip * (Vector3(-c.x, -box.position.y, -c.z) * sc))
-	# hazmat.glb ships a 'death' clip that does the falling; play it once and hold the last frame
+	# survivor.glb ships a 'death' clip that does the falling; play it once and hold the last frame
 	_clip_played = false
 	_clip = null
 	for ap in root.find_children("*", "AnimationPlayer", true, false):
@@ -135,11 +137,11 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 	_ragdoll.global_position = pos
 	_ragdoll.rotation.y = yaw
 	_ragdoll_t = 0.0
-	# the chest bone (Mixamo rig; humanoid names too, in case the import retargets it)
+	# the chest bone (the suit's Tripo rig; Mixamo / humanoid names too, in case the import renames them)
 	_skel = null
 	_chest = -1
 	for s in root.find_children("*", "Skeleton3D", true, false):
-		for bone in ["Spine1", "Chest", "Spine", "Hips"]:
+		for bone in ["Spine02", "Spine1", "Chest", "Spine", "Hip", "Hips"]:
 			var i := (s as Skeleton3D).find_bone(bone)
 			if i >= 0:
 				_skel = s
@@ -162,7 +164,7 @@ func _find_contact() -> float:
 			t += 1.0 / 120.0
 		return t
 	var back := -1
-	for b in ["Spine2", "UpperChest", "Spine1", "Chest", "Spine", "Hips"]:
+	for b in ["Spine02", "Spine2", "UpperChest", "Spine1", "Chest", "Spine", "Hips"]:
 		back = _skel.find_bone(b)
 		if back >= 0:
 			break
