@@ -297,6 +297,20 @@ func variant_root_xf_at(idx: int) -> Transform3D:
 func variant_xf_at(idx: int) -> Transform3D:
 	return _variants[idx].xf
 
+## Instantiate variant `idx` bare: no wear, no missing pieces, no sheet, and NOT posed once-and-forgotten
+## like the crowd's decoys. For a body that gets pose_variant() called on it every frame instead (the real
+## hunting mannequin, mannequin.gd): the caller keeps `sk`/`vbones`/`profile`/`arm_l_pivot` and re-poses it
+## itself. Empty without a rig.
+func spawn_variant_body(idx: int) -> Dictionary:
+	if idx < 0 or idx >= _variants.size() or not _variants[idx].rigged:
+		return {}
+	var v: Dictionary = _variants[idx]
+	var n: Node3D = v.scene.instantiate()
+	var sk := n.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		(m as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return {"node": n, "sk": sk, "vbones": v.vbones, "profile": v.profile, "arm_l_pivot": v.arm_l_pivot}
+
 ## How this one has aged: {sheet, cracks 0..1, missing: [bone names], clothes, outfit, sleeves}
 static func variant_style(rng: RandomNumberGenerator) -> Dictionary:
 	var st := {"sheet": false, "cracks": 0.0, "missing": [], "clothes": false, "outfit": 0, "sheet_kind": 0,
