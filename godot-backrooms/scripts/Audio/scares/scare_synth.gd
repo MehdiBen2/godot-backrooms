@@ -280,6 +280,23 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				v += wet[i] * (0.5 + 2.2 * absf(flutter[i]) * 6.0) * stick * 0.7   # the wet stick as it lifts
 				a[i] = v * clampf((dur - t) / 0.06, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.9))
+		"howler_far":  # the deep thud of its foot carried through the slab and the walls: bass you feel before you place it
+			# arg = variant 0..3. A falling sine with a 2nd harmonic (still audible on small speakers), a
+			# rounded body, and a slow low bloom as the building answers. Nothing above ~300 Hz, so walls can't muffle it away.
+			var v_i := int(arg) % 4
+			var dur := 0.9
+			var a := _buf(dur)
+			var body := _noise_lp(a.size(), 110.0 + 10.0 * v_i)
+			var ph := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var f := 38.0 + 3.0 * v_i + 34.0 * exp(-t * 22.0)
+				ph += TAU * f / SR
+				var hit := minf(1.0, t / 0.012) * exp(-t * 9.0)
+				var bloom := minf(1.0, t / 0.08) * exp(-t * 3.2)
+				var v := (sin(ph) + 0.5 * sin(2.0 * ph)) * hit + body[i] * 2.2 * hit + sin(ph * 0.5) * 0.5 * bloom
+				a[i] = v * clampf((dur - t) / 0.12, 0.0, 1.0)
+			w = _wav(_normalize(a, 0.9))
 		"howler_drag": # its short, limping leg: set down lighter, then dragged a beat through the pile.
 			# arg 10 = running: a shorter, harder scuff
 			var run := 1.0 if arg >= 10.0 else 0.0

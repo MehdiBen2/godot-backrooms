@@ -75,7 +75,7 @@ func _build_model() -> void:
 # A footfall from the rig's gait: heavy and near when it hunts, a faint creep when it stalks
 func _on_step(weight: float, dragging: bool, run: float) -> void:
 	var d := global_position.distance_to(player.global_position)
-	if d < 34.0:
+	if d < 70.0:
 		scares.howler_step(global_position, weight * LOUDNESS, dragging, run)
 	if player.dead:
 		return
