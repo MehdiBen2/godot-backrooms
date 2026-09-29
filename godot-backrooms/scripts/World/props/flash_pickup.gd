@@ -1,9 +1,9 @@
 extends Node3D
-## A spare camera flash lying on its back on the carpet. Walking over it puts it in the inventory,
+## A spare camera flash standing on the carpet. Walking over it puts it in the inventory,
 ## where each one is one charge (up to STACK); G fires one (flash_tool.gd). With the stack full it
 ## stays on the floor. Rare: spawned at random open cells by level_builder._spawn_flashes.
 
-const FlashModel := preload("res://scripts/Player/flash_model.gd")
+const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 
 const TRIGGER_RADIUS := 0.9
 const ITEM_ID := "flash"
@@ -11,20 +11,31 @@ const ITEM_NAME := "Camera Flash"
 const ITEM_CODE := "FLSH"
 const STACK := 3
 const START := 2               # charges every run starts with (hud.gd _build_flash)
-const MODEL_PATH := "res://scripts/Player/flash_model.gd"
-const ITEM_DESC := "A disposable hammerhead flash, one charge in it. Press G (or right click) to fire " \
+const MODEL_PATH := "res://models/camera_flash.glb"   # from asetsuimprot/camera+flash+3d+model.glb, decimated
+const MODEL_SIZE := 0.26         # metres, longest side: oversized like the battery packs, so it reads from standing height
+const ITEM_DESC := "A camera speedlight with one charge left in its capacitor. Press G (or right click) to fire " \
 	+ "it: anything in front of you that catches it full in the eyes is blinded for a few seconds. " \
 	+ "Get out of its sight before it can see again and it has lost you. The pop is loud: miss, and " \
 	+ "you have told it where you are."
+
+static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread (battery_pickup.gd)
 
 var used := false
 var light: OmniLight3D
 
 func _ready() -> void:
-	var model := FlashModel.new()
-	model.rotation.x = -PI * 0.5                       # on its back, the window up at the ceiling
-	model.position.y = FlashModel.HEAD.z * 0.5 + 0.006
+	if model_scene == null:
+		model_scene = load(MODEL_PATH)
+	var model: Node3D = model_scene.instantiate()
 	add_child(model)
+	# fit it to MODEL_SIZE along its longest side and stand it on the floor
+	var box := ItemIcon.mesh_aabb(model, Transform3D.IDENTITY)
+	var longest := maxf(box.size.x, maxf(box.size.y, box.size.z))
+	if longest > 0.0:
+		var k := MODEL_SIZE / longest
+		model.scale = Vector3.ONE * k
+		var c := box.get_center()
+		model.position = Vector3(-c.x * k, -box.position.y * k, -c.z * k)
 	light = OmniLight3D.new()           # the ready lamp's faint red glow, so it can be found in the dark
 	light.light_color = Color(1.0, 0.25, 0.15)
 	light.omni_range = 1.1
