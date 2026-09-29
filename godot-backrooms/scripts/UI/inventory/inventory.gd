@@ -541,7 +541,7 @@ func _build_items() -> Control:
 	slots_label = Kit.label("0 / %d SLOTS" % SLOT_COUNT, 19, MUTED, 2)
 	head.add_child(slots_label)
 	v.add_child(head)
-	v.add_child(Kit.hline(Color(AMBER, 0.35), 2))
+	v.add_child(Kit.hline(Color(AMBER, 0.35), 1))
 	item_rows = VBoxContainer.new()
 	item_rows.add_theme_constant_override("separation", 2)
 	item_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -607,7 +607,7 @@ func _item_row(i: int) -> Control:
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(Kit.label("%02d" % (i + 1), 18, TEXT_DIM, 1))
 	# icon slot on every row, empty for items without a model, so the names stay in a column
-	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 2.0) if it.icon != "" else null
+	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 1.0) if it.icon != "" else null
 	if icon == null or (icon as TextureRect).texture == null:
 		icon = Control.new()
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -659,7 +659,7 @@ func _style_row(i: int) -> void:
 	if sel: bg = Color(AMBER, 0.16)
 	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
 	var sb := Kit.box(bg, AMBER)
-	sb.border_width_left = LINE + 1 if sel else 0
+	sb.border_width_left = 3 if sel else 0
 	sb.content_margin_left = 10; sb.content_margin_right = 10
 	sb.content_margin_top = 1; sb.content_margin_bottom = 1
 	p.add_theme_stylebox_override("panel", sb)
@@ -794,6 +794,7 @@ func _draw_readout() -> void:
 		Vector2(0, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
 		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c)]), FILL)
 	var gap := Vector2.ZERO
+	var gap_y := top
 	for tab in TABS:
 		var b: Button = tab_buttons[tab]
 		var x0 := tabs_row.position.x + b.position.x
@@ -802,14 +803,21 @@ func _draw_readout() -> void:
 		var y := 8.0 * (1.0 - tab_lift) if on else 8.0
 		var shape := PackedVector2Array([Vector2(x0, top), Vector2(x0, y), Vector2(x1 - TAB_SLANT, y), Vector2(x1, top)])
 		readout.draw_colored_polygon(shape, FILL if on else Color(FILL, 0.5))
-		readout.draw_polyline(shape, AMBER if on else AMBER_DIM, LINE, true)
-		if on: gap = Vector2(x0, x1)
+		if on:
+			gap = Vector2(x0, x1)
+			gap_y = y
+		else:
+			readout.draw_polyline(shape, AMBER_DIM, LINE, true)
 		if (tab == "ENTRIES" and Archive.has_unread()) or (tab == "CLEARANCE" and clearance_new):
 			readout.draw_circle(Vector2(x1 - TAB_SLANT - 6.0, y + 10.0), 5.0, AMBER)   # something new, not seen yet
+	# one closed loop through the active tab, started mid-bottom, so no line end shows at the tab's feet
 	var edge := PackedVector2Array([
-		Vector2(gap.y, top), Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
-		Vector2(w - c, h), Vector2(c, h), Vector2(0, h - c), Vector2(0, top)])
-	if gap.x > 0.5: edge.append(Vector2(gap.x, top))
+		Vector2(w * 0.5, h), Vector2(c, h), Vector2(0, h - c), Vector2(0, top)])
+	if gap.y > 0.0:
+		edge.append_array(PackedVector2Array([Vector2(gap.x, top), Vector2(gap.x, gap_y),
+			Vector2(gap.y - TAB_SLANT, gap_y), Vector2(gap.y, top)]))
+	edge.append_array(PackedVector2Array([Vector2(w - c, top), Vector2(w, top + c), Vector2(w, h - c),
+		Vector2(w - c, h), Vector2(w * 0.5, h)]))
 	readout.draw_polyline(edge, AMBER, LINE, true)
 
 func _style_tab(tab: String) -> void:

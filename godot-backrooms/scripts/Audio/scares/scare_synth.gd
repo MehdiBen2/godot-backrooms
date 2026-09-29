@@ -66,23 +66,37 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 		return hit
 	var w: AudioStreamWAV
 	match name:
-		"thump":       # a heavy footfall: sub sine and a dull noise slap
-			var a := _buf(0.7)
-			var nz := _noise_lp(a.size(), 220.0)
-			for i in a.size():
-				var t := float(i) / SR
-				var f := 70.0 * exp(-t * 4.0) + 26.0
-				a[i] = (sin(TAU * f * t) * exp(-t * 6.5) * 0.9 + nz[i] * exp(-t * 14.0) * 2.4)
-			w = _wav(a)
-		"vanish":      # everything sucked out of the room: a falling sweep and a rush of air
-			var a := _buf(1.8)
-			var nz := _noise_lp(a.size(), 900.0)
+		"thump":       # a heavy footfall heard through walls: a dull, rounded thud, no slap and no boom
+			# (the old one had a 2.4x noise slap and a 70 Hz sine: it read as a distant explosion)
+			var a := _buf(0.55)
+			var body := _noise_lp(a.size(), 95.0)          # the floor taking the weight, muffled by the walls
+			var scuff := _noise_lp(a.size(), 420.0)        # a hint of carpet under it, nothing sharp
 			var ph := 0.0
 			for i in a.size():
 				var t := float(i) / SR
-				ph += TAU * (520.0 * exp(-t * 2.2) + 45.0) / SR
-				a[i] = (sin(ph) * 0.4 + nz[i] * 1.1) * pow(1.0 - t / 1.8, 1.5) * minf(1.0, t * 30.0)
-			w = _wav(a)
+				ph += TAU * (34.0 + 22.0 * exp(-t * 30.0)) / SR
+				var atk := minf(1.0, t / 0.012)              # 12 ms attack: soft onset, never a click
+				var v := sin(ph) * 0.5 * exp(-t * 15.0) + body[i] * 2.2 * exp(-t * 20.0) + scuff[i] * 0.9 * exp(-t * 40.0)
+				a[i] = v * atk * clampf((0.55 - t) / 0.08, 0.0, 1.0)
+			w = _wav(_normalize(a, 0.55))
+		"vanish":      # the air pressure in the room changes: a slow, dark breath of air draining away
+			# (no pitched sweep: that was the cartoon "whoosh")
+			var a := _buf(3.2)
+			var lp1 := 0.0
+			var lp2 := 0.0
+			var sub_ph := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var u := t / 3.2
+				var cutoff := 900.0 * exp(-u * 2.6) + 70.0      # the rush closes down into the dark
+				var k := 1.0 - exp(-TAU * cutoff / SR)
+				var x := rng.randf_range(-1.0, 1.0)
+				lp1 += (x - lp1) * k
+				lp2 += (lp1 - lp2) * k
+				sub_ph += TAU * (30.0 - 6.0 * u) / SR
+				var env := pow(sin(PI * pow(u, 0.6)), 2.0)        # swells in slowly, dies away slowly
+				a[i] = (lp2 * 5.0 + sin(sub_ph) * 0.22 * env) * env
+			w = _wav(_normalize(a, 0.45))
 		"heartbeat":   # lub-dub: two soft, round sub thumps (808-style falling sine), heavily low-passed
 			var a := _buf(0.75)
 			var hits := [[0.0, 1.0, 62.0, 40.0, 13.0], [0.24, 0.62, 70.0, 46.0, 18.0]]   # at, gain, f start, f end, decay
@@ -119,12 +133,17 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 					gate = 1.0 if rng.randf() < 0.55 else 0.15
 				a[i] = rng.randf_range(-1.0, 1.0) * gate * exp(-float(i) / SR * 7.0) * 0.35
 			w = _wav(a)
-		"static_hit":  # a burst of TV snow that cuts off
-			var a := _buf(0.55)
+		"static_hit":  # a short dropout of dull signal noise: chopped, band-limited, nothing pitched
+			# (no 1.8 kHz beep and no white-noise crash: that was the TV-snow gag)
+			var a := _buf(0.4)
+			var band := _band(a.size(), 500.0, 3200.0)
+			var gate := 1.0
 			for i in a.size():
 				var t := float(i) / SR
-				a[i] = rng.randf_range(-1.0, 1.0) * 0.6 * exp(-t * 6.0) + sin(TAU * 1800.0 * t) * 0.15 * exp(-t * 18.0)
-			w = _wav(a)
+				if i % 220 == 0:
+					gate = 1.0 if rng.randf() < 0.6 else 0.25
+				a[i] = band[i] * gate * minf(1.0, t / 0.006) * exp(-t * 7.0)
+			w = _wav(_normalize(a, 0.4))
 		"knock":       # wood on wood: a mannequin foot (legacy)
 			var a := _buf(0.32)
 			var nz := _noise_lp(a.size(), 1400.0)
@@ -185,20 +204,24 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				ph += TAU * (300.0 + 220.0 * sin(t * 9.0) + 90.0 * t) / SR
 				a[i] = (sin(ph) * 0.15 + nz[i] * 0.8) * sin(PI * t / 0.9) * (0.6 + 0.4 * sin(t * 47.0))
 			w = _wav(a)
-		"stinger":     # a sudden loud startle: a hiss of air, a falling shriek, a low punch
-			# (the old one clipped hard and its pitch sweep jumped at 0.5 s: phase is accumulated now and
-			# the sum is soft-saturated instead of chopped off)
-			var a := _buf(0.9)
-			var nz := _noise_lp(a.size(), 4500.0)
-			var ph := 0.0
+		"stinger":     # a startle: air drawn in sharply, a low dissonant swell under it, a soft body-felt hit
+			# (the old one was a saturated falling shriek and read as a cartoon "dun-DUN"; this one is dark,
+			# low-passed and unpitched enough that it feels like the room reacting, not a musical sting)
+			var a := _buf(1.1)
+			var air := _band(a.size(), 350.0, 2400.0)
+			var ph_a := 0.0
+			var ph_b := 0.0
+			var ph_sub := 0.0
 			for i in a.size():
 				var t := float(i) / SR
-				ph += TAU * (380.0 + 520.0 * exp(-t * 4.0)) / SR          # 900 Hz gliding smoothly down
-				var v := nz[i] * 1.1 * exp(-t * 6.0) * minf(1.0, t / 0.003) \
-					+ sin(ph) * 0.3 * exp(-t * 6.0) \
-					+ sin(TAU * (55.0 + 25.0 * exp(-t * 20.0)) * t) * 0.6 * exp(-t * 4.0)
-				a[i] = tanh(v * 1.3) * 0.75
-			w = _wav(a)
+				var gasp := air[i] * 2.4 * minf(1.0, t / 0.008) * exp(-t * 7.0)
+				ph_a += TAU * 146.8 * (1.0 - 0.02 * t) / SR       # a minor second, sinking a hair: sour, not tuneful
+				ph_b += TAU * 155.6 * (1.0 - 0.02 * t) / SR
+				var swell := (sin(ph_a) + sin(ph_b)) * 0.16 * (1.0 - exp(-t * 14.0)) * exp(-t * 3.2)
+				ph_sub += TAU * (44.0 + 10.0 * exp(-t * 18.0)) / SR
+				var thump := sin(ph_sub) * 0.55 * minf(1.0, t / 0.01) * exp(-t * 9.0)
+				a[i] = (gasp + swell + thump) * clampf((1.1 - t) / 0.15, 0.0, 1.0)
+			w = _wav(_normalize(a, 0.6))
 		"seize":       # it has you: a body blow, the floor dropping out, a dissonant cluster that swells and dies
 			var a := _buf(1.8)
 			var thud := _noise_lp(a.size(), 380.0)

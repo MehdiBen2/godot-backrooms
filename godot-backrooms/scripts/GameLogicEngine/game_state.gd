@@ -73,8 +73,12 @@ var player: Node
 var level: Node
 var main: Node
 
-var _overlay: CanvasLayer = null
+var _overlay: DeathOverlay = null
 var _death_t := 0.0
+# This life's numbers for the death screen's RECORDING ENDED sheet (death_overlay.gd)
+var distance := 0.0           # metres walked, on the flat
+var _last_pos := Vector3.ZERO
+var _have_pos := false
 
 func fx_reset(keep_fade := false) -> void:
 	fx_blur = 0.0; fx_contrast = 1.0; fx_sat = 1.0; fx_hue = 0.0; fx_zoom = 1.0; fx_skew = 0.0; fx_flash = 0.0; fx_shock = 0.0; fx_blink = 0.0
@@ -92,6 +96,7 @@ func _process(dt: float) -> void:
 		fx_blood = maxf(0.0, fx_blood - dt * 0.12)
 	if playing and not dead:
 		time += dt
+		_track_distance()
 	event_fear = maxf(0.0, event_fear - dt * 0.22)
 	glitch = maxf(0.0, glitch - dt * 0.6)
 	pulse = maxf(0.0, pulse - dt * 3.0)
@@ -103,6 +108,38 @@ func bind(p: Node, l: Node, m: Node) -> void:
 	level = l
 	main = m
 	outdoors = false          # a fresh scene always starts in the backrooms
+	distance = 0.0
+	_have_pos = false
+
+func _track_distance() -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	var p: Vector3 = player.global_position
+	if _have_pos:
+		var step := Vector2(p.x - _last_pos.x, p.z - _last_pos.z).length()
+		if step < 3.0:            # a teleport (spawn, portal) is not walking
+			distance += step
+	_last_pos = p
+	_have_pos = true
+
+## What the death screen lists for this life: the HUD's tape counter when it stopped (hud.gd keeps
+## its own clock; the play time if there is no HUD), distance walked, entries logged, the yield filed
+## (against run_yield, noted by main.gd) and the tape still up from it
+func run_stats() -> Dictionary:
+	var counter := time
+	var ui: Node = main.get_node_or_null("UI") if main != null and is_instance_valid(main) else null
+	if ui != null and "t" in ui:
+		counter = float(ui.get("t"))
+	var tape_marks: GDScript = load("res://scripts/World/props/tape_marks.gd")
+	return {
+		"counter": counter,
+		"distance": distance,
+		"logged": Archive.discovered.size(),
+		"yield": maxi(0, Clearance.total - run_yield),
+		"unit": Clearance.unit,
+		"tape": tape_marks.laid_since(float(run_unix)) if run_unix > 0 else 0.0,
+		"level": load("res://scripts/World/level/level_data.gd").current_level_tag(),
+	}
 
 func haunt(amount: float) -> void:
 	event_fear = maxf(event_fear, amount)
@@ -164,7 +201,7 @@ func kill_player(reason: String, type := DeathType.NONE) -> void:
 		Death.bind(cam, player, sc)
 		Death.start(reason, player.global_position, cam_world, player.rotation.y)
 	_clear_overlay()
-	_overlay = DeathOverlay.new(death_reason, RESPAWN_READY)
+	_overlay = DeathOverlay.new(death_reason, RESPAWN_READY, run_stats())
 	add_child(_overlay)
 	player_died.emit(reason)
 
@@ -178,11 +215,17 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if _death_t < RESPAWN_READY:
 		return
-	if e is InputEventMouseButton and e.pressed:
-		_respawn()
-	elif e is InputEventKey and e.pressed and not e.echo:
-		if e.keycode == KEY_SPACE or e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER:
-			_respawn()
+	var press: bool = (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) \
+		or (e is InputEventKey and e.pressed and not e.echo \
+			and (e.keycode == KEY_SPACE or e.keycode == KEY_ENTER or e.keycode == KEY_KP_ENTER))
+	if not press:
+		return
+	get_viewport().set_input_as_handled()
+	# the first press only brings the RECORDING ENDED sheet in at once; the next one respawns
+	if _overlay != null and is_instance_valid(_overlay) and not _overlay.finished():
+		_overlay.skip()
+		return
+	_respawn()
 
 # Respawn dissolves through TV static (death.js): the level is only reloaded once the screen is covered
 func _respawn() -> void:
@@ -200,6 +243,25 @@ func change_level(idx: int) -> void:
 
 func next_level() -> void:
 	change_level(level_index + 1)
+
+## Back to the title screen mid-run (the pause menu's MAIN MENU), dead or alive: drop the death
+## screen, the death camera and its blood, and every screen effect and clock, so none of it follows
+## you into the title or the next run
+func end_run() -> void:
+	playing = false
+	dead = false
+	respawned = false
+	death_type = DeathType.NONE
+	fx_reset()
+	time = 0.0
+	event_fear = 0.0
+	glitch = 0.0
+	terror = 0.0
+	fear = 0.0
+	presence = 0.0
+	hunted = false
+	_clear_overlay()
+	Death.stop()
 
 func restart() -> void:
 	respawned = true

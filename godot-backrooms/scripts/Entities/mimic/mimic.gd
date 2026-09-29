@@ -140,6 +140,7 @@ var torch_on := false
 var pitch := 0.0
 var _torch_was := false
 var clicker: AudioStreamPlayer3D
+var sounds: Node                     # mimic_sounds.gd: copied sounds, and its own footsteps
 var _dark_done := false              # this blackout's try is spent
 var _route_mode := ""                # which mode lure_path was planned for (flee / charge), "" none
 var _route_at := 0.0                 # when to re-plan the way to you (charge)
@@ -161,7 +162,7 @@ func _ready() -> void:
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
 	_build_body()
-	var sounds := MimicSounds.new()             # your own sounds, from the next corridor (every machine, its own player)
+	sounds = MimicSounds.new()                  # your own sounds, from the next corridor (every machine, its own player)
 	sounds.mimic = self
 	add_child(sounds)
 
@@ -342,15 +343,18 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 		return {"state": s[0], "detail": "WALKING YOUR ROUTE FROM %d S AGO" % roundi(echo_clock - play_t), "danger": 1}
 	return {"state": s[0], "detail": s[1], "danger": s[2]}
 
-## Its feet: silent while it passes for a survivor (theirs make no sound over the net either); only
-## leaving in a hurry, its cover blown, does it thud off down the hall
+## Its feet: silent while it passes for a survivor (theirs make no sound over the net either). Leaving,
+## its cover blown, you hear it go: a person's footsteps (your own takes, on that floor, as loud as
+## yours would be from a few metres; mimic_sounds.gd step_at), paced to how fast it moves
 func footsteps(delta: float, dist: float) -> void:
-	var pos := body.global_position
-	if mode == "flee" and speed > 3.0 and dist < 30.0:
-		step -= delta
-		if step <= 0.0:
-			step = 0.3
-			scares.play_scare("footThump", Vector3(pos.x, player.global_position.y + 0.2, pos.z), maxf(0.2, 0.75 * (1.0 - dist / 30.0)))
+	if mode != "flee" or speed < 1.0 or dist > 30.0 or sounds == null:
+		step = 0.0
+		return
+	step -= delta
+	if step <= 0.0:
+		step = clampf(1.35 / speed, 0.3, 0.6)
+		var pos := body.global_position
+		sounds.step_at(Vector3(pos.x, pos.y + 0.1, pos.z), "sprint" if speed > 3.2 else "walk")
 
 func update_peer(delta: float) -> void:
 	echo_clock += delta

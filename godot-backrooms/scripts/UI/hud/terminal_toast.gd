@@ -7,6 +7,14 @@ extends Control
 ## tears like the terminal. hud.gd pushes one when the field scanner logs an entity, an item is
 ## recovered, yield is filed or clearance goes up; push() queues, so ones that land together follow
 ## one another.
+##
+## A line is either the plain [text, color, font size, wrap?] array, or a row dictionary by "kind":
+##   head   {code, name, tag?, tag_color?, size?}  a small code line (tag boxed on its right) over a big name
+##   pair   {left, right, color?, strong?}         a name and a value on the sheet's right edge
+##   rule   {}                                     a hairline that draws out
+##   bar    {left, right, from, to}                a segmented gauge that fills from `from` to `to` (0..1)
+##   keys   {keys: [..], text}                     keycaps, then what they do
+##   text   {text, color?, size?, wrap?}           the plain line as a dictionary
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
@@ -17,7 +25,11 @@ const SLANT := 14.0
 const CHAMFER := 8.0
 const LINE_W := 2.0
 const BAR_W := 3.0               # the life bar down the left edge
-const INSET := 18.0              # body text in from the left edge, past the life bar
+const INSET := 20.0              # body text in from the left edge, past the life bar
+const BODY_TOP := 12.0           # tab to first row
+const BODY_BOTTOM := 18.0        # last row to the bottom edge
+const BAR_SEGS := 20
+const GAUGE_MIN_W := 340.0       # a gauge needs this much room to read
 const PAD := 26.0                # room round the sheet for its glow
 const SLIDE := 60.0              # how far it slides in from
 const HOLD := 5.0
@@ -43,6 +55,10 @@ var wide := FontVariation.new()  # letter-spaced, for the tab
 var player: Node                 # player.gd (set by hud.gd): its sanity decides the corruption
 var _bad := {}                   # {label, real, fake, t}: the corrupted line, flickering back now and then
 var _word := RegEx.create_from_string("^[A-Z]{4,}$")
+var _stretch: Array = []         # rows laid out to the sheet's inner width once it is known
+var _fit: Array = []             # labels trimmed with an ellipsis if the sheet is too narrow for them
+var _rules: Array = []           # hairlines that draw out
+var _bars: Array = []            # gauges that fill once the rows are in
 
 func _ready() -> void:
 	anchor_left = 1.0; anchor_right = 1.0
@@ -71,9 +87,9 @@ func _ready() -> void:
 	tab_label.position = Vector2(12, 6)
 	sheet.add_child(tab_label)
 	body = VBoxContainer.new()
-	body.add_theme_constant_override("separation", 3)
+	body.add_theme_constant_override("separation", 4)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	body.position = Vector2(INSET, TAB_H + 10.0)
+	body.position = Vector2(INSET, TAB_H + BODY_TOP)
 	sheet.add_child(body)
 
 	chime = AudioStreamPlayer.new()
@@ -110,21 +126,170 @@ func _key_row(text: String, px: int, color: Color) -> Control:
 	row.add_theme_constant_override("separation", 6)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for k in keys:
-		var cap := PanelContainer.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(Term.AMBER, 0.14)
-		sb.border_color = Color(Term.AMBER, 0.9)
-		sb.set_border_width_all(1)
-		sb.set_corner_radius_all(3)
-		sb.content_margin_left = 6.0; sb.content_margin_right = 6.0
-		sb.content_margin_top = 0.0; sb.content_margin_bottom = 0.0
-		cap.add_theme_stylebox_override("panel", sb)
-		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		cap.add_child(_label(str(k), px - 3, Term.TEXT))
-		row.add_child(cap)
+		row.add_child(_keycap(str(k), px - 3))
 	if rest != "":
 		row.add_child(_label(rest, px, color))
+	return row
+
+func _keycap(k: String, px: int) -> Control:
+	var cap := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(Term.AMBER, 0.14)
+	sb.border_color = Color(Term.AMBER, 0.9)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 6.0; sb.content_margin_right = 6.0
+	sb.content_margin_top = 0.0; sb.content_margin_bottom = 0.0
+	cap.add_theme_stylebox_override("panel", sb)
+	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cap.add_child(_label(k, px, Term.TEXT))
+	return cap
+
+# ---- row dictionaries -------------------------------------------------------------------------
+func _dict_row(d: Dictionary, wraps: Array) -> Control:
+	match str(d.get("kind", "text")):
+		"head": return _head_row(d)
+		"pair": return _pair_row(d)
+		"rule": return _rule_row()
+		"bar": return _bar_row(d)
+		"keys": return _keys_row(d)
+	var l := _label(str(d.get("text", "")), int(d.get("size", 16)) - 1, d.get("color", Term.TEXT))
+	if d.get("wrap", false):
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wraps.append(l)
+	return l
+
+## The entry's code in small spaced capitals with its tag boxed on the right, the name under them
+func _head_row(d: Dictionary) -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var code := _label(str(d.get("code", "")), 13, Term.MUTED, wide)
+	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	code.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_fit.append(code)
+	top.add_child(code)
+	var tag := str(d.get("tag", ""))
+	if tag != "":
+		var tc: Color = d.get("tag_color", Term.AMBER)
+		var chip := PanelContainer.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(tc, 0.1)
+		sb.border_color = Color(tc, 0.8)
+		sb.set_border_width_all(1)
+		sb.content_margin_left = 7.0; sb.content_margin_right = 5.0
+		sb.content_margin_top = 1.0; sb.content_margin_bottom = 0.0
+		chip.add_theme_stylebox_override("panel", sb)
+		chip.add_child(_label(tag, 12, tc, wide))
+		top.add_child(chip)
+	v.add_child(top)
+	var n := _label(str(d.get("name", "")), int(d.get("size", 23)), Term.TEXT)
+	_fit.append(n)
+	v.add_child(n)
+	_stretch.append(v)
+	return v
+
+## A name on the left, its value on the sheet's right edge
+func _pair_row(d: Dictionary) -> Control:
+	var strong: bool = d.get("strong", false)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 16)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := _label(str(d.get("left", "")), 15 if strong else 14, Term.TEXT if strong else Term.TEXT_DIM)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_fit.append(l)
+	h.add_child(l)
+	var r := _label(str(d.get("right", "")), 16 if strong else 15, d.get("color", Term.AMBER))
+	r.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	h.add_child(r)
+	_stretch.append(h)
+	return h
+
+func _rule_row() -> Control:
+	var m := MarginContainer.new()
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	m.add_theme_constant_override("margin_top", 5)
+	m.add_theme_constant_override("margin_bottom", 5)
+	var r := ColorRect.new()
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.color = Color(Term.AMBER, 0.3)
+	r.custom_minimum_size.y = 1.0
+	r.scale.x = 0.001                # never exactly 0: it draws out from the left
+	m.add_child(r)
+	_rules.append(r)
+	_stretch.append(m)
+	return m
+
+## Clearance toward the next tier: the tier on the left, the numbers on the right, a segmented gauge
+## under them. What was there before shows dim at once; what this filing added fills in bright.
+func _bar_row(d: Dictionary) -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 5)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := _label(str(d.get("left", "")), 13, Term.MUTED, wide)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_fit.append(l)
+	top.add_child(l)
+	var r := _label(str(d.get("right", "")), 13, Term.TEXT_DIM)
+	r.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	top.add_child(r)
+	v.add_child(top)
+	var g := Control.new()
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.custom_minimum_size.y = 8.0
+	g.set_meta("from", clampf(float(d.get("from", 0.0)), 0.0, 1.0))
+	g.set_meta("to", clampf(float(d.get("to", 0.0)), 0.0, 1.0))
+	g.set_meta("fill", 0.0)          # 0..1 of the way from `from` to `to`
+	g.draw.connect(_draw_gauge.bind(g))
+	v.add_child(g)
+	_bars.append(g)
+	_stretch.append(v)
+	return v
+
+func _draw_gauge(g: Control) -> void:
+	var from: float = g.get_meta("from")
+	var fill: float = g.get_meta("fill")
+	var now := lerpf(from, float(g.get_meta("to")), fill)
+	var gap := 3.0
+	var sw := (g.size.x - gap * (BAR_SEGS - 1)) / BAR_SEGS
+	var head := int(ceil(now * BAR_SEGS)) - 1
+	for i in BAR_SEGS:
+		var e := float(i + 1) / BAR_SEGS
+		var c := Color(Term.TEXT, 0.1)
+		if e <= from + 0.0001:
+			c = Color(Term.AMBER, 0.4)               # already had
+		elif e <= now + 0.0001 or i == head:
+			c = Term.TEXT if (i == head and fill < 1.0) else Term.AMBER   # this filing; the leading segment runs hot
+		g.draw_rect(Rect2(i * (sw + gap), 0.0, sw, g.size.y), c)
+
+func _set_fill(v: float, g: Control) -> void:
+	if is_instance_valid(g):
+		g.set_meta("fill", v)
+		g.queue_redraw()
+
+## Keycaps, then what they do
+func _keys_row(d: Dictionary) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for k in d.get("keys", []):
+		row.add_child(_keycap(str(k), 12))
+	var t := _label(str(d.get("text", "")), 14, Term.MUTED)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var m := MarginContainer.new()
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	m.add_theme_constant_override("margin_left", 4)
+	m.add_child(t)
+	row.add_child(m)
 	return row
 
 func push(title: String, lines: Array) -> void:
@@ -149,7 +314,14 @@ func _next() -> void:
 		body.remove_child(c)
 		c.queue_free()
 	var wraps: Array = []
+	_stretch.clear()
+	_fit.clear()
+	_rules.clear()
+	_bars.clear()
 	for ln in entry[1]:
+		if ln is Dictionary:
+			body.add_child(_dict_row(ln, wraps))
+			continue
 		var px := int(ln[2]) - 1
 		var wrap: bool = ln.size() > 3 and ln[3]
 		var row: Control = null
@@ -170,8 +342,17 @@ func _next() -> void:
 	if wraps.is_empty():
 		for row in body.get_children():
 			w = maxf(w, (row as Control).get_combined_minimum_size().x + INSET + 20.0)
+	if not _bars.is_empty():
+		w = maxf(w, GAUGE_MIN_W + INSET + 20.0)
 	w = clampf(maxf(w, tab_w + 60.0), W_MIN, W_MAX)
 	var inner := w - INSET - 20.0
+	# rows that span the sheet (a value on the right edge, a rule, a gauge) take its inner width; the
+	# names in them give way with an ellipsis rather than push it wider
+	for c in _stretch:
+		(c as Control).custom_minimum_size.x = inner
+	for l in _fit:
+		(l as Label).clip_text = true
+		(l as Label).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	for row in body.get_children():
 		var l := row as Label
 		if l and l.autowrap_mode == TextServer.AUTOWRAP_OFF and l.get_combined_minimum_size().x > inner:
@@ -185,7 +366,7 @@ func _next() -> void:
 		(l as Label).size = Vector2(inner, 0.0)
 		(l as Label).update_minimum_size()
 	body.size = Vector2(inner, 0.0)
-	var h := TAB_H + 10.0 + body.get_combined_minimum_size().y + 16.0
+	var h := TAB_H + BODY_TOP + body.get_combined_minimum_size().y + BODY_BOTTOM
 	sheet.size = Vector2(w, h)
 	home_x = PAD + W_MAX - w
 	layer.size.y = maxf(320.0, h + PAD * 2.0)   # long entries (a yield breakdown) stay inside the glow
@@ -205,6 +386,12 @@ func _next() -> void:
 		var l: Label = labels[i]
 		l.visible_ratio = 0.0
 		anim.tween_property(l, "visible_ratio", 1.0, clampf(l.text.length() * 0.012, 0.08, 0.3)).set_delay(0.08 + i * 0.06)
+	for i in _rules.size():
+		anim.tween_property(_rules[i], "scale:x", 1.0, 0.35).set_delay(0.15 + i * 0.1) \
+				.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	for g in _bars:                  # last, once the rows are up
+		anim.tween_method(_set_fill.bind(g), 0.0, 1.0, 0.7).set_delay(0.2 + labels.size() * 0.06) \
+				.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	anim.tween_method(_set_life, 1.0, 0.0, HOLD).set_delay(0.3)
 	# out: slide back and fade, then the next one in the queue
 	anim.chain().tween_property(sheet, "position:x", home_x + SLIDE, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
