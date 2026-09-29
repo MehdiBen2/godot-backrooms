@@ -2,6 +2,8 @@ extends Control
 ## Title screen + level loading. Slow-drifting stills of the level (textures/menu/bg_N.png, rendered by
 ## tools/capture_menu_bg.gd) that crossfade into each other behind the same VCR / found-footage styling as the in-game start screen.
 ## PLAY fades to a loading screen, streams scenes/main.tscn on a thread, then drops straight into the run.
+## The column builds itself on launch (skippable), entries slide and caption themselves on hover or with
+## the arrow keys, and QUIT switches the set off like an old CRT.
 
 const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
@@ -73,6 +75,10 @@ const TIPS := [
 ]
 const MIN_LOAD_TIME := 3.0       # floor on the loading screen so the bar and phrases are actually seen,
 								  # even when scenes/main.tscn itself streams in well under that
+const DIM := Color(0.9, 0.882, 0.804, 0.6)
+const SLIDE := 30.0               # how far a menu entry steps right when it is selected
+const ROW_H := 50.0
+const W := preload("res://scripts/UI/menu/menu_widgets.gd")   # shared motion helpers
 
 var font: FontFile = load("res://fonts/vcr.ttf")
 var bg_root: Control
@@ -85,10 +91,21 @@ var bg_fading := false
 var title_label: Label
 var fringes: Array
 var glitch_left := 0.0
-var next_glitch := 2.0
+var next_glitch := 3.5
 var glitch_tick := 0.0
-var buttons: Array[Button] = []
+var items: Array[Dictionary] = []       # {button, inner, label, mark, hint, panel, action, tw}
+var sel := -1                           # entry under the mouse / picked with the arrow keys
+var active_panel := ""                  # the embedded panel that is open, its entry stays lit
 var menu_box: Control
+var tag_row: Control
+var tag_label: Label
+var rec_dot: ColorRect
+var sub_label: Label
+var footer: Label
+var credits: Label
+var counter: Label
+var intro: Tween
+var corner_tw: Tween
 var loading_root: Control
 var load_title: Label
 var load_bar: ColorRect
@@ -96,21 +113,24 @@ var load_pct: Label
 var load_tip: Label
 var load_dot: ColorRect
 var loading := false
+var busy := false                       # PLAY / QUIT transition running: ignore further input
 var shown_progress := 0.0
 var creep_progress := 0.0
 var load_elapsed := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
+var tick: AudioStreamPlayer
 var music: AudioStreamPlayer
 var settings_menu                       # scripts/UI/menu.gd instance in embedded mode
-var quitting := false
+var crt: Control
+var crt_top: ColorRect
+var crt_bottom: ColorRect
+var crt_line: ColorRect
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build()
-	modulate.a = 0.0
-	create_tween().tween_property(self, "modulate:a", 1.0, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	_start_music()
 	if Game.test_level != "":            # launched from the level editor: skip the title, open that level
 		var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
@@ -118,7 +138,10 @@ func _ready() -> void:
 			if str(levels[i].get("id", "")) == Game.test_level or str(levels[i].get("file", "")) == Game.test_level:
 				Game.level_index = i
 		Game.test_level = ""
-		_on_play()
+		modulate.a = 1.0
+		_on_play(true)
+		return
+	_intro()
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -156,6 +179,12 @@ func _gradient(colors: PackedColorArray, offsets: PackedFloat32Array, radial := 
 		gt.fill_from = Vector2(0, 0)
 		gt.fill_to = Vector2(1, 0)
 	return gt
+
+func _spacer(h: float) -> Control:
+	var sp := Control.new()
+	sp.custom_minimum_size = Vector2(0, h)
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return sp
 
 # ---- layout ---------------------------------------------------------------------
 func _build() -> void:
@@ -209,10 +238,23 @@ func _build() -> void:
 	margin.add_child(col)
 	menu_box = col
 
-	col.add_child(_label("ARCHIVAL FOOTAGE", 12, Color(0.9, 0.882, 0.804, 0.55), 4))
-	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 18)
-	col.add_child(sp)
+	# REC dot + tag, same as the in-game menu's
+	var tag := HBoxContainer.new()
+	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tag.add_theme_constant_override("separation", 10)
+	rec_dot = ColorRect.new()
+	rec_dot.color = RED
+	rec_dot.custom_minimum_size = Vector2(8, 8)
+	rec_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var dot_c := CenterContainer.new()
+	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dot_c.add_child(rec_dot)
+	tag.add_child(dot_c)
+	tag_label = _label("ARCHIVAL FOOTAGE", 12, Color(0.9, 0.882, 0.804, 0.55), 4)
+	tag.add_child(tag_label)
+	col.add_child(tag)
+	tag_row = tag
+	col.add_child(_spacer(18))
 	title_label = _label("THE BACKROOMS", 120, TITLE, 4)
 	fringes = []
 	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.55)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.35)]]:
@@ -222,24 +264,20 @@ func _build() -> void:
 		title_label.add_child(s)
 		fringes.append(s)
 	col.add_child(title_label)
-	var sub := _label("THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
-	col.add_child(sub)
-	var sp2 := Control.new()
-	sp2.custom_minimum_size = Vector2(0, 54)
-	col.add_child(sp2)
+	sub_label = _label("THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
+	col.add_child(sub_label)
+	col.add_child(_spacer(46))
 
-	for item in [["PLAY", _on_play], ["SETTINGS", _open_panel.bind("settings")], ["GRAPHICS", _open_panel.bind("graphics")], ["QUIT", _on_quit]]:
-		var b := _menu_button(item[0])
-		b.pressed.connect(item[1])
-		col.add_child(b)
-		buttons.append(b)
-	var sp3 := Control.new()
-	sp3.custom_minimum_size = Vector2(0, 40)
-	col.add_child(sp3)
-	col.add_child(_label("BUILD 0.1 // TAPE 04", 11, Color(0.9, 0.882, 0.804, 0.3), 3))
+	_menu_item(col, "PLAY", _level_name().to_upper(), "", _on_play)
+	_menu_item(col, "SETTINGS", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"))
+	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"))
+	_menu_item(col, "QUIT", "EJECT TAPE", "", _on_quit)
+	col.add_child(_spacer(32))
+	footer = _label("BUILD 0.1 // TAPE 04        UP / DOWN  SELECT    ENTER  CONFIRM", 11, Color(0.9, 0.882, 0.804, 0.3), 3)
+	col.add_child(footer)
 
 	# Credits, bottom right
-	var credits := _label("CREATED BY MehdiBen;)", 13, Color(0.9, 0.882, 0.804, 0.45), 4)
+	credits = _label("CREATED BY MehdiBen;)", 13, Color(0.9, 0.882, 0.804, 0.45), 4)
 	credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	add_child(credits)
 	credits.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -248,10 +286,21 @@ func _build() -> void:
 	credits.offset_top = -100
 	credits.offset_bottom = -72
 
+	# Camcorder tape counter, top right: runs while the title is up
+	counter = _label("► PLAY  0:00:00", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
+	counter.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	add_child(counter)
+	counter.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	counter.offset_left = -420
+	counter.offset_right = -110
+	counter.offset_top = 72
+	counter.offset_bottom = 100
+
 	# Settings / Graphics reuse the in-game menu's panels (same code, same saved settings)
 	settings_menu = load("res://scripts/UI/menu/menu.gd").new()
 	settings_menu.embedded = true
 	add_child(settings_menu)
+	settings_menu.panel_changed.connect(_on_panel_changed)
 
 	# Camcorder lens over everything (text included): fisheye, chroma fringe, tape tear, grain
 	var fx := ColorRect.new()
@@ -265,7 +314,12 @@ func _build() -> void:
 	click.stream = load("res://audio/ui_click.wav")
 	click.volume_db = -6.0
 	add_child(click)
+	tick = AudioStreamPlayer.new()          # much quieter, higher tick when the selection moves
+	tick.stream = click.stream
+	tick.volume_db = -22.0
+	add_child(tick)
 	_build_loading()
+	_build_crt()
 
 func _bg_layer(tex: Texture2D) -> TextureRect:
 	var r := TextureRect.new()
@@ -302,27 +356,134 @@ func _next_bg() -> void:
 		bg_timer = 0.0
 		bg_fading = false)
 
-func _menu_button(text: String) -> Button:
+# ---- menu entries ---------------------------------------------------------------------
+## One entry: a red ► cursor and the word, which steps right when selected, plus a short caption
+## that types itself out beside it. The hit box is only as wide as the word, not the whole column.
+## Everything sits in `inner` so the intro can slide the entry in without fighting the hover motion.
+func _menu_item(col: Control, text: String, hint: String, panel: String, action: Callable) -> void:
 	var b := Button.new()
-	b.text = text
 	b.flat = true
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	b.add_theme_font_override("font", _font(8))
-	b.add_theme_font_size_override("font_size", 34)
-	for n in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
-		b.add_theme_color_override(n, Color(0.9, 0.882, 0.804, 0.6) if n == "font_color" else Color.WHITE)
-	var empty := StyleBoxEmpty.new()
-	empty.content_margin_top = 6
-	empty.content_margin_bottom = 6
-	for n in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-		b.add_theme_stylebox_override(n, empty)
-	# a red marker slides in on hover
-	b.mouse_entered.connect(func(): b.text = "> " + text)
-	b.mouse_exited.connect(func(): b.text = text)
-	b.pressed.connect(_click)
-	return b
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	for n in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(n, StyleBoxEmpty.new())
+	var f := _font(8)
+	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 34).x
+	b.custom_minimum_size = Vector2(w + SLIDE + 12, ROW_H)
+	col.add_child(b)
+
+	var inner := Control.new()
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(inner)
+	var mark := _label("►", 34, RED)
+	mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	mark.size = Vector2(SLIDE, ROW_H)
+	mark.position.x = -10.0
+	mark.modulate.a = 0.0
+	inner.add_child(mark)
+	var l := _label(text, 34, Color.WHITE, 8)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size = Vector2(w + 12, ROW_H)
+	l.self_modulate = DIM
+	inner.add_child(l)
+	# caption sits on the word's baseline, not centred on it
+	var h := _label(hint, 12, Color(0.9, 0.882, 0.804, 0.4), 4)
+	h.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.size = Vector2(0, ROW_H)
+	h.position = Vector2(w + SLIDE + 34, (font.get_ascent(34) - font.get_ascent(12)) * 0.5)
+	h.modulate.a = 0.0
+	h.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING
+	inner.add_child(h)
+
+	var i := items.size()
+	items.append({"button": b, "inner": inner, "label": l, "mark": mark, "hint": h, "panel": panel, "action": action, "tw": null})
+	b.mouse_entered.connect(func(): _select(i))
+	b.mouse_exited.connect(func():
+		if sel == i: _select(-1))
+	b.pressed.connect(_activate.bind(i))
+
+func _select(i: int) -> void:
+	if i == sel or busy:
+		return
+	var prev := sel
+	sel = i
+	if prev >= 0:
+		_item_state(prev)
+	if i >= 0:
+		_item_state(i)
+		tick.pitch_scale = randf_range(1.45, 1.55)
+		tick.play()
+
+## Lit = selected, or its panel is open. Only the selected one shows its caption.
+func _item_state(i: int) -> void:
+	var it: Dictionary = items[i]
+	var hovered := i == sel
+	var lit: bool = hovered or (it["panel"] != "" and it["panel"] == active_panel)
+	var old: Tween = it["tw"]
+	if old and old.is_valid():
+		old.kill()
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(it["label"], "position:x", SLIDE if lit else 0.0, 0.32).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(it["label"], "self_modulate", Color.WHITE if lit else DIM, 0.2)
+	tw.tween_property(it["mark"], "position:x", 0.0 if lit else -10.0, 0.32).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(it["mark"], "modulate:a", 1.0 if lit else 0.0, 0.18)
+	var h: Label = it["hint"]
+	if hovered and h.modulate.a < 0.05:
+		h.visible_ratio = 0.0
+	tw.tween_property(h, "modulate:a", 1.0 if hovered else 0.0, 0.2 if hovered else 0.15)
+	if hovered:
+		tw.tween_property(h, "visible_ratio", 1.0, 0.3).set_delay(0.08)
+	it["tw"] = tw
+
+func _step(d: int) -> void:
+	if sel < 0:
+		_select(0 if d > 0 else items.size() - 1)
+	else:
+		_select(posmod(sel + d, items.size()))
+
+## Click / Enter: the word blinks like a VCR menu confirming, then the entry does its thing
+func _activate(i: int) -> void:
+	if busy:
+		return
+	W._finish(intro)
+	_click()
+	var l: Label = items[i]["label"]
+	var tw := create_tween()
+	tw.tween_method(func(x: float): l.modulate.a = 1.0 if fmod(x * 3.0, 1.0) > 0.45 else 0.3, 0.0, 1.0, 0.3)
+	tw.tween_callback(func(): l.modulate.a = 1.0)
+	items[i]["action"].call()
+
+func _on_panel_changed(name: String) -> void:
+	active_panel = name
+	for i in items.size():
+		_item_state(i)
+	# the counter and credits sit where the side panel opens: step them out of its way
+	if corner_tw: corner_tw.kill()
+	corner_tw = create_tween().set_parallel(true)
+	for c in [counter, credits]:
+		corner_tw.tween_property(c, "modulate:a", 0.0 if name != "" else 1.0, 0.2)
+
+# ---- intro ----------------------------------------------------------------------------
+## Out of black, then the column builds itself: tag types, the title's tracking locks in, the sub line
+## types, the entries slide in one by one, and the corner OSD comes up last. Any key or click skips it.
+func _intro() -> void:
+	modulate.a = 0.0
+	next_glitch = 3.5
+	intro = create_tween().set_parallel(true)
+	intro.tween_property(self, "modulate:a", 1.0, 1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	W._stagger(intro, [tag_row], 0.2, 0.0, 0.3)
+	W._type_in(intro, tag_label, 0.2, 0.45)
+	W._lock_in(intro, title_label, fringes, 0.35, 1.1, 40.0)
+	W._type_in(intro, sub_label, 0.8, 0.6)
+	for i in items.size():
+		var inner: Control = items[i]["inner"]
+		inner.position.x = -24.0
+		inner.modulate.a = 0.0
+		var d := 1.0 + i * 0.08
+		intro.tween_property(inner, "position:x", 0.0, 0.55).set_delay(d).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+		intro.tween_property(inner, "modulate:a", 1.0, 0.4).set_delay(d)
+	W._stagger(intro, [footer, credits, counter], 1.45, 0.1, 0.6)
 
 func _build_loading() -> void:
 	loading_root = Control.new()
@@ -367,6 +528,24 @@ func _build_loading() -> void:
 	load_tip = _label(TIPS[randi() % TIPS.size()], 14, Color(0.9, 0.882, 0.804, 0.45), 1)
 	load_tip.position = Vector2(110, 960)
 	loading_root.add_child(load_tip)
+
+## Quit overlay: two black shutters and the bright line a CRT collapses to when it is switched off
+func _build_crt() -> void:
+	crt = Control.new()
+	crt.visible = false
+	add_child(crt)
+	_full(crt)
+	crt.mouse_filter = Control.MOUSE_FILTER_STOP
+	crt_top = ColorRect.new()
+	crt_bottom = ColorRect.new()
+	crt_line = ColorRect.new()
+	for r in [crt_top, crt_bottom]:
+		r.color = Color.BLACK
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		crt.add_child(r)
+	crt_line.color = Color(1.0, 0.97, 0.9)
+	crt_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	crt.add_child(crt_line)
 
 func _fx_shader() -> Shader:
 	var s := Shader.new()
@@ -448,28 +627,66 @@ func _click() -> void:
 func _open_panel(name: String) -> void:
 	settings_menu._on_nav(name)
 
-## Fade to black (picture and music), then exit
+## Switch the set off: the picture collapses to a bright line, the line to nothing, then exit
 func _on_quit() -> void:
-	if quitting or loading:
+	if busy:
 		return
-	quitting = true
+	busy = true
+	settings_menu.close_panel()
+	var s := size
+	var mid := s.y * 0.5
+	crt.visible = true
+	crt_top.position = Vector2.ZERO
+	crt_top.size = Vector2(s.x, 0)
+	crt_bottom.position = Vector2(0, s.y)
+	crt_bottom.size = Vector2(s.x, s.y)
+	crt_line.position = Vector2(0, mid - 1.0)
+	crt_line.size = Vector2(s.x, 2)
+	crt_line.modulate.a = 0.0
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(self, "modulate:a", 0.0, 0.7).set_trans(Tween.TRANS_QUAD)
-	if music:
-		tw.tween_property(music, "volume_db", -60.0, 0.7)
+	tw.tween_interval(0.15)                  # let the QUIT blink register first
+	tw.chain().tween_property(crt_top, "size:y", mid, 0.3).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_property(crt_bottom, "position:y", mid, 0.3).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_property(crt_line, "modulate:a", 1.0, 0.08).set_delay(0.22)
+	tw.chain().tween_property(crt_line, "position:x", s.x * 0.5 - 2.0, 0.24).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.tween_property(crt_line, "size:x", 4.0, 0.24).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN)
+	tw.chain().tween_property(crt_line, "modulate:a", 0.0, 0.12)
+	tw.chain().tween_interval(0.15)
 	tw.chain().tween_callback(get_tree().quit)
+	if music:
+		create_tween().tween_property(music, "volume_db", -60.0, 0.7)
 
-func _on_play() -> void:
-	if loading:
+## PLAY: the entry blinks, the column fades away, then the loading screen comes up over it.
+## `now` skips the hand-off (launched straight into a level from the level editor).
+func _on_play(now := false) -> void:
+	if busy:
 		return
+	busy = true
+	if music:
+		create_tween().tween_property(music, "volume_db", -60.0, 1.5)
+	if now:
+		_start_loading()
+		return
+	settings_menu.close_panel()
+	if corner_tw: corner_tw.kill()           # closing the panel would bring the corners back
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(menu_box, "modulate:a", 0.0, 0.35).set_delay(0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	for c in [counter, credits]:
+		tw.tween_property(c, "modulate:a", 0.0, 0.3).set_delay(0.2)
+	tw.chain().tween_callback(_start_loading)
+
+func _start_loading() -> void:
 	loading = true
 	loading_root.visible = true
 	loading_root.modulate.a = 0.0
-	create_tween().tween_property(loading_root, "modulate:a", 1.0, 0.5)
-	if music:
-		create_tween().tween_property(music, "volume_db", -60.0, 1.5)
 	load_title.text = "LOADING // %s" % _level_name().to_upper()
 	load_tip.text = TIPS[randi() % TIPS.size()]
+	load_bar.size.x = 0.0
+	load_pct.text = "0%"
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(loading_root, "modulate:a", 1.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	W._type_in(tw, load_title, 0.15, 0.5)
+	W._type_in(tw, load_tip, 0.6, 1.2)
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
@@ -478,6 +695,8 @@ func _on_play() -> void:
 ## The playlist entry the run starts on, so the loading screen names the level actually being built
 func _level_name() -> String:
 	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
+	if levels.is_empty():
+		return "LEVEL 0"
 	var meta = levels[clampi(Game.level_index, 0, levels.size() - 1)]
 	return str(meta.get("name", "LEVEL 0"))
 
@@ -486,14 +705,29 @@ func _finish_loading() -> void:
 	Game.respawned = true              # straight into the run: the title screen is this scene
 	get_tree().change_scene_to_packed(packed)
 
+## Any key or click during the intro jumps it to the end (the press still does what it normally does)
+func _input(e: InputEvent) -> void:
+	if intro and intro.is_valid() and e.is_pressed() and not e.is_echo() \
+			and (e is InputEventKey or e is InputEventMouseButton):
+		W._finish(intro)
+
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_ESCAPE:
+	if not (e is InputEventKey and e.pressed):
+		return
+	var k: Key = e.physical_keycode
+	if k == KEY_ESCAPE and not e.echo:
 		settings_menu.close_panel()
 		return
-	if quitting: return
-	if not loading and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
-		_click()
-		_on_play()
+	if busy:
+		return
+	match k:
+		KEY_UP, KEY_W:
+			_step(-1)
+		KEY_DOWN, KEY_S:
+			_step(1)
+		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
+			if not e.echo:
+				_activate(sel if sel >= 0 else 0)     # nothing picked yet: Enter still means PLAY
 
 # ---- per-frame -----------------------------------------------------------------------
 func _process(dt: float) -> void:
@@ -505,6 +739,8 @@ func _process(dt: float) -> void:
 		bg_timer += dt
 		if bg_timer >= BG_HOLD and not bg_fading and bg_tex.size() > 1:
 			_next_bg()
+		rec_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
+		counter.text = "► PLAY  %d:%02d:%02d" % [int(t / 3600.0), int(t / 60.0) % 60, int(t) % 60]
 
 func _process_loading(dt: float) -> void:
 	load_elapsed += dt
@@ -535,6 +771,7 @@ func _process_loading(dt: float) -> void:
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 		load_pct.text = "LOAD FAILED"
 		loading = false
+		busy = false                  # Enter tries again
 		return
 	if done and load_elapsed >= MIN_LOAD_TIME:
 		set_process(false)
@@ -544,6 +781,8 @@ func _process_loading(dt: float) -> void:
 
 # ---- random VHS glitch on the title -------------------------------------------------
 func _update_glitch(dt: float) -> void:
+	if intro and intro.is_valid():
+		return                              # the intro's lock-in owns the fringes until it settles
 	if glitch_left > 0.0:
 		glitch_left -= dt
 		glitch_tick -= dt

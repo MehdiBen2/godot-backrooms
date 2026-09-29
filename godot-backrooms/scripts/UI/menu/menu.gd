@@ -3,6 +3,10 @@ extends "res://scripts/UI/menu/menu_panels.gd"
 ## js/game/settings.js): dark left-to-right veil over the live view, REC tag, big VCR title with a
 ## red/blue split, sub line, lore, callsign field, blinking action line, Settings / Controls links
 ## and a side panel. Built for a 1920x1080 canvas so pixel sizes match the browser.
+## Opening it pulls the blur in and brings the column up line by line (title tracking locks in last);
+## the side panel powers on / off and its rows come up in order.
+
+signal panel_changed(name: String)
 
 var title_label: Label
 var sub_label: Label
@@ -19,7 +23,9 @@ var t := 0.0
 var blur_mat: ShaderMaterial
 var shown := false
 var fade: Tween
+var reveal: Tween
 var panel_tween: Tween
+var main_col: VBoxContainer
 var title_static: Control               # VHS tracking bars, only visible during a glitch
 var sub_base := ""
 var glitch_left := 0.0
@@ -33,6 +39,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE      # clicks on the empty veil fall through to "resume"
 	_load()
 	_build()
+	panel.visible = false
 	_show_panel("")
 	if embedded:
 		_embed_setup()
@@ -94,6 +101,7 @@ func _build() -> void:
 	main.size_flags_vertical = Control.SIZE_SHRINK_END
 	main.custom_minimum_size = Vector2(544, 0)
 	layout.add_child(main)
+	main_col = main
 
 	var tag := HBoxContainer.new()
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -251,47 +259,90 @@ func _on_nav(name: String) -> void:
 	_show_panel("" if open_section == name else name)
 
 func _show_panel(name: String) -> void:
-	var was_open := panel.visible
+	var switching := open_section != "" and name != "" and panel.visible
 	open_section = name
-	panel.visible = name != ""
-	if panel_tween: panel_tween.kill()
-	panel.modulate.a = 1.0
-	panel.scale = Vector2.ONE
-	if name != "":
-		_animate_panel_in(was_open)
-	for n in sections:
-		sections[n].visible = n == name
-	for n in nav_buttons:
-		var b: Button = nav_buttons[n]
-		var active: bool = n == name
-		b.add_theme_stylebox_override("normal", _underline(RED if active else Color(0.9, 0.882, 0.804, 0.25)))
-		b.add_theme_color_override("font_color", Color.WHITE if active else Color(0.9, 0.882, 0.804, 0.7))
-	if name != "":
+	_finish(panel_tween)
+	if name == "":
+		_animate_panel_out()
+	else:
+		for n in sections:
+			sections[n].visible = n == name
 		panel_title.text = name.to_upper()
+		panel.visible = true
+		_animate_panel_in(switching)
+	for n in nav_buttons:
+		_set_link_active(nav_buttons[n], n == name)
+	panel_changed.emit(name)
 
-## Panel powers on like a CRT / VHS overlay: scale settles in while the alpha stutters
+## Panel powers on like a CRT / VHS overlay: scale settles in while the alpha stutters, the header
+## types itself out and the rows come up top to bottom. Switching sections only re-runs a short flicker.
 func _animate_panel_in(switching: bool) -> void:
-	panel.scale = Vector2(0.97, 0.94) if switching else Vector2(0.94, 0.86)
+	panel.scale = Vector2(0.985, 0.97) if switching else Vector2(0.94, 0.86)
 	panel.modulate.a = 0.0
 	panel_tween = create_tween()
 	panel_tween.set_parallel(true)
-	panel_tween.tween_property(panel, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	panel_tween.tween_method(func(x: float): panel.modulate.a = _flicker(x), 0.0, 1.0, 0.3)
+	panel_tween.tween_property(panel, "scale", Vector2.ONE, 0.22 if switching else 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	panel_tween.tween_method(func(x: float): panel.modulate.a = _flicker(x), 0.0, 1.0, 0.18 if switching else 0.3)
+	_type_in(panel_tween, panel_title, 0.04, 0.22)
+	var rows: Array = sections[open_section].get_children()
+	_stagger(panel_tween, rows, 0.08, minf(0.025, 0.32 / maxf(rows.size(), 1.0)), 0.22)
 
-## Fade in (0.45 s) / fade out (0.35 s), matching the web #start-screen opacity transition
-func show_menu(on: bool) -> void:
+## Closing is the power-on run backwards and quicker: dip, blink, gone
+func _animate_panel_out() -> void:
+	if not panel.visible:
+		return
+	panel_tween = create_tween()
+	panel_tween.set_parallel(true)
+	panel_tween.tween_method(func(x: float): panel.modulate.a = _flicker(1.0 - x), 0.0, 1.0, 0.16)
+	panel_tween.tween_property(panel, "scale", Vector2(0.97, 0.9), 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	panel_tween.chain().tween_callback(func():
+		panel.visible = false
+		panel.modulate.a = 1.0
+		panel.scale = Vector2.ONE)
+
+## Fade in / out over the live view. The blur is pulled in with the fade rather than popping on, and
+## the column comes up line by line. `intro` is the first start screen: slower, and the small lines type.
+func show_menu(on: bool, intro := false) -> void:
 	if on == shown and visible == on:
 		return
 	shown = on
 	if fade: fade.kill()
-	fade = create_tween()
+	_finish(reveal)
+	fade = create_tween().set_parallel(true)
 	if on:
 		visible = true
 		modulate.a = 0.0
-		fade.tween_property(self, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		fade.tween_property(self, "modulate:a", 1.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		fade.tween_method(_set_blur, 0.0, 2.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_reveal(intro)
+		if panel.visible:
+			_finish(panel_tween)
+			_animate_panel_in(false)
 	else:
-		fade.tween_property(self, "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		fade.tween_callback(func(): visible = false)
+		release_focus_all()
+		fade.tween_property(self, "modulate:a", 0.0, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		fade.tween_method(_set_blur, 2.0, 0.0, 0.25)
+		fade.chain().tween_callback(func(): visible = false)
+
+func _set_blur(r: float) -> void:
+	blur_mat.set_shader_parameter("radius", r)
+
+func _reveal(intro: bool) -> void:
+	_glitch_end()
+	glitch_left = 0.0
+	next_glitch = maxf(next_glitch, 2.5)       # the lock-in owns the fringes until it settles
+	var step := 0.07 if intro else 0.028
+	reveal = create_tween().set_parallel(true)
+	var items: Array = []
+	for c in main_col.get_children():
+		if c != title_label:
+			items.append(c)
+	_stagger(reveal, items, 0.1 if intro else 0.03, step, 0.45 if intro else 0.26)
+	_lock_in(reveal, title_label, title_label.get_meta("fringes"), 0.15 if intro else 0.02, 0.9 if intro else 0.45, 30.0 if intro else 14.0)
+	if intro:
+		_type_in(reveal, sub_label, 0.5, 0.55)
+		_type_in(reveal, lore_label, 0.75, 0.6)
+		_type_in(reveal, action_label, 1.1, 0.45)
 
 ## ESC closes an open panel first (like input.js); returns true if it consumed the key
 func close_panel() -> bool:
