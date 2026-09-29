@@ -26,6 +26,7 @@ var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd
 var charging := 0.0              # s left until it can fire again
 var last_hit := false            # the last flash caught the Bacteria (for the tests / debug)
+var since_fired := INF           # s since the last one went off (the HUD's noise meter shows the pop)
 var _charge_sfx: AudioStreamPlayer
 
 func _ready() -> void:
@@ -37,6 +38,7 @@ func _ready() -> void:
 
 func _process(dt: float) -> void:
 	charging = maxf(0.0, charging - dt)
+	since_fired += dt
 
 func _unhandled_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
@@ -59,6 +61,7 @@ func fire() -> bool:
 		return false
 	inventory.remove_item(FlashPickup.ITEM_ID)
 	charging = RECHARGE
+	since_fired = 0.0
 	var cam: Camera3D = player.cam
 	var look := -cam.global_transform.basis.z
 	var origin := cam.global_position
