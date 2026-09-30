@@ -196,15 +196,66 @@ func _caption(t: String) -> void:
 	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(root_ctrl)
 
+	# a camcorder recording of the words: red and cyan fringes split either side (added over the text),
+	# then the text itself with scanlines, grain, tracking jitter and the odd tape tear
+	root_ctrl.modulate.a = 0.0
+	root_ctrl.add_child(_caption_label(t, Color(1.0, 0.12, 0.08, 0.75), -2.5, true))
+	root_ctrl.add_child(_caption_label(t, Color(0.1, 0.85, 1.0, 0.75), 2.5, true))
+	root_ctrl.add_child(_caption_label(t, Color.WHITE, 0.0, false))
+
+	var tw := layer.create_tween()
+	tw.tween_property(root_ctrl, "modulate:a", 1.0, CAPTION_IN)
+	tw.tween_interval(CAPTION_HOLD)
+	tw.tween_property(root_ctrl, "modulate:a", 0.0, CAPTION_OUT)
+	tw.tween_callback(layer.queue_free)
+
+## VHS tape caption shader, the look of an old camcorder recording (the text itself stays put): `split` px
+## sideways for the chromatic fringe, horizontal colour bleed / softness, scanlines, grain, a rolling
+## brighter band, and now and then a tracking hiccup that tears a few lines sideways. Fringes draw additively.
+const VHS_SHADER := """
+shader_type canvas_item;
+render_mode %s;
+uniform vec4 tint = vec4(1.0);
+uniform float split = 0.0;
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+void vertex() {
+	VERTEX.x += split;
+}
+void fragment() {
+	float tick = floor(TIME * 24.0);
+	float band = floor(FRAGCOORD.y / 16.0);
+	float tracking = step(0.97, hash(floor(TIME * 3.0) * 1.73));      // a rare tracking hiccup
+	float tear = step(0.9 - tracking * 0.5, hash(band + tick * 3.1)) * (hash(floor(FRAGCOORD.y / 3.0) + tick) - 0.5);
+	vec2 uv = UV + vec2(tear * 5.0 * TEXTURE_PIXEL_SIZE.x, 0.0);
+	vec2 px = vec2(TEXTURE_PIXEL_SIZE.x, 0.0);
+	// tape bleed: the signal smears to the right, a soft trail rather than crisp edges
+	vec4 c = texture(TEXTURE, uv) * 0.55 + texture(TEXTURE, uv - px) * 0.25 + texture(TEXTURE, uv - px * 2.0) * 0.2;
+	c *= COLOR * tint;
+	float scan = 0.72 + 0.28 * sin(FRAGCOORD.y * 3.14159);
+	float grain = 0.8 + 0.4 * hash(FRAGCOORD.x * 0.37 + FRAGCOORD.y * 91.7 + TIME * 61.0);
+	float roll = 1.0 + 0.35 * (1.0 - smoothstep(0.0, 0.04, abs(fract(SCREEN_UV.y * 0.8 - TIME * 0.18) - 0.5)));
+	c.rgb *= scan * grain * roll;
+	c.a *= 0.85 + 0.15 * hash(tick * 0.31);
+	COLOR = c;
+}
+"""
+static var _vhs_mix: Shader
+static var _vhs_add: Shader
+
+func _caption_label(t: String, tint: Color, split: float, fringe: bool) -> Label:
+	if _vhs_mix == null:
+		_vhs_mix = Shader.new(); _vhs_mix.code = VHS_SHADER % "blend_mix"
+		_vhs_add = Shader.new(); _vhs_add.code = VHS_SHADER % "blend_add"
 	var lbl := Label.new()
 	lbl.text = t
 	if ResourceLoader.exists("res://fonts/vcr.ttf"):
 		lbl.add_theme_font_override("font", load("res://fonts/vcr.ttf"))
 	lbl.add_theme_font_size_override("font_size", 28)
 	lbl.add_theme_color_override("font_color", Color("e6e1cd"))
-	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
-	lbl.add_theme_constant_override("shadow_offset_x", 2)
-	lbl.add_theme_constant_override("shadow_offset_y", 2)
+	if not fringe:
+		lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
+		lbl.add_theme_constant_override("shadow_offset_x", 2)
+		lbl.add_theme_constant_override("shadow_offset_y", 2)
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -214,11 +265,9 @@ func _caption(t: String) -> void:
 	lbl.offset_top = -200
 	lbl.offset_bottom = -110
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	lbl.modulate.a = 0.0
-	root_ctrl.add_child(lbl)
-
-	var tw := layer.create_tween()
-	tw.tween_property(lbl, "modulate:a", 1.0, CAPTION_IN)
-	tw.tween_interval(CAPTION_HOLD)
-	tw.tween_property(lbl, "modulate:a", 0.0, CAPTION_OUT)
-	tw.tween_callback(layer.queue_free)
+	var mat := ShaderMaterial.new()
+	mat.shader = _vhs_add if fringe else _vhs_mix
+	mat.set_shader_parameter("tint", tint)
+	mat.set_shader_parameter("split", split)
+	lbl.material = mat
+	return lbl

@@ -2099,20 +2099,6 @@
     },
     {
       "custom_event": "",
-      "delay": 0.3,
-      "depth": 2.0,
-      "duration": 2.0,
-      "event": "message",
-      "once": false,
-      "pos_x": 3.0,
-      "pos_y": 10.5,
-      "rotation": 0.0,
-      "scale": 3.0,
-      "text": "you have been here before.",
-      "type": "trigger"
-    },
-    {
-      "custom_event": "",
       "delay": 0.0,
       "depth": 2.0,
       "duration": 20.0,
@@ -2131,6 +2117,26 @@
       "rotation": 90.0,
       "scale": 4.0,
       "type": "door"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "message",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "message"
+        }
+      ],
+      "once": true,
+      "pos_x": 5.5,
+      "pos_y": 10.0,
+      "rotation": 180.0,
+      "scale": 3.0,
+      "text": "You have already been here.",
+      "type": "trigger"
     }
   ],
   "sdfgi": false,

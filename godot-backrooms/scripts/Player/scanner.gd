@@ -6,7 +6,9 @@ extends Node
 ## also goes to Clearance.file() for its Research Yield (asra_clearance.gd): new sites and repeat
 ## readings of logged entities still pay, a little.
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
-## the points it can be read from in scan_points() (see the entity scripts).
+## the points it can be read from in scan_points() (see the entity scripts). Entities read from
+## anywhere in RANGE; props (survey_clipboard.gd, dead_fixture.gd) give a short scan_range(), so
+## the signal meter still leads to them from afar but the reading only starts up close.
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
 ## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`, and,
 ## by clearance (asra_clearance.gd), `signal_bearing` (C-3 range-finder) and `target_node` (C-4 deep scan).
@@ -200,6 +202,8 @@ func _best_target() -> Dictionary:
 		var id := str(n.get_meta("asra_id", ""))
 		if id == "":
 			continue
+		# entities read from anywhere in RANGE; a prop that has scan_range() only from up close
+		var lock_range: float = minf(RANGE, n.scan_range()) if n.has_method("scan_range") else RANGE
 		for p in n.scan_points():
 			var d: Vector3 = p - from
 			var dist := d.length()
@@ -211,7 +215,7 @@ func _best_target() -> Dictionary:
 				raw_signal = s
 				raw_dist = dist
 				raw_bearing = rad_to_deg(flat_fwd.angle_to(Vector2(d.x, d.z)))
-			if dot >= CONE_COS:
+			if dot >= CONE_COS and dist <= lock_range:
 				found.append([dot, id, p, dist, n])
 	if found.is_empty():
 		return {}
