@@ -6,7 +6,7 @@
     ".claude/hooks/vexp-verify.sh": "0b5586d74ab89e531dba599f9c72104b34f0179004db4abd79ee77e7fa35e2de",
     ".codex/vexp-hint.sh": "ba7726f7c07a4aba51c3da975e9fb50ab525f170a7878baa1f9c04c506ee9512",
     "AGENTS.md": "e5c14c601fc65802b7b0057b0c9ff0a7b1902ece5db47f99ecde3b8379055aeb",
-    "README.md": "5dec49d97336ba0d7f9fb0f22c04e70b70cf2ab05a792952f0f8999aac922627",
+    "README.md": "e0412d90586cac8d6b48180e57240000a6c70ff5a5ef5653d3279d26e45671c8",
     "futurtoeditlore.md": "2dff7f77da3ff496b5f0d4d33638bc50c42013ce6b741b35698236fa697e3482",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "896f1c903052b36ae90fac4fe623b53ed37ba230ead2c17c8dccb30b6efbbe56",
@@ -21,14 +21,15 @@
     "godot-backrooms/tools/make_wind.py": "2fe025afaaf0ee5230a7892c7773c6b7f5661081a1af75863a80152fcc9d47ce",
     "godot-backrooms/tools/measure_audio.py": "b1162f6eb4267ea7139ba1b790a3b3febe1bf2085fab443d8f0319958d9289af",
     "launcher/README.md": "506ee9543a4f256163974324939920dfa3680af6e21a245f60880551789ce083",
+    "tools/blender/build_grabber.py": "355c15ac519c55722ef201bedca33a7fc8191201453b8aa91e76d6f488cb55ea",
     "tools/blender/build_player_hazmat.py": "4d542f99e19362f77e8d6b27d0a369f7cc99ce76c2dcabf4585ae898a51a668a",
     "tools/blender/rig_mannequin_variant.py": "ad439292c5443f1739111d49949d1c457e3299825f9948203dd8a47dda9db947",
     "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
   },
-  "indexed_at_commit": "377e4a688920ae7fe8db23418b2f1e27fa4234cd",
-  "indexed_at_timestamp": "2026-09-30T13:09:58.025790+00:00",
+  "indexed_at_commit": "3632197846ab4060a595ec4c7acc4c5eace068b0",
+  "indexed_at_timestamp": "2026-09-30T14:11:08.341160+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -39,16 +40,16 @@
       "nodes": 3
     },
     "python": {
-      "calls": 135,
-      "nodes": 103
+      "calls": 223,
+      "nodes": 136
     }
   },
   "parser_version": "3.2.5",
   "schema_version": 3,
   "stats": {
-    "total_edges": 172,
-    "total_files": 26,
-    "total_nodes": 143
+    "total_edges": 262,
+    "total_files": 27,
+    "total_nodes": 176
   },
   "vexp_version": "3.2.5"
 }

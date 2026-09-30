@@ -1,5 +1,5 @@
 {
-  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs.",
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on).",
   "thin_wall": {
     "label": "Thin wall",
     "key": "4",
@@ -12,7 +12,10 @@
     "params": {
       "thick": 0.3,
       "height": 0.0
-    }
+    },
+    "category": "walls",
+    "max_scale": 40.0,
+    "draw_line": true
   },
   "arch": {
     "label": "Arch",
@@ -22,7 +25,8 @@
     "thickness": 4.5,
     "pillar": 0.75,
     "on_cell": "open",
-    "blocks_nav": false
+    "blocks_nav": false,
+    "category": "openings"
   },
   "door": {
     "label": "Door",
@@ -32,7 +36,8 @@
     "thickness": 0.3,
     "opening": 1.12,
     "on_cell": "wall",
-    "blocks_nav": true
+    "blocks_nav": true,
+    "category": "openings"
   },
   "stairs_up": {
     "label": "Stairs up",
@@ -42,7 +47,8 @@
     "thickness": 4.5,
     "on_cell": "wall",
     "blocks_nav": false,
-    "rise": 3.0
+    "rise": 3.0,
+    "category": "openings"
   },
   "stairs_down": {
     "label": "Stairs down",
@@ -51,7 +57,8 @@
     "help": "A flight of steps down to the floor below, sunk into its cell (the editor makes the cell a pit). Walk down it (towards the arrow) to go there; you arrive beside that floor's Stairs up nearest this spot",
     "thickness": 4.5,
     "blocks_nav": false,
-    "rise": 3.0
+    "rise": 3.0,
+    "category": "openings"
   },
   "half_wall": {
     "label": "Half wall",
@@ -63,7 +70,10 @@
     "params": {
       "thick": 0.15,
       "height": 1.25
-    }
+    },
+    "category": "walls",
+    "max_scale": 40.0,
+    "draw_line": true
   },
   "wall_corner": {
     "label": "Corner wall",
@@ -77,7 +87,8 @@
     "params": {
       "thick": 0.3,
       "height": 0.0
-    }
+    },
+    "category": "walls"
   },
   "wall_curve": {
     "label": "Curved wall",
@@ -92,7 +103,8 @@
       "thick": 0.3,
       "height": 0.0,
       "arc": 90.0
-    }
+    },
+    "category": "walls"
   },
   "pillar": {
     "label": "Square pillar",
@@ -105,7 +117,8 @@
     "params": {
       "thick": 0.9,
       "height": 0.0
-    }
+    },
+    "category": "walls"
   },
   "column": {
     "label": "Round column",
@@ -118,7 +131,8 @@
     "params": {
       "thick": 0.7,
       "height": 0.0
-    }
+    },
+    "category": "walls"
   },
   "trigger": {
     "label": "Event trigger",
@@ -149,7 +163,8 @@
       "preacherWhisper": "Director event: a preacher's voice down a corridor",
       "tiltDrift": "Director event: the world slowly tilts",
       "powerCut": "Director event: the whole floor's power fails for a minute"
-    }
+    },
+    "category": "events"
   },
   "prop_explosive_barrel": {
     "label": "Explosive barrel",
@@ -163,7 +178,8 @@
       "normal": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Roughness.png",
       "metallic": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_water_barrel": {
     "label": "Water barrel",
@@ -177,7 +193,8 @@
       "normal": "res://models/props/industrial/Water_Barrel/Water_Barrel_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Water_Barrel/Water_Barrel_Roughness.png",
       "metallic": "res://models/props/industrial/Water_Barrel/Water_Barrel_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_gas_can": {
     "label": "Gas can",
@@ -191,7 +208,8 @@
       "normal": "res://models/props/industrial/Gas_can/GasCan_Normal.png",
       "roughness": "res://models/props/industrial/Gas_can/GasCan_Roughness.png",
       "metallic": "res://models/props/industrial/Gas_can/GasCan_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_gas_cylinder": {
     "label": "Gas cylinder",
@@ -205,7 +223,8 @@
       "normal": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Normal.png",
       "roughness": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Roughness.png",
       "metallic": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_cable_drum": {
     "label": "Cable drum",
@@ -219,7 +238,8 @@
       "normal": "res://models/props/industrial/CableDrum/CableDrum_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/CableDrum/CableDrum_Roughness.png",
       "metallic": "res://models/props/industrial/CableDrum/CableDrum_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_car_jack": {
     "label": "Car jack",
@@ -233,7 +253,8 @@
       "normal": "res://models/props/industrial/Car_Jack/CarJack_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Car_Jack/CarJack_Roughness.png",
       "metallic": "res://models/props/industrial/Car_Jack/CarJack_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_electrical_box": {
     "label": "Electrical box",
@@ -247,7 +268,8 @@
       "normal": "res://models/props/industrial/ElectricalBox/ElectricalBox_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/ElectricalBox/ElectricalBox_Roughness.png",
       "metallic": "res://models/props/industrial/ElectricalBox/ElectricalBox_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_electrical_box2": {
     "label": "Electrical box (b)",
@@ -261,7 +283,8 @@
       "normal": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Roughness.png",
       "metallic": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_pallet_truck": {
     "label": "Pallet truck",
@@ -275,7 +298,8 @@
       "normal": "res://models/props/industrial/PalletTruck/PalletTruck_Normal.png",
       "roughness": "res://models/props/industrial/PalletTruck/PalletTruck_Roughness.png",
       "metallic": "res://models/props/industrial/PalletTruck/PalletTruck_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_platform_trolley": {
     "label": "Platform trolley",
@@ -289,7 +313,8 @@
       "normal": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Roughness.png",
       "metallic": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Metallic.png"
-    }
+    },
+    "category": "props"
   },
   "prop_work_light": {
     "label": "Work light",
@@ -304,7 +329,8 @@
       "roughness": "res://models/props/industrial/WorkLight/WorkLight_Roughness.png",
       "metallic": "res://models/props/industrial/WorkLight/WorkLight_Metallic.png",
       "emissive": "res://models/props/industrial/WorkLight/WorkLight_Emissive.png"
-    }
+    },
+    "category": "props"
   },
   "prop_work_light2": {
     "label": "Work light (b)",
@@ -319,6 +345,7 @@
       "roughness": "res://models/props/industrial/Worklight02/WorkLight02_Roughness.png",
       "metallic": "res://models/props/industrial/Worklight02/WorkLight02_Metallic.png",
       "emissive": "res://models/props/industrial/Worklight02/WorkLight02_Emissive.png"
-    }
+    },
+    "category": "props"
   }
 }

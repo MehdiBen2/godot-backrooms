@@ -36,6 +36,7 @@ var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
 
 func _ready() -> void:
+	_apply_ui_scale(_load_ui_scale())
 	theme = _make_theme()
 	_scan_pbr()
 	_load_object_types()
@@ -79,7 +80,7 @@ func _make_theme() -> Theme:
 	fv.base_font = font
 	fv.spacing_glyph = 1
 	t.default_font = fv
-	t.default_font_size = 16
+	t.default_font_size = 17
 	for c in ["Button", "OptionButton", "CheckBox"]:
 		t.set_stylebox("normal", c, _box(Color("1d1a10"), LINE, 0, 6))
 		t.set_stylebox("hover", c, _box(Color("2b2716"), GOLD, 0, 6))
@@ -169,14 +170,19 @@ func _build_ui() -> void:
 	save_b.add_theme_color_override("font_color", GOLD)
 	tb.add_child(save_b)
 
-	var body := HBoxContainer.new()
+	# levels | map | tools, with draggable dividers between them (widths remembered in user://editor.cfg)
+	var body := HSplitContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 0)
 	root.add_child(body)
+	var inner := HSplitContainer.new()
+	split_left = body
+	split_right = inner
 
 	# left: level list
-	var left := _panel(270)
+	var left := _panel(160)
+	left.custom_minimum_size.x = 160
 	body.add_child(left)
+	body.add_child(inner)
 	var lv := VBoxContainer.new()
 	left.add_child(lv)
 	lv.add_child(_label("LEVELS", 16, GOLD))
@@ -242,7 +248,7 @@ func _build_ui() -> void:
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_theme_constant_override("separation", 0)
-	body.add_child(mid)
+	inner.add_child(mid)
 	# the bar over the map: how clicks paint, which surface is shown, which layers are drawn
 	var bar := PanelContainer.new()
 	bar.add_theme_stylebox_override("panel", _box(Color("100e08"), LINE, 0, 5))
@@ -313,8 +319,9 @@ func _build_ui() -> void:
 	canvas.add_child(preview3d)
 
 	# right: tools
-	var right := _panel(330)
-	body.add_child(right)
+	var right := _panel(220)
+	inner.add_child(right)
+	_restore_splits()
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	right.add_child(scroll)
@@ -322,6 +329,7 @@ func _build_ui() -> void:
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(side)
 	_build_inspector(side)
+	_build_tabs(side)
 	var ter := _section(side, "TERRAIN")
 	var terrain := [[WALL, "Wall  (1)", "A solid full-depth wall block"], [FLOOR, "Floor  (2)", "Open floor"], [PIT, "Pit  (3)", "A shaft falling into the dark"]]
 	for b in terrain:
@@ -503,21 +511,34 @@ func _build_ui() -> void:
 		col.add_child(ob)
 		slot_picks[slot] = ob
 
-	var obj := _section(side, "OBJECTS")
+	# objects, one panel per object_types.json "category"
+	var obj := _section(side, "WALLS")
 	obj.add_child(_tool_button("select", "Select / move  (V)", CREAM,
 		"Click an object to edit it, drag to move, drag its round handle to rotate.\nR / Shift+R rotate, Del deletes, Esc deselects"))
+	tool_buttons["select"].icon = _obj_icon("_select", CREAM)
+	var panels := {"walls": obj}
+	for cat in [["openings", "DOORS & STAIRS"], ["events", "EVENTS"], ["props", "PROPS"]]:
+		panels[cat[0]] = null
 	for t in OBJ_TYPES:
 		var inf: Dictionary = OBJ_INFO[t]
+		var cat := str(inf.get("category", "props"))
+		if panels.get(cat) == null:
+			var titles := {"openings": "DOORS & STAIRS", "events": "EVENTS", "props": "PROPS"}
+			panels[cat] = _section(side, titles.get(cat, cat.to_upper()), cat != "props")
 		var hotkey := str(inf.get("key", ""))
 		var title := "%s  (%s)" % [inf.label, hotkey] if hotkey != "" else str(inf.label)
-		obj.add_child(_tool_button("obj:" + t, title, inf.col,
-			str(inf.get("help", "")) + ".\nClick places one; keep the button down and drag to aim it. Right click deletes"))
+		var b := _tool_button("obj:" + t, title, inf.col,
+			str(inf.get("help", "")) + ".\nClick places one; keep the button down and drag to aim it. Right click deletes")
+		b.icon = _obj_icon(t, inf.col)
+		panels[cat].add_child(b)
+	var props_panel: VBoxContainer = panels.get("props") if panels.get("props") != null else obj
 	var has_scatter := OBJ_TYPES.any(func(t): return bool(OBJ_INFO[t].get("scatter", false)))
 	if has_scatter:
 		var scatter_b := _button("SCATTER PROPS", _scatter_props)
 		scatter_b.tooltip_text = "Drop a random spread of clutter props onto open floor, clear of spawn / exit / entity / tv and anything already placed.\nOne undo step; Ctrl+Z to take it all back"
 		scatter_b.add_theme_color_override("font_color", GOLD)
-		obj.add_child(scatter_b)
+		props_panel.add_child(scatter_b)
+	obj.add_child(_label("PLACING", 13, DIM))       # these apply to every object
 	snap_check = CheckBox.new()
 	snap_check.text = "Snap to grid  (G)"
 	snap_check.button_pressed = snap
@@ -697,11 +718,14 @@ func _section(side: VBoxContainer, title: String, open := true) -> VBoxContainer
 	side.add_child(sep)
 	side.add_child(head)
 	side.add_child(body)
+	tab_parts.get_or_add(TAB_OF.get(title, "build"), []).append_array([sep, head, body])
 	var relabel := func(): head.text = ("-  " if body.visible else "+  ") + title
 	relabel.call()
 	head.pressed.connect(func():
 		body.visible = not body.visible
+		body.set_meta("open", body.visible)
 		relabel.call())
+	body.set_meta("open", open)
 	return body
 
 func _note(text: String) -> Label:
@@ -762,13 +786,17 @@ func _button(text: String, cb: Callable) -> Button:
 
 func _tool_button(id: String, text: String, col: Color, tip: String) -> Button:
 	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 36)
+	b.add_theme_constant_override("h_separation", 10)
 	b.text = text
 	b.tooltip_text = tip
 	b.toggle_mode = true
 	b.button_pressed = id == tool
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
-	img.fill(col)
+	img.fill(Color(0, 0, 0, 0))
+	img.fill_rect(Rect2i(2, 2, 14, 14), Color.BLACK)
+	img.fill_rect(Rect2i(3, 3, 12, 12), col)
 	b.icon = ImageTexture.create_from_image(img)
 	b.pressed.connect(func(): _select_tool(id))
 	tool_buttons[id] = b
@@ -807,8 +835,15 @@ func _input(ev: InputEvent) -> void:
 	if k.keycode in [KEY_CTRL, KEY_SHIFT]:     # they change what a click does: show it
 		canvas.queue_redraw()
 	if not k.pressed or (get_viewport().gui_get_focus_owner() is LineEdit) or name_dialog.visible: return
+	if k.keycode == KEY_SLASH and not k.ctrl_pressed and search_box != null:
+		search_box.grab_focus()
+		get_viewport().set_input_as_handled()
+		return
 	if k.ctrl_pressed:
 		match k.keycode:
+			KEY_EQUAL, KEY_PLUS, KEY_KP_ADD: _step_ui_scale(0.1)
+			KEY_MINUS, KEY_KP_SUBTRACT: _step_ui_scale(-0.1)
+			KEY_0: _step_ui_scale(0.0)
 			KEY_S: save()
 			KEY_Z: _redo() if k.shift_pressed else _undo()
 			KEY_Y: _redo()
@@ -839,7 +874,9 @@ func _input(ev: InputEvent) -> void:
 		KEY_G: snap_check.button_pressed = not snap_check.button_pressed
 		KEY_A: align_check.button_pressed = not align_check.button_pressed
 		KEY_DELETE, KEY_BACKSPACE: _delete_selected()
-		KEY_ESCAPE: _select(-1)
+		KEY_ESCAPE:
+			if drag == "chain": _delete_selected()
+			else: _select(-1)
 		KEY_BRACKETLEFT: _set_brush(brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(brush + 1)
 		KEY_F: _fit()
@@ -850,3 +887,215 @@ func _input(ev: InputEvent) -> void:
 		KEY_K: _set_mode("fill")
 		KEY_C: _set_view(not view_ceiling)
 		KEY_I: _eyedrop(hover)
+
+# ---------------------------------------------------------------- UI scale
+## The whole editor is drawn at this scale: by default it follows the screen (high-DPI and big monitors get a
+## larger UI), Ctrl + / Ctrl - / Ctrl 0 change it and it is remembered in user://editor.cfg
+const UI_CFG := "user://editor.cfg"
+var ui_scale := 1.0
+var split_left: HSplitContainer                  # levels | the rest
+var split_right: HSplitContainer                 # map | tools
+
+## The panel widths from last time (drag a divider to change them; double-click it for the default)
+func _restore_splits() -> void:
+	var cf := ConfigFile.new()
+	cf.load(UI_CFG)
+	split_left.split_offset = int(cf.get_value("ui", "left_w", 270))
+	split_right.split_offset = int(cf.get_value("ui", "right_w", -40))
+	for sp: HSplitContainer in [split_left, split_right]:
+		sp.add_theme_constant_override("separation", 8)
+		sp.add_theme_icon_override("grabber", _grip_icon())
+		sp.drag_ended.connect(_save_splits)
+		sp.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.double_click:
+				split_left.split_offset = 270 if sp == split_left else split_left.split_offset
+				if sp == split_right: split_right.split_offset = -40
+				_save_splits())
+
+func _save_splits() -> void:
+	var cf := ConfigFile.new()
+	cf.load(UI_CFG)
+	cf.set_value("ui", "left_w", split_left.split_offset)
+	cf.set_value("ui", "right_w", split_right.split_offset)
+	cf.save(UI_CFG)
+
+## Three dots on the divider, so it reads as something to drag
+func _grip_icon() -> ImageTexture:
+	var img := Image.create(6, 26, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for y in [4, 11, 18]: img.fill_rect(Rect2i(1, y, 4, 4), GOLD)
+	return ImageTexture.create_from_image(img)
+
+func _load_ui_scale() -> float:
+	var cf := ConfigFile.new()
+	if cf.load(UI_CFG) == OK and cf.has_section_key("ui", "scale"):
+		return float(cf.get_value("ui", "scale"))
+	return _auto_ui_scale()
+
+func _auto_ui_scale() -> float:
+	# Retina / hi-DPI screens report a scale (2 on a Mac); a tall screen gets a little more on top
+	var scr := DisplayServer.window_get_current_screen()
+	var dpi := DisplayServer.screen_get_scale(scr)
+	var tall := DisplayServer.screen_get_size(scr).y / dpi / 1000.0
+	return clampf(snappedf(dpi * 0.75 * maxf(1.0, tall), 0.05), 1.0, 2.5)
+
+func _apply_ui_scale(v: float) -> void:
+	ui_scale = clampf(v, 0.75, 2.5)
+	get_window().content_scale_factor = ui_scale
+
+func _step_ui_scale(d: float) -> void:
+	_apply_ui_scale(_auto_ui_scale() if d == 0.0 else ui_scale + d)
+	var cf := ConfigFile.new()
+	cf.load(UI_CFG)
+	cf.set_value("ui", "scale", ui_scale)
+	cf.save(UI_CFG)
+	_status("UI scale %d%%  (Ctrl + / Ctrl - / Ctrl 0 = fit the screen)" % roundi(ui_scale * 100.0))
+
+# ---------------------------------------------------------------- object icons
+## A 28 px plan-view pictogram of an object type, in its colour, so the tools read at a glance
+func _obj_icon(t: String, col: Color) -> ImageTexture:
+	const N := 28
+	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := col.lightened(0.15)
+	var dark := Color(0, 0, 0, 0.9)
+	var box := func(x0: int, y0: int, x1: int, y1: int, k: Color) -> void:
+		img.fill_rect(Rect2i(x0, y0, x1 - x0, y1 - y0), k)
+	var disc := func(cx: float, cy: float, r: float, k: Color, ring := 0.0) -> void:
+		for y in N:
+			for x in N:
+				var d := Vector2(x + 0.5 - cx, y + 0.5 - cy).length()
+				if d <= r and (ring <= 0.0 or d >= r - ring): img.set_pixel(x, y, k)
+	var info: Dictionary = OBJ_INFO.get(t, {})
+	var shape := str(info.get("shape", ""))
+	if t == "_select":
+		for i in 16:                                      # an arrow cursor
+			for j in i / 2 + 1:
+				img.set_pixel(6 + j, 4 + i, c)
+		box.call(10, 16, 13, 25, c)
+	elif t == "door":
+		box.call(2, 12, 8, 16, c); box.call(20, 12, 26, 16, c)
+		box.call(8, 4, 10, 14, c)                         # the leaf, swung open
+		disc.call(9, 14, 11, c, 1.2)
+		box.call(0, 0, 0, 0, c)
+	elif t == "arch":
+		box.call(3, 8, 8, 26, c); box.call(20, 8, 25, 26, c)
+		disc.call(14, 14, 11, c, 4.0)
+		box.call(8, 14, 20, 27, Color(0, 0, 0, 0))
+	elif t.begins_with("stairs_"):
+		for i in 5:
+			box.call(4 + i * 4, 26 - (i + 1) * 4, 8 + i * 4, 26, c.darkened(0.12 * i))
+		var up := t == "stairs_up"
+		for i in 6:                                       # an arrow up or down
+			box.call(20 - i, (3 + i) if up else (12 - i), 21 + i, (4 + i) if up else (13 - i), Color.WHITE)
+	elif shape == "zone":
+		for i in range(2, 26, 4):                         # dashed box and a bolt
+			box.call(i, 2, i + 2, 4, c); box.call(i, 24, i + 2, 26, c)
+			box.call(2, i, 4, i + 2, c); box.call(24, i, 26, i + 2, c)
+		for i in 7:
+			box.call(15 - i, 6 + i, 18 - i, 7 + i, Color.WHITE)
+		box.call(10, 13, 19, 15, Color.WHITE)
+		for i in 7:
+			box.call(14 - i + 3, 15 + i, 17 - i + 3, 16 + i, Color.WHITE)
+	elif shape == "slab" and t == "half_wall":
+		box.call(2, 11, 26, 18, c)
+		for x in range(3, 26, 4): box.call(x, 12, x + 2, 17, dark)   # hatched: you see over it
+	elif shape == "slab":
+		box.call(2, 11, 26, 17, c)
+	elif shape == "corner":
+		box.call(4, 4, 10, 25, c); box.call(4, 19, 25, 25, c)
+	elif shape == "arc":
+		disc.call(24, 24, 20, c, 5.0)
+	elif shape == "pillar":
+		box.call(7, 7, 21, 21, c)
+	elif shape == "column":
+		disc.call(14, 14, 8, c)
+	else:                                                 # a clutter prop: a crate-like blob in its colour
+		disc.call(14, 15, 10, c)
+		disc.call(14, 15, 10, dark, 1.5)
+		box.call(8, 13, 20, 15, dark)
+	# a dark outline round whatever was drawn, so light icons read on the light buttons too
+	var out := img.duplicate()
+	for y in N:
+		for x in N:
+			if img.get_pixel(x, y).a > 0.5: continue
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(x, y) + o
+				if q.x >= 0 and q.y >= 0 and q.x < N and q.y < N and img.get_pixelv(q).a > 0.5:
+					out.set_pixel(x, y, Color(0, 0, 0, 0.85))
+					break
+	return ImageTexture.create_from_image(out)
+
+# ---------------------------------------------------------------- tabs and tool search
+## The tool panel is split into tabs (each section belongs to one) with a search box over them
+const TABS := [["build", "BUILD"], ["paint", "PAINT"], ["generate", "GENERATE"], ["props", "PROPS"]]
+const TAB_OF := {"TERRAIN": "build", "WALLS": "build", "DOORS & STAIRS": "build", "EVENTS": "build", "MARKERS": "build",
+	"PAINT MATERIALS": "paint", "LEVEL MATERIALS": "paint", "ZONES": "paint", "GENERATE": "generate", "PROPS": "props"}
+var tab_parts := {}                  # tab -> the section controls it shows
+var tab_now := "build"
+var tab_buttons := {}
+var search_box: LineEdit
+var search_results: VBoxContainer
+
+func _build_tabs(side: VBoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	side.add_child(row)
+	var grp := ButtonGroup.new()
+	for t in TABS:
+		var b := Button.new()
+		b.text = t[1]
+		b.toggle_mode = true
+		b.button_group = grp
+		b.button_pressed = t[0] == tab_now
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_color_override("font_pressed_color", Color.BLACK)
+		b.add_theme_stylebox_override("pressed", _box(GOLD, GOLD, 0, 6))
+		b.add_theme_stylebox_override("hover_pressed", _box(GOLD, GOLD, 0, 6))
+		b.pressed.connect(func(): _show_tab(t[0]))
+		row.add_child(b)
+		tab_buttons[t[0]] = b
+	search_box = LineEdit.new()
+	search_box.placeholder_text = "search tools...   ( / )"
+	search_box.clear_button_enabled = true
+	search_box.text_changed.connect(_search_tools)
+	search_box.text_submitted.connect(func(_t):
+		if search_results.get_child_count() > 0: (search_results.get_child(0) as Button).pressed.emit())
+	side.add_child(search_box)
+	search_results = VBoxContainer.new()
+	side.add_child(search_results)
+	_show_tab.call_deferred(tab_now)
+
+func _show_tab(t: String) -> void:
+	tab_now = t
+	for k in tab_buttons: tab_buttons[k].set_pressed_no_signal(k == t)
+	var searching := search_box != null and search_box.text.strip_edges() != ""
+	for k in tab_parts:
+		for n: Control in tab_parts[k]:
+			if n is VBoxContainer: n.visible = (k == t and not searching) and n.get_meta("open", true)
+			else: n.visible = k == t and not searching
+
+## Every tool whose name matches, as buttons (Enter picks the first); an empty box brings the tabs back
+func _search_tools(q: String) -> void:
+	for c in search_results.get_children(): c.queue_free()
+	q = q.strip_edges().to_lower()
+	if q != "":
+		for id in tool_buttons:
+			var tb: Button = tool_buttons[id]
+			if not tb.text.to_lower().contains(q) and not str(id).to_lower().contains(q): continue
+			var b := Button.new()
+			b.text = tb.text
+			b.icon = tb.icon
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.custom_minimum_size = Vector2(0, 36)
+			b.tooltip_text = tb.tooltip_text
+			b.pressed.connect(func():
+				_select_tool(id)
+				for k in tab_parts:                  # bring up the tab the tool lives on
+					for n in tab_parts[k]:
+						if n is VBoxContainer and tb.get_parent() != null and n.is_ancestor_of(tb): tab_now = k
+				search_box.text = ""
+				_search_tools(""))
+			search_results.add_child(b)
+	_show_tab(tab_now)

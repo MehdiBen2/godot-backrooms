@@ -50,7 +50,12 @@ var dirty := false
 var objects: Array = []              # {type, pos_x, pos_y, rotation, scale, <its type's params>}
 var selected := -1                   # index into objects
 var hover_obj := -1
-var drag := ""                       # "" | "move" | "rotate" | "place"
+var drag := ""                       # "" | "move" | "rotate" | "place" | "line" | "chain" | "box"
+var multi: Array = []                # indices of a multi-selection (box drag or Shift+click); [] = just `selected`
+var group_start: Array = []          # [index, pos_x, pos_y] of each piece a group move started with
+var group_anchor := Vector2.ZERO     # where the group move was grabbed, in cells
+var box_from := Vector2.ZERO         # canvas px where a box selection started
+var line_from := Vector2.ZERO        # where the wall being drawn starts, in cells
 var drag_off := Vector2.ZERO         # grab point -> object origin, in cells
 var mouse_px := Vector2(-1, -1)
 var place_rot := 0.0                 # new objects start at the last rotation used, and their type's last width
@@ -337,8 +342,17 @@ func _draw_canvas() -> void:
 			_draw_arrow(ghost, Color(SEL, 0.5))
 	else:
 		_draw_hover()
+	if show_objects:
+		for k in multi:
+			if k != selected and k < objects.size():
+				_draw_outline(objects[k], Color(0, 0, 0, 0.7), 4.0)
+				_draw_outline(objects[k], SEL, 2.0)
 	if selected >= 0 and show_objects:
 		_draw_gizmo(objects[selected])
+	if drag == "box":
+		var r := Rect2(box_from, Vector2.ZERO).expand(mouse_px)
+		canvas.draw_rect(r, Color(SEL, 0.08))
+		canvas.draw_rect(r, SEL, false, 1.5)
 	canvas.draw_rect(Rect2(pan, Vector2(grid_size, grid_size) * zoom), GOLD, false, 1.5)
 	_draw_rulers()
 	if show_paint: _draw_legend()
@@ -1186,7 +1200,21 @@ func _open_cell(c: Vector2i) -> bool:
 	return c.x > 0 and c.y > 0 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL
 
 func _object_press(mb: InputEventMouseButton) -> void:
+	# a chained wall is waiting for its end: left click sets it (Shift: and starts the next), right click drops it
+	if drag == "chain" and mb.pressed:
+		if mb.button_index == MOUSE_BUTTON_RIGHT:
+			_delete_object(selected)
+			drag = ""
+		else:
+			_end_line(mb.shift_pressed)
+		return
 	if not mb.pressed:
+		if drag == "line":
+			_end_line(mb.shift_pressed)
+			return
+		if drag == "box":
+			_end_box(mb.position)
+			return
 		if drag != "":
 			if selected >= 0 and str(objects[selected].type).begins_with("stairs_") and drag in ["place", "rotate"]:
 				_sync_stairs_partner(objects[selected])
@@ -1202,6 +1230,21 @@ func _object_press(mb: InputEventMouseButton) -> void:
 	if _on_handle(mb.position):
 		_push_undo()
 		drag = "rotate"
+	elif i >= 0 and mb.shift_pressed:
+		# Shift+click adds to / takes from the multi-selection
+		var g := _group()
+		if g.has(i): g.erase(i)
+		else: g.append(i)
+		multi = g if g.size() > 1 else []
+		selected = g[-1] if not g.is_empty() else -1
+		_sync_inspector()
+		canvas.queue_redraw()
+	elif i >= 0 and multi.size() > 1 and multi.has(i):
+		# grab the whole group
+		_push_undo()
+		group_start = multi.map(func(k): return [k, objects[k].pos_x, objects[k].pos_y])
+		group_anchor = _pos_at(mb.position)
+		drag = "group"
 	elif i >= 0:
 		_select(i)
 		_push_undo()
@@ -1210,10 +1253,20 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		drag = "move"
 	elif tool == "select":
 		_select(-1)
+		box_from = mb.position                       # drag out a box to select everything in it
+		drag = "box"
 	else:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
 		var t := tool.get_slice(":", 1)
+		if bool(_info(t).get("draw_line", false)):
+			# a wall drawn as a line: it runs from here to wherever the button comes up
+			objects.append(_new_object(t, p, 0.0))
+			line_from = p
+			_select(objects.size() - 1)
+			drag = "line"
+			_mark_dirty()
+			return
 		objects.append(_new_object(t, p, _wall_align(p, place_rot, t)))
 		if tool.begins_with("obj:stairs_"):
 			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
@@ -1274,10 +1327,30 @@ func _sync_stairs_partner(o: Dictionary) -> void:
 			return
 
 func _object_drag(p: Vector2) -> void:
+	if drag == "box":
+		canvas.queue_redraw()
+		return
+	if drag == "group":
+		var d := _pos_at(p) - group_anchor
+		if snap and not Input.is_key_pressed(KEY_ALT): d = (d / SNAP_STEP).round() * SNAP_STEP
+		for g: Array in group_start:
+			objects[g[0]].pos_x = clampf(g[1] + d.x, 0.0, grid_size - 1)
+			objects[g[0]].pos_y = clampf(g[2] + d.y, 0.0, grid_size - 1)
+		_mark_dirty()
+		return
 	if selected < 0:
 		drag = ""
 		return
 	var o: Dictionary = objects[selected]
+	if drag == "line" or drag == "chain":
+		var q := _snap_pos(_pos_at(p))
+		if Input.is_key_pressed(KEY_SHIFT) and rot_snap:            # keep chained runs square
+			var d := q - line_from
+			q = line_from + (Vector2(d.x, 0) if absf(d.x) >= absf(d.y) else Vector2(0, d.y))
+		_set_line(o, line_from, q)
+		_sync_inspector()
+		_mark_dirty()
+		return
 	if drag == "move":
 		var q := _snap_pos(_pos_at(p) + drag_off)
 		o.pos_x = q.x
@@ -1292,7 +1365,65 @@ func _object_drag(p: Vector2) -> void:
 	_sync_inspector()
 	_mark_dirty()
 
+## A line wall laid from `a` to `b` (cells): centred between them, turned to run along them, as long as them
+func _set_line(o: Dictionary, a: Vector2, b: Vector2) -> void:
+	var run := b - a
+	var len := clampf(run.length(), 0.5, _max_scale(o.type))
+	var dir := run.normalized() if run.length() > 0.01 else Vector2.DOWN
+	var mid := a + dir * len * 0.5
+	o.pos_x = mid.x
+	o.pos_y = mid.y
+	o.rotation = fposmod(rad_to_deg(dir.angle()) - 90.0, 360.0)     # a slab spans its local +y
+	o.scale = len
+
+## The button came up on a line wall: a plain click leaves a one-cell piece fitted to the wall it's on;
+## with Shift the next wall starts at this one's end and follows the mouse until the next click
+func _end_line(chain: bool) -> void:
+	var o: Dictionary = objects[selected]
+	var end: Vector2 = Vector2(o.pos_x, o.pos_y) + Vector2.from_angle(deg_to_rad(o.rotation + 90.0)) * o.scale * 0.5
+	if drag == "line" and Vector2(o.pos_x, o.pos_y).distance_to(line_from) < 0.2:
+		o.pos_x = line_from.x
+		o.pos_y = line_from.y
+		o.scale = _place_scale(o.type)
+		o.rotation = _wall_align(line_from, place_rot, o.type)
+		chain = false
+	else:
+		place_scales[o.type] = o.scale
+	drag = ""
+	if chain:
+		_push_undo()
+		objects.append(_new_object(o.type, end, 0.0))
+		line_from = end
+		_select(objects.size() - 1)
+		_set_line(objects[selected], end, end + Vector2(0, 0.5))
+		drag = "chain"
+		_status("Chaining walls: click to end this one (Shift+click to keep going), right click or Esc to stop")
+	_sync_inspector()
+	_mark_dirty()
+
+## Everything whose origin is inside the dragged box becomes the selection
+func _end_box(to: Vector2) -> void:
+	drag = ""
+	var r := Rect2(box_from, Vector2.ZERO).expand(to)
+	if r.size.length() < 4.0:
+		canvas.queue_redraw()
+		return
+	var hit: Array = []
+	for i in objects.size():
+		if r.has_point(_obj_xf(objects[i]).origin): hit.append(i)
+	multi = hit if hit.size() > 1 else []
+	selected = hit[-1] if not hit.is_empty() else -1
+	_sync_inspector()
+	_status("%d objects selected: drag one to move them all, R rotates, COPY copies, Del deletes" % hit.size())
+	canvas.queue_redraw()
+
+## The selection as indices: the multi-selection, else the one selected object, else none
+func _group() -> Array:
+	if multi.size() > 1: return multi.duplicate()
+	return [selected] if selected >= 0 else []
+
 func _select(i: int) -> void:
+	multi = []
 	selected = i
 	insp_undo = -1
 	_sync_inspector()
@@ -1307,19 +1438,32 @@ func _delete_object(i: int) -> void:
 	_mark_dirty()
 
 func _delete_selected() -> void:
-	if selected < 0: return
+	if drag == "chain":
+		_delete_object(selected)
+		drag = ""
+		return
+	var g := _group()
+	if g.is_empty(): return
 	_push_undo()
-	_delete_object(selected)
+	g.sort()
+	for k in range(g.size() - 1, -1, -1): _delete_object(g[k])
+	multi = []
 
 func _duplicate_selected() -> void:
-	if selected < 0: return
+	var g := _group()
+	if g.is_empty(): return
 	_push_undo()
-	var o: Dictionary = objects[selected].duplicate()
 	var off := SNAP_STEP if snap else 0.25
-	o.pos_x = minf(o.pos_x + off, grid_size - 1)
-	o.pos_y = minf(o.pos_y + off, grid_size - 1)
-	objects.append(o)
-	_select(objects.size() - 1)
+	var made: Array = []
+	for k in g:
+		var o: Dictionary = objects[k].duplicate()
+		o.pos_x = minf(o.pos_x + off, grid_size - 1)
+		o.pos_y = minf(o.pos_y + off, grid_size - 1)
+		objects.append(o)
+		made.append(objects.size() - 1)
+	selected = made[-1]
+	multi = made if made.size() > 1 else []
+	_sync_inspector()
 	_mark_dirty()
 
 ## R / Shift+R and the inspector's buttons: turn the selection, or the next placement when nothing is selected
@@ -1330,6 +1474,19 @@ func _rotate_selected(deg: float) -> void:
 		canvas.queue_redraw()
 		return
 	_push_undo()
+	if multi.size() > 1:
+		# the group turns round its middle, each piece with it
+		var mid := Vector2.ZERO
+		for k in multi: mid += Vector2(objects[k].pos_x, objects[k].pos_y)
+		mid /= multi.size()
+		for k in multi:
+			var ob: Dictionary = objects[k]
+			var q := mid + (Vector2(ob.pos_x, ob.pos_y) - mid).rotated(deg_to_rad(deg))
+			ob.pos_x = q.x
+			ob.pos_y = q.y
+			ob.rotation = fposmod(ob.rotation + deg, 360.0)
+		_mark_dirty()
+		return
 	var o: Dictionary = objects[selected]
 	o.rotation = fposmod(o.rotation + deg, 360.0)
 	place_rot = o.rotation

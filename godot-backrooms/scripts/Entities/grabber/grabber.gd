@@ -899,9 +899,18 @@ func debug_state(s: String) -> bool:
 			_start_peeking()
 			return true
 		"chase", "drag":
-			var at := player.global_position - player.global_transform.basis.z * (8.0 if s == "chase" else 1.0)
+			# in front of you, backing off until nothing is in between (as killer.gd's spawn)
+			var p := player.global_position
+			var fwd := -player.global_transform.basis.z
+			fwd.y = 0.0
+			fwd = fwd.normalized()
+			var dist := 8.0 if s == "chase" else 1.0
+			var at := p + fwd * dist
+			while dist > 1.0 and not (nav.open_at(at.x, at.z) and nav.clear_line(p.x, p.z, at.x, at.z)):
+				dist -= 0.5
+				at = p + fwd * dist
 			at = nav.resolve(at, RADIUS)
-			at.y = _floor_y(at, player.global_position.y)
+			at.y = _floor_y(at, p.y)
 			global_position = at
 			yaw = _yaw_to(player.global_position)
 			body.flip = 0.0

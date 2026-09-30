@@ -7,15 +7,18 @@ extends SkeletonModifier3D
 ##   HIDE   let down just below the view
 ##   CARRY  held low, only the top of the fist (and the torch, if it's in that hand) showing: the torch
 ##          hold (TorchHold's first frame) let down, mirrored for the left hand
-##   WALL   on the edge: palm flat on the wall, knuckles on the corner, fingers hooked round it. Too far
-##          off (or walking) the hand stops short and open, trembling a little
+##   WALL   on the edge: palm flat on the wall face, fingers straight out towards the edge, their tips
+##          at it; landing, the fingers press flat one after the other. Too far off (or walking) the hand
+##          stops short and open, trembling a little
 ## On a change of mode the hand eases from wherever it is to the new pose on a spring: a snappy one onto
 ## the wall, landing with a slight overshoot, softer ones elsewhere.
 ##
 ## The arms model is forearms only, no upper arm, so a forearm on the wall has to come in from outside
-## the view: from an elbow point just off the bottom corner on the wall's side, the knuckles go where
-## your line of sight to the edge is one forearm from it. On screen they sit right on the corner, though
-## nearer than the wall (the arms cast no shadow, so nothing gives that away).
+## the view: from an elbow point just below the bottom corner on the wall's side (from below it can be
+## further off than from the side, so the hand sits further off and smaller), the knuckles go where your
+## line of sight to the corner puts the wrist one forearm from it. On screen they sit right on the corner,
+## though nearer than the wall (the arms cast no shadow, so nothing gives that away). Anything else in the
+## way (a wall beside you, a door frame) pushes the hand back along that line, never nearer than NEAR.
 
 enum Mode { ANIM, HIDE, CARRY, WALL }
 
@@ -25,27 +28,36 @@ const FINGERS: Array[String] = ["Index", "Middle", "Ring", "Little"]
 const JOINTS: Array[String] = ["Proximal", "Intermediate", "Distal"]
 const THUMB: Array[String] = ["ThumbMetacarpal", "ThumbProximal", "ThumbDistal"]
 const HOLD_ANIM := "TorchHold"
-const HOOK: Array[float] = [0.9, 0.35, 0.15]      # rad per finger joint on top of rest: bent round the corner
-const SPLAY: Array[float] = [-0.25, -0.15, -0.05] # braced: fingers straightened
+const WRAP: Array[float] = [-0.05, 0.06, 0.04]    # rad each finger joint bends pressed on the wall: flat
+const OPEN: Array[float] = [0.2, 0.15, 0.08]      # braced / landing: fingers relaxed, a little bent
 const KNUCKLE := 0.14             # armature units from the wrist to the knuckles
-const ELBOW := Vector3(0.21, -0.17, -0.05)        # m, camera space: the wall arm's elbow (right; x mirrored for the left)
-const ELBOW_CROUCH := -0.03
-const EDGE_OUT := 0.05            # m: from peek.gd's point on the wall out to just past its edge
+const TILT := 0.6                 # the fingers point out over the edge and up this much
+const SNAP := 30.0                # rad/s: how fast a finger presses flat (a little past, then back)
+const SNAP_DAMP := 0.5
+const SNAP_STAGGER := 0.04        # s between one finger and the next, index first
+const ELBOW := Vector3(0.30, -0.34, -0.36)        # m, camera space: the wall arm's elbow, just below the bottom
+                                                  # corner on its side (right; x mirrored for the left)
+const ELBOW_CROUCH := -0.04
+const EDGE_OUT := -0.08           # m: from peek.gd's point on the wall (4 cm in) to the knuckles: a
+                                  # finger's length short of the edge, so the fingertips reach it
 const RISE := 0.0                 # m above the eye the hand takes the wall
 const RISE_CROUCH := -0.10        # crouched it takes it lower
-const CUP := 0.3                  # how far the palm turns in round the corner
 const REACH := 0.85               # m: an edge this close can be taken hold of
-const BRACE := 0.8                # of a forearm: how far out the open hand comes
+const BRACE_BACK := 0.22          # braced, the hand stays this much of the way back towards the elbow
 const CARRY_DROP := 0.13          # m the carrying hand sits below the usual torch hold
 const CARRY_OUT := 0.03           # m out to its side
 const HIDE_DROP := 0.25           # m further down again: out of view
 const ARC := 0.05                 # m the hand lifts on its way onto the wall
+const FINGER := 0.33              # armature units from the wrist to the fingertips
+const NEAR := 0.15                # m: the hand never comes nearer the camera than this
+const CLEAR := 0.03               # m kept between the fingertips and anything in the way
 
 class Hand:
 	var side := 1.0               # 1 right, -1 left
 	var fore := -1                # the LowerArm bone
 	var bones: Array[int] = []    # wrist, 4 fingers x 3 joints, the thumb's 3
 	var rest: Array[Quaternion] = []
+	var rest_curl: Array[float] = []   # how far each is already bent at rest (about X)
 	var hold: Array[Quaternion] = []   # the same bones in the torch hold
 	var mode := Mode.HIDE
 	var u := 1.0                  # 0..1 from the old pose to the mode's, sprung
@@ -61,7 +73,9 @@ class Hand:
 	var grab := 0.0               # 0 braced .. 1 holding, eased
 	var crouch := 0.0
 	var crouch_goal := 0.0
-	var hook: Array[float] = [0.0, 0.0, 0.0, 0.0]   # per finger 0 open .. 1 hooked, eased one after the other
+	var hook: Array[float] = [0.0, 0.0, 0.0, 0.0]   # per finger 0 open .. 1 hooked, sprung one after the other
+	var hook_vel: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	var landed := 0.0             # s since the hand got to the wall (the fingers go after it)
 	var edge := Vector3.ZERO      # world: peek.gd's point just in from the edge, at eye height
 	var normal := Vector3.BACK
 	var out := Vector3.LEFT
@@ -107,7 +121,9 @@ func setup(cam: Node3D, anim: AnimationPlayer) -> bool:
 			if b < 0:
 				return false
 			h.bones.append(b)
-			h.rest.append(skel.get_bone_rest(b).basis.get_rotation_quaternion())
+			var r := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+			h.rest.append(r)
+			h.rest_curl.append(2.0 * atan2(r.x, r.w))
 			# the left hand holds it the way the right does, mirrored
 			var q: Quaternion = rot.get("Right" + n, skel.get_bone_rest(skel.find_bone("Right" + n)).basis.get_rotation_quaternion())
 			h.hold.append(q if s == "Right" else _mirror(q))
@@ -168,10 +184,12 @@ func tick(dt: float) -> void:
 				h.shift_t = 0.4
 		h.shift_t = maxf(0.0, h.shift_t - dt)
 		h.shift = sin(PI * (1.0 - h.shift_t / 0.4)) if h.shift_t > 0.0 else 0.0
-		# the fingers hook round once the hand has landed, index first
-		var goal := h.grab * (1.0 - 0.5 * h.shift) if on_wall and h.u > 0.75 else 0.0
+		# once the hand is on the wall the fingers press flat, index first; they let go at once
+		h.landed = h.landed + dt if on_wall and h.u > 0.75 else 0.0
 		for k in 4:
-			h.hook[k] = lerpf(h.hook[k], goal, minf(1.0, dt * (20.0 - k * 3.5)))
+			var goal := h.grab * (1.0 - 0.5 * h.shift) if h.landed > k * SNAP_STAGGER else 0.0
+			h.hook_vel[k] += (SNAP * SNAP * (goal - h.hook[k]) - 2.0 * SNAP_DAMP * SNAP * h.hook_vel[k]) * dt
+			h.hook[k] += h.hook_vel[k] * dt
 
 ## (rad/s, damping) per mode: onto the wall it snaps, lands a little past and settles
 func _spring(mode: Mode) -> Vector2:
@@ -221,10 +239,10 @@ func _process_modification_with_delta(_delta: float) -> void:
 			Mode.HIDE:
 				pos = carry_pos + Vector3(0.0, -HIDE_DROP, 0.05)
 			Mode.WALL:
-				q = _wall_fingers(h)
-				var wall := _wall(h, cam, carry_rot, skel.get_bone_rest(h.bones[0]).origin, q[0], unit)
+				var wall := _wall(h, cam, skel.get_bone_rest(h.bones[0]).origin, unit, _space())
 				pos = wall[0]
 				rot = wall[1]
+				q = _wall_fingers(h, wall[2])
 		if not h.seen:
 			h.from_pos = pos
 			h.from_rot = rot
@@ -244,44 +262,67 @@ func _process_modification_with_delta(_delta: float) -> void:
 		for k in h.bones.size():
 			skel.set_bone_pose_rotation(h.bones[k], h.cur_q[k])
 
-## The wrist flat (as at rest, bent back) and the fingers hooked round the corner, or open while braced
-func _wall_fingers(h: Hand) -> Array[Quaternion]:
-	var q: Array[Quaternion] = [h.rest[0]]
+## The wrist as the wall needs it; the fingers pressed flat (one after the other), or relaxed while
+## braced; the thumb as at rest
+func _wall_fingers(h: Hand, wrist: Quaternion) -> Array[Quaternion]:
+	var q: Array[Quaternion] = [wrist]
 	for f in 4:
-		var k := h.hook[f] if h.grab > 0.05 else 0.0
 		for j in 3:
-			var bend := lerpf(SPLAY[j] * (1.0 - h.grab), HOOK[j], k)
-			q.append(h.rest[1 + f * 3 + j] * Quaternion(Vector3.RIGHT, bend))
+			var k := 1 + f * 3 + j
+			var bend := lerpf(OPEN[j], WRAP[j], h.hook[f])
+			q.append(h.rest[k] * Quaternion(Vector3.RIGHT, bend - h.rest_curl[k]))
 	for j in 3:
 		q.append(h.rest[13 + j])
 	return q
 
-## The forearm on the wall, camera space: [position, rotation]. `wrist`: the hand bone's place on the
-## forearm, `wrist_rot` its turn; `base` the turn the swing starts from.
-func _wall(h: Hand, cam: Transform3D, base: Quaternion, wrist: Vector3, wrist_rot: Quaternion, unit: float) -> Array:
+## On the wall, camera space: [forearm position, forearm turn, wrist turn (local to the forearm)].
+## The hand lies flat on the wall face, fingers pointing out towards the edge, their tips at it; the
+## forearm reaches the wrist from the elbow. `wrist`: where the hand
+## bone sits on the forearm (armature units).
+func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: PhysicsDirectSpaceState3D) -> Array:
 	var to_cam := cam.affine_inverse()
 	var up := (to_cam.basis * Vector3.UP).normalized()
-	var knuckle := wrist + wrist_rot * Vector3(0.0, KNUCKLE, 0.0)   # forearm space
-	var palm := wrist_rot * Vector3(0.0, 0.0, 1.0)                   # the fingers curl to +Z
-	var reach := knuckle.length() * unit
+	var n := (to_cam.basis * h.normal).normalized()
+	var out := (to_cam.basis * h.out).normalized()
+	# the hand: palm (+Z, the way the fingers curl) into the wall, fingers (+Y) along it, out to the edge
+	var fingers := out + up * TILT
+	fingers = (fingers - n * fingers.dot(n)).normalized()
+	var hand := Basis(fingers.cross(-n), fingers, -n).get_rotation_quaternion()
+	var fore_len := wrist.length() * unit
+	var knuckle := hand * Vector3(0.0, KNUCKLE * unit, 0.0)          # wrist to knuckles
 	var elbow := Vector3(ELBOW.x * h.side, ELBOW.y + ELBOW_CROUCH * h.crouch, ELBOW.z)
 	var wall := to_cam * (h.edge + h.out * EDGE_OUT + Vector3.UP * (RISE + RISE_CROUCH * h.crouch))
 	var sight := wall.normalized()
-	# the knuckles where the line of sight is one forearm from the elbow (or as near as it gets)
-	var along := sight.dot(elbow)
-	var disc := along * along - elbow.length_squared() + reach * reach
-	var on := sight * minf(along + sqrt(disc), wall.length()) if disc >= 0.0 \
-			else elbow + (sight * along - elbow).normalized() * reach
-	var at := (elbow + (on - elbow).normalized() * reach * BRACE).lerp(on, h.grab)
-	at += Vector3(sin(h.t * 7.3), sin(h.t * 9.1 + 1.0), 0.0) * 0.002 * (1.0 - h.grab)   # an open hand, not quite steady
-	at += ((elbow - on).normalized() * 0.012 - up * 0.008) * h.shift                   # re-gripping
-	var dir := (at - elbow).normalized()
-	var rot := Quaternion((base * knuckle).normalized(), dir) * base
-	# roll about the forearm so the palm faces into the wall, turned in a little round the corner
-	var face := (to_cam.basis * (-h.normal - h.out * CUP)).normalized()
-	var a := rot * palm
-	a -= dir * a.dot(dir)
-	var b := face - dir * face.dot(dir)
-	if a.length_squared() > 0.0001 and b.length_squared() > 0.0001:
-		rot = Quaternion(dir, atan2(dir.dot(a.cross(b)), a.dot(b))) * rot
-	return [at - rot * (knuckle * unit), rot]
+	# the knuckles on the line of sight to their spot, where the wrist is one forearm from the elbow
+	var c := -knuckle - elbow
+	var along := sight.dot(c)
+	var disc := along * along - c.length_squared() + fore_len * fore_len
+	var at := sight * minf(-along + sqrt(maxf(disc, 0.0)), wall.length())
+	# braced: short of the edge, back towards the elbow, not quite steady
+	var brace := at.lerp(elbow, BRACE_BACK) + Vector3(sin(h.t * 7.3), sin(h.t * 9.1 + 1.0), 0.0) * 0.002
+	at = brace.lerp(at, h.grab)
+	at += ((elbow - at).normalized() * 0.012 - up * 0.008) * h.shift  # re-gripping
+	at = _clear(cam, at, at + fingers * ((FINGER - KNUCKLE) * unit), space)
+	var wrist_at := at - knuckle
+	var dir := (wrist_at - elbow).normalized()
+	var fore := Quaternion((hand * Vector3.UP).normalized(), dir) * hand
+	return [wrist_at - dir * fore_len, fore, fore.inverse() * hand]
+
+## The physics space and the player's body (the camera's parent), for _clear()
+func _space() -> PhysicsDirectSpaceState3D:
+	return view.get_world_3d().direct_space_state if view.is_inside_tree() else null
+
+## `at` (camera space), slid back along the line of sight so nothing lies between the camera and `tip`
+## (the fingertips, camera space), and never nearer than NEAR: the hand stays where it is on screen
+func _clear(cam: Transform3D, at: Vector3, tip: Vector3, space: PhysicsDirectSpaceState3D) -> Vector3:
+	var scale := 1.0
+	if space != null:
+		var q := PhysicsRayQueryParameters3D.create(cam.origin, cam * (tip * 1.1))
+		var body := view.get_parent() as CollisionObject3D
+		if body != null:
+			q.exclude = [body.get_rid()]
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty():
+			var d: float = cam.origin.distance_to(hit.position)
+			scale = minf(1.0, (d - CLEAR) / maxf(0.001, tip.length()))
+	return at * clampf(scale, NEAR / maxf(0.001, at.length()), 1.0)

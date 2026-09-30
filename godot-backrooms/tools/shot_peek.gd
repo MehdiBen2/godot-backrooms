@@ -17,7 +17,10 @@ func _initialize() -> void:
 	game.playing = true
 	var level: Node = main.get_node("Level")
 	var player: CharacterBody3D = main.get_node("Player")
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# the mouse stays free so the player's own tick stays off (_drive runs it), and the window on top so
+	# it keeps drawing
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_ALWAYS_ON_TOP, true)
 	if env_or.call("HUD", "") == "":
 		main.get_node("UI").visible = false
 	var prefix: String = env_or.call("SHOT", "res://peek")
