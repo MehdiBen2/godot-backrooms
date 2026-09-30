@@ -180,6 +180,10 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 	mi.mesh = st.commit()
 	mi.material_override = mat
 	mi.material_override.render_priority = priority
+	# Floors, ceilings and pit bottoms never shade anything you can see: every tube hangs under its ceiling
+	# and above the floor (the steps between ceiling heights are their own casters). Left on, the whole
+	# level's floor and ceiling were drawn into all six faces of every shadowed light's cube, every frame.
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 	return mi
 

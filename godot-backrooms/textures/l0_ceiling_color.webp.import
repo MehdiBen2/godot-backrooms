@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://jj8p63wdjrup"
-path="res://.godot/imported/l0_ceiling_color.webp-6c8e8c2faae6e8e1972c43130d2efa44.ctex"
+path.bptc="res://.godot/imported/l0_ceiling_color.webp-6c8e8c2faae6e8e1972c43130d2efa44.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/l0_ceiling_color.webp"
-dest_files=["res://.godot/imported/l0_ceiling_color.webp-6c8e8c2faae6e8e1972c43130d2efa44.ctex"]
+dest_files=["res://.godot/imported/l0_ceiling_color.webp-6c8e8c2faae6e8e1972c43130d2efa44.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

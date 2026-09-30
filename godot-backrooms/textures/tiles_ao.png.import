@@ -3,27 +3,28 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://w8jr8xbla22b"
-path="res://.godot/imported/tiles_ao.png-c17653370dc83851dacebd9f88fbdc09.ctex"
+path.bptc="res://.godot/imported/tiles_ao.png-c17653370dc83851dacebd9f88fbdc09.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/tiles_ao.png"
-dest_files=["res://.godot/imported/tiles_ao.png-c17653370dc83851dacebd9f88fbdc09.ctex"]
+dest_files=["res://.godot/imported/tiles_ao.png-c17653370dc83851dacebd9f88fbdc09.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=false
+mipmaps/generate=true
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""

@@ -70,6 +70,10 @@ const HEART_SAMPLES := ["res://audio/player/heartbeat.ogg", "res://audio/player/
 const FLATLINE_GAIN := 1.0        # as the heart stops (grab, snap)
 const FLATLINE_HOLD_GAIN := 0.5   # dead: a thin line under the muffle until the respawn, not an alarm
 
+enum { KNOCK_KNUCKLE, KNOCK_FIST, KNOCK_NAIL }
+const KNOCK_TAKES := [3, 2, 3]    # rendered takes per knock kind: a run of knocks never repeats one sample
+const BREATH_KINDS := 4
+
 var rng := RandomNumberGenerator.new()
 var player: Node3D
 var audio: Node
@@ -88,6 +92,8 @@ var _heart_sample: AudioStream = null
 var _flat_player: AudioStreamPlayer = null
 var _flat_tween: Tween
 var _prewarm_task := -1
+var _last_knock := -1
+var _last_breath := -1
 
 func _ready() -> void:
 	rng.randomize()
@@ -165,17 +171,33 @@ func play_scare(name: String, a = null, b = null) -> void:
 		"gridOff", "gridoff":
 			grid_off(a if a is Vector3 else Vector3.INF)
 
-## A knuckle on the drywall at `pos` (the wall knock event)
-func knock(pos: Vector3, weight := 1.0) -> void:
-	spawn3d(synth("wall_knock"), pos, 0.9 * weight, "Scares", 3.0, rng.randf_range(0.9, 1.08))
+## A hand on the drywall at `pos` (the wall knock event). `kind`: KNOCK_KNUCKLE, KNOCK_FIST or
+## KNOCK_NAIL; each has a few rendered takes (scare_synth.gd _knock) and never plays the same one twice running.
+func knock(pos: Vector3, weight := 1.0, kind := KNOCK_KNUCKLE) -> void:
+	var takes: int = KNOCK_TAKES[kind]
+	var take := rng.randi() % takes
+	if kind * 10 + take == _last_knock:
+		take = (take + 1) % takes
+	_last_knock = kind * 10 + take
+	spawn3d(synth("wall_knock", _last_knock), pos, 0.9 * weight, "Scares", [3.0, 4.5, 1.8][kind], rng.randf_range(0.94, 1.06))
 
-## One wet breath at the back of your neck, as if the bacteria were right there (the breath event).
-## Its breathing loop played once through, not looped.
-func breath_behind(pos: Vector3) -> void:
-	var once := synth("rasp_loop").duplicate() as AudioStreamWAV
-	once.loop_mode = AudioStreamWAV.LOOP_DISABLED
-	var p := spawn3d(once, pos, 0.9, "Scares", 1.2, rng.randf_range(0.88, 0.96), false)
+## Fingernails dragged down the inside of the wall at `pos`
+func wall_scratch(pos: Vector3, weight := 1.0) -> void:
+	spawn3d(synth("wall_scratch", float(rng.randi() % 2)), pos, 0.8 * weight, "Scares", 2.5, rng.randf_range(0.9, 1.1))
+
+## One breath at the back of your neck, close enough to feel (the breath event): a slow creaking exhale,
+## sniffing, a wet one or a shaking one (scare_synth.gd _breath), never the same twice running.
+## Returns how long it lasts.
+func breath_behind(pos: Vector3, volume := 1.0) -> float:
+	var kind := rng.randi() % BREATH_KINDS
+	if kind == _last_breath:
+		kind = (kind + 1) % BREATH_KINDS
+	_last_breath = kind
+	var pitch := rng.randf_range(0.9, 1.03)
+	var s := synth("breath_close", kind)
+	var p := spawn3d(s, pos, volume, "Scares", 1.2, pitch, false)
 	p.max_distance = 12.0
+	return s.get_length() / pitch
 
 # The grid dying somewhere far off. Like web scares.js: ref 12, volume 2, not occluded (a reverberant
 # distant sound carries through the walls)
@@ -308,7 +330,10 @@ func prewarm_death() -> void:
 		["static_hit", 0.0], ["stinger", 0.0], ["seize", 0.0], ["heartbeat", 0.0], ["splat", 0.0],
 		["howler_step", 0.0], ["howler_step", 1.0], ["howler_step", 2.0], ["howler_step", 3.0],
 		["howler_step", 10.0], ["howler_step", 11.0], ["howler_step", 12.0], ["howler_step", 13.0],
-		["howler_far", 0.0], ["howler_far", 1.0], ["howler_far", 2.0], ["howler_far", 3.0], ["howler_drag", 0.0], ["howler_drag", 10.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0], ["wall_knock", 0.0],
+		["howler_far", 0.0], ["howler_far", 1.0], ["howler_far", 2.0], ["howler_far", 3.0], ["howler_drag", 0.0], ["howler_drag", 10.0], ["bone_crack", 0.0], ["heel", 0.0], ["tile_step", 0.0], ["thump", 0.0],
+		["wall_knock", 0.0], ["wall_knock", 1.0], ["wall_knock", 2.0], ["wall_knock", 10.0], ["wall_knock", 11.0],
+		["wall_knock", 20.0], ["wall_knock", 21.0], ["wall_knock", 22.0], ["wall_scratch", 0.0], ["wall_scratch", 1.0],
+		["breath_close", 0.0], ["breath_close", 1.0], ["breath_close", 2.0], ["breath_close", 3.0],
 		["mannequin_step", 0.0], ["mannequin_step", 1.0], ["mannequin_step", 2.0], ["mannequin_step", 3.0],
 		["mannequin_creak", 0.0], ["mannequin_creak", 1.0], ["mannequin_creak", 2.0]]
 	_prewarm_task = WorkerThreadPool.add_task(func():

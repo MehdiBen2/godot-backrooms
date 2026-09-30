@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bhyenar56jkaf"
-path="res://.godot/imported/l0_wallpaper_rough.webp-4fff751cc09082fd7a15da080f8fbb77.ctex"
+path.bptc="res://.godot/imported/l0_wallpaper_rough.webp-4fff751cc09082fd7a15da080f8fbb77.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/l0_wallpaper_rough.webp"
-dest_files=["res://.godot/imported/l0_wallpaper_rough.webp-4fff751cc09082fd7a15da080f8fbb77.ctex"]
+dest_files=["res://.godot/imported/l0_wallpaper_rough.webp-4fff751cc09082fd7a15da080f8fbb77.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

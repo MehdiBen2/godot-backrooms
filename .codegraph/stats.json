@@ -10,6 +10,16 @@
    "calls": 1,
    "outputTokens": 934,
    "savedTokens": 0
+  },
+  "read_symbol": {
+   "calls": 15,
+   "outputTokens": 4664,
+   "savedTokens": 90971
+  },
+  "find_references": {
+   "calls": 1,
+   "outputTokens": 461,
+   "savedTokens": 0
   }
  }
 }

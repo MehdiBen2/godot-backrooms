@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ch0xea1r8xx65"
-path="res://.godot/imported/Water_Barrel_Height.png-32296fae021ad890f63f43b3eb18be9a.ctex"
+path.bptc="res://.godot/imported/Water_Barrel_Height.png-32296fae021ad890f63f43b3eb18be9a.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://models/props/industrial/Water_Barrel/Water_Barrel_Height.png"
-dest_files=["res://.godot/imported/Water_Barrel_Height.png-32296fae021ad890f63f43b3eb18be9a.ctex"]
+dest_files=["res://.godot/imported/Water_Barrel_Height.png-32296fae021ad890f63f43b3eb18be9a.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

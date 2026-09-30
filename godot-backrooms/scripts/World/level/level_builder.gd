@@ -30,6 +30,7 @@ var exit_door: Node3D
 func _ready() -> void:
 	rng.seed = 1971                    # the same layout of burnt / flickering tubes every run
 	load_current()
+	step_mask()                        # the nav table, now while loading, not on a monster's first flood fill
 	build_geometry()
 	build_lighting()
 	_build_exit()

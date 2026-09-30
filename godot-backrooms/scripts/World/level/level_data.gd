@@ -121,6 +121,7 @@ static func read_level(meta: Dictionary) -> Dictionary:
 
 ## Load the playlist entry Game.level_index points at
 func load_current() -> void:
+	_step_mask = PackedByteArray()      # walls / pits / edges are about to change
 	var levels := read_index()
 	Game.level_count = levels.size()
 	level_index = clampi(Game.level_index, 0, levels.size() - 1)
@@ -268,6 +269,32 @@ func _block_span(o: Dictionary, half_thick: float) -> void:
 
 static func _edge_key(a: Vector2i, b: Vector2i) -> Vector4i:
 	return Vector4i(a.x, a.y, b.x, b.y) if a < b else Vector4i(b.x, b.y, a.x, a.y)
+
+## Walkability for grid_nav.gd's flood fill, built on first use after each load: one byte per cell
+## (index x * size + z), a bit set for each step out of it that is open - in bounds, onto a cell that is
+## neither wall nor pit, not cut by an off-centre wall. Bits 1/2/4/8 = +x/-x/+z/-z (GridNav.NEIGHBOURS).
+## Saves the flood fill two dictionary lookups and a call per neighbour of every cell it visits.
+var _step_mask := PackedByteArray()
+
+func step_mask() -> PackedByteArray:
+	if _step_mask.size() == size * size:
+		return _step_mask
+	var m := PackedByteArray()
+	m.resize(size * size)
+	var dirs := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for x in size:
+		for z in size:
+			var c := Vector2i(x, z)
+			if walls.has(c) or pits.has(c): continue
+			var bits := 0
+			for i in 4:
+				var nb: Vector2i = c + dirs[i]
+				if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size: continue
+				if walls.has(nb) or pits.has(nb) or edge_blocked(c, nb): continue
+				bits |= 1 << i
+			m[x * size + z] = bits
+	_step_mask = m
+	return m
 
 ## Can't step straight between these neighbouring cells: an off-centre thin wall / door is in the way
 func edge_blocked(a: Vector2i, b: Vector2i) -> bool:

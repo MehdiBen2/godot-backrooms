@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cm1k8eacuh4h"
-path="res://.godot/imported/wall_tall_ao.png-974ff77ef96a609f0d4db8292ccfb6fd.ctex"
+path.bptc="res://.godot/imported/wall_tall_ao.png-974ff77ef96a609f0d4db8292ccfb6fd.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/wall_tall_ao.png"
-dest_files=["res://.godot/imported/wall_tall_ao.png-974ff77ef96a609f0d4db8292ccfb6fd.ctex"]
+dest_files=["res://.godot/imported/wall_tall_ao.png-974ff77ef96a609f0d4db8292ccfb6fd.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
