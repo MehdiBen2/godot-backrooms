@@ -1,0 +1,48 @@
+{
+  "file_hashes": {
+    "AGENTS.md": "e5c14c601fc65802b7b0057b0c9ff0a7b1902ece5db47f99ecde3b8379055aeb",
+    "README.md": "5dec49d97336ba0d7f9fb0f22c04e70b70cf2ab05a792952f0f8999aac922627",
+    "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
+    "godot-backrooms/tools/gen_audio.py": "896f1c903052b36ae90fac4fe623b53ed37ba230ead2c17c8dccb30b6efbbe56",
+    "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
+    "godot-backrooms/tools/gen_tape_audio.py": "213a8a33e21a7667946aab3890db3e148770bd7a8d50ea2aa4b2bdeb631b0f85",
+    "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
+    "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
+    "godot-backrooms/tools/generate_hud_icons.py": "49399b5897f2fcf4da0476144d60ef9de1c3ee1c2a026bf27bcec8b52820f457",
+    "godot-backrooms/tools/generate_lens_dirt.py": "3e354d973b009bf81ad7f0e2d1ad33ffbe68e016bb274a52c3ad2a1089315d7b",
+    "godot-backrooms/tools/generate_splash.py": "01fc2af4bc76c411f08dba0826163cb4de37a886066e11a411f2436fd2bd16a1",
+    "godot-backrooms/tools/generate_tile_textures.py": "3edc5b9d063922815888fe27d1661d08e09099fd9d1e234f1bd64f0bc057e336",
+    "godot-backrooms/tools/make_wind.py": "2fe025afaaf0ee5230a7892c7773c6b7f5661081a1af75863a80152fcc9d47ce",
+    "godot-backrooms/tools/measure_audio.py": "b1162f6eb4267ea7139ba1b790a3b3febe1bf2085fab443d8f0319958d9289af",
+    "launcher/README.md": "506ee9543a4f256163974324939920dfa3680af6e21a245f60880551789ce083",
+    "tools/blender/build_player_hazmat.py": "4d542f99e19362f77e8d6b27d0a369f7cc99ce76c2dcabf4585ae898a51a668a",
+    "tools/blender/rig_mannequin_variant.py": "ad439292c5443f1739111d49949d1c457e3299825f9948203dd8a47dda9db947",
+    "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
+    "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
+    "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
+  },
+  "indexed_at_commit": "ca0b84769b352e162c31d63373601cb24becf2d8",
+  "indexed_at_timestamp": "2026-09-30T08:49:26.371389+00:00",
+  "languages": {
+    "markdown": {
+      "calls": 0,
+      "nodes": 32
+    },
+    "powershell": {
+      "calls": 0,
+      "nodes": 3
+    },
+    "python": {
+      "calls": 135,
+      "nodes": 103
+    }
+  },
+  "parser_version": "3.2.5",
+  "schema_version": 3,
+  "stats": {
+    "total_edges": 169,
+    "total_files": 20,
+    "total_nodes": 138
+  },
+  "vexp_version": "3.2.5"
+}
