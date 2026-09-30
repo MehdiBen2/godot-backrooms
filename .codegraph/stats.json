@@ -1,0 +1,15 @@
+{
+ "since": "2026-09-30T11:18:05.413Z",
+ "tools": {
+  "reindex": {
+   "calls": 1,
+   "outputTokens": 16,
+   "savedTokens": 0
+  },
+  "repo_map": {
+   "calls": 1,
+   "outputTokens": 934,
+   "savedTokens": 0
+  }
+ }
+}

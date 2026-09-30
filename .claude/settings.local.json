@@ -1,0 +1,15 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Read|Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "node /Users/medy/tools/codegraph-mcp/bin/codegraph-hook.js"
+                    }
+                ]
+            }
+        ]
+    }
+}
