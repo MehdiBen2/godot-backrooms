@@ -4,8 +4,10 @@ extends RefCounted
 ## Godot editor or a level-editor test launch it goes in the project's levels/marks/; an exported game
 ## can't write res://, so there it goes in user://marks/.
 
+## Only level-editor test launches keep marks: there they are part of the level being built. A normal
+## run (exported or from the Godot editor) starts every launch with no saved tape or sketches.
 static func active() -> bool:
-	return true
+	return Game.editor_test
 
 ## Marks belong to one floor of one level: the key the static lists are filed under (Net sends it as the
 ## strip's "level" too, so survivors on the same floor see each other's tape)
@@ -19,7 +21,7 @@ static func file_id(level_id: String) -> String:
 	return "%s_f%d" % [level_id, Game.level_floor]
 
 static func _path(id: String) -> String:
-	if Game.test_level != "" or OS.has_feature("editor"):
+	if Game.editor_test or OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://levels/marks/%s.json" % id)
 	return ProjectSettings.globalize_path("user://marks/%s.json" % id)
 

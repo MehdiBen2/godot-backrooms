@@ -62,6 +62,8 @@ var dev_keys := OS.is_debug_build() or OS.get_cmdline_user_args().has("--dev") o
 # Level-editor test launch: --test-level=<id from levels.json> boots straight into that level (skipping
 # the title screen) and --noclip lets you fly through walls to look around.
 var test_level := _launch_arg("--test-level=")
+## True for the whole run when launched from the level editor (test_level itself is cleared once the level opens)
+var editor_test := test_level != ""
 var test_spawn := _launch_arg("--test-spawn=")     # "x,z" cell: the editor's TEST HERE
 # Which floor of the level you are on (0 = the ground floor; the .lvl's "floors" hold the others) and, after
 # taking the stairs, the stairs you took: {x, y, kind} where kind is the stairs type to arrive beside

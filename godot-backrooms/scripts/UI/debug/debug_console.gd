@@ -526,6 +526,15 @@ func _build_world_tab() -> Control:
 	v.add_theme_constant_override("separation", 10)
 	scroll.add_child(v)
 
+	v.add_child(_section_header("LEVEL"))
+	var level_row := HBoxContainer.new()
+	level_row.add_theme_constant_override("separation", 8)
+	v.add_child(level_row)
+	# Re-reads the .lvl from disk, so the latest level editor save shows up without restarting the game.
+	level_row.add_child(_action_btn("🔄 RELOAD LEVEL (LATEST EDITOR SAVE)", func():
+		Game.change_level(Game.level_index)
+	))
+
 	v.add_child(_section_header("ELECTRICAL GRID & LIGHTING"))
 	var light_row := HBoxContainer.new()
 	light_row.add_theme_constant_override("separation", 8)

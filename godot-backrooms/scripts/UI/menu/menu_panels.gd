@@ -41,6 +41,13 @@ func _build_settings() -> Control:
 		sensitivity = x
 		_save()
 		settings_changed.emit()))
+	var kb_btn := _link_button("REBIND KEYS →")
+	kb_btn.custom_minimum_size = Vector2(96, 0)
+	kb_btn.pressed.connect(func():
+		if has_method("_show_panel"):
+			call("_show_panel", "controls")
+	)
+	v.add_child(_gfx_row("Keybinds", kb_btn))
 	v.add_child(_section_title("CAMERA"))
 	v.add_child(_slider_row("Field of view", FOV_MIN, FOV_MAX, fov, func(x: int):
 		fov = x
@@ -248,24 +255,206 @@ func _voice_meter_tick() -> void:
 	voice_meter_fill.color = Color("7fae72") if Voice.transmitting else Color(0.9, 0.882, 0.804, 0.45)
 	voice_meter_gate.position = Vector2(w * clampf((Voice.gate_db() + 70.0) / 70.0, 0.0, 1.0), 0.0)
 
+# ---- controls / keybinds section ----------------------------------------------------
+var rebinding_action := ""
+var rebinding_btn: Button = null
+var controls_hint: Label = null
+var keybind_buttons := {}
+
+func _input(e: InputEvent) -> void:
+	if rebinding_action == "":
+		return
+	if not (e is InputEventKey and e.pressed and not e.echo):
+		return
+	var k := e as InputEventKey
+	get_viewport().set_input_as_handled()
+	if k.keycode == KEY_ESCAPE:
+		_cancel_rebind()
+		return
+	var key_code: Key = k.keycode if k.keycode != KEY_NONE else DisplayServer.keyboard_get_keycode_from_physical(k.physical_keycode)
+	Keybinds.set_key(rebinding_action, key_code)
+	_finish_rebind()
+
+func _keybind_button(act_id: String) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.custom_minimum_size = Vector2(74, 22)
+	_style_keybind_btn(b, false)
+	b.text = Keybinds.get_key_name(act_id)
+	b.pressed.connect(_on_keybind_btn_pressed.bind(act_id, b))
+	keybind_buttons[act_id] = b
+	return b
+
+func _style_keybind_btn(b: Button, active: bool) -> void:
+	var bg := Color(0.627, 0.078, 0.059, 0.35) if active else Color(0.9, 0.882, 0.804, 0.06)
+	var border := RED if active else Color(0.9, 0.882, 0.804, 0.25)
+	var sb := _box(bg, border, Vector4(1, 1, 1, 3))
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 6; sb.content_margin_right = 6
+	sb.content_margin_top = 2; sb.content_margin_bottom = 2
+	
+	var sb_hover := _box(bg, RED if active else Color(0.9, 0.882, 0.804, 0.6), Vector4(1, 1, 1, 3))
+	sb_hover.set_corner_radius_all(3)
+	sb_hover.content_margin_left = 6; sb_hover.content_margin_right = 6
+	sb_hover.content_margin_top = 2; sb_hover.content_margin_bottom = 2
+
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb_hover)
+	b.add_theme_stylebox_override("pressed", sb)
+	b.add_theme_stylebox_override("focus", sb)
+	b.add_theme_font_override("font", _font(2))
+	b.add_theme_font_size_override("font_size", 11)
+	b.add_theme_color_override("font_color", RED if active else TITLE)
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+
+func _on_keybind_btn_pressed(act_id: String, b: Button) -> void:
+	if rebinding_btn != null and rebinding_btn != b:
+		_cancel_rebind()
+	rebinding_action = act_id
+	rebinding_btn = b
+	_style_keybind_btn(b, true)
+	b.text = "PRESS..."
+	if controls_hint != null:
+		var act_name := act_id
+		for a in Keybinds.ACTIONS:
+			if a.id == act_id:
+				act_name = a.name
+				break
+		controls_hint.text = "PRESS KEY FOR %s  //  ESC CANCELS" % act_name.to_upper()
+		controls_hint.modulate = RED
+	_click()
+
+func _finish_rebind() -> void:
+	if rebinding_btn != null:
+		_style_keybind_btn(rebinding_btn, false)
+		rebinding_btn.text = Keybinds.get_key_name(rebinding_action)
+	rebinding_action = ""
+	rebinding_btn = null
+	if controls_hint != null:
+		controls_hint.text = "CLICK A KEY TO REBIND. ESC CANCELS."
+		controls_hint.modulate = Color(0.9, 0.882, 0.804, 0.45)
+	_click()
+
+func _cancel_rebind() -> void:
+	if rebinding_btn != null:
+		_style_keybind_btn(rebinding_btn, false)
+		rebinding_btn.text = Keybinds.get_key_name(rebinding_action)
+	rebinding_action = ""
+	rebinding_btn = null
+	if controls_hint != null:
+		controls_hint.text = "CLICK A KEY TO REBIND. ESC CANCELS."
+		controls_hint.modulate = Color(0.9, 0.882, 0.804, 0.45)
+	_click()
+
+func _refresh_keybind_buttons() -> void:
+	for act_id in keybind_buttons:
+		var b: Button = keybind_buttons[act_id]
+		if is_instance_valid(b):
+			_style_keybind_btn(b, false)
+			b.text = Keybinds.get_key_name(act_id)
+
 func _build_controls() -> Control:
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 12)
-	for c in CONTROLS:
+	v.add_theme_constant_override("separation", 8)
+	
+	v.add_child(_section_title("LAYOUT PRESETS", true))
+	var presets := HBoxContainer.new()
+	presets.add_theme_constant_override("separation", 14)
+	
+	var azerty_btn := _link_button("AZERTY (ZQSD)")
+	azerty_btn.pressed.connect(func():
+		_cancel_rebind()
+		Keybinds.apply_preset("azerty")
+		_refresh_keybind_buttons()
+		if controls_hint != null:
+			controls_hint.text = "APPLIED AZERTY PRESET (ZQSD)."
+			controls_hint.modulate = Color("7fae72")
+	)
+	presets.add_child(azerty_btn)
+
+	var qwerty_btn := _link_button("QWERTY (WASD)")
+	qwerty_btn.pressed.connect(func():
+		_cancel_rebind()
+		Keybinds.apply_preset("qwerty")
+		_refresh_keybind_buttons()
+		if controls_hint != null:
+			controls_hint.text = "APPLIED QWERTY PRESET (WASD)."
+			controls_hint.modulate = Color("7fae72")
+	)
+	presets.add_child(qwerty_btn)
+
+	var reset_btn := _link_button("RESET")
+	reset_btn.pressed.connect(func():
+		_cancel_rebind()
+		Keybinds.reset_defaults()
+		_refresh_keybind_buttons()
+		if controls_hint != null:
+			controls_hint.text = "RESET ALL KEYBINDS."
+			controls_hint.modulate = Color("7fae72")
+	)
+	presets.add_child(reset_btn)
+	v.add_child(presets)
+
+	controls_hint = _label("CLICK A KEY TO REBIND. ESC CANCELS.", 11, Color(0.9, 0.882, 0.804, 0.45))
+	controls_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(controls_hint)
+
+	v.add_child(_section_title("KEYBINDS"))
+	
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(340, 320)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 8)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	
+	for act in Keybinds.ACTIONS:
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 14)
-		var keys := HBoxContainer.new()
-		keys.add_theme_constant_override("separation", 4)
-		keys.alignment = BoxContainer.ALIGNMENT_END
-		keys.custom_minimum_size = Vector2(116, 0)
-		for k in c[0]:
-			keys.add_child(_kbd(k))
-		row.add_child(keys)
-		var names := VBoxContainer.new()
-		names.add_theme_constant_override("separation", 0)
-		names.add_child(_label(c[1], 13, Color(0.9, 0.882, 0.804, 0.75)))
-		if c[2] != "":
-			names.add_child(_label(c[2], 11, Color(0.9, 0.882, 0.804, 0.4)))
-		row.add_child(names)
-		v.add_child(row)
+		row.add_theme_constant_override("separation", 12)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		
+		var b := _keybind_button(act.id)
+		row.add_child(b)
+		
+		var labels := VBoxContainer.new()
+		labels.add_theme_constant_override("separation", 1)
+		labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		labels.add_child(_label(act.name.to_upper(), 12, Color(0.9, 0.882, 0.804, 0.85)))
+		if act.desc != "":
+			labels.add_child(_label(act.desc, 10, Color(0.9, 0.882, 0.804, 0.4)))
+		row.add_child(labels)
+		list.add_child(row)
+	
+	scroll.add_child(list)
+	v.add_child(scroll)
+	
+	v.add_child(_section_title("OTHER CONTROLS"))
+	var other_box := VBoxContainer.new()
+	other_box.add_theme_constant_override("separation", 6)
+	for item in [
+		[["Mouse"], "Look", "Aim camera / flashlight"],
+		[["F11"], "Fullscreen", "Alt+Enter works too"],
+		[["Esc"], "Pause", "Resume or open settings"]
+	]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		var kbd_box := HBoxContainer.new()
+		kbd_box.custom_minimum_size = Vector2(74, 0)
+		kbd_box.alignment = BoxContainer.ALIGNMENT_CENTER
+		for k in item[0]:
+			kbd_box.add_child(_kbd(k))
+		row.add_child(kbd_box)
+		var lbls := VBoxContainer.new()
+		lbls.add_theme_constant_override("separation", 1)
+		lbls.add_child(_label(item[1].to_upper(), 12, Color(0.9, 0.882, 0.804, 0.75)))
+		if item[2] != "":
+			lbls.add_child(_label(item[2], 10, Color(0.9, 0.882, 0.804, 0.4)))
+		row.add_child(lbls)
+		other_box.add_child(row)
+	v.add_child(other_box)
+
+	Keybinds.keybinds_changed.connect(_refresh_keybind_buttons)
 	return v

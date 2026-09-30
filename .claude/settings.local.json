@@ -6,7 +6,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "node /Users/medy/tools/codegraph-mcp/bin/codegraph-hook.js"
+                        "command": "node -e \"const f='/Users/medy/tools/codegraph-mcp/bin/codegraph-hook.js';if(require('fs').existsSync(f))require(f)\""
                     }
                 ]
             }

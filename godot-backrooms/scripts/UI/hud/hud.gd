@@ -490,7 +490,8 @@ func use_battery() -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
-	if k and k.pressed and not k.echo and k.physical_keycode == KEY_R and Game.playing and not Game.dead \
+	var is_batt: bool = e.is_action_pressed("battery")
+	if is_batt and Game.playing and not Game.dead \
 			and not player.dead and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		use_battery()
 		get_viewport().set_input_as_handled()

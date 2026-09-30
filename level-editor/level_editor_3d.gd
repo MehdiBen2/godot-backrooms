@@ -84,8 +84,8 @@ func _init(editor) -> void:
 	add_child(ceiling_check)
 	_place_camera()
 
-const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   WASD move   E walk"
-const HUD_WALK := "WALKING   WASD walk   Shift run   right drag / arrows look   E back to overview"
+const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   ZQSD move   E walk"
+const HUD_WALK := "WALKING   ZQSD walk   Shift run   right drag / arrows look   E back to overview"
 
 ## Walk mode on / off: start from the spawn marker (else the middle of the view), heights at true scale
 func toggle_walk() -> void:
@@ -143,19 +143,24 @@ func _process(dt: float) -> void:
 		if _delay <= 0.0:
 			stale = false
 			_rebuild()
+	var move_left := Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_Q)
+	var move_right := Input.is_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_D)
+	var move_fwd := Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_Z)
+	var move_back := Input.is_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_S)
+
 	var dir := Vector2.ZERO
 	if has_focus() or get_global_rect().has_point(get_global_mouse_position()):
 		dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		if Input.is_key_pressed(KEY_A): dir.x -= 1.0
-		if Input.is_key_pressed(KEY_D): dir.x += 1.0
-		if Input.is_key_pressed(KEY_W): dir.y -= 1.0
-		if Input.is_key_pressed(KEY_S): dir.y += 1.0
+		if move_left: dir.x -= 1.0
+		if move_right: dir.x += 1.0
+		if move_fwd: dir.y -= 1.0
+		if move_back: dir.y += 1.0
 	if walking:
 		if Input.is_key_pressed(KEY_LEFT): yaw += 1.8 * dt
 		if Input.is_key_pressed(KEY_RIGHT): yaw -= 1.8 * dt
 		var ahead := -dir.y if not (Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_DOWN)) else \
-			(1.0 if Input.is_key_pressed(KEY_W) else (-1.0 if Input.is_key_pressed(KEY_S) else 0.0))
-		var side := (1.0 if Input.is_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) else 0.0)
+			(1.0 if move_fwd else (-1.0 if move_back else 0.0))
+		var side := (1.0 if move_right else 0.0) - (1.0 if move_left else 0.0)
 		var f := Vector2(-sin(yaw), -cos(yaw))
 		var r := Vector2(cos(yaw), -sin(yaw))
 		var step := (f * ahead + r * side).limit_length(1.0) * WALK_SPEED * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0) * dt

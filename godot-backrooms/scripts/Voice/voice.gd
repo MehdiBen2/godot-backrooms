@@ -346,7 +346,7 @@ func _process_frame(frame: PackedFloat32Array) -> void:
 	var hang_for := HANG_TIME
 	if not muted and not deafened and mode != Mode.OFF:
 		if mode == Mode.PUSH:
-			open = Input.is_key_pressed(PTT_KEY) and not (get_viewport().gui_get_focus_owner() is LineEdit)
+			open = Input.is_action_pressed("voice") and not (get_viewport().gui_get_focus_owner() is LineEdit)
 			hang_for = PTT_HANG
 		else:
 			open = db > gate_db()

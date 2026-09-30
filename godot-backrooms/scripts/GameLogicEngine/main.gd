@@ -36,8 +36,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and (e.physical_keycode == KEY_F11 or (e.physical_keycode == KEY_ENTER and e.alt_pressed)):
 		toggle_fullscreen()
 		return
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_TAB \
-			and Game.playing and not ui.menu.shown and not Game.dead:
+	var is_inv: bool = e.is_action_pressed("inventory")
+	if is_inv and Game.playing and not ui.menu.shown and not Game.dead:
 		set_inventory(not ui.inventory.shown)
 		return
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_ESCAPE:

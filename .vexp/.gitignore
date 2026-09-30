@@ -25,3 +25,6 @@ vexp-report.md
 daemon-job-warning
 mcp.token
 backups/
+daily-limit.json
+git-hooks.declined
+building

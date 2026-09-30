@@ -76,7 +76,7 @@ func _process(dt: float) -> void:
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors \
 		and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or cursor_aim)
-	var down := can and (Input.is_physical_key_pressed(KEY) or ui_down)
+	var down := can and (Input.is_action_pressed("tape") or ui_down)
 	if not down:
 		latched = false
 		if pulling:

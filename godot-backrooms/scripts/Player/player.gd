@@ -221,7 +221,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
 		_sync_flashlight_aim(0.35)
-	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F \
+	elif e.is_action_pressed("flashlight") \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not flash_on and battery <= 0.0:
 			dead_click.emit()          # dead battery: a dry hollow click, nothing else
@@ -264,15 +264,15 @@ func _physics_process(dt: float) -> void:
 	if _was_flying:
 		_was_flying = false
 		shape.disabled = false         # the draw tools panel closed: solid again
-	var crouch := _key(KEY_C) or _key(KEY_CTRL)
+	var crouch := Input.is_action_pressed("crouch")
 	var dir := Vector2.ZERO
-	if _key(KEY_W) or _key(KEY_UP): dir.y -= 1
-	if _key(KEY_S) or _key(KEY_DOWN): dir.y += 1
-	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
-	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
+	if Input.is_action_pressed("move_forward"): dir.y -= 1
+	if Input.is_action_pressed("move_backward"): dir.y += 1
+	if Input.is_action_pressed("move_left"): dir.x -= 1
+	if Input.is_action_pressed("move_right"): dir.x += 1
 	var moving := dir != Vector2.ZERO
 	var rush := adrenaline > 0.5 and adr_active     # sprint is free during a burst
-	var sprint := _key(KEY_SHIFT) and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
+	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
@@ -292,7 +292,7 @@ func _physics_process(dt: float) -> void:
 	velocity.x = move_toward(velocity.x, wish.x, rate * speed * dt)
 	velocity.z = move_toward(velocity.z, wish.z, rate * speed * dt)
 
-	var space := _key(KEY_SPACE)
+	var space := Input.is_action_pressed("jump")
 	if space and not space_prev:
 		jump_buffer = JUMP_BUFFER
 	space_prev = space
@@ -345,17 +345,17 @@ var _was_flying := false
 func _fly(dt: float) -> void:
 	shape.disabled = true
 	var dir := Vector3.ZERO
-	if _key(KEY_W) or _key(KEY_UP): dir.z -= 1
-	if _key(KEY_S) or _key(KEY_DOWN): dir.z += 1
-	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
-	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
+	if Input.is_action_pressed("move_forward"): dir.z -= 1
+	if Input.is_action_pressed("move_backward"): dir.z += 1
+	if Input.is_action_pressed("move_left"): dir.x -= 1
+	if Input.is_action_pressed("move_right"): dir.x += 1
 	var wish := cam.global_transform.basis * dir
-	if _key(KEY_SPACE): wish.y += 1.0
-	if _key(KEY_C) or _key(KEY_CTRL): wish.y -= 1.0
+	if Input.is_action_pressed("jump"): wish.y += 1.0
+	if Input.is_action_pressed("crouch"): wish.y -= 1.0
 	velocity = Vector3.ZERO
 	is_moving = false
 	is_sprinting = false
-	var fly_spd := (18.0 if _key(KEY_SHIFT) else 7.0) * Game.speed_mult
+	var fly_spd := (18.0 if Input.is_action_pressed("sprint") else 7.0) * Game.speed_mult
 	global_position += wish.normalized() * fly_spd * dt
 
 func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
