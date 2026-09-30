@@ -177,8 +177,9 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 		var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
 		for v in quad:
 			st.set_normal(n)
-			st.set_tangent(Plane(1, 0, 0, 1))
+			st.set_uv(Vector2(v.x, v.z))
 			st.add_vertex(v)
+	st.generate_tangents()
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = mat
@@ -214,7 +215,7 @@ func _build_surfaces() -> void:
 			elif classic.has(c): classic_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
-	var carpet: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
+	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
 	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	_cell_surface(ceil_cells, func(c): return ceiling_height(c), _fillable_ceiling(ceil_m), true).layers = CEIL_LAYER
@@ -224,7 +225,7 @@ func _build_surfaces() -> void:
 		_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true).layers = CEIL_LAYER
 	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
 	if not classic_floor.is_empty():
-		_cell_surface(classic_floor, func(_c): return 0.0, _classic_mat("l0_carpet", 0.5, Color(1.2, 1.05, 0.62), 0.0), false)
+		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.2, 1.05, 0.62)), false)
 	if not classic_ceil.is_empty():
 		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _fillable_ceiling(_classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0)), true).layers = CEIL_LAYER
 
@@ -237,6 +238,32 @@ func _build_surfaces() -> void:
 
 	_build_floor_collision(floor_cells)
 	_build_ceiling_collision(floor_cells)
+
+const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
+
+func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
+	var sm := ShaderMaterial.new()
+	sm.shader = CarpetPOMShader
+	sm.set_shader_parameter("albedo_tex", load("res://textures/l0_carpet_color.webp"))
+	sm.set_shader_parameter("normal_tex", load("res://textures/l0_carpet_normal.webp"))
+	sm.set_shader_parameter("roughness_tex", load("res://textures/l0_carpet_rough.webp"))
+	sm.set_shader_parameter("ao_tex", load("res://textures/l0_carpet_ao.webp"))
+	sm.set_shader_parameter("height_tex", load("res://textures/l0_carpet_height.png"))
+	sm.set_shader_parameter("albedo_tint", tint)
+	sm.set_shader_parameter("uv_scale", Vector2(0.5, 0.5))
+	sm.set_shader_parameter("normal_scale", 2.4)
+	sm.set_shader_parameter("roughness_mult", 0.88)
+	sm.set_shader_parameter("metallic_specular", 0.35)
+	sm.set_shader_parameter("ao_light_affect", 0.75)
+	sm.set_shader_parameter("height_scale", 0.04)
+	sm.set_shader_parameter("min_layers", 8)
+	sm.set_shader_parameter("max_layers", 20)
+	sm.set_shader_parameter("near_distance", 10.0)
+	sm.set_shader_parameter("near_fade_range", 2.5)
+	sm.set_shader_parameter("crevice_ao_strength", 0.6)
+	sm.set_shader_parameter("mid_distance", 30.0)
+	sm.set_shader_parameter("mid_fade_range", 5.0)
+	return sm
 
 func _classic_mat(tex: String, scale: float, tint: Color, glow := 0.1) -> StandardMaterial3D:
 	var m := _mat(tex, Vector3(scale, scale, scale), tint)
@@ -516,7 +543,7 @@ func _build_props(list: Array) -> void:
 		var p := IndustrialProp.new()
 		p.transform = object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
 		add_child(p)
-		p.build(str(info.model), info.get("textures", {}))
+		p.build(str(info.model), info.get("textures", {}), info.get("light", {}), float(info.get("model_yaw", 0.0)))
 
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))

@@ -319,7 +319,17 @@
   "prop_work_light": {
     "label": "Work light",
     "color": "e0c34a",
-    "help": "A tripod work lamp with a lit bulb. Purely decorative clutter",
+    "help": "A T.S.R.A floor work lamp. Casts real light: the research teams set these up to light their areas",
+    "model_yaw": 180,
+    "light": {
+      "color": "ffe2a8",
+      "energy": 5.0,
+      "range": 12.0,
+      "angle": 52.0,
+      "tilt": 18.0,
+      "height": 0.55,
+      "projector": true
+    },
     "thickness": 0.6,
     "scatter": true,
     "model": "res://models/props/industrial/WorkLight/WorkLight.fbx",
@@ -335,7 +345,20 @@
   "prop_work_light2": {
     "label": "Work light (b)",
     "color": "e0c34a",
-    "help": "A second work lamp variant with a lit bulb. Purely decorative clutter",
+    "help": "A second T.S.R.A work lamp variant with two flood heads. Casts real light toward the ground like research lights",
+    "model_yaw": -152.6,
+    "light": {
+      "color": "ffe2a8",
+      "energy": 4.5,
+      "range": 14.0,
+      "angle": 52.0,
+      "tilt": 25.0,
+      "projector": true,
+      "spots": [
+        {"offset": [0.06, 1.67, -0.28], "yaw": 5.0},
+        {"offset": [0.06, 1.68, 0.28], "yaw": -5.0}
+      ]
+    },
     "thickness": 0.6,
     "scatter": true,
     "model": "res://models/props/industrial/Worklight02/WorkLight02.fbx",
