@@ -3,6 +3,7 @@ extends SubViewportContainer
 ## materials, zones and objects at a glance. It is rebuilt from the editor's data (grid, zones, paint,
 ## objects) whenever something changes while it is open; nothing here is saved.
 ##   right drag orbit   middle drag / Shift+right drag pan   wheel zoom   WASD pan   C toggles the ceiling
+## Movement keys go by position, not letter: the WASD spot on a QWERTY keyboard is ZQSD on AZERTY.
 ## 1 cell = 1 unit; the game's cell is 4.5 m and its wall 2.7 m, hence WALL_H.
 
 const WALL_H := 0.6
@@ -43,6 +44,11 @@ func _init(editor) -> void:
 	vp = SubViewport.new()
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
+	# redraw every frame while open, never while closed: "when visible" can miss that it is on screen (the
+	# editor's embedded Game tab), leaving a frozen picture
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	visibility_changed.connect(func():
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED)
 	add_child(vp)
 	world = Node3D.new()
 	vp.add_child(world)
@@ -75,7 +81,7 @@ func _init(editor) -> void:
 	hud.add_theme_constant_override("shadow_offset_x", 2)
 	hud.add_theme_constant_override("shadow_offset_y", 2)
 	hud.add_theme_color_override("font_color", Color("cdb86a"))
-	hud.text = HUD_ORBIT
+	hud.text = HUD_ORBIT % _move_keys()
 	add_child(hud)
 	ceiling_check = CheckBox.new()
 	ceiling_check.text = "Ceiling"
@@ -84,8 +90,16 @@ func _init(editor) -> void:
 	add_child(ceiling_check)
 	_place_camera()
 
-const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   WASD move   E walk"
-const HUD_WALK := "WALKING   WASD walk   Shift run   right drag / arrows look   E back to overview"
+const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   %s move   E walk"
+const HUD_WALK := "WALKING   %s walk   Shift run   right drag / arrows look   E back to overview"
+
+## The movement keys as printed on this keyboard ("WASD" on QWERTY, "ZQSD" on AZERTY)
+func _move_keys() -> String:
+	var out := ""
+	for k in [KEY_W, KEY_A, KEY_S, KEY_D]:
+		var lbl := DisplayServer.keyboard_get_label_from_physical(k)
+		out += OS.get_keycode_string(lbl if lbl != KEY_NONE else k)
+	return out
 
 ## Walk mode on / off: start from the spawn marker (else the middle of the view), heights at true scale
 func toggle_walk() -> void:
@@ -93,7 +107,7 @@ func toggle_walk() -> void:
 	vscale = 2.0 if walking else 1.0
 	walk_light.visible = walking
 	cam.near = 0.01 if walking else 0.05
-	hud.text = HUD_WALK if walking else HUD_ORBIT
+	hud.text = (HUD_WALK if walking else HUD_ORBIT) % _move_keys()
 	if walking:
 		var sp = ed.markers.get("spawn")
 		var c: Vector2i = sp if sp != null else Vector2i(roundi(target.x), roundi(target.z))
@@ -146,16 +160,16 @@ func _process(dt: float) -> void:
 	var dir := Vector2.ZERO
 	if has_focus() or get_global_rect().has_point(get_global_mouse_position()):
 		dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		if Input.is_key_pressed(KEY_A): dir.x -= 1.0
-		if Input.is_key_pressed(KEY_D): dir.x += 1.0
-		if Input.is_key_pressed(KEY_W): dir.y -= 1.0
-		if Input.is_key_pressed(KEY_S): dir.y += 1.0
+		if Input.is_physical_key_pressed(KEY_A): dir.x -= 1.0
+		if Input.is_physical_key_pressed(KEY_D): dir.x += 1.0
+		if Input.is_physical_key_pressed(KEY_W): dir.y -= 1.0
+		if Input.is_physical_key_pressed(KEY_S): dir.y += 1.0
 	if walking:
 		if Input.is_key_pressed(KEY_LEFT): yaw += 1.8 * dt
 		if Input.is_key_pressed(KEY_RIGHT): yaw -= 1.8 * dt
 		var ahead := -dir.y if not (Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_DOWN)) else \
-			(1.0 if Input.is_key_pressed(KEY_W) else (-1.0 if Input.is_key_pressed(KEY_S) else 0.0))
-		var side := (1.0 if Input.is_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) else 0.0)
+			(1.0 if Input.is_physical_key_pressed(KEY_W) else (-1.0 if Input.is_physical_key_pressed(KEY_S) else 0.0))
+		var side := (1.0 if Input.is_physical_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_physical_key_pressed(KEY_A) else 0.0)
 		var f := Vector2(-sin(yaw), -cos(yaw))
 		var r := Vector2(cos(yaw), -sin(yaw))
 		var step := (f * ahead + r * side).limit_length(1.0) * WALK_SPEED * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0) * dt
