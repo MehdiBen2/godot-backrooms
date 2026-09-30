@@ -31,7 +31,7 @@ func _ready() -> void:
 	live = self
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		var list: Array = placed.get(lv, [])
 		for d in MarkStore.read(level_id).get("sketch", []):
@@ -53,7 +53,7 @@ func reload_floor() -> void:
 			m.queue_free()
 	meshes.clear()
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		var list: Array = placed.get(lv, [])
 		for d in MarkStore.read(level_id).get("sketch", []):

@@ -145,6 +145,8 @@
     "params": {
       "depth": 2.0,
       "event": "message",
+      "custom_event": "",
+      "events_list": [],
       "text": "",
       "once": true,
       "delay": 0.0,
@@ -152,17 +154,25 @@
     },
     "events": {
       "message": "Show the Text as a caption",
+      "text": "Show the Text as a caption",
       "lights_out": "The tubes over the box die for Duration seconds, then re-strike",
       "flicker": "The tubes over the box stutter",
       "silence": "The ambience drains away for Duration seconds; only the hum is left",
       "thump": "A heavy footstep behind you",
       "drone": "A low drone swells for Duration seconds",
       "static": "A burst of static",
+      "spawn_bacteria": "Summon Bacteria monster near the trigger",
+      "spawn_mimic": "Spawn a Mimic anomaly near the trigger",
+      "spawn_mannequin": "Activate / warp Mannequin into the room",
+      "camera_shake": "Camera shake / trauma when stepping in",
+      "sanity_drain": "Sudden drop in sanity (25%)",
+      "hallucination": "Breathing and whispers close behind you",
       "wallKnock": "Director event: knocking inside a wall behind you",
       "breathBehind": "Director event: something breathing on your neck",
       "preacherWhisper": "Director event: a preacher's voice down a corridor",
       "tiltDrift": "Director event: the world slowly tilts",
-      "powerCut": "Director event: the whole floor's power fails for a minute"
+      "powerCut": "Director event: the whole floor's power fails for a minute",
+      "custom": "Custom event (type custom event name)"
     },
     "category": "events"
   },

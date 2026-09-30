@@ -102,6 +102,8 @@ var title_label: Label
 var status: Label
 var info: Label
 var insp: VBoxContainer
+var tool_scroll: ScrollContainer
+var insp_trigger_btn: Button
 var insp_type: OptionButton
 var insp_x: SpinBox
 var insp_y: SpinBox
@@ -157,7 +159,12 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
 	var o := {"type": t, "pos_x": at.x, "pos_y": at.y, "rotation": rot, "scale": _place_scale(t)}
 	var params: Dictionary = _info(t).get("params", {})
-	for k in params: o[k] = params[k]
+	for k in params:
+		var val = params[k]
+		if val is Array or val is Dictionary:
+			o[k] = val.duplicate(true)
+		else:
+			o[k] = val
 	return o
 
 func _update_title() -> void:
@@ -1247,6 +1254,9 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		drag = "group"
 	elif i >= 0:
 		_select(i)
+		if mb.double_click and objects[i].type == "trigger":
+			_open_trigger_dialog(i)
+			return
 		_push_undo()
 		var o: Dictionary = objects[i]
 		drag_off = Vector2(o.pos_x, o.pos_y) - _pos_at(mb.position)
@@ -1422,6 +1432,9 @@ func _group() -> Array:
 	if multi.size() > 1: return multi.duplicate()
 	return [selected] if selected >= 0 else []
 
+func _open_trigger_dialog(_idx: int) -> void:
+	pass
+
 func _select(i: int) -> void:
 	multi = []
 	selected = i
@@ -1514,12 +1527,24 @@ func _set_prop(key: String, v) -> void:
 				if not o.has(k): o[k] = params[k]
 			o.scale = minf(o.scale, _max_scale(v))
 			_sync_inspector()
+		"event":
+			var raw_list = o.get("events_list", [])
+			if raw_list is Array and not raw_list.is_empty() and raw_list[0] is Dictionary:
+				raw_list[0]["event"] = v
+			_sync_inspector()
+		"custom_event":
+			var raw_list = o.get("events_list", [])
+			if raw_list is Array and not raw_list.is_empty() and raw_list[0] is Dictionary:
+				raw_list[0]["custom_event"] = v
+			_sync_inspector()
 	_mark_dirty()
 
 func _sync_inspector() -> void:
 	if insp == null: return
 	insp.get_parent().visible = selected >= 0
 	if selected < 0: return
+	if tool_scroll != null:
+		tool_scroll.scroll_vertical = 0
 	var o: Dictionary = objects[selected]
 	insp_type.select(OBJ_TYPES.find(o.type))
 	for sb: SpinBox in [insp_x, insp_y]: sb.max_value = grid_size - 1
@@ -1533,9 +1558,21 @@ func _sync_inspector() -> void:
 	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
 	insp_scale_label.visible = sh not in ["pillar", "column"]
 	insp_scale.visible = insp_scale_label.visible
+	if insp_trigger_btn != null:
+		insp_trigger_btn.visible = (o.type == "trigger")
+		if o.type == "trigger":
+			var raw_list = o.get("events_list", [])
+			var ev_count: int = raw_list.size() if raw_list is Array else 0
+			if ev_count > 1:
+				insp_trigger_btn.text = "CONFIGURE EVENTS (%d ACTIONS)..." % ev_count
+			else:
+				insp_trigger_btn.text = "CONFIGURE EVENT OPTIONS..."
 	var params: Dictionary = _info(o.type).get("params", {})
+	var is_custom_event: bool = (o.type == "trigger" and str(_param(o, "event")) == "custom")
 	for k in insp_params:
 		var on := params.has(k)
+		if k == "custom_event":
+			on = on and is_custom_event
 		for n: Control in insp_params[k].row: n.visible = on
 		if not on: continue
 		var ctrl: Control = insp_params[k].ctrl
@@ -1546,7 +1583,10 @@ func _sync_inspector() -> void:
 			if (ctrl as LineEdit).text != str(v): (ctrl as LineEdit).text = str(v)
 		elif ctrl is OptionButton:
 			var evs: Array = _info(o.type).get("events", {}).keys()
-			(ctrl as OptionButton).select(maxi(0, evs.find(str(v))))
+			var ev_idx := evs.find(str(v))
+			if ev_idx < 0:
+				ev_idx = evs.find("custom")
+			(ctrl as OptionButton).select(maxi(0, ev_idx))
 
 func _deg(d: float) -> String:
 	return str(snappedf(d, 0.1)).trim_suffix(".0")
@@ -1557,7 +1597,30 @@ func _describe(o: Dictionary) -> String:
 	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
 	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
 	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
-	if params.has("event"): t += "   event: %s%s" % [_param(o, "event"), "  (once)" if bool(_param(o, "once", true)) else ""]
+	if params.has("event"):
+		var ev_names: Array = []
+		var raw_list = o.get("events_list", [])
+		if raw_list is Array and not raw_list.is_empty():
+			for entry in raw_list:
+				var name_str := ""
+				if entry is Dictionary:
+					name_str = str(entry.get("event", ""))
+					if name_str == "custom":
+						var c_ev := str(entry.get("custom_event", "")).strip_edges()
+						if c_ev != "": name_str = "custom (%s)" % c_ev
+				elif entry is String:
+					name_str = str(entry).strip_edges()
+				if name_str != "":
+					ev_names.append(name_str)
+		if ev_names.is_empty():
+			var ev_name := str(_param(o, "event"))
+			if ev_name == "custom":
+				var c_ev := str(_param(o, "custom_event", "")).strip_edges()
+				if c_ev != "": ev_name = "custom (%s)" % c_ev
+			ev_names.append(ev_name)
+		t += "   events: %s%s" % [", ".join(ev_names), "  (once)" if bool(_param(o, "once", true)) else ""]
+		var tx := str(_param(o, "text", "")).strip_edges()
+		if tx != "": t += '   text: "%s"' % tx
 	return t
 
 ## A rectangle in the object's local space (cells), as canvas points
@@ -1636,7 +1699,40 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 			for i in 4:
 				canvas.draw_dashed_line(pts[i], pts[(i + 1) % 4], Color(col, alpha * 0.9), 1.5, maxf(zoom * 0.2, 4.0))
 			if zoom >= 8.0:
-				var lbl := "⚡ " + str(_param(o, "event", "")) + ("" if bool(_param(o, "once", true)) else "  ↻")
+				var ev_names: Array = []
+				var raw_list = o.get("events_list", [])
+				if raw_list is Array and not raw_list.is_empty():
+					for entry in raw_list:
+						var name_str := ""
+						if entry is Dictionary:
+							name_str = str(entry.get("event", ""))
+							if name_str == "custom":
+								var c_ev := str(entry.get("custom_event", "")).strip_edges()
+								if c_ev != "": name_str = c_ev
+						elif entry is String:
+							name_str = str(entry).strip_edges()
+						if name_str != "":
+							ev_names.append(name_str)
+				if ev_names.is_empty():
+					var ev := str(_param(o, "event", ""))
+					if ev == "custom":
+						var c_ev := str(_param(o, "custom_event", "")).strip_edges()
+						if c_ev != "": ev = c_ev
+					if ev != "": ev_names.append(ev)
+				var summary := ""
+				if ev_names.size() == 1:
+					summary = ev_names[0]
+				elif ev_names.size() == 2:
+					summary = ev_names[0] + " + " + ev_names[1]
+				elif ev_names.size() > 2:
+					summary = ev_names[0] + " (+" + str(ev_names.size() - 1) + " events)"
+				else:
+					summary = "trigger"
+				var tx := str(_param(o, "text", "")).strip_edges()
+				if tx != "":
+					var preview := tx if tx.length() <= 22 else tx.substr(0, 20) + ".."
+					summary += ' "%s"' % preview
+				var lbl := summary + ("" if bool(_param(o, "once", true)) else " [repeat]")
 				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
 		_:
 			var pts := _shape_path(o)

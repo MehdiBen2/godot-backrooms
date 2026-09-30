@@ -111,6 +111,8 @@ static func load_object(o: Dictionary) -> Dictionary:
 		match typeof(params[k]):
 			TYPE_BOOL: out[k] = bool(v)
 			TYPE_FLOAT, TYPE_INT: out[k] = float(v)
+			TYPE_ARRAY: out[k] = v if v is Array else params[k]
+			TYPE_DICTIONARY: out[k] = v if v is Dictionary else params[k]
 			_: out[k] = str(v)
 	return out
 

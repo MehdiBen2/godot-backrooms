@@ -276,7 +276,7 @@ func _update_atmosphere(delta: float) -> void:
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.liminal.haze, _lim * (1.0 - 0.6 * darkness))   # stays pale in the shadows too
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.classic.haze, open_mix * (1.0 - darkness))
 	env.background_color = env.fog_light_color
-	if _horizon_mat:
+	if is_instance_valid(_horizon) and _horizon_mat:
 		_horizon_mat.set_shader_parameter("fog_color", env.fog_light_color)
 		_horizon.visible = not Game.fullbright
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness

@@ -4,8 +4,8 @@ extends RefCounted
 ## Godot editor or a level-editor test launch it goes in the project's levels/marks/; an exported game
 ## can't write res://, so there it goes in user://marks/.
 
-## Only level-editor test launches keep marks: there they are part of the level being built. A normal
-## run (exported or from the Godot editor) starts every launch with no saved tape or sketches.
+## Only level-editor test launches save marks: there they are part of the level being built, and every
+## run (exported or not) loads them with the level. What a player lays in a normal run is never saved.
 static func active() -> bool:
 	return Game.editor_test
 
@@ -25,10 +25,12 @@ static func _path(id: String) -> String:
 		return ProjectSettings.globalize_path("res://levels/marks/%s.json" % id)
 	return ProjectSettings.globalize_path("user://marks/%s.json" % id)
 
+## The marks saved with the level. An exported game reads them from inside its .pck (res://), so
+## the path is left unglobalized there.
 static func read(id: String) -> Dictionary:
-	if not active() or id == "":
+	if id == "":
 		return {}
-	var f := FileAccess.open(_path(id), FileAccess.READ)
+	var f := FileAccess.open(_path(id) if active() else "res://levels/marks/%s.json" % id, FileAccess.READ)
 	if f == null:
 		return {}
 	var d = JSON.parse_string(f.get_as_text())

@@ -30,6 +30,9 @@ const FAR_FADE := 36.0
 # the fixture's own cell instead of bleeding over a nearby wall onto a corridor the fixture isn't even in.
 const CEIL_GLOW := 0.5              # of the slot's energy, tube fixtures (the ceiling round a troffer is well lit)
 const CEIL_GLOW_PANEL := 0.2        # panel ceilings: the panels themselves already light up the tiles round them
+# a little specular from the glow: the painted T-bars catch a glinting line of it, like a real grid under a
+# troffer. Kept low: the tiles themselves are rough, but at full strength their broad sheen became a hotspot.
+const CEIL_GLOW_SPECULAR := 0.35
 const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = wider, softer halo
 const CEIL_GLOW_RANGE := 3.5
 const BOUNCE_RADIUS := 7.0
@@ -124,7 +127,7 @@ func _build_light_pool() -> void:
 		g.omni_range = CEIL_GLOW_RANGE
 		g.omni_attenuation = 1.6
 		g.light_cull_mask = CEIL_LAYER
-		g.light_specular = 0.0
+		g.light_specular = CEIL_GLOW_SPECULAR
 		g.shadow_enabled = false
 		g.visible = false
 		g.set_meta("gfx_managed", true)

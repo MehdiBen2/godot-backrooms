@@ -15,8 +15,8 @@ uniform float metallic_specular : hint_range(0.0, 1.0) = 0.35;
 uniform float ao_light_affect : hint_range(0.0, 1.0) = 0.75;
 
 uniform float height_scale : hint_range(0.0, 0.1) = 0.04;
-uniform int min_layers : hint_range(4, 32) = 8;
-uniform int max_layers : hint_range(8, 64) = 20;
+uniform int min_layers : hint_range(0, 32) = 6;
+uniform int max_layers : hint_range(0, 64) = 14;    // 0 turns POM off (Low preset)
 uniform float near_distance : hint_range(5.0, 20.0) = 10.0;
 uniform float near_fade_range : hint_range(1.0, 5.0) = 2.5;
 uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.6;
@@ -34,11 +34,15 @@ void vertex() {
 
 void fragment() {
 	vec2 uv = v_uv;
+	// Gradients taken once, up front: inside the (per-pixel, variable-length) march below implicit derivatives
+	// are undefined and the GPU falls back to slow paths, and every fetch here reuses them via textureGrad.
+	vec2 uv_dx = dFdx(uv);
+	vec2 uv_dy = dFdy(uv);
 	float dist = -VERTEX.z;
 	float final_depth = 0.0;
 
 	// Tier 1: Near Range (0 to 10m) - Full Silhouette POM & Crevice Shadowing
-	if (dist < near_distance && height_scale > 0.001) {
+	if (dist < near_distance && height_scale > 0.001 && max_layers > 0) {
 		float pom_weight = clamp((near_distance - dist) / near_fade_range, 0.0, 1.0);
 
 		vec3 v_ts = vec3(
@@ -55,17 +59,20 @@ void fragment() {
 
 		vec2 curr_uv = uv;
 		float curr_layer_depth = 0.0;
-		float curr_map_depth = 1.0 - texture(height_tex, curr_uv).r;
+		float curr_map_depth = 1.0 - textureGrad(height_tex, curr_uv, uv_dx, uv_dy).r;
+		float prev_map_depth = curr_map_depth;
 
-		while (curr_layer_depth < curr_map_depth && curr_layer_depth < 1.0) {
+		// hard-capped march (an unbounded while can spin on a flat-black height texel)
+		int steps = int(num_layers) + 1;
+		for (int i = 0; i < steps && curr_layer_depth < curr_map_depth; i++) {
+			prev_map_depth = curr_map_depth;
 			curr_uv += delta_uv;
 			curr_layer_depth += layer_step;
-			curr_map_depth = 1.0 - texture(height_tex, curr_uv).r;
+			curr_map_depth = 1.0 - textureGrad(height_tex, curr_uv, uv_dx, uv_dy).r;
 		}
 
 		vec2 prev_uv = curr_uv - delta_uv;
 		float prev_layer_depth = curr_layer_depth - layer_step;
-		float prev_map_depth = 1.0 - texture(height_tex, prev_uv).r;
 
 		float after_depth = curr_layer_depth - curr_map_depth;
 		float before_depth = prev_map_depth - prev_layer_depth;
@@ -79,15 +86,15 @@ void fragment() {
 	float far_fade = clamp((dist - (mid_distance - mid_fade_range)) / mid_fade_range, 0.0, 1.0);
 	float active_normal_depth = mix(normal_scale, 0.0, far_fade);
 
-	vec4 alb = texture(albedo_tex, uv) * albedo_tint;
-	float rough = texture(roughness_tex, uv).r * roughness_mult;
-	float base_ao = texture(ao_tex, uv).r;
+	vec4 alb = textureGrad(albedo_tex, uv, uv_dx, uv_dy) * albedo_tint;
+	float rough = textureGrad(roughness_tex, uv, uv_dx, uv_dy).r * roughness_mult;
+	float base_ao = textureGrad(ao_tex, uv, uv_dx, uv_dy).r;
 
 	float crevice_occ = 1.0 - pow(final_depth, 1.3) * crevice_ao_strength;
 	float final_ao = clamp(base_ao * crevice_occ, 0.0, 1.0);
 
 	ALBEDO = alb.rgb * mix(vec3(0.85), vec3(1.0), 1.0 - final_depth * 0.4);
-	NORMAL_MAP = texture(normal_tex, uv).rgb;
+	NORMAL_MAP = textureGrad(normal_tex, uv, uv_dx, uv_dy).rgb;
 	NORMAL_MAP_DEPTH = active_normal_depth;
 	ROUGHNESS = rough;
 	SPECULAR = metallic_specular;

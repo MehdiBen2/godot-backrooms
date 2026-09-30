@@ -41,9 +41,9 @@ func _place_fixtures() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			# thin walls and doors leave most of their cell open (and now carry the ceiling-step
-			# bulkhead against a neighbouring low room), so they still need a fixture over them
-			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c) or pillar_cells.has(c): continue
+			# no fixture over any wall, placed thin walls and doors included: the wall reaches the ceiling,
+			# so a troffer there sits on top of it and its light bleeds through both faces
+			if walls.has(c) or arch_cells.has(c) or pillar_cells.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
@@ -64,10 +64,8 @@ func _place_fixtures() -> void:
 				if not grid_node: continue
 			# liminal: a denser, perfectly regular grid, so light is flat and even everywhere you stand
 			elif liminal.has(c):
-				if not (ns or ew or (x % 2 == 0 and z % 2 == 0) or carved.has(c)): continue
-			# a carved cell's own neighbours are open along its passage, so the corridor heuristic
-			# (opposite neighbours both walls) almost never matches it; it still needs its fixture
-			elif not (ns or ew or grid_node or carved.has(c)): continue
+				if not (ns or ew or (x % 2 == 0 and z % 2 == 0)): continue
+			elif not (ns or ew or grid_node): continue
 			var is_liminal := liminal.has(c)
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
@@ -94,7 +92,9 @@ func _place_panel_fixtures() -> void:
 			var is_bright := bright.has(c)
 			# only every other cell each way glows (a sparse, regular grid like the reference photos); the rest
 			# of the texture's panels read as switched-off diffusers
-			var on_grid := x % 2 == 0 and z % 2 == 0
+			# a placed wall / door keeps its ceiling quad (no hole) but never glows or casts: its light would
+			# sit right on top of the wall and bleed through both faces
+			var on_grid := x % 2 == 0 and z % 2 == 0 and not carved.has(c)
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
 			var burnt := not on_grid or (not (is_bright or is_classic) and rng.randf() < chance)
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
@@ -274,10 +274,39 @@ func disturb(pos: Vector3, radius: float, strength: float) -> void:
 	for f in lit:
 		if f.black > 0.0 or f.burst > 0:
 			continue
-		if (f.pos as Vector3).distance_squared_to(pos) > r2 or rng.randf() > strength:
+		var d2 := Vector2(f.pos.x - pos.x, f.pos.z - pos.z).length_squared()
+		if d2 > r2 or rng.randf() > strength:
 			continue
-		f.burst = 2 * (1 + rng.randi() % 2)      # even: always ends lit
-		f.timer = rng.randf() * 0.15
+		f.burst = 2 * (2 + rng.randi() % 3)
+		f.timer = 0.02 + rng.randf() * 0.08
+
+## Flicker tubes near `pos` actively for `duration` seconds
+func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
+	var r2 := radius * radius
+	var affected: Array = []
+	for f in lit:
+		if f.black > 0.0: continue
+		var d2 := Vector2(f.pos.x - pos.x, f.pos.z - pos.z).length_squared()
+		if d2 <= r2:
+			affected.append(f)
+
+	# If the trigger was placed in a gap between fixtures, grab nearest lit tubes
+	if affected.is_empty() and not lit.is_empty():
+		var sorted_lit := lit.duplicate()
+		sorted_lit.sort_custom(func(a, b):
+			var da := Vector2(a.pos.x - pos.x, a.pos.z - pos.z).length_squared()
+			var db := Vector2(b.pos.x - pos.x, b.pos.z - pos.z).length_squared()
+			return da < db
+		)
+		for i in mini(3, sorted_lit.size()):
+			if sorted_lit[i].black <= 0.0:
+				affected.append(sorted_lit[i])
+
+	var end_time := Game.time + duration
+	for f in affected:
+		f["flicker_until"] = end_time
+		f.burst = 2 * (3 + rng.randi() % 4)      # 6 to 14 rapid bursts
+		f.timer = 0.01 + rng.randf() * 0.04
 
 # Fake planar reflection for the polished room: mirrored fixture panels under the
 # semi-transparent floor, plus two steady lights so the room stays bright.
@@ -342,17 +371,21 @@ func _update_fixtures(delta: float) -> void:
 				_set_lit_color(f, 1.0)
 				fixture_event.emit(f, true)
 			continue
-		if not f.flickers and f.burst == 0: continue
+		var is_event_flickering: bool = float(f.get("flicker_until", 0.0)) > Game.time
+		if not f.flickers and not is_event_flickering and f.burst == 0: continue
 		f.timer -= delta
 		if f.timer > 0.0: continue
 		if f.burst == 0:
-			f.burst = 2 * (1 + rng.randi() % 4)      # even: always ends lit
+			if is_event_flickering:
+				f.burst = 2 * (2 + rng.randi() % 4)
+			else:
+				f.burst = 2 * (1 + rng.randi() % 4)      # even: always ends lit
 		f.burst -= 1
 		var going_off: bool = f.level > 0.3
 		f.level = 0.04 if going_off else 0.7 + rng.randf() * 0.45
 		f.timer = (0.03 + rng.randf() * 0.09) if going_off else (0.04 + rng.randf() * 0.14)
 		if f.burst == 0:
 			f.level = 1.0
-			f.timer = 1.5 + rng.randf() * 6.0
+			f.timer = (0.08 + rng.randf() * 0.25) if is_event_flickering else (1.5 + rng.randf() * 6.0)
 		_set_lit_color(f, 0.06 if going_off else f.level)
 		fixture_event.emit(f, not going_off)

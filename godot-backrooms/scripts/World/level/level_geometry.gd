@@ -216,9 +216,9 @@ func _build_surfaces() -> void:
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
-	var ceil_m: StandardMaterial3D = _pbr_or("ceiling") if _has_pbr("ceiling") else _mat("l0_ceiling", Vector3(0.278, 0.278, 0.278), Color(0.89, 0.85, 0.74))
+	var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
-	_cell_surface(ceil_cells, func(c): return ceiling_height(c), _fillable_ceiling(ceil_m), true).layers = CEIL_LAYER
+	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
 	for id in paint_floor:
 		_cell_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
 	for id in paint_ceil:
@@ -227,7 +227,7 @@ func _build_surfaces() -> void:
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.2, 1.05, 0.62)), false)
 	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _fillable_ceiling(_classic_mat("l0_ceiling", 0.278, Color(0.95, 0.9, 0.72), 0.0)), true).layers = CEIL_LAYER
+		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -256,13 +256,31 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("metallic_specular", 0.35)
 	sm.set_shader_parameter("ao_light_affect", 0.75)
 	sm.set_shader_parameter("height_scale", 0.04)
-	sm.set_shader_parameter("min_layers", 8)
-	sm.set_shader_parameter("max_layers", 20)
+	# parallax march length by preset (Gfx `post`: 0 low, 1 medium, 2 high/ultra); 0 layers = no POM at all
+	var q := clampi(int(Gfx.s.get("post", 2)), 0, 2)
+	sm.set_shader_parameter("min_layers", [0, 4, 6][q])
+	sm.set_shader_parameter("max_layers", [0, 8, 14][q])
 	sm.set_shader_parameter("near_distance", 10.0)
 	sm.set_shader_parameter("near_fade_range", 2.5)
 	sm.set_shader_parameter("crevice_ao_strength", 0.6)
 	sm.set_shader_parameter("mid_distance", 30.0)
 	sm.set_shader_parameter("mid_fade_range", 5.0)
+	return sm
+
+const AcousticCeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
+
+## The Level 0 drop ceiling (acoustic_ceiling.gdshader): the l0_ceiling tiles with a fine fibre grain that
+## catches the light. Registered in ceil_mats for level_lighting.gd's bounce-light fill.
+func _acoustic_ceiling(tint: Color) -> ShaderMaterial:
+	var sm := ShaderMaterial.new()
+	sm.shader = AcousticCeilingShader
+	sm.set_shader_parameter("albedo_tex", load("res://textures/l0_ceiling_color.webp"))
+	sm.set_shader_parameter("normal_tex", load("res://textures/l0_ceiling_normal.webp"))
+	sm.set_shader_parameter("rough_tex", load("res://textures/l0_ceiling_rough.webp"))
+	sm.set_shader_parameter("ao_tex", load("res://textures/l0_ceiling_ao.webp"))
+	sm.set_shader_parameter("albedo_tint", tint)
+	sm.set_shader_parameter("ao_light_affect", AO_DIRECT)
+	ceil_mats.append(sm)
 	return sm
 
 func _classic_mat(tex: String, scale: float, tint: Color, glow := 0.1) -> StandardMaterial3D:

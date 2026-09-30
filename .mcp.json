@@ -4,7 +4,7 @@
       "command": "node",
       "args": [
         "-e",
-        "const w=process.platform==='win32';process.env.GODOT_PATH=w?'C:\\Users\\alhyu\\Desktop\\Godot_v4.7.2-stable_win64.exe':'/Applications/Godot.app/Contents/MacOS/Godot';require('child_process').spawn(w?'npx.cmd':'npx',['-y','@coding-solo/godot-mcp'],{stdio:'inherit',shell:w})"
+        "const w=process.platform==='win32';process.env.GODOT_PATH=w?'C:\\Users\\alhyu\\Desktop\\Godot_v4.7.2-stable_win64.exe':'/Applications/Godot.app/Contents/MacOS/Godot';require('child_process').spawn(w?'npx.cmd':'npx',['-y','@coding-solo/godot-mcp'],{stdio:'inherit',shell:w,windowsHide:true})"
       ],
       "env": {
         "DEBUG": "false"
@@ -14,7 +14,7 @@
       "command": "node",
       "args": [
         "-e",
-        "const fs=require('fs'),cp=require('child_process');const mac='/Users/medy/tools/codegraph-mcp/bin/codegraph-mcp.js';const w=process.platform==='win32';const c=fs.existsSync(mac)?['node',[mac]]:[w?'codegraph.cmd':'codegraph',['serve','--mcp']];cp.spawn(c[0],c[1],{stdio:'inherit',shell:w})"
+        "const fs=require('fs'),cp=require('child_process');const mac='/Users/medy/tools/codegraph-mcp/bin/codegraph-mcp.js';const w=process.platform==='win32';const c=fs.existsSync(mac)?['node',[mac]]:[w?'codegraph.cmd':'codegraph',['serve','--mcp']];cp.spawn(c[0],c[1],{stdio:'inherit',shell:w,windowsHide:true})"
       ]
     }
   }

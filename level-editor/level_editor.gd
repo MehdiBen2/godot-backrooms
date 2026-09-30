@@ -34,6 +34,16 @@ var seed_spin: SpinBox
 var swatch_buttons := {}             # pbr name -> its swatch in PAINT MATERIALS
 var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
+var trigger_dialog: ConfirmationDialog
+var trigger_dialog_target_idx := -1
+var td_events_container: VBoxContainer
+var td_event_rows: Array = []
+var td_text: LineEdit
+var td_once: CheckBox
+var td_width: SpinBox
+var td_depth: SpinBox
+var td_delay: SpinBox
+var td_duration: SpinBox
 
 func _ready() -> void:
 	_apply_ui_scale(_load_ui_scale())
@@ -324,6 +334,7 @@ func _build_ui() -> void:
 	_restore_splits()
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tool_scroll = scroll
 	right.add_child(scroll)
 	var side := VBoxContainer.new()
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -594,6 +605,7 @@ func _build_ui() -> void:
 	_build_dialogs()
 
 func _build_dialogs() -> void:
+	_build_trigger_dialog()
 	name_dialog = ConfirmationDialog.new()
 	name_dialog.confirmed.connect(_on_name_confirmed)
 	var v := VBoxContainer.new()
@@ -618,6 +630,246 @@ func _build_dialogs() -> void:
 	godot_dialog.file_selected.connect(func(p): _save_godot_path(p); _test_level())
 	add_child(godot_dialog)
 
+func _build_trigger_dialog() -> void:
+	trigger_dialog = ConfirmationDialog.new()
+	trigger_dialog.title = "Configure Event Trigger"
+	trigger_dialog.confirmed.connect(_on_trigger_dialog_confirmed)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(460, 420)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 10)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var ev_section := VBoxContainer.new()
+	ev_section.add_theme_constant_override("separation", 6)
+	ev_section.add_child(_label("EVENT TYPE(S)", 14, GOLD))
+
+	td_events_container = VBoxContainer.new()
+	td_events_container.add_theme_constant_override("separation", 8)
+	ev_section.add_child(td_events_container)
+
+	var add_ev_btn := _button("+ ADD ANOTHER EVENT", func():
+		_add_td_event_row("message", "")
+	)
+	add_ev_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	ev_section.add_child(add_ev_btn)
+
+	tv.add_child(ev_section)
+	tv.add_child(HSeparator.new())
+
+	var opt_grid := GridContainer.new()
+	opt_grid.columns = 2
+	opt_grid.add_theme_constant_override("h_separation", 12)
+	opt_grid.add_theme_constant_override("v_separation", 6)
+
+	opt_grid.add_child(_label("Screen Text:", 13, DIM))
+	td_text = LineEdit.new()
+	td_text.placeholder_text = "Caption displayed on screen (optional)"
+	td_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_text)
+
+	opt_grid.add_child(_label("Width (cells):", 13, DIM))
+	td_width = SpinBox.new()
+	td_width.min_value = 0.5
+	td_width.max_value = 40.0
+	td_width.step = 0.5
+	td_width.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_width)
+
+	opt_grid.add_child(_label("Depth (cells):", 13, DIM))
+	td_depth = SpinBox.new()
+	td_depth.min_value = 0.5
+	td_depth.max_value = 40.0
+	td_depth.step = 0.5
+	td_depth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_depth)
+
+	opt_grid.add_child(_label("Delay (seconds):", 13, DIM))
+	td_delay = SpinBox.new()
+	td_delay.min_value = 0.0
+	td_delay.max_value = 60.0
+	td_delay.step = 0.1
+	td_delay.suffix = " s"
+	td_delay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_delay)
+
+	opt_grid.add_child(_label("Duration (seconds):", 13, DIM))
+	td_duration = SpinBox.new()
+	td_duration.min_value = 1.0
+	td_duration.max_value = 120.0
+	td_duration.step = 1.0
+	td_duration.suffix = " s"
+	td_duration.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_duration)
+
+	tv.add_child(opt_grid)
+
+	td_once = CheckBox.new()
+	td_once.text = "Trigger only once (first time entered)"
+	tv.add_child(td_once)
+
+	scroll.add_child(tv)
+	trigger_dialog.add_child(scroll)
+	add_child(trigger_dialog)
+
+func _add_td_event_row(ev_name: String = "flicker", custom_name: String = "") -> void:
+	var row_box := VBoxContainer.new()
+	row_box.add_theme_constant_override("separation", 3)
+
+	var top_h := HBoxContainer.new()
+	top_h.add_theme_constant_override("separation", 6)
+
+	var num_lbl := _label("Event 1:", 13, GOLD)
+	num_lbl.custom_minimum_size = Vector2(64, 0)
+	top_h.add_child(num_lbl)
+
+	var pick := OptionButton.new()
+	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
+	for e in evs:
+		pick.add_item(e)
+		pick.set_item_tooltip(pick.item_count - 1, str(evs[e]))
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var ev_keys: Array = evs.keys()
+	var sel_idx: int = ev_keys.find(ev_name)
+	if sel_idx < 0:
+		sel_idx = ev_keys.find("custom")
+		if sel_idx < 0: sel_idx = 0
+	pick.select(sel_idx)
+	top_h.add_child(pick)
+
+	var del_btn := Button.new()
+	del_btn.text = "X"
+	if font: del_btn.add_theme_font_override("font", font)
+	del_btn.custom_minimum_size = Vector2(28, 0)
+	del_btn.add_theme_color_override("font_color", RED)
+	top_h.add_child(del_btn)
+	row_box.add_child(top_h)
+
+	var active_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else ""
+	var hint := _label(str(evs.get(active_key, "")), 12, DIM)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row_box.add_child(hint)
+
+	var c_row := HBoxContainer.new()
+	c_row.add_child(_label("Custom Event: ", 13, CREAM))
+	var c_edit := LineEdit.new()
+	c_edit.placeholder_text = "e.g. secret_door_open"
+	c_edit.text = custom_name
+	c_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c_row.add_child(c_edit)
+	c_row.visible = (active_key == "custom")
+	row_box.add_child(c_row)
+
+	pick.item_selected.connect(func(i):
+		var ek: Array = evs.keys()
+		if i >= 0 and i < ek.size():
+			hint.text = str(evs[ek[i]])
+			c_row.visible = (ek[i] == "custom")
+	)
+
+	var row_data := {
+		"root": row_box,
+		"header_lbl": num_lbl,
+		"pick": pick,
+		"hint": hint,
+		"custom_row": c_row,
+		"custom_edit": c_edit,
+		"remove_btn": del_btn
+	}
+
+	del_btn.pressed.connect(func():
+		_remove_td_event_row(row_data)
+	)
+
+	td_event_rows.append(row_data)
+	td_events_container.add_child(row_box)
+	_update_td_event_rows()
+
+func _remove_td_event_row(row_data: Dictionary) -> void:
+	if td_event_rows.size() <= 1: return
+	var idx := td_event_rows.find(row_data)
+	if idx >= 0:
+		td_event_rows.remove_at(idx)
+		row_data.root.queue_free()
+		_update_td_event_rows()
+
+func _update_td_event_rows() -> void:
+	for i in td_event_rows.size():
+		var r: Dictionary = td_event_rows[i]
+		r.header_lbl.text = "Event %d:" % (i + 1)
+		r.remove_btn.visible = td_event_rows.size() > 1
+
+func _open_trigger_dialog(idx: int) -> void:
+	if idx < 0 or idx >= objects.size(): return
+	var o: Dictionary = objects[idx]
+	if o.type != "trigger": return
+	_select(idx)
+	trigger_dialog_target_idx = idx
+
+	for r in td_event_rows:
+		r.root.queue_free()
+	td_event_rows.clear()
+
+	var raw_list = o.get("events_list", [])
+	if raw_list is Array and not raw_list.is_empty():
+		for item in raw_list:
+			if item is Dictionary:
+				_add_td_event_row(str(item.get("event", "lights_out")), str(item.get("custom_event", "")))
+			elif item is String:
+				_add_td_event_row(str(item), "")
+	else:
+		var current_ev: String = str(_param(o, "event", "lights_out"))
+		var c_ev: String = str(_param(o, "custom_event", ""))
+		_add_td_event_row(current_ev, c_ev)
+
+	td_text.text = str(_param(o, "text", ""))
+	td_once.button_pressed = bool(_param(o, "once", true))
+	td_width.value = float(o.get("scale", 2.0))
+	td_depth.value = float(_param(o, "depth", 2.0))
+	td_delay.value = float(_param(o, "delay", 0.0))
+	td_duration.value = float(_param(o, "duration", 10.0))
+
+	trigger_dialog.popup_centered(Vector2(500, 520))
+
+func _on_trigger_dialog_confirmed() -> void:
+	if trigger_dialog_target_idx < 0 or trigger_dialog_target_idx >= objects.size(): return
+	var o: Dictionary = objects[trigger_dialog_target_idx]
+	if o.type != "trigger": return
+	_push_undo()
+
+	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
+	var ev_keys: Array = evs.keys()
+
+	var new_list: Array = []
+	for r in td_event_rows:
+		var sel_idx: int = r.pick.selected
+		var ev_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else "message"
+		var c_name: String = r.custom_edit.text.strip_edges()
+		new_list.append({"event": ev_key, "custom_event": c_name})
+
+	if new_list.is_empty():
+		new_list.append({"event": "message", "custom_event": ""})
+
+	o["events_list"] = new_list
+	o["event"] = new_list[0]["event"]
+	o["custom_event"] = new_list[0]["custom_event"]
+	o["text"] = td_text.text
+	o["once"] = td_once.button_pressed
+	o["scale"] = td_width.value
+	o["depth"] = td_depth.value
+	o["delay"] = td_delay.value
+	o["duration"] = td_duration.value
+	place_scales["trigger"] = o["scale"]
+	_sync_inspector()
+	_mark_dirty()
+	canvas.queue_redraw()
+
 ## The selected object's properties, at the top of the tool panel (hidden when nothing is selected)
 func _build_inspector(side: VBoxContainer) -> void:
 	var box := PanelContainer.new()
@@ -626,6 +878,13 @@ func _build_inspector(side: VBoxContainer) -> void:
 	insp = VBoxContainer.new()
 	box.add_child(insp)
 	insp.add_child(_label("SELECTED OBJECT", 16, GOLD))
+	insp_trigger_btn = _button("CONFIGURE EVENT OPTIONS...", func():
+		if selected >= 0 and selected < objects.size() and objects[selected].type == "trigger":
+			_open_trigger_dialog(selected)
+	)
+	insp_trigger_btn.add_theme_color_override("font_color", GOLD)
+	insp_trigger_btn.visible = false
+	insp.add_child(insp_trigger_btn)
 	var grid_box := GridContainer.new()
 	grid_box.columns = 2
 	insp.add_child(grid_box)
@@ -657,6 +916,16 @@ func _build_inspector(side: VBoxContainer) -> void:
 	ev_pick.item_selected.connect(func(i): _set_prop("event", evs.keys()[i]))
 	grid_box.add_child(ev_pick)
 	insp_params["event"] = {"row": [ev_lbl, ev_pick], "ctrl": ev_pick}
+	var c_ev_lbl := _label("Custom Event", 14, DIM)
+	grid_box.add_child(c_ev_lbl)
+	var c_ev := LineEdit.new()
+	c_ev.placeholder_text = "event_name"
+	c_ev.tooltip_text = "Event identifier dispatched when player enters the trigger area"
+	c_ev.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c_ev.text_changed.connect(func(t): _set_prop("custom_event", t))
+	c_ev.text_submitted.connect(func(_t): c_ev.release_focus())
+	grid_box.add_child(c_ev)
+	insp_params["custom_event"] = {"row": [c_ev_lbl, c_ev], "ctrl": c_ev}
 	var tx_lbl := _label("Text", 14, DIM)
 	grid_box.add_child(tx_lbl)
 	var tx := LineEdit.new()

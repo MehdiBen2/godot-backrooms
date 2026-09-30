@@ -26,6 +26,7 @@ const ADAPT_FAST := 1.06
 const ADAPT_DOWN := 0.05
 const ADAPT_UP := 0.02
 const ADAPT_WINDOW := 0.5
+const ADAPT_MAX_HZ := 120
 
 # `scale` is the ceiling; `adapt` lets adaptive resolution drop below it.
 const PRESETS := {
@@ -35,7 +36,7 @@ const PRESETS := {
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
 		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true},
-	"high": {"scale": 100, "msaa": 2, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
+	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
 		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
 		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true},
 	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "taa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
@@ -81,13 +82,15 @@ func _process(dt: float) -> void:
 		adapt_ratio = minf(1.0, adapt_ratio + ADAPT_UP)
 		_render_scale()
 
-## The frame rate adaptive resolution aims at: the FPS cap if set, else the screen's refresh rate.
+## The frame rate adaptive resolution aims at: the FPS cap if set, else the screen's refresh rate up to
+## ADAPT_MAX_HZ. Chasing a 200 Hz screen would pin the render scale at ADAPT_FLOOR for good (a blurry
+## picture for frames nobody notices); past 120 the game would rather stay sharp.
 func target_fps() -> int:
 	var capped := int(s.get("fps", 0))
 	if capped > 0:
 		return capped
 	var hz := roundi(DisplayServer.screen_get_refresh_rate())
-	return int(hz) if hz > 0 else 60
+	return mini(int(hz), ADAPT_MAX_HZ) if hz > 0 else 60
 
 # ---- public API ------------------------------------------------------------------------
 func set_preset(name: String) -> void:
