@@ -4,7 +4,7 @@ extends "res://level_editor_gen.gd"
 ## bakes GI and launches the game on the current level. level_editor.gd builds the window around it.
 
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
-const ATMOS := ["dim", "classic"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
+const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage", "Maintenance", "Threshold", "Pool Rooms", "Stairwell", "Office"]
 const SCATTER_PER_CELLS := 25         # roughly one prop per this many open floor cells
 const SCATTER_KEEPOUT := 2            # cells kept clear round spawn / exit / entity / tv and existing objects
@@ -64,6 +64,7 @@ func _open(i: int) -> void:
 		(slot_picks[slot] as OptionButton).select(idx + 1 if idx >= 0 else 0)
 		_preview(slot)
 	size_spin.value = grid_size
+	spawn_rot = float(data.get("spawn_rot", 270.0))
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
 	undo_stack.clear()
@@ -103,8 +104,12 @@ func _parse_floor(d: Dictionary) -> Dictionary:
 	if objs is Array:
 		for o in objs:
 			if o is Dictionary and str(o.get("type", "")) != "":     # unknown types are kept as they are, drawn as slabs
-				fd.objects.append({"type": str(o.type), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
-					"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, 4.0)})
+				var t := str(o.type)
+				var obj := {"type": t, "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
+					"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, _max_scale(t))}
+				for k in o:                                        # its params (thickness, height, event...), kept as saved
+					if not obj.has(k): obj[k] = o[k]
+				fd.objects.append(obj)
 	return fd
 
 ## One floor's fields as .lvl keys (grid, objects, zones, paint, markers)
@@ -116,8 +121,11 @@ func _serialize_floor(fd: Dictionary) -> Dictionary:
 	out["grid"] = g
 	var objs := []
 	for o: Dictionary in fd.objects:
-		objs.append({"type": o.type, "pos_x": snappedf(o.pos_x, 0.001), "pos_y": snappedf(o.pos_y, 0.001),
-			"rotation": snappedf(fposmod(o.rotation, 360.0), 0.01), "scale": snappedf(o.scale, 0.001)})
+		var so := {"type": o.type, "pos_x": snappedf(o.pos_x, 0.001), "pos_y": snappedf(o.pos_y, 0.001),
+			"rotation": snappedf(fposmod(o.rotation, 360.0), 0.01), "scale": snappedf(o.scale, 0.001)}
+		for k in o:                                            # its params, as object_types.json "params" lists them
+			if not so.has(k): so[k] = snappedf(o[k], 0.001) if o[k] is float else o[k]
+		objs.append(so)
 	out["objects"] = objs
 	var zd := {}
 	for z in ZONES:
@@ -346,6 +354,8 @@ func _current_payload() -> Dictionary:
 		if f != 0: floors[str(f)] = _serialize_floor(all[f])
 	if floors.is_empty(): out.erase("floors")
 	else: out["floors"] = floors
+	if is_equal_approx(spawn_rot, 270.0): out.erase("spawn_rot")
+	else: out["spawn_rot"] = snappedf(spawn_rot, 0.1)
 	match gi_pick.selected:
 		1: out["sdfgi"] = true
 		2: out["sdfgi"] = false

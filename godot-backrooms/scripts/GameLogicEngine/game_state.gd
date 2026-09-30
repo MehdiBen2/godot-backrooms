@@ -53,6 +53,7 @@ var outdoors := false
 var day_light := 1.0          # how bright the outdoors is right now, 0 = moonlit night .. 1 = full day
 
 var respawned := false        # the level was reloaded by a respawn: skip the title screen
+var boot_played := false      # the warning / credits / logo boot sequence already ran this launch
 # The F-key shortcuts that summon monsters, fire events and switch levels. On in the editor and debug
 # builds; a released build only has them when launched with --dev, so a stray F-key can't spawn the
 # bacteria in a player's face.
@@ -69,6 +70,15 @@ var floor_link := {}
 # The draw tools panel (draw_ui.gd) is open: the player flies like noclip and can move with the cursor free
 var draw_mode := false
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
+var god_mode := false
+var fullbright := false
+var infinite_stamina := false
+var infinite_sanity := false
+var infinite_battery := false
+var speed_mult := 1.0
+var jump_mult := 1.0
+var freeze_ai := false
+var show_debug_overlay := false
 
 static func _launch_arg(prefix: String) -> String:
 	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
@@ -161,7 +171,7 @@ func beat() -> void:
 # own reaction sound already played at the moment itself (see scares.gd death_reaction()); this just
 # records it so the death sequence can tell them apart later if it needs to.
 func kill_player(reason: String, type := DeathType.NONE) -> void:
-	if dead:
+	if dead or god_mode:
 		return
 	dead = true
 	death_type = type
@@ -240,23 +250,29 @@ func _respawn() -> void:
 		return
 	Death.respawn_transition(restart)
 
-# Switch level (wraps around the playlist) through the TV-static dissolve, like a respawn
+# Switch level (wraps around the playlist) seamlessly without loading screen
 func change_level(idx: int) -> void:
-	if Death.respawn_busy:
-		return
 	level_floor = 0
 	floor_link = {}
 	level_index = posmod(idx, maxi(level_count, 1))
 	Net.broadcast_level(level_index)      # co-op: the host takes everyone along
+	if level != null and level.has_method("load_level_seamless"):
+		level.load_level_seamless(level_index)
+		return
+	if Death.respawn_busy:
+		return
 	Death.respawn_transition(restart)
 
 ## Take the stairs: the same level, floor `f`, arriving beside that floor's `arrive_kind` stairs nearest `from`
-## (cells). One floor is built at a time, so this is a reload through the same static dissolve as a level change.
+## (cells). Seamlessly rebuilt in-place with zero loading screen.
 func change_floor(f: int, from: Vector2, arrive_kind: String) -> void:
-	if Death.respawn_busy:
-		return
 	level_floor = f
 	floor_link = {"x": from.x, "y": from.y, "kind": arrive_kind}
+	if level != null and level.has_method("rebuild_floor_seamless"):
+		level.rebuild_floor_seamless(f, floor_link)
+		return
+	if Death.respawn_busy:
+		return
 	Death.respawn_transition(restart)
 
 func next_level() -> void:
@@ -266,6 +282,7 @@ func next_level() -> void:
 ## screen, the death camera and its blood, and every screen effect and clock, so none of it follows
 ## you into the title or the next run
 func end_run() -> void:
+	boot_played = true               # back to the title from a run: straight to the menu, no boot sequence
 	playing = false
 	dead = false
 	respawned = false

@@ -9,6 +9,7 @@ const NEIGHBOURS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0
 
 var level: Node
 var n := 0
+var _queue := PackedInt32Array()     # reused by bfs(): no n*n allocation per call
 
 func _init(l: Node) -> void:
 	level = l
@@ -47,8 +48,12 @@ func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
 	out.fill(-1)
 	if sx < 0 or sz < 0 or sx >= n or sz >= n or blocked(sx, sz):
 		return false
-	var queue := PackedInt32Array()
-	queue.resize(n * n)
+	# the level's precomputed step mask (level_data.gd step_mask()) stands in for can_step(): bits
+	# 1/2/4/8 = +x/-x/+z/-z, so each neighbour is one byte test and an index offset
+	var mask: PackedByteArray = level.step_mask()
+	if _queue.size() != n * n:
+		_queue.resize(n * n)
+	var queue := _queue
 	var head := 0
 	var tail := 0
 	out[sx * n + sz] = 0
@@ -57,19 +62,26 @@ func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
 	while head < tail:
 		var idx := queue[head]
 		head += 1
-		var x := idx / n
-		var z := idx % n
+		var m := mask[idx]
+		if m == 0:
+			continue
 		var d := out[idx] + 1
-		for o in NEIGHBOURS:
-			var nx: int = x + o.x
-			var nz: int = z + o.y
-			if nx < 0 or nz < 0 or nx >= n or nz >= n:
-				continue
-			var k := nx * n + nz
-			if out[k] == -1 and can_step(x, z, nx, nz):
-				out[k] = d
-				queue[tail] = k
-				tail += 1
+		if m & 1 and out[idx + n] == -1:
+			out[idx + n] = d
+			queue[tail] = idx + n
+			tail += 1
+		if m & 2 and out[idx - n] == -1:
+			out[idx - n] = d
+			queue[tail] = idx - n
+			tail += 1
+		if m & 4 and out[idx + 1] == -1:
+			out[idx + 1] = d
+			queue[tail] = idx + 1
+			tail += 1
+		if m & 8 and out[idx - 1] == -1:
+			out[idx - 1] = d
+			queue[tail] = idx - 1
+			tail += 1
 	return true
 
 # Push a circle (x/z of `p`) out of every wall cell it overlaps
@@ -108,7 +120,8 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 				elif m == r: p.x = maxx + radius
 				elif m == u: p.z = minz - radius
 				else: p.z = maxz + radius
-	# off-centre thin walls / doors: keep the circle a radius clear of each span (plus its thickness)
+	# off-centre thin walls / doors: keep the circle a radius clear of each span (plus its thickness);
+	# a pillar is a span of zero length, so it pushes out round a circle
 	for s: Array in level.wall_segments:
 		var here := Vector2(p.x, p.z)
 		var q := Geometry2D.get_closest_point_to_segment(here, s[0] * CELL, s[1] * CELL)
@@ -118,7 +131,7 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 			continue
 		if off.length_squared() < 0.000001:              # dead on the line: out the side it faces
 			var along: Vector2 = s[1] - s[0]
-			off = along.orthogonal()
+			off = along.orthogonal() if along != Vector2.ZERO else Vector2.RIGHT
 		var out := q + off.normalized() * clear
 		p.x = out.x
 		p.z = out.y

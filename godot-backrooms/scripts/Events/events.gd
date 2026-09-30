@@ -408,7 +408,12 @@ func _event_preacher(forced: int) -> Dictionary:
 	return {"variant": variant, "name": scares.PREACHER_NAMES[variant], "dist": corridor.dist}
 
 # ---------------------------------------------------------------- knocking in the walls
-# Three knocks inside a wall behind you. A pause. Then three more, harder, from a wall nearer to you.
+# Something inside the walls, behind you, in one of a few patterns - always ending nearer than it began:
+#   0 three raps, a pause, then three harder ones from a wall nearer to you
+#   1 "shave and a haircut" from far off... and the "two bits" answered by two fists right beside you
+#   2 slow single knocks walking along the wall towards you, then nails dragged down it
+#   3 fingernails tapping, restless and close; a scratch; a silence; one fist
+#   4 a fist pounding, fast and uneven, that stops dead
 func _event_wall_knock() -> void:
 	var first := _wall_face_behind(9.0, 16.0)
 	if not first.is_finite():
@@ -417,11 +422,41 @@ func _event_wall_knock() -> void:
 	if not second.is_finite():
 		second = first.lerp(player.global_position + Vector3(0.0, 1.3, 0.0), 0.5)
 	haunt(0.35)
-	for i in 3:
-		later(i * 0.42, func(): scares.knock(first, 0.9))
-	later(3.2, func(): haunt(0.55))
-	for i in 3:
-		later(3.2 + i * 0.3, func(): scares.knock(second, 1.4))
+	match rng.randi() % 5:
+		0:
+			for i in 3:
+				later(i * rng.randf_range(0.38, 0.47), func(): scares.knock(first, 0.9))
+			later(3.2, func(): haunt(0.55))
+			for i in 3:
+				later(3.2 + i * rng.randf_range(0.27, 0.33), func(): scares.knock(second, 1.4, scares.KNOCK_FIST))
+		1:
+			for at in [0.0, 0.34, 0.51, 0.68, 1.02]:
+				later(at, func(): scares.knock(first, 0.85))
+			later(4.6, func(): haunt(0.65))
+			later(4.6, func(): scares.knock(second, 1.5, scares.KNOCK_FIST))
+			later(5.0, func(): scares.knock(second, 1.5, scares.KNOCK_FIST))
+		2:
+			var at := 0.0
+			for i in 5:
+				var pos := first.lerp(second, i / 4.0)
+				later(at, func(): scares.knock(pos, 0.7 + i * 0.18, scares.KNOCK_KNUCKLE if i < 3 else scares.KNOCK_FIST))
+				at += rng.randf_range(1.0, 1.4)
+			later(at - 0.6, func(): haunt(0.55))
+			later(at, func(): scares.wall_scratch(second, 1.1))
+		3:
+			var at := 0.0
+			for i in 9:
+				later(at, func(): scares.knock(second, 1.0, scares.KNOCK_NAIL))
+				at += rng.randf_range(0.12, 0.38)
+			later(at + 0.4, func(): scares.wall_scratch(second))
+			later(at + 3.4, func(): haunt(0.6))
+			later(at + 3.4, func(): scares.knock(second, 1.4, scares.KNOCK_FIST))
+		_:
+			var at := 0.0
+			later(0.0, func(): haunt(0.6))
+			for i in rng.randi_range(6, 9):
+				later(at, func(): scares.knock(second, rng.randf_range(1.1, 1.5), scares.KNOCK_FIST))
+				at += rng.randf_range(0.16, 0.3)
 
 # A wall face (the side of a wall cell that looks into an open cell) min_d..max_d from you, behind you
 # if there is one: where the knocking comes from
@@ -453,14 +488,19 @@ func _wall_face_behind(min_d: float, max_d: float) -> Vector3:
 	return best
 
 # ---------------------------------------------------------------- something breathing behind you
-# Standing still in the dark: one wet breath right at the back of your neck. Turn round: nothing there.
+# Standing still in the dark: a breath right at the back of your neck. Turn round: nothing there.
+# Sometimes it breathes again a moment later - behind you still, wherever you turned, and closer.
 func _event_breath_behind() -> void:
-	var back := player.global_transform.basis.z
-	var pos := player.global_position + Vector3(0.0, 1.55, 0.0) + back * 0.7
-	scares.breath_behind(pos)
+	var dur: float = scares.breath_behind(_behind_neck(0.7))
+	if rng.randf() < 0.35:
+		later(dur + rng.randf_range(0.5, 1.2), func(): scares.breath_behind(_behind_neck(0.45), 1.2))
 	later(1.2, func():
 		haunt(0.8)
 		Game.add_glitch(0.25)
 		if Game.heart != null:
 			Game.heart.feed("breath", 0.85))
+
+# A spot `dist` behind your head, where something would stand to breathe on your neck
+func _behind_neck(dist: float) -> Vector3:
+	return player.global_position + Vector3(0.0, 1.55, 0.0) + player.global_transform.basis.z * dist
 

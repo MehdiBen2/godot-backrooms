@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://tb7yuqi4w5to"
-path="res://.godot/imported/Road008A_Displacement.jpg-3de853f4e3f189e220a305c10334d4a5.ctex"
+path.bptc="res://.godot/imported/Road008A_Displacement.jpg-3de853f4e3f189e220a305c10334d4a5.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/pbr/Road008A/Road008A_Displacement.jpg"
-dest_files=["res://.godot/imported/Road008A_Displacement.jpg-3de853f4e3f189e220a305c10334d4a5.ctex"]
+dest_files=["res://.godot/imported/Road008A_Displacement.jpg-3de853f4e3f189e220a305c10334d4a5.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

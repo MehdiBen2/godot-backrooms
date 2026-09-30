@@ -58,7 +58,7 @@ func _bus(variant: int) -> void:
 func play(pos: Vector3, variant: int, end_pos: Vector3, glide: float, volume := 1.0) -> void:
 	_bus(variant)
 	var gain := 1.5 * volume * (1.6 if variant == 1 else 1.0)
-	var p: AudioStreamPlayer3D = scares.spawn3d(load(PATH), pos, gain, "Preacher", 7.0)
+	var p: AudioStreamPlayer3D = scares.spawn3d(preload("res://scripts/Audio/sfx_pool.gd").get_stream(PATH), pos, gain, "Preacher", 7.0)
 	if end_pos != pos and glide > 0.0:
 		p.create_tween().tween_property(p, "global_position", end_pos, glide)
 	if variant == 4:
@@ -68,8 +68,11 @@ func play(pos: Vector3, variant: int, end_pos: Vector3, glide: float, volume := 
 func update(dt: float) -> void:
 	for i in range(glitchers.size() - 1, -1, -1):
 		var g: Array = glitchers[i]
+		if not is_instance_valid(g[0]):
+			glitchers.remove_at(i)
+			continue
 		var p: AudioStreamPlayer3D = g[0]
-		if not is_instance_valid(p) or not p.playing:
+		if not p.playing:
 			glitchers.remove_at(i)
 			continue
 		g[1] -= dt

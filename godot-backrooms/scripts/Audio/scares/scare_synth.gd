@@ -351,16 +351,12 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 			for i in a.size():
 				a[i] = sin(TAU * 1000.0 * float(i) / SR) * 0.081
 			w = _wav(a, true)
-		"wall_knock":  # a knuckle on the hollow drywall: a dull knock and the cavity booming behind it
-			var a := _buf(0.3)
-			var nz := _noise_lp(a.size(), 2200.0)
-			for i in a.size():
-				var t := float(i) / SR
-				var knock := sin(TAU * (210.0 + 70.0 * exp(-t * 80.0)) * t) * exp(-t * 38.0) * 0.8
-				var cavity := sin(TAU * 92.0 * t) * exp(-t * 16.0) * 0.55
-				var click := nz[i] * exp(-t * 260.0) * 2.0
-				a[i] = (knock + cavity + click) * minf(1.0, t / 0.0008)
-			w = _wav(_normalize(a, 0.85))
+		"wall_knock":  # a hand on hollow drywall; arg = kind * 10 + take (see _knock)
+			w = _wav(_knock(int(arg) / 10))
+		"wall_scratch": # fingernails dragged down the inside of the wall (arg: the take)
+			w = _wav(_normalize(_scratch(), 0.7))
+		"breath_close": # a breath right at the back of your neck (arg: the kind, see _breath)
+			w = _wav(_normalize(_breath(int(arg)), 0.85))
 		"neck_snap":   # the mannequin wrenches your head round: cartilage popping, one deep crunch, gristle
 			w = _wav(_normalize(_neck_snap(), 0.95))
 		"tile_step":   # a heel on waxed vinyl tile over concrete: a hard tick and a short knock
@@ -460,3 +456,240 @@ func _rasp() -> PackedFloat32Array:
 			v = (exhale[i] * 0.9 + buzz_lp * 0.45) * env * gurgle
 		a[i] = v                                       # both ends are silent: the loop has no seam
 	return a
+
+# ------------------------------------------------------------------ the wall knock
+# A hand on gypsum board over studs, heard from the other side: a short contact transient, a few heavily
+# damped panel modes (drywall is dead, it never rings), the stud cavity booming behind them, something
+# loose buzzing in the wall, and the nearest walls throwing it back. Every take detunes the panel a
+# little, so a run of knocks is never one sample repeated. kind: 0 a knuckle rap, 1 a fist pounding,
+# 2 a fingernail tap
+func _knock(kind: int) -> PackedFloat32Array:
+	kind = clampi(kind, 0, 2)
+	# contact: [band Hz, Q, decay/s, gain]; modes: [Hz, amp, decay/s]; cavity: [Hz, amp, decay/s]
+	var p: Dictionary = [
+		{"dur": 0.5, "contact": [1900.0, 0.8, 380.0, 1.0], "cavity": [74.0, 0.4, 11.0], "rattle": 0.05, "tail": 0.05, "drive": 1.3,
+			"modes": [[118.0, 0.9, 22.0], [176.0, 0.7, 30.0], [251.0, 0.5, 42.0], [398.0, 0.3, 60.0], [615.0, 0.18, 90.0]]},
+		{"dur": 0.85, "contact": [650.0, 0.7, 170.0, 0.9], "cavity": [52.0, 0.7, 7.0], "rattle": 0.16, "tail": 0.09, "drive": 1.9,
+			"modes": [[66.0, 1.0, 9.0], [98.0, 0.8, 13.0], [141.0, 0.55, 18.0], [212.0, 0.3, 28.0], [334.0, 0.15, 45.0]]},
+		{"dur": 0.22, "contact": [3900.0, 1.2, 900.0, 1.0], "cavity": [120.0, 0.05, 30.0], "rattle": 0.0, "tail": 0.03, "drive": 1.0,
+			"modes": [[430.0, 0.22, 80.0], [1150.0, 0.15, 150.0], [1950.0, 0.12, 200.0]]},
+	][kind]
+	var dur: float = p.dur
+	var a := _buf(dur)
+	var n := a.size()
+	var c: Array = p.contact
+	var contact := _normalize(_bp(_white(n), c[0] * rng.randf_range(0.9, 1.1), c[1]), 1.0)
+	var rattle := _normalize(_bp(_white(n), 1300.0, 3.0), 1.0)
+	var room := _normalize(_noise_lp(n, 800.0), 1.0)
+	var detune := rng.randf_range(0.92, 1.08)
+	var modes: Array = []
+	for m in p.modes:
+		modes.append([m[0] * detune * rng.randf_range(0.97, 1.03), m[1] * rng.randf_range(0.8, 1.15), m[2], 0.0])
+	var cav: Array = p.cavity
+	var rattle_gain: float = p.rattle
+	var tail_gain: float = p.tail
+	var cav_ph := 0.0
+	var buzz := 0.0
+	for i in n:
+		var t := float(i) / SR
+		var v: float = contact[i] * c[3] * exp(-t * c[2])
+		for m in modes:
+			m[3] += TAU * m[0] * (1.0 + 0.05 * exp(-t * 70.0)) / SR     # the board is stiffest as it is struck
+			v += sin(m[3]) * m[1] * exp(-t * m[2])
+		cav_ph += TAU * cav[0] / SR
+		v += sin(cav_ph) * cav[1] * exp(-t * cav[2]) * minf(1.0, t / 0.004)   # the cavity takes a moment to answer
+		if i % 400 == 0:
+			buzz = rng.randf_range(0.2, 1.0)
+		v += rattle[i] * buzz * rattle_gain * exp(-t * 25.0)
+		v += room[i] * tail_gain * exp(-t * 6.0) * smoothstep(0.0, 0.03, t)
+		a[i] = v * minf(1.0, t / 0.0004)
+	var dry := a.duplicate()
+	for r in [[0.013, 0.28], [0.022, 0.2], [0.035, 0.14], [0.051, 0.09]]:
+		var d := int(r[0] * SR)
+		for i in range(d, n):
+			a[i] += dry[i - d] * r[1]
+	a = _normalize(a, 1.0)
+	var drive: float = p.drive
+	for i in n:
+		a[i] = tanh(a[i] * drive) * clampf((dur - float(i) / SR) / 0.04, 0.0, 1.0)
+	return _normalize(a, [0.85, 0.92, 0.6][kind])
+
+# Fingernails dragged down drywall: each nail sticks and slips across the paper facing in a stutter of
+# tiny ticks over a dry hiss, the pressure wavering as the hand drags down
+func _scratch() -> PackedFloat32Array:
+	var dur := rng.randf_range(1.1, 1.6)
+	var a := _buf(dur)
+	var n := a.size()
+	var hiss := _normalize(_bp(_white(n), 3400.0, 0.9), 1.0)
+	var paper := _normalize(_bp(_white(n), 900.0, 1.4), 1.0)
+	var press := _wobble(n, 6.0, 0.4)
+	var k := exp(-1.0 / (SR * 0.0025))
+	for nail in 3:
+		var rate := rng.randf_range(70.0, 130.0)
+		var ph := rng.randf()
+		var e := 0.0
+		var start := rng.randf_range(0.0, 0.08)
+		for i in n:
+			var t := float(i) / SR
+			ph += rate * press[i] / SR
+			if ph >= 1.0:
+				ph -= rng.randf_range(0.7, 1.0)
+				e = rng.randf_range(0.4, 1.0)
+			e *= k
+			var env := smoothstep(start, start + 0.08, t) * clampf((dur - t) / 0.2, 0.0, 1.0)
+			a[i] += (hiss[i] * (0.15 + e) + paper[i] * e * 0.4) * env * press[i] * 0.4
+	return a
+
+# ------------------------------------------------------------------ the breath behind you
+# Breath is air rushing through a throat, mouth or nose: noise through that tract's resonances
+# (formants), with the flow never quite steady. Close enough to feel, the air also hits your ear as a
+# low puff under it. kind:
+#   0 a slow draw through the nose, a long exhale that catches and creaks in the throat at the end
+#   1 sniffing at you, three quick draws, then out through the nose onto your neck
+#   2 wet: spit crackling on the draw in, a gurgle on the way out, lips parting after
+#   3 a ragged, stuttering draw in, held, then a long exhale shaking all the way out
+func _breath(kind: int) -> PackedFloat32Array:
+	kind = clampi(kind, 0, 3)
+	var a := _buf([2.45, 2.3, 2.8, 3.05][kind])
+	var n := a.size()
+	var w := _white(n)
+	var turb := _wobble(n, 18.0, 0.35)
+	var near := _normalize(_noise_lp(n, 150.0), 1.0)
+	match kind:
+		0:
+			var nose := _normalize(_formants(w, [[950.0, 1.4, 0.5], [2700.0, 2.0, 0.35], [5200.0, 2.0, 0.18]]), 1.0)
+			var mouth := _normalize(_formants(w, [[640.0, 2.2, 1.0], [1150.0, 2.6, 0.7], [2500.0, 3.0, 0.35], [3600.0, 3.0, 0.15]]), 1.0)
+			var fry := _fry(n, 44.0, [[520.0, 4.0, 1.0], [1400.0, 5.0, 0.5]])
+			for i in n:
+				var t := float(i) / SR
+				var exh := _seg(t, 0.78, 2.38, 0.07, 1.5)
+				a[i] = (nose[i] * _seg(t, 0.05, 0.62, 0.35, 1.0) * 0.45 + mouth[i] * exh) * turb[i] \
+					+ near[i] * exh * 0.5 + fry[i] * _seg(t, 1.5, 2.35, 0.4, 1.2) * 0.35
+		1:
+			var sniff := _normalize(_formants(w, [[1900.0, 1.3, 0.6], [3800.0, 1.6, 0.6], [6200.0, 1.6, 0.4]]), 1.0)
+			var out := _normalize(_formants(w, [[480.0, 1.6, 0.8], [1500.0, 2.0, 0.4], [3000.0, 2.2, 0.2]]), 1.0)
+			for i in n:
+				var t := float(i) / SR
+				var s := _seg(t, 0.05, 0.18, 0.02, 0.6) * 0.7 + _seg(t, 0.25, 0.38, 0.02, 0.6) * 0.85 \
+					+ _seg(t, 0.44, 0.62, 0.02, 0.7)
+				var exh := _seg(t, 0.98, 2.25, 0.05, 1.6)
+				a[i] = (sniff[i] * s + out[i] * exh * 0.8) * turb[i] + near[i] * exh * 0.7
+		2:
+			var draw := _normalize(_formants(w, [[1100.0, 1.8, 0.7], [2400.0, 2.2, 0.5], [4200.0, 2.0, 0.3]]), 1.0)
+			var out := _normalize(_formants(w, [[450.0, 2.0, 1.0], [1000.0, 2.5, 0.6], [2300.0, 3.0, 0.3]]), 1.0)
+			var gurgle := 1.0
+			var gv := 1.0
+			for i in n:
+				var t := float(i) / SR
+				var exh := _seg(t, 1.2, 2.55, 0.06, 1.3)
+				if i % 800 == 0:
+					gurgle = rng.randf_range(0.35, 1.0)
+				gv += (gurgle - gv) * 0.08
+				a[i] = draw[i] * _seg(t, 0.05, 1.0, 0.45, 0.8) * 0.55 * turb[i] + out[i] * exh * gv + near[i] * exh * 0.6
+			for _c in 14:                                   # spit crackling in the throat as the air turns
+				a = _click(a, rng.randf_range(0.3, 1.35), rng.randf_range(2200.0, 4800.0), rng.randf_range(0.15, 0.4))
+			a = _click(a, 2.62, 1400.0, 0.6)                    # and the lips coming apart
+			a = _click(a, 2.665, 2100.0, 0.35)
+		3:
+			var draw := _normalize(_formants(w, [[1200.0, 1.8, 0.7], [2600.0, 2.2, 0.5], [4400.0, 2.0, 0.3]]), 1.0)
+			var out := _normalize(_formants(w, [[700.0, 2.0, 1.0], [1250.0, 2.5, 0.6], [2700.0, 3.0, 0.3]]), 1.0)
+			var fry := _fry(n, 50.0, [[600.0, 4.0, 1.0], [1500.0, 5.0, 0.4]])
+			var ph := 0.0
+			for i in n:
+				var t := float(i) / SR
+				var inh := _seg(t, 0.05, 0.25, 0.04, 0.5) * 0.6 + _seg(t, 0.32, 0.5, 0.04, 0.5) * 0.75 \
+					+ _seg(t, 0.58, 1.0, 0.1, 0.9) * 0.9
+				var exh := _seg(t, 1.35, 2.98, 0.08, 1.2)
+				ph += TAU * (6.5 + 1.5 * sin(TAU * 0.7 * t)) / SR
+				var trem := 0.6 + 0.4 * sin(ph)
+				a[i] = draw[i] * inh * 0.5 * turb[i] + (out[i] + near[i] * 0.5) * exh * trem \
+					+ fry[i] * _seg(t, 2.2, 2.95, 0.3, 1.0) * 0.25
+	return a
+
+# 0 outside t0..t1; inside it rises smoothly over `atk` seconds and dies away over the rest (`curve` > 1
+# lets it go early, like breath running out)
+static func _seg(t: float, t0: float, t1: float, atk: float, curve := 1.0) -> float:
+	if t <= t0 or t >= t1:
+		return 0.0
+	var u := t - t0
+	return smoothstep(0.0, atk, u) * pow(1.0 - clampf((u - atk) / (t1 - t0 - atk), 0.0, 1.0), curve)
+
+# Vocal fry: slow, uneven glottal clicks through a throat's resonances - the creak at the end of a breath
+func _fry(n: int, hz: float, fs: Array) -> PackedFloat32Array:
+	var p := PackedFloat32Array()
+	p.resize(n)
+	var ph := 0.0
+	var f := hz
+	for i in n:
+		ph += f / SR
+		if ph >= 1.0:
+			ph -= 1.0
+			p[i] = rng.randf_range(0.5, 1.0)
+			f = hz * rng.randf_range(0.8, 1.25)
+	return _normalize(_formants(p, fs), 1.0)
+
+# A wet click (spit, lips) mixed into `a` at `at` seconds
+func _click(a: PackedFloat32Array, at: float, hz: float, gain: float) -> PackedFloat32Array:
+	var start := int(at * SR)
+	for j in int(0.005 * SR):
+		if start + j >= a.size():
+			break
+		var t := float(j) / SR
+		a[start + j] += (sin(TAU * hz * t) * 0.6 + rng.randf_range(-0.4, 0.4)) * exp(-t * 1400.0) * gain
+	return a
+
+func _white(n: int) -> PackedFloat32Array:
+	var a := PackedFloat32Array()
+	a.resize(n)
+	for i in n:
+		a[i] = rng.randf_range(-1.0, 1.0)
+	return a
+
+# A slow random flutter around 1.0 (+-depth), changing about `rate` times a second
+func _wobble(n: int, rate: float, depth: float) -> PackedFloat32Array:
+	var a := PackedFloat32Array()
+	a.resize(n)
+	var step := maxi(1, int(SR / rate))
+	var k := 1.0 - exp(-TAU * rate / SR)
+	var target := 1.0
+	var v := 1.0
+	for i in n:
+		if i % step == 0:
+			target = 1.0 + rng.randf_range(-depth, depth)
+		v += (target - v) * k
+		a[i] = v
+	return a
+
+# RBJ band-pass (0 dB at the peak) at `hz`, quality `q`
+func _bp(x: PackedFloat32Array, hz: float, q: float) -> PackedFloat32Array:
+	var w0 := TAU * minf(hz, SR * 0.45) / SR
+	var al := sin(w0) / (2.0 * q)
+	var a0 := 1.0 + al
+	var b0 := al / a0
+	var a1 := -2.0 * cos(w0) / a0
+	var a2 := (1.0 - al) / a0
+	var y := PackedFloat32Array()
+	y.resize(x.size())
+	var x1 := 0.0
+	var x2 := 0.0
+	var y1 := 0.0
+	var y2 := 0.0
+	for i in x.size():
+		var v := b0 * (x[i] - x2) - a1 * y1 - a2 * y2
+		x2 = x1
+		x1 = x[i]
+		y2 = y1
+		y1 = v
+		y[i] = v
+	return y
+
+# `x` through a set of resonances [[Hz, Q, gain], ...], summed
+func _formants(x: PackedFloat32Array, fs: Array) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(x.size())
+	for f in fs:
+		var b := _bp(x, f[0], f[1])
+		var g: float = f[2]
+		for i in out.size():
+			out[i] += b[i] * g
+	return out

@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dct8hn36k8im5"
-path="res://.godot/imported/Ground109_1K-JPG_Roughness.jpg-fd6127667bfbe0a2b65897f9f42fa9a5.ctex"
+path.bptc="res://.godot/imported/Ground109_1K-JPG_Roughness.jpg-fd6127667bfbe0a2b65897f9f42fa9a5.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/hills/Ground109_1K-JPG/Ground109_1K-JPG_Roughness.jpg"
-dest_files=["res://.godot/imported/Ground109_1K-JPG_Roughness.jpg-fd6127667bfbe0a2b65897f9f42fa9a5.ctex"]
+dest_files=["res://.godot/imported/Ground109_1K-JPG_Roughness.jpg-fd6127667bfbe0a2b65897f9f42fa9a5.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

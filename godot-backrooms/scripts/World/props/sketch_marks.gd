@@ -47,6 +47,28 @@ func _ready() -> void:
 	for s in placed.get(lv, []):
 		_spawn(s)
 
+func reload_floor() -> void:
+	for m in meshes.values():
+		if is_instance_valid(m):
+			m.queue_free()
+	meshes.clear()
+	var lv := MarkStore.key()
+	if MarkStore.active() and not _loaded.has(lv):
+		_loaded[lv] = true
+		var list: Array = placed.get(lv, [])
+		for d in MarkStore.read(level_id).get("sketch", []):
+			var pts: Array = []
+			for p in d.pts:
+				pts.append(MarkStore.v3(p))
+			var col: Color = COLORS[clampi(int(d.get("c", 0)), 0, COLORS.size() - 1)]
+			if d.has("col"):
+				col = Color.html(str(d.col))
+			list.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
+				"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
+		placed[lv] = list
+	for s in placed.get(lv, []):
+		_spawn(s)
+
 func _exit_tree() -> void:
 	if live == self:
 		live = null

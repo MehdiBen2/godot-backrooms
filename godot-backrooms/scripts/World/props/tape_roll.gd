@@ -62,6 +62,9 @@ func _init() -> void:
 	mesh.surface_set_material(2, core_material())
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
+	mi.visibility_range_end = 45.0
+	mi.visibility_range_end_margin = 8.0
+	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	add_child(mi)
 
 static func _begin() -> SurfaceTool:

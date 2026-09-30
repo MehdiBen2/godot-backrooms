@@ -213,6 +213,17 @@ func _rank_slots() -> void:
 		if pool[i].shadow_enabled != shadow:
 			pool[i].shadow_enabled = shadow
 
+## Eases toward `target` and lands on it exactly once close: an exponential ease never quite arrives, and
+## a light whose position creeps by a hair every frame has its whole cube shadow re-rendered every frame.
+static func _ease_to(v: float, target: float, k: float) -> float:
+	v += (target - v) * k
+	return target if absf(target - v) < 0.002 else v
+
+## Move a light only when it really moved: an unchanged light keeps its cached shadow map
+static func _move(l: Node3D, p: Vector3) -> void:
+	if not l.global_position.is_equal_approx(p):
+		l.global_position = p
+
 func _update_pool(delta: float) -> void:
 	var p := player.global_position
 	_rank_timer -= delta
@@ -266,11 +277,11 @@ func _update_pool(delta: float) -> void:
 		var ceil_gap: float = ceil_h - f.light_pos.y
 		var ceil_reach := clampf(1.0 - (ceil_gap - CEIL_GLOW_DROP) / (CEIL_GLOW_RANGE - CEIL_GLOW_DROP), 0.0, 1.0)
 		g.visible = l.visible and ceil_reach > 0.0
-		g.global_position = Vector3(f.light_pos.x, ceil_h - CEIL_GLOW_DROP, f.light_pos.z)
+		_move(g, Vector3(f.light_pos.x, ceil_h - CEIL_GLOW_DROP, f.light_pos.z))
 		g.light_energy = energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
-			l.global_position = f.light_pos
+			_move(l, f.light_pos)
 			l.light_energy = energy
 			continue
 		# One light at each end of the tube, so the floor is lit along its whole length, not from a point. Only
@@ -278,12 +289,12 @@ func _update_pool(delta: float) -> void:
 		# so a shadowed slot eases both ends into one centred light instead. Far away the tube reads as a
 		# point anyway: no twin, and the single light carries all of the energy (it used to keep only half,
 		# so every tube doubled in brightness as you came within TWIN_RANGE).
-		slot_single[i] += ((1.0 if l.shadow_enabled else 0.0) - slot_single[i]) * k
+		slot_single[i] = _ease_to(slot_single[i], 1.0 if l.shadow_enabled else 0.0, k)
 		var twin := (1.0 - slot_single[i]) if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0
 		lb.visible = l.visible and twin > 0.01
 		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin
-		l.global_position = f.light_pos + axis
-		lb.global_position = f.light_pos - axis
+		_move(l, f.light_pos + axis)
+		_move(lb, f.light_pos - axis)
 		var share := 0.5 * twin if lb.visible else 0.0
 		l.light_energy = energy * (1.0 - share)
 		lb.light_energy = energy * share

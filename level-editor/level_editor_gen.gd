@@ -1,11 +1,13 @@
 extends "res://level_editor_canvas.gd"
 ## Level editor, part 2: the generator. Fills a rectangle of the map with backrooms: rooms split off each
 ## other by walls with doorways (a binary split, so every room is reachable), a maze of corridors, a pillared
-## hall, or a mix of all three room by room. Its outer ring stays wall, opened wherever open floor waits
+## hall, a mix of all three room by room, the classic Level 0 look (one open expanse broken by short
+## walls and columns), or liminal halls (big, bare, too-regular rooms dressed with the free-placed wall
+## shapes: colonnades, abandoned open-plan offices, round rooms, rounded corners). Its outer ring stays wall, opened wherever open floor waits
 ## just outside, so a generated block joins what is already drawn. The seed makes a run repeatable;
 ## REGENERATE takes the last run back and rolls it again with a new seed. level_editor_files.gd builds on this.
 
-var gen_style := "mixed"              # "rooms" | "maze" | "pillars" | "mixed"
+var gen_style := "classic"            # "classic" | "liminal" | "rooms" | "maze" | "pillars" | "mixed"
 var gen_seed := 1
 var gen_room_min := 4                 # cells: no room thinner than this
 var gen_room_max := 11                # cells: rooms wider than this are always split
@@ -19,8 +21,11 @@ var _rng := RandomNumberGenerator.new()
 var _gopen := {}                       # Vector2i -> true: the cells the run leaves open
 var _rooms: Array = []                # Rect2i of each room, for zones
 var _gaps: Array = []                 # 1-cell doorways between rooms, for doors
+var _gobjs: Array = []                # objects the run places (liminal halls' columns, partitions, curves)
+var _round_rooms: Array = []          # liminal rooms to get rounded corners once every doorway is cut
 
 const ZONE_PICKS := ["tiles", "tiles", "dim", "dim", "dark", "flicker", "flicker", "grime", "tall", "bright", "low"]
+const LIMINAL_ZONE_PICKS := ["tall", "tall", "tall", "tiles", "tiles", "bright", "dim"]   # atriums, glossy floors, and now and then the lights are off
 
 func _generate(area: Rect2i) -> void:
 	area = area.intersection(Rect2i(0, 0, grid_size, grid_size))
@@ -31,8 +36,12 @@ func _generate(area: Rect2i) -> void:
 	_gopen.clear()
 	_rooms.clear()
 	_gaps.clear()
+	_gobjs.clear()
+	_round_rooms.clear()
 	var inner := area.grow(-1)
 	match gen_style:
+		"classic": _classic_field(inner)
+		"liminal": _liminal(inner)
 		"rooms": _bsp(inner, "room")
 		"maze": _maze(inner)
 		"pillars":
@@ -40,6 +49,7 @@ func _generate(area: Rect2i) -> void:
 			_rooms.append(inner)
 		_: _bsp(inner, "mixed")
 	var joined := _connect_outside(area)
+	_round_corners(area)
 	# stairs in the area stay, with their cell and the cell you step off onto
 	var stairs: Array = []
 	for o: Dictionary in objects:
@@ -62,6 +72,7 @@ func _generate(area: Rect2i) -> void:
 	for o: Dictionary in stairs:
 		if o.type == "stairs_down": grid[roundi(o.pos_y)][roundi(o.pos_x)] = PIT
 	objects = objects.filter(func(o): return str(o.type).begins_with("stairs_") or not area.has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y))))
+	objects.append_array(_gobjs)
 	for m in markers:
 		var mc = markers[m]
 		if mc != null and area.has_point(mc) and grid[mc.y][mc.x] == WALL: markers[m] = _nearest_open_in(mc)
@@ -128,6 +139,11 @@ func _bsp(r: Rect2i, style: String) -> void:
 
 ## One room of the split. Mixed: most are plain rooms, some pillared halls, some little mazes.
 func _leaf(r: Rect2i, style: String) -> void:
+	if style == "liminal":
+		_carve(r)
+		_rooms.append(r)
+		_liminal_room(r)
+		return
 	var kind := "room"
 	if style == "mixed":
 		var roll := _rng.randf()
@@ -141,6 +157,93 @@ func _leaf(r: Rect2i, style: String) -> void:
 		_:
 			_carve(r)
 			_rooms.append(r)
+
+## Classic Level 0: one open carpeted expanse, not rooms. Short free-standing walls, L bends, three-sided
+## half rooms, lone columns and colonnades, and stubs jutting off the outer wall are dropped at random.
+## Each piece keeps a clear cell all round from every other piece and touches the outer wall at most
+## once (a stub's root), so walls never join up into a loop and every open cell stays reachable.
+func _classic_field(r: Rect2i) -> void:
+	_carve(r)
+	var wall := {}
+	var tries := int(r.get_area() * (0.025 + gen_density * 0.05))
+	for t in tries:
+		var stub := _rng.randf() < 0.15
+		var cells: Array = _classic_stub(r) if stub else _classic_piece(r)
+		if cells.is_empty() or not _piece_fits(cells, r, wall, stub): continue
+		for c: Vector2i in cells:
+			wall[c] = true
+			_gopen.erase(c)
+	for k in maxi(1, r.get_area() / 260):             # a few patches for zones, the rest plain
+		var w := _rng.randi_range(4, mini(10, r.size.x))
+		var h := _rng.randi_range(4, mini(10, r.size.y))
+		_rooms.append(Rect2i(_rng.randi_range(r.position.x, r.end.x - w), _rng.randi_range(r.position.y, r.end.y - h), w, h))
+
+func _classic_piece(r: Rect2i) -> Array:
+	var o := Vector2i(_rng.randi_range(r.position.x, r.end.x - 1), _rng.randi_range(r.position.y, r.end.y - 1))
+	var hdir := Vector2i(1, 0) if _rng.randf() < 0.5 else Vector2i(0, 1)
+	var cells: Array = []
+	var roll := _rng.randf()
+	if roll < 0.3:                                                   # a short free-standing wall
+		for i in _rng.randi_range(2, 6): cells.append(o + hdir * i)
+	elif roll < 0.5:                                                 # an L bend
+		var b := Vector2i(hdir.y, hdir.x) * (1 if _rng.randf() < 0.5 else -1)
+		var a := _rng.randi_range(2, 5)
+		for i in a: cells.append(o + hdir * i)
+		for i in range(1, _rng.randi_range(2, 5)): cells.append(o + hdir * (a - 1) + b * i)
+	elif roll < 0.62:                                                # a half room: three sides, one open
+		var w := _rng.randi_range(4, 7)
+		var h := _rng.randi_range(4, 7)
+		var open_side := _rng.randi_range(0, 3)
+		for x in w:
+			if open_side != 0: cells.append(o + Vector2i(x, 0))
+			if open_side != 1: cells.append(o + Vector2i(x, h - 1))
+		for z in range(1, h - 1):
+			if open_side != 2: cells.append(o + Vector2i(0, z))
+			if open_side != 3: cells.append(o + Vector2i(w - 1, z))
+		if cells.size() > 6 and _rng.randf() < 0.5: cells.remove_at(_rng.randi_range(0, cells.size() - 1))   # a gap
+	elif roll < 0.82:                                                # a lone column, now and then a fat one
+		cells.append(o)
+		if _rng.randf() < 0.25: cells.append_array([o + Vector2i(1, 0), o + Vector2i(0, 1), o + Vector2i(1, 1)])
+	else:                                                            # a colonnade
+		for i in _rng.randi_range(3, 6): cells.append(o + hdir * (i * 3))
+	return cells
+
+## A wall jutting in off the area's edge; its first cell is the one against the edge
+func _classic_stub(r: Rect2i) -> Array:
+	var side := _rng.randi_range(0, 3)
+	var start: Vector2i
+	var dir: Vector2i
+	match side:
+		0:
+			start = Vector2i(_rng.randi_range(r.position.x + 2, r.end.x - 3), r.position.y)
+			dir = Vector2i(0, 1)
+		1:
+			start = Vector2i(_rng.randi_range(r.position.x + 2, r.end.x - 3), r.end.y - 1)
+			dir = Vector2i(0, -1)
+		2:
+			start = Vector2i(r.position.x, _rng.randi_range(r.position.y + 2, r.end.y - 3))
+			dir = Vector2i(1, 0)
+		_:
+			start = Vector2i(r.end.x - 1, _rng.randi_range(r.position.y + 2, r.end.y - 3))
+			dir = Vector2i(-1, 0)
+	var cells: Array = []
+	for i in _rng.randi_range(2, 5): cells.append(start + dir * i)
+	return cells
+
+## Inside the area, a clear cell all round from other pieces, and off the edge (bar a stub's root)
+func _piece_fits(cells: Array, r: Rect2i, wall: Dictionary, stub: bool) -> bool:
+	var own := {}
+	for c: Vector2i in cells:
+		if not r.has_point(c): return false
+		own[c] = true
+	for i in cells.size():
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				var n: Vector2i = cells[i] + Vector2i(dx, dz)
+				if own.has(n): continue
+				if wall.has(n): return false
+				if not r.has_point(n) and not (stub and i == 0): return false
+	return true
 
 func _carve(r: Rect2i) -> void:
 	for z in range(r.position.y, r.end.y):
@@ -266,9 +369,89 @@ func _open_at(c: Vector2i) -> bool:
 func _room_zones() -> void:
 	for r: Rect2i in _rooms:
 		if _rng.randf() > 0.4: continue
-		var zn: String = ZONE_PICKS[_rng.randi_range(0, ZONE_PICKS.size() - 1)]
+		var picks: Array = LIMINAL_ZONE_PICKS if gen_style == "liminal" else ZONE_PICKS
+		var zn: String = picks[_rng.randi_range(0, picks.size() - 1)]
 		if zn == "low" and r.get_area() > 30: zn = "dim"
 		if not zones.has(zn): continue
 		for z in range(r.position.y, r.end.y):
 			for x in range(r.position.x, r.end.x):
 				if grid[z][x] == FLOOR: zones[zn][Vector2i(x, z)] = true
+
+# ---------------------------------------------------------------- liminal halls
+## Big rooms off each other through doorways (the binary split with fewer, bigger rooms), each one bare
+## or dressed with a single idea repeated: nothing wrong with any of it, just too much of the same
+func _liminal(r: Rect2i) -> void:
+	var keep := [gen_room_min, gen_room_max]
+	gen_room_min = maxi(gen_room_min, 6)
+	gen_room_max = maxi(gen_room_max, 20)
+	_bsp(r, "liminal")
+	gen_room_min = keep[0]
+	gen_room_max = keep[1]
+
+func _liminal_room(r: Rect2i) -> void:
+	var w := r.size.x
+	var h := r.size.y
+	# about a third stay bare: the emptiness does the work, the rest carry one idea each
+	var roll := _rng.randf()
+	if roll < 0.22 and w >= 6 and h >= 6:
+		# a colonnade: one kind of column on a regular grid, square on the cells or on their corners
+		var step := 2 if _rng.randf() < gen_density * 0.5 else 3
+		var kind := "column" if _rng.randf() < 0.5 else "pillar"
+		var off := Vector2(0.5, 0.5) if _rng.randf() < 0.5 else Vector2.ZERO
+		for z in range(r.position.y + 1, r.end.y - 1, step):
+			for x in range(r.position.x + 1, r.end.x - 1, step):
+				_gobj(kind, Vector2(x, z) + off, 0.0, 1.0)
+	elif roll < 0.36 and w >= 7 and h >= 7:
+		# an open-plan office nobody came back to: rows of waist-high partitions along the long side, a
+		# cell's gap every few cells to walk through
+		var along_x := w >= h
+		var lo_long := r.position.x if along_x else r.position.y
+		var hi_long := r.end.x if along_x else r.end.y
+		var lo_across := r.position.y if along_x else r.position.x
+		var hi_across := r.end.y if along_x else r.end.x
+		for a in range(lo_across + 1, hi_across - 2, 3):
+			for u in range(lo_long + 1, hi_long - 2, 3):
+				var at := Vector2(u + 0.5, a + 0.5) if along_x else Vector2(a + 0.5, u + 0.5)
+				_gobj("half_wall", at, 90.0 if along_x else 0.0, 2.0)
+	elif roll < 0.46 and w >= 9 and h >= 9:
+		# a round room in the middle of the square one, its way in facing a random side
+		var d := mini(mini(w, h) - 3, 12)
+		var centre := Vector2(r.position.x + (w - 1) * 0.5, r.position.y + (h - 1) * 0.5)
+		_gobj("wall_curve", centre, _rng.randi_range(0, 3) * 90.0, float(d), {"arc": 300.0})
+	elif roll < 0.64 and w >= 5 and h >= 5:
+		_round_rooms.append(r)                  # rounded corners, once the doorways are cut (_round_corners)
+	# else: bare. Its size and the hum are the point.
+
+## Rounded corners for the rooms that asked for them: a quarter curve 2 cells round in each corner, the
+## corner cell behind it filled in. Run after every doorway and edge opening is cut, and a corner with an
+## opening in the wall the curve covers (or stairs in the room) keeps its square corner, so no way in is
+## ever sealed behind a curve.
+func _round_corners(area: Rect2i) -> void:
+	for r: Rect2i in _round_rooms:
+		if objects.any(func(o): return str(o.type).begins_with("stairs_") and r.grow(1).has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))):
+			continue
+		var corners := [[Vector2i(r.position.x, r.position.y), Vector2i(1, 1), 225.0],
+			[Vector2i(r.end.x - 1, r.position.y), Vector2i(-1, 1), 315.0],
+			[Vector2i(r.end.x - 1, r.end.y - 1), Vector2i(-1, -1), 45.0],
+			[Vector2i(r.position.x, r.end.y - 1), Vector2i(1, -1), 135.0]]
+		for k: Array in corners:
+			var c: Vector2i = k[0]
+			var i: Vector2i = k[1]
+			var inside := [c, c + Vector2i(i.x, 0), c + Vector2i(0, i.y), c + i]
+			var walls := [c - Vector2i(i.x, 0), c - Vector2i(0, i.y), c + Vector2i(i.x, 0) - Vector2i(0, i.y),
+				c + Vector2i(0, i.y) - Vector2i(i.x, 0), c - i]
+			if not inside.all(func(q): return _gopen.has(q)) or walls.any(func(q): return _gopen.has(q) or not area.has_point(q)):
+				continue
+			var face := Vector2(c) - Vector2(i) * 0.5          # where the two walls meet
+			_gobj("wall_curve", face + Vector2(i) * 2.0, k[2], 4.0, {"arc": 90.0})
+			_gopen.erase(c)
+
+## An object for this run, with its type's params at their defaults bar `extra`; none on or next to stairs
+func _gobj(t: String, at: Vector2, rot: float, sc: float, extra := {}) -> void:
+	if not OBJ_INFO.has(t): return
+	if objects.any(func(o): return str(o.type).begins_with("stairs_") and Vector2(o.pos_x, o.pos_y).distance_to(at) < sc * 0.5 + 1.5):
+		return
+	var o := _new_object(t, at, rot)
+	o.scale = sc
+	o.merge(extra, true)
+	_gobjs.append(o)

@@ -17,6 +17,12 @@ extension_api.json
 .godot/
 *.tmp
 
+# Godot import metadata
+*.import
+
+# Generated files (godot_generate, etc)
+*.generated
+
 # MCP addon screenshot cache
 godot-backrooms/addons/godot_mcp/cache/
 
@@ -29,3 +35,5 @@ desktop.ini
 
 # Blender auto-backups
 *.blend1
+*.import
+*.import

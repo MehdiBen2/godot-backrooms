@@ -1,0 +1,35 @@
+{
+ "since": "2026-09-30T11:18:05.413Z",
+ "tools": {
+  "reindex": {
+   "calls": 1,
+   "outputTokens": 16,
+   "savedTokens": 0
+  },
+  "repo_map": {
+   "calls": 1,
+   "outputTokens": 934,
+   "savedTokens": 0
+  },
+  "read_symbol": {
+   "calls": 40,
+   "outputTokens": 12498,
+   "savedTokens": 240087
+  },
+  "find_references": {
+   "calls": 9,
+   "outputTokens": 2987,
+   "savedTokens": 0
+  },
+  "file_skeleton": {
+   "calls": 14,
+   "outputTokens": 16666,
+   "savedTokens": 55795
+  },
+  "find_symbol": {
+   "calls": 2,
+   "outputTokens": 1588,
+   "savedTokens": 0
+  }
+ }
+}

@@ -4,7 +4,8 @@ extends Node
 ## middle of the frame, is blinded for a few seconds (bacteria.gd flashed / blind); when its eyes
 ## clear it only comes straight back for you if you are still close and in plain sight, so the flash
 ## buys the seconds to get round a corner or far down the hall. Missing it is loud: the pop tells it
-## where you are.
+## where you are. THE GRABBER caught in it reels and runs off into the dark for a while (grabber.gd
+## flashed); flash it on the ceiling and it drops, then runs.
 ## Each flash in the inventory is one charge (flash_pickup.gd, ITEM_ID); after one goes off the next
 ## needs RECHARGE seconds to charge up (the whine), and a press with none left, or still charging,
 ## is the dead click.
@@ -75,10 +76,17 @@ func fire() -> bool:
 	Net.send_flash(origin, look)
 	return true
 
-## Whoever fired it: the Bacteria takes it if it is in the way (on the machine that runs its brain)
+## Whoever fired it: the Bacteria and the Grabber take it if they are in the way (on the machine that runs
+## their brains)
 static func hit(origin: Vector3, look: Vector3) -> bool:
-	var ent: Node = Game.main.get_node_or_null("Entity") if Game.main != null and is_instance_valid(Game.main) else null
-	return ent != null and ent.has_method("flashed") and ent.flashed(origin, look)
+	if Game.main == null or not is_instance_valid(Game.main):
+		return false
+	var took := false
+	for name in ["Entity", "Grabber"]:            # the Bacteria, and THE GRABBER (grabber.gd flashed())
+		var ent: Node = Game.main.get_node_or_null(name)
+		if ent != null and ent.has_method("flashed") and ent.flashed(origin, look):
+			took = true
+	return took
 
 ## The flash going off at `pos`: a shadowed white light that dies away in LIGHT_FADE, and the pop
 static func burst(pos: Vector3) -> void:

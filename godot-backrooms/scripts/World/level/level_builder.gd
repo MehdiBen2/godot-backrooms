@@ -20,18 +20,24 @@ const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
+const SurveyClipboard := preload("res://scripts/World/props/survey_clipboard.gd")
+const DeadFixture := preload("res://scripts/World/props/dead_fixture.gd")
+const CLIPBOARD_PER_CELLS := 90
+const DEAD_FIXTURE_PER_CELLS := 75
 
 var exit_door: Node3D
 
 func _ready() -> void:
 	rng.seed = 1971                    # the same layout of burnt / flickering tubes every run
 	load_current()
+	step_mask()                        # the nav table, now while loading, not on a monster's first flood fill
 	build_geometry()
 	build_lighting()
 	_build_exit()
 	_spawn_batteries()
 	_spawn_tape()
 	_spawn_flashes()
+	_spawn_survey_props()
 	var marks := TapeMarks.new()
 	marks.name = "TapeMarks"
 	add_child(marks)
@@ -88,6 +94,134 @@ func _spawn_tape() -> void:
 # ---------------------------------------------------------------- camera flashes
 func _spawn_flashes() -> void:
 	_scatter(func(): return FlashPickup.new(), FLASH_PER_CELLS, 1, 2)
+
+# ---------------------------------------------------------------- interactive survey props
+func _spawn_survey_props() -> void:
+	_scatter(func(): return SurveyClipboard.new(), CLIPBOARD_PER_CELLS, 2, 6)
+	_scatter(func(): return DeadFixture.new(), DEAD_FIXTURE_PER_CELLS, 2, 8)
+
+## Seamless in-place floor transition: unloads current floor geometry and builds floor `f`
+## without any loading screen or scene reload.
+func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
+	Game.level_floor = f
+	Game.floor_link = link
+
+	# 1. Clear dynamic floor children, keeping persistent marks, light pool, and voxel_gi
+	var marks := get_node_or_null("TapeMarks")
+	var sketches := get_node_or_null("SketchMarks")
+	var pool_set := {}
+	for l in pool + pool_b + far_pool + ceil_glow:
+		if l != null:
+			pool_set[l] = true
+
+	var to_remove: Array[Node] = []
+	for c in get_children():
+		if c == marks or c == sketches or pool_set.has(c) or c == voxel_gi:
+			continue
+		to_remove.append(c)
+
+	for c in to_remove:
+		c.free()
+
+	# 2. Reset data structures
+	walls.clear()
+	pits.clear()
+	objects.clear()
+	carved.clear()
+	arch_cells.clear()
+	pillar_cells.clear()
+	blocked_edges.clear()
+	wall_segments.clear()
+	tall.clear()
+	low.clear()
+	tiles.clear()
+	bright.clear()
+	dark.clear()
+	dim.clear()
+	flicker.clear()
+	mannequin.clear()
+	classic.clear()
+	liminal.clear()
+	_painted.clear()
+	has_spawn_yaw = false
+
+	# 3. Reset fixture arrays
+	fx.clear()
+	lit.clear()
+	fill_lights.clear()
+	reflect_mmi = null
+	tubes_mm = null
+	lens_mm = null
+	panels_mm = null
+	for i in slot_fixture.size():
+		slot_fixture[i] = null
+		slot_weight[i] = 0.0
+		slot_target[i] = 0.0
+		slot_on[i] = 0.0
+		slot_want[i] = false
+		slot_single[i] = 0.0
+	for i in far_fixture.size():
+		far_fixture[i] = null
+		far_weight[i] = 0.0
+
+	# 4. Load floor data (and the nav table: it is cached by grid size, and every floor has the same size)
+	level_data = floor_data(read_level(level_meta), f)
+	_parse(level_data)
+	_arrive_by_stairs()
+	_step_mask = PackedByteArray()
+	step_mask()
+
+	# 5. Build geometry & lighting
+	build_geometry()
+	if panel_ceiling != null:
+		_place_panel_fixtures()
+		_build_panel_ceiling()
+	else:
+		_place_fixtures()
+		_build_fixture_meshes()
+	_build_floor_reflections()
+	_apply_gi()
+
+	# 6. Build exit & props
+	_build_exit()
+	_spawn_batteries()
+	_spawn_tape()
+	_spawn_flashes()
+	_spawn_survey_props()
+
+	# 7. Reload marks for the new floor
+	if marks != null and marks.has_method("reload_floor"):
+		marks.reload_floor()
+	if sketches != null and sketches.has_method("reload_floor"):
+		sketches.reload_floor()
+
+	# 8. Move player to the arrival position seamlessly
+	var p: Node3D = player if player != null else Game.player
+	if p != null and is_instance_valid(p):
+		p.global_position = spawn_pos
+		if has_spawn_yaw:
+			p.rotation.y = spawn_yaw
+		if p is CharacterBody3D:
+			(p as CharacterBody3D).velocity = Vector3.ZERO
+
+	# 9. Notify entity of updated grid navigation
+	var root := get_parent()
+	if root != null:
+		var ent: Node = root.get_node_or_null("Entity")
+		if ent != null and ent.has_method("_setup_nav"):
+			ent._setup_nav()
+			if ent.has_method("_spawn_cell"):
+				var sp: Array = ent._spawn_cell()
+				ent.global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
+
+## Seamless in-place level transition: changes to playlist entry `idx` without a loading screen.
+func load_level_seamless(idx: int) -> void:
+	var levels := read_index()
+	Game.level_count = levels.size()
+	level_index = clampi(idx, 0, levels.size() - 1)
+	level_meta = levels[level_index]
+	fired_triggers.clear()
+	rebuild_floor_seamless(0, {})
 
 ## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),
 ## none right at the spawn point

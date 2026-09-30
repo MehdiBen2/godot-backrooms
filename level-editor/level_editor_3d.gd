@@ -22,6 +22,14 @@ var pitch := -0.9
 var dist := 30.0
 var stale := true
 var _delay := 0.0
+## Walk mode (E): the camera at eye height, walking the level at its real proportions (the overview squashes
+## heights to half so the floor plan reads from above; walking needs the true 5.4 m walls on 4.5 m cells)
+const EYE := 1.6 / 4.5                   # metres -> cells
+const WALK_SPEED := 1.1                  # cells a second (about 5 m/s); Shift doubles it
+var walking := false
+var vscale := 1.0                        # height multiplier: 2 in walk mode
+var walk_pos := Vector3.ZERO
+var walk_light: OmniLight3D
 var _tex_cache := {}                     # pbr name -> StandardMaterial3D
 var _flat_cache := {}                    # Color -> StandardMaterial3D
 
@@ -55,11 +63,19 @@ func _init(editor) -> void:
 	cam = Camera3D.new()
 	cam.far = 500.0
 	vp.add_child(cam)
+	walk_light = OmniLight3D.new()              # a lamp you carry, so rooms under the ceiling aren't black
+	walk_light.omni_range = 4.0
+	walk_light.light_energy = 1.2
+	walk_light.visible = false
+	cam.add_child(walk_light)
 	hud = Label.new()
 	hud.position = Vector2(10, 8)
-	hud.add_theme_font_size_override("font_size", 13)
+	hud.add_theme_font_size_override("font_size", 15)
+	hud.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	hud.add_theme_constant_override("shadow_offset_x", 2)
+	hud.add_theme_constant_override("shadow_offset_y", 2)
 	hud.add_theme_color_override("font_color", Color("cdb86a"))
-	hud.text = "3D VIEW   right drag orbit   middle drag pan   wheel zoom   WASD move"
+	hud.text = HUD_ORBIT
 	add_child(hud)
 	ceiling_check = CheckBox.new()
 	ceiling_check.text = "Ceiling"
@@ -67,6 +83,44 @@ func _init(editor) -> void:
 	ceiling_check.toggled.connect(func(_on): stale = true)
 	add_child(ceiling_check)
 	_place_camera()
+
+const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   WASD move   E walk"
+const HUD_WALK := "WALKING   WASD walk   Shift run   right drag / arrows look   E back to overview"
+
+## Walk mode on / off: start from the spawn marker (else the middle of the view), heights at true scale
+func toggle_walk() -> void:
+	walking = not walking
+	vscale = 2.0 if walking else 1.0
+	walk_light.visible = walking
+	cam.near = 0.01 if walking else 0.05
+	hud.text = HUD_WALK if walking else HUD_ORBIT
+	if walking:
+		var sp = ed.markers.get("spawn")
+		var c: Vector2i = sp if sp != null else Vector2i(roundi(target.x), roundi(target.z))
+		if _solid(Vector2(c)): c = _nearest_floor(c)
+		walk_pos = Vector3(c.x, 0.0, c.y)
+		pitch = 0.0
+		ceiling_check.button_pressed = true
+	else:
+		target = walk_pos
+		pitch = -0.9
+		ceiling_check.button_pressed = false
+	stale = true
+	_delay = 0.0
+	_place_camera()
+
+## Can't walk into a wall cell or off the map
+func _solid(p: Vector2) -> bool:
+	var c := Vector2i(roundi(p.x), roundi(p.y))
+	return c.x < 0 or c.y < 0 or c.x >= ed.grid_size or c.y >= ed.grid_size or ed.grid[c.y][c.x] == ed.WALL
+
+func _nearest_floor(c: Vector2i) -> Vector2i:
+	for r in range(1, ed.grid_size):
+		for dz in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var n := c + Vector2i(dx, dz)
+				if not _solid(Vector2(n)): return n
+	return c
 
 func mark_stale() -> void:
 	stale = true
@@ -96,6 +150,24 @@ func _process(dt: float) -> void:
 		if Input.is_key_pressed(KEY_D): dir.x += 1.0
 		if Input.is_key_pressed(KEY_W): dir.y -= 1.0
 		if Input.is_key_pressed(KEY_S): dir.y += 1.0
+	if walking:
+		if Input.is_key_pressed(KEY_LEFT): yaw += 1.8 * dt
+		if Input.is_key_pressed(KEY_RIGHT): yaw -= 1.8 * dt
+		var ahead := -dir.y if not (Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_DOWN)) else \
+			(1.0 if Input.is_key_pressed(KEY_W) else (-1.0 if Input.is_key_pressed(KEY_S) else 0.0))
+		var side := (1.0 if Input.is_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) else 0.0)
+		var f := Vector2(-sin(yaw), -cos(yaw))
+		var r := Vector2(cos(yaw), -sin(yaw))
+		var step := (f * ahead + r * side).limit_length(1.0) * WALK_SPEED * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0) * dt
+		var p := Vector2(walk_pos.x, walk_pos.z)
+		const R := 0.08                          # body radius: keep this far off walls (slide along them)
+		for axis in [Vector2(step.x, 0), Vector2(0, step.y)]:
+			var q: Vector2 = p + axis
+			var edge: Vector2 = q + axis.normalized() * R if axis != Vector2.ZERO else q
+			if not _solid(edge): p = q
+		walk_pos = Vector3(p.x, 0.0, p.y)
+		_place_camera()
+		return
 	if dir != Vector2.ZERO and not Input.is_key_pressed(KEY_CTRL):
 		var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
 		var right := Vector3(cos(yaw), 0.0, -sin(yaw))
@@ -103,6 +175,11 @@ func _process(dt: float) -> void:
 		_place_camera()
 
 func _place_camera() -> void:
+	if walking:
+		var eye := walk_pos + Vector3(0, EYE, 0)
+		var look := Vector3(-sin(yaw) * cos(pitch), sin(pitch), -cos(yaw) * cos(pitch))
+		cam.look_at_from_position(eye, eye + look, Vector3.UP)
+		return
 	var off := Vector3(sin(yaw) * cos(pitch), -sin(pitch), cos(yaw) * cos(pitch)) * dist
 	cam.look_at_from_position(target + off, target, Vector3.UP)
 
@@ -114,6 +191,10 @@ func _gui_input(e: InputEvent) -> void:
 			var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
 			target += (-right * m.relative.x + fwd * m.relative.y) * dist * 0.0018
 			_place_camera()
+		elif m.button_mask & MOUSE_BUTTON_MASK_RIGHT and walking:
+			yaw -= m.relative.x * 0.005
+			pitch = clampf(pitch - m.relative.y * 0.005, -1.3, 1.3)
+			_place_camera()
 		elif m.button_mask & MOUSE_BUTTON_MASK_RIGHT:
 			yaw -= m.relative.x * 0.006
 			pitch = clampf(pitch - m.relative.y * 0.006, -1.55, -0.05)
@@ -123,6 +204,8 @@ func _gui_input(e: InputEvent) -> void:
 		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: dist = minf(dist * 1.14, 300.0)
 		else: return
 		_place_camera()
+	elif e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_E and not e.ctrl_pressed:
+		toggle_walk()
 	elif e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_C and not e.ctrl_pressed:
 		ceiling_check.button_pressed = not ceiling_check.button_pressed
 
@@ -179,9 +262,9 @@ func _wall_height(c: Vector2i) -> float:
 	for dz in range(-1, 2):
 		for dx in range(-1, 2):
 			var n := c + Vector2i(dx, dz)
-			if ed.zones["tall"].has(n): return TALL_H
+			if ed.zones["tall"].has(n): return TALL_H * vscale
 			if not ed.zones["low"].has(n): all_low = false
-	return LOW_H if all_low else WALL_H
+	return (LOW_H if all_low else WALL_H) * vscale
 
 func _rebuild() -> void:
 	_clear()
@@ -250,10 +333,8 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 	var depth := float(info.get("thickness", 0.3)) / 4.5      # metres -> cells
 	var span: float = o.scale
 	var wall_mat := _pbr(ed._surface_key("wall", Vector2i(-1, -1)))
-	var parts: Array = []                              # [local centre, size, material]
+	var parts: Array = []                              # [local centre, size, material, (yaw), (mesh)]
 	match o.type:
-		"thin_wall":
-			parts.append([Vector3(0, h * 0.5, 0), Vector3(depth, h, span), wall_mat])
 		"arch":
 			var pillar := float(info.get("pillar", 0.75)) / 4.5
 			var r := span * 0.5 - pillar
@@ -268,19 +349,46 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
 		"stairs_up", "stairs_down":
-			var rise := 0.35 * (1.0 if o.type == "stairs_up" else -1.0)       # 3 m in cell units, about
+			var rise := 0.35 * vscale * (1.0 if o.type == "stairs_up" else -1.0)       # 3 m in cell units, about
 			var steps := 8
 			for i in steps:
 				var top := rise * (i + 1) / steps
 				var base := 0.0 if rise > 0 else rise
 				parts.append([Vector3(-0.5 + (i + 0.5) / steps, (top + base) * 0.5, 0), Vector3(1.0 / steps, absf(top - base) + 0.01, span), _flat(col)])
 		_:
-			var s := 0.28 * span
-			parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])
+			var sh: String = ed._shape(o.type)
+			var hm := float(ed._param(o, "height", 0.0))
+			var ph := h if hm <= 0.0 else minf(h, hm / 9.0 * vscale)        # metres -> this view's squashed heights (5.4 m = 0.6)
+			var t: float = ed._thick_cells(o)
+			match sh:
+				"slab", "corner", "arc":
+					var path: PackedVector2Array = ed._shape_path(o)
+					for i in path.size() - 1:
+						var run := path[i + 1] - path[i]
+						var mid := (path[i] + path[i + 1]) * 0.5
+						parts.append([Vector3(mid.x, ph * 0.5, mid.y), Vector3(run.length() + t, ph, t), wall_mat, atan2(-run.y, run.x)])
+				"pillar":
+					parts.append([Vector3(0, ph * 0.5, 0), Vector3(t, ph, t), wall_mat])
+				"column":
+					var cyl := CylinderMesh.new()
+					cyl.top_radius = 0.5
+					cyl.bottom_radius = 0.5
+					cyl.height = 1.0
+					parts.append([Vector3(0, ph * 0.5, 0), Vector3(t, ph, t), wall_mat, 0.0, cyl])
+				"zone":
+					var zc := col
+					zc.a = 0.22
+					var zm := _flat(zc)
+					zm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+					parts.append([Vector3(0, h * 0.4, 0), Vector3(float(ed._param(o, "depth", 2.0)), h * 0.8, span), zm])
+				_:
+					var s := 0.28 * span
+					parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])
 	var xf := Transform3D(Basis(Vector3.UP, yaw_rad), pos)
 	for p in parts:
 		var mi := MeshInstance3D.new()
-		mi.mesh = unit
-		mi.transform = xf * Transform3D(Basis.from_scale(p[1]), p[0])
+		mi.mesh = p[4] if p.size() > 4 else unit
+		var yaw: float = p[3] if p.size() > 3 else 0.0
+		mi.transform = xf * Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(p[1]), p[0])
 		mi.material_override = p[2]
 		world.add_child(mi)

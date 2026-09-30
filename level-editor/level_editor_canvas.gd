@@ -17,9 +17,9 @@ const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
-	"mannequin": Color("e8e0d0")}
+	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
-const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff")}
+const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
 	THIN: Color("7a7364"), ARCH: Color("8a7a52"), DOOR: Color("6b4a2e")}
 # Free-placed objects, mirrored from the game's level_data.gd. Positions are in cells with a cell's centre
@@ -35,6 +35,7 @@ var zones := {}                      # zone -> {Vector2i: true}
 var paint := {"wall": {}, "floor": {}, "ceiling": {}}   # slot -> {Vector2i: pbr name}: per-cell material overrides
 var paint_mat := ""                  # the material the paint tools lay down
 var markers := {}                    # marker -> Vector2i or null
+var spawn_rot := 270.0               # the way the player looks at spawn: degrees clockwise on the map, 0 = right, 270 = up
 var tool := "base:" + WALL
 var brush := 1
 var undo_stack: Array = []
@@ -46,14 +47,19 @@ var zoom := 14.0
 var pan := Vector2(10, 10)
 var hover := Vector2i(-1, -1)
 var dirty := false
-var objects: Array = []              # {type, pos_x, pos_y, rotation, scale}
+var objects: Array = []              # {type, pos_x, pos_y, rotation, scale, <its type's params>}
 var selected := -1                   # index into objects
 var hover_obj := -1
-var drag := ""                       # "" | "move" | "rotate" | "place"
+var drag := ""                       # "" | "move" | "rotate" | "place" | "line" | "chain" | "box"
+var multi: Array = []                # indices of a multi-selection (box drag or Shift+click); [] = just `selected`
+var group_start: Array = []          # [index, pos_x, pos_y] of each piece a group move started with
+var group_anchor := Vector2.ZERO     # where the group move was grabbed, in cells
+var box_from := Vector2.ZERO         # canvas px where a box selection started
+var line_from := Vector2.ZERO        # where the wall being drawn starts, in cells
 var drag_off := Vector2.ZERO         # grab point -> object origin, in cells
 var mouse_px := Vector2(-1, -1)
-var place_rot := 0.0                 # new objects start at the last rotation / width used
-var place_scale := 1.0
+var place_rot := 0.0                 # new objects start at the last rotation used, and their type's last width
+var place_scales := {}               # type -> the width its last one was given
 var snap := true
 var rot_snap := true
 var align := true                    # turn doors / arches / thin walls to fit the wall or corridor they land on
@@ -82,7 +88,7 @@ var auto_walls := true               # floor rectangles are drawn as rooms: a wa
 var scatter := 100                   # % of the cells a paint stroke actually paints (random variation)
 var paint_mix: Array = []            # more materials painted at random alongside paint_mat
 var stroke_seed := 0                 # new each click, so scatter / mix are stable while you drag over a cell
-const MAX_SIZE := 160
+const MAX_SIZE := 256                # cells a side: 1.15 km at 4.5 m a cell
 
 # Floors: the level's other floors, kept aside while you edit one. The live grid / zones / paint / markers /
 # objects are floor `floor_idx`; floor_store holds every other floor (int -> the same set of fields).
@@ -101,12 +107,58 @@ var insp_x: SpinBox
 var insp_y: SpinBox
 var insp_rot: SpinBox
 var insp_scale: SpinBox
+var insp_scale_label: Label
+var insp_params := {}                # param -> {"row": [label, control], "ctrl": control}: level_editor.gd builds them
 func _info(t: String) -> Dictionary:
 	return OBJ_INFO.get(t, {"label": t, "key": "", "col": Color("a39c8a"), "help": ""})
 
 ## A size from object_types.json, in cells
 func _cells(t: String, key: String, metres: float) -> float:
 	return float(_info(t).get(key, metres)) / CELL_M
+
+## What a type is built as (object_types.json "shape": slab, corner, arc, pillar, column, zone; "" for the rest)
+func _shape(t: String) -> String:
+	return str(_info(t).get("shape", ""))
+
+## An object's own value of one of its type's params, else the type's default
+func _param(o: Dictionary, key: String, fallback = null):
+	return o.get(key, _info(o.type).get("params", {}).get(key, fallback))
+
+## A wall object's thickness in cells (its own, else its type's)
+func _thick_cells(o: Dictionary) -> float:
+	return float(_param(o, "thick", _info(o.type).get("thickness", 0.3))) / CELL_M
+
+## The widest a type may be made (object_types.json "max_scale", else 4 cells)
+func _max_scale(t: String) -> float:
+	return float(_info(t).get("max_scale", 4.0))
+
+## The width the next object of type `t` is placed at: its type's last one, else 1 cell (a trigger: 3)
+func _place_scale(t: String) -> float:
+	return float(place_scales.get(t, 3.0 if _shape(t) == "zone" else 1.0))
+
+## The centre line of a wall-shaped object in object space (cells): the game's level_data.gd shape_path()
+func _shape_path(o: Dictionary) -> PackedVector2Array:
+	var sc: float = o.scale
+	match _shape(o.type):
+		"slab", "":
+			return PackedVector2Array([Vector2(0, -sc * 0.5), Vector2(0, sc * 0.5)])
+		"corner":
+			return PackedVector2Array([Vector2(sc, 0), Vector2.ZERO, Vector2(0, sc)])
+		"arc":
+			var arc := deg_to_rad(clampf(float(_param(o, "arc", 90.0)), 5.0, 360.0))
+			var n := maxi(2, ceili(arc / deg_to_rad(10.0)))
+			var pts := PackedVector2Array()
+			for i in n + 1:
+				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * sc * 0.5)
+			return pts
+	return PackedVector2Array()
+
+## A new object of type `t` with every param at its default
+func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
+	var o := {"type": t, "pos_x": at.x, "pos_y": at.y, "rotation": rot, "scale": _place_scale(t)}
+	var params: Dictionary = _info(t).get("params", {})
+	for k in params: o[k] = params[k]
+	return o
 
 func _update_title() -> void:
 	if current < 0: return
@@ -284,13 +336,23 @@ func _draw_canvas() -> void:
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
-			var ghost := {"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale}
+			var t := tool.get_slice(":", 1)
+			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
 			_draw_object(ghost, 0.45)
 			_draw_arrow(ghost, Color(SEL, 0.5))
 	else:
 		_draw_hover()
+	if show_objects:
+		for k in multi:
+			if k != selected and k < objects.size():
+				_draw_outline(objects[k], Color(0, 0, 0, 0.7), 4.0)
+				_draw_outline(objects[k], SEL, 2.0)
 	if selected >= 0 and show_objects:
 		_draw_gizmo(objects[selected])
+	if drag == "box":
+		var r := Rect2(box_from, Vector2.ZERO).expand(mouse_px)
+		canvas.draw_rect(r, Color(SEL, 0.08))
+		canvas.draw_rect(r, SEL, false, 1.5)
 	canvas.draw_rect(Rect2(pan, Vector2(grid_size, grid_size) * zoom), GOLD, false, 1.5)
 	_draw_rulers()
 	if show_paint: _draw_legend()
@@ -503,8 +565,36 @@ func _draw_markers() -> void:
 		var letter: String = str(m).substr(0, 1).to_upper()
 		var ls := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 		canvas.draw_string(font, p + Vector2(-ls.x * 0.5, fs * 0.36), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.BLACK)
+		if m == "spawn": _draw_look_arrow(p, rad)
+		elif m == "drop_hole": _draw_drop_hole_indicator(p, rad)
 		if zoom >= 12.0:
-			_tag(p + Vector2(rad + 4, -8), m.to_upper(), MARKERS[m], 10)
+			var tag_text: String = m.to_upper()
+			if m == "drop_hole":
+				tag_text = "DROP HOLE [TO F%d]" % (floor_idx - 1)
+			_tag(p + Vector2(rad + 4, -8), tag_text, MARKERS[m], 10)
+
+## Visual transition indicator for a drop hole / pit descent
+func _draw_drop_hole_indicator(p: Vector2, rad: float) -> void:
+	canvas.draw_circle(p, rad * 0.72, Color(0.04, 0.04, 0.04, 0.95))
+	canvas.draw_circle(p, rad * 0.42, Color(0.85, 0.4, 0.1, 0.8))
+	canvas.draw_circle(p, rad * 0.18, Color.BLACK)
+	var sz := rad * 0.55
+	var pts := PackedVector2Array([p + Vector2(-sz * 0.45, -sz * 0.25), p + Vector2(0, sz * 0.4), p + Vector2(sz * 0.45, -sz * 0.25)])
+	canvas.draw_polyline(pts, Color.WHITE, 1.8)
+
+## An arrow out of the spawn marker showing where the player starts out looking
+func _draw_look_arrow(p: Vector2, rad: float) -> void:
+	var d := Vector2.from_angle(deg_to_rad(spawn_rot))
+	var n := d.orthogonal()
+	var tip := p + d * (rad + maxf(zoom * 1.1, 16.0))
+	var base := p + d * (rad + 1.0)
+	var head := maxf(zoom * 0.4, 7.0)
+	var col: Color = MARKERS["spawn"]
+	canvas.draw_line(base, tip - d * head * 0.5, Color.BLACK, 5.0)
+	canvas.draw_line(base, tip - d * head * 0.5, col, 3.0)
+	var tri := PackedVector2Array([tip, tip - d * head + n * head * 0.6, tip - d * head - n * head * 0.6])
+	canvas.draw_colored_polygon(tri, col)
+	canvas.draw_polyline(PackedVector2Array([tri[0], tri[1], tri[2], tri[0]]), Color.BLACK, 1.5)
 
 ## What the current tool is about to do under the mouse: the brush footprint, the rectangle being dragged,
 ## or the cell a fill starts from, filled with the colour or material it lays down
@@ -564,14 +654,27 @@ func _mode_now() -> String:
 	return mode
 
 # ---------------------------------------------------------------- input
+## Zoom by `factor`, keeping the map point under `at` fixed.
+func _zoom_at(at: Vector2, factor: float) -> void:
+	var before := (at - pan) / zoom
+	zoom = clampf(zoom * factor, 4.0, 80.0)
+	pan = at - before * zoom
+	canvas.queue_redraw()
+
 func _canvas_input(ev: InputEvent) -> void:
-	if ev is InputEventMouseButton:
+	if ev is InputEventMagnifyGesture:              # trackpad pinch
+		_zoom_at((ev as InputEventMagnifyGesture).position, (ev as InputEventMagnifyGesture).factor)
+	elif ev is InputEventPanGesture:                # trackpad two-finger scroll: move the map, Ctrl = zoom
+		var pg := ev as InputEventPanGesture
+		if pg.ctrl_pressed or pg.meta_pressed:
+			_zoom_at(pg.position, 1.0 - pg.delta.y * 0.05)
+		else:
+			pan -= pg.delta * 18.0
+			canvas.queue_redraw()
+	elif ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			var before := (mb.position - pan) / zoom
-			zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 4.0, 80.0)
-			pan = mb.position - before * zoom
-			canvas.queue_redraw()
+			_zoom_at(mb.position, 1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12)
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			panning = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_LEFT and space_down:
@@ -608,6 +711,8 @@ func _canvas_input(ev: InputEvent) -> void:
 			pan += mm.relative
 		elif drag != "":
 			_object_drag(mm.position)
+		elif painting and tool == "mark:spawn" and not erasing:
+			_face_spawn(mm.position)                # drag from the spawn marker to turn where the player looks
 		elif painting:
 			_apply(_cell_at(mm.position))
 		var c := _cell_at(mm.position)
@@ -694,6 +799,18 @@ func _flood_cells(start: Vector2i) -> Array:
 				var n := c + Vector2i(dx, dz)
 				if _in_grid(n) and grid[n.y][n.x] == WALL: walls[n] = true
 	return walls.keys()
+
+func _face_spawn(px: Vector2) -> void:
+	var c = markers.get("spawn")
+	if c == null: return
+	var v := px - (pan + (Vector2(c) + Vector2(0.5, 0.5)) * zoom)
+	if v.length() < maxf(zoom * 0.6, 10.0): return
+	var a := snappedf(fposmod(rad_to_deg(v.angle()), 360.0), 15.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+	if not is_equal_approx(a, spawn_rot):
+		spawn_rot = fposmod(a, 360.0)
+		_mark_dirty()
+		_status("Player looks %d°   (hold Shift to snap to 15°)" % roundi(spawn_rot))
+		canvas.queue_redraw()
 
 func _apply(c: Vector2i) -> void:
 	if tool.begins_with("mark:"):
@@ -1011,20 +1128,49 @@ func _obj_xf(o: Dictionary) -> Transform2D:
 
 ## Footprint depth along local x, in cells (at least a few pixels, so thin pieces stay clickable)
 func _obj_depth(o: Dictionary) -> float:
-	return maxf(_cells(o.type, "thickness", 0.3), 4.0 / zoom)
+	return maxf(_thick_cells(o), 4.0 / zoom)
+
+## The object's footprint in object space (cells): the box its gizmo outlines
+func _obj_bounds(o: Dictionary) -> Rect2:
+	match _shape(o.type):
+		"corner", "arc":
+			var pts := _shape_path(o)
+			var r := Rect2(pts[0], Vector2.ZERO)
+			for q in pts: r = r.expand(q)
+			return r.grow(_obj_depth(o) * 0.5)
+		"pillar", "column":
+			var h := maxf(_thick_cells(o) * 0.5, 4.0 / zoom)
+			return Rect2(-h, -h, h * 2.0, h * 2.0)
+		"zone":
+			var d := float(_param(o, "depth", 2.0))
+			return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
+	var d := _obj_depth(o)
+	return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
+
+## Is the canvas point `p` on object `o`? Bent walls count along their line only, so a click inside a round
+## room reaches what's in it; everything else by its footprint.
+func _obj_hit(o: Dictionary, p: Vector2) -> bool:
+	var l := (_obj_xf(o).affine_inverse() * p) / zoom
+	var slack := 6.0 / zoom
+	if _shape(o.type) in ["corner", "arc"]:
+		var pts := _shape_path(o)
+		var reach := maxf(_obj_depth(o) * 0.5, slack)
+		for i in pts.size() - 1:
+			if l.distance_to(Geometry2D.get_closest_point_to_segment(l, pts[i], pts[i + 1])) <= reach: return true
+		return false
+	var b := _obj_bounds(o)
+	if b.size.x < slack * 2.0: b = b.grow_individual(slack - b.size.x * 0.5, 0, slack - b.size.x * 0.5, 0)
+	return b.grow(2.0 / zoom).has_point(l)
 
 func _obj_at(p: Vector2) -> int:
 	for i in range(objects.size() - 1, -1, -1):
-		var o: Dictionary = objects[i]
-		var l := (_obj_xf(o).affine_inverse() * p) / zoom
-		if absf(l.x) <= maxf(_obj_depth(o) * 0.5, 6.0 / zoom) and absf(l.y) <= o.scale * 0.5 + 2.0 / zoom:
-			return i
+		if _obj_hit(objects[i], p): return i
 	return -1
 
 ## The rotate handle: a knob just past the facing arrow's tip
 func _handle_px(o: Dictionary) -> Vector2:
 	var xf := _obj_xf(o)
-	return xf.origin + xf.x.normalized() * (_obj_depth(o) * 0.5 * zoom + maxf(zoom * 0.8, 26.0) + 9.0)
+	return xf.origin + xf.x.normalized() * (maxf(_obj_bounds(o).end.x, 0.0) * zoom + maxf(zoom * 0.8, 26.0) + 9.0)
 
 func _on_handle(p: Vector2) -> bool:
 	return selected >= 0 and p.distance_to(_handle_px(objects[selected])) <= 9.0
@@ -1033,8 +1179,9 @@ func _on_handle(p: Vector2) -> bool:
 ## corridor or wall run it lands in (you walk through it the way the open neighbours lie, like the game's
 ## old tiles did). Of the two ways to face along that axis it keeps the one nearer `cur`, so a door keeps
 ## its swing side. Off, with Alt held, on a cell corner or off the half-cell grid, `cur` stays.
-func _wall_align(p: Vector2, cur: float) -> float:
+func _wall_align(p: Vector2, cur: float, t := "") -> float:
 	if not align or Input.is_key_pressed(KEY_ALT): return cur
+	if t != "" and not bool(_info(t).get("align", true)): return cur      # corners, curves, pillars, triggers
 	var whole := func(v: float) -> bool: return absf(v - roundf(v)) < 0.1
 	var half := func(v: float) -> bool: return absf(absf(v - floorf(v)) - 0.5) < 0.1
 	var facing := -1.0
@@ -1053,7 +1200,21 @@ func _open_cell(c: Vector2i) -> bool:
 	return c.x > 0 and c.y > 0 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL
 
 func _object_press(mb: InputEventMouseButton) -> void:
+	# a chained wall is waiting for its end: left click sets it (Shift: and starts the next), right click drops it
+	if drag == "chain" and mb.pressed:
+		if mb.button_index == MOUSE_BUTTON_RIGHT:
+			_delete_object(selected)
+			drag = ""
+		else:
+			_end_line(mb.shift_pressed)
+		return
 	if not mb.pressed:
+		if drag == "line":
+			_end_line(mb.shift_pressed)
+			return
+		if drag == "box":
+			_end_box(mb.position)
+			return
 		if drag != "":
 			if selected >= 0 and str(objects[selected].type).begins_with("stairs_") and drag in ["place", "rotate"]:
 				_sync_stairs_partner(objects[selected])
@@ -1069,6 +1230,21 @@ func _object_press(mb: InputEventMouseButton) -> void:
 	if _on_handle(mb.position):
 		_push_undo()
 		drag = "rotate"
+	elif i >= 0 and mb.shift_pressed:
+		# Shift+click adds to / takes from the multi-selection
+		var g := _group()
+		if g.has(i): g.erase(i)
+		else: g.append(i)
+		multi = g if g.size() > 1 else []
+		selected = g[-1] if not g.is_empty() else -1
+		_sync_inspector()
+		canvas.queue_redraw()
+	elif i >= 0 and multi.size() > 1 and multi.has(i):
+		# grab the whole group
+		_push_undo()
+		group_start = multi.map(func(k): return [k, objects[k].pos_x, objects[k].pos_y])
+		group_anchor = _pos_at(mb.position)
+		drag = "group"
 	elif i >= 0:
 		_select(i)
 		_push_undo()
@@ -1077,10 +1253,21 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		drag = "move"
 	elif tool == "select":
 		_select(-1)
+		box_from = mb.position                       # drag out a box to select everything in it
+		drag = "box"
 	else:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
-		objects.append({"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale})
+		var t := tool.get_slice(":", 1)
+		if bool(_info(t).get("draw_line", false)):
+			# a wall drawn as a line: it runs from here to wherever the button comes up
+			objects.append(_new_object(t, p, 0.0))
+			line_from = p
+			_select(objects.size() - 1)
+			drag = "line"
+			_mark_dirty()
+			return
+		objects.append(_new_object(t, p, _wall_align(p, place_rot, t)))
 		if tool.begins_with("obj:stairs_"):
 			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
 			objects[-1].pos_y = roundf(p.y)
@@ -1140,16 +1327,36 @@ func _sync_stairs_partner(o: Dictionary) -> void:
 			return
 
 func _object_drag(p: Vector2) -> void:
+	if drag == "box":
+		canvas.queue_redraw()
+		return
+	if drag == "group":
+		var d := _pos_at(p) - group_anchor
+		if snap and not Input.is_key_pressed(KEY_ALT): d = (d / SNAP_STEP).round() * SNAP_STEP
+		for g: Array in group_start:
+			objects[g[0]].pos_x = clampf(g[1] + d.x, 0.0, grid_size - 1)
+			objects[g[0]].pos_y = clampf(g[2] + d.y, 0.0, grid_size - 1)
+		_mark_dirty()
+		return
 	if selected < 0:
 		drag = ""
 		return
 	var o: Dictionary = objects[selected]
+	if drag == "line" or drag == "chain":
+		var q := _snap_pos(_pos_at(p))
+		if Input.is_key_pressed(KEY_SHIFT) and rot_snap:            # keep chained runs square
+			var d := q - line_from
+			q = line_from + (Vector2(d.x, 0) if absf(d.x) >= absf(d.y) else Vector2(0, d.y))
+		_set_line(o, line_from, q)
+		_sync_inspector()
+		_mark_dirty()
+		return
 	if drag == "move":
 		var q := _snap_pos(_pos_at(p) + drag_off)
 		o.pos_x = q.x
 		o.pos_y = q.y
 		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
-			o.rotation = _wall_align(q, o.rotation)
+			o.rotation = _wall_align(q, o.rotation, o.type)
 	else:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
@@ -1158,7 +1365,65 @@ func _object_drag(p: Vector2) -> void:
 	_sync_inspector()
 	_mark_dirty()
 
+## A line wall laid from `a` to `b` (cells): centred between them, turned to run along them, as long as them
+func _set_line(o: Dictionary, a: Vector2, b: Vector2) -> void:
+	var run := b - a
+	var len := clampf(run.length(), 0.5, _max_scale(o.type))
+	var dir := run.normalized() if run.length() > 0.01 else Vector2.DOWN
+	var mid := a + dir * len * 0.5
+	o.pos_x = mid.x
+	o.pos_y = mid.y
+	o.rotation = fposmod(rad_to_deg(dir.angle()) - 90.0, 360.0)     # a slab spans its local +y
+	o.scale = len
+
+## The button came up on a line wall: a plain click leaves a one-cell piece fitted to the wall it's on;
+## with Shift the next wall starts at this one's end and follows the mouse until the next click
+func _end_line(chain: bool) -> void:
+	var o: Dictionary = objects[selected]
+	var end: Vector2 = Vector2(o.pos_x, o.pos_y) + Vector2.from_angle(deg_to_rad(o.rotation + 90.0)) * o.scale * 0.5
+	if drag == "line" and Vector2(o.pos_x, o.pos_y).distance_to(line_from) < 0.2:
+		o.pos_x = line_from.x
+		o.pos_y = line_from.y
+		o.scale = _place_scale(o.type)
+		o.rotation = _wall_align(line_from, place_rot, o.type)
+		chain = false
+	else:
+		place_scales[o.type] = o.scale
+	drag = ""
+	if chain:
+		_push_undo()
+		objects.append(_new_object(o.type, end, 0.0))
+		line_from = end
+		_select(objects.size() - 1)
+		_set_line(objects[selected], end, end + Vector2(0, 0.5))
+		drag = "chain"
+		_status("Chaining walls: click to end this one (Shift+click to keep going), right click or Esc to stop")
+	_sync_inspector()
+	_mark_dirty()
+
+## Everything whose origin is inside the dragged box becomes the selection
+func _end_box(to: Vector2) -> void:
+	drag = ""
+	var r := Rect2(box_from, Vector2.ZERO).expand(to)
+	if r.size.length() < 4.0:
+		canvas.queue_redraw()
+		return
+	var hit: Array = []
+	for i in objects.size():
+		if r.has_point(_obj_xf(objects[i]).origin): hit.append(i)
+	multi = hit if hit.size() > 1 else []
+	selected = hit[-1] if not hit.is_empty() else -1
+	_sync_inspector()
+	_status("%d objects selected: drag one to move them all, R rotates, COPY copies, Del deletes" % hit.size())
+	canvas.queue_redraw()
+
+## The selection as indices: the multi-selection, else the one selected object, else none
+func _group() -> Array:
+	if multi.size() > 1: return multi.duplicate()
+	return [selected] if selected >= 0 else []
+
 func _select(i: int) -> void:
+	multi = []
 	selected = i
 	insp_undo = -1
 	_sync_inspector()
@@ -1173,19 +1438,32 @@ func _delete_object(i: int) -> void:
 	_mark_dirty()
 
 func _delete_selected() -> void:
-	if selected < 0: return
+	if drag == "chain":
+		_delete_object(selected)
+		drag = ""
+		return
+	var g := _group()
+	if g.is_empty(): return
 	_push_undo()
-	_delete_object(selected)
+	g.sort()
+	for k in range(g.size() - 1, -1, -1): _delete_object(g[k])
+	multi = []
 
 func _duplicate_selected() -> void:
-	if selected < 0: return
+	var g := _group()
+	if g.is_empty(): return
 	_push_undo()
-	var o: Dictionary = objects[selected].duplicate()
 	var off := SNAP_STEP if snap else 0.25
-	o.pos_x = minf(o.pos_x + off, grid_size - 1)
-	o.pos_y = minf(o.pos_y + off, grid_size - 1)
-	objects.append(o)
-	_select(objects.size() - 1)
+	var made: Array = []
+	for k in g:
+		var o: Dictionary = objects[k].duplicate()
+		o.pos_x = minf(o.pos_x + off, grid_size - 1)
+		o.pos_y = minf(o.pos_y + off, grid_size - 1)
+		objects.append(o)
+		made.append(objects.size() - 1)
+	selected = made[-1]
+	multi = made if made.size() > 1 else []
+	_sync_inspector()
 	_mark_dirty()
 
 ## R / Shift+R and the inspector's buttons: turn the selection, or the next placement when nothing is selected
@@ -1196,6 +1474,19 @@ func _rotate_selected(deg: float) -> void:
 		canvas.queue_redraw()
 		return
 	_push_undo()
+	if multi.size() > 1:
+		# the group turns round its middle, each piece with it
+		var mid := Vector2.ZERO
+		for k in multi: mid += Vector2(objects[k].pos_x, objects[k].pos_y)
+		mid /= multi.size()
+		for k in multi:
+			var ob: Dictionary = objects[k]
+			var q := mid + (Vector2(ob.pos_x, ob.pos_y) - mid).rotated(deg_to_rad(deg))
+			ob.pos_x = q.x
+			ob.pos_y = q.y
+			ob.rotation = fposmod(ob.rotation + deg, 360.0)
+		_mark_dirty()
+		return
 	var o: Dictionary = objects[selected]
 	o.rotation = fposmod(o.rotation + deg, 360.0)
 	place_rot = o.rotation
@@ -1216,7 +1507,13 @@ func _set_prop(key: String, v) -> void:
 			place_rot = o.rotation
 			insp_rot.set_value_no_signal(o.rotation)
 		"scale":
-			place_scale = v
+			place_scales[o.type] = v
+		"type":                                           # the new type's params, at their defaults
+			var params: Dictionary = _info(v).get("params", {})
+			for k in params:
+				if not o.has(k): o[k] = params[k]
+			o.scale = minf(o.scale, _max_scale(v))
+			_sync_inspector()
 	_mark_dirty()
 
 func _sync_inspector() -> void:
@@ -1229,13 +1526,39 @@ func _sync_inspector() -> void:
 	insp_x.set_value_no_signal(o.pos_x)
 	insp_y.set_value_no_signal(o.pos_y)
 	insp_rot.set_value_no_signal(o.rotation)
+	insp_scale.max_value = _max_scale(o.type)
 	insp_scale.set_value_no_signal(o.scale)
+	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
+	var sh := _shape(o.type)
+	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
+	insp_scale_label.visible = sh not in ["pillar", "column"]
+	insp_scale.visible = insp_scale_label.visible
+	var params: Dictionary = _info(o.type).get("params", {})
+	for k in insp_params:
+		var on := params.has(k)
+		for n: Control in insp_params[k].row: n.visible = on
+		if not on: continue
+		var ctrl: Control = insp_params[k].ctrl
+		var v = _param(o, k)
+		if ctrl is SpinBox: (ctrl as SpinBox).set_value_no_signal(float(v))
+		elif ctrl is CheckBox: (ctrl as CheckBox).set_pressed_no_signal(bool(v))
+		elif ctrl is LineEdit:
+			if (ctrl as LineEdit).text != str(v): (ctrl as LineEdit).text = str(v)
+		elif ctrl is OptionButton:
+			var evs: Array = _info(o.type).get("events", {}).keys()
+			(ctrl as OptionButton).select(maxi(0, evs.find(str(v))))
 
 func _deg(d: float) -> String:
 	return str(snappedf(d, 0.1)).trim_suffix(".0")
 
 func _describe(o: Dictionary) -> String:
-	return "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [_info(o.type).label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
+	var t := "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [_info(o.type).label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
+	var params: Dictionary = _info(o.type).get("params", {})
+	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
+	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
+	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
+	if params.has("event"): t += "   event: %s%s" % [_param(o, "event"), "  (once)" if bool(_param(o, "once", true)) else ""]
+	return t
 
 ## A rectangle in the object's local space (cells), as canvas points
 func _local_rect(xf: Transform2D, x0: float, y0: float, x1: float, y1: float) -> PackedVector2Array:
@@ -1287,22 +1610,74 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 				var p := xf.origin - Vector2(font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, -fs * 0.35)
 				canvas.draw_string(font, p, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
 			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
+			_draw_stairs_transition(o, xf, alpha)
 		_:
-			# thin walls, and any type the editor has no plan drawing for: a slab its thickness by its width
-			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)
+			_draw_shaped(o, xf, col, alpha)
+
+## Walls by shape (thin / half walls, corners, curves), pillars, columns and triggers, and any type the
+## editor has no plan drawing for: a slab its thickness by its width. A wall you can see over (a half
+## wall) is drawn hatched with a dashed centre line.
+func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> void:
+	var t := maxf(_thick_cells(o), 5.0 / zoom)
+	var h := float(_param(o, "height", 0.0))
+	var low := h > 0.0 and h < 1.8
+	match _shape(o.type):
+		"pillar":
+			_fill(_local_rect(xf, -t * 0.5, -t * 0.5, t * 0.5, t * 0.5), col)
+		"column":
+			canvas.draw_circle(xf.origin, t * 0.5 * zoom, col)
+			canvas.draw_arc(xf.origin, t * 0.5 * zoom, 0, TAU, 24, Color(0, 0, 0, alpha * 0.8), 1.0)
+		"zone":
+			# a trigger: a see-through box with a dashed rim and its event, never mistaken for a wall
+			var d := float(_param(o, "depth", 2.0)) * 0.5
+			var hw: float = o.scale * 0.5
+			var pts := _local_rect(xf, -d, -hw, d, hw)
+			canvas.draw_colored_polygon(pts, Color(col, alpha * 0.14))
+			for i in 4:
+				canvas.draw_dashed_line(pts[i], pts[(i + 1) % 4], Color(col, alpha * 0.9), 1.5, maxf(zoom * 0.2, 4.0))
+			if zoom >= 8.0:
+				var lbl := "⚡ " + str(_param(o, "event", "")) + ("" if bool(_param(o, "once", true)) else "  ↻")
+				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
+		_:
+			var pts := _shape_path(o)
+			var line := PackedVector2Array()
+			for q in pts: line.append(xf * (q * zoom))
+			var w := t * zoom
+			canvas.draw_polyline(line, Color(0, 0, 0, alpha * 0.8), w + 2.0)
+			canvas.draw_polyline(line, Color(col, alpha * (0.55 if low else 1.0)), w)
+			if low:
+				for i in line.size() - 1:
+					canvas.draw_dashed_line(line[i], line[i + 1], Color(1, 1, 1, alpha * 0.6), 1.0, maxf(zoom * 0.15, 3.0))
+
+func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> void:
+	var up: bool = o.type == "stairs_up"
+	var target_f: int = floor_idx + (1 if up else -1)
+	var linked := false
+	if floor_store.has(target_f):
+		var fd: Dictionary = floor_store[target_f]
+		var kind: String = "stairs_down" if up else "stairs_up"
+		for other: Dictionary in fd.get("objects", []):
+			if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.8:
+				linked = true
+				break
+	if zoom >= 10.0:
+		var symbol := "▲" if up else "▼"
+		var text := "%s TO %s [%s]" % [symbol, _floor_name(target_f).to_upper(), "LINKED" if linked else "UNLINKED"]
+		var tag_col: Color = Color("2fd968") if linked else Color("ff9922")
+		_tag(xf.origin + Vector2(-48, -maxf(zoom * 0.85, 14.0)), text, Color(tag_col, alpha), 9)
+		if linked:
+			canvas.draw_arc(xf.origin, maxf(zoom * 0.55, 8.0), 0, TAU, 16, Color(tag_col, alpha * 0.6), 1.5)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
-	var pad := 3.0 / zoom
-	var hx := _obj_depth(o) * 0.5 + pad
-	var hy: float = o.scale * 0.5 + pad
-	var pts := _local_rect(_obj_xf(o), -hx, -hy, hx, hy)
+	var b := _obj_bounds(o).grow(3.0 / zoom)
+	var pts := _local_rect(_obj_xf(o), b.position.x, b.position.y, b.end.x, b.end.y)
 	canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), col, width)
 
 ## The facing arrow, out of the front along local +x (the way you walk through it)
 func _draw_arrow(o: Dictionary, col: Color) -> void:
 	var xf := _obj_xf(o)
 	var dir := xf.x.normalized()
-	var tip := xf.origin + dir * (_obj_depth(o) * 0.5 * zoom + maxf(zoom * 0.8, 26.0))
+	var tip := xf.origin + dir * (maxf(_obj_bounds(o).end.x, 0.0) * zoom + maxf(zoom * 0.8, 26.0))
 	var side := dir.orthogonal() * 5.0
 	var head := PackedVector2Array([tip, tip - dir * 10.0 + side, tip - dir * 10.0 - side])
 	canvas.draw_line(xf.origin, tip - dir * 6.0, Color(0, 0, 0, col.a * 0.7), 4.0)     # dark underlay for contrast

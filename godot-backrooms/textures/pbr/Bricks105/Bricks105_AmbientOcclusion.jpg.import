@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bwv53pmfhdpfe"
-path.s3tc="res://.godot/imported/Bricks105_AmbientOcclusion.jpg-515655685721a66f5bd1c4644c04648d.s3tc.ctex"
+path.bptc="res://.godot/imported/Bricks105_AmbientOcclusion.jpg-515655685721a66f5bd1c4644c04648d.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://textures/pbr/Bricks105/Bricks105_AmbientOcclusion.jpg"
-dest_files=["res://.godot/imported/Bricks105_AmbientOcclusion.jpg-515655685721a66f5bd1c4644c04648d.s3tc.ctex"]
+dest_files=["res://.godot/imported/Bricks105_AmbientOcclusion.jpg-515655685721a66f5bd1c4644c04648d.bptc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

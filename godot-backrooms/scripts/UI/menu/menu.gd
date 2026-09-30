@@ -194,6 +194,9 @@ func _build() -> void:
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
 		nav_buttons[n] = b
+	var dbg := _link_button("debug")
+	dbg.pressed.connect(_open_debug_menu)
+	nav.add_child(dbg)
 	var leave := _link_button("main menu")
 	leave.pressed.connect(_leave_to_main_menu)
 	nav.add_child(leave)
@@ -252,6 +255,11 @@ func _leave_to_main_menu() -> void:
 	Game.end_run()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+func _open_debug_menu() -> void:
+	var con = get_tree().current_scene.get_node_or_null("Console")
+	if con != null and con.has_method("open_menu"):
+		con.open_menu()
 
 func _on_nav(name: String) -> void:
 	_show_panel("" if open_section == name else name)

@@ -112,5 +112,57 @@
       ],
       "incident": "INCIDENT 2-090: Specimen watched by a remote camera for six hours with no movement. At hour six the camera recorded an empty corridor. The specimen was found standing at the camera."
     }
+  },
+  "grabber": {
+    "code": "TSRA-EN-07",
+    "common_name": "The Grabber",
+    "threat_class": "Class 4",
+    "description": "A gaunt humanoid figure, roughly 2.3 m tall, in dark formal clothing, with a fixed wide grin and arms that hang well past its knees. Found folded against the ceiling of unlit corridors, suspended upside down, its arms trailing toward the floor.",
+    "behavior_vector": "Dormant while inverted. Illumination, sustained observation or passing beneath it provokes a descent and immediate pursuit. After losing a subject it observes from cover, leaning round doorframes at head height. Subjects it reaches are seized by the ankle and dragged away through the corridors.",
+    "directive": "Do not light what hangs above you. Check ceilings before entering dark corridors. If seized, grip the nearest doorframe.",
+    "classified": {
+      "origin": "Every subject recovered after a relocation describes the same thing: being pulled along the carpet feet first, looking up at it while it walked backwards and never once looked away. None of them could say how far they were taken. The drag marks end mid-corridor.",
+      "survival": [
+        "Look up before you commit to a dark stretch of corridor. If something is folded against the ceiling, go back the way you came.",
+        "Do not put your torch on it and do not stand looking at it. Do not walk under it.",
+        "It runs a little slower than you sprint. Sprint, break line of sight, and keep your stamina for the corners.",
+        "A camera flash in its face sends it off into the dark. It will be back.",
+        "If it is leaning round a corner, keep looking at it until it pulls back. Every corner you ignore, the next one is closer.",
+        "If it has your ankle: every doorframe is a chance. Grab it and pull, hard, and do not stop."
+      ],
+      "field_notes": [
+        "\"It wasn't the teeth. It was that it looked pleased to see me.\" - recovered surveyor, debrief transcript 4-117"
+      ],
+      "incident": "INCIDENT 4-117: A two-person survey team lost radio contact for 41 minutes. One surveyor was recovered 300 m from the last known position, lying in a dead-end corridor with a flat torch battery and no memory of the route. Her partner reported watching her pulled round a corner by the ankle. He did not see what was pulling."
+    }
+  },
+  "survey_clipboard": {
+    "code": "TSRA-IT-01",
+    "common_name": "Field Survey Clipboard",
+    "threat_class": "Inert Artifact",
+    "description": "A field clipboard dropped by a previous T.S.R.A. exploration detachment. Contains handwritten topographical surveys, coordinate logs, and margin annotations documenting perimeter decay.",
+    "behavior_vector": "Stationary physical remnant; yields vital spatial metrics and research data upon scanning.",
+    "directive": "Scan all recovered logs to archive spatial metrics. Cross-reference recorded routes against current floor layout.",
+    "classified": {
+      "origin": "Believed to originate from Taskforce Kestrel, which crossed the threshold in late 1989. The handwriting matches Senior Surveyor Oduya, though the date stamp corresponds to a timeline three months in the future.",
+      "field_notes": [
+        "\"The corridor geometry does not converge. We followed our own tape back to where we started, only to find the door was gone.\" — Recovered Page 4"
+      ],
+      "incident": "LOG 0-08: Recovered 300m from Level 0 spawn. The ink on the final entry is fresh, despite the paper being brittle with decades of dry rot."
+    }
+  },
+  "dead_ballast": {
+    "code": "TSRA-AN-02",
+    "common_name": "Dead Ballast Anomaly",
+    "threat_class": "Harmonic Anomaly",
+    "description": "A fallen or shattered fluorescent lighting troffer casing that continues to emit a faint 60Hz electromagnetic tone and residual luminescence despite being completely disconnected from the grid.",
+    "behavior_vector": "Inert fixture; emits localized harmonic resonance and electrostatic interference.",
+    "directive": "Document harmonic frequency with scanner. Do not touch exposed capacitor housing without insulated gloves.",
+    "classified": {
+      "origin": "Dislodged ceiling fixtures that broke loose during seismic drift events. Analysis indicates the phosphor residue inside the tubes is absorbing background spatial radiation and re-emitting it as audible hum.",
+      "field_notes": [
+        "\"You can hear the hum even when the bulb is smashed into dust. It isn't the lamp making the noise — the lamp is just where the noise comes out.\" — Field Analyst Varga"
+      ]
+    }
   }
 }

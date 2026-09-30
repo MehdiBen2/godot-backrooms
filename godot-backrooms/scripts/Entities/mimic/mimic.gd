@@ -1124,7 +1124,7 @@ func _animate() -> void:
 	anim.speed_scale = SurvivorAnim.speed_scale(want, speed)
 
 func hit_player() -> void:
-	if player.dead or player.frozen:
+	if player.dead or player.frozen or Game.god_mode:
 		return
 	player.health = maxf(0.0, player.health - HIT_DAMAGE)
 	player.frozen = true
@@ -1141,6 +1141,8 @@ func hit_player() -> void:
 
 # ================================================================= frame
 func _physics_process(delta: float) -> void:
+	if Game.freeze_ai:
+		return
 	var online := Net.is_online()
 	puppet = online and not Net.hosting
 	if not online and (not Game.playing or Game.dead):

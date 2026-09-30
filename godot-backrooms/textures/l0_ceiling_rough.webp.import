@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://by5n4h0kak73f"
-path="res://.godot/imported/l0_ceiling_rough.webp-eb0124c0fa207a45d4100f7b7e505061.ctex"
+path.bptc="res://.godot/imported/l0_ceiling_rough.webp-eb0124c0fa207a45d4100f7b7e505061.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/l0_ceiling_rough.webp"
-dest_files=["res://.godot/imported/l0_ceiling_rough.webp-eb0124c0fa207a45d4100f7b7e505061.ctex"]
+dest_files=["res://.godot/imported/l0_ceiling_rough.webp-eb0124c0fa207a45d4100f7b7e505061.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

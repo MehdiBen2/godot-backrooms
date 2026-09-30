@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dil5tlelupdok"
-path="res://.godot/imported/Tiles141_Displacement.jpg-73bfd32bb2d4dfd76c969f612cd28420.ctex"
+path.bptc="res://.godot/imported/Tiles141_Displacement.jpg-73bfd32bb2d4dfd76c969f612cd28420.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/pbr/Tiles141/Tiles141_Displacement.jpg"
-dest_files=["res://.godot/imported/Tiles141_Displacement.jpg-73bfd32bb2d4dfd76c969f612cd28420.ctex"]
+dest_files=["res://.godot/imported/Tiles141_Displacement.jpg-73bfd32bb2d4dfd76c969f612cd28420.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

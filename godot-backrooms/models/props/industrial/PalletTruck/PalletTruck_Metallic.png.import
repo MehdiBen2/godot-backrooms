@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://rsh3q32e2ndq"
-path="res://.godot/imported/PalletTruck_Metallic.png-a5cca188e6df91dd486091c8b7b75e43.ctex"
+path.bptc="res://.godot/imported/PalletTruck_Metallic.png-a5cca188e6df91dd486091c8b7b75e43.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://models/props/industrial/PalletTruck/PalletTruck_Metallic.png"
-dest_files=["res://.godot/imported/PalletTruck_Metallic.png-a5cca188e6df91dd486091c8b7b75e43.ctex"]
+dest_files=["res://.godot/imported/PalletTruck_Metallic.png-a5cca188e6df91dd486091c8b7b75e43.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dpihbfn4mrskk"
-path.s3tc="res://.godot/imported/BRC_A_Emission.png-6e0482a359a9dc5fa438ae959876e119.s3tc.ctex"
+path.bptc="res://.godot/imported/BRC_A_Emission.png-6e0482a359a9dc5fa438ae959876e119.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://textures/pbr/BRC_A/BRC_A_Emission.png"
-dest_files=["res://.godot/imported/BRC_A_Emission.png-6e0482a359a9dc5fa438ae959876e119.s3tc.ctex"]
+dest_files=["res://.godot/imported/BRC_A_Emission.png-6e0482a359a9dc5fa438ae959876e119.bptc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

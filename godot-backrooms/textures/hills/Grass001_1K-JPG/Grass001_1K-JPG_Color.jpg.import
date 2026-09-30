@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://s3mrceufw1me"
-path="res://.godot/imported/Grass001_1K-JPG_Color.jpg-f41a1e278b4579c8e4dfebeffaff7c78.ctex"
+path.bptc="res://.godot/imported/Grass001_1K-JPG_Color.jpg-f41a1e278b4579c8e4dfebeffaff7c78.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/hills/Grass001_1K-JPG/Grass001_1K-JPG_Color.jpg"
-dest_files=["res://.godot/imported/Grass001_1K-JPG_Color.jpg-f41a1e278b4579c8e4dfebeffaff7c78.ctex"]
+dest_files=["res://.godot/imported/Grass001_1K-JPG_Color.jpg-f41a1e278b4579c8e4dfebeffaff7c78.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

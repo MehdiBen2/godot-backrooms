@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dfp58vhio50ls"
-path="res://.godot/imported/Platform_Trolley_Height.png-390879f6340c7abe724af7e38ed08050.ctex"
+path.bptc="res://.godot/imported/Platform_Trolley_Height.png-390879f6340c7abe724af7e38ed08050.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://models/props/industrial/Platform_Trolley/Platform_Trolley_Height.png"
-dest_files=["res://.godot/imported/Platform_Trolley_Height.png-390879f6340c7abe724af7e38ed08050.ctex"]
+dest_files=["res://.godot/imported/Platform_Trolley_Height.png-390879f6340c7abe724af7e38ed08050.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

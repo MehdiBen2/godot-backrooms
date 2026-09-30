@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "godot": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@coding-solo/godot-mcp"
+      ],
+      "env": {
+        "GODOT_PATH": "/Applications/Godot.app/Contents/MacOS/Godot",
+        "DEBUG": "false"
+      }
+    },
+    "codegraph": {
+      "command": "node",
+      "args": [
+        "/Users/medy/tools/codegraph-mcp/bin/codegraph-mcp.js"
+      ]
+    }
+  }
+}

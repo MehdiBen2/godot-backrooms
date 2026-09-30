@@ -26,6 +26,7 @@ extends Node
 ## silence between beds is deliberate, not a bug; closer threats just shorten it, they never remove it).
 
 const ClipLevels := preload("res://scripts/Audio/clip_levels.gd")
+const SfxPool := preload("res://scripts/Audio/sfx_pool.gd")
 
 const DIR := "res://audio/ambients/"
 const BASE := 0.1                      # AmbientSystem.BASE_VOLUME
@@ -384,7 +385,7 @@ func _update_events(dt: float) -> void:
 		if rng.randf() < STING_CHANCE * (0.5 + tension) and ResourceLoader.exists(DIR + DISTANT_STING):
 			# something far off that should not be down here, heard through the walls
 			var g := ClipLevels.gain(DIR + DISTANT_STING, -22.0, -6.0)
-			scares.spawn3d(load(DIR + DISTANT_STING), at + Vector3(0.0, 1.0, 0.0), g * 0.9, "Scares", 6.0, rng.randf_range(0.8, 0.95))
+			scares.spawn3d(SfxPool.get_stream(DIR + DISTANT_STING), at + Vector3(0.0, 1.0, 0.0), g * 0.9, "Scares", 6.0, rng.randf_range(0.8, 0.95))
 			Game.haunt(0.3)
 			return
 		for k in 1 + rng.randi() % 3:

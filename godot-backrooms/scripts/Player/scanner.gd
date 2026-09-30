@@ -112,6 +112,8 @@ func _process(dt: float) -> void:
 func _complete() -> void:
 	latched = true
 	result_t = RESULT_TIME
+	if target_node != null and target_node.has_method("on_scanned"):
+		target_node.on_scanned()
 	# Research Yield first: the NEW ENTRY toast reads the report Archive.discover() then announces
 	last_yield = int(Clearance.file(target_id, target_dist, player).get("total", 0))
 	if Archive.is_discovered(target_id):

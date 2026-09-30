@@ -40,6 +40,15 @@ func _ready() -> void:
 	light.shadow_enabled = false
 	light.position = Vector3(0, 0.25, 0)
 	add_child(light)
+	_apply_vis_range(model)
+
+func _apply_vis_range(n: Node) -> void:
+	if n is GeometryInstance3D:
+		n.visibility_range_end = 45.0
+		n.visibility_range_end_margin = 8.0
+		n.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+	for c in n.get_children():
+		_apply_vis_range(c)
 
 func _process(_delta: float) -> void:
 	light.light_energy = 0.3 + 0.15 * sin(Game.time * 2.5 + position.x)

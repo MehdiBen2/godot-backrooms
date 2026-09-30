@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://t4syl7t024y2"
-path="res://.godot/imported/Ground108_Displacement.jpg-62ea71bceb3a43cd42e6ecc9bbfe45ef.ctex"
+path.bptc="res://.godot/imported/Ground108_Displacement.jpg-62ea71bceb3a43cd42e6ecc9bbfe45ef.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/pbr/Ground108/Ground108_Displacement.jpg"
-dest_files=["res://.godot/imported/Ground108_Displacement.jpg-62ea71bceb3a43cd42e6ecc9bbfe45ef.ctex"]
+dest_files=["res://.godot/imported/Ground108_Displacement.jpg-62ea71bceb3a43cd42e6ecc9bbfe45ef.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

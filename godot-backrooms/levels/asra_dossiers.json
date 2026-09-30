@@ -16,7 +16,8 @@
     ],
     "entities": [
       "mannequin",
-      "eyes"
+      "eyes",
+      "grabber"
     ],
     "classified": {
       "history": "Level 0 is the most common point of entry. Most subjects arrive here with no equipment and no explanation, after passing through a surface in ordinary space that should have been solid. The agency keeps no permanent station on this level: every station it has built was found, days later, to be a room indistinguishable from all the others.",
@@ -48,7 +49,8 @@
     "entities": [
       "bacteria",
       "mimic",
-      "killer"
+      "killer",
+      "grabber"
     ],
     "classified": {
       "history": "The Yellow Halls lie below Level 0: older, wetter and louder. The hum rises with depth, and long service corridors dominate the layout. The agency believes the level is still growing - survey maps go out of date within days.",

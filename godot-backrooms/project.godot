@@ -30,9 +30,9 @@ Net="*res://scripts/Net/net.gd"
 Gfx="*res://scripts/GameLogicEngine/graphics.gd"
 Voice="*res://scripts/Voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 Archive="*res://scripts/GameLogicEngine/asra_archive.gd"
 Clearance="*res://scripts/GameLogicEngine/asra_clearance.gd"
+_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
 
@@ -58,4 +58,6 @@ environment/ssao/quality=3
 anti_aliasing/quality/msaa_3d=2
 anti_aliasing/quality/use_debanding=true
 anti_aliasing/quality/screen_space_aa=1
+anti_aliasing/quality/use_taa=true
 occlusion_culling/use_occlusion_culling=true
+anti_aliasing/quality/use_taa_jitter=true
