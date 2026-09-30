@@ -19,8 +19,9 @@ const PANEL := Color("16140d")
 const LINE := Color("3a3522")
 const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
 	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet", "classic": "Super bright classic backrooms: steady glowing tubes, clear air",
+	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away",
 	"mannequin": "Where the mannequins stand: paint as many areas as you like"}
-const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
+const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
 var brush_label: Label
@@ -349,7 +350,7 @@ func _build_ui() -> void:
 	gen.add_child(ggrid)
 	ggrid.add_child(_label("Style", 13, DIM))
 	var style_pick := OptionButton.new()
-	var styles := [["classic", "Classic Level 0"], ["mixed", "Mixed"], ["rooms", "Rooms"], ["maze", "Maze"], ["pillars", "Pillar hall"]]
+	var styles := [["classic", "Classic Level 0"], ["liminal", "Liminal halls"], ["mixed", "Mixed"], ["rooms", "Rooms"], ["maze", "Maze"], ["pillars", "Pillar hall"]]
 	for st in styles: style_pick.add_item(st[1])
 	style_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	style_pick.item_selected.connect(func(i): gen_style = styles[i][0])
@@ -618,6 +619,43 @@ func _build_inspector(side: VBoxContainer) -> void:
 	insp_rot = _insp_spin(grid_box, "Rotation", -360.0, 720.0, 0.5, "rotation", "degrees clockwise; the arrow shows which way it faces")
 	insp_rot.suffix = "°"
 	insp_scale = _insp_spin(grid_box, "Width", 0.5, 4.0, 0.05, "scale", "span in cells")
+	insp_scale_label = grid_box.get_child(grid_box.get_child_count() - 2)
+	# per-type fields (object_types.json "params"): only the selected type's are shown
+	_insp_param_spin(grid_box, "thick", "Thickness", 0.05, 4.5, 0.05, " m", "wall thickness (a pillar or column: its width)")
+	_insp_param_spin(grid_box, "height", "Height", 0.0, 10.8, 0.05, " m", "0 = up to the ceiling. Under 1.8 m you see over it (a half wall, a counter)")
+	_insp_param_spin(grid_box, "arc", "Arc", 5.0, 360.0, 5.0, "°", "how much of the circle is built: 90 rounds a corner, 360 closes a round room")
+	_insp_param_spin(grid_box, "depth", "Depth", 0.25, 40.0, 0.25, "", "cells along the arrow")
+	var ev_lbl := _label("Event", 14, DIM)
+	grid_box.add_child(ev_lbl)
+	var ev_pick := OptionButton.new()
+	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
+	for e in evs:
+		ev_pick.add_item(e)
+		ev_pick.set_item_tooltip(ev_pick.item_count - 1, str(evs[e]))
+	ev_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ev_pick.item_selected.connect(func(i): _set_prop("event", evs.keys()[i]))
+	grid_box.add_child(ev_pick)
+	insp_params["event"] = {"row": [ev_lbl, ev_pick], "ctrl": ev_pick}
+	var tx_lbl := _label("Text", 14, DIM)
+	grid_box.add_child(tx_lbl)
+	var tx := LineEdit.new()
+	tx.placeholder_text = "a caption (optional)"
+	tx.tooltip_text = "Shown low on the screen when it fires, whatever the event"
+	tx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tx.text_changed.connect(func(t): _set_prop("text", t))
+	tx.text_submitted.connect(func(_t): tx.release_focus())
+	grid_box.add_child(tx)
+	insp_params["text"] = {"row": [tx_lbl, tx], "ctrl": tx}
+	var once_lbl := _label("Once", 14, DIM)
+	grid_box.add_child(once_lbl)
+	var once := CheckBox.new()
+	once.text = "only the first time"
+	once.tooltip_text = "Off: fires every time the player walks back in (at most every 5 s)"
+	once.toggled.connect(func(on): _set_prop("once", on))
+	grid_box.add_child(once)
+	insp_params["once"] = {"row": [once_lbl, once], "ctrl": once}
+	_insp_param_spin(grid_box, "delay", "Delay", 0.0, 60.0, 0.1, " s", "seconds from walking in to the event")
+	_insp_param_spin(grid_box, "duration", "Duration", 1.0, 120.0, 1.0, " s", "how long lights_out / silence / drone last")
 	var r := HBoxContainer.new()
 	insp.add_child(r)
 	for b in [["-90°", func(): _rotate_selected(-90.0)], ["+90°", func(): _rotate_selected(90.0)], ["COPY", _duplicate_selected], ["DELETE", _delete_selected]]:
@@ -625,6 +663,12 @@ func _build_inspector(side: VBoxContainer) -> void:
 		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r.add_child(bt)
 	box.visible = false
+
+## One per-type param row of the inspector (see _build_inspector), kept in insp_params to show / hide
+func _insp_param_spin(parent: Control, key: String, text: String, lo: float, hi: float, step: float, suffix: String, tip: String) -> void:
+	var sb := _insp_spin(parent, text, lo, hi, step, key, tip)
+	sb.suffix = suffix
+	insp_params[key] = {"row": [parent.get_child(parent.get_child_count() - 2), sb], "ctrl": sb}
 
 func _insp_spin(parent: Control, text: String, lo: float, hi: float, step: float, key: String, tip: String) -> SpinBox:
 	parent.add_child(_label(text, 14, DIM))

@@ -26,6 +26,31 @@ const AMBIENT_MIN := 0.3
 const ADAPT := 1.6
 const FOG_COLOR := Color("141108")
 const FOG_COLOR_DARK := Color("020201")
+# Horizon fog: past HORIZON_BEGIN everything fades into the fog colour, whatever the zone's fog density.
+# The clear-air looks thin the fog to almost nothing, so the level's edge and whatever the camera's far
+# plane cuts off showed through as bare background (black space). A screen-wide quad over the depth buffer.
+const HORIZON_BEGIN := 40.0
+const HORIZON_END := 70.0
+const HORIZON_SHADER := """shader_type spatial;
+render_mode unshaded, fog_disabled, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, blend_mix;
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable;
+uniform vec3 fog_color : source_color;
+uniform float begin = 40.0;
+uniform float end = 70.0;
+void vertex() { POSITION = vec4(VERTEX.xy, 1.0, 1.0); }
+void fragment() {
+	float depth = texture(depth_tex, SCREEN_UV).x;
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	vec3 ndc = vec3(SCREEN_UV, depth) * 2.0 - 1.0;
+#else
+	vec3 ndc = vec3(SCREEN_UV * 2.0 - 1.0, depth);
+#endif
+	vec4 view = INV_PROJECTION_MATRIX * vec4(ndc, 1.0);
+	float dist = abs(view.w) < 1e-6 ? 1e6 : length(view.xyz / view.w);
+	ALBEDO = fog_color;
+	ALPHA = smoothstep(begin, end, dist);
+}
+"""
 
 ## Level-wide looks. "dim" is what main.tscn's WorldEnvironment is tuned for; the others are where the
 ## environment blends to while you stand in them (classic_mix: the Classic zone, or "atmosphere":
@@ -45,6 +70,20 @@ const ATMOSPHERES := {
 		"ssao_intensity": 1.2,                        # fluorescent light is flat and shadowless: only a hint of contact AO
 		# the distance loses contrast toward a dim wall tone; a bright haze made everything far away glow
 		"haze": Color(0.36, 0.32, 0.2),
+	},
+	# "liminal" (the Liminal zone, or "atmosphere": "liminal") is an empty place in the middle of the night
+	# with every light left on: flat, shadowless, a little too bright and a little too pale, the far end of a
+	# hall dissolving into haze rather than dark so it seems to go on forever. It sits under "classic": the
+	# base look blends toward it first (liminal_mix), and a Classic / Bright zone takes over from there.
+	"liminal": {
+		"ambient_energy": 0.65, "ambient_color": Color(0.31, 0.3, 0.25),    # pale, washed-out fill: shadows go grey, not black
+		"exposure": 1.1, "tonemap_white": 2.4,        # a touch bright, highlights rolled off softly
+		"glow_threshold": 1.0, "glow_intensity": 0.85,
+		"glow_bloom": 0.06, "glow_wide": 0.35,        # a faint dreamy halo round the tubes
+		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow
+		"haze": Color(0.3, 0.29, 0.23),               # the distance fades to this
+		"fog": 0.2,                                   # share of the fog left: you see a long way, but not the end
+		"light": Color(0.95, 0.98, 0.9),              # cool fluorescent white with a hint of green
 	},
 }
 const FF_FOG := 0.05                # found footage: fog left at this share (clear air, far walls readable)
@@ -77,6 +116,8 @@ var zone_fog := 1.0
 var bright_mix := 0.0              # same idea for Bright zones (a softer version of the classic look)
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
+var liminal_mix := 0.0             # 0..1: the same for the liminal look
+var _lim := 0.0                    # liminal_mix while the power is on (a power cut is dark in any look)
 var exposure_gain := 1.0           # what the eye / camera adds on top of the look's exposure
 var _ae := 1.0
 var _ae_v := 0.0
@@ -85,6 +126,8 @@ var _wb_t := 0.0
 var _wb_corr := Vector3.ONE
 var _wb_noise := FastNoiseLite.new()
 var _ceil_fill := -1.0
+var _horizon: MeshInstance3D
+var _horizon_mat: ShaderMaterial
 
 func build_lighting() -> void:
 	if panel_ceiling != null:
@@ -97,6 +140,7 @@ func build_lighting() -> void:
 	_build_floor_reflections()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
 	env = we.environment if we else null
+	_build_horizon_fog()
 	_read_quality()
 	Gfx.changed.connect(_read_quality)
 	_apply_gi()
@@ -178,6 +222,7 @@ func _update_atmosphere(delta: float) -> void:
 	grid_glow += ((1.0 if grid_down else 0.0) - grid_glow) * minf(1.0, delta * 0.5)
 	classic_mix += ((1.0 if classic.has(c) else 0.0) - classic_mix) * minf(1.0, delta * 1.5)
 	bright_mix += ((1.0 if bright.has(c) else 0.0) - bright_mix) * minf(1.0, delta * 1.5)
+	liminal_mix += ((1.0 if liminal.has(c) else 0.0) - liminal_mix) * minf(1.0, delta * 1.5)
 	# how much of the building's power is on (a power cut kills the tubes): drives the fill lights and the cleared air
 	var power := 1.0
 	if not lit.is_empty():
@@ -191,11 +236,12 @@ func _update_atmosphere(delta: float) -> void:
 	for fl in fill_lights:
 		fl.light_energy = LIGHT_ENERGY * 1.5 * (1.0 - grid_glow) * power
 	open_mix = maxf(classic_mix, bright_mix * 0.85) * (1.0 - grid_glow) * power   # a power cut is dark, whatever the zone
+	_lim = liminal_mix * (1.0 - grid_glow) * power
 	Game.fx_classic = classic_mix
 	if reflect_mmi != null:                                              # noclip under the map would show them as huge white panels
 		reflect_mmi.visible = player.global_position.y > 0.0
 	for l in pool + pool_b + far_pool + ceil_glow:                                   # stark white tubes in the classic zone, so the light reads against the yellow walls
-		l.light_color = LIGHT_COLOR.lerp(Color(1.0, 0.99, 0.96), classic_mix)
+		l.light_color = LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix)
 	cam_mix = maxf(classic_mix, bright_mix * 0.7)
 	if dark.has(c):
 		za = 0.12; zf = 1.35
@@ -219,6 +265,7 @@ func _update_atmosphere(delta: float) -> void:
 		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (post.gdshader)
 	_update_camcorder(delta, seen)
 	_blend_env(ATMOSPHERES.classic)
+	zf *= lerpf(1.0, ATMOSPHERES.liminal.fog, _lim)                  # liminal: thin air, the halls fade out slowly
 	zf = lerpf(zf, FF_FOG, open_mix)                                  # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
@@ -226,15 +273,19 @@ func _update_atmosphere(delta: float) -> void:
 	var darkness := 1.0 - minf(1.0, maxf(b * zone_amb, 0.25 * grid_glow))
 	env.fog_light_color = FOG_COLOR.lerp(FOG_COLOR_DARK, darkness)
 	# in big lit halls the distance fades to a warm haze instead of black, so you can read the far walls and ceiling
+	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.liminal.haze, _lim * (1.0 - 0.6 * darkness))   # stays pale in the shadows too
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.classic.haze, open_mix * (1.0 - darkness))
 	env.background_color = env.fog_light_color
+	if _horizon_mat:
+		_horizon_mat.set_shader_parameter("fog_color", env.fog_light_color)
+		_horizon.visible = not Game.fullbright
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
 	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
 	if env.volumetric_fog_enabled:
 		# lit volumetric fog scatters every tube it passes and piles up with distance (a glowing far band), so
 		# in the found-footage look's clear air it is almost gone
-		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix)
+		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix) * (1.0 - 0.7 * _lim)
 		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
 		env.volumetric_fog_emission = VFOG_EMISSION * (1.0 - 0.85 * open_mix)   # its own glow piles up with distance too
 
@@ -267,6 +318,11 @@ func _blend_env(a: Dictionary) -> void:
 				"glow_bloom": env.glow_bloom, "glow_wide": env.get_glow_level(5), "ssao_intensity": env.ssao_intensity})
 		_env_base = env.get_meta("atmo_base")
 	var b := _env_base
+	if _lim > 0.001:                   # the liminal look under everything else
+		b = {}
+		var l: Dictionary = ATMOSPHERES.liminal
+		for k in _env_base:
+			b[k] = lerp(_env_base[k], l[k], _lim) if l.has(k) else _env_base[k]
 	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix)
 	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
 	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * exposure_gain
@@ -317,6 +373,27 @@ func _update_camcorder(delta: float, seen: float) -> void:
 				(m as ShaderMaterial).set_shader_parameter("ceiling_fill", fill)
 			elif m is StandardMaterial3D:
 				(m as StandardMaterial3D).emission_energy_multiplier = fill
+
+## The horizon fog quad (HORIZON_SHADER): its vertex shader pins it over the whole screen, so it is never
+## culled and draws last, over every other transparent thing.
+func _build_horizon_fog() -> void:
+	var sh := Shader.new()
+	sh.code = HORIZON_SHADER
+	_horizon_mat = ShaderMaterial.new()
+	_horizon_mat.shader = sh
+	_horizon_mat.render_priority = Material.RENDER_PRIORITY_MAX
+	_horizon_mat.set_shader_parameter("begin", HORIZON_BEGIN)
+	_horizon_mat.set_shader_parameter("end", HORIZON_END)
+	var q := QuadMesh.new()
+	q.size = Vector2(2.0, 2.0)
+	_horizon = MeshInstance3D.new()
+	_horizon.mesh = q
+	_horizon.material_override = _horizon_mat
+	_horizon.extra_cull_margin = 16384.0
+	_horizon.ignore_occlusion_culling = true
+	_horizon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_horizon.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add_child(_horizon)
 
 func update_lighting(delta: float) -> void:
 	if player == null or pool.is_empty(): return

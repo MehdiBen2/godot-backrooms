@@ -11,6 +11,8 @@ signal fixture_event(fixture: Dictionary, restrike: bool)   # audio listens: arc
 const LIGHT_ENERGY := 2.2           # tuned for Godot 4 PBR lighting
 const BURNT_CHANCE := 0.16
 const FLICKER_CHANCE := 0.24
+const LIMINAL_BURNT_CHANCE := 0.03     # liminal: nearly every tube works, steady, humming - nothing is wrong, and that's what's wrong
+const LIMINAL_FLICKER_CHANCE := 0.04
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
@@ -33,19 +35,23 @@ var reflect_mmi: MultiMeshInstance3D   # the fake floor reflections of bright-zo
 # spacing 1.9 cells, some tubes burnt out, some flickering.
 func _place_fixtures() -> void:
 	var min_sp := CELL * 1.9
+	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
+	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
+	var at_cell := {}
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			# thin walls and doors leave most of their cell open (and now carry the ceiling-step
 			# bulkhead against a neighbouring low room), so they still need a fixture over them
-			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c): continue
+			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c) or pillar_cells.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
-			for f in fx:
-				if (f.pos as Vector3).distance_to(pos) < min_sp:
-					too_close = true
-					break
+			for dx in range(-1, 2):
+				for dz in range(-1, 2):
+					var near = at_cell.get(Vector2i(x + dx, z + dz))
+					if near != null and (near as Vector3).distance_to(pos) < min_sp:
+						too_close = true
 			if too_close: continue
 			var is_classic := classic.has(c)
 			var is_bright := bright.has(c)
@@ -56,16 +62,21 @@ func _place_fixtures() -> void:
 			# reference photos. The far-light pool and the baked bounce light keep the gaps between tubes lit.
 			if is_bright or is_classic:
 				if not grid_node: continue
+			# liminal: a denser, perfectly regular grid, so light is flat and even everywhere you stand
+			elif liminal.has(c):
+				if not (ns or ew or (x % 2 == 0 and z % 2 == 0) or carved.has(c)): continue
 			# a carved cell's own neighbours are open along its passage, so the corridor heuristic
 			# (opposite neighbours both walls) almost never matches it; it still needs its fixture
 			elif not (ns or ew or grid_node or carved.has(c)): continue
-			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else BURNT_CHANCE)
+			var is_liminal := liminal.has(c)
+			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
-			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < FLICKER_CHANCE)
+			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < (LIMINAL_FLICKER_CHANCE if is_liminal else FLICKER_CHANCE))
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": PI / 2.0 if ns else 0.0,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
+			at_cell[c] = pos
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()

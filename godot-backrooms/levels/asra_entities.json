@@ -113,6 +113,29 @@
       "incident": "INCIDENT 2-090: Specimen watched by a remote camera for six hours with no movement. At hour six the camera recorded an empty corridor. The specimen was found standing at the camera."
     }
   },
+  "grabber": {
+    "code": "TSRA-EN-07",
+    "common_name": "The Grabber",
+    "threat_class": "Class 4",
+    "description": "A gaunt humanoid figure, roughly 2.3 m tall, in dark formal clothing, with a fixed wide grin and arms that hang well past its knees. Found folded against the ceiling of unlit corridors, suspended upside down, its arms trailing toward the floor.",
+    "behavior_vector": "Dormant while inverted. Illumination, sustained observation or passing beneath it provokes a descent and immediate pursuit. After losing a subject it observes from cover, leaning round doorframes at head height. Subjects it reaches are seized by the ankle and dragged away through the corridors.",
+    "directive": "Do not light what hangs above you. Check ceilings before entering dark corridors. If seized, grip the nearest doorframe.",
+    "classified": {
+      "origin": "Every subject recovered after a relocation describes the same thing: being pulled along the carpet feet first, looking up at it while it walked backwards and never once looked away. None of them could say how far they were taken. The drag marks end mid-corridor.",
+      "survival": [
+        "Look up before you commit to a dark stretch of corridor. If something is folded against the ceiling, go back the way you came.",
+        "Do not put your torch on it and do not stand looking at it. Do not walk under it.",
+        "It runs a little slower than you sprint. Sprint, break line of sight, and keep your stamina for the corners.",
+        "A camera flash in its face sends it off into the dark. It will be back.",
+        "If it is leaning round a corner, keep looking at it until it pulls back. Every corner you ignore, the next one is closer.",
+        "If it has your ankle: every doorframe is a chance. Grab it and pull, hard, and do not stop."
+      ],
+      "field_notes": [
+        "\"It wasn't the teeth. It was that it looked pleased to see me.\" - recovered surveyor, debrief transcript 4-117"
+      ],
+      "incident": "INCIDENT 4-117: A two-person survey team lost radio contact for 41 minutes. One surveyor was recovered 300 m from the last known position, lying in a dead-end corridor with a flat torch battery and no memory of the route. Her partner reported watching her pulled round a corner by the ankle. He did not see what was pulling."
+    }
+  },
   "survey_clipboard": {
     "code": "TSRA-IT-01",
     "common_name": "Field Survey Clipboard",

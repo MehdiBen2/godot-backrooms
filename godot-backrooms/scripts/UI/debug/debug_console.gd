@@ -11,7 +11,7 @@ extends CanvasLayer
 ##  - INFINITE SANITY: Locks sanity at 100%, removes distortions & mind drain
 ##  - INFINITE TORCH: Flashlight battery pinned at 100% with zero flicker
 ##  - SPEED & JUMP BOOSTS: 0.5x to 5.0x walk/fly speeds, high jumps
-##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, & Freeze AI
+##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, Grabber, & Freeze AI
 ##  - WORLD & SCARE EVENTS: Blackouts, Power Restore, Audio Scares
 ##  - TELEPORTATION: Warp to Spawn, Mannequins, Bacteria, Ceiling (+5m), Custom X/Z
 ##  - LIVE OVERLAY HUD: Realtime on-screen telemetry (FPS, Pos, Speed, Vitals, Radar)
@@ -27,8 +27,10 @@ const ENTITIES := {
 	"mannequin": "Mannequin",
 	"mimic": "Mimic",
 	"killer": "Killer",
+	"grabber": "Grabber",
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "killer"]
+const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber"]
+const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
 
 const FONT_PATH := "res://fonts/vcr.ttf"
 var font: FontFile
@@ -495,6 +497,16 @@ func _build_entities_tab() -> Control:
 	kil_box.add_child(_action_btn("SPAWN", func(): _apply("killer", true)))
 	kil_box.add_child(_action_btn("DESPAWN", func(): _apply("killer", false)))
 
+	# Grabber Row: spawn it on the ceiling ahead, or drop it straight into a state
+	var grb_box := HBoxContainer.new()
+	grb_box.add_theme_constant_override("separation", 8)
+	v.add_child(grb_box)
+	grb_box.add_child(_label("GRABBER:", 12, Color(0.9, 0.8, 0.6), 160))
+	grb_box.add_child(_action_btn("SPAWN", func(): _apply("grabber", true)))
+	grb_box.add_child(_action_btn("DESPAWN", func(): _apply("grabber", false)))
+	for st in GRABBER_STATES:
+		grb_box.add_child(_action_btn(st.to_upper(), func(): _grabber_state(st)))
+
 	# All Monsters Action
 	var all_box := HBoxContainer.new()
 	all_box.add_theme_constant_override("separation", 8)
@@ -920,7 +932,7 @@ func _submit(line: String) -> void:
 	match cmd:
 		"help", "?":
 			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
-			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], freeze")
+			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: lightout, lighton, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
 			_print("Names: " + ", ".join(ORDER))
 		"noclip":
@@ -951,6 +963,8 @@ func _submit(line: String) -> void:
 			for n in ORDER:
 				var on := _active(n)
 				_print("  %-10s %s" % [n, "[color=lime]active[/color]" if on else "[color=gray]off[/color]"])
+		"grabber":
+			_grabber_state(arg)
 		"spawn":
 			_each(arg, true)
 		"despawn", "kill":
@@ -1046,6 +1060,20 @@ func _node(name: String) -> Node:
 func _active(name: String) -> bool:
 	var n := _node(name)
 	return n != null and n.debug_active()
+
+## THE GRABBER straight into hunch / peek / chase / drag (console: grabber <state>)
+func _grabber_state(st: String) -> void:
+	if not GRABBER_STATES.has(st):
+		_print("[color=orange]grabber what? %s[/color]" % ", ".join(GRABBER_STATES))
+		return
+	var n := _node("grabber")
+	if n == null:
+		_print("[color=orange]grabber is not in the scene[/color]")
+		return
+	if n.debug_state(st):
+		_print("grabber: " + st)
+	else:
+		_print("[color=orange]grabber: no room to %s here, try another spot[/color]" % st)
 
 func _apply(name: String, spawn: bool) -> void:
 	var n := _node(name)

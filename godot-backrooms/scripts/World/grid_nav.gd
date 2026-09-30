@@ -120,7 +120,8 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 				elif m == r: p.x = maxx + radius
 				elif m == u: p.z = minz - radius
 				else: p.z = maxz + radius
-	# off-centre thin walls / doors: keep the circle a radius clear of each span (plus its thickness)
+	# off-centre thin walls / doors: keep the circle a radius clear of each span (plus its thickness);
+	# a pillar is a span of zero length, so it pushes out round a circle
 	for s: Array in level.wall_segments:
 		var here := Vector2(p.x, p.z)
 		var q := Geometry2D.get_closest_point_to_segment(here, s[0] * CELL, s[1] * CELL)
@@ -130,7 +131,7 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 			continue
 		if off.length_squared() < 0.000001:              # dead on the line: out the side it faces
 			var along: Vector2 = s[1] - s[0]
-			off = along.orthogonal()
+			off = along.orthogonal() if along != Vector2.ZERO else Vector2.RIGHT
 		var out := q + off.normalized() * clear
 		p.x = out.x
 		p.z = out.y

@@ -91,6 +91,14 @@ Levels are ASCII grids in `godot-backrooms/levels/*.lvl`, listed in `levels.json
 editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if the game folder isn't the
 sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `tools/bake_level.gd`.
 
+Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs. Besides grid
+walls, the OBJECTS panel places free walls of any shape: thin walls and half walls (per-object Thickness and
+Height; under 1.8 m you see over them), L corners, curved walls up to a full round room, square pillars and
+round columns. An **Event trigger** (key 9) is an invisible box that runs an event when the player walks in:
+a caption, the tubes over it dying or stuttering, silence, a thump, a drone, or any director event (knocking,
+breathing, preacher, power cut). The Liminal atmosphere / zone and the "Liminal halls" generator style give
+the empty, evenly lit, hazy look. Object types and their per-object fields live in `levels/object_types.json`.
+
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
 the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and

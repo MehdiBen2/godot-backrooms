@@ -102,9 +102,6 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 		hinge.mesh = hc
 		hinge.position = Vector3(LEAF_T * 0.5, hy, -DOOR_W * 0.5)
 		hinge.material_override = hw_mat
-		hinge.visibility_range_end = 45.0
-		hinge.visibility_range_end_margin = 8.0
-		hinge.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		add_child(hinge)
 
 func _box(size: Vector3, pos: Vector3, mat: Material, parent: Node3D) -> MeshInstance3D:
@@ -114,9 +111,6 @@ func _box(size: Vector3, pos: Vector3, mat: Material, parent: Node3D) -> MeshIns
 	mi.mesh = box
 	mi.position = pos
 	mi.material_override = mat
-	mi.visibility_range_end = 45.0
-	mi.visibility_range_end_margin = 8.0
-	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	parent.add_child(mi)
 	return mi
 
@@ -140,9 +134,6 @@ func _cyl(radius: float, length: float, pos: Vector3, mat: Material) -> void:
 	mi.rotation.z = PI / 2.0
 	mi.position = pos
 	mi.material_override = mat
-	mi.visibility_range_end = 45.0
-	mi.visibility_range_end_margin = 8.0
-	mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	pivot.add_child(mi)
 
 func _process(delta: float) -> void:

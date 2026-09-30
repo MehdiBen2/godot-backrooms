@@ -7,6 +7,7 @@
     ".codex/vexp-hint.sh": "ba7726f7c07a4aba51c3da975e9fb50ab525f170a7878baa1f9c04c506ee9512",
     "AGENTS.md": "e5c14c601fc65802b7b0057b0c9ff0a7b1902ece5db47f99ecde3b8379055aeb",
     "README.md": "5dec49d97336ba0d7f9fb0f22c04e70b70cf2ab05a792952f0f8999aac922627",
+    "futurtoeditlore.md": "2dff7f77da3ff496b5f0d4d33638bc50c42013ce6b741b35698236fa697e3482",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "896f1c903052b36ae90fac4fe623b53ed37ba230ead2c17c8dccb30b6efbbe56",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
@@ -26,12 +27,12 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
   },
-  "indexed_at_commit": "4ee71aa4d38f742e2e314a6dba364ee82be7854d",
-  "indexed_at_timestamp": "2026-09-30T11:23:06.709512+00:00",
+  "indexed_at_commit": "377e4a688920ae7fe8db23418b2f1e27fa4234cd",
+  "indexed_at_timestamp": "2026-09-30T13:09:58.025790+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
-      "nodes": 36
+      "nodes": 37
     },
     "powershell": {
       "calls": 0,
@@ -46,8 +47,8 @@
   "schema_version": 3,
   "stats": {
     "total_edges": 172,
-    "total_files": 25,
-    "total_nodes": 142
+    "total_files": 26,
+    "total_nodes": 143
   },
   "vexp_version": "3.2.5"
 }

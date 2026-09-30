@@ -12,13 +12,23 @@
    "savedTokens": 0
   },
   "read_symbol": {
-   "calls": 15,
-   "outputTokens": 4664,
-   "savedTokens": 90971
+   "calls": 33,
+   "outputTokens": 10607,
+   "savedTokens": 179958
   },
   "find_references": {
    "calls": 1,
    "outputTokens": 461,
+   "savedTokens": 0
+  },
+  "file_skeleton": {
+   "calls": 10,
+   "outputTokens": 9436,
+   "savedTokens": 27191
+  },
+  "find_symbol": {
+   "calls": 6,
+   "outputTokens": 2006,
    "savedTokens": 0
   }
  }

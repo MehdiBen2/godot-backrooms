@@ -250,10 +250,8 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 	var depth := float(info.get("thickness", 0.3)) / 4.5      # metres -> cells
 	var span: float = o.scale
 	var wall_mat := _pbr(ed._surface_key("wall", Vector2i(-1, -1)))
-	var parts: Array = []                              # [local centre, size, material]
+	var parts: Array = []                              # [local centre, size, material, (yaw), (mesh)]
 	match o.type:
-		"thin_wall":
-			parts.append([Vector3(0, h * 0.5, 0), Vector3(depth, h, span), wall_mat])
 		"arch":
 			var pillar := float(info.get("pillar", 0.75)) / 4.5
 			var r := span * 0.5 - pillar
@@ -275,12 +273,39 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 				var base := 0.0 if rise > 0 else rise
 				parts.append([Vector3(-0.5 + (i + 0.5) / steps, (top + base) * 0.5, 0), Vector3(1.0 / steps, absf(top - base) + 0.01, span), _flat(col)])
 		_:
-			var s := 0.28 * span
-			parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])
+			var sh: String = ed._shape(o.type)
+			var hm := float(ed._param(o, "height", 0.0))
+			var ph := h if hm <= 0.0 else minf(h, hm / 9.0)        # metres -> this view's squashed heights (5.4 m = 0.6)
+			var t: float = ed._thick_cells(o)
+			match sh:
+				"slab", "corner", "arc":
+					var path: PackedVector2Array = ed._shape_path(o)
+					for i in path.size() - 1:
+						var run := path[i + 1] - path[i]
+						var mid := (path[i] + path[i + 1]) * 0.5
+						parts.append([Vector3(mid.x, ph * 0.5, mid.y), Vector3(run.length() + t, ph, t), wall_mat, atan2(-run.y, run.x)])
+				"pillar":
+					parts.append([Vector3(0, ph * 0.5, 0), Vector3(t, ph, t), wall_mat])
+				"column":
+					var cyl := CylinderMesh.new()
+					cyl.top_radius = 0.5
+					cyl.bottom_radius = 0.5
+					cyl.height = 1.0
+					parts.append([Vector3(0, ph * 0.5, 0), Vector3(t, ph, t), _flat(Color("d9cfb2")), 0.0, cyl])
+				"zone":
+					var zc := col
+					zc.a = 0.22
+					var zm := _flat(zc)
+					zm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+					parts.append([Vector3(0, h * 0.4, 0), Vector3(float(ed._param(o, "depth", 2.0)), h * 0.8, span), zm])
+				_:
+					var s := 0.28 * span
+					parts.append([Vector3(0, s * 0.5, 0), Vector3(s, s, s), _flat(col)])
 	var xf := Transform3D(Basis(Vector3.UP, yaw_rad), pos)
 	for p in parts:
 		var mi := MeshInstance3D.new()
-		mi.mesh = unit
-		mi.transform = xf * Transform3D(Basis.from_scale(p[1]), p[0])
+		mi.mesh = p[4] if p.size() > 4 else unit
+		var yaw: float = p[3] if p.size() > 3 else 0.0
+		mi.transform = xf * Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(p[1]), p[0])
 		mi.material_override = p[2]
 		world.add_child(mi)

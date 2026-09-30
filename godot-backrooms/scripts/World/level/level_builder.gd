@@ -129,6 +129,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 	objects.clear()
 	carved.clear()
 	arch_cells.clear()
+	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
 	tall.clear()
@@ -140,6 +141,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 	flicker.clear()
 	mannequin.clear()
 	classic.clear()
+	liminal.clear()
 	_painted.clear()
 	has_spawn_yaw = false
 
@@ -162,10 +164,12 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 		far_fixture[i] = null
 		far_weight[i] = 0.0
 
-	# 4. Load floor data
+	# 4. Load floor data (and the nav table: it is cached by grid size, and every floor has the same size)
 	level_data = floor_data(read_level(level_meta), f)
 	_parse(level_data)
 	_arrive_by_stairs()
+	_step_mask = PackedByteArray()
+	step_mask()
 
 	# 5. Build geometry & lighting
 	build_geometry()
@@ -216,6 +220,7 @@ func load_level_seamless(idx: int) -> void:
 	Game.level_count = levels.size()
 	level_index = clampi(idx, 0, levels.size() - 1)
 	level_meta = levels[level_index]
+	fired_triggers.clear()
 	rebuild_floor_seamless(0, {})
 
 ## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),

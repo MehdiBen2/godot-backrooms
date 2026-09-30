@@ -17,7 +17,7 @@ const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
-	"mannequin": Color("e8e0d0")}
+	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -47,14 +47,14 @@ var zoom := 14.0
 var pan := Vector2(10, 10)
 var hover := Vector2i(-1, -1)
 var dirty := false
-var objects: Array = []              # {type, pos_x, pos_y, rotation, scale}
+var objects: Array = []              # {type, pos_x, pos_y, rotation, scale, <its type's params>}
 var selected := -1                   # index into objects
 var hover_obj := -1
 var drag := ""                       # "" | "move" | "rotate" | "place"
 var drag_off := Vector2.ZERO         # grab point -> object origin, in cells
 var mouse_px := Vector2(-1, -1)
-var place_rot := 0.0                 # new objects start at the last rotation / width used
-var place_scale := 1.0
+var place_rot := 0.0                 # new objects start at the last rotation used, and their type's last width
+var place_scales := {}               # type -> the width its last one was given
 var snap := true
 var rot_snap := true
 var align := true                    # turn doors / arches / thin walls to fit the wall or corridor they land on
@@ -83,7 +83,7 @@ var auto_walls := true               # floor rectangles are drawn as rooms: a wa
 var scatter := 100                   # % of the cells a paint stroke actually paints (random variation)
 var paint_mix: Array = []            # more materials painted at random alongside paint_mat
 var stroke_seed := 0                 # new each click, so scatter / mix are stable while you drag over a cell
-const MAX_SIZE := 160
+const MAX_SIZE := 256                # cells a side: 1.15 km at 4.5 m a cell
 
 # Floors: the level's other floors, kept aside while you edit one. The live grid / zones / paint / markers /
 # objects are floor `floor_idx`; floor_store holds every other floor (int -> the same set of fields).
@@ -102,12 +102,58 @@ var insp_x: SpinBox
 var insp_y: SpinBox
 var insp_rot: SpinBox
 var insp_scale: SpinBox
+var insp_scale_label: Label
+var insp_params := {}                # param -> {"row": [label, control], "ctrl": control}: level_editor.gd builds them
 func _info(t: String) -> Dictionary:
 	return OBJ_INFO.get(t, {"label": t, "key": "", "col": Color("a39c8a"), "help": ""})
 
 ## A size from object_types.json, in cells
 func _cells(t: String, key: String, metres: float) -> float:
 	return float(_info(t).get(key, metres)) / CELL_M
+
+## What a type is built as (object_types.json "shape": slab, corner, arc, pillar, column, zone; "" for the rest)
+func _shape(t: String) -> String:
+	return str(_info(t).get("shape", ""))
+
+## An object's own value of one of its type's params, else the type's default
+func _param(o: Dictionary, key: String, fallback = null):
+	return o.get(key, _info(o.type).get("params", {}).get(key, fallback))
+
+## A wall object's thickness in cells (its own, else its type's)
+func _thick_cells(o: Dictionary) -> float:
+	return float(_param(o, "thick", _info(o.type).get("thickness", 0.3))) / CELL_M
+
+## The widest a type may be made (object_types.json "max_scale", else 4 cells)
+func _max_scale(t: String) -> float:
+	return float(_info(t).get("max_scale", 4.0))
+
+## The width the next object of type `t` is placed at: its type's last one, else 1 cell (a trigger: 3)
+func _place_scale(t: String) -> float:
+	return float(place_scales.get(t, 3.0 if _shape(t) == "zone" else 1.0))
+
+## The centre line of a wall-shaped object in object space (cells): the game's level_data.gd shape_path()
+func _shape_path(o: Dictionary) -> PackedVector2Array:
+	var sc: float = o.scale
+	match _shape(o.type):
+		"slab", "":
+			return PackedVector2Array([Vector2(0, -sc * 0.5), Vector2(0, sc * 0.5)])
+		"corner":
+			return PackedVector2Array([Vector2(sc, 0), Vector2.ZERO, Vector2(0, sc)])
+		"arc":
+			var arc := deg_to_rad(clampf(float(_param(o, "arc", 90.0)), 5.0, 360.0))
+			var n := maxi(2, ceili(arc / deg_to_rad(10.0)))
+			var pts := PackedVector2Array()
+			for i in n + 1:
+				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * sc * 0.5)
+			return pts
+	return PackedVector2Array()
+
+## A new object of type `t` with every param at its default
+func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
+	var o := {"type": t, "pos_x": at.x, "pos_y": at.y, "rotation": rot, "scale": _place_scale(t)}
+	var params: Dictionary = _info(t).get("params", {})
+	for k in params: o[k] = params[k]
+	return o
 
 func _update_title() -> void:
 	if current < 0: return
@@ -285,7 +331,8 @@ func _draw_canvas() -> void:
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
-			var ghost := {"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale}
+			var t := tool.get_slice(":", 1)
+			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
 			_draw_object(ghost, 0.45)
 			_draw_arrow(ghost, Color(SEL, 0.5))
 	else:
@@ -1067,20 +1114,49 @@ func _obj_xf(o: Dictionary) -> Transform2D:
 
 ## Footprint depth along local x, in cells (at least a few pixels, so thin pieces stay clickable)
 func _obj_depth(o: Dictionary) -> float:
-	return maxf(_cells(o.type, "thickness", 0.3), 4.0 / zoom)
+	return maxf(_thick_cells(o), 4.0 / zoom)
+
+## The object's footprint in object space (cells): the box its gizmo outlines
+func _obj_bounds(o: Dictionary) -> Rect2:
+	match _shape(o.type):
+		"corner", "arc":
+			var pts := _shape_path(o)
+			var r := Rect2(pts[0], Vector2.ZERO)
+			for q in pts: r = r.expand(q)
+			return r.grow(_obj_depth(o) * 0.5)
+		"pillar", "column":
+			var h := maxf(_thick_cells(o) * 0.5, 4.0 / zoom)
+			return Rect2(-h, -h, h * 2.0, h * 2.0)
+		"zone":
+			var d := float(_param(o, "depth", 2.0))
+			return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
+	var d := _obj_depth(o)
+	return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
+
+## Is the canvas point `p` on object `o`? Bent walls count along their line only, so a click inside a round
+## room reaches what's in it; everything else by its footprint.
+func _obj_hit(o: Dictionary, p: Vector2) -> bool:
+	var l := (_obj_xf(o).affine_inverse() * p) / zoom
+	var slack := 6.0 / zoom
+	if _shape(o.type) in ["corner", "arc"]:
+		var pts := _shape_path(o)
+		var reach := maxf(_obj_depth(o) * 0.5, slack)
+		for i in pts.size() - 1:
+			if l.distance_to(Geometry2D.get_closest_point_to_segment(l, pts[i], pts[i + 1])) <= reach: return true
+		return false
+	var b := _obj_bounds(o)
+	if b.size.x < slack * 2.0: b = b.grow_individual(slack - b.size.x * 0.5, 0, slack - b.size.x * 0.5, 0)
+	return b.grow(2.0 / zoom).has_point(l)
 
 func _obj_at(p: Vector2) -> int:
 	for i in range(objects.size() - 1, -1, -1):
-		var o: Dictionary = objects[i]
-		var l := (_obj_xf(o).affine_inverse() * p) / zoom
-		if absf(l.x) <= maxf(_obj_depth(o) * 0.5, 6.0 / zoom) and absf(l.y) <= o.scale * 0.5 + 2.0 / zoom:
-			return i
+		if _obj_hit(objects[i], p): return i
 	return -1
 
 ## The rotate handle: a knob just past the facing arrow's tip
 func _handle_px(o: Dictionary) -> Vector2:
 	var xf := _obj_xf(o)
-	return xf.origin + xf.x.normalized() * (_obj_depth(o) * 0.5 * zoom + maxf(zoom * 0.8, 26.0) + 9.0)
+	return xf.origin + xf.x.normalized() * (maxf(_obj_bounds(o).end.x, 0.0) * zoom + maxf(zoom * 0.8, 26.0) + 9.0)
 
 func _on_handle(p: Vector2) -> bool:
 	return selected >= 0 and p.distance_to(_handle_px(objects[selected])) <= 9.0
@@ -1089,8 +1165,9 @@ func _on_handle(p: Vector2) -> bool:
 ## corridor or wall run it lands in (you walk through it the way the open neighbours lie, like the game's
 ## old tiles did). Of the two ways to face along that axis it keeps the one nearer `cur`, so a door keeps
 ## its swing side. Off, with Alt held, on a cell corner or off the half-cell grid, `cur` stays.
-func _wall_align(p: Vector2, cur: float) -> float:
+func _wall_align(p: Vector2, cur: float, t := "") -> float:
 	if not align or Input.is_key_pressed(KEY_ALT): return cur
+	if t != "" and not bool(_info(t).get("align", true)): return cur      # corners, curves, pillars, triggers
 	var whole := func(v: float) -> bool: return absf(v - roundf(v)) < 0.1
 	var half := func(v: float) -> bool: return absf(absf(v - floorf(v)) - 0.5) < 0.1
 	var facing := -1.0
@@ -1136,7 +1213,8 @@ func _object_press(mb: InputEventMouseButton) -> void:
 	else:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
-		objects.append({"type": tool.get_slice(":", 1), "pos_x": p.x, "pos_y": p.y, "rotation": _wall_align(p, place_rot), "scale": place_scale})
+		var t := tool.get_slice(":", 1)
+		objects.append(_new_object(t, p, _wall_align(p, place_rot, t)))
 		if tool.begins_with("obj:stairs_"):
 			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
 			objects[-1].pos_y = roundf(p.y)
@@ -1205,7 +1283,7 @@ func _object_drag(p: Vector2) -> void:
 		o.pos_x = q.x
 		o.pos_y = q.y
 		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
-			o.rotation = _wall_align(q, o.rotation)
+			o.rotation = _wall_align(q, o.rotation, o.type)
 	else:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
@@ -1272,7 +1350,13 @@ func _set_prop(key: String, v) -> void:
 			place_rot = o.rotation
 			insp_rot.set_value_no_signal(o.rotation)
 		"scale":
-			place_scale = v
+			place_scales[o.type] = v
+		"type":                                           # the new type's params, at their defaults
+			var params: Dictionary = _info(v).get("params", {})
+			for k in params:
+				if not o.has(k): o[k] = params[k]
+			o.scale = minf(o.scale, _max_scale(v))
+			_sync_inspector()
 	_mark_dirty()
 
 func _sync_inspector() -> void:
@@ -1285,13 +1369,39 @@ func _sync_inspector() -> void:
 	insp_x.set_value_no_signal(o.pos_x)
 	insp_y.set_value_no_signal(o.pos_y)
 	insp_rot.set_value_no_signal(o.rotation)
+	insp_scale.max_value = _max_scale(o.type)
 	insp_scale.set_value_no_signal(o.scale)
+	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
+	var sh := _shape(o.type)
+	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
+	insp_scale_label.visible = sh not in ["pillar", "column"]
+	insp_scale.visible = insp_scale_label.visible
+	var params: Dictionary = _info(o.type).get("params", {})
+	for k in insp_params:
+		var on := params.has(k)
+		for n: Control in insp_params[k].row: n.visible = on
+		if not on: continue
+		var ctrl: Control = insp_params[k].ctrl
+		var v = _param(o, k)
+		if ctrl is SpinBox: (ctrl as SpinBox).set_value_no_signal(float(v))
+		elif ctrl is CheckBox: (ctrl as CheckBox).set_pressed_no_signal(bool(v))
+		elif ctrl is LineEdit:
+			if (ctrl as LineEdit).text != str(v): (ctrl as LineEdit).text = str(v)
+		elif ctrl is OptionButton:
+			var evs: Array = _info(o.type).get("events", {}).keys()
+			(ctrl as OptionButton).select(maxi(0, evs.find(str(v))))
 
 func _deg(d: float) -> String:
 	return str(snappedf(d, 0.1)).trim_suffix(".0")
 
 func _describe(o: Dictionary) -> String:
-	return "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [_info(o.type).label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
+	var t := "%s   x %.2f   y %.2f   rotation %s°   width %.2f" % [_info(o.type).label, o.pos_x, o.pos_y, _deg(o.rotation), o.scale]
+	var params: Dictionary = _info(o.type).get("params", {})
+	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
+	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
+	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
+	if params.has("event"): t += "   event: %s%s" % [_param(o, "event"), "  (once)" if bool(_param(o, "once", true)) else ""]
+	return t
 
 ## A rectangle in the object's local space (cells), as canvas points
 func _local_rect(xf: Transform2D, x0: float, y0: float, x1: float, y1: float) -> PackedVector2Array:
@@ -1345,8 +1455,42 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
 			_draw_stairs_transition(o, xf, alpha)
 		_:
-			# thin walls, and any type the editor has no plan drawing for: a slab its thickness by its width
-			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)
+			_draw_shaped(o, xf, col, alpha)
+
+## Walls by shape (thin / half walls, corners, curves), pillars, columns and triggers, and any type the
+## editor has no plan drawing for: a slab its thickness by its width. A wall you can see over (a half
+## wall) is drawn hatched with a dashed centre line.
+func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> void:
+	var t := maxf(_thick_cells(o), 5.0 / zoom)
+	var h := float(_param(o, "height", 0.0))
+	var low := h > 0.0 and h < 1.8
+	match _shape(o.type):
+		"pillar":
+			_fill(_local_rect(xf, -t * 0.5, -t * 0.5, t * 0.5, t * 0.5), col)
+		"column":
+			canvas.draw_circle(xf.origin, t * 0.5 * zoom, col)
+			canvas.draw_arc(xf.origin, t * 0.5 * zoom, 0, TAU, 24, Color(0, 0, 0, alpha * 0.8), 1.0)
+		"zone":
+			# a trigger: a see-through box with a dashed rim and its event, never mistaken for a wall
+			var d := float(_param(o, "depth", 2.0)) * 0.5
+			var hw: float = o.scale * 0.5
+			var pts := _local_rect(xf, -d, -hw, d, hw)
+			canvas.draw_colored_polygon(pts, Color(col, alpha * 0.14))
+			for i in 4:
+				canvas.draw_dashed_line(pts[i], pts[(i + 1) % 4], Color(col, alpha * 0.9), 1.5, maxf(zoom * 0.2, 4.0))
+			if zoom >= 8.0:
+				var lbl := "⚡ " + str(_param(o, "event", "")) + ("" if bool(_param(o, "once", true)) else "  ↻")
+				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
+		_:
+			var pts := _shape_path(o)
+			var line := PackedVector2Array()
+			for q in pts: line.append(xf * (q * zoom))
+			var w := t * zoom
+			canvas.draw_polyline(line, Color(0, 0, 0, alpha * 0.8), w + 2.0)
+			canvas.draw_polyline(line, Color(col, alpha * (0.55 if low else 1.0)), w)
+			if low:
+				for i in line.size() - 1:
+					canvas.draw_dashed_line(line[i], line[i + 1], Color(1, 1, 1, alpha * 0.6), 1.0, maxf(zoom * 0.15, 3.0))
 
 func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> void:
 	var up: bool = o.type == "stairs_up"
@@ -1368,17 +1512,15 @@ func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> vo
 			canvas.draw_arc(xf.origin, maxf(zoom * 0.55, 8.0), 0, TAU, 16, Color(tag_col, alpha * 0.6), 1.5)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
-	var pad := 3.0 / zoom
-	var hx := _obj_depth(o) * 0.5 + pad
-	var hy: float = o.scale * 0.5 + pad
-	var pts := _local_rect(_obj_xf(o), -hx, -hy, hx, hy)
+	var b := _obj_bounds(o).grow(3.0 / zoom)
+	var pts := _local_rect(_obj_xf(o), b.position.x, b.position.y, b.end.x, b.end.y)
 	canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), col, width)
 
 ## The facing arrow, out of the front along local +x (the way you walk through it)
 func _draw_arrow(o: Dictionary, col: Color) -> void:
 	var xf := _obj_xf(o)
 	var dir := xf.x.normalized()
-	var tip := xf.origin + dir * (_obj_depth(o) * 0.5 * zoom + maxf(zoom * 0.8, 26.0))
+	var tip := xf.origin + dir * (maxf(_obj_bounds(o).end.x, 0.0) * zoom + maxf(zoom * 0.8, 26.0))
 	var side := dir.orthogonal() * 5.0
 	var head := PackedVector2Array([tip, tip - dir * 10.0 + side, tip - dir * 10.0 - side])
 	canvas.draw_line(xf.origin, tip - dir * 6.0, Color(0, 0, 0, col.a * 0.7), 4.0)     # dark underlay for contrast

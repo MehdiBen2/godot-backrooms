@@ -14,6 +14,7 @@ const WALL_H := 5.4
 const TALL_H := 10.8
 const LOW_H := 2.3
 const PIT_DEPTH := 14.0
+const SEE_OVER_H := 1.8   # a wall object lower than this (its "height") is seen over: it blocks feet, not eyes
 
 @export var level_index := 0
 
@@ -22,20 +23,24 @@ const PIT_DEPTH := 14.0
 ## pos * CELL. `rotation` is degrees clockwise on the editor's top-down map (+X east, +Z south); in local
 ## space every piece faces +X (the direction you walk through it) and spans `scale` cells along Z. What each
 ## type is (size, what it does to the grid, how the editor shows it) lives in levels/object_types.json,
-## shared with the level editor.
+## shared with the level editor. A type's "params" are extra per-object fields (a wall's thickness and
+## height, a curve's arc, a trigger's event...); every loaded object carries all of its type's, defaults
+## filled in.
 const OBJECT_TYPES_PATH := "res://levels/object_types.json"
 static var _object_types := {}
 
 var size := 0
 var walls := {}       # Vector2i -> true
 var pits := {}
-var objects: Array = []   # {type, pos_x, pos_y, rotation, scale}, see object_types()
+var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
 var carved := {}      # Vector2i -> true: a wall cell an object stands in, so no solid block is built there
 var arch_cells := {}  # Vector2i -> true: a cell with an arch square in it (walkable, but full of arch mass)
+var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
 ## neighbouring cells whose centre-to-centre step crosses one, wall_segments the spans themselves
-## ([from, to] in cells, half thickness in metres) for line of sight and push-out collision.
+## ([from, to] in cells, half thickness in metres, seen-over) for line of sight and push-out collision.
+## A curved or L-shaped wall is several spans; a pillar is one of zero length (push-out only).
 var blocked_edges := {}   # Vector4i(a.x, a.y, b.x, b.y), a < b -> true
 var wall_segments: Array = []
 var tall := {}
@@ -47,6 +52,8 @@ var dim := {}
 var flicker := {}
 var mannequin := {}   # cells where the mannequin room stands (painted in the level editor)
 var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
+var liminal := {}     # the liminal look: every tube steady and humming, pale air you can see a long way down
+var fired_triggers := {}   # event triggers already spent this run (props/event_trigger.gd), across floor changes
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
 var has_spawn_yaw := false
@@ -91,6 +98,51 @@ static func object_types() -> Dictionary:
 
 static func object_info(type: String) -> Dictionary:
 	return object_types().get(type, {})
+
+## A raw .lvl object as loaded: the common fields, scale capped for its type, and every one of its type's
+## params (object_types.json "params") with the file's value, or the default, as the default's type
+static func load_object(o: Dictionary) -> Dictionary:
+	var info := object_info(str(o.get("type", "")))
+	var out := {"type": str(o.get("type", "")), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
+		"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, float(info.get("max_scale", 4.0)))}
+	var params: Dictionary = info.get("params", {})
+	for k in params:
+		var v = o.get(k, params[k])
+		match typeof(params[k]):
+			TYPE_BOOL: out[k] = bool(v)
+			TYPE_FLOAT, TYPE_INT: out[k] = float(v)
+			_: out[k] = str(v)
+	return out
+
+## The centre line of a wall-shaped object (its type's "shape") in object space: cells, +x the way it faces,
+## +y across it (world +z at rotation 0). "slab" runs `scale` cells across, "corner" is an L with both legs
+## `scale` long (along +x and +y from the origin), "arc" bends round a circle `scale` cells across centred
+## on the origin, `arc` degrees of it centred on +x (the last point is the first again at 360). Empty for
+## anything else. The walls (level_geometry.gd), the nav spans here and the editor's plan all use it.
+static func shape_path(o: Dictionary) -> PackedVector2Array:
+	var s: float = o.scale
+	match str(object_info(o.type).get("shape", "slab")):
+		"slab":
+			return PackedVector2Array([Vector2(0, -s * 0.5), Vector2(0, s * 0.5)])
+		"corner":
+			return PackedVector2Array([Vector2(s, 0), Vector2.ZERO, Vector2(0, s)])
+		"arc":
+			var arc := deg_to_rad(clampf(float(o.get("arc", 90.0)), 5.0, 360.0))
+			var n := maxi(2, ceili(arc / deg_to_rad(10.0)))
+			var pts := PackedVector2Array()
+			for i in n + 1:
+				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * s * 0.5)
+			return pts
+	return PackedVector2Array()
+
+## A wall object's thickness in metres: its own, else its type's
+static func object_thick(o: Dictionary) -> float:
+	return float(o.get("thick", object_info(o.type).get("thickness", 0.3)))
+
+## A wall object low enough to see over (a half wall, a counter)
+static func seen_over(o: Dictionary) -> bool:
+	var h := float(o.get("height", 0.0))
+	return h > 0.0 and h < SEE_OVER_H
 
 ## One floor of a level as a plain level: floor 0 is the file itself, any other its "floors" entry laid over
 ## it (grid, zones, paint, objects and markers are per floor; size, materials and the look are shared).
@@ -150,42 +202,52 @@ func _parse(d: Dictionary) -> void:
 				legacy[v] = "arch"
 	# old tiles become objects facing whichever way the corridor runs (needs the full wall set first)
 	for v: Vector2i in legacy:
-		objects.append({"type": legacy[v], "pos_x": float(v.x), "pos_y": float(v.y), "rotation": 90.0 * open_axis(v), "scale": 1.0})
+		objects.append(load_object({"type": legacy[v], "pos_x": float(v.x), "pos_y": float(v.y), "rotation": 90.0 * open_axis(v)}))
 	for o in d.get("objects", []):
 		if o is Dictionary and object_types().has(str(o.get("type", ""))):
-			objects.append({"type": str(o.type), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
-				"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, 4.0)})
+			objects.append(load_object(o))
 	# An object sitting square in an interior cell takes it over (its type's on_cell): a door / thin wall
 	# stands in for the wall block there (still a wall to nav), an arch punches an opening through it.
-	# Off-centre, a blocks_nav piece cuts the cell links it crosses; the grid underneath is left alone.
+	# Off-centre (or low enough to see over), a blocks_nav piece cuts the cell links it crosses; the grid
+	# underneath is left alone. Pillars and columns take no cell: monsters are pushed out round them.
 	for o: Dictionary in objects:
 		var info := object_info(o.type)
 		var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
 		var centred := absf(o.pos_x - c.x) <= 0.26 and absf(o.pos_y - c.y) <= 0.26
-		if centred and c.x > 0 and c.y > 0 and c.x < size - 1 and c.y < size - 1:
-			if info.get("on_cell") == "wall":
-				walls[c] = true
-				carved[c] = true
-				if o.scale > 1.01 and info.get("blocks_nav", false):   # reaches past its own cell
-					_block_span(o, float(info.get("thickness", 0.3)) * 0.5)
-			elif info.get("on_cell") == "open":
-				walls.erase(c)
-				arch_cells[c] = true
+		var inside := c.x > 0 and c.y > 0 and c.x < size - 1 and c.y < size - 1
+		var half_t := object_thick(o) * 0.5
+		var low := seen_over(o)
+		var shape := str(info.get("shape", ""))
+		if shape == "pillar" or shape == "column":
+			var at := Vector2(o.pos_x, o.pos_y)
+			wall_segments.append([at, at, half_t * (1.2 if shape == "pillar" else 1.0), true])
+			if centred and inside: pillar_cells[c] = true
+		elif centred and inside and not low and info.get("on_cell") == "wall":
+			walls[c] = true
+			carved[c] = true
+			if o.scale > 1.01 and info.get("blocks_nav", false):   # reaches past its own cell
+				_block_span(o, half_t)
+		elif centred and inside and info.get("on_cell") == "open":
+			walls.erase(c)
+			arch_cells[c] = true
 		elif info.get("blocks_nav", false):
-			_block_span(o, float(info.get("thickness", 0.3)) * 0.5)
+			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "mannequin"]:
+	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
 	# A level-wide atmosphere ("atmosphere" in the .lvl, picked in the level editor). "classic" is the
 	# Classic zone painted over every open cell, except where a Dark / Dim zone says the tubes are dead.
-	if atmosphere() == "classic":
+	# "liminal" is the same for the Liminal zone.
+	var look := atmosphere()
+	if look == "classic" or look == "liminal":
+		var target: Dictionary = get(look)
 		for x in size:
 			for z in size:
 				var v := Vector2i(x, z)
-				if not (walls.has(v) or dark.has(v) or dim.has(v)): classic[v] = true
+				if not (walls.has(v) or dark.has(v) or dim.has(v)): target[v] = true
 	var s = d.get("spawn")
 	if not (s is Array and s.size() >= 2): s = _first_open()
 	spawn_pos = Vector3(s[0] * CELL, 0.1, s[1] * CELL)
@@ -238,8 +300,9 @@ func _first_open() -> Array:
 	var c := _nearest_open(Vector2i(size / 2, size / 2))
 	return [c.x, c.y]
 
-## "dim" (the default: failing tubes, light that dies in the fog) or "classic" (the whole level lit bright
-## and steady, clear air). New level-wide looks go here and in level_lighting.gd's ATMOSPHERES.
+## "dim" (the default: failing tubes, light that dies in the fog), "classic" (the whole level lit bright
+## and steady, clear air) or "liminal" (every tube on and steady, flat pale light, halls that fade into a
+## haze far away instead of the dark). New level-wide looks go here and in level_lighting.gd's ATMOSPHERES.
 func atmosphere() -> String:
 	return str(level_data.get("atmosphere", "dim"))
 
@@ -251,15 +314,24 @@ func ceiling_height(c: Vector2i) -> float:
 	if low.has(c): return LOW_H
 	return WALL_H
 
-## Record an off-centre blocking object: its span (along local Z, shortened a hair so a piece that ends
-## exactly on a cell centre line doesn't catch the links beside it) and every cell link that crosses it
-func _block_span(o: Dictionary, half_thick: float) -> void:
+## Record an off-centre blocking object: each span of its shape_path() (the open ends shortened a hair so
+## a piece that ends exactly on a cell centre line doesn't catch the links beside it) and every cell link
+## that crosses one. `see_over`: a low wall, which blocks the way but not line of sight.
+func _block_span(o: Dictionary, half_thick: float, see_over := false) -> void:
 	var r := deg_to_rad(o.rotation)
-	var half: Vector2 = Vector2(-sin(r), cos(r)) * (o.scale * 0.5 - 0.01)
 	var p := Vector2(o.pos_x, o.pos_y)
-	var a := p - half
-	var b := p + half
-	wall_segments.append([a, b, half_thick])
+	var path := shape_path(o)
+	var n := path.size()
+	if n < 2: return
+	var closed := path[0].distance_to(path[n - 1]) < 0.001
+	if not closed:
+		path[0] = path[0].move_toward(path[1], 0.01)
+		path[n - 1] = path[n - 1].move_toward(path[n - 2], 0.01)
+	for i in n - 1:
+		_block_segment(p + path[i].rotated(r), p + path[i + 1].rotated(r), half_thick, see_over)
+
+func _block_segment(a: Vector2, b: Vector2, half_thick: float, see_over: bool) -> void:
+	wall_segments.append([a, b, half_thick, see_over])
 	for x in range(floori(minf(a.x, b.x)) - 1, ceili(maxf(a.x, b.x)) + 1):
 		for z in range(floori(minf(a.y, b.y)) - 1, ceili(maxf(a.y, b.y)) + 1):
 			var c := Vector2i(x, z)
@@ -300,9 +372,11 @@ func step_mask() -> PackedByteArray:
 func edge_blocked(a: Vector2i, b: Vector2i) -> bool:
 	return not blocked_edges.is_empty() and blocked_edges.has(_edge_key(a, b))
 
-## Does the straight line a -> b (in cells) cross an off-centre thin wall / door?
+## Does the straight line a -> b (in cells) cross an off-centre thin wall / door? Low walls and pillars
+## don't count: you see over and past them.
 func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 	for s: Array in wall_segments:
+		if s[3]: continue
 		if Geometry2D.segment_intersects_segment(a, b, s[0], s[1]) != null: return true
 	return false
 

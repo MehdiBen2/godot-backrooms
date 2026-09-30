@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://boto124pp6cs" path="res://scripts/Entities/eyes/eyes.gd" id="14"]
 [ext_resource type="Script" uid="uid://euclxsjptj7" path="res://scripts/World/hills/hills_portal.gd" id="15"]
 [ext_resource type="Script" uid="uid://b40evrxfctmfq" path="res://scripts/Entities/killer/killer.gd" id="16_jbj1t"]
+[ext_resource type="Script" path="res://scripts/Entities/grabber/grabber.gd" id="17_grabber"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -135,3 +136,6 @@ script = ExtResource("15")
 
 [node name="Killer" type="Node3D" parent="." unique_id=103153504]
 script = ExtResource("16_jbj1t")
+
+[node name="Grabber" type="Node3D" parent="."]
+script = ExtResource("17_grabber")

@@ -10,6 +10,7 @@ const TorchModel := preload("res://scripts/Player/torch_model.gd")
 const Blink := preload("res://scripts/Player/blink.gd")
 const PlayerShadow := preload("res://scripts/Player/player_shadow.gd")
 const Handheld := preload("res://scripts/Player/handheld.gd")
+const Peek := preload("res://scripts/Player/peek.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -84,6 +85,7 @@ var was_stepping := false
 var step_triggered := false
 var fov_kick := 0.0
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
+var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
 var bob_amp := 1.0               # eased per-step bob height from handheld.step_amp
 var health := 100.0
 var sanity := 100.0
@@ -121,6 +123,12 @@ var quake_amt := 0.0          # 0..1: something heavy walking nearby shaking the
 var quake_t := 0.0
 var lean := 0.0
 const TURN_ROLL_MAX := 0.045
+# Corner peek (peek.gd): on top of the sideways lean, the view dips, edges forward, rolls and turns a little
+const PEEK_DIP := 0.035           # m
+const PEEK_FWD := 0.03            # m
+const PEEK_ROLL := 0.13           # rad at full head bob (half of it with head bob off)
+const PEEK_YAW := 0.035           # rad, towards the opening
+const PEEK_HOLD_SPEED := 1.0      # m/s: slower than this a hand in reach takes hold of the edge
 var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
 var turn_roll := 0.0
@@ -236,6 +244,8 @@ func _physics_process(dt: float) -> void:
 		is_sprinting = false
 		if not is_on_floor(): velocity.y -= GRAVITY * dt
 		move_and_slide()
+		peek.update(dt, self, eye, false)
+		if torch: torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
 		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
 		if dead:
 			if torch: torch.update(dt, false, false, false, bob)
@@ -309,7 +319,10 @@ func _physics_process(dt: float) -> void:
 	else:
 		was_airborne = true
 		air_time += dt
+	peek.update(dt, self, eye, is_on_floor() and not sprint)
 	if torch:
+		var slow := Vector2(velocity.x, velocity.z).length() < PEEK_HOLD_SPEED
+		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
 	if shadow_body:
 		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length())
@@ -413,14 +426,16 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var motion := (1.8 if sprint else (0.6 if crouch else 1.0)) if walking else 0.0
 	handheld.update(dt, motion, shake, head_bob)
 	cam.position += handheld.offset
-	cam.rotation.y = handheld.yaw
+	cam.position += Vector3(peek.offset, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
+	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
 	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
 	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
 	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
 	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
-	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll
+	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll \
+			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob)
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)

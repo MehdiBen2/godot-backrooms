@@ -351,6 +351,41 @@ func _to_host_ready() -> bool:
 func _has_peers() -> bool:
 	return hosting and is_online() and not multiplayer.get_peers().is_empty()
 
+# ---- THE GRABBER: the host runs it; whoever it takes plays the drag on their own machine ----------
+func send_grabber(m: Array) -> void:
+	if _has_peers():
+		_grabber_snap_rpc.rpc(clock(), m)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _grabber_snap_rpc(t: float, m: Array) -> void:
+	var g := _scene_node("Grabber")
+	if g != null and g.has_method("net_apply"):
+		g.net_apply(t, m)
+
+## Host: it has taken `peer_id`'s survivor
+func send_grabber_grab(peer_id: int) -> void:
+	if _has_peers() and _is_peer(peer_id):
+		_grabber_grab_rpc.rpc_id(peer_id)
+
+@rpc("authority", "call_remote", "reliable")
+func _grabber_grab_rpc() -> void:
+	var g := _scene_node("Grabber")
+	if g != null and g.has_method("net_grabbed"):
+		g.net_grabbed()
+
+## Guest: how being dragged ended (tore loose, or taken)
+func send_grabber_result(escaped: bool) -> void:
+	if _to_host_ready():
+		_grabber_result_rpc.rpc_id(1, escaped)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _grabber_result_rpc(escaped: bool) -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
+	var g := _scene_node("Grabber")
+	if g != null and g.has_method("net_drag_result"):
+		g.net_drag_result(multiplayer.get_remote_sender_id(), escaped)
+
 # ---- THE MANNEQUIN: the host rolls the room and runs the real one ---------------------------------
 var mq_seed := 0
 var mq_level := -1
