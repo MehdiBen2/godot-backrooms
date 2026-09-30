@@ -376,7 +376,6 @@ func save() -> void:
 	dirty = false
 	_update_title()
 	_status("Saved " + str(index[current].file))
-	_bake(str(index[current].id))
 
 ## Bake the saved level's bounce light (the game's tools/bake_level.gd: a VoxelGI of its walls, floors and
 ## ceilings) in the background. Takes 30 s to 2 min depending on size; until it lands the game falls back to SDFGI.

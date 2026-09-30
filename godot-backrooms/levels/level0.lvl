@@ -1,8 +1,5 @@
 {
-  "drop_hole": [
-    3,
-    9
-  ],
+  "drop_hole": null,
   "entity": [
     35,
     28
@@ -1975,25 +1972,11 @@
       "type": "thin_wall"
     },
     {
-      "pos_x": 51.0,
-      "pos_y": 21.5,
-      "rotation": 90.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
       "pos_x": 52.0,
       "pos_y": 21.5,
       "rotation": 90.0,
       "scale": 1.0,
       "type": "thin_wall"
-    },
-    {
-      "pos_x": 51.0,
-      "pos_y": 21.5,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "door"
     },
     {
       "pos_x": 46.5,
@@ -2116,30 +2099,16 @@
     },
     {
       "custom_event": "",
-      "delay": 0.0,
+      "delay": 0.3,
       "depth": 2.0,
-      "duration": 20.0,
+      "duration": 2.0,
       "event": "message",
       "once": false,
-      "pos_x": 3.5,
-      "pos_y": 10.0,
+      "pos_x": 3.0,
+      "pos_y": 10.5,
       "rotation": 0.0,
       "scale": 3.0,
       "text": "you have been here before.",
-      "type": "trigger"
-    },
-    {
-      "custom_event": "",
-      "delay": 0.0,
-      "depth": 2.0,
-      "duration": 20.0,
-      "event": "message",
-      "once": true,
-      "pos_x": 2.5,
-      "pos_y": 14.0,
-      "rotation": 180.0,
-      "scale": 3.0,
-      "text": "",
       "type": "trigger"
     },
     {
@@ -2155,6 +2124,13 @@
       "scale": 3.0,
       "text": "",
       "type": "trigger"
+    },
+    {
+      "pos_x": 51.0,
+      "pos_y": 21.5,
+      "rotation": 90.0,
+      "scale": 4.0,
+      "type": "door"
     }
   ],
   "sdfgi": false,
@@ -2404,6 +2380,10 @@
       [
         24,
         9
+      ],
+      [
+        3,
+        10
       ],
       [
         5,

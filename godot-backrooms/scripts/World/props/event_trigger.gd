@@ -105,7 +105,7 @@ func _execute_event(ev: String) -> void:
 					level.cut_fixture(f, duration)
 					count += 1
 			if count == 0 and not level.lit.is_empty():
-				var sorted_lit := level.lit.duplicate()
+				var sorted_lit: Array = level.lit.duplicate()
 				sorted_lit.sort_custom(func(a, b):
 					var da := Vector2(a.pos.x - global_position.x, a.pos.z - global_position.z).length_squared()
 					var db := Vector2(b.pos.x - global_position.x, b.pos.z - global_position.z).length_squared()

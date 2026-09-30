@@ -55,8 +55,8 @@ func _build_mesh() -> void:
 		mi.visibility_range_end_margin = 8.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
-	# fell out of the grid and landed on its back (lens up), one end caught on something: a small tilt
-	model.rotation = Vector3(randf_range(-0.08, 0.08), 0.0, PI + randf_range(0.08, 0.16))
+	# fell out of the grid and landed flat on its back (lens up); a tilt across a 1.2m-long fixture reads as floating
+	model.rotation = Vector3(0.0, 0.0, PI)
 	mesh_root.add_child(model)
 	# rest its lowest point on the floor, whatever the model's own origin is
 	var lowest := INF
@@ -68,7 +68,7 @@ func _build_mesh() -> void:
 		for i in 8:
 			lowest = minf(lowest, (t * box.get_endpoint(i)).y)
 	if lowest != INF:
-		model.position.y -= lowest
+		model.position.y -= lowest - 0.01  # sink slightly into the carpet so no gap shows
 
 	# occasional spark/crackle light out of the dead ballast
 	spark_light = OmniLight3D.new()
