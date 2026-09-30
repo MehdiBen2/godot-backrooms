@@ -47,6 +47,23 @@ func _ready() -> void:
 	for s in placed.get(MarkStore.key(), []):
 		_spawn(s)
 
+func reload_floor() -> void:
+	for m in meshes.values():
+		if is_instance_valid(m):
+			m.queue_free()
+	meshes.clear()
+	order.clear()
+	var lv := MarkStore.key()
+	if MarkStore.active() and not _loaded.has(lv):
+		_loaded[lv] = true
+		if not placed.has(lv):
+			placed[lv] = []
+		for d in MarkStore.read(level_id).get("tape", []):
+			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
+				"n": MarkStore.v3(d.n), "t": float(d.t), "by": str(d.by)})
+	for s in placed.get(MarkStore.key(), []):
+		_spawn(s)
+
 func _exit_tree() -> void:
 	if live == self:
 		live = null

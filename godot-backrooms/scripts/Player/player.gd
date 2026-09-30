@@ -58,6 +58,7 @@ var torch: TorchModel
 var blink: Blink
 var shadow_body: PlayerShadow
 var level: Node
+var fullbright_light: OmniLight3D
 
 signal jumped
 signal landed(strength: float)
@@ -120,6 +121,7 @@ var quake_amt := 0.0          # 0..1: something heavy walking nearby shaking the
 var quake_t := 0.0
 var lean := 0.0
 const TURN_ROLL_MAX := 0.045
+var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
 var turn_roll := 0.0
 var idle_time := 0.0
@@ -180,13 +182,28 @@ func _ready() -> void:
 	click_player = AudioStreamPlayer.new()
 	click_player.volume_db = -4.4
 	add_child(click_player)
+	fullbright_light = OmniLight3D.new()
+	fullbright_light.name = "FullbrightLight"
+	fullbright_light.omni_range = 250.0
+	fullbright_light.omni_attenuation = 0.35
+	fullbright_light.light_energy = 2.2
+	fullbright_light.light_color = Color(1.0, 0.98, 0.94)
+	fullbright_light.shadow_enabled = false
+	fullbright_light.visible = Game.fullbright
+	cam.add_child(fullbright_light)
 
 func _key(code: Key) -> bool:
 	return Input.is_physical_key_pressed(code)
 
 func _unhandled_input(e: InputEvent) -> void:
 	if dead or frozen: return
-	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if e is InputEventMouseMotion and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		look_from = -1
+	elif e is InputEventMouseMotion:
+		# capturing warps the cursor to the centre and reports it as one big move, which would spin you
+		# off the direction the level spawns you facing: ignore motion for a moment after capture
+		if look_from < 0: look_from = Time.get_ticks_msec()
+		if Time.get_ticks_msec() - look_from < 150: return
 		rotate_y(-e.relative.x * sens)
 		turn_accum += -e.relative.x * sens
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
@@ -249,6 +266,7 @@ func _physics_process(dt: float) -> void:
 
 	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT if crouch else 1.0))
 	speed *= 1.0 + ADR_BOOST * adrenaline
+	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	var rate := ACCEL_AIR
 	if is_on_floor():
@@ -263,7 +281,7 @@ func _physics_process(dt: float) -> void:
 	jump_buffer = maxf(0.0, jump_buffer - dt)
 	coyote = COYOTE_TIME if is_on_floor() else maxf(0.0, coyote - dt)
 	if (space or jump_buffer > 0.0) and coyote > 0.0:
-		velocity.y = JUMP_SPEED
+		velocity.y = JUMP_SPEED * Game.jump_mult
 		jump_buffer = 0.0
 		coyote = 0.0
 		jumped.emit()
@@ -291,9 +309,12 @@ func _physics_process(dt: float) -> void:
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
 
-	# fell down a pit: the picture dissolves into static and you come to at the spawn, no hard cut
-	if global_position.y < -30.0 and not Death.respawn_busy:
-		Death.respawn_transition(_back_to_spawn)
+	# fell down a pit or drop hole: seamless descent to floor below, or loop to spawn (no loading screen)
+	if global_position.y < -12.0 and not Death.respawn_busy:
+		if Game.level_floor > 0:
+			Game.change_floor(Game.level_floor - 1, Vector2(global_position.x / 4.5, global_position.z / 4.5), "drop_hole")
+		elif global_position.y < -30.0:
+			_back_to_spawn()
 
 # Stamina: 30 s of sprint, brief rest delay, exhaustion until it recovers a bit
 ## Noclip (editor test launch): free flight along the camera, straight through walls and floors.
@@ -313,9 +334,15 @@ func _fly(dt: float) -> void:
 	velocity = Vector3.ZERO
 	is_moving = false
 	is_sprinting = false
-	global_position += wish.normalized() * (18.0 if _key(KEY_SHIFT) else 7.0) * dt
+	var fly_spd := (18.0 if _key(KEY_SHIFT) else 7.0) * Game.speed_mult
+	global_position += wish.normalized() * fly_spd * dt
 
 func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
+	if Game.infinite_stamina:
+		exhausted = false
+		stamina = 100.0
+		rest_timer = 0.0
+		return
 	if rush:
 		exhausted = false
 		stamina = maxf(stamina, 60.0)
@@ -471,7 +498,10 @@ func ambient_light() -> float:
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
 	if flash_on:
-		battery = maxf(0.0, battery - BATTERY_DRAIN * (0.25 if grid_down else 1.0) * dt)
+		if Game.infinite_battery:
+			battery = 100.0
+		else:
+			battery = maxf(0.0, battery - BATTERY_DRAIN * (0.25 if grid_down else 1.0) * dt)
 		if battery <= 0.0:
 			flash_on = false
 			battery_died.emit()
@@ -565,6 +595,13 @@ func _contact_flicker(dt: float) -> float:
 # of your own: with it on you never lose sanity to the dark, and it slowly restores it. With NO light at
 # all (dark area, torch off or dead) sanity drains, and the longer you stay in it the faster it goes.
 func _update_sanity(dt: float) -> void:
+	if Game.infinite_sanity:
+		sanity = 100.0
+		sanity_lock = 100.0
+		insanity = 0.0
+		dark_time = 0.0
+		_update_mind(dt)
+		return
 	var ambient := ambient_light()
 	var torch_lit := flash_on and battery > 0.0
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
@@ -596,6 +633,9 @@ func _update_sanity(dt: float) -> void:
 func _update_mind(dt: float) -> void:
 	var target := clampf((INSANE_BELOW - sanity) / INSANE_BELOW, 0.0, 1.0)
 	insanity += (target - insanity) * minf(1.0, dt * 1.5)
+	if Game.god_mode:
+		health = 100.0
+		return
 	if sanity < HURT_SANITY:
 		var sev := 1.0 - sanity / HURT_SANITY
 		health = maxf(0.0, health - (0.6 + 3.0 * sev * sev) * dt)
@@ -616,3 +656,27 @@ func gasp() -> void:
 	var sc: Node = get_parent().get_node_or_null("Scares")
 	if sc != null:
 		sc.gasp()
+
+func set_fullbright(on: bool) -> void:
+	Game.fullbright = on
+	if is_instance_valid(fullbright_light):
+		fullbright_light.visible = on
+	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
+	if we and we.environment:
+		var env := we.environment
+		if on:
+			if not env.has_meta("orig_ambient_energy"):
+				env.set_meta("orig_ambient_energy", env.ambient_light_energy)
+				env.set_meta("orig_ambient_color", env.ambient_light_color)
+				env.set_meta("orig_fog", env.fog_enabled)
+				env.set_meta("orig_vol_fog", env.volumetric_fog_enabled)
+			env.ambient_light_energy = 2.2
+			env.ambient_light_color = Color.WHITE
+			env.fog_enabled = false
+			env.volumetric_fog_enabled = false
+		else:
+			if env.has_meta("orig_ambient_energy"):
+				env.ambient_light_energy = float(env.get_meta("orig_ambient_energy"))
+				env.ambient_light_color = env.get_meta("orig_ambient_color")
+				env.fog_enabled = bool(env.get_meta("orig_fog"))
+				env.volumetric_fog_enabled = bool(env.get_meta("orig_vol_fog"))

@@ -548,6 +548,8 @@ func threat():
 	return real_node.position
 
 func _physics_process(delta: float) -> void:
+	if Game.freeze_ai:
+		return
 	var online := Net.is_online()
 	puppet = online and not Net.hosting
 	if not ready_ok or real_node == null:
@@ -576,6 +578,8 @@ func _physics_process(delta: float) -> void:
 		crowd.update(delta)
 
 func start_snap() -> void:
+	if Game.god_mode:
+		return
 	snap.start()
 
 # ================================================================= co-op

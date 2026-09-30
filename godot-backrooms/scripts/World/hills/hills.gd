@@ -312,8 +312,8 @@ func _terrain_chunk(v: PackedVector3Array, nr: PackedVector3Array, co: PackedCol
 	coarse.visibility_range_begin = LOD_NEAR
 	coarse.visibility_range_begin_margin = 8.0     # hysteresis: no flicker when standing on the line
 	var detail_mesh := _grid_mesh(v, nr, co, n, i0, j0, per, 1, origin, 0.0)
-	var detail := _chunk_instance(detail_mesh, origin)
-	detail.visibility_parent = detail.get_path_to(coarse)
+	var detail_inst := _chunk_instance(detail_mesh, origin)
+	detail_inst.visibility_parent = detail_inst.get_path_to(coarse)
 	var cs := CollisionShape3D.new()
 	cs.shape = detail_mesh.create_trimesh_shape()
 	cs.position = origin
@@ -514,8 +514,8 @@ func _grass_chunk(blade: ArrayMesh, cx: float, cz: float, rng: RandomNumberGener
 		if near_house:
 			continue
 		var y := height(x, z)
-		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.75, 1.3))
-		xforms.append(Transform3D(basis, Vector3(x, y, z)))
+		var rot := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.75, 1.3))
+		xforms.append(Transform3D(rot, Vector3(x, y, z)))
 	if xforms.is_empty():
 		return
 	var mm := MultiMesh.new()

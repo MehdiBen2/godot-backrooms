@@ -188,6 +188,10 @@ func _parse(d: Dictionary) -> void:
 	var s = d.get("spawn")
 	if not (s is Array and s.size() >= 2): s = _first_open()
 	spawn_pos = Vector3(s[0] * CELL, 0.1, s[1] * CELL)
+	if d.has("spawn_rot"):                          # the level editor's look-direction arrow (degrees clockwise on the map)
+		var f := Vector2.from_angle(deg_to_rad(float(d.spawn_rot)))
+		spawn_yaw = atan2(-f.x, -f.y)
+		has_spawn_yaw = true
 	_arrive_by_stairs()
 	var at := Game.test_spawn.split(",")           # level editor "test from here": start on the cell it picked
 	if at.size() == 2 and not walls.has(Vector2i(int(at[0]), int(at[1]))):
@@ -199,6 +203,10 @@ func _parse(d: Dictionary) -> void:
 func _arrive_by_stairs() -> void:
 	if Game.floor_link.is_empty(): return
 	var from := Vector2(Game.floor_link.x, Game.floor_link.y)
+	if Game.floor_link.get("kind", "") == "drop_hole":
+		var ch := _nearest_open(Vector2i(roundi(from.x), roundi(from.y)))
+		spawn_pos = Vector3(ch.x * CELL, 0.1, ch.y * CELL)
+		return
 	var best: Dictionary = {}
 	for o: Dictionary in objects:
 		if o.type == Game.floor_link.kind and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):

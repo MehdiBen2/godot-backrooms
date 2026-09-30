@@ -1,5 +1,9 @@
 {
   "file_hashes": {
+    ".claude/CLAUDE.md": "e5c14c601fc65802b7b0057b0c9ff0a7b1902ece5db47f99ecde3b8379055aeb",
+    ".claude/hooks/vexp-hint.sh": "ba7726f7c07a4aba51c3da975e9fb50ab525f170a7878baa1f9c04c506ee9512",
+    ".claude/hooks/vexp-restore.sh": "96b17e19c8e0ee2942bb3ec2e95f517d6b38e1510b29c7c03d73032319264bff",
+    ".claude/hooks/vexp-verify.sh": "0b5586d74ab89e531dba599f9c72104b34f0179004db4abd79ee77e7fa35e2de",
     "AGENTS.md": "e5c14c601fc65802b7b0057b0c9ff0a7b1902ece5db47f99ecde3b8379055aeb",
     "README.md": "5dec49d97336ba0d7f9fb0f22c04e70b70cf2ab05a792952f0f8999aac922627",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
@@ -22,11 +26,11 @@
     "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
   },
   "indexed_at_commit": "ca0b84769b352e162c31d63373601cb24becf2d8",
-  "indexed_at_timestamp": "2026-09-30T08:49:26.371389+00:00",
+  "indexed_at_timestamp": "2026-09-30T09:01:53.019170+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
-      "nodes": 32
+      "nodes": 36
     },
     "powershell": {
       "calls": 0,
@@ -40,9 +44,9 @@
   "parser_version": "3.2.5",
   "schema_version": 3,
   "stats": {
-    "total_edges": 169,
-    "total_files": 20,
-    "total_nodes": 138
+    "total_edges": 172,
+    "total_files": 24,
+    "total_nodes": 142
   },
   "vexp_version": "3.2.5"
 }

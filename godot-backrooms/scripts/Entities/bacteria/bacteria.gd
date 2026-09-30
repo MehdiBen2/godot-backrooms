@@ -422,6 +422,8 @@ func move(delta: float) -> void:
 
 # ================================================================= per frame
 func _physics_process(delta: float) -> void:
+	if Game.freeze_ai:
+		return
 	var online := Net.is_online()
 	puppet = online and not Net.hosting
 	# in co-op it keeps hunting even while this player has the menu open: the others are still in the game
@@ -541,7 +543,7 @@ func update_fear(delta: float) -> void:
 	Game.fear += (target_fear - Game.fear) * minf(1.0, delta * 6.0)
 
 	# frozen = the mannequin is already snapping your neck, or a survivor's blow has you stunned
-	if dist < KILL_DISTANCE and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not grab.active() and stun_timer <= 0.0:
+	if dist < KILL_DISTANCE and not player.dead and not player.frozen and player.spawn_grace <= 0.0 and not grab.active() and stun_timer <= 0.0 and not Game.god_mode:
 		grab.start()
 
 # You look straight at it, close, nothing in between: you flinch (see FLINCH_RANGE)

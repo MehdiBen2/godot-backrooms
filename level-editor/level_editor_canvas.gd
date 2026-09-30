@@ -19,7 +19,7 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color(
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
 	"mannequin": Color("e8e0d0")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
-const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff")}
+const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
 	THIN: Color("7a7364"), ARCH: Color("8a7a52"), DOOR: Color("6b4a2e")}
 # Free-placed objects, mirrored from the game's level_data.gd. Positions are in cells with a cell's centre
@@ -35,6 +35,7 @@ var zones := {}                      # zone -> {Vector2i: true}
 var paint := {"wall": {}, "floor": {}, "ceiling": {}}   # slot -> {Vector2i: pbr name}: per-cell material overrides
 var paint_mat := ""                  # the material the paint tools lay down
 var markers := {}                    # marker -> Vector2i or null
+var spawn_rot := 270.0               # the way the player looks at spawn: degrees clockwise on the map, 0 = right, 270 = up
 var tool := "base:" + WALL
 var brush := 1
 var undo_stack: Array = []
@@ -503,8 +504,36 @@ func _draw_markers() -> void:
 		var letter: String = str(m).substr(0, 1).to_upper()
 		var ls := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 		canvas.draw_string(font, p + Vector2(-ls.x * 0.5, fs * 0.36), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.BLACK)
+		if m == "spawn": _draw_look_arrow(p, rad)
+		elif m == "drop_hole": _draw_drop_hole_indicator(p, rad)
 		if zoom >= 12.0:
-			_tag(p + Vector2(rad + 4, -8), m.to_upper(), MARKERS[m], 10)
+			var tag_text: String = m.to_upper()
+			if m == "drop_hole":
+				tag_text = "DROP HOLE [TO F%d]" % (floor_idx - 1)
+			_tag(p + Vector2(rad + 4, -8), tag_text, MARKERS[m], 10)
+
+## Visual transition indicator for a drop hole / pit descent
+func _draw_drop_hole_indicator(p: Vector2, rad: float) -> void:
+	canvas.draw_circle(p, rad * 0.72, Color(0.04, 0.04, 0.04, 0.95))
+	canvas.draw_circle(p, rad * 0.42, Color(0.85, 0.4, 0.1, 0.8))
+	canvas.draw_circle(p, rad * 0.18, Color.BLACK)
+	var sz := rad * 0.55
+	var pts := PackedVector2Array([p + Vector2(-sz * 0.45, -sz * 0.25), p + Vector2(0, sz * 0.4), p + Vector2(sz * 0.45, -sz * 0.25)])
+	canvas.draw_polyline(pts, Color.WHITE, 1.8)
+
+## An arrow out of the spawn marker showing where the player starts out looking
+func _draw_look_arrow(p: Vector2, rad: float) -> void:
+	var d := Vector2.from_angle(deg_to_rad(spawn_rot))
+	var n := d.orthogonal()
+	var tip := p + d * (rad + maxf(zoom * 1.1, 16.0))
+	var base := p + d * (rad + 1.0)
+	var head := maxf(zoom * 0.4, 7.0)
+	var col: Color = MARKERS["spawn"]
+	canvas.draw_line(base, tip - d * head * 0.5, Color.BLACK, 5.0)
+	canvas.draw_line(base, tip - d * head * 0.5, col, 3.0)
+	var tri := PackedVector2Array([tip, tip - d * head + n * head * 0.6, tip - d * head - n * head * 0.6])
+	canvas.draw_colored_polygon(tri, col)
+	canvas.draw_polyline(PackedVector2Array([tri[0], tri[1], tri[2], tri[0]]), Color.BLACK, 1.5)
 
 ## What the current tool is about to do under the mouse: the brush footprint, the rectangle being dragged,
 ## or the cell a fill starts from, filled with the colour or material it lays down
@@ -564,14 +593,27 @@ func _mode_now() -> String:
 	return mode
 
 # ---------------------------------------------------------------- input
+## Zoom by `factor`, keeping the map point under `at` fixed.
+func _zoom_at(at: Vector2, factor: float) -> void:
+	var before := (at - pan) / zoom
+	zoom = clampf(zoom * factor, 4.0, 80.0)
+	pan = at - before * zoom
+	canvas.queue_redraw()
+
 func _canvas_input(ev: InputEvent) -> void:
-	if ev is InputEventMouseButton:
+	if ev is InputEventMagnifyGesture:              # trackpad pinch
+		_zoom_at((ev as InputEventMagnifyGesture).position, (ev as InputEventMagnifyGesture).factor)
+	elif ev is InputEventPanGesture:                # trackpad two-finger scroll: move the map, Ctrl = zoom
+		var pg := ev as InputEventPanGesture
+		if pg.ctrl_pressed or pg.meta_pressed:
+			_zoom_at(pg.position, 1.0 - pg.delta.y * 0.05)
+		else:
+			pan -= pg.delta * 18.0
+			canvas.queue_redraw()
+	elif ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			var before := (mb.position - pan) / zoom
-			zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 4.0, 80.0)
-			pan = mb.position - before * zoom
-			canvas.queue_redraw()
+			_zoom_at(mb.position, 1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12)
 		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
 			panning = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_LEFT and space_down:
@@ -608,6 +650,8 @@ func _canvas_input(ev: InputEvent) -> void:
 			pan += mm.relative
 		elif drag != "":
 			_object_drag(mm.position)
+		elif painting and tool == "mark:spawn" and not erasing:
+			_face_spawn(mm.position)                # drag from the spawn marker to turn where the player looks
 		elif painting:
 			_apply(_cell_at(mm.position))
 		var c := _cell_at(mm.position)
@@ -694,6 +738,18 @@ func _flood_cells(start: Vector2i) -> Array:
 				var n := c + Vector2i(dx, dz)
 				if _in_grid(n) and grid[n.y][n.x] == WALL: walls[n] = true
 	return walls.keys()
+
+func _face_spawn(px: Vector2) -> void:
+	var c = markers.get("spawn")
+	if c == null: return
+	var v := px - (pan + (Vector2(c) + Vector2(0.5, 0.5)) * zoom)
+	if v.length() < maxf(zoom * 0.6, 10.0): return
+	var a := snappedf(fposmod(rad_to_deg(v.angle()), 360.0), 15.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0)
+	if not is_equal_approx(a, spawn_rot):
+		spawn_rot = fposmod(a, 360.0)
+		_mark_dirty()
+		_status("Player looks %d°   (hold Shift to snap to 15°)" % roundi(spawn_rot))
+		canvas.queue_redraw()
 
 func _apply(c: Vector2i) -> void:
 	if tool.begins_with("mark:"):
@@ -1287,9 +1343,29 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 				var p := xf.origin - Vector2(font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, -fs * 0.35)
 				canvas.draw_string(font, p, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
 			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
+			_draw_stairs_transition(o, xf, alpha)
 		_:
 			# thin walls, and any type the editor has no plan drawing for: a slab its thickness by its width
 			_fill(_local_rect(xf, -t * 0.5, -half, t * 0.5, half), col)
+
+func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> void:
+	var up: bool = o.type == "stairs_up"
+	var target_f: int = floor_idx + (1 if up else -1)
+	var linked := false
+	if floor_store.has(target_f):
+		var fd: Dictionary = floor_store[target_f]
+		var kind: String = "stairs_down" if up else "stairs_up"
+		for other: Dictionary in fd.get("objects", []):
+			if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.8:
+				linked = true
+				break
+	if zoom >= 10.0:
+		var symbol := "▲" if up else "▼"
+		var text := "%s TO %s [%s]" % [symbol, _floor_name(target_f).to_upper(), "LINKED" if linked else "UNLINKED"]
+		var tag_col: Color = Color("2fd968") if linked else Color("ff9922")
+		_tag(xf.origin + Vector2(-48, -maxf(zoom * 0.85, 14.0)), text, Color(tag_col, alpha), 9)
+		if linked:
+			canvas.draw_arc(xf.origin, maxf(zoom * 0.55, 8.0), 0, TAU, 16, Color(tag_col, alpha * 0.6), 1.5)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
 	var pad := 3.0 / zoom

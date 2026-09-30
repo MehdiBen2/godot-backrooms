@@ -1,11 +1,12 @@
 extends "res://level_editor_canvas.gd"
 ## Level editor, part 2: the generator. Fills a rectangle of the map with backrooms: rooms split off each
 ## other by walls with doorways (a binary split, so every room is reachable), a maze of corridors, a pillared
-## hall, or a mix of all three room by room. Its outer ring stays wall, opened wherever open floor waits
+## hall, a mix of all three room by room, or the classic Level 0 look (one open expanse broken by short
+## walls and columns). Its outer ring stays wall, opened wherever open floor waits
 ## just outside, so a generated block joins what is already drawn. The seed makes a run repeatable;
 ## REGENERATE takes the last run back and rolls it again with a new seed. level_editor_files.gd builds on this.
 
-var gen_style := "mixed"              # "rooms" | "maze" | "pillars" | "mixed"
+var gen_style := "classic"            # "classic" | "rooms" | "maze" | "pillars" | "mixed"
 var gen_seed := 1
 var gen_room_min := 4                 # cells: no room thinner than this
 var gen_room_max := 11                # cells: rooms wider than this are always split
@@ -33,6 +34,7 @@ func _generate(area: Rect2i) -> void:
 	_gaps.clear()
 	var inner := area.grow(-1)
 	match gen_style:
+		"classic": _classic_field(inner)
 		"rooms": _bsp(inner, "room")
 		"maze": _maze(inner)
 		"pillars":
@@ -141,6 +143,93 @@ func _leaf(r: Rect2i, style: String) -> void:
 		_:
 			_carve(r)
 			_rooms.append(r)
+
+## Classic Level 0: one open carpeted expanse, not rooms. Short free-standing walls, L bends, three-sided
+## half rooms, lone columns and colonnades, and stubs jutting off the outer wall are dropped at random.
+## Each piece keeps a clear cell all round from every other piece and touches the outer wall at most
+## once (a stub's root), so walls never join up into a loop and every open cell stays reachable.
+func _classic_field(r: Rect2i) -> void:
+	_carve(r)
+	var wall := {}
+	var tries := int(r.get_area() * (0.025 + gen_density * 0.05))
+	for t in tries:
+		var stub := _rng.randf() < 0.15
+		var cells: Array = _classic_stub(r) if stub else _classic_piece(r)
+		if cells.is_empty() or not _piece_fits(cells, r, wall, stub): continue
+		for c: Vector2i in cells:
+			wall[c] = true
+			_gopen.erase(c)
+	for k in maxi(1, r.get_area() / 260):             # a few patches for zones, the rest plain
+		var w := _rng.randi_range(4, mini(10, r.size.x))
+		var h := _rng.randi_range(4, mini(10, r.size.y))
+		_rooms.append(Rect2i(_rng.randi_range(r.position.x, r.end.x - w), _rng.randi_range(r.position.y, r.end.y - h), w, h))
+
+func _classic_piece(r: Rect2i) -> Array:
+	var o := Vector2i(_rng.randi_range(r.position.x, r.end.x - 1), _rng.randi_range(r.position.y, r.end.y - 1))
+	var hdir := Vector2i(1, 0) if _rng.randf() < 0.5 else Vector2i(0, 1)
+	var cells: Array = []
+	var roll := _rng.randf()
+	if roll < 0.3:                                                   # a short free-standing wall
+		for i in _rng.randi_range(2, 6): cells.append(o + hdir * i)
+	elif roll < 0.5:                                                 # an L bend
+		var b := Vector2i(hdir.y, hdir.x) * (1 if _rng.randf() < 0.5 else -1)
+		var a := _rng.randi_range(2, 5)
+		for i in a: cells.append(o + hdir * i)
+		for i in range(1, _rng.randi_range(2, 5)): cells.append(o + hdir * (a - 1) + b * i)
+	elif roll < 0.62:                                                # a half room: three sides, one open
+		var w := _rng.randi_range(4, 7)
+		var h := _rng.randi_range(4, 7)
+		var open_side := _rng.randi_range(0, 3)
+		for x in w:
+			if open_side != 0: cells.append(o + Vector2i(x, 0))
+			if open_side != 1: cells.append(o + Vector2i(x, h - 1))
+		for z in range(1, h - 1):
+			if open_side != 2: cells.append(o + Vector2i(0, z))
+			if open_side != 3: cells.append(o + Vector2i(w - 1, z))
+		if cells.size() > 6 and _rng.randf() < 0.5: cells.remove_at(_rng.randi_range(0, cells.size() - 1))   # a gap
+	elif roll < 0.82:                                                # a lone column, now and then a fat one
+		cells.append(o)
+		if _rng.randf() < 0.25: cells.append_array([o + Vector2i(1, 0), o + Vector2i(0, 1), o + Vector2i(1, 1)])
+	else:                                                            # a colonnade
+		for i in _rng.randi_range(3, 6): cells.append(o + hdir * (i * 3))
+	return cells
+
+## A wall jutting in off the area's edge; its first cell is the one against the edge
+func _classic_stub(r: Rect2i) -> Array:
+	var side := _rng.randi_range(0, 3)
+	var start: Vector2i
+	var dir: Vector2i
+	match side:
+		0:
+			start = Vector2i(_rng.randi_range(r.position.x + 2, r.end.x - 3), r.position.y)
+			dir = Vector2i(0, 1)
+		1:
+			start = Vector2i(_rng.randi_range(r.position.x + 2, r.end.x - 3), r.end.y - 1)
+			dir = Vector2i(0, -1)
+		2:
+			start = Vector2i(r.position.x, _rng.randi_range(r.position.y + 2, r.end.y - 3))
+			dir = Vector2i(1, 0)
+		_:
+			start = Vector2i(r.end.x - 1, _rng.randi_range(r.position.y + 2, r.end.y - 3))
+			dir = Vector2i(-1, 0)
+	var cells: Array = []
+	for i in _rng.randi_range(2, 5): cells.append(start + dir * i)
+	return cells
+
+## Inside the area, a clear cell all round from other pieces, and off the edge (bar a stub's root)
+func _piece_fits(cells: Array, r: Rect2i, wall: Dictionary, stub: bool) -> bool:
+	var own := {}
+	for c: Vector2i in cells:
+		if not r.has_point(c): return false
+		own[c] = true
+	for i in cells.size():
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				var n: Vector2i = cells[i] + Vector2i(dx, dz)
+				if own.has(n): continue
+				if wall.has(n): return false
+				if not r.has_point(n) and not (stub and i == 0): return false
+	return true
 
 func _carve(r: Rect2i) -> void:
 	for z in range(r.position.y, r.end.y):

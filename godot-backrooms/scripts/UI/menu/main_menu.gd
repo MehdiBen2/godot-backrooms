@@ -131,6 +131,16 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build()
+	if Game.test_level == "" and not Game.boot_played:   # first time up this launch: warnings, logo, CRT on
+		Game.boot_played = true
+		modulate.a = 0.0
+		var boot: CanvasLayer = load("res://scripts/UI/menu/boot_sequence.gd").new()
+		boot.reveal.connect(func() -> void:
+			_start_music()
+			_intro()
+			modulate.a = 1.0)                    # the picture is there at once: the tube does the fade-up
+		add_child(boot)
+		return
 	_start_music()
 	if Game.test_level != "":            # launched from the level editor: skip the title, open that level
 		var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()

@@ -112,5 +112,34 @@
       ],
       "incident": "INCIDENT 2-090: Specimen watched by a remote camera for six hours with no movement. At hour six the camera recorded an empty corridor. The specimen was found standing at the camera."
     }
+  },
+  "survey_clipboard": {
+    "code": "TSRA-IT-01",
+    "common_name": "Field Survey Clipboard",
+    "threat_class": "Inert Artifact",
+    "description": "A field clipboard dropped by a previous T.S.R.A. exploration detachment. Contains handwritten topographical surveys, coordinate logs, and margin annotations documenting perimeter decay.",
+    "behavior_vector": "Stationary physical remnant; yields vital spatial metrics and research data upon scanning.",
+    "directive": "Scan all recovered logs to archive spatial metrics. Cross-reference recorded routes against current floor layout.",
+    "classified": {
+      "origin": "Believed to originate from Taskforce Kestrel, which crossed the threshold in late 1989. The handwriting matches Senior Surveyor Oduya, though the date stamp corresponds to a timeline three months in the future.",
+      "field_notes": [
+        "\"The corridor geometry does not converge. We followed our own tape back to where we started, only to find the door was gone.\" — Recovered Page 4"
+      ],
+      "incident": "LOG 0-08: Recovered 300m from Level 0 spawn. The ink on the final entry is fresh, despite the paper being brittle with decades of dry rot."
+    }
+  },
+  "dead_ballast": {
+    "code": "TSRA-AN-02",
+    "common_name": "Dead Ballast Anomaly",
+    "threat_class": "Harmonic Anomaly",
+    "description": "A fallen or shattered fluorescent lighting troffer casing that continues to emit a faint 60Hz electromagnetic tone and residual luminescence despite being completely disconnected from the grid.",
+    "behavior_vector": "Inert fixture; emits localized harmonic resonance and electrostatic interference.",
+    "directive": "Document harmonic frequency with scanner. Do not touch exposed capacitor housing without insulated gloves.",
+    "classified": {
+      "origin": "Dislodged ceiling fixtures that broke loose during seismic drift events. Analysis indicates the phosphor residue inside the tubes is absorbing background spatial radiation and re-emitting it as audible hum.",
+      "field_notes": [
+        "\"You can hear the hum even when the bulb is smashed into dust. It isn't the lamp making the noise — the lamp is just where the noise comes out.\" — Field Analyst Varga"
+      ]
+    }
   }
 }

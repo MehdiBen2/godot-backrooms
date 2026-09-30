@@ -349,7 +349,7 @@ func _build_ui() -> void:
 	gen.add_child(ggrid)
 	ggrid.add_child(_label("Style", 13, DIM))
 	var style_pick := OptionButton.new()
-	var styles := [["mixed", "Mixed"], ["rooms", "Rooms"], ["maze", "Maze"], ["pillars", "Pillar hall"]]
+	var styles := [["classic", "Classic Level 0"], ["mixed", "Mixed"], ["rooms", "Rooms"], ["maze", "Maze"], ["pillars", "Pillar hall"]]
 	for st in styles: style_pick.add_item(st[1])
 	style_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	style_pick.item_selected.connect(func(i): gen_style = styles[i][0])
@@ -550,7 +550,7 @@ func _build_ui() -> void:
 	mgrid.columns = 2
 	mk.add_child(mgrid)
 	for m in MARKERS:
-		var mb := _tool_button("mark:" + m, m.capitalize(), MARKERS[m], "Click places, right click removes")
+		var mb := _tool_button("mark:" + m, m.capitalize(), MARKERS[m], "Click places, right click removes" + ("\nDrag from the marker to turn where the player looks (Shift snaps to 15°)" if m == "spawn" else ""))
 		mb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		mgrid.add_child(mb)
 

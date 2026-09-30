@@ -34,6 +34,9 @@ func build(model_path: String, textures: Dictionary) -> void:
 	var first := true
 	for mi in meshes:
 		mi.material_override = mat
+		mi.visibility_range_end = 45.0
+		mi.visibility_range_end_margin = 8.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		var box: AABB = mi.transform * mi.get_aabb()
 		aabb = box if first else aabb.merge(box)
 		first = false

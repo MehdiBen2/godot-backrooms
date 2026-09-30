@@ -64,6 +64,7 @@ func _open(i: int) -> void:
 		(slot_picks[slot] as OptionButton).select(idx + 1 if idx >= 0 else 0)
 		_preview(slot)
 	size_spin.value = grid_size
+	spawn_rot = float(data.get("spawn_rot", 270.0))
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
 	undo_stack.clear()
@@ -346,6 +347,8 @@ func _current_payload() -> Dictionary:
 		if f != 0: floors[str(f)] = _serialize_floor(all[f])
 	if floors.is_empty(): out.erase("floors")
 	else: out["floors"] = floors
+	if is_equal_approx(spawn_rot, 270.0): out.erase("spawn_rot")
+	else: out["spawn_rot"] = snappedf(spawn_rot, 0.1)
 	match gi_pick.selected:
 		1: out["sdfgi"] = true
 		2: out["sdfgi"] = false

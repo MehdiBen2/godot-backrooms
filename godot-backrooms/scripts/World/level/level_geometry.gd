@@ -342,25 +342,34 @@ func _build_walls() -> void:
 		if list.is_empty(): continue
 		var height: float = float(str(key).get_slice("|", 0))
 		var mat: Material = _painted_mat(str(key).get_slice("|", 1)) if key is String else mats[key]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		var box := BoxMesh.new()
-		box.size = Vector3(CELL, height, CELL)
-		mm.mesh = box
-		mm.instance_count = list.size()
-		for i in list.size():
-			var c: Vector2i = list[i]
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(c.x * CELL, height / 2.0, c.y * CELL)))
-			var cs := CollisionShape3D.new()
-			var bs := BoxShape3D.new()
-			bs.size = Vector3(CELL, height, CELL)
-			cs.shape = bs
-			cs.position = Vector3(c.x * CELL, height / 2.0, c.y * CELL)
-			body.add_child(cs)
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = mat
-		add_child(mmi)
+		var chunks := {}
+		for c: Vector2i in list:
+			var ch := Vector2i(c.x / 8, c.y / 8)
+			chunks.get_or_add(ch, []).append(c)
+		for ch in chunks:
+			var ch_list: Array = chunks[ch]
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			var box := BoxMesh.new()
+			box.size = Vector3(CELL, height, CELL)
+			mm.mesh = box
+			mm.instance_count = ch_list.size()
+			for i in ch_list.size():
+				var c: Vector2i = ch_list[i]
+				mm.set_instance_transform(i, Transform3D(Basis(), Vector3(c.x * CELL, height / 2.0, c.y * CELL)))
+				var cs := CollisionShape3D.new()
+				var bs := BoxShape3D.new()
+				bs.size = Vector3(CELL, height, CELL)
+				cs.shape = bs
+				cs.position = Vector3(c.x * CELL, height / 2.0, c.y * CELL)
+				body.add_child(cs)
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			mmi.visibility_range_end = 70.0
+			mmi.visibility_range_end_margin = 12.0
+			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			add_child(mmi)
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,
 # facing +X (the way you walk through it) and spanning `scale` cells along Z, then placed with
