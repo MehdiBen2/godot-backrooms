@@ -7,6 +7,7 @@ extends RefCounted
 ## trade places with each other. Turn back and the room is not quite as you left it.
 
 const MannequinModel := preload("res://scripts/Entities/mannequin/mannequin_model.gd")
+const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
 const SHUFFLE_POOL := 10                     # the this-many standing decoys nearest you take part
 const SHUFFLE_RANGE := 16.0
 const STALK_STEP := 0.9
@@ -32,6 +33,7 @@ func build(dealt: Array) -> void:
 	variant_mm = null
 	var model: MannequinModel = m.model
 	var count := decoys.size()
+	var bufs: Array[PackedFloat32Array] = []   # one flat instance buffer per part, uploaded once at the end
 	for pt in model.parts:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -41,14 +43,14 @@ func build(dealt: Array) -> void:
 		mmi.multimesh = mm
 		m.add_child(mmi)
 		mms.append(mm)
-	var zero := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
+		bufs.append(MMBuffer.alloc(mm))  # zeroed = a zero-scale transform: every slot starts hidden
+	var vbuf := PackedFloat32Array()
 	if model.variant_ok and not model.variant_rigged:     # rigged variants are posed copies of their own
 		variant_mm = MultiMesh.new()
 		variant_mm.transform_format = MultiMesh.TRANSFORM_3D
 		variant_mm.mesh = model.variant_mesh
 		variant_mm.instance_count = count
-		for i in count:                  # unused slots hidden (identity would stack them all at the origin)
-			variant_mm.set_instance_transform(i, zero)
+		vbuf = MMBuffer.alloc(variant_mm)   # unused slots stay zero: hidden (identity would stack them all at the origin)
 		var vmmi := MultiMeshInstance3D.new()
 		vmmi.multimesh = variant_mm
 		m.add_child(vmmi)
@@ -62,22 +64,20 @@ func build(dealt: Array) -> void:
 		if is_variant:
 			var vidx: int = m.rng.randi() % model.variant_count()   # which sculpt this decoy wears
 			d["vidx"] = vidx
-			for j in model.parts.size():
-				(mms[j] as MultiMesh).set_instance_transform(i, zero)
-			d["g"] = g
+			d["g"] = g                       # its part slots stay zero (hidden)
 			var vn := model.make_variant(d.pose, MannequinModel.variant_style(m.rng), vidx)
 			if vn != null:                   # rigged: its own posed copy
 				vn.transform = g * model.variant_root_xf_at(vidx)
 				m.add_child(vn)
 				d["vnode"] = vn
 			else:                            # no rig: the shared mesh at rest
-				variant_mm.set_instance_transform(i, g * model.variant_xf_at(vidx))
+				MMBuffer.put(vbuf, i * 12, g * model.variant_xf_at(vidx))
 		else:
 			var xfs := model.part_transforms(d.pose)
 			var base := MannequinModel.mode_base(mode, m.rng)
 			d["g"] = g * base
 			for j in model.parts.size():
-				(mms[j] as MultiMesh).set_instance_transform(i, g * base * xfs[j])
+				MMBuffer.put(bufs[j], i * 12, g * base * xfs[j])
 		# they are solid (lying ones stay walk-over-able)
 		if mode != "stand" and mode != "sit":
 			continue
@@ -98,6 +98,10 @@ func build(dealt: Array) -> void:
 		body.position = Vector3(d.x, 0.0, d.z)
 		m.add_child(body)
 		d["body"] = body
+	for j in mms.size():
+		(mms[j] as MultiMesh).buffer = bufs[j]
+	if variant_mm != null:
+		variant_mm.buffer = vbuf
 	shufflers.clear()
 	stalker = -1
 	for i in decoys.size():

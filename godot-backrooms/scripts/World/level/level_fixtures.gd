@@ -114,9 +114,12 @@ func _build_panel_ceiling() -> void:
 	mm.mesh = quad
 	mm.instance_count = fx.size()
 	var down := Basis(Vector3.RIGHT, PI)              # PlaneMesh faces up; flip it to face the floor
+	var buf := MMBuffer.alloc(mm)
+	var st := MMBuffer.stride(mm)
 	for f in fx:
-		mm.set_instance_transform(f.cell, Transform3D(down, f.pos))
-		mm.set_instance_color(f.cell, Color.BLACK if f.burnt else PANEL_GLOW)
+		MMBuffer.put(buf, f.cell * st, Transform3D(down, f.pos))
+		MMBuffer.put_color(buf, f.cell * st, Color.BLACK if f.burnt else PANEL_GLOW)
+	mm.buffer = buf
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.material_override = mat
@@ -177,11 +180,14 @@ func _build_fixture_meshes() -> void:
 		mm.mesh = node.mesh
 		mm.instance_count = items.size()
 		var mw := _mesh_world(root, node)
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
 		for i in items.size():
 			var f: Dictionary = items[i]
 			var t := Transform3D(Basis(Vector3.UP, f.rot), f.pos + yoff) * base_off * mw
-			mm.set_instance_transform(i, t)
-			if colored: mm.set_instance_color(i, LIT_DIFFUSER if part == "Object_5" else LIT_DIFFUSER * 0.45)
+			MMBuffer.put(buf, i * st, t)
+			if colored: MMBuffer.put_color(buf, i * st, LIT_DIFFUSER if part == "Object_5" else LIT_DIFFUSER * 0.45)
+		mm.buffer = buf
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.material_override = mat
@@ -207,9 +213,12 @@ func _build_fixture_meshes() -> void:
 		cyl.top_radius = 0.02; cyl.bottom_radius = 0.02; cyl.height = 1.0; cyl.radial_segments = 5
 		cm.mesh = cyl
 		cm.instance_count = hanging.size()
+		var cbuf := MMBuffer.alloc(cm)
+		var cst := MMBuffer.stride(cm)
 		for i in hanging.size():
 			var f: Dictionary = hanging[i]
-			cm.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3(1, rise, 1)), Vector3(f.pos.x, WALL_H + rise / 2.0, f.pos.z)))
+			MMBuffer.put(cbuf, i * cst, Transform3D(Basis.from_scale(Vector3(1, rise, 1)), Vector3(f.pos.x, WALL_H + rise / 2.0, f.pos.z)))
+		cm.buffer = cbuf
 		var chain_mat := StandardMaterial3D.new()
 		chain_mat.albedo_color = Color("14120c")
 		chain_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -278,13 +287,16 @@ func _build_floor_reflections() -> void:
 	mm.instance_count = items.size() * offs.size()
 	var cx := 0.0
 	var cz := 0.0
+	var buf := MMBuffer.alloc(mm)
+	var st := MMBuffer.stride(mm)
 	for i in items.size():
 		var f: Dictionary = items[i]
 		for k in offs.size():
 			var o: Vector2 = offs[k]
-			mm.set_instance_transform(i * offs.size() + k, Transform3D(Basis(Vector3.UP, f.rot), Vector3(f.pos.x + o.x, -f.pos.y, f.pos.z + o.y)))
+			MMBuffer.put(buf, (i * offs.size() + k) * st, Transform3D(Basis(Vector3.UP, f.rot), Vector3(f.pos.x + o.x, -f.pos.y, f.pos.z + o.y)))
 		cx += f.pos.x
 		cz += f.pos.z
+	mm.buffer = buf
 	cx /= items.size()
 	cz /= items.size()
 	var mmi := MultiMeshInstance3D.new()

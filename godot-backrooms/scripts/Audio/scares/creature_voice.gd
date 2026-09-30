@@ -18,6 +18,7 @@ const MIX := {
 	"flee": [1.1, 6.0], "hurt": [1.2, 5.0], "scream": [1.3, 8.0], "whisper": [1.0, 6.0],
 }
 const ScareSynth := preload("res://scripts/Audio/scares/scare_synth.gd")
+const SfxPool := preload("res://scripts/Audio/sfx_pool.gd")
 const TARGET_RMS := 0.1
 const MAX_PEAK := 0.5
 const BREATH_GAIN := 0.9
@@ -78,8 +79,8 @@ func _process(dt: float) -> void:
 # ---------------------------------------------------------------- calls
 func _clip(n: int) -> AudioStream:
 	if n == 0:
-		return load("res://audio/entity/scream.mp3")
-	return load("res://audio/entity/entity_%d.wav" % n)
+		return SfxPool.get_stream("res://audio/entity/scream.mp3")
+	return SfxPool.get_stream("res://audio/entity/entity_%d.wav" % n)
 
 # Gain that brings a WAV clip to the target RMS without letting its peak pass the cap
 func _match_gain(s: AudioStream, key: String) -> float:

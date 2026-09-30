@@ -33,8 +33,8 @@ const CARDS := [
 	},
 	{
 		"head": "A NOTE", "color": CREAM,
-		"sub": "FROM THE DEVELOPER",
-		"body": "This game is made by one person.\n\nNo studio, no publisher, no team. Just a lot of nights spent alone with humming lights and yellow wallpaper, trying to build the Backrooms for players who want more than cheap scares: somewhere slow, quiet and wrong, where the tension never lets go.\n\nIf something frightens you in here, it was put there on purpose. Thank you for playing.",
+		"sub": "INDEPENDENT DEVELOPMENT",
+		"body": "This game is developed by a single person.\n\nIt is an independent project focused on atmosphere, tension and psychological horror in the Backrooms, built for players who want a slower, more oppressive experience.\n\nThank you for playing.",
 		"hold": 6.5,
 	},
 ]

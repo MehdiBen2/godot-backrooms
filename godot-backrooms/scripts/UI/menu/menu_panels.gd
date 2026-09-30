@@ -158,6 +158,7 @@ func _build_graphics() -> Control:
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))
+	v.add_child(_cycle_row("Temporal AA (TAA)", "taa", off_on))
 	v.add_child(_cycle_row("Edge smoothing (FXAA)", "fxaa", off_on))
 	v.add_child(_cycle_row("Texture filtering", "aniso", [[0, "Off"], [2, "2x"], [4, "4x"], [8, "8x"], [16, "16x"]]))
 	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))

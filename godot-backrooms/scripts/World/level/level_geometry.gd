@@ -10,9 +10,11 @@ extends "res://scripts/World/level/level_data.gd"
 const Door := preload("res://scripts/World/props/door.gd")
 const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
+const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
 const STEPS := 12
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
+const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell chunk (same chunks as the wall MultiMeshes)
 
 var wall_mat: StandardMaterial3D
 var tall_wall_mat: StandardMaterial3D
@@ -257,17 +259,63 @@ func _default_tile_material() -> StandardMaterial3D:
 	tm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return tm
 
-func _build_floor_collision(floor_cells: Array) -> void:
-	# Floor collision: one thin box per cell (pits stay open)
-	var body := StaticBody3D.new()
-	add_child(body)
-	for c in floor_cells:
+# ---------------------------------------------------------------- merged collision
+## Greedy-merge grid cells into as few rectangles as possible: from each unclaimed cell in `must` (row by
+## row), grow right, then down while every cell of the next row is in `must` or `may`. `may` cells are
+## filler (solid anyway, e.g. buried wall cells) that let rectangles join but never start one. A rectangle
+## never crosses a COLLIDER_CHUNK boundary, so each box stays local for the physics broadphase.
+func _merge_rects(must: Dictionary, may := {}) -> Array[Rect2i]:
+	var free := must.duplicate()
+	var fill := may.duplicate()
+	var keys := free.keys()
+	keys.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
+	var out: Array[Rect2i] = []
+	for c: Vector2i in keys:
+		if not free.has(c): continue
+		var x_end := (floori(float(c.x) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
+		var y_end := (floori(float(c.y) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
+		var w := 1
+		while c.x + w < x_end:
+			var n := Vector2i(c.x + w, c.y)
+			if not (free.has(n) or fill.has(n)): break
+			w += 1
+		var h := 1
+		while c.y + h < y_end:
+			var row_ok := true
+			for dx in w:
+				var n := Vector2i(c.x + dx, c.y + h)
+				if not (free.has(n) or fill.has(n)):
+					row_ok = false
+					break
+			if not row_ok: break
+			h += 1
+		for dy in h:
+			for dx in w:
+				free.erase(Vector2i(c.x + dx, c.y + dy))
+				fill.erase(Vector2i(c.x + dx, c.y + dy))
+		out.append(Rect2i(c, Vector2i(w, h)))
+	return out
+
+## One box per merged rectangle of cells, `thick` tall and centred at height `y`
+func _add_merged_boxes(body: StaticBody3D, rects: Array[Rect2i], thick: float, y: float) -> void:
+	for r in rects:
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
-		bs.size = Vector3(CELL, 0.4, CELL)
+		bs.size = Vector3(r.size.x * CELL, thick, r.size.y * CELL)
 		cs.shape = bs
-		cs.position = Vector3(c.x * CELL, -0.2, c.y * CELL)
+		cs.position = Vector3((r.position.x + (r.size.x - 1) / 2.0) * CELL, y, (r.position.y + (r.size.y - 1) / 2.0) * CELL)
 		body.add_child(cs)
+
+func _cell_set(cells: Array) -> Dictionary:
+	var d := {}
+	for c in cells: d[c] = true
+	return d
+
+func _build_floor_collision(floor_cells: Array) -> void:
+	# Floor collision: thin slabs merged over runs of floor cells (pits stay open)
+	var body := StaticBody3D.new()
+	add_child(body)
+	_add_merged_boxes(body, _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
 ## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
@@ -276,39 +324,84 @@ func _build_floor_collision(floor_cells: Array) -> void:
 func _build_ceiling_collision(floor_cells: Array) -> void:
 	var body := StaticBody3D.new()
 	add_child(body)
+	var by_height := {}                  # merged per ceiling height, so a slab never spans a step
 	for c in floor_cells:
-		var cs := CollisionShape3D.new()
-		var bs := BoxShape3D.new()
-		bs.size = Vector3(CELL, 0.4, CELL)
-		cs.shape = bs
-		cs.position = Vector3(c.x * CELL, ceiling_height(c) + 0.2, c.y * CELL)
-		body.add_child(cs)
+		by_height.get_or_add(ceiling_height(c), {})[c] = true
+	for ch: float in by_height:
+		_add_merged_boxes(body, _merge_rects(by_height[ch]), 0.4, ch + 0.2)
 
-## Occlusion culling: every wall block is an occluder, so the renderer skips whatever is hidden behind walls
-## (the rest of a maze is never on screen). One merged mesh: 8 vertices and 12 triangles per block.
+## Occlusion culling with baked portals:
+## Partitions solid wall blocks into spatial 8x8 cell grid chunks with boundary occlusion quads,
+## leaving doorway openings as natural portals. Omission of interior faces and localized AABBs
+## allow fast frustum culling and prevent GPU rasterization of closed corridors.
 func _build_occluder(groups: Dictionary) -> void:
-	var verts := PackedVector3Array()
-	var idx := PackedInt32Array()
 	var h := CELL / 2.0
-	var tris := [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5]
+	# Collect cells per height into 8x8 spatial chunks: ch -> Array of [Vector2i, height]
+	var chunks := {}
 	for height in groups.keys():
+		var h_val: float = float(height)
 		for c: Vector2i in groups[height]:
-			var b := verts.size()
+			var ch := Vector2i(c.x / 8, c.y / 8)
+			chunks.get_or_add(ch, []).append([c, h_val])
+
+	for ch in chunks:
+		var cell_list: Array = chunks[ch]
+		var verts := PackedVector3Array()
+		var idx := PackedInt32Array()
+
+		for item in cell_list:
+			var c: Vector2i = item[0]
+			var wall_height: float = item[1]
 			var x := c.x * CELL
 			var z := c.y * CELL
-			for y in [0.0, height]:
-				verts.append(Vector3(x - h, y, z - h))
-				verts.append(Vector3(x + h, y, z - h))
-				verts.append(Vector3(x + h, y, z + h))
-				verts.append(Vector3(x - h, y, z + h))
-			# corners 0-3 bottom, 4-7 top (the tri table above indexes them that way)
-			for t in tris: idx.append(b + t)
-	if verts.is_empty(): return
-	var occ := ArrayOccluder3D.new()
-	occ.set_arrays(verts, idx)
-	var oi := OccluderInstance3D.new()
-	oi.occluder = occ
-	add_child(oi)
+
+			var p0 := Vector3(x - h, 0.0, z - h)
+			var p1 := Vector3(x + h, 0.0, z - h)
+			var p2 := Vector3(x + h, 0.0, z + h)
+			var p3 := Vector3(x - h, 0.0, z + h)
+
+			var t0 := Vector3(x - h, wall_height, z - h)
+			var t1 := Vector3(x + h, wall_height, z - h)
+			var t2 := Vector3(x + h, wall_height, z + h)
+			var t3 := Vector3(x - h, wall_height, z + h)
+
+			# North face (facing z - 1)
+			if not walls.has(c + Vector2i(0, -1)) or carved.has(c + Vector2i(0, -1)):
+				var b := verts.size()
+				verts.append_array([p0, t0, t1, p1])
+				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
+
+			# South face (facing z + 1)
+			if not walls.has(c + Vector2i(0, 1)) or carved.has(c + Vector2i(0, 1)):
+				var b := verts.size()
+				verts.append_array([p3, p2, t2, t3])
+				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
+
+			# East face (facing x + 1)
+			if not walls.has(c + Vector2i(1, 0)) or carved.has(c + Vector2i(1, 0)):
+				var b := verts.size()
+				verts.append_array([p1, t1, t2, p2])
+				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
+
+			# West face (facing x - 1)
+			if not walls.has(c + Vector2i(-1, 0)) or carved.has(c + Vector2i(-1, 0)):
+				var b := verts.size()
+				verts.append_array([p0, p3, t3, t0])
+				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
+
+			# Top face (blocks over-the-wall line of sight in atriums/stairs)
+			var b_top := verts.size()
+			verts.append_array([t0, t1, t2, t3])
+			idx.append_array([b_top, b_top + 3, b_top + 1, b_top + 1, b_top + 3, b_top + 2])
+
+		if verts.is_empty():
+			continue
+
+		var occ := ArrayOccluder3D.new()
+		occ.set_arrays(verts, idx)
+		var oi := OccluderInstance3D.new()
+		oi.occluder = occ
+		add_child(oi)
 
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
@@ -325,6 +418,7 @@ func _build_walls() -> void:
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
 	_build_occluder(groups)
+	_build_wall_collision(groups)
 	# cells painted with a material get their own group per (height, material)
 	var pw := painted("wall")
 	if not pw.is_empty():
@@ -335,8 +429,6 @@ func _build_walls() -> void:
 				else: keep.append(c)
 			groups[height] = keep
 	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat}
-	var body := StaticBody3D.new()
-	add_child(body)
 	for key in groups.keys():
 		var list: Array = groups[key]
 		if list.is_empty(): continue
@@ -354,15 +446,12 @@ func _build_walls() -> void:
 			box.size = Vector3(CELL, height, CELL)
 			mm.mesh = box
 			mm.instance_count = ch_list.size()
+			var buf := MMBuffer.alloc(mm)
+			var st := MMBuffer.stride(mm)
 			for i in ch_list.size():
 				var c: Vector2i = ch_list[i]
-				mm.set_instance_transform(i, Transform3D(Basis(), Vector3(c.x * CELL, height / 2.0, c.y * CELL)))
-				var cs := CollisionShape3D.new()
-				var bs := BoxShape3D.new()
-				bs.size = Vector3(CELL, height, CELL)
-				cs.shape = bs
-				cs.position = Vector3(c.x * CELL, height / 2.0, c.y * CELL)
-				body.add_child(cs)
+				MMBuffer.put_at(buf, i * st, Vector3(c.x * CELL, height / 2.0, c.y * CELL))
+			mm.buffer = buf
 			var mmi := MultiMeshInstance3D.new()
 			mmi.multimesh = mm
 			mmi.material_override = mat
@@ -370,6 +459,21 @@ func _build_walls() -> void:
 			mmi.visibility_range_end_margin = 12.0
 			mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			add_child(mmi)
+
+## Wall collision: the exposed blocks of each height merged into large boxes per chunk (see _merge_rects)
+## instead of one box per block. Buried blocks (walled in on every side, never drawn) are filler: they
+## let a thick wall become one box instead of a ring of them.
+func _build_wall_collision(groups: Dictionary) -> void:
+	var buried := {}
+	for c: Vector2i in walls.keys():
+		if not carved.has(c): buried[c] = true
+	for height in groups.keys():
+		for c in groups[height]: buried.erase(c)
+	var body := StaticBody3D.new()
+	add_child(body)
+	for height: float in groups.keys():
+		if groups[height].is_empty(): continue
+		_add_merged_boxes(body, _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,
 # facing +X (the way you walk through it) and spanning `scale` cells along Z, then placed with
@@ -462,6 +566,12 @@ func _build_thin_walls(list: Array) -> void:
 		mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
 		add_child(mi)
 		_add_box_collider(body, xf, size, Vector3(0, h * 0.5, 0))
+		var oi := OccluderInstance3D.new()
+		var bo := BoxOccluder3D.new()
+		bo.size = size
+		oi.occluder = bo
+		oi.transform = xf * Transform3D(Basis(), Vector3(0, h * 0.5, 0))
+		add_child(oi)
 
 # A round-topped opening through a full CELL-deep wall: straight jambs up to ARCH_SPRING, then a
 # semicircular crown (flattened if a wide arch would hit the ceiling), solid wall to either side of the
@@ -492,6 +602,12 @@ func _build_arches(list: Array) -> void:
 			mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
 			add_child(mi)
 			_add_box_collider(body, xf, size, pos)
+			var oi := OccluderInstance3D.new()
+			var bo := BoxOccluder3D.new()
+			bo.size = size
+			oi.occluder = bo
+			oi.transform = xf * Transform3D(Basis(), pos)
+			add_child(oi)
 		# The underside can't use the walls' world-triplanar wallpaper (it's stretched to the wall height, so
 		# on a surface that hardly changes in y it smears into streaks). It gets real UVs instead: the
 		# wallpaper carried on up from each jamb, unrolled height = spring + arc length from the nearer
@@ -717,10 +833,13 @@ func _build_ceiling_steps() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = BoxMesh.new()
 	mm.instance_count = trims.size()
+	var buf := MMBuffer.alloc(mm)
+	var st := MMBuffer.stride(mm)
 	for i in trims.size():
 		var t: Dictionary = trims[i]
 		var sc := Vector3(CELL if t.along_x else 0.1, 0.1, 0.1 if t.along_x else CELL)
-		mm.set_instance_transform(i, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
+		MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
+	mm.buffer = buf
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.material_override = tm

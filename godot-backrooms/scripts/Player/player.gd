@@ -139,6 +139,9 @@ func _ready() -> void:
 	# The beam leaves from the low hand now, so it skims the floor: at that grazing angle the shadow map
 	# bands across it, which a normal bias lifts. Level lamps set theirs in code too, not in the scene.
 	flash.shadow_normal_bias = 2.0
+	flash.shadow_blur = 1.0
+	flash.spot_angle_attenuation = 1.45
+	flash.spot_attenuation = 1.2
 	flash.top_level = true
 	flash.visible = true
 	flash_spill = flash.get_node_or_null("Spill") as SpotLight3D
@@ -149,8 +152,8 @@ func _ready() -> void:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL
 		flash_spill.spot_range = 20.0
 		flash_spill.spot_angle = 58.0
-		flash_spill.spot_attenuation = 1.1
-		flash_spill.spot_angle_attenuation = 1.1
+		flash_spill.spot_attenuation = 1.2
+		flash_spill.spot_angle_attenuation = 1.3
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
 	torch = TorchModel.new()
@@ -209,6 +212,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
+		_sync_flashlight_aim(0.35)
 	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not flash_on and battery <= 0.0:
@@ -217,6 +221,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		flash_on = not flash_on
 		click_player.stream = click_on if flash_on else click_off
 		click_player.play()
+
+func _process(delta: float) -> void:
+	if not dead and not frozen:
+		_update_flashlight_aim(delta)
 
 func _physics_process(dt: float) -> void:
 	spawn_grace = maxf(0.0, spawn_grace - dt)
@@ -521,23 +529,47 @@ func _update_flashlight(dt: float) -> void:
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if lit else 0.0
 		flash_spill.visible = lit
-	# The beam rides the torch in your hand: it leaves from the lens, and drops with the arm when you
-	# sprint (and as the arm comes up), instead of staying welded to the eye.
-	var dip_target := 0.0
-	if torch != null:
-		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
-	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 6.0 * dt))
+	_update_flashlight_aim(dt)
+
+## Immediate partial alignment during rapid mouse motion to prevent TAA flashlight ghosting
+func _sync_flashlight_aim(factor: float) -> void:
+	if not is_instance_valid(flash) or not flash.visible:
+		return
 	var lens := cam.global_position
 	if torch != null and torch.visible:
 		lens = torch.lens()
-	# Eased so the light can't jump the half-metre when the lens crosses from clear air into a wall.
-	# Over 2 m away is a teleport (respawn, level change), not a step: snap rather than fly across it.
 	var where := _lens_clear_of_walls(cam.global_position, lens)
-	beam_pos = where if beam_pos.distance_to(where) > 2.0 else beam_pos.lerp(where, minf(1.0, 25.0 * dt))
+	beam_pos = beam_pos.lerp(where, factor)
 	flash.global_position = beam_pos
 	var fwd := -cam.global_transform.basis.z * 16.0
 	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
-	flash_target = flash_target.lerp(want, minf(1.0, 14.0 * dt))
+	flash_target = flash_target.lerp(want, factor)
+	if flash_target.distance_to(beam_pos) > 0.01:
+		flash.look_at(flash_target, Vector3.UP)
+
+## Dynamic velocity rejection tuning for flashlight beam:
+## Dynamically scales tracking rate with angular look delta. When turning rapidly, tracking ramps up
+## to 85.0/s to eliminate the multi-frame lag that creates temporal ghost trails, while easing down
+## to smooth organic 24.0/s during subtle breathing movement.
+func _update_flashlight_aim(dt: float) -> void:
+	if not is_instance_valid(flash) or not flash.visible:
+		return
+	var dip_target := 0.0
+	if torch != null:
+		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
+	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 8.0 * dt))
+	var lens := cam.global_position
+	if torch != null and torch.visible:
+		lens = torch.lens()
+	var where := _lens_clear_of_walls(cam.global_position, lens)
+	var pos_rate := lerpf(30.0, 95.0, clampf(beam_pos.distance_to(where) * 4.0, 0.0, 1.0))
+	beam_pos = where if beam_pos.distance_to(where) > 2.0 else beam_pos.lerp(where, minf(1.0, pos_rate * dt))
+	flash.global_position = beam_pos
+	var fwd := -cam.global_transform.basis.z * 16.0
+	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
+	var look_delta := (want - flash_target).length()
+	var track_rate := lerpf(24.0, 85.0, clampf(look_delta * 3.0, 0.0, 1.0))
+	flash_target = flash_target.lerp(want, minf(1.0, track_rate * dt))
 	if flash_target.distance_to(beam_pos) > 0.01:
 		flash.look_at(flash_target, Vector3.UP)
 

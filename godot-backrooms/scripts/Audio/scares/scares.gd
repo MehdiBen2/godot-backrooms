@@ -25,6 +25,7 @@ const CreatureVoice := preload("res://scripts/Audio/scares/creature_voice.gd")
 const CreatureSteps := preload("res://scripts/Audio/scares/creature_steps.gd")
 const Preacher := preload("res://scripts/Audio/scares/preacher.gd")
 const ClipLevels := preload("res://scripts/Audio/clip_levels.gd")
+const SfxPool := preload("res://scripts/Audio/sfx_pool.gd")
 
 const PREACHER_NAMES := Preacher.NAMES
 
@@ -97,8 +98,8 @@ func _ready() -> void:
 	add_child(voice)
 	steps = CreatureSteps.new(self)
 	preacher_fx = Preacher.new(self)
-	for path in GASPS + [BODY_FALL, DEATH_VOICE, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, GRID_OFF, TUBE_RESTRIKE]:
-		_stream(path)
+	# every scare clip goes into the buffer pool now, on worker threads, so none of them hits the disk mid-scare
+	SfxPool.warm(GASPS + [BODY_FALL, DEATH_VOICE, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, GRID_OFF, TUBE_RESTRIKE] + SfxPool.scare_paths())
 	for path in HEART_SAMPLES:
 		if ResourceLoader.exists(path):
 			_heart_sample = load(path)
@@ -106,7 +107,7 @@ func _ready() -> void:
 
 func _stream(path: String) -> AudioStream:
 	if not _streams.has(path):
-		_streams[path] = load(path) if ResourceLoader.exists(path) else null
+		_streams[path] = SfxPool.get_stream(path)
 	return _streams[path]
 
 func _process(dt: float) -> void:

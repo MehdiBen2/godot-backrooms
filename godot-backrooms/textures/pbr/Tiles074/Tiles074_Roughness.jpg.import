@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://basavcbfymg7u"
-path.s3tc="res://.godot/imported/Tiles074_Roughness.jpg-946510c91a66e8dacfc783aeac7cecea.s3tc.ctex"
+path.bptc="res://.godot/imported/Tiles074_Roughness.jpg-946510c91a66e8dacfc783aeac7cecea.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://textures/pbr/Tiles074/Tiles074_Roughness.jpg"
-dest_files=["res://.godot/imported/Tiles074_Roughness.jpg-946510c91a66e8dacfc783aeac7cecea.s3tc.ctex"]
+dest_files=["res://.godot/imported/Tiles074_Roughness.jpg-946510c91a66e8dacfc783aeac7cecea.bptc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=false
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

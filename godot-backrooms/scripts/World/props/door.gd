@@ -30,11 +30,27 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	var side_w := (cell - rw) * 0.5
 	var body := StaticBody3D.new()
 	add_child(body)
-	# the wall around the opening
+	# the wall around the opening (leaving the doorway clear as a baked portal)
 	for s: float in [-1.0, 1.0]:
-		_solid(body, Vector3(thick, wall_h, side_w), Vector3(0, wall_h * 0.5, s * (rw + side_w) * 0.5), wall_mat)
+		var side_size := Vector3(thick, wall_h, side_w)
+		var side_pos := Vector3(0, wall_h * 0.5, s * (rw + side_w) * 0.5)
+		_solid(body, side_size, side_pos, wall_mat)
+		var oi := OccluderInstance3D.new()
+		var bo := BoxOccluder3D.new()
+		bo.size = side_size
+		oi.occluder = bo
+		oi.position = side_pos
+		add_child(oi)
 	if wall_h > rh:
-		_solid(body, Vector3(thick, wall_h - rh, rw), Vector3(0, rh + (wall_h - rh) * 0.5, 0), wall_mat)
+		var top_size := Vector3(thick, wall_h - rh, rw)
+		var top_pos := Vector3(0, rh + (wall_h - rh) * 0.5, 0)
+		_solid(body, top_size, top_pos, wall_mat)
+		var oi_top := OccluderInstance3D.new()
+		var bo_top := BoxOccluder3D.new()
+		bo_top.size = top_size
+		oi_top.occluder = bo_top
+		oi_top.position = top_pos
+		add_child(oi_top)
 	# frame: lining boards inside the opening...
 	for s: float in [-1.0, 1.0]:
 		_box(Vector3(thick + 0.01, rh, LINING), Vector3(0, rh * 0.5, s * (DOOR_W + LINING) * 0.5), frame_mat, self)

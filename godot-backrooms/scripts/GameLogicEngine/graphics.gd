@@ -29,16 +29,16 @@ const ADAPT_WINDOW := 0.5
 
 # `scale` is the ceiling; `adapt` lets adaptive resolution drop below it.
 const PRESETS := {
-	"low": {"scale": 60, "msaa": 0, "fxaa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
+	"low": {"scale": 60, "msaa": 0, "fxaa": false, "taa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
 		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60,
 		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true},
-	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
+	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
 		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true},
-	"high": {"scale": 100, "msaa": 2, "fxaa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
+	"high": {"scale": 100, "msaa": 2, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
 		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
 		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true},
-	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
+	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "taa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
 		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
 		"lights": 12, "light_shadows": 8, "far_lights": 32, "baked_gi": true, "smooth": true, "adapt": true},
 }
@@ -156,10 +156,12 @@ func apply() -> void:
 	var vp := get_viewport()
 	_render_scale()
 	vp.use_occlusion_culling = true
+	vp.use_taa = bool(s.get("taa", false)) and not compat
+	vp.use_debanding = true
 	vp.mesh_lod_threshold = [4.0, 3.0, 1.5, 1.0][clampi(s.shadows, 0, 3)]     # coarser meshes sooner on low presets
 	vp.msaa_3d = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X, 4: Viewport.MSAA_4X}.get(s.msaa, Viewport.MSAA_DISABLED)
-	# FXAA blurs the whole frame (distant texture detail first); with MSAA on the edges are already clean
-	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if (s.fxaa and s.msaa == 0) else Viewport.SCREEN_SPACE_AA_DISABLED
+	# FXAA blurs the whole frame (distant texture detail first); with MSAA or TAA on the edges are already clean
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if (s.fxaa and s.msaa == 0 and not vp.use_taa) else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.texture_mipmap_bias = -0.35        # slightly sharper mips: wallpaper and carpet stay readable down a long hall
 	vp.anisotropic_filtering_level = {0: Viewport.ANISOTROPY_DISABLED, 2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X,
 		8: Viewport.ANISOTROPY_8X, 16: Viewport.ANISOTROPY_16X}.get(s.aniso, Viewport.ANISOTROPY_DISABLED)

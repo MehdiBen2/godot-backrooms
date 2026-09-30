@@ -3,20 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b4gq4bv4mjd1k"
-path="res://.godot/imported/Metal053C_Displacement.jpg-f813cdeba93b233317be3fef67af75ca.ctex"
+path.bptc="res://.godot/imported/Metal053C_Displacement.jpg-f813cdeba93b233317be3fef67af75ca.bptc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://textures/pbr/Metal053C/Metal053C_Displacement.jpg"
-dest_files=["res://.godot/imported/Metal053C_Displacement.jpg-f813cdeba93b233317be3fef67af75ca.ctex"]
+dest_files=["res://.godot/imported/Metal053C_Displacement.jpg-f813cdeba93b233317be3fef67af75ca.bptc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

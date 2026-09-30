@@ -718,7 +718,7 @@ func _update_whisper(delta: float) -> void:
 	if whisper_stream == null:
 		if not ResourceLoader.exists(WHISPER_PATH):
 			return
-		whisper_stream = load(WHISPER_PATH)
+		whisper_stream = preload("res://scripts/Audio/sfx_pool.gd").get_stream(WHISPER_PATH)
 	var closeness := 1.0 - clampf(d / WHISPER_RANGE, 0.0, 1.0)
 	var right: Vector3 = player.cam.global_transform.basis.x
 	# random side, but about half the time it is the side the real one is actually on: a clue

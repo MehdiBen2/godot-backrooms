@@ -1,6 +1,7 @@
 extends Node3D
 ## Rolling golden-hour hills: procedural terrain + road, cloud sky, hilltop houses, distant castle.
 
+const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
 const SIZE := 640.0
 const RES := 320
 const CHUNK := 80.0                         # terrain chunk edge: one mesh per chunk, so the ones outside the view are culled
@@ -522,8 +523,10 @@ func _grass_chunk(blade: ArrayMesh, cx: float, cz: float, rng: RandomNumberGener
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = blade
 	mm.instance_count = xforms.size()
+	var buf := MMBuffer.alloc(mm)
 	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
+		MMBuffer.put(buf, i * 12, xforms[i])
+	mm.buffer = buf
 	var mi := MultiMeshInstance3D.new()
 	mi.multimesh = mm
 	mi.material_override = grass_mat
