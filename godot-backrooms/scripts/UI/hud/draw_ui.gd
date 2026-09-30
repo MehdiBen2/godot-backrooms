@@ -137,12 +137,15 @@ func _build() -> void:
 	var arow := HBoxContainer.new()
 	arow.add_theme_constant_override("separation", 4)
 	v.add_child(arow)
-	var undo := _button("UNDO LINE", _undo)
+	var undo := _button("UNDO", _undo)
 	undo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	arow.add_child(undo)
+	var redo := _button("REDO", _redo)
+	redo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	arow.add_child(redo)
 	_clear_btn = _button("CLEAR LINES", _clear)
 	_clear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	arow.add_child(_clear_btn)
+	v.add_child(_clear_btn)
 	var save := _button("SAVE", _save)
 	save.add_theme_color_override("font_color", Color("2fd968"))
 	save.add_theme_color_override("font_hover_color", Color("6dffa0"))
@@ -151,7 +154,7 @@ func _build() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_status.custom_minimum_size = Vector2(PANEL_W - 24, 0)
 	v.add_child(_status)
-	v.add_child(_label("WASD move (Space up, C down, Shift fast)\nRight mouse held: look\nY: close", 11, Color(0.6, 0.58, 0.5)))
+	v.add_child(_label("WASD move (Space up, C down, Shift fast)\nRight mouse held: look\nCtrl+Z undo, Ctrl+Y redo (lines)\nY: close", 11, Color(0.6, 0.58, 0.5)))
 	_set_tool(tool)
 
 func _label(text: String, size: int, color: Color) -> Label:
@@ -231,7 +234,11 @@ func _set_tool(t: String) -> void:
 # ---------------------------------------------------------------- actions
 func _undo() -> void:
 	var m = SketchMarks.live
-	_say("Took the last line off" if m != null and m.undo_last() else "No lines to undo")
+	_say("Undone" if m != null and m.undo() else "Nothing to undo")
+
+func _redo() -> void:
+	var m = SketchMarks.live
+	_say("Redone" if m != null and m.redo() else "Nothing to redo")
 
 func _clear() -> void:
 	var m = SketchMarks.live
@@ -272,6 +279,13 @@ func _say(text: String) -> void:
 
 # ---------------------------------------------------------------- open / close, mouse
 func _unhandled_input(e: InputEvent) -> void:
+	if open and e is InputEventKey and e.pressed and e.ctrl_pressed and e.physical_keycode in [KEY_Z, KEY_Y]:
+		if e.physical_keycode == KEY_Y or e.shift_pressed:
+			_redo()
+		else:
+			_undo()
+		get_viewport().set_input_as_handled()
+		return
 	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY:
 		if open:
 			_close(true)
