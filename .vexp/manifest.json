@@ -3,7 +3,7 @@
     ".claude/CLAUDE.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
     ".claude/hooks/vexp-hint.sh": "907d672738e420c1a930d71675bbce86ac977d2fc6e326db495d23a62b61e52a",
     ".claude/hooks/vexp-restore.sh": "8f0e2747c0d5b8dd966b9ebc4fb21ec6730ea85f3e6a9d63efb94def49e5723b",
-    "AGENTS.md": "a523754d13bbb429fc898d0273c31b05f15a1d36bafa181a18a2b0a1b2b82466",
+    "AGENTS.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
     "README.md": "7ed5bbc55fde4ad3791d3cffe6bb2e3756d9976a06449c66cf7a6b78e64c1918",
     "futurtoeditlore.md": "7be597fb80db18a31fc6fb1f9f39d7b09d575cca6c073e810a0225469b7272c5",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
@@ -28,7 +28,7 @@
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
   "indexed_at_commit": "a801b36922210ca7c19b4f69644308289495be08",
-  "indexed_at_timestamp": "2026-10-01T11:21:21.115975700+00:00",
+  "indexed_at_timestamp": "2026-10-01T12:37:59.487263400+00:00",
   "languages": {
     "markdown": {
       "calls": 0,

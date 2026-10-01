@@ -91,7 +91,7 @@ Levels are ASCII grids in `godot-backrooms/levels/*.lvl`, listed in `levels.json
 editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if the game folder isn't the
 sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `tools/bake_level.gd`.
 
-Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs. Besides grid
+Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs and shafts. Besides grid
 walls, the OBJECTS panel places free walls of any shape: thin walls and half walls (per-object Thickness and
 Height; under 1.8 m you see over them), L corners, curved walls up to a full round room, square pillars and
 round columns. An **Event trigger** (key 9) is an invisible box that runs an event when the player walks in:
@@ -108,6 +108,19 @@ wallpaper and carpet, or bare concrete), a Light (on, flicker, off), a Rail and 
 game the floor is swapped while you are on the half-way landing, a piece a frame, with the stairwell kept
 round you, so there is no loading screen and nothing to see (`scripts/World/props/stairs.gd`).
 `tools/shot_stairs.gd` screenshots a floor's stairwells and tests the swap and the walk.
+
+**Floors stand one above the other**, 9 m apart. A **Pit** (key 3) over an open cell of the floor below is a
+hole through the slab between them: from its edge you see the floors under you and over you, their rooms lit,
+and whoever steps in falls into the floor below and lands there (or falls on, where that floor has a pit in the
+same place). Paint a pit shaft on one floor and press **REPEAT DOWN** to copy that floor into every floor
+below it, and the shaft runs through them all. Tick **ENDLESS FLOORS** and the lowest floor repeats for ever
+below the level and the highest above it, so the shaft has no bottom to be seen or reached. How far down you
+can see is the fog's doing: a few storeys in the default dim look, to the horizon haze with the Liminal
+atmosphere. Only the floor you are on is the real thing; the others are look-only copies kept round it
+(`scripts/World/level/level_shell.gd`, `level_builder.gd`), and the floor below takes over while you are
+falling through the slab. A pit with a wall under it is a dark shaft, as before. Tall zones (10.8 m) reach
+into the storey above: leave those cells wall or pit there. `tools/shot_stack.gd` screenshots the stack and
+tests the swap and the fall.
 
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;

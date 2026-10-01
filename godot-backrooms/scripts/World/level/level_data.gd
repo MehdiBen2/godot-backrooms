@@ -48,6 +48,7 @@ var shell := false        # a look-only copy of a floor: nothing to walk on, bum
 var through := {}         # Vector2i -> true: this floor's pits that open into the floor below
 var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
 var crop := {}            # Vector2i -> true: a shell builds only these cells (empty: all of them)
+var hole_box := Rect2i()  # the cells round all of this floor's holes, up and down (no size: it has none)
 var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
@@ -270,6 +271,14 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 		var low: String = under[z]
 		for x in range(1, mini(n - 1, mini(row.length(), low.length()))):
 			if row[x] == "O" and low[x] != "#": out[Vector2i(x, z)] = true
+	if out.is_empty(): return out
+	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
+	for g: int in [f, f - 1]:
+		var objs = floor_data(d, floor_src(d, g)).get("objects")
+		if not (objs is Array): continue
+		for o in objs:
+			if o is Dictionary and is_stairs(str(o.get("type", ""))):
+				for c in stair_footprint(load_object(o)): out.erase(c)
 	return out
 
 ## Read floor `f` of the current level into the grid (which must be empty): off the disk, or out of `raw`,
@@ -282,9 +291,11 @@ func load_floor(f: int, raw := {}) -> void:
 	# a stairwell, or a wall object square on the cell, takes the cell over on this floor
 	through = through_cells(level_raw, f)
 	open_above = through_cells(level_raw, f + 1)
+	hole_box = Rect2i()
 	for holes: Dictionary in [through, open_above]:
 		for c: Vector2i in holes.keys():
 			if walls.has(c): holes.erase(c)
+			else: hole_box = Rect2i(c, Vector2i.ONE) if hole_box.size == Vector2i.ZERO else hole_box.merge(Rect2i(c, Vector2i.ONE))
 
 ## Has the player, at `p`, dropped through one of this floor's holes into the slab under it?
 func fell_through(p: Vector3) -> bool:

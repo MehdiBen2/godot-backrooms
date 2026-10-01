@@ -117,6 +117,9 @@ var bright_mix := 0.0              # same idea for Bright zones (a softer versio
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
 var liminal_mix := 0.0             # 0..1: the same for the liminal look
+var shaft_mix := 0.0               # 0..1: standing by a shaft through the floors (level_data.gd hole_box)
+const SHAFT_AIR_CELLS := 5         # how near
+const SHAFT_FOG := 0.2             # share of the fog left there
 var _lim := 0.0                    # liminal_mix while the power is on (a power cut is dark in any look)
 var exposure_gain := 1.0           # what the eye / camera adds on top of the look's exposure
 var _ae := 1.0
@@ -270,6 +273,11 @@ func _update_atmosphere(delta: float) -> void:
 	_update_camcorder(delta, seen)
 	_blend_env(ATMOSPHERES.classic)
 	zf *= lerpf(1.0, ATMOSPHERES.liminal.fog, _lim)                  # liminal: thin air, the halls fade out slowly
+	# by a shaft through the floors the air is clear, whatever the look: the lit rooms of the storeys above and
+	# below show a long way off, and past them the dark (the fog keeps its colour, there is only less of it)
+	var by_shaft := hole_box.size != Vector2i.ZERO and hole_box.grow(SHAFT_AIR_CELLS).has_point(c)
+	shaft_mix += ((1.0 if by_shaft else 0.0) - shaft_mix) * minf(1.0, delta * 1.5)
+	zf = minf(zf, lerpf(zf, SHAFT_FOG, shaft_mix))
 	zf = lerpf(zf, FF_FOG, open_mix)                                  # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce

@@ -8,6 +8,10 @@ extends "res://scripts/World/level/level_lighting.gd"
 ## puts them together and adds the exit, the battery packs, the rolls of hazard tape, the spare camera
 ## flashes and the tape already stuck up in this level (tape_marks.gd).
 ##
+## One floor of the level is the one you walk on, built here at y = 0. Changing floor rebuilds it in place
+## (rebuild_floor_seamless). The floors above and below that can be seen from it, through holes in the slabs,
+## stand round it as look-only copies (`shells`, level_shell.gd).
+##
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
 const LevelExit := preload("res://scripts/World/props/level_exit.gd")
@@ -228,7 +232,6 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 		for o: Dictionary in objects:
 			if is_stairs(o.type): away.add_child(stair_skin(o))
 		Shell.dress(away, Shell.layer_of(was))
-		Shell.note_world_mats(away)
 		Shell.add_lights(away, lit, through.keys() + open_above.keys(), Shell.layer_of(was), PANEL_ENERGY if panels_mm else LIGHT_ENERGY, liminal.duplicate())
 		shells[was] = away
 		exit_door = null

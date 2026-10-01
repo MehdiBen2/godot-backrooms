@@ -199,7 +199,8 @@ func _fall() -> void:
 	probe.global_position = Vector3(c.x * cell, 0.05, c.y * cell)
 	_stand(probe.global_position, out, -35.0)
 	await create_timer(0.5).timeout
-	var floor_was: int = game.level_floor
+	var start: int = game.level_floor
+	var floor_was := start
 	var ticks := 0
 	var landed := 0
 	var worst := 0.0
@@ -230,7 +231,7 @@ func _fall() -> void:
 			landed += 1
 			if landed == 1:
 				print("  tick %d: on the ground on floor %d, cell %s, y %.2f" % [ticks, game.level_floor, level.cell_of(probe.global_position), probe.global_position.y])
-			if landed > 90 and not level.pits.has(level.cell_of(probe.global_position) + Vector2i(d)):
+			if landed > 90 and (game.level_floor != start or ticks > 900):
 				break
 		else:
 			landed = 0

@@ -51,7 +51,6 @@ func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 			if panel_ceiling != null: _build_panel_ceiling()
 			else: _build_fixture_meshes()
 			dress(self, layer_of(f))
-			note_world_mats(self)
 			add_lights(self, lit, holes, layer_of(f), PANEL_LIGHT if panel_ceiling != null else LIGHT_ENERGY, liminal),
 	]
 
@@ -95,32 +94,29 @@ func _crop_to(holes: Array) -> void:
 ## Put everything under `n` on render layer `layer`, lit by its own lights and no others, and make its own
 ## lights light nothing else: no shadows (nothing here is near enough to need them), no glow in the fog (it
 ## would show through the floor above)
-static func dress(n: Node, layer: int) -> void:
-	if n is Light3D:
+##
+## The wallpaper and the other world-space (triplanar) materials take their pattern from where a surface is
+## in the world: a floor standing a storey higher would wear its skirting board and the shadow under its
+## ceiling part way up the wall. They are noted here, on `of`, and set_height() puts the floor at a height and
+## slides each pattern back by as much, so it sits on the walls as it does on the floor you walk on.
+static func dress(of: Node, layer: int) -> void:
+	var found := {}
+	_dress(of, layer, found)
+	of.set_meta("world_mats", found)
+
+static func _dress(n: Node, layer: int, found: Dictionary) -> void:
+	if n is GeometryInstance3D:
+		var g := n as GeometryInstance3D
+		if g.layers != CEIL_LAYER: g.layers = layer   # (the ceiling keeps its own layer and its own soft lights, as on any floor)
+		var m := g.material_override as BaseMaterial3D
+		if m != null and m.uv1_triplanar and m.uv1_world_triplanar and not found.has(m): found[m] = m.uv1_offset
+	elif n is Light3D:
 		var l := n as Light3D
 		l.light_cull_mask = layer
 		l.shadow_enabled = false
 		l.light_volumetric_fog_energy = 0.0
-	elif n is GeometryInstance3D and (n as GeometryInstance3D).layers != CEIL_LAYER:
-		(n as GeometryInstance3D).layers = layer      # (the ceiling keeps its own layer and its own soft lights, as on any floor)
 	for c in n.get_children():
-		dress(c, layer)
-
-## The wallpaper and the other world-space (triplanar) materials take their pattern from where a surface is
-## in the world: a floor standing a storey higher would wear its skirting board and the shadow under its
-## ceiling part way up the wall. note_world_mats() finds a floor's, set_height() puts the floor at a height
-## and slides each pattern back by as much, so it sits on the walls as it does on the floor you walk on.
-static func note_world_mats(of: Node) -> void:
-	var found := {}
-	_world_mats(of, found)
-	of.set_meta("world_mats", found)
-
-static func _world_mats(n: Node, found: Dictionary) -> void:
-	if n is GeometryInstance3D:
-		var m := (n as GeometryInstance3D).material_override as BaseMaterial3D
-		if m != null and m.uv1_triplanar and m.uv1_world_triplanar and not found.has(m): found[m] = m.uv1_offset
-	for c in n.get_children():
-		_world_mats(c, found)
+		_dress(c, layer, found)
 
 static func set_height(of: Node3D, y: float) -> void:
 	of.position.y = y
