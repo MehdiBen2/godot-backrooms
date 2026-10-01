@@ -72,6 +72,7 @@ var drain := {}       # sanity runs out while you stand here, whatever the light
 var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
+var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
 ## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
 ## treats them as pits, holes_below). On the top floor there is only the dark above.
 var open_ceiling := {}
@@ -300,6 +301,8 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 	# an open ceiling on the floor below is a hole in this floor too, wherever this floor is not wall
 	for c: Vector2i in zone_cells(d, f - 1, "open_ceiling"):
 		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
+	# a pit painted Abyss has no bottom, whatever is under it (pit_fall.gd): the floor below keeps its ceiling
+	for c: Vector2i in zone_cells(d, f, "abyss"): out.erase(c)
 	if out.is_empty(): return out
 	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
 	for g: int in [f, f - 1]:
@@ -325,6 +328,13 @@ func load_floor(f: int, raw := {}) -> void:
 	for c: Vector2i in open_ceiling:                             # no ceiling, whether or not there is a floor above to see
 		if not open_above.has(c): shaft_up[c] = true
 		open_above[c] = true
+	# the bottomless pits: the ones painted so, and on a floor with nothing under it every pit (it used to
+	# fall through a black floor and put you back at the spawn point)
+	for c: Vector2i in abyss.keys():
+		if not pits.has(c): abyss.erase(c)
+	if not in_stack(level_raw, f - 1):
+		for c: Vector2i in pits:
+			if not through.has(c): abyss[c] = true
 	hole_box = Rect2i()
 	for holes: Dictionary in [through, open_above]:
 		for c: Vector2i in holes.keys():
@@ -405,7 +415,7 @@ func _parse(d: Dictionary) -> void:
 			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
 	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
-			"safe", "drain", "loot", "echo", "loop", "open_ceiling"]:
+			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])

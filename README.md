@@ -138,6 +138,17 @@ falling through the slab. A pit with a wall under it is a dark shaft, as before.
 into the storey above: leave those cells wall or pit there. `tools/shot_stack.gd` screenshots the stack and
 tests the swap and the fall.
 
+An **Abyss** zone painted on pits makes them bottomless (pits on the lowest floor, with nothing under them,
+are bottomless anyway). From the rim you look down storey after storey of the level's own wall and bare slab,
+a buzzing tube under every slab, until it all goes into a sickly haze. Whoever falls in falls, faster and
+faster, the haze thickening with depth and the view streaking and widening with speed, for a minute
+(`"abyss_secs"` in the .lvl; 0 is for ever), then blacks out and comes to by the spawn point
+(`scripts/World/level/pit_fall.gd`, `shaders/pit_shaft.gdshader`). It is built to stay fast at any speed and
+in any direction: one storey of low-poly shaft drawn by a fixed pool of nodes (never built or freed while you
+fall), no real lights (the tubes' light on the walls is worked out in the shader), the camera's far plane tied
+to the fog, the level hidden once it is out of reach, and the player moved back up a whole number of storey
+patterns past a depth, speed and view kept, so the drop never ends and never reaches floating-point trouble.
+
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
 the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and

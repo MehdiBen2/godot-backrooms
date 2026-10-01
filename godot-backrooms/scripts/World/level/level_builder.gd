@@ -55,12 +55,13 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if rebuilding: return              # no fixtures to light with until the floor is built
+	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
 	update_lighting(delta)
 
 ## Through a hole in the floor into the one below: that floor takes over half way down the slab between them,
 ## with the player where they are, still falling (rebuild_floor_seamless, kind "fall")
 func _physics_process(_delta: float) -> void:
-	if rebuilding or player == null or Game.noclip or Game.draw_mode or Game.dead or Death.respawn_busy:
+	if rebuilding or player == null or Game.noclip or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
 		return
 	if not _loops.is_empty(): _walk_loops()
 	if through.is_empty(): return
@@ -284,7 +285,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 		if c == marks or c == sketches or pool_set.has(c) or c == voxel_gi or c == keep or c == cover or stay.has(c):
 			continue
 		# (the fake floor reflections hang under their floor, which from here would be in the room below it)
-		if away != null and not (c in stairwells) and c != reflect_mmi:
+		if away != null and not (c in stairwells) and c != reflect_mmi and c != pit_fall:
 			c.reparent(away, false)
 		else:
 			_hold(c, mats)
@@ -311,7 +312,8 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
-	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling]: zone.clear()
+	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling, abyss]: zone.clear()
+	pit_fall = null
 	_loops.clear()
 	_loop_of.clear()
 	tall.clear()

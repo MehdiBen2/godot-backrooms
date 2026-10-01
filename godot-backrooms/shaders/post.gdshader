@@ -54,6 +54,12 @@ uniform float fx_shock = 0.0;
 uniform float fx_blood = 0.0;     // screen turning to blood: red edges, dark runs, slow pulse
 uniform float fx_static = 0.0;    // subtle snow
 uniform float fx_warp = 0.0;      // subtle wobble of the picture
+// a long fall (player.gd _update_fall_fx): the picture streaks along the lines out of the point you are falling
+// towards (fall_foe, in screen UV, far off screen when it is to the side), and the lens bends a touch more
+uniform float fall_blur = 0.0;    // streak length, screen heights
+uniform vec2 fall_foe = vec2(0.5);
+uniform float fall_warp = 0.0;
+uniform float fall_fade = 0.0;    // 0..1 black: the end of a bottomless pit (pit_fall.gd)
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -109,7 +115,7 @@ void fragment() {
 	float r2 = dot(p, p);
 	float max_r2 = 0.25 * (aspect * aspect + 1.0);
 	// found footage (classic): a camcorder's gentle barrel, not a fisheye that bends the ceiling grid
-	float dist = distortion * (1.0 - 0.6 * classic);
+	float dist = distortion * (1.0 - 0.6 * classic) + fall_warp;
 	float zoom = 1.0 + max_r2 * (dist + chroma_amt) * 1.05;
 	float chroma = chroma_amt * (1.0 + fear * 1.2 + glitch * 4.0) + fx_shock * 0.012;
 	float threat2 = threat * threat;
@@ -166,6 +172,22 @@ void fragment() {
 			acc2 += texture(screen_tex, clamp(uvg + o, 0.0, 1.0)).rgb;
 		}
 		col = acc2 / 9.0;
+	}
+	// the fall: sharp at the point you are falling towards, streaked further out from it (a cheap stand-in for
+	// per-pixel motion vectors: the picture of a straight drop moves just so). Taps both ways, so falling
+	// away from it reads the same.
+	if (fall_blur > 0.0005) {
+		vec2 fd = uvg - fall_foe;
+		fd.x *= aspect;
+		float fl = length(fd);
+		vec2 fdir = fd / max(fl, 1e-4);
+		fdir.x /= aspect;
+		float flen = fall_blur * smoothstep(0.02, 0.7, fl);
+		vec3 facc = vec3(0.0);
+		for (int i = 0; i < 8; i++) {
+			facc += texture(screen_tex, clamp(uvg + fdir * flen * (float(i) / 7.0 - 0.5), 0.0, 1.0)).rgb;
+		}
+		col = mix(col, facc / 8.0, 0.85);
 	}
 	// double vision: a ghost of the picture drifts off and back, stronger toward the edges
 	if (insanity > 0.02) {
@@ -399,6 +421,6 @@ void fragment() {
 	col *= 1.0 - 0.015 * vhs * (0.5 + 0.5 * sin(fc.y * 1.57));   // soft analog scanlines
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
 	col += g * (grain * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - luma * 0.6); // organic film grain
-	col = mix(col, vec3(0.0), blink_lids);                  // the lids are pure black, over grain and all
+	col = mix(col, vec3(0.0), max(blink_lids, fall_fade));  // the lids are pure black, over grain and all
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);
 }

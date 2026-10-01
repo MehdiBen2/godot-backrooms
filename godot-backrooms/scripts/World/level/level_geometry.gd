@@ -14,6 +14,7 @@ const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
+const PitFall := preload("res://scripts/World/level/pit_fall.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell chunk (same chunks as the wall MultiMeshes)
@@ -28,6 +29,7 @@ var door_frame_mat: StandardMaterial3D
 ## panels, instead of the plain ceiling here plus hanging troffers.
 var panel_ceiling: StandardMaterial3D
 var stairwells: Array = []     # this floor's stairwells (props/stairs.gd), for the light they give where they stand
+var pit_fall: Node3D           # this floor's bottomless pits and the fall down them (pit_fall.gd), if it has any
 
 func build_geometry() -> void:
 	_make_materials()
@@ -1103,9 +1105,18 @@ func _build_pit_shafts() -> void:
 	else:
 		_pit_shaft(shaft_up, [top, top + 0.32, top + 1.1, top + 2.4, top + 4.4, top + 7.0, top + 10.4, top + PIT_DEPTH])
 	if pits.is_empty(): return
+	# the bottomless ones (level_data.gd `abyss`) are pit_fall.gd's to build, on the floor you walk on; a
+	# look-only floor (level_shell.gd) shows them as ordinary deep pits, dark at the bottom
+	var bottomless := not shell and not abyss.is_empty()
+	if bottomless:
+		var pf := PitFall.new()
+		pf.name = "PitFall"
+		add_child(pf)
+		pf.setup(self)
+		pit_fall = pf
 	var deep := {}
 	for c: Vector2i in pits:
-		if not through.has(c): deep[c] = true
+		if not through.has(c) and not (bottomless and abyss.has(c)): deep[c] = true
 	# a pit with a wall under it on the floor below runs on down inside that wall, and stops short of a room two floors down
 	var depth := PIT_DEPTH
 	if in_stack(level_raw, floor_no - 1) and in_stack(level_raw, floor_no - 2):

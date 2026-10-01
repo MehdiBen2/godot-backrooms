@@ -30,7 +30,8 @@ const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling
 	"loot": "Loot: battery packs, tape and camera flashes turn up here far more often",
 	"open_ceiling": "Open ceiling: no ceiling. You look up into the floor above, which gets a hole in its floor over these cells\n(whoever is up there can fall through). On the top floor there is only the dark above",
 	"echo": "Echo: a long, wet echo on footsteps and everything you hear, whatever the size of the room",
-	"loop": "Loop: a corridor that never ends. Paint it along a straight, plain corridor at least 6 cells long (12 or more hides it best):\nwalk on down it and you are back near its start, with nothing to show it. Turning back takes you out.\nIts tubes are all lit and steady, and nothing is scattered in it"}
+	"loop": "Loop: a corridor that never ends. Paint it along a straight, plain corridor at least 6 cells long (12 or more hides it best):\nwalk on down it and you are back near its start, with nothing to show it. Turning back takes you out.\nIts tubes are all lit and steady, and nothing is scattered in it",
+	"abyss": "Abyss: paint it on pits. A pit with no bottom: storey after storey of this level's wall and buzzing tubes,\nfading into haze. Whoever falls in falls for a minute (\"abyss_secs\" in the .lvl, 0: for ever), then wakes at the spawn.\nOver a room on the floor below it still has no bottom (that floor keeps its ceiling). Pits on the lowest floor are abysses anyway"}
 const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
