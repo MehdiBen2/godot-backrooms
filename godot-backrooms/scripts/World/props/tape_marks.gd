@@ -55,6 +55,7 @@ func reload_floor() -> void:
 			m.queue_free()
 	meshes.clear()
 	order.clear()
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
 	if not _loaded.has(lv):
 		_loaded[lv] = true
@@ -89,6 +90,7 @@ func remove(id: String) -> void:
 
 ## Write this level's strips to disk (a level-editor test launch only: mark_store.gd)
 func save() -> bool:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var out: Array = []
 	for s in placed.get(MarkStore.key(), []):
 		out.append({"id": s.id, "a": MarkStore.arr(s.a), "b": MarkStore.arr(s.b), "n": MarkStore.arr(s.n),

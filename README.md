@@ -99,6 +99,14 @@ a caption, the tubes over it dying or stuttering, silence, a thump, a drone, or 
 breathing, preacher, power cut). The Liminal atmosphere / zone and the "Liminal halls" generator style give
 the empty, evenly lit, hazy look. Object types and their per-object fields live in `levels/object_types.json`.
 
+In the editor a selected object has a round knob to turn it and small squares to size it on the map (a wall's
+ends and thickness, a pillar's width, a trigger's depth, a curve's diameter and arc); Shift+wheel sizes it,
+Alt+wheel turns it and the arrow keys nudge it. **Select area** (key S) drags a box of the map: Del empties
+it (objects, zones, paint), Shift+Del walls it in, and Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste it, rooms
+and all, onto any floor or level (Ctrl+Shift+V on the same cells). Ctrl+A takes every object (or the whole
+floor), and Esc always lets go of whatever is following the mouse. The line along the bottom of the map
+lists the current tool's controls.
+
 **Stairs up / down** (keys 7 / 8) put a stairwell on the floor you are editing and its other end on the floor
 above / below (made if the level has none): a boxed-in switchback stair, 3 x 2 cells, its doorway on the cell
 behind the arrow. A stairs tool clicked on a stairwell that is already there carries that one on another

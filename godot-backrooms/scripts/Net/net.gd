@@ -482,7 +482,7 @@ func _tape_rpc(strips: Array) -> void:
 		if not (s is Array) or s.size() != 7 or typeof(s[0]) != TYPE_INT:
 			continue
 		var level: int = s[0]
-		if level < 0 or level >= 64 or typeof(s[1]) != TYPE_VECTOR3 or typeof(s[2]) != TYPE_VECTOR3 or typeof(s[3]) != TYPE_VECTOR3 \
+		if level < 0 or level >= 1000000 or typeof(s[1]) != TYPE_VECTOR3 or typeof(s[2]) != TYPE_VECTOR3 or typeof(s[3]) != TYPE_VECTOR3 \
 				or typeof(s[4]) != TYPE_STRING or typeof(s[5]) != TYPE_FLOAT or typeof(s[6]) != TYPE_STRING:
 			continue
 		var a: Vector3 = s[1]
@@ -497,7 +497,7 @@ func _tape_rpc(strips: Array) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _tape_removed_rpc(level: int, id: String) -> void:
-	if not _is_peer(multiplayer.get_remote_sender_id()) or level < 0 or level >= 64 or id.length() > 32:
+	if not _is_peer(multiplayer.get_remote_sender_id()) or level < 0 or level >= 1000000 or id.length() > 32:
 		return
 	TapeMarks.receive_removed(level, id)
 

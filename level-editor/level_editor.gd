@@ -9,7 +9,11 @@ extends "res://level_editor_files.gd"
 ##   1-3 wall/floor/pit   [ ] brush size   Ctrl+S save   Ctrl+Z undo   Ctrl+N new   Ctrl+D duplicate
 ##   objects: 4-6 thin wall/arch/door (click places, drag while placing aims it), V select / move,
 ##   drag the round handle to rotate, R / Shift+R rotate, Del delete, Esc deselect, G snap to grid,
-##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees
+##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees,
+##   the squares round a selected object resize it, Shift+wheel sizes and Alt+wheel turns it, arrows nudge,
+##   Ctrl+A all objects, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste
+##   S select area: drag a box of the map, Del empties it, Shift+Del walls it in, Ctrl+C / X / V work on it too
+##   Esc always lets go of whatever is following the mouse
 ## The object types (and their keys, colours and sizes) come from the game's levels/object_types.json.
 ## Types with a "model" key are decorative clutter (imported meshes, not procedural geometry); those also
 ## flagged "scatter": true can be dropped in bulk with the SCATTER PROPS button in the OBJECTS panel.
@@ -316,7 +320,7 @@ func _build_ui() -> void:
 		hb.add_child(b)
 	hb.add_child(VSeparator.new())
 	hb.add_child(_label("SHOW", 12, DIM))
-	for l in [["show_tex", "Textures"], ["show_zones", "Zones"], ["show_paint", "Paint"], ["show_objects", "Objects"], ["show_grid", "Grid"]]:
+	for l in [["show_tex", "Textures"], ["show_zones", "Zones"], ["show_paint", "Paint"], ["show_objects", "Objects"], ["show_grid", "Grid"], ["show_hints", "Hints"]]:
 		var cb := CheckBox.new()
 		cb.text = l[1]
 		cb.button_pressed = get(l[0])
@@ -367,6 +371,30 @@ func _build_ui() -> void:
 	aw.tooltip_text = "Floor drawn as a rectangle (Rectangle mode, or Shift+drag) becomes a room: floor with a wall all round it.\nDrawing Floor past the map's edge grows the map, a wall border kept round everything"
 	aw.toggled.connect(func(on): auto_walls = on)
 	ter.add_child(aw)
+
+	var sel := _section(side, "SELECT AREA")
+	sel.add_child(_tool_button("area", "Select area  (S)", SEL,
+		"Drag a box on the map to select everything in it: rooms, zones, paint, objects.\nDel empties it, Shift+Del walls it in, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste it (on any floor or level),\nCtrl+Shift+V pastes on the same cells, Ctrl+A takes the whole floor, Esc or a right click drops the box"))
+	var selgrid := GridContainer.new()
+	selgrid.columns = 2
+	sel.add_child(selgrid)
+	for a in [["EMPTY  Del", func(): _area_clear(), "Delete every object, zone, painted material and marker in the box. The rooms stay"],
+			["WALL IN", func(): _area_clear(WALL), "Empty the box and fill it with solid wall (Shift+Del)"],
+			["FLOOR", func(): _area_clear(FLOOR), "Empty the box and make it all open floor"],
+			["PIT", func(): _area_clear(PIT), "Empty the box and make it all pit: a shaft"],
+			["COPY", _copy, "Ctrl+C"], ["CUT", _cut, "Ctrl+X: copy the box, then wall it in"],
+			["PASTE", func(): _paste(true), "Paste on the cells it was copied from (Ctrl+Shift+V): on another floor that is straight above or below.\nCtrl+V pastes at the mouse instead"],
+			["WHOLE FLOOR", _area_all, "Select the whole floor (Ctrl+A)"],
+			["CUT COLUMNS", func(): _area_cut_strip(true), "Cut the box's columns right out of the map, on every floor: everything to their right moves left to close the gap\nand the level gets narrower. Whole columns go, top to bottom. The map is square: it only gets smaller if its last rows are unused too"],
+			["CUT ROWS", func(): _area_cut_strip(false), "Cut the box's rows right out of the map, on every floor: everything below moves up to close the gap"],
+			["CROP TO BOX", _area_crop, "Keep only what is in the box: every floor is cut down to it, with a wall border round it"]]:
+		var ab := _button(a[0], func():
+			if tool != "area" and a[0] != "PASTE": _select_tool("area")
+			a[1].call())
+		ab.tooltip_text = a[2]
+		ab.add_theme_font_size_override("font_size", 13)
+		ab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		selgrid.add_child(ab)
 
 	var gen := _section(side, "GENERATE")
 	gen.add_child(_note("Pick the Generate tool and drag an area (it can reach past the map, which grows). Rooms join whatever floor is next to the area. REGENERATE rolls the last area again."))
@@ -533,7 +561,7 @@ func _build_ui() -> void:
 	# objects, one panel per object_types.json "category"
 	var obj := _section(side, "WALLS")
 	obj.add_child(_tool_button("select", "Select / move  (V)", CREAM,
-		"Click an object to edit it, drag to move, drag its round handle to rotate.\nR / Shift+R rotate, Del deletes, Esc deselects"))
+		"Click an object to edit it, drag to move, drag its round handle to rotate, drag its squares to resize it\n(a wall's ends and thickness, a pillar's width, a trigger's depth, a curve's size and arc).\nShift+wheel sizes it, Alt+wheel turns it, the arrow keys nudge it. Drag on empty map to box-select, Shift+click adds,\nCtrl+A takes every object, Ctrl+C / Ctrl+V copy and paste. R / Shift+R rotate, Del deletes, Esc deselects"))
 	tool_buttons["select"].icon = _obj_icon("_select", CREAM)
 	var panels := {"walls": obj}
 	for cat in [["openings", "DOORS & STAIRS"], ["events", "EVENTS"], ["props", "PROPS"]]:
@@ -1040,6 +1068,7 @@ func _note(text: String) -> Label:
 
 func _small_toggle(text: String, tip: String, group: ButtonGroup) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
 	b.text = text
 	b.tooltip_text = tip
 	b.toggle_mode = true
@@ -1082,14 +1111,23 @@ func _toggle_3d() -> void:
 	if preview3d.visible: preview3d.visible = false
 	else: preview3d.open()
 
+## The window lost focus (another program, the test game, a dialog) with a button or Space down: its release
+## will not arrive here, so whatever it was doing on the map ends now
+func _notification(what: int) -> void:
+	if (what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT) and canvas != null:
+		panning = false
+		_let_go()
+
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE     # worked with the mouse: a button that kept the focus would take Space and Enter
 	b.text = text
 	b.pressed.connect(cb)
 	return b
 
 func _tool_button(id: String, text: String, col: Color, tip: String) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 36)
 	b.add_theme_constant_override("h_separation", 10)
 	b.text = text
@@ -1107,10 +1145,13 @@ func _tool_button(id: String, text: String, col: Color, tip: String) -> Button:
 	return b
 
 func _select_tool(id: String) -> void:
+	_let_go()
 	tool = id
 	if id == "paint:ceiling": _set_view(true)
 	elif id.begins_with("paint:") or id.begins_with("base:"): _set_view(false)
 	rect_from = Vector2i(-1, -1)
+	if id == "area": _area_status()
+	else: area = Rect2i()
 	canvas.queue_redraw()
 	for k in tool_buttons:
 		tool_buttons[k].button_pressed = (k == id)
@@ -1133,13 +1174,17 @@ func _save_godot_path(p: String) -> void:
 func _input(ev: InputEvent) -> void:
 	var k := ev as InputEventKey
 	if k == null: return
+	var focus := get_viewport().gui_get_focus_owner()
+	var typing := focus is LineEdit or focus is TextEdit or name_dialog.visible or trigger_dialog.visible or delete_dialog.visible or godot_dialog.visible
 	if k.keycode == KEY_SPACE:
-		space_down = k.pressed
+		# Space is the pan key (Space + drag, level_editor_canvas.gd _space_held). It must not also press
+		# whichever button was clicked last, which is what Space does to a button with the keyboard focus.
+		if not typing: get_viewport().set_input_as_handled()
 		return
 	if k.keycode in [KEY_CTRL, KEY_SHIFT]:     # they change what a click does: show it
 		canvas.queue_redraw()
 	# typing in a dialog (a level name, a trigger's caption) must not fire the canvas shortcuts (R, Backspace...)
-	if not k.pressed or (get_viewport().gui_get_focus_owner() is LineEdit) or name_dialog.visible or trigger_dialog.visible: return
+	if not k.pressed or typing: return
 	if k.keycode == KEY_SLASH and not k.ctrl_pressed and search_box != null:
 		search_box.grab_focus()
 		get_viewport().set_input_as_handled()
@@ -1154,6 +1199,14 @@ func _input(ev: InputEvent) -> void:
 			KEY_Y: _redo()
 			KEY_N: _ask_new()
 			KEY_D: _ask_dup()
+			KEY_C: _copy()
+			KEY_X: _cut()
+			KEY_V: _paste(k.shift_pressed)
+			KEY_A:
+				if tool == "area": _area_all()
+				else:
+					_select_tool("select")
+					_select_all_objects()
 		return
 	if k.keycode == KEY_F5:
 		_test_level()
@@ -1175,13 +1228,25 @@ func _input(ev: InputEvent) -> void:
 		KEY_2: _select_tool("base:" + FLOOR)
 		KEY_3: _select_tool("base:" + PIT)
 		KEY_V: _select_tool("select")
+		KEY_S: _select_tool("area")
 		KEY_R: _rotate_selected(-90.0 if k.shift_pressed else 90.0)
 		KEY_G: snap_check.button_pressed = not snap_check.button_pressed
 		KEY_A: align_check.button_pressed = not align_check.button_pressed
-		KEY_DELETE, KEY_BACKSPACE: _delete_selected()
+		KEY_DELETE, KEY_BACKSPACE:
+			if tool == "area": _area_clear(WALL if k.shift_pressed else "")
+			else: _delete_selected()
 		KEY_ESCAPE:
-			if drag == "chain": _delete_selected()
-			else: _select(-1)
+			# the way out of anything: whatever is following the mouse stops, then the selection goes
+			var busy := panning or painting or drag != "" or rect_from.x >= 0 or area_from.x >= 0
+			_cancel_all()
+			if not busy:
+				_select(-1)
+				area = Rect2i()
+				canvas.queue_redraw()
+		KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN:
+			if _object_tool() and not _group().is_empty():
+				_nudge({KEY_LEFT: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT, KEY_UP: Vector2.UP, KEY_DOWN: Vector2.DOWN}[k.keycode], not k.echo)
+				get_viewport().set_input_as_handled()      # not also a step of the keyboard focus
 		KEY_BRACKETLEFT: _set_brush(brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(brush + 1)
 		KEY_F: _fit()

@@ -52,6 +52,9 @@ func reload_floor() -> void:
 		if is_instance_valid(m):
 			m.queue_free()
 	meshes.clear()
+	_undo.clear()
+	_redo.clear()
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
 	if not _loaded.has(lv):
 		_loaded[lv] = true
@@ -177,6 +180,7 @@ func _drop_mesh(id: String) -> void:
 
 ## Write this floor's strokes to disk; false if the file could not be written
 func save() -> bool:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var out: Array = []
 	for s in placed.get(MarkStore.key(), []):
 		var pts: Array = []

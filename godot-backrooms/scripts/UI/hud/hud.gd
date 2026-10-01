@@ -280,13 +280,13 @@ func _build_hud() -> void:
 	osd_root.add_child(br)
 	var row := _hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["Q // SCAN", "G // FLASH", "T // TAPE", "R // BATTERY", "TAB // ITEMS"]
+	var hints := ["TAB // T.S.R.A Terminal"]
 	for i in hints.size():
 		row.add_child(_label(hints[i], 13, HINT))
 		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
 	br.add_child(row)
 	br.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.612, 0.573, 0.408, 0.5)))
-	br.offset_left = -42 - 800
+	br.offset_left = -42 - 360
 	br.offset_top = -32 - 44
 	br.offset_right = -42
 	br.offset_bottom = -32
