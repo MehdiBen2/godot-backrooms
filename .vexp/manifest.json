@@ -28,8 +28,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "8a0db21399ee9752f84b46ad7eaeb5ea5b81d132",
-  "indexed_at_timestamp": "2026-10-01T19:24:44.439056200+00:00",
+  "indexed_at_commit": "9d1ee6c8cf0e2dc3a9184a1ec3d9247bedfc97dc",
+  "indexed_at_timestamp": "2026-10-01T19:38:10.890805100+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
