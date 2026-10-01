@@ -152,6 +152,12 @@ func _goto_exit() -> void:
 	var p: Node3D = Game.player as Node3D
 	if not (ex is Array) or ex.size() < 2 or p == null:
 		return
+	if exit_door != null:
+		var at := exit_door.global_position
+		p.global_position = at + exit_door.global_transform.basis.x * 2.5 + Vector3(0, 0.1, 0)
+		if p is CharacterBody3D: (p as CharacterBody3D).velocity = Vector3.ZERO
+		p.look_at(Vector3(at.x, p.global_position.y, at.z), Vector3.UP)
+		return
 	var c := Vector2i(ex[0], ex[1])
 	var best := c
 	var best_d := 1e9
@@ -171,9 +177,47 @@ func _build_exit() -> void:
 	var e = level_data.get("exit")
 	if not (e is Array) or e.size() < 2:
 		return
-	exit_door = LevelExit.new()
-	exit_door.position = Vector3(e[0] * CELL, 0.0, e[1] * CELL)
-	add_child(exit_door)
+	var door := LevelExit.new()
+	var c := Vector2i(e[0], e[1])
+	var mount := _exit_mount(c)
+	if mount.is_empty():
+		# no wall in reach: the door stands at the exit cell in a slab of wall of its own
+		door.position = Vector3(c.x * CELL, 0.0, c.y * CELL)
+		door.backing = tall_wall_mat if tall.has(c) else wall_mat
+		door.backing_h = ceiling_height(c)
+	else:
+		# on the wall's face, between the open cell and the wall cell, turned so its +X is out into the room
+		var from: Vector2i = mount[0]
+		var d: Vector2i = mount[1]
+		door.position = Vector3((from.x + d.x * 0.5) * CELL, 0.0, (from.y + d.y * 0.5) * CELL)
+		door.rotation.y = atan2(d.y, -d.x)
+	exit_door = door
+	add_child(door)
+
+const EXIT_REACH := 8                # cells from the exit cell a wall is looked for
+
+## Where the exit door goes: [the open cell it is walked up to from, the step from that cell into the wall].
+## The exit cell's own wall if it has one beside it (or is one), else the nearest wall straight along a row
+## or column from it. Empty: none in reach.
+func _exit_mount(c: Vector2i) -> Array:
+	if _block_at(c):
+		for d: Vector2i in DIRS:
+			if _exit_floor(c + d): return [c + d, -d]
+		return []
+	var best: Array = []
+	var best_k := EXIT_REACH
+	for d: Vector2i in DIRS:
+		for k in best_k:
+			var o: Vector2i = c + d * k
+			if not _exit_floor(o) or (k > 0 and edge_blocked(o - d, o)): break
+			if _block_at(o + d):
+				best = [o, d]
+				best_k = k
+				break
+	return best
+
+func _exit_floor(c: Vector2i) -> bool:
+	return not (walls.has(c) or pits.has(c) or arch_cells.has(c) or pillar_cells.has(c))
 
 # ---------------------------------------------------------------- battery packs
 # Scattered at random open floor cells each load (own RNG: the level's rng is fixed-seeded).
