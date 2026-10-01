@@ -1036,10 +1036,10 @@
   "sdfgi": false,
   "size": 64,
   "spawn": [
-    35,
-    41
+    3,
+    9
   ],
-  "spawn_rot": 177.0,
+  "spawn_rot": 223.0,
   "tv": null,
   "version": 2,
   "zones": {
