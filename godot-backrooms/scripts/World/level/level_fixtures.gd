@@ -80,6 +80,9 @@ func _place_fixtures() -> void:
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
 			var burnt := not (is_bright or is_classic) and rng.randf() < chance
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < (LIMINAL_FLICKER_CHANCE if is_liminal else FLICKER_CHANCE))
+			if loop.has(c):                 # a corridor that repeats: every tube alike, or the repeat would show
+				burnt = false
+				flick = false
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": PI / 2.0 if ns else 0.0,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
@@ -109,6 +112,9 @@ func _place_panel_fixtures() -> void:
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
 			var burnt := not on_grid or (not (is_bright or is_classic) and rng.randf() < chance)
 			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
+			if loop.has(c):
+				burnt = not on_grid
+				flick = false
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": on_grid,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,

@@ -107,6 +107,14 @@ and all, onto any floor or level (Ctrl+Shift+V on the same cells). Ctrl+A takes 
 floor), and Esc always lets go of whatever is following the mouse. The line along the bottom of the map
 lists the current tool's controls.
 
+Zones are painted onto cells (ZONES panel). Besides the looks (tall / low ceilings, tiles, bright, dark, dim,
+flicker, grime, classic, liminal) and where the mannequins stand: **Safe** (no entity sets foot there: they
+path round it and are pushed out, `scripts/World/grid_nav.gd`), **Drain** (sanity runs out while you stand
+there), **Loot** (pickups turn up there far more often), **Open ceiling** (no ceiling: the floor above has a
+hole over those cells, as if it had a pit there), **Echo** (a long wet echo on everything heard) and **Loop**
+(a corridor that never ends: paint it along a straight, plain corridor of 6 cells or more and walking on down
+it puts you back near its start, unseen; turning back leads out).
+
 **Stairs up / down** (keys 7 / 8) put a stairwell on the floor you are editing and its other end on the floor
 above / below (made if the level has none): a boxed-in switchback stair, 3 x 2 cells, its doorway on the cell
 behind the arrow. A stairs tool clicked on a stairwell that is already there carries that one on another

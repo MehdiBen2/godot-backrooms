@@ -17,7 +17,9 @@ const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
-	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0")}
+	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
+	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
+	"echo": Color("2ec4b6"), "loop": Color("b388ff")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -745,7 +747,7 @@ func _draw_zones() -> void:
 		_outline_cells(cells, col, w, 1.0 + (i % 3) * w)       # overlapping zones step their outlines inwards
 		if zoom >= 9.0:
 			for top: Vector2i in _patch_tops(cells):
-				_tag(pan + Vector2(top) * zoom + Vector2(3, 3 + (i % 3) * 14), zn.to_upper(), col, 10)
+				_tag(pan + Vector2(top) * zoom + Vector2(3, 3 + (i % 3) * 14), str(zn).to_upper().replace("_", " "), col, 10)
 		i += 1
 
 ## Painted materials: an outline in the material's own colour round each painted patch, and its name, for

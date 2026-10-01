@@ -44,8 +44,11 @@ func _make_materials() -> void:
 	panel_ceiling = _panel_ceiling_material()
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
-	door_leaf_mat = (load("res://textures/pbr/Wood029/Wood029.tres") as StandardMaterial3D).duplicate()
-	door_leaf_mat.roughness = 0.75
+	if ResourceLoader.exists("res://textures/props/door/door_leaf.tres"):
+		door_leaf_mat = (load("res://textures/props/door/door_leaf.tres") as StandardMaterial3D).duplicate()
+	else:
+		door_leaf_mat = (load("res://textures/pbr/Wood029/Wood029.tres") as StandardMaterial3D).duplicate()
+		door_leaf_mat.roughness = 0.75
 	door_hw_mat = (load("res://textures/pbr/Metal038/Metal038.tres") as StandardMaterial3D).duplicate()
 	door_hw_mat.roughness = 0.35
 	door_frame_mat = StandardMaterial3D.new()          # painted gray metal frame and casing
@@ -239,6 +242,10 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
 		if not shell: _build_ceiling_collision(floor_cells)
 	if not floors: return
+	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
+	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
+	if not (through.is_empty() and open_above.is_empty() and holes_below.is_empty()):
+		_cell_surface(floor_cells, func(_c): return -0.4, _plaster_mat(), true)
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
@@ -1088,6 +1095,13 @@ func _build_ceiling_steps() -> void:
 # blackness (vertex colours darken with depth), and a black bottom. A pit that opens into the floor below
 # (`through`) is only the hole through the slab between the two: its sides, down to that floor's ceiling.
 func _build_pit_shafts() -> void:
+	# An open ceiling with no room over it to look up into (the top floor, or solid wall above): a shaft
+	# rising into the dark, the pit's own turned over. Under another floor it stops at that floor's slab.
+	var top := WALL_H
+	if in_stack(level_raw, floor_no + 1):
+		_pit_shaft(shaft_up, [top, top + 0.32, top + 1.1, top + 2.4, STOREY_H])
+	else:
+		_pit_shaft(shaft_up, [top, top + 0.32, top + 1.1, top + 2.4, top + 4.4, top + 7.0, top + 10.4, top + PIT_DEPTH])
 	if pits.is_empty(): return
 	var deep := {}
 	for c: Vector2i in pits:
@@ -1108,7 +1122,8 @@ func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true) -> void:
 	var H := CELL / 2.0
 	var shade: Array[float] = []
 	for i in levels.size():
-		shade.append(1.25 if i == 0 else (1.1 if i == 1 else maxf(0.0, exp(levels[i] * 0.4) * 0.9)))
+		var far := absf(float(levels[i]) - float(levels[0]))        # how far along the shaft, down or up
+		shade.append(1.25 if i == 0 else (1.1 if i == 1 else maxf(0.0, exp(-far * 0.4) * 0.9)))
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var wall := func(ax: float, az: float, bx: float, bz: float) -> void:
@@ -1145,7 +1160,7 @@ func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true) -> void:
 	mi.material_override = mats[0]
 	add_child(mi)
 	if bottom:
-		_cell_surface(cells, func(_c): return levels[-1], mats[1], false)
+		_cell_surface(cells, func(_c): return levels[-1], mats[1], float(levels[-1]) > float(levels[0]))     # a shaft going up is closed by a face looking down
 
 ## The shafts' concrete and the black of their bottoms: one of each for every floor of every level, made with
 ## the level's other materials. A kind of material is compiled when the first one of it is made (a fifth of a
@@ -1173,7 +1188,7 @@ func _build_dirt() -> void:
 	var seen := {}
 	var add := func(x: int, z: int) -> void:
 		var c := Vector2i(x, z)
-		if seen.has(c) or walls.has(c) or pits.has(c) or bright.has(c): return
+		if seen.has(c) or walls.has(c) or pits.has(c) or bright.has(c) or loop.has(c): return
 		for dx in range(-1, 2):               # a stain is wider than its cell: none hanging over a stairwell's down flight
 			for dz in range(-1, 2):
 				if stair_cells.has(c + Vector2i(dx, dz)): return

@@ -67,6 +67,16 @@ var flicker := {}
 var mannequin := {}   # cells where the mannequin room stands (painted in the level editor)
 var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
 var liminal := {}     # the liminal look: every tube steady and humming, pale air you can see a long way down
+var safe := {}        # no entity sets foot here: solid to their paths and their bodies (grid_nav.gd), not to their eyes
+var drain := {}       # sanity runs out while you stand here, whatever the light (player.gd)
+var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
+var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
+var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
+## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
+## treats them as pits, holes_below). On the top floor there is only the dark above.
+var open_ceiling := {}
+var holes_below := {} # Vector2i -> true: cells the floor below has an open ceiling under, so pits here
+var shaft_up := {}    # Vector2i -> true: open-ceiling cells with no room above to see into: a shaft up into the dark
 var fired_triggers := {}   # event triggers already spent this run (props/event_trigger.gd), across floor changes
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
@@ -258,6 +268,22 @@ static func floor_src(d: Dictionary, f: int) -> int:
 static func in_stack(d: Dictionary, f: int) -> bool:
 	return has_floor(d, f) or endless(d)
 
+## The cells floor `f` has zone `zone` painted on (its open cells: a zone on a wall counts for nothing)
+static func zone_cells(d: Dictionary, f: int, zone: String) -> Dictionary:
+	var out := {}
+	if not in_stack(d, f): return out
+	var fd := floor_data(d, floor_src(d, f))
+	var grid: Array = fd["grid"]
+	var zones = fd.get("zones")
+	if not (zones is Dictionary): return out
+	var n := int(d["size"])
+	for c in zones.get(zone, []):
+		var v := Vector2i(c[0], c[1])
+		if v.x < 1 or v.y < 1 or v.x >= n - 1 or v.y >= n - 1 or v.y >= grid.size(): continue
+		var row: String = grid[v.y]
+		if v.x < row.length() and row[v.x] != "#": out[v] = true
+	return out
+
 ## Floor `f`'s pits that open into the floor below: the cell under them is not a wall there
 static func through_cells(d: Dictionary, f: int) -> Dictionary:
 	var out := {}
@@ -271,6 +297,9 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 		var low: String = under[z]
 		for x in range(1, mini(n - 1, mini(row.length(), low.length()))):
 			if row[x] == "O" and low[x] != "#": out[Vector2i(x, z)] = true
+	# an open ceiling on the floor below is a hole in this floor too, wherever this floor is not wall
+	for c: Vector2i in zone_cells(d, f - 1, "open_ceiling"):
+		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
 	if out.is_empty(): return out
 	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
 	for g: int in [f, f - 1]:
@@ -287,10 +316,15 @@ func load_floor(f: int, raw := {}) -> void:
 	level_raw = raw if not raw.is_empty() else read_level(level_meta)
 	level_data = floor_data(level_raw, floor_src(level_raw, f))
 	floor_no = f
+	holes_below = zone_cells(level_raw, f - 1, "open_ceiling")
 	_parse(level_data)
 	# a stairwell, or a wall object square on the cell, takes the cell over on this floor
 	through = through_cells(level_raw, f)
 	open_above = through_cells(level_raw, f + 1)
+	shaft_up.clear()
+	for c: Vector2i in open_ceiling:                             # no ceiling, whether or not there is a floor above to see
+		if not open_above.has(c): shaft_up[c] = true
+		open_above[c] = true
 	hole_box = Rect2i()
 	for holes: Dictionary in [through, open_above]:
 		for c: Vector2i in holes.keys():
@@ -324,6 +358,8 @@ func _parse(d: Dictionary) -> void:
 				legacy[v] = "thin_wall" if ch == "T" else "door"
 			elif ch == "A":
 				legacy[v] = "arch"
+	for v: Vector2i in holes_below:                  # the floor below has no ceiling here: a hole in this floor
+		if not walls.has(v): pits[v] = true
 	# old tiles become objects facing whichever way the corridor runs (needs the full wall set first)
 	for v: Vector2i in legacy:
 		objects.append(load_object({"type": legacy[v], "pos_x": float(v.x), "pos_y": float(v.y), "rotation": 90.0 * open_axis(v)}))
@@ -368,7 +404,8 @@ func _parse(d: Dictionary) -> void:
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin"]:
+	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
+			"safe", "drain", "loot", "echo", "loop", "open_ceiling"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
@@ -495,12 +532,12 @@ func step_mask() -> PackedByteArray:
 	for x in size:
 		for z in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c): continue
+			if walls.has(c) or pits.has(c) or safe.has(c): continue          # (a Safe zone: no entity's path crosses it)
 			var bits := 0
 			for i in 4:
 				var nb: Vector2i = c + dirs[i]
 				if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size: continue
-				if walls.has(nb) or pits.has(nb) or edge_blocked(c, nb): continue
+				if walls.has(nb) or pits.has(nb) or safe.has(nb) or edge_blocked(c, nb): continue
 				bits |= 1 << i
 			m[x * size + z] = bits
 	_step_mask = m

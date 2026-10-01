@@ -24,7 +24,13 @@ const LINE := Color("3a3522")
 const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
 	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet", "classic": "Super bright classic backrooms: steady glowing tubes, clear air",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away",
-	"mannequin": "Where the mannequins stand: paint as many areas as you like"}
+	"mannequin": "Where the mannequins stand: paint as many areas as you like",
+	"safe": "Safe: no entity sets foot here. They path round it and are pushed out of it, though they still see in\n(and can reach in from its edge: keep away from the rim)",
+	"drain": "Drain: sanity runs out while you stand here, lit or not, torch or not",
+	"loot": "Loot: battery packs, tape and camera flashes turn up here far more often",
+	"open_ceiling": "Open ceiling: no ceiling. You look up into the floor above, which gets a hole in its floor over these cells\n(whoever is up there can fall through). On the top floor there is only the dark above",
+	"echo": "Echo: a long, wet echo on footsteps and everything you hear, whatever the size of the room",
+	"loop": "Loop: a corridor that never ends. Paint it along a straight, plain corridor at least 6 cells long (12 or more hides it best):\nwalk on down it and you are back near its start, with nothing to show it. Turning back takes you out.\nIts tubes are all lit and steady, and nothing is scattered in it"}
 const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}

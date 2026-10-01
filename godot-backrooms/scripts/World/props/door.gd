@@ -68,8 +68,11 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	add_child(pivot)
 	var leaf_size := Vector3(LEAF_T, DOOR_H - 0.012, DOOR_W - 0.01)
 	var leaf_pos := Vector3(0, 0.006 + leaf_size.y * 0.5, DOOR_W * 0.5)
-	# the box is built lying on its side and stood up, so the wood grain (along the texture's u) runs up the door
-	_box(Vector3(leaf_size.x, leaf_size.z, leaf_size.y), leaf_pos, leaf_mat, pivot).rotation.x = PI / 2.0
+	var leaf_mi := MeshInstance3D.new()
+	leaf_mi.mesh = _build_leaf_mesh(leaf_size)
+	leaf_mi.position = leaf_pos
+	leaf_mi.material_override = leaf_mat
+	pivot.add_child(leaf_mi)
 	var leaf_body := AnimatableBody3D.new()
 	pivot.add_child(leaf_body)
 	leaf_collision = CollisionShape3D.new()
@@ -135,6 +138,63 @@ func _cyl(radius: float, length: float, pos: Vector3, mat: Material) -> void:
 	mi.position = pos
 	mi.material_override = mat
 	pivot.add_child(mi)
+
+static func _build_leaf_mesh(size: Vector3) -> ArrayMesh:
+	var hx := size.x * 0.5
+	var hy := size.y * 0.5
+	var hz := size.z * 0.5
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var add_quad = func(n: Vector3, p: Array, uvs: Array) -> void:
+		st.set_normal(n)
+		st.set_uv(uvs[0]); st.add_vertex(p[0])
+		st.set_uv(uvs[1]); st.add_vertex(p[1])
+		st.set_uv(uvs[2]); st.add_vertex(p[2])
+
+		st.set_uv(uvs[0]); st.add_vertex(p[0])
+		st.set_uv(uvs[2]); st.add_vertex(p[2])
+		st.set_uv(uvs[3]); st.add_vertex(p[3])
+
+	# Front face (+X)
+	add_quad.call(Vector3(1, 0, 0), [
+		Vector3(hx, hy, -hz), Vector3(hx, hy, hz),
+		Vector3(hx, -hy, hz), Vector3(hx, -hy, -hz)
+	], [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)])
+
+	# Back face (-X)
+	add_quad.call(Vector3(-1, 0, 0), [
+		Vector3(-hx, hy, hz), Vector3(-hx, hy, -hz),
+		Vector3(-hx, -hy, -hz), Vector3(-hx, -hy, hz)
+	], [Vector2(1, 0), Vector2(0, 0), Vector2(0, 1), Vector2(1, 1)])
+
+	# Hinge edge (-Z)
+	add_quad.call(Vector3(0, 0, -1), [
+		Vector3(-hx, hy, -hz), Vector3(hx, hy, -hz),
+		Vector3(hx, -hy, -hz), Vector3(-hx, -hy, -hz)
+	], [Vector2(0.01, 0), Vector2(0.04, 0), Vector2(0.04, 1), Vector2(0.01, 1)])
+
+	# Latch edge (+Z)
+	add_quad.call(Vector3(0, 0, 1), [
+		Vector3(hx, hy, hz), Vector3(-hx, hy, hz),
+		Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz)
+	], [Vector2(0.96, 0), Vector2(0.99, 0), Vector2(0.99, 1), Vector2(0.96, 1)])
+
+	# Top edge (+Y)
+	add_quad.call(Vector3(0, 1, 0), [
+		Vector3(-hx, hy, -hz), Vector3(-hx, hy, hz),
+		Vector3(hx, hy, hz), Vector3(hx, hy, -hz)
+	], [Vector2(0, 0.01), Vector2(1, 0.01), Vector2(1, 0.04), Vector2(0, 0.04)])
+
+	# Bottom edge (-Y)
+	add_quad.call(Vector3(0, -1, 0), [
+		Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz),
+		Vector3(hx, -hy, hz), Vector3(-hx, -hy, hz)
+	], [Vector2(0, 0.99), Vector2(0, 0.96), Vector2(1, 0.96), Vector2(1, 0.99)])
+
+	st.generate_tangents()
+	return st.commit()
+
 
 func _process(delta: float) -> void:
 	var lvl := get_parent()

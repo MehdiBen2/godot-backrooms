@@ -19,7 +19,8 @@ const STAND_H := 1.7
 const CROUCH_H := 1.0
 const JUMP_SPEED := 5.0
 const GRAVITY := 20.0
-const FALL_SPEED_MAX := 30.0      # m/s: a shaft can run through many floors (or have no bottom), each built as you reach it
+const DRAIN_ZONE_RATE := 4.5      # sanity a second lost in a Drain zone: more than a lit room gives back (2.2)
+const FALL_SPEED_MAX := 30.0     # m/s: a shaft can run through many floors (or have no bottom), each built as you reach it
 # Movement feel: weighty but responsive, forgiving jumps
 const ACCEL_GROUND := 16.0        # x speed per second towards the wished velocity (was an instant 40 m/s^2)
 const DECEL_GROUND := 22.0        # a touch snappier when letting go, so stops feel deliberate
@@ -674,6 +675,11 @@ func _update_sanity(dt: float) -> void:
 		sanity = maxf(0.0, sanity - (1.0 + dark_ratio * 4.5) * creep * (1.4 if grid_down else 1.0) * dt)
 	else:
 		dark_time = maxf(0.0, dark_time - dt)                  # dim but not black: neither gain nor loss
+	# a Drain zone (painted in the level editor): the place itself wears you down, lit or not, torch or not
+	if sanity_lock < 0.0 and level != null:
+		var zone = level.get("drain")
+		if zone is Dictionary and zone.has(Vector2i(roundi(global_position.x / 4.5), roundi(global_position.z / 4.5))):
+			sanity = maxf(0.0, sanity - DRAIN_ZONE_RATE * dt)
 	_update_mind(dt)
 
 # A slipping mind hurts. Below HURT_SANITY the body starts to fail (faster the lower it goes), the

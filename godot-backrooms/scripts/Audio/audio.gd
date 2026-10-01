@@ -52,6 +52,7 @@ var room_timer := 0.0
 var outdoor_mix := 0.0         # 0 = the backrooms .. 1 = the open-air hills level (Game.outdoors), eased
 var room_size := 0.35          # smoothed measurements of the space around the listener
 var room_target := 0.35
+var echo_mix := 0.0           # 0..1, eased: standing in an Echo zone (level_data.gd `echo`)
 var steps_lp: AudioEffectLowPassFilter
 var steps_rev: AudioEffectReverb      # your footsteps in the room around you (follows the room measure)
 var steps_pan: AudioEffectPanner      # left foot, right foot
@@ -410,7 +411,8 @@ func _measure_room() -> float:
 	for i in 8:
 		var a := i * TAU / 8.0
 		var d := 1.0
-		while d < 36.0 and g.open_at(p.x + sin(a) * d, p.z + cos(a) * d):
+		# (walls only: a pit is open air, and a Safe zone is closed to entities, not to sound)
+		while d < 36.0 and not g.is_wall(GridNav.cell(p.x + sin(a) * d), GridNav.cell(p.z + cos(a) * d)):
 			d += 1.5
 		total += d
 	var mean := total / 8.0                                   # ~4 in a corridor, 30+ in a hall
@@ -431,6 +433,16 @@ func _update_room(dt: float) -> void:
 	var world_damp := lerpf(0.85 - 0.25 * room_size, 0.95, o)
 	var steps_wet := lerpf(0.05 + 0.16 * room_size, 0.01, o)
 	var steps_damp := lerpf(0.88 - 0.25 * room_size, 0.95, o)
+	# an Echo zone (painted in the level editor): a huge, hard, wet space whatever the room measures
+	var pp: Vector3 = player.global_position
+	var zone = level.get("echo")
+	var in_echo: bool = not Game.outdoors and zone is Dictionary and zone.has(Vector2i(GridNav.cell(pp.x), GridNav.cell(pp.z)))
+	echo_mix += ((1.0 if in_echo else 0.0) - echo_mix) * (1.0 - exp(-dt / 0.7))
+	rs = lerpf(rs, 0.97, echo_mix)
+	world_wet = lerpf(world_wet, 0.5, echo_mix)
+	world_damp = lerpf(world_damp, 0.3, echo_mix)
+	steps_wet = lerpf(steps_wet, 0.42, echo_mix)
+	steps_damp = lerpf(steps_damp, 0.3, echo_mix)
 	# only write when it has moved: re-setting reverb parameters every frame can zipper
 	if absf(world_rev.room_size - rs) > 0.01 or absf(world_rev.wet - world_wet) > 0.004:
 		world_rev.room_size = rs

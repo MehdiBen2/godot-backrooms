@@ -26,6 +26,7 @@ const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
 const SurveyClipboard := preload("res://scripts/World/props/survey_clipboard.gd")
 const DeadFixture := preload("res://scripts/World/props/dead_fixture.gd")
+const LOOT_WEIGHT := 6               # how many ordinary cells a Loot zone cell is worth when things are scattered
 const CLIPBOARD_PER_CELLS := 90
 const DEAD_FIXTURE_PER_CELLS := 75
 
@@ -49,6 +50,7 @@ func _ready() -> void:
 	var sketches := SketchMarks.new()
 	sketches.name = "SketchMarks"
 	add_child(sketches)
+	_find_loops()
 	_sync_shells()
 
 func _process(delta: float) -> void:
@@ -58,8 +60,10 @@ func _process(delta: float) -> void:
 ## Through a hole in the floor into the one below: that floor takes over half way down the slab between them,
 ## with the player where they are, still falling (rebuild_floor_seamless, kind "fall")
 func _physics_process(_delta: float) -> void:
-	if through.is_empty() or rebuilding or player == null or Game.noclip or Game.draw_mode or Game.dead or Death.respawn_busy:
+	if rebuilding or player == null or Game.noclip or Game.draw_mode or Game.dead or Death.respawn_busy:
 		return
+	if not _loops.is_empty(): _walk_loops()
+	if through.is_empty(): return
 	var p := player.global_position
 	if player is CharacterBody3D and (player as CharacterBody3D).is_on_floor(): _fallen = 0
 	if not fell_through(p): return
@@ -74,6 +78,67 @@ func _physics_process(_delta: float) -> void:
 
 const FALL_LIMIT := 24
 var _fallen := 0                   # storeys fallen through since the player last stood on a floor
+
+# ---------------------------------------------------------------- corridors that never end
+## A Loop zone (level_data.gd `loop`) painted along a corridor: walk on down it and, a cell short of its far
+## end, you are put back that far short of the end you came in by, an even number of cells (the tubes of a
+## corridor hang every other cell, and in a Loop zone all of them are lit and steady), looking the same way,
+## in step. Nothing shows it, so the corridor goes on for as long as you keep walking. Turning back takes you
+## out the way you came in. Each run of joined Loop cells at least LOOP_MIN long is one loop, along its length.
+const LOOP_MIN := 6
+var _loops: Array = []             # each {axis: 0 along x / 1 along z, lo, hi (cells along it), shift (cells)}
+var _loop_of := {}                 # Vector2i -> its place in _loops
+var _loop_in := -1                 # the loop the player is in
+var _loop_side := 0                # -1: they came in by its low end, 1: its high end
+
+func _find_loops() -> void:
+	_loops.clear()
+	_loop_of.clear()
+	_loop_in = -1
+	var seen := {}
+	for start: Vector2i in loop:
+		if seen.has(start): continue
+		var cells: Array = [start]
+		seen[start] = true
+		var lo := start
+		var hi := start
+		var k := 0
+		while k < cells.size():
+			var c: Vector2i = cells[k]
+			k += 1
+			lo = lo.min(c)
+			hi = hi.max(c)
+			for d: Vector2i in DIRS:
+				var nb: Vector2i = c + d
+				if loop.has(nb) and not seen.has(nb):
+					seen[nb] = true
+					cells.append(nb)
+		var axis := 0 if hi.x - lo.x >= hi.y - lo.y else 1
+		var a: int = lo.x if axis == 0 else lo.y
+		var b: int = hi.x if axis == 0 else hi.y
+		if b - a + 1 < LOOP_MIN: continue
+		var shift := ((b - a - 2) / 2) * 2               # even, and it lands at least a cell inside the other end
+		for c: Vector2i in cells: _loop_of[c] = _loops.size()
+		_loops.append({"axis": axis, "lo": a, "hi": b, "shift": shift})
+
+func _walk_loops() -> void:
+	var p := player.global_position
+	var id: int = _loop_of.get(cell_of(p), -1)
+	if id < 0:
+		_loop_in = -1
+		return
+	var run: Dictionary = _loops[id]
+	var along: float = (p.x if run.axis == 0 else p.z) / CELL
+	if id != _loop_in:
+		_loop_in = id
+		_loop_side = -1 if along < (float(run.lo) + float(run.hi)) * 0.5 else 1
+		return
+	var move := 0.0
+	if _loop_side < 0 and along > float(run.hi) - 1.0: move = -float(run.shift) * CELL
+	elif _loop_side > 0 and along < float(run.lo) + 1.0: move = float(run.shift) * CELL
+	if move == 0.0: return
+	if run.axis == 0: player.global_position.x += move
+	else: player.global_position.z += move
 
 ## What is underfoot at `p`: "tile" in the polished rooms, "carpet" everywhere else
 func surface_at(p: Vector3) -> String:
@@ -246,6 +311,9 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
+	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling]: zone.clear()
+	_loops.clear()
+	_loop_of.clear()
 	tall.clear()
 	low.clear()
 	tiles.clear()
@@ -435,6 +503,7 @@ func _sync_shells() -> void:
 
 ## The new floor stands: its tape and sketches, and the entity on its grid
 func _floor_ready() -> void:
+	_find_loops()
 	var marks := get_node_or_null("TapeMarks")
 	var sketches := get_node_or_null("SketchMarks")
 	if marks != null and marks.has_method("reload_floor"):
@@ -470,11 +539,13 @@ func _scatter(make: Callable, per_cells: int, lo: int, hi: int) -> void:
 	for z in size:
 		for x in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c): continue
+			if walls.has(c) or pits.has(c) or loop.has(c): continue      # (nothing lying about in a corridor that repeats)
 			if absi(c.x - spawn_c.x) + absi(c.y - spawn_c.y) < BATTERY_MIN_SPAWN_DIST: continue
 			open.append(c)
+			if loot.has(c):                              # a Loot zone: each of its cells counts LOOT_WEIGHT times
+				for i in LOOT_WEIGHT - 1: open.append(c)
 	if open.is_empty(): return
-	var count := clampi(open.size() / per_cells, lo, hi)
+	var count := clampi(open.size() / per_cells, lo, hi + mini(loot.size() / 6, hi))
 	for i in count:
 		if open.is_empty(): break
 		var c: Vector2i = open.pop_at(r.randi_range(0, open.size() - 1))
