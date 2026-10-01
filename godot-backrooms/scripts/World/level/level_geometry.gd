@@ -41,6 +41,7 @@ func build_geometry() -> void:
 ## The level's shared materials, before anything is built with them
 func _make_materials() -> void:
 	_pit_materials()
+	_shaft_mat = null
 	panel_ceiling = _panel_ceiling_material()
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
@@ -221,7 +222,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			var c := Vector2i(x, z)
 			if stair_cells.has(c): continue         # a stairwell: props/stairs.gd builds its own floors and ceilings
 			if not crop.is_empty() and not crop.has(c): continue
-			if open_above.has(c): pass              # a hole in the floor above: no ceiling under it
+			if open_above.has(c) or shaft_pass.has(c): pass     # a hole in the floor above, or a shaft from below passing up through this wall: no ceiling
 			elif panel_ceiling != null: pass        # built by level_fixtures.gd with its lights
 			elif pc.has(c): paint_ceil.get_or_add(pc[c], []).append(c)
 			elif classic.has(c): classic_ceil.append(c)
@@ -245,7 +246,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
 	if not (through.is_empty() and open_above.is_empty() and holes_below.is_empty()):
-		_cell_surface(floor_cells, func(_c): return -0.4, _plaster_mat(), true)
+		_cell_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
@@ -1096,12 +1097,19 @@ func _build_ceiling_steps() -> void:
 # (`through`) is only the hole through the slab between the two: its sides, down to that floor's ceiling.
 func _build_pit_shafts() -> void:
 	# An open ceiling with no room over it to look up into (the top floor, or solid wall above): a shaft
-	# rising into the dark, the pit's own turned over. Under another floor it stops at that floor's slab.
-	var top := WALL_H
-	if in_stack(level_raw, floor_no + 1):
-		_pit_shaft(shaft_up, [top, top + 0.32, top + 1.1, top + 2.4, STOREY_H])
-	else:
-		_pit_shaft(shaft_up, [top, top + 0.32, top + 1.1, top + 2.4, top + 4.4, top + 7.0, top + 10.4, top + PIT_DEPTH])
+	# rising into the dark, the pit's own turned over. It goes up through the floors above for as long as they
+	# are solid wall there (shaft_floors of them, level_data.gd shaft_rise) and stops under the slab of the first
+	# that is not; past the last floor it runs on a long way. Its walls are black well before its end.
+	if not shaft_up.is_empty():
+		var top := WALL_H
+		var end := STOREY_H * (shaft_floors + 1)
+		if not in_stack(level_raw, floor_no + shaft_floors + 1): end = STOREY_H * shaft_floors + WALL_H + 36.0
+		var rise: Array = [top]
+		for step: float in [0.32, 1.1, 2.4, 4.4, 7.0, 10.4, 14.0, 20.0]:
+			if top + step < end - 0.5: rise.append(top + step)
+		rise.append(end)
+		_pit_shaft(shaft_up, rise, true, true, _shaft_paper())
+		_shaft_haze(shaft_up, top, end)
 	if pits.is_empty(): return
 	var deep := {}
 	for c: Vector2i in pits:
@@ -1117,13 +1125,26 @@ func _build_pit_shafts() -> void:
 	_pit_shaft(deep, [0.0, -0.32, -1.1, -2.4, -4.4, -7.0, -10.4, -depth])
 	_pit_shaft(through, [0.0, -0.32, -1.1, -2.4, WALL_H - STOREY_H], false)
 
-func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true) -> void:
+## `up`: a shaft rising from an open ceiling. Its walls stand a hair inside the cell (it passes through the
+## wall of the floors above, whose own faces lie on the cell's edge) and are quite black at its end, so the
+## end can't be made out, however short the shaft has to be.
+## `mat`: what the walls are made of (the shafts' concrete when null); it must take its brightness from the vertex colours.
+func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true, up := false, mat: Material = null) -> void:
 	if cells_in.is_empty(): return
 	var H := CELL / 2.0
+	var I := H - (0.02 if up else 0.0)                              # how far out from the cell's middle its walls stand
 	var shade: Array[float] = []
 	for i in levels.size():
 		var far := absf(float(levels[i]) - float(levels[0]))        # how far along the shaft, down or up
 		shade.append(1.25 if i == 0 else (1.1 if i == 1 else maxf(0.0, exp(-far * 0.4) * 0.9)))
+	if up:
+		# the room's own walls carried on up: no bright cut edge where they start, and dark by the end
+		shade[0] = 1.0
+		shade[1] = 0.96
+		for i in range(2, shade.size()):
+			var far := absf(float(levels[i]) - float(levels[0]))
+			shade[i] = maxf(0.0, exp(-far * 0.22))
+		shade[shade.size() - 1] = 0.0
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var wall := func(ax: float, az: float, bx: float, bz: float) -> void:
@@ -1149,18 +1170,64 @@ func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true) -> void:
 		cells.append(c)
 		var x := c.x * CELL
 		var z := c.y * CELL
-		if not cells_in.has(c + Vector2i(-1, 0)): wall.call(x - H, z - H, x - H, z + H)
-		if not cells_in.has(c + Vector2i(1, 0)): wall.call(x + H, z - H, x + H, z + H)
-		if not cells_in.has(c + Vector2i(0, -1)): wall.call(x - H, z - H, x + H, z - H)
-		if not cells_in.has(c + Vector2i(0, 1)): wall.call(x - H, z + H, x + H, z + H)
+		if not cells_in.has(c + Vector2i(-1, 0)): wall.call(x - I, z - H, x - I, z + H)
+		if not cells_in.has(c + Vector2i(1, 0)): wall.call(x + I, z - H, x + I, z + H)
+		if not cells_in.has(c + Vector2i(0, -1)): wall.call(x - H, z - I, x + H, z - I)
+		if not cells_in.has(c + Vector2i(0, 1)): wall.call(x - H, z + I, x + H, z + I)
 	st.generate_tangents()
 	var mats := _pit_materials()
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
-	mi.material_override = mats[0]
+	mi.material_override = mat if mat != null else mats[0]
 	add_child(mi)
 	if bottom:
 		_cell_surface(cells, func(_c): return levels[-1], mats[1], float(levels[-1]) > float(levels[0]))     # a shaft going up is closed by a face looking down
+
+## What a shaft rising from an open ceiling is walled with: the level's own wallpaper (plain, without the room
+## walls' skirting and ceiling shadow), darkened by the mesh's vertex colours as it climbs
+var _shaft_mat: StandardMaterial3D
+func _shaft_paper() -> StandardMaterial3D:
+	if _shaft_mat == null:
+		var m: StandardMaterial3D = _pbr_or("wall")
+		if m == null:
+			m = _mat("l0_wallpaper", Vector3.ONE / 2.25, Color(1.0, 0.98, 0.88))
+			m.roughness = 0.95
+			m.normal_scale = 0.95
+			m.metallic_specular = 0.28
+		m.vertex_color_use_as_albedo = true
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_shaft_mat = m
+	return _shaft_mat
+
+## Haze hanging in a shaft that rises from an open ceiling: a stack of thin see-through sheets across it,
+## thicker the higher they hang, so the walls sink into it and the top is never seen. They are lit like
+## anything else, so the haze is as bright as the room under it and catches the torch.
+func _shaft_haze(cells: Dictionary, from: float, to: float) -> void:
+	if cells.is_empty(): return
+	var reach := minf(to - from, 18.0)
+	var sheets := clampi(int(reach / 0.7), 4, 14)
+	var half := CELL / 2.0
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(sheets - 1, -1, -1):                 # from the top down: the far ones first
+		var y := from + 0.6 + (reach - 0.9) * float(i) / float(sheets - 1)
+		var col := Color(1, 1, 1, lerpf(0.07, 0.3, float(i) / float(sheets - 1)))
+		for c: Vector2i in cells:
+			var x := c.x * CELL
+			var z := c.y * CELL
+			var a := Vector3(x - half, y, z - half)
+			var b := Vector3(x + half, y, z - half)
+			var d := Vector3(x + half, y, z + half)
+			var e := Vector3(x - half, y, z + half)
+			for v: Vector3 in [a, d, b, a, e, d]:
+				st.set_normal(Vector3.DOWN)
+				st.set_color(col)
+				st.add_vertex(v)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _pit_materials()[2]
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 ## The shafts' concrete and the black of their bottoms: one of each for every floor of every level, made with
 ## the level's other materials. A kind of material is compiled when the first one of it is made (a fifth of a
@@ -1179,7 +1246,14 @@ static func _pit_materials() -> Array:
 		var black := StandardMaterial3D.new()
 		black.albedo_color = Color.BLACK
 		black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_pit_mats = [m, black]
+		var haze := StandardMaterial3D.new()            # _shaft_haze: its sheets' vertex colours carry how thick each is
+		haze.albedo_color = Color(0.82, 0.78, 0.64)
+		haze.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		haze.vertex_color_use_as_albedo = true
+		haze.roughness = 1.0
+		haze.metallic_specular = 0.0
+		haze.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_pit_mats = [m, black, haze]
 	return _pit_mats
 
 # Grime clusters: the painted 'grime' zone plus ~6% scattered stains, kept off the spawn room

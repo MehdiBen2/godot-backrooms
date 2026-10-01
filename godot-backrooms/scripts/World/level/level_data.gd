@@ -77,6 +77,8 @@ var loop := {}        # a corridor that never ends: walk on down it and you are 
 var open_ceiling := {}
 var holes_below := {} # Vector2i -> true: cells the floor below has an open ceiling under, so pits here
 var shaft_up := {}    # Vector2i -> true: open-ceiling cells with no room above to see into: a shaft up into the dark
+var shaft_floors := 0 # how many floors above this one that shaft rises through (they are solid wall there)
+var shaft_pass := {}  # Vector2i -> true: wall cells of this floor a shaft from a floor below rises through
 var fired_triggers := {}   # event triggers already spent this run (props/event_trigger.gd), across floor changes
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
@@ -310,6 +312,32 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 				for c in stair_footprint(load_object(o)): out.erase(c)
 	return out
 
+## Floor `f`'s open-ceiling cells with no room over them to look up into (the cell above is wall, or there
+## is no floor above): a shaft rises from them instead (level_geometry.gd)
+static func blind_cells(d: Dictionary, f: int) -> Dictionary:
+	var out := zone_cells(d, f, "open_ceiling")
+	if out.is_empty(): return out
+	for c: Vector2i in through_cells(d, f + 1): out.erase(c)
+	return out
+
+## How many of the floors above floor `f` that shaft rises through, SHAFT_FLOORS at most: the floors where each
+## of its cells is wall with wall on all four sides. Nothing of such a floor is built there, so nothing of it
+## is cut into; it only leaves the ceiling off over those cells (shaft_pass).
+const SHAFT_FLOORS := 4
+static func shaft_rise(d: Dictionary, f: int) -> int:
+	var cells := blind_cells(d, f)
+	if cells.is_empty(): return 0
+	var n := 0
+	while n < SHAFT_FLOORS and in_stack(d, f + n + 1):
+		var grid: Array = floor_data(d, floor_src(d, f + n + 1))["grid"]
+		for c: Vector2i in cells:
+			for o: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q := c + o
+				if q.y < 0 or q.y >= grid.size() or q.x < 0 or q.x >= (grid[q.y] as String).length(): continue
+				if grid[q.y][q.x] != "#": return n
+		n += 1
+	return n
+
 ## Read floor `f` of the current level into the grid (which must be empty): off the disk, or out of `raw`,
 ## the whole .lvl already read
 func load_floor(f: int, raw := {}) -> void:
@@ -325,6 +353,11 @@ func load_floor(f: int, raw := {}) -> void:
 	for c: Vector2i in open_ceiling:                             # no ceiling, whether or not there is a floor above to see
 		if not open_above.has(c): shaft_up[c] = true
 		open_above[c] = true
+	shaft_floors = 0 if shaft_up.is_empty() else shaft_rise(level_raw, f)
+	shaft_pass.clear()
+	for k in range(1, SHAFT_FLOORS + 1):                         # the shafts of the floors below that reach this one
+		if shaft_rise(level_raw, f - k) >= k:
+			for c: Vector2i in blind_cells(level_raw, f - k): shaft_pass[c] = true
 	hole_box = Rect2i()
 	for holes: Dictionary in [through, open_above]:
 		for c: Vector2i in holes.keys():
