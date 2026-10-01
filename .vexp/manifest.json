@@ -4,7 +4,7 @@
     ".claude/hooks/vexp-hint.sh": "907d672738e420c1a930d71675bbce86ac977d2fc6e326db495d23a62b61e52a",
     ".claude/hooks/vexp-restore.sh": "8f0e2747c0d5b8dd966b9ebc4fb21ec6730ea85f3e6a9d63efb94def49e5723b",
     "AGENTS.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
-    "README.md": "0b2c5c740b478841f41ad6225f79fdb33c2ddf0e1e800f10638f2bea2262783e",
+    "README.md": "33e97b93dd1238807407e0d579b0a6addbd8a8d8f12b90f7dc660c10c428ff8b",
     "futurtoeditlore.md": "7be597fb80db18a31fc6fb1f9f39d7b09d575cca6c073e810a0225469b7272c5",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
@@ -13,6 +13,7 @@
     "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
     "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
     "godot-backrooms/tools/generate_ceiling_textures.py": "5bb794586049f4f44f29e4f0f0e927d06d01b432896c01105095da3d5b5e49dc",
+    "godot-backrooms/tools/generate_door_textures.py": "e9c1c7ea48a0e6df38f59be6f0a54fe643e3b160f4ff742b21025ab35d18f00e",
     "godot-backrooms/tools/generate_hud_icons.py": "49399b5897f2fcf4da0476144d60ef9de1c3ee1c2a026bf27bcec8b52820f457",
     "godot-backrooms/tools/generate_lens_dirt.py": "3e354d973b009bf81ad7f0e2d1ad33ffbe68e016bb274a52c3ad2a1089315d7b",
     "godot-backrooms/tools/generate_splash.py": "01fc2af4bc76c411f08dba0826163cb4de37a886066e11a411f2436fd2bd16a1",
@@ -27,8 +28,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "f4e203d81c2ccfa2a05c473da59e7ac4e390d578",
-  "indexed_at_timestamp": "2026-10-01T17:12:30.328459800+00:00",
+  "indexed_at_commit": "c6c9de660013cec0b5af7d2dcabb83caf085645f",
+  "indexed_at_timestamp": "2026-10-01T18:19:35.014081+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -39,16 +40,16 @@
       "nodes": 3
     },
     "python": {
-      "calls": 214,
-      "nodes": 137
+      "calls": 218,
+      "nodes": 143
     }
   },
   "parser_version": "3.3.1",
   "schema_version": 3,
   "stats": {
-    "total_edges": 253,
-    "total_files": 26,
-    "total_nodes": 177
+    "total_edges": 257,
+    "total_files": 27,
+    "total_nodes": 183
   },
   "vexp_version": "3.2.5"
 }
