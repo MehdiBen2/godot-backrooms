@@ -35,6 +35,10 @@ const TUBE_Y := 5.05               # pit_shaft.gdshader tube_y
 const TUBE_HALF := 0.6
 const TUBE_OUT := 0.11             # how far the tubes stand off the wall
 const TUBE_THICK := 0.045
+const OPEN_HALF := 1.3             # a doorway in the shaft's wall, onto a fake corridor: half its width...
+const OPEN_H := 2.9                # ...and its height, from the storey's floor
+const OPEN_D := 16.0               # how far the corridor runs back
+const OPEN_SHARE := 70             # percent of the wall's cells that have one
 
 const FOG_FROM := 4.0              # m fallen before the haze starts to close in
 const FOG_RAMP := 70.0             # m over which it does
@@ -44,10 +48,15 @@ const FAR_MIN := 24.0
 const FAR_MAX := 90.0              # the most the camera reaches while falling (and the pool's reach)
 const PREVIEW_REACH := 75.0        # how far down the shaft is drawn from the rim (the level's own fog ends near 70 m)
 const SPEED_MAX := 55.0            # m/s: terminal speed in the abyss (player.gd FALL_SPEED_MAX elsewhere)
-const FALL_SECS := 60.0            # the default `abyss_secs`
+const FALL_SECS := 5.0             # the default `abyss_secs`: the screen goes black, and the recording ends
 const FADE_OUT := 1.8
 const FADE_IN := 1.4
 const HIDE_MARGIN := 6.0
+const CAP_Y := -2.0                # the fog over the pit once you are under it: a sheet this far under the rim...
+const CAP_FROM := 6.0              # ...clear until you have fallen this far past it, then thickening over CAP_RAMP m
+const CAP_RAMP := 14.0
+const HAZE_K := 0.15               # per metre over you: walls up the shaft sink into the haze (pit_shaft.gdshader)
+const CAP_ALPHA := 0.97
 
 ## The haze, by the level's look: a sickly yellow over the dim halls, washed-out grey-green in the liminal look,
 ## a dirtier yellow in the bright classic one
@@ -62,6 +71,8 @@ var wrap_bottom := 0.0
 var shafts: Array = []             # each {cells, root: Node3D, pool: Array, body: StaticBody3D, box: Rect2}
 var _shaft_of := {}                # Vector2i -> its shaft's place in `shafts`
 var _mat: ShaderMaterial
+var _dome: MeshInstance3D          # a haze-coloured sphere round the camera, just inside its far plane: what is behind everything
+var _cap_mat: StandardMaterial3D   # the fog sheet over the shaft you are falling down
 var _rows := PackedFloat32Array()  # pit_shaft.gdshader `rows`: 0 dead, 1 steady, 2 failing
 var _secs := FALL_SECS
 
@@ -101,6 +112,11 @@ func setup(lvl: Node3D) -> void:
 		_rows[k] = 0.0 if v < 0.15 else (2.0 if v < 0.3 else 1.0)
 	_rows[0] = 1.0                      # (the first row under the rim is lit: it is what you see of it from above)
 	_mat = _material()
+	_cap_mat = StandardMaterial3D.new()
+	_cap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_cap_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_cap_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_cap_mat.albedo_color = Color(0, 0, 0, 0)
 	var seen := {}
 	for start: Vector2i in lvl.abyss:
 		if seen.has(start): continue
@@ -139,6 +155,14 @@ func _build_shaft(cells: Dictionary) -> Dictionary:
 		mi.visible = false
 		root.add_child(mi)
 		pool.append(mi)
+	# the fog above you: looking up out of the pit you see haze, not the lit room you left
+	var cap := MeshInstance3D.new()
+	cap.mesh = _cap_mesh(cells)
+	cap.material_override = _cap_mat
+	cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cap.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	cap.visible = false
+	root.add_child(cap)
 	# the sides, for the whole drop and the loop: you can drift about inside the shaft, never out of it
 	var body := StaticBody3D.new()
 	var lo := wrap_bottom - 4.0 * seg_h
@@ -160,7 +184,19 @@ func _build_shaft(cells: Dictionary) -> Dictionary:
 		var rc := Rect2(Vector2(c) * cell - Vector2.ONE * cell * 0.5, Vector2.ONE * cell)
 		box2 = rc if first else box2.merge(rc)
 		first = false
-	return {"cells": cells, "root": root, "pool": pool, "body": body, "box": box2, "lo": 1, "hi": 0}
+	return {"cells": cells, "root": root, "cap": cap, "pool": pool, "body": body, "box": box2, "lo": 1, "hi": 0}
+
+## A sheet across the shaft at CAP_Y, facing down
+func _cap_mesh(cells: Dictionary) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var h := cell * 0.5
+	var none := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]
+	for c: Vector2i in cells:
+		var x := c.x * cell
+		var z := c.y * cell
+		_quad(st, [Vector3(x - h, CAP_Y, z - h), Vector3(x + h, CAP_Y, z - h), Vector3(x + h, CAP_Y, z + h), Vector3(x - h, CAP_Y, z + h)], Vector3.DOWN, Color.WHITE, none)
+	return st.commit()
 
 ## The walls round a set of cells, as straight runs: {from, to (at y 0), n (facing into the shaft), cells}
 func _runs(cells: Dictionary) -> Array:
@@ -198,14 +234,13 @@ func _runs(cells: Dictionary) -> Array:
 func _segment_mesh(runs: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var up := Vector3(0.0, seg_h, 0.0)
 	for r: Dictionary in runs:
 		var a: Vector3 = r.from
 		var b: Vector3 = r.to
 		var n: Vector3 = r.n
 		var ln := a.distance_to(b)
-		_quad(st, [a, b, b + up, a + up], n, Color.WHITE, [Vector2(0, ln), Vector2(ln, ln), Vector2(ln, ln), Vector2(0, ln)])
 		var dir := (b - a) / ln
+		_wall(st, a, dir, ln, n, int(r.cells), cell, seg_h)
 		for i in int(r.cells):
 			var mid := a + dir * (cell * (i + 0.5)) + Vector3(0.0, TUBE_Y, 0.0)
 			var s := dir * TUBE_HALF
@@ -223,8 +258,44 @@ func _segment_mesh(runs: Array) -> ArrayMesh:
 			_quad(st, [mid + s + back + lo, mid + s + front + lo, mid + s + front + hi, mid + s + back + hi], dir, housing, none)
 	return st.commit()
 
+## A run of wall, one cell at a time: whole, or with a doorway onto a fake corridor (the same on every storey; which
+## of them are lit is the shader's). UV: metres along the run and its length, for the corner shading.
+static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vector3, cells: int, cell: float, seg_h: float) -> void:
+	var piece := func(x0: float, x1: float, y0: float, y1: float) -> void:
+		var lo := Vector3(0.0, y0, 0.0)
+		var hi := Vector3(0.0, y1, 0.0)
+		_quad(st, [a + dir * x0 + lo, a + dir * x1 + lo, a + dir * x1 + hi, a + dir * x0 + hi], n, Color.WHITE,
+				[Vector2(x0, ln), Vector2(x1, ln), Vector2(x1, ln), Vector2(x0, ln)])
+	for i in cells:
+		var c0 := cell * i
+		var c1 := c0 + cell
+		var m := c0 + cell * 0.5
+		var h := hash(Vector3i(roundi(a.x), roundi(a.z), i))
+		if posmod(h, 100) >= OPEN_SHARE:
+			piece.call(c0, c1, 0.0, seg_h)
+			continue
+		piece.call(c0, m - OPEN_HALF, 0.0, seg_h)
+		piece.call(m + OPEN_HALF, c1, 0.0, seg_h)
+		piece.call(m - OPEN_HALF, m + OPEN_HALF, OPEN_H, seg_h)
+		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)))
+
+## The corridor behind a doorway: floor, ceiling, two walls and a far end, marked for the shader by a grey vertex
+## colour. UV: how far in it is, and which corridor this is.
+static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float) -> void:
+	var out := -n * OPEN_D
+	var s := dir * OPEN_HALF
+	var up := Vector3(0.0, OPEN_H, 0.0)
+	var col := Color(0.5, 0.5, 0.5, 1.0)
+	var d0 := Vector2(0.0, id)
+	var d1 := Vector2(OPEN_D, id)
+	_quad(st, [mid - s, mid + s, mid + s + out, mid - s + out], Vector3.UP, col, [d0, d0, d1, d1])
+	_quad(st, [mid - s + up, mid + s + up, mid + s + out + up, mid - s + out + up], Vector3.DOWN, col, [d0, d0, d1, d1])
+	_quad(st, [mid - s, mid - s + out, mid - s + out + up, mid - s + up], dir, col, [d0, d1, d1, d0])
+	_quad(st, [mid + s, mid + s + out, mid + s + out + up, mid + s + up], -dir, col, [d0, d1, d1, d0])
+	_quad(st, [mid - s + out, mid + s + out, mid + s + out + up, mid - s + out + up], n, col, [d1, d1, d1, d1])
+
 ## A quad facing `n`, wound clockwise seen from that side (Godot's front face)
-func _quad(st: SurfaceTool, v: Array, n: Vector3, col: Color, uv: Array) -> void:
+static func _quad(st: SurfaceTool, v: Array, n: Vector3, col: Color, uv: Array) -> void:
 	var order := [0, 1, 2, 0, 2, 3]
 	var v0: Vector3 = v[0]
 	var v1: Vector3 = v[1]
@@ -260,6 +331,14 @@ func _material() -> ShaderMaterial:
 		m.set_shader_parameter("wall_tint", src.albedo_color)
 		m.set_shader_parameter("wall_scale", Vector2(absf(sc.x), 1.0 if flip else maxf(1.0, roundf(level.WALL_H * absf(sc.y)))))
 		m.set_shader_parameter("wall_flip", 1.0 if flip else 0.0)
+	# the corridors' carpet is the level's own (painted floor material, or the default carpet)
+	var fm: StandardMaterial3D = level._pbr_or("floor") if level._has_pbr("floor") else null
+	if fm != null and fm.albedo_texture != null:
+		m.set_shader_parameter("floor_tex", fm.albedo_texture)
+		m.set_shader_parameter("floor_tint", fm.albedo_color)
+		m.set_shader_parameter("floor_scale", Vector2(absf(fm.uv1_scale.x), absf(fm.uv1_scale.y)))
+	else:
+		m.set_shader_parameter("floor_tex", load("res://textures/l0_carpet_color.webp"))
 	m.set_shader_parameter("slab_tex", load("res://textures/concrete_color.jpg"))
 	m.set_shader_parameter("seg_h", seg_h)
 	m.set_shader_parameter("band_h", level.WALL_H)
@@ -353,6 +432,15 @@ func _process(dt: float) -> void:
 		env.fog_light_color = col
 		env.background_color = col
 		_enforce(env)
+	var sheet := smoothstep(CAP_FROM, CAP_FROM + CAP_RAMP, depth) * CAP_ALPHA     # the fog over the pit closes behind you
+	_cap_mat.albedo_color = Color(col.r, col.g, col.b, sheet * (1.0 - _fade))
+	_mat.set_shader_parameter("haze_color", col)
+	if _dome != null:
+		_dome.global_position = at
+		_dome.scale = Vector3.ONE * maxf(cam.far * 0.93, 4.0)
+		(_dome.material_override as StandardMaterial3D).albedo_color = col
+	_mat.set_shader_parameter("haze_k", smoothstep(0.0, 10.0, depth) * HAZE_K)
+	_mat.set_shader_parameter("haze_y", at.y)
 	if level._horizon_mat != null: level._horizon_mat.set_shader_parameter("fog_color", col)
 	_reach = clampf(FAR_K / maxf(dens, 0.001), FAR_MIN, FAR_MAX)
 	cam.far = minf(_reach, float(_saved.far))
@@ -389,14 +477,14 @@ func _physics_process(dt: float) -> void:
 	if p.global_position.y < wrap_bottom:
 		_shift(p, wrap_h)
 		_wraps += 1
-	if _secs > 0.0 and not _ending and depth > 2.0 * seg_h:
+	if _secs > 0.0 and not _ending:
 		var fall_t: float = _saved.get("t", 0.0) + dt
 		_saved.t = fall_t
 		if fall_t > _secs: _ending = true
 	if _ending:
 		_fade = minf(1.0, _fade + dt / FADE_OUT)
 		if Gfx.post_mat: Gfx.post_mat.set_shader_parameter("fall_fade", _fade)
-		if _fade >= 1.0: _end(true)
+		if _fade >= 1.0: _end(false, true)
 
 ## The loop: everything that follows the player goes up with them, and the storeys round them too, so the
 ## next frame is the same picture a storey-pattern higher
@@ -421,9 +509,31 @@ func _begin(i: int) -> void:
 		_saved.env = _env_state(env)
 		_fog_from = env.fog_density
 		_fog_col_from = env.fog_light_color
+		env.background_mode = Environment.BG_COLOR      # beyond the far plane the picture is the haze, not black
+		env.background_color = _fog_col_from
+	# the picture past the walls is this, not the environment's background: the far plane cuts the shaft off and
+	# the open top of it would show as a black shape
+	_dome = MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 2.0
+	sph.radial_segments = 24
+	sph.rings = 12
+	_dome.mesh = sph
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.cull_mode = BaseMaterial3D.CULL_FRONT
+	_dome.material_override = dm
+	_dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_dome.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	_dome.extra_cull_margin = 16384.0
+	add_child(_dome)
 	p.fall_speed_max = SPEED_MAX
 	p.flash.shadow_enabled = false
-	for j in shafts.size(): (shafts[j].root as Node3D).visible = j == i
+	for j in shafts.size():
+		(shafts[j].root as Node3D).visible = j == i
+		(shafts[j].cap as Node3D).visible = j == i
+	_cap_mat.albedo_color = Color(0, 0, 0, 0)
 	if not Gfx.changed.is_connected(_on_gfx): Gfx.changed.connect(_on_gfx)
 	var bus := "Ambience" if AudioServer.get_bus_index("Ambience") >= 0 else "Master"
 	_wind = AudioStreamPlayer.new()
@@ -440,7 +550,8 @@ func _begin(i: int) -> void:
 	_hum.play()
 
 ## `wake`: the fall is over, the player comes to at the spawn point (behind the black, which then lifts)
-func _end(wake: bool) -> void:
+## `die`: the fall is over and so are you: the black stays and the recording-ended screen comes up over it
+func _end(wake: bool, die := false) -> void:
 	var p: CharacterBody3D = level.player
 	var env: Environment = level.env
 	if env != null and _saved.has("env"):
@@ -452,6 +563,7 @@ func _end(wake: bool) -> void:
 		env.fog_density = e.fog
 		env.fog_light_color = e.fog_color
 		env.background_color = e.bg
+		env.background_mode = e.mode
 	if p != null and is_instance_valid(p):
 		p.cam.far = _saved.get("far", p.cam.far)
 		p.fall_speed_max = _saved.get("speed", p.FALL_SPEED_MAX)
@@ -461,6 +573,9 @@ func _end(wake: bool) -> void:
 			p.beam_pos = p.cam.global_position
 			p.flash_target = p.beam_pos - p.cam.global_transform.basis.z * 16.0
 	_hide_level(false)
+	if _dome != null:
+		_dome.queue_free()
+		_dome = null
 	if Gfx.changed.is_connected(_on_gfx): Gfx.changed.disconnect(_on_gfx)
 	for a: AudioStreamPlayer in [_wind, _hum]:
 		if a != null and is_instance_valid(a): a.queue_free()
@@ -470,15 +585,19 @@ func _end(wake: bool) -> void:
 	_ending = false
 	_fade = 0.0
 	Game.freefall = false
-	for s: Dictionary in shafts: s.lo = 1          # re-placed for the view from the floor
+	_mat.set_shader_parameter("haze_k", 0.0)
+	for s: Dictionary in shafts:
+		s.lo = 1                                    # re-placed for the view from the floor
+		(s.cap as Node3D).visible = false
 	if wake:
 		_waking = 1.0
-	elif Gfx.post_mat:
+	elif Gfx.post_mat and not die:
 		Gfx.post_mat.set_shader_parameter("fall_fade", 0.0)
+	if die: Game.kill_player("FALLING INTO THE VOID")
 
 func _env_state(env: Environment) -> Dictionary:
 	return {"vfog": env.volumetric_fog_enabled, "ssao": env.ssao_enabled, "ssil": env.ssil_enabled, "ssr": env.ssr_enabled,
-		"fog": env.fog_density, "fog_color": env.fog_light_color, "bg": env.background_color}
+		"fog": env.fog_density, "fog_color": env.fog_light_color, "bg": env.background_color, "mode": env.background_mode}
 
 ## Nothing in a lit concrete shaft needs these, and each costs a pass over the whole screen (the volumetric fog
 ## a 3D grid besides, which smears at this speed). Set only when they are on, so a frame costs no calls.

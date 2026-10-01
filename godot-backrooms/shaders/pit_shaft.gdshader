@@ -16,6 +16,9 @@ uniform vec3 wall_tint : source_color = vec3(1.0, 0.98, 0.88);
 uniform vec2 wall_scale = vec2(0.4444, 1.0);   // x: repeats per metre along the wall, y: repeats up one wall band
 uniform float wall_flip = 1.0;                 // 1: the texture's top is the band's top (the wallpaper's ceiling shadow)
 uniform sampler2D slab_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D floor_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;   // the fake corridors' carpet
+uniform vec3 floor_tint : source_color = vec3(1.0, 0.94, 0.75);
+uniform vec2 floor_scale = vec2(0.5, 0.5);   // repeats per metre
 uniform vec3 slab_tint : source_color = vec3(0.56, 0.54, 0.5);
 
 uniform float seg_h = 9.0;          // one storey (level_data.gd STOREY_H)
@@ -31,6 +34,18 @@ uniform float near_light = 1.6;     // a tube on the wall it is fixed to
 uniform float far_light = 0.55;     // the tubes on the other walls
 uniform float base_light = 0.035;   // what is left between rows (the dead ones included)
 uniform float grime = 0.4;
+
+// A shaft going up (endless_shaft.gd): out of the room's ceiling height the walls and tubes sink into the dark, the
+// torch's light on the walls first (it is the real light, and would light the whole shaft), the tubes' own later.
+// The defaults, far above any pit, leave a pit as it was.
+// The haze a fall closes over the shaft above you (pit_fall.gd): walls over the camera sink into haze_color the
+// higher they are, so looking up the shaft ends in an even haze and not a hard edge. Off by default.
+uniform vec3 haze_color : source_color = vec3(0.0);
+uniform float haze_k = 0.0;         // per metre over the camera
+uniform float haze_y = 0.0;         // the camera's height
+
+uniform float fade_from = 100000000.0;
+uniform float fade_to = 200000000.0;
 
 // The rows of tubes, one a storey, PERIOD of them, then the same again (pit_fall.gd WRAP_SEGS):
 // 0 dead, 1 steady, 2 failing. 16 is the most there can be.
@@ -80,6 +95,26 @@ void fragment() {
 		ALBEDO = vec3(0.85);
 		ROUGHNESS = 0.4;
 		EMISSION = tube_color * tube_glow * lv * (0.75 + 0.25 * COLOR.r);
+	} else if (COLOR.r < 0.9) {
+		// a fake corridor behind a doorway (pit_fall.gd _corridor): carpet, ceiling tiles, the level's wallpaper, and
+		// a pool of light under every ceiling light, dying away down its length. Some of them are dark.
+		float depth = UV.x;
+		float id = UV.y + row * 3.1;
+		float lv = hash11(id) < 0.22 ? 0.1 : 1.0;
+		vec3 base;
+		if (n.y > 0.5) {
+			base = texture(floor_tex, wpos.xz * floor_scale).rgb * floor_tint;
+		} else if (n.y < -0.5) {
+			base = vec3(0.62, 0.58, 0.47);
+		} else {
+			vec2 uv = vec2(depth * wall_scale.x, (wall_flip > 0.5 ? 1.0 - h / band_h : h / band_h) * wall_scale.y);
+			base = texture(wall_tex, uv).rgb * wall_tint;
+		}
+		float pools = 0.25 + 0.75 * pow(0.5 + 0.5 * cos(depth * 6.2832 / cell + 1.2), 3.0);
+		float reach = exp(-depth / 12.0);
+		ALBEDO = base;
+		ROUGHNESS = 0.95;
+		EMISSION = base * tube_color * lv * pools * reach * 2.2;
 	} else {
 		vec3 base;
 		float rough;
@@ -118,4 +153,12 @@ void fragment() {
 		ROUGHNESS = rough;
 		EMISSION = base * tube_color * light * ao;
 	}
+	float lit = 1.0 - smoothstep(fade_from, mix(fade_from, fade_to, 0.4), wpos.y);
+	ALBEDO *= lit;
+	SPECULAR = 0.5 * lit;
+	EMISSION *= 1.0 - smoothstep(fade_from, fade_to, wpos.y);
+	float hz = 1.0 - exp(-max(wpos.y - haze_y, 0.0) * haze_k);
+	ALBEDO *= 1.0 - hz;
+	SPECULAR *= 1.0 - hz;
+	EMISSION = mix(EMISSION, haze_color, hz);
 }

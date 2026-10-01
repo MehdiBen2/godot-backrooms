@@ -93,7 +93,9 @@ func _run() -> void:
 		_caption(text)
 
 func _execute_event(ev: String) -> void:
-	var root := level.get_parent()
+	var root: Node = level.get_parent() if level != null else null
+	if root == null and Game.main != null:
+		root = Game.main
 	var p := Game.player as Node3D
 	match ev:
 		"message", "text":
@@ -139,10 +141,17 @@ func _execute_event(ev: String) -> void:
 				"drone": scares.play_scare("drone", duration)
 				"static": scares.play_scare("staticHit", 1.0)
 		"spawn_bacteria":
-			var entity: Node = root.get_node_or_null("Entity")
-			if entity != null and entity.has_method("summon"):
-				var pp := p.global_position if p != null else global_position
-				entity.summon(global_position.x, global_position.z, pp.x, pp.z)
+			var entity: Node = root.get_node_or_null("Entity") if root != null else null
+			if entity == null and Game.main != null:
+				entity = Game.main.get_node_or_null("Entity")
+			if entity != null:
+				if entity.has_method("spawn_stalk"):
+					entity.spawn_stalk(true)
+				elif entity.has_method("debug_stalk"):
+					entity.debug_stalk()
+				elif entity.has_method("summon"):
+					var pp := p.global_position if p != null else global_position
+					entity.summon(global_position.x, global_position.z, pp.x, pp.z)
 		"spawn_mimic":
 			var mimic: Node = root.get_node_or_null("Mimic")
 			if mimic != null and mimic.has_method("appear"):

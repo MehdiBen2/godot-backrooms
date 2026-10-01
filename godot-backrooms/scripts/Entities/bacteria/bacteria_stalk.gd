@@ -30,7 +30,7 @@ var lurk_waiting := false
 
 # A corner near `who`: an open cell C they can see, next to an open cell H they can't.
 # Walking from H toward C, the first point in their view is the edge of the wall.
-func find_stalk_spot(who: Vector3, anywhere := false) -> bool:
+func find_stalk_spot(who: Vector3, anywhere := false, in_pov := false) -> bool:
 	var p := global_position
 	var walkable: bool = nav.bfs(GridNav.cell(p.x), GridNav.cell(p.z), reach)
 	if not walkable and not anywhere:
@@ -38,51 +38,67 @@ func find_stalk_spot(who: Vector3, anywhere := false) -> bool:
 	var tcx := GridNav.cell(who.x)
 	var tcz := GridNav.cell(who.z)
 	var R := ceili(STALK_MAX_DIST / CELL)
-	var best_score := -INF
-	var found := false
-	for gx in range(tcx - R, tcx + R + 1):
-		for gz in range(tcz - R, tcz + R + 1):
-			if gx < 1 or gz < 1 or gx >= n - 1 or gz >= n - 1:
-				continue
-			if not _stalk_open(gx, gz, anywhere):
-				continue
-			var wx := gx * CELL
-			var wz := gz * CELL
-			var d := Vector2(wx - who.x, wz - who.z).length()
-			if d < STALK_MIN_DIST or d > STALK_MAX_DIST or not nav.clear_line(wx, wz, who.x, who.z):
-				continue
-			for o in GridNav.NEIGHBOURS:
-				var hx: int = gx + o.x
-				var hz: int = gz + o.y
-				if hx < 0 or hz < 0 or hx >= n or hz >= n or not _stalk_open(hx, hz, anywhere):
+	var look_2d := Vector2(tgt.look.x, tgt.look.z).normalized() if tgt != null and "look" in tgt else Vector2.ZERO
+	var has_look := look_2d.length_squared() > 0.01
+
+	# When in_pov is requested, first try spots strictly in front of the player (FOV cone).
+	# If none found, widen the cone, or fall back to any spot if anywhere is allowed.
+	var min_dots: Array = [0.2, -0.2] if in_pov and has_look else [-1.0]
+
+	for min_dot: float in min_dots:
+		var best_score := -INF
+		var found := false
+		for gx in range(tcx - R, tcx + R + 1):
+			for gz in range(tcz - R, tcz + R + 1):
+				if gx < 1 or gz < 1 or gx >= n - 1 or gz >= n - 1:
 					continue
-				var hwx := hx * CELL
-				var hwz := hz * CELL
-				if nav.clear_line(hwx, hwz, who.x, who.z):
+				if not _stalk_open(gx, gz, anywhere):
 					continue
-				var edge := _edge(hwx, hwz, wx, wz, who)
-				if edge < 0.0:
+				var wx := gx * CELL
+				var wz := gz * CELL
+				var d := Vector2(wx - who.x, wz - who.z).length()
+				if d < STALK_MIN_DIST or d > STALK_MAX_DIST or not nav.clear_line(wx, wz, who.x, who.z):
 					continue
-				# leaning out sideways across their view beats stepping straight toward them
-				var sx := float(-o.x)
-				var sz := float(-o.y)
-				var side := absf(sx * (who.z - wz) - sz * (who.x - wx)) / d
-				var score := side * 1.5 - absf(d - 15.0) / 15.0 - (0.0 if anywhere else reach[hx * n + hz] / 40.0) + rng.randf() * 0.4
-				if score <= best_score:
-					continue
-				best_score = score
-				found = true
-				stalk_side = Vector3(sx, 0.0, sz)
-				stalk_hide = Vector3(hwx + sx * maxf(0.0, edge - 0.9), 0.0, hwz + sz * maxf(0.0, edge - 0.9))
-				stalk_peek = Vector3(hwx + sx * (edge + 0.15), 0.0, hwz + sz * (edge + 0.15))
-	if not found:
-		return false
-	stalk_look = stalk_peek
-	_fit_corner(who)
-	peek_amt = 0.0
-	peek_dir = 0.0
-	set_goal(stalk_hide.x, stalk_hide.z)
-	return true
+				var fwd_dot := 1.0
+				if has_look:
+					var to_spot := Vector2(wx - who.x, wz - who.z).normalized()
+					fwd_dot = look_2d.dot(to_spot)
+					if min_dot > -0.9 and fwd_dot < min_dot:
+						continue
+				for o in GridNav.NEIGHBOURS:
+					var hx: int = gx + o.x
+					var hz: int = gz + o.y
+					if hx < 0 or hz < 0 or hx >= n or hz >= n or not _stalk_open(hx, hz, anywhere):
+						continue
+					var hwx := hx * CELL
+					var hwz := hz * CELL
+					if nav.clear_line(hwx, hwz, who.x, who.z):
+						continue
+					var edge := _edge(hwx, hwz, wx, wz, who)
+					if edge < 0.0:
+						continue
+					# leaning out sideways across their view beats stepping straight toward them
+					var sx := float(-o.x)
+					var sz := float(-o.y)
+					var side := absf(sx * (who.z - wz) - sz * (who.x - wx)) / d
+					var score := side * 1.5 - absf(d - 15.0) / 15.0 - (0.0 if anywhere else reach[hx * n + hz] / 40.0) + rng.randf() * 0.4
+					if in_pov and has_look:
+						score += fwd_dot * 2.0
+					if score <= best_score:
+						continue
+					best_score = score
+					found = true
+					stalk_side = Vector3(sx, 0.0, sz)
+					stalk_hide = Vector3(hwx + sx * maxf(0.0, edge - 0.9), 0.0, hwz + sz * maxf(0.0, edge - 0.9))
+					stalk_peek = Vector3(hwx + sx * (edge + 0.15), 0.0, hwz + sz * (edge + 0.15))
+		if found:
+			stalk_look = stalk_peek
+			_fit_corner(who)
+			peek_amt = 0.0
+			peek_dir = 0.0
+			set_goal(stalk_hide.x, stalk_hide.z)
+			return true
+	return false
 
 # The grid only knows cells. Line its corner up with the real wall: the face it hides behind and where that
 # face ends. Then it hugs the face, hidden just short of the edge, and peeks out just past where you could
@@ -144,6 +160,7 @@ func _fit_corner(who: Vector3) -> void:
 		return
 	stalk_hide = hide
 	stalk_peek = peek
+	stalk_look = peek
 	stalk_corner = edge
 	stalk_wall_n = nrm
 
@@ -169,20 +186,33 @@ func _edge(hx: float, hz: float, wx: float, wz: float, who: Vector3) -> float:
 func _stalk_open(x: int, z: int, anywhere: bool) -> bool:
 	return not blocked(x, z) if anywhere else reach[x * n + z] >= 0
 
-func begin_stalk(teleport := false) -> bool:
+func begin_stalk(teleport := false, in_pov := false) -> bool:
 	if tgt.dead:
 		return false
 	if not teleport and distance_to_target() > STALK_MAX_DIST * 3.0:
 		return false
-	if not find_stalk_spot(tgt.pos, teleport):
+	if not find_stalk_spot(tgt.pos, teleport, in_pov):
 		return false
 	if teleport:
 		global_position = stalk_hide
 		vel = Vector3.ZERO
 		goal_key = -1
+		stalk_phase = "peek"
+		state_time = 0.0
+		var face := atan2(tgt.pos.x - stalk_hide.x, tgt.pos.z - stalk_hide.z)
+		yaw = face
+		rotation.y = yaw
+		peek_dir = 1.0 if stalk_side.x * cos(face) - stalk_side.z * sin(face) >= 0.0 else -1.0
+		peek_mode = "hide"
+		peek_amt = 0.0
+		peek_timer = rng.randf_range(0.8, 1.8)
+		peek_step = 0.0
+		peek_gaze = 0.0
+		peek_count = 0
+	else:
+		stalk_phase = "approach"
 	set_state("stalk")
 	stalk_active = true
-	stalk_phase = "approach"
 	stalk_watched = 0.0
 	stalk_lost = 0.0
 	stalk_moves = 0

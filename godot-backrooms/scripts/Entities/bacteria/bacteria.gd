@@ -727,12 +727,28 @@ func debug_despawn() -> void:
 	visible = false
 	scares.entity_breathe(0.0)
 
-func debug_stalk() -> bool:
+func spawn_stalk(in_pov := true) -> bool:
 	if process_mode == Node.PROCESS_MODE_DISABLED:
 		process_mode = Node.PROCESS_MODE_INHERIT
-		visible = true
+	visible = true
 	gather_target()
-	return begin_stalk(true)
+	if tgt.dead:
+		return false
+	if begin_stalk(true, in_pov):
+		return true
+	if in_pov and begin_stalk(true, false):
+		return true
+	var pp: Vector3 = tgt.pos
+	var f: Vector3 = tgt.look
+	for dist in [16.0, 12.0, 8.0]:
+		var p: Vector3 = pp + Vector3(f.x, 0.0, f.z).normalized() * dist
+		if nav.open_at(p.x, p.z) and nav.clear_line(pp.x, pp.z, p.x, p.z):
+			summon(p.x, p.z, pp.x, pp.z)
+			return true
+	return false
+
+func debug_stalk() -> bool:
+	return spawn_stalk(true)
 
 func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT

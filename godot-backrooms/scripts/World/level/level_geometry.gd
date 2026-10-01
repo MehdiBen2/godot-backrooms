@@ -15,6 +15,7 @@ const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
 const PitFall := preload("res://scripts/World/level/pit_fall.gd")
+const EndlessShaft := preload("res://scripts/World/level/endless_shaft.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell chunk (same chunks as the wall MultiMeshes)
@@ -1098,11 +1099,20 @@ func _build_ceiling_steps() -> void:
 # blackness (vertex colours darken with depth), and a black bottom. A pit that opens into the floor below
 # (`through`) is only the hole through the slab between the two: its sides, down to that floor's ceiling.
 func _build_pit_shafts() -> void:
+	# the Endless zone: no ceiling, and walls and tubes going up out of sight (a look-only floor has no use for it)
+	# (and an Open ceiling with nothing above it to look up into: it used to be a short, hazy, torch-lit shaft)
+	var up_cells := endless_ceiling.duplicate()
+	up_cells.merge(shaft_up)
+	if not shell and not up_cells.is_empty():
+		var es := EndlessShaft.new()
+		es.name = "EndlessShaft"
+		add_child(es)
+		es.setup(self, up_cells)
 	# An open ceiling with no room over it to look up into (the top floor, or solid wall above): a shaft
 	# rising into the dark, the pit's own turned over. It goes up through the floors above for as long as they
 	# are solid wall there (shaft_floors of them, level_data.gd shaft_rise) and stops under the slab of the first
 	# that is not; past the last floor it runs on a long way. Its walls are black well before its end.
-	if not shaft_up.is_empty():
+	if shell and not shaft_up.is_empty():
 		var top := WALL_H
 		var end := STOREY_H * (shaft_floors + 1)
 		if not in_stack(level_raw, floor_no + shaft_floors + 1): end = STOREY_H * shaft_floors + WALL_H + 36.0

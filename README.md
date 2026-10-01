@@ -138,11 +138,15 @@ falling through the slab. A pit with a wall under it is a dark shaft, as before.
 into the storey above: leave those cells wall or pit there. `tools/shot_stack.gd` screenshots the stack and
 tests the swap and the fall.
 
+An **Endless ceiling** zone is the abyss turned upside down: no ceiling over the painted cells, and the level's wall, slab and tubes
+climb on out of sight, sinking into the dark (`scripts/World/level/endless_shaft.gd`, same shader). The torch's light on
+the shaft is faded out with height so it doesn't light it up like a box. It is only looked at, you can't climb it.
+
 An **Abyss** zone painted on pits makes them bottomless (pits on the lowest floor, with nothing under them,
 are bottomless anyway). From the rim you look down storey after storey of the level's own wall and bare slab,
 a buzzing tube under every slab, until it all goes into a sickly haze. Whoever falls in falls, faster and
-faster, the haze thickening with depth and the view streaking and widening with speed, for a minute
-(`"abyss_secs"` in the .lvl; 0 is for ever), then blacks out and comes to by the spawn point
+faster, the haze thickening with depth and the view streaking and widening with speed, for 5 seconds
+(`"abyss_secs"` in the .lvl; 0 is for ever), then blacks out and the recording ends: death by falling into the void
 (`scripts/World/level/pit_fall.gd`, `shaders/pit_shaft.gdshader`). It is built to stay fast at any speed and
 in any direction: one storey of low-poly shaft drawn by a fixed pool of nodes (never built or freed while you
 fall), no real lights (the tubes' light on the walls is worked out in the shader), the camera's far plane tied

@@ -312,7 +312,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
-	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling, abyss]: zone.clear()
+	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling, abyss, endless_ceiling]: zone.clear()
 	pit_fall = null
 	_loops.clear()
 	_loop_of.clear()

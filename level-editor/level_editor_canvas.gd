@@ -19,7 +19,7 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color(
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
 	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
-	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e")}
+	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
