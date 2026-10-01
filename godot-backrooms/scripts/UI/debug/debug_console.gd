@@ -132,6 +132,7 @@ func _build_screen_overlay(parent: Control) -> void:
 func _build_quick_badge(parent: Control) -> void:
 	quick_badge_btn = Button.new()
 	quick_badge_btn.text = "DEBUG [F1]"
+	quick_badge_btn.visible = false
 	if font: quick_badge_btn.add_theme_font_override("font", font)
 	quick_badge_btn.add_theme_font_size_override("font_size", 12)
 	quick_badge_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)

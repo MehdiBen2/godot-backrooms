@@ -28,8 +28,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "ee5d120f8ee47cb9cedc86ac0fce17c5cfbe7baf",
-  "indexed_at_timestamp": "2026-10-01T19:11:14.058942600+00:00",
+  "indexed_at_commit": "6919ce2de69f70ab0c45c9f248b852fbc0eeb004",
+  "indexed_at_timestamp": "2026-10-01T19:20:48.369766+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -40,14 +40,14 @@
       "nodes": 3
     },
     "python": {
-      "calls": 218,
+      "calls": 221,
       "nodes": 143
     }
   },
   "parser_version": "3.3.1",
   "schema_version": 3,
   "stats": {
-    "total_edges": 257,
+    "total_edges": 260,
     "total_files": 27,
     "total_nodes": 183
   },
