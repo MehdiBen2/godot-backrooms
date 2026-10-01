@@ -337,6 +337,9 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	reflect_mmi = null
 	tubes_mm = null
 	lens_mm = null
+	glow_mm = null
+	cone_mm = null
+	wall_glow_mm = null
 	panels_mm = null
 	for i in slot_fixture.size():
 		slot_fixture[i] = null
@@ -408,6 +411,7 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 				_place_fixtures()
 				_build_fixture_meshes()
 			_build_floor_reflections()
+			_build_floor_glow()
 			_apply_gi(),
 		func() -> void:
 			_build_exit()

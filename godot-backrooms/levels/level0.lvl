@@ -1,6 +1,9 @@
 {
   "drop_hole": null,
-  "entity": null,
+  "entity": [
+    13,
+    45
+  ],
   "exit": [
     3,
     27

@@ -141,6 +141,7 @@ func build_lighting() -> void:
 		_build_fixture_meshes()
 	_build_light_pool()
 	_build_floor_reflections()
+	_build_floor_glow()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
 	env = we.environment if we else null
 	_build_horizon_fog()

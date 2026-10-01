@@ -240,6 +240,7 @@ func _update_pool(delta: float) -> void:
 			if f == null: continue
 			slot_target[i] = 1.0 if f.wanted else 0.0
 			if slot_target[i] == 0.0 and slot_weight[i] < 0.02:
+				_glow_real(f, "rw_slot", 0.0)
 				f.slot = -1
 				slot_fixture[i] = null
 		for f in _candidates:
@@ -274,6 +275,7 @@ func _update_pool(delta: float) -> void:
 		var cast: float = 0.0 if f.black > 0.0 else f.level      # a dead tube keeps a faint ember but lights nothing
 		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
+		_glow_real(f, "rw_slot", slot_weight[i] * dist_fade * slot_on[i])     # the fake floor light gives way to this one
 		var g := ceil_glow[i]
 		# the halo only reads as "coming from this fixture" while its real ceiling is close enough
 		# to reach (a hanging fixture under a tall atrium ceiling is metres short of that: skip it
@@ -326,6 +328,7 @@ func _assign_far() -> void:
 	for i in FAR_MAX:
 		var f = far_fixture[i]
 		if f != null and not f.far_wanted and far_weight[i] < 0.02:
+			_glow_real(f, "rw_far", 0.0)
 			f.far = -1
 			far_fixture[i] = null
 	for f in _far_candidates:
@@ -347,7 +350,9 @@ func _update_far(k: float) -> void:
 			continue
 		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
+		var far_fade := 1.0 - t * t * (3.0 - 2.0 * t)
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * far_fade
+		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
 		fl.global_position = f.light_pos
 		fl.light_energy = energy

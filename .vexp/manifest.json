@@ -4,7 +4,7 @@
     ".claude/hooks/vexp-hint.sh": "907d672738e420c1a930d71675bbce86ac977d2fc6e326db495d23a62b61e52a",
     ".claude/hooks/vexp-restore.sh": "8f0e2747c0d5b8dd966b9ebc4fb21ec6730ea85f3e6a9d63efb94def49e5723b",
     "AGENTS.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
-    "README.md": "33e97b93dd1238807407e0d579b0a6addbd8a8d8f12b90f7dc660c10c428ff8b",
+    "README.md": "5cd53b4540b406ca4382995d55ec1f072b17588277c9c5a952a7167463f8007c",
     "futurtoeditlore.md": "7be597fb80db18a31fc6fb1f9f39d7b09d575cca6c073e810a0225469b7272c5",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
@@ -28,8 +28,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "3d59d92322d61a9d01a0533c5853179f639427d6",
-  "indexed_at_timestamp": "2026-10-01T18:19:40.700447700+00:00",
+  "indexed_at_commit": "45bf7519eb2c5746a8ad4077832f021d172c9dc6",
+  "indexed_at_timestamp": "2026-10-01T18:50:50.016930200+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
