@@ -189,6 +189,8 @@ func _rank(p: Vector3) -> void:
 
 ## Where the player can see from: their spot and half a cell to each open side (slack round corners)
 func _eyes(p: Vector3) -> Array:
+	# inside a stairwell: its walls shut every tube out, and a shadowless one would shine straight through them
+	if stair_cells.has(cell_of(p)): return []
 	var out: Array = [p]
 	for o in [Vector3(CELL * 0.5, 0.0, 0.0), Vector3(-CELL * 0.5, 0.0, 0.0), Vector3(0.0, 0.0, CELL * 0.5), Vector3(0.0, 0.0, -CELL * 0.5)]:
 		var q: Vector3 = p + o
@@ -338,6 +340,9 @@ func _update_far(k: float) -> void:
 # ------------------------------------------------------- atmosphere (lighting.js)
 # How much working tube light reaches a point (0..1): the web game's bounce estimate
 func tube_light_at(p: Vector3) -> float:
+	if stair_cells.has(cell_of(p)):          # a stairwell is lit by its own lamps
+		for s in stairwells:
+			if s.holds(p): return s.light_at(p)
 	var sum := 0.0
 	for i in POOL_SIZE:
 		var f = slot_fixture[i]

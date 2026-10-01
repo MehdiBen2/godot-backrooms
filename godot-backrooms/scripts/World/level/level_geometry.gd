@@ -14,7 +14,6 @@ const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
-const STEPS := 12
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell chunk (same chunks as the wall MultiMeshes)
@@ -28,8 +27,10 @@ var door_frame_mat: StandardMaterial3D
 ## Then level_fixtures.gd builds the ceiling itself, one textured quad per cell with a light behind its
 ## panels, instead of the plain ceiling here plus hanging troffers.
 var panel_ceiling: StandardMaterial3D
+var stairwells: Array = []     # this floor's stairwells (props/stairs.gd), for the light they give where they stand
 
 func build_geometry() -> void:
+	stairwells.clear()
 	panel_ceiling = _panel_ceiling_material()
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
@@ -205,6 +206,7 @@ func _build_surfaces() -> void:
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
+			if stair_cells.has(c): continue         # a stairwell: props/stairs.gd builds its own floors and ceilings
 			if panel_ceiling != null: pass          # built by level_fixtures.gd with its lights
 			elif pc.has(c): paint_ceil.get_or_add(pc[c], []).append(c)
 			elif classic.has(c): classic_ceil.append(c)
@@ -418,25 +420,25 @@ func _build_occluder(groups: Dictionary) -> void:
 			var t3 := Vector3(x - h, wall_height, z + h)
 
 			# North face (facing z - 1)
-			if not walls.has(c + Vector2i(0, -1)) or carved.has(c + Vector2i(0, -1)):
+			if not _block_at(c + Vector2i(0, -1)):
 				var b := verts.size()
 				verts.append_array([p0, t0, t1, p1])
 				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
 
 			# South face (facing z + 1)
-			if not walls.has(c + Vector2i(0, 1)) or carved.has(c + Vector2i(0, 1)):
+			if not _block_at(c + Vector2i(0, 1)):
 				var b := verts.size()
 				verts.append_array([p3, p2, t2, t3])
 				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
 
 			# East face (facing x + 1)
-			if not walls.has(c + Vector2i(1, 0)) or carved.has(c + Vector2i(1, 0)):
+			if not _block_at(c + Vector2i(1, 0)):
 				var b := verts.size()
 				verts.append_array([p1, t1, t2, p2])
 				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
 
 			# West face (facing x - 1)
-			if not walls.has(c + Vector2i(-1, 0)) or carved.has(c + Vector2i(-1, 0)):
+			if not _block_at(c + Vector2i(-1, 0)):
 				var b := verts.size()
 				verts.append_array([p0, p3, t3, t0])
 				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
@@ -457,15 +459,20 @@ func _build_occluder(groups: Dictionary) -> void:
 
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
+## Does a solid wall block stand in this cell? Not where an object stands in for it (a door, a thin wall)
+## and not in a stairwell, which is a wall to the grid but builds its own.
+func _block_at(c: Vector2i) -> bool:
+	return walls.has(c) and not carved.has(c) and not stair_cells.has(c)
+
 func _build_walls() -> void:
 	var groups := {WALL_H: [], TALL_H: []}
 	for c: Vector2i in walls.keys():
-		if carved.has(c): continue     # a door / thin wall object stands here instead of a solid block
+		if not _block_at(c): continue     # a door / thin wall object or a stairwell stands here instead of a solid block
 		var exposed := false
 		var near_tall := false
 		for n: Vector2i in DIRS:
 			# a door / thin wall only fills a sliver of its cell, so the block beside it still shows
-			if not walls.has(c + n) or carved.has(c + n): exposed = true
+			if not _block_at(c + n): exposed = true
 			if tall.has(c + n): near_tall = true
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
@@ -517,7 +524,7 @@ func _build_walls() -> void:
 func _build_wall_collision(groups: Dictionary) -> void:
 	var buried := {}
 	for c: Vector2i in walls.keys():
-		if not carved.has(c): buried[c] = true
+		if _block_at(c): buried[c] = true
 	for height in groups.keys():
 		for c in groups[height]: buried.erase(c)
 	var body := StaticBody3D.new()
@@ -538,8 +545,7 @@ func _build_objects() -> void:
 		match o.type:
 			"door": _build_door(o)
 			"arch": arch.append(o)
-			"stairs_up": _build_stairs(o, true)
-			"stairs_down": _build_stairs(o, false)
+			"stairs_up", "stairs_down": _build_stairs(o)
 			_:
 				var info := object_info(o.type)
 				if info.has("model"):
@@ -882,69 +888,30 @@ func _build_door(o: Dictionary) -> void:
 	add_child(d)
 	d.build(CELL * o.scale, float(object_info("door").get("thickness", 0.3)), h, tall_wall_mat if h > WALL_H else wall_mat, door_frame_mat, door_leaf_mat, door_hw_mat)
 
-# A flight of stairs to the floor above or below (see props/stairs.gd): STEPS steps along local +x over one
-# cell, walled in each side, ending in a dark doorway. Up: from the floor to `rise`, the stairwell's end wall
-# closing off the rest of the room. Down: sunk into its pit cell, from the floor to -rise. A sloped collider
-# under the steps, so walking up and down them is smooth.
-func _build_stairs(o: Dictionary, up: bool) -> void:
-	var info := object_info(o.type)
-	var rise := float(info.get("rise", 3.0))
-	var w: float = CELL * o.scale
-	var xf := object_transform(o)
-	var step_mat: StandardMaterial3D = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
-	var black := StandardMaterial3D.new()
-	black.albedo_color = Color.BLACK
-	black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var body := StaticBody3D.new()
-	add_child(body)
-	var box := func(size: Vector3, pos: Vector3, mat: Material, solid: bool) -> void:
-		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = size
-		mi.mesh = bm
-		mi.transform = xf * Transform3D(Basis(), pos)
-		mi.material_override = mat
-		add_child(mi)
-		if solid: _add_box_collider(body, xf, size, pos)
-	var run := CELL / STEPS
-	var sign := 1.0 if up else -1.0
-	for i in STEPS:
-		# each step a block from its tread down to the flight's base (floor level up, -rise down)
-		var top := rise * (i + 1) / STEPS if up else -rise * (i + 1) / STEPS
-		var base := 0.0 if up else -rise - 0.3
-		var h := absf(top - base)
-		box.call(Vector3(run, h, w), Vector3(-CELL * 0.5 + run * (i + 0.5), (top + base) * 0.5, 0), step_mat, false)
-	# the slope you actually walk on
-	var ang := atan2(rise, CELL) * sign
-	var length := sqrt(CELL * CELL + rise * rise)
-	var ramp := CollisionShape3D.new()
-	var rs := BoxShape3D.new()
-	rs.size = Vector3(length, 0.2, w)
-	ramp.shape = rs
-	ramp.transform = xf * Transform3D(Basis(Vector3.BACK, ang), Vector3(0, sign * rise * 0.5, 0)) * Transform3D(Basis(), Vector3(0, -0.1, 0))
-	body.add_child(ramp)
-	var h_room := WALL_H
-	var lo := 0.0 if up else -rise - 0.3
-	var hi := h_room if up else 0.0
-	# side walls
-	for side: float in [-1.0, 1.0]:
-		box.call(Vector3(CELL, hi - lo, 0.2), Vector3(0, (hi + lo) * 0.5, side * (w * 0.5 + 0.1)), wall_mat, true)
-	# the far end: a dark doorway at the top (or bottom) of the flight, solid wall round it
-	var end := CELL * 0.5
-	var door_lo := rise if up else -rise
-	var door_h := 2.4
-	box.call(Vector3(0.1, door_h, w - 0.2), Vector3(end - 0.05, door_lo + door_h * 0.5, 0), black, false)
-	box.call(Vector3(0.3, 0.1, w), Vector3(end + 0.2, door_lo, 0), black, false)                     # the landing past the doorway
-	_add_box_collider(body, xf, Vector3(0.2, door_h + 4.0, w), Vector3(end + 0.4, door_lo + door_h * 0.5, 0))   # nothing past it
-	if up:
-		box.call(Vector3(0.3, h_room - rise - door_h, w + 0.4), Vector3(end, rise + door_h + (h_room - rise - door_h) * 0.5, 0), wall_mat, true)
-	var trig := Stairs.new()
-	trig.up = up
-	trig.rise = rise
-	trig.half_width = w * 0.5
-	trig.from = Vector2(o.pos_x, o.pos_y)
-	trig.transform = xf
-	add_child(trig)
+# A stairwell (props/stairs.gd builds and runs it): a boxed-in switchback stair standing on its cells, with a
+# flight up to the next floor wherever that floor has a stairwell on the same cells, and a flight down likewise.
+# What it is given of the floors above and below is their end of the well, so the part the two floors share
+# is built the same on both: the floor is swapped under you half way up, and nothing you can see changes.
+func _build_stairs(o: Dictionary) -> void:
+	var f: int = Game.level_floor
+	var ends := {}                          # floors up from here (-1, 0, 1) -> that floor's end of the well
+	ends[0] = o
+	for d: int in [-1, 1]:
+		var p := stair_partner(level_raw, f + d, o)
+		if not p.is_empty(): ends[d] = p
+	var room_h := 0.0                       # the ceiling the well's box has to reach
+	for c in stair_footprint(o):
+		for n: Vector2i in DIRS:
+			if not walls.has(c + n): room_h = maxf(room_h, ceiling_height(c + n))
+	if room_h <= 0.0: room_h = WALL_H
+	var s := Stairs.new()
+	s.transform = object_transform(o)
+	add_child(s)
+	s.build(self, ends, f, room_h, {
+		"wall": wall_mat, "room_wall": tall_wall_mat if room_h > WALL_H else wall_mat,
+		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
+		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
+	stairwells.append(s)
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap
 # (like a drywall bulkhead) with a trim strip along its bottom edge.
@@ -1105,6 +1072,9 @@ func _build_dirt() -> void:
 	var add := func(x: int, z: int) -> void:
 		var c := Vector2i(x, z)
 		if seen.has(c) or walls.has(c) or pits.has(c) or bright.has(c): return
+		for dx in range(-1, 2):               # a stain is wider than its cell: none hanging over a stairwell's down flight
+			for dz in range(-1, 2):
+				if stair_cells.has(c + Vector2i(dx, dz)): return
 		if Vector2(x * CELL - spawn_pos.x, z * CELL - spawn_pos.z).length() < 3.0 * CELL: return
 		seen[c] = true
 		dirty.append(c)

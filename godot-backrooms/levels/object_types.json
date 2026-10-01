@@ -1,5 +1,5 @@
 {
-  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on).",
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on). 'stairs': true is a stairwell (props/stairs.gd): it stands square on two cells, the one it is on and the next along its arrow, and joins this floor to the next one up / down wherever that floor has a stairwell on the same cells. 'choices' lists the values a text param may take (value -> what it does); the inspector shows them as a drop-down.",
   "thin_wall": {
     "label": "Thin wall",
     "key": "4",
@@ -43,21 +43,56 @@
     "label": "Stairs up",
     "key": "7",
     "color": "3fd1a0",
-    "help": "A flight of steps up to the floor above. Walk up it (towards the arrow) to go there; you arrive beside that floor's Stairs down nearest this spot. Put it square on a floor cell",
+    "help": "A stairwell from this floor to the one above: a boxed-in switchback stair two cells long, its doorway on the cell behind the arrow. The same stairwell is put on the floor above (which is made if the level has none). On a stairwell that is already here, it carries that one on up another floor",
     "thickness": 4.5,
-    "on_cell": "wall",
+    "stairs": true,
+    "align": false,
     "blocks_nav": false,
-    "rise": 3.0,
+    "params": {
+      "style": "carpet",
+      "light": "on",
+      "rail": true,
+      "sign": true
+    },
+    "choices": {
+      "style": {
+        "carpet": "The level's own wallpaper and carpet",
+        "concrete": "A bare concrete service stair with a painted steel rail"
+      },
+      "light": {
+        "on": "A tube lamp over every landing",
+        "flicker": "The lamps stutter",
+        "off": "No light at all: bring a torch"
+      }
+    },
     "category": "openings"
   },
   "stairs_down": {
     "label": "Stairs down",
     "key": "8",
     "color": "2f8fd1",
-    "help": "A flight of steps down to the floor below, sunk into its cell (the editor makes the cell a pit). Walk down it (towards the arrow) to go there; you arrive beside that floor's Stairs up nearest this spot",
+    "help": "A stairwell from this floor to the one below: the same stair as Stairs up, with its other end put on the floor below (which is made if the level has none). On a stairwell that is already here, it carries that one on down another floor",
     "thickness": 4.5,
+    "stairs": true,
+    "align": false,
     "blocks_nav": false,
-    "rise": 3.0,
+    "params": {
+      "style": "carpet",
+      "light": "on",
+      "rail": true,
+      "sign": true
+    },
+    "choices": {
+      "style": {
+        "carpet": "The level's own wallpaper and carpet",
+        "concrete": "A bare concrete service stair with a painted steel rail"
+      },
+      "light": {
+        "on": "A tube lamp over every landing",
+        "flicker": "The lamps stutter",
+        "off": "No light at all: bring a torch"
+      }
+    },
     "category": "openings"
   },
   "half_wall": {

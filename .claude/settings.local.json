@@ -1,15 +1,21 @@
 {
-    "hooks": {
-        "PreToolUse": [
-            {
-                "matcher": "Read|Bash",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "node -e \"const f='/Users/medy/tools/codegraph-mcp/bin/codegraph-hook.js';if(require('fs').existsSync(f))require(f)\""
-                    }
-                ]
-            }
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Path \"godot-backrooms/levels\" -Include \"*.gd\", \"*.tscn\", \"*.lvl\", \"*.json\")",
+      "Bash(Select-Object FullName)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const f='/Users/medy/tools/codegraph-mcp/bin/codegraph-hook.js';if(require('fs').existsSync(f))require(f)\""
+          }
         ]
-    }
+      }
+    ]
+  }
 }

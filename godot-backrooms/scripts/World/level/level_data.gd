@@ -35,6 +35,10 @@ var pits := {}
 var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
 var carved := {}      # Vector2i -> true: a wall cell an object stands in, so no solid block is built there
 var arch_cells := {}  # Vector2i -> true: a cell with an arch square in it (walkable, but full of arch mass)
+## Vector2i -> true: a cell a stairwell stands in (props/stairs.gd builds everything in it, floor to ceiling).
+## A wall to the grid: nothing paths through it, no tube hangs over it, no light is seen across it.
+var stair_cells := {}
+var level_raw := {}   # the whole .lvl (every floor), for what the stairs join on the floors above and below
 var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
@@ -137,6 +141,42 @@ static func shape_path(o: Dictionary) -> PackedVector2Array:
 			return pts
 	return PackedVector2Array()
 
+## Stairs ("stairs_up" / "stairs_down", the same stairwell either way: the type only says which floor the
+## level editor made its other end on). A stairwell fills STAIR_CELLS cells from its own along its arrow,
+## square on the grid, and joins this floor to the next one up / down wherever that floor has a stairwell on
+## the very same cells (stair_partner).
+const STAIR_CELLS := 2
+
+static func is_stairs(type: String) -> bool:
+	return type == "stairs_up" or type == "stairs_down"
+
+## The way a stairwell runs on the map: its arrow, squared to the grid
+static func stair_dir(o: Dictionary) -> Vector2i:
+	return Vector2i(Vector2.from_angle(deg_to_rad(float(o.rotation))).round())
+
+static func stair_footprint(o: Dictionary) -> Array[Vector2i]:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var out: Array[Vector2i] = []
+	for i in STAIR_CELLS: out.append(c + stair_dir(o) * i)
+	return out
+
+## Does floor `f` exist in this .lvl? (floor_data() hands back the ground floor for one that doesn't)
+static func has_floor(d: Dictionary, f: int) -> bool:
+	return f == 0 or d.get("floors", {}).get(str(f)) is Dictionary
+
+## The stairwell on floor `f` standing on the same cells as `o`, the same way round ({} when there is none):
+## the other end of `o`, one floor up or down
+static func stair_partner(d: Dictionary, f: int, o: Dictionary) -> Dictionary:
+	if not has_floor(d, f): return {}
+	var objs = floor_data(d, f).get("objects")
+	if not (objs is Array): return {}
+	for other in objs:
+		if other is Dictionary and is_stairs(str(other.get("type", ""))):
+			var p := load_object(other)
+			if roundi(p.pos_x) == roundi(o.pos_x) and roundi(p.pos_y) == roundi(o.pos_y) and stair_dir(p) == stair_dir(o):
+				return p
+	return {}
+
 ## A wall object's thickness in metres: its own, else its type's
 static func object_thick(o: Dictionary) -> float:
 	return float(o.get("thick", object_info(o.type).get("thickness", 0.3)))
@@ -180,7 +220,12 @@ func load_current() -> void:
 	Game.level_count = levels.size()
 	level_index = clampi(Game.level_index, 0, levels.size() - 1)
 	level_meta = levels[level_index]
-	level_data = floor_data(read_level(level_meta), Game.level_floor)
+	load_floor(Game.level_floor)
+
+## Read floor `f` of the current level off the disk into the grid (which must be empty)
+func load_floor(f: int) -> void:
+	level_raw = read_level(level_meta)
+	level_data = floor_data(level_raw, f)
 	_parse(level_data)
 
 func _parse(d: Dictionary) -> void:
@@ -220,7 +265,18 @@ func _parse(d: Dictionary) -> void:
 		var half_t := object_thick(o) * 0.5
 		var low := seen_over(o)
 		var shape := str(info.get("shape", ""))
-		if shape == "pillar" or shape == "column":
+		if is_stairs(o.type):
+			# square on the grid whatever the file says; its cells are the stairwell's, not floor or pit
+			o.pos_x = float(c.x)
+			o.pos_y = float(c.y)
+			o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
+			o.scale = 1.0
+			for sc in stair_footprint(o):
+				if sc.x > 0 and sc.y > 0 and sc.x < size - 1 and sc.y < size - 1:
+					walls[sc] = true
+					pits.erase(sc)
+					stair_cells[sc] = true
+		elif shape == "pillar" or shape == "column":
 			var at := Vector2(o.pos_x, o.pos_y)
 			wall_segments.append([at, at, half_t * (1.2 if shape == "pillar" else 1.0), true])
 			if centred and inside: pillar_cells[c] = true
@@ -263,8 +319,10 @@ func _parse(d: Dictionary) -> void:
 		spawn_pos = Vector3(int(at[0]) * CELL, 0.1, int(at[1]) * CELL)
 	level_name = str(level_meta.get("name", "LEVEL 0"))
 
-## Arriving by the stairs (Game.floor_link): stand one cell back from the matching stairs on this floor
-## (the one nearest where you left), facing away from them. No match: the nearest open cell to that spot.
+## Arriving by the stairs (Game.floor_link): where a respawn on this floor puts you, one cell out from the
+## door of the stairwell you came by (the one nearest where you left), facing away from it. No stairs here:
+## the nearest open cell to that spot. (Walking the stairs themselves never moves you: level_builder.gd
+## rebuild_floor_seamless keeps you where you stand.)
 func _arrive_by_stairs() -> void:
 	if Game.floor_link.is_empty(): return
 	var from := Vector2(Game.floor_link.x, Game.floor_link.y)
@@ -274,7 +332,7 @@ func _arrive_by_stairs() -> void:
 		return
 	var best: Dictionary = {}
 	for o: Dictionary in objects:
-		if o.type == Game.floor_link.kind and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):
+		if is_stairs(o.type) and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):
 			best = o
 	var target := from
 	var face := Vector2.ZERO

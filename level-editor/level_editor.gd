@@ -715,6 +715,7 @@ func _build_trigger_dialog() -> void:
 
 	scroll.add_child(tv)
 	trigger_dialog.add_child(scroll)
+	trigger_dialog.register_text_enter(td_text)       # Enter in the caption box = OK
 	add_child(trigger_dialog)
 
 func _add_td_event_row(ev_name: String = "flicker", custom_name: String = "") -> void:
@@ -1103,7 +1104,8 @@ func _input(ev: InputEvent) -> void:
 		return
 	if k.keycode in [KEY_CTRL, KEY_SHIFT]:     # they change what a click does: show it
 		canvas.queue_redraw()
-	if not k.pressed or (get_viewport().gui_get_focus_owner() is LineEdit) or name_dialog.visible: return
+	# typing in a dialog (a level name, a trigger's caption) must not fire the canvas shortcuts (R, Backspace...)
+	if not k.pressed or (get_viewport().gui_get_focus_owner() is LineEdit) or name_dialog.visible or trigger_dialog.visible: return
 	if k.keycode == KEY_SLASH and not k.ctrl_pressed and search_box != null:
 		search_box.grab_focus()
 		get_viewport().set_input_as_handled()

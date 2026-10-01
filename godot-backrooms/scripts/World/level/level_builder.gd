@@ -128,6 +128,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 	pits.clear()
 	objects.clear()
 	carved.clear()
+	stair_cells.clear()
 	arch_cells.clear()
 	pillar_cells.clear()
 	blocked_edges.clear()
@@ -143,6 +144,8 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 	classic.clear()
 	liminal.clear()
 	_painted.clear()
+	ceil_mats.clear()                  # the new ceilings start unlit: have update_lighting hand them the fill again
+	_ceil_fill = -1.0
 	has_spawn_yaw = false
 
 	# 3. Reset fixture arrays
@@ -165,9 +168,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 		far_weight[i] = 0.0
 
 	# 4. Load floor data (and the nav table: it is cached by grid size, and every floor has the same size)
-	level_data = floor_data(read_level(level_meta), f)
-	_parse(level_data)
-	_arrive_by_stairs()
+	load_floor(f)
 	_step_mask = PackedByteArray()
 	step_mask()
 
@@ -198,11 +199,16 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}) -> void:
 	# 8. Move player to the arrival position seamlessly
 	var p: Node3D = player if player != null else Game.player
 	if p != null and is_instance_valid(p):
-		p.global_position = spawn_pos
-		if has_spawn_yaw:
-			p.rotation.y = spawn_yaw
-		if p is CharacterBody3D:
-			(p as CharacterBody3D).velocity = Vector3.ZERO
+		if link.get("kind", "") == "stairs":
+			# walking a stairwell (props/stairs.gd): the same well stands on this floor, a storey higher or lower.
+			# Left where they are in it, mid-stride, the player can't tell the floor changed under them.
+			p.global_position.y += float(link.get("lift", 0.0))
+		else:
+			p.global_position = spawn_pos
+			if has_spawn_yaw:
+				p.rotation.y = spawn_yaw
+			if p is CharacterBody3D:
+				(p as CharacterBody3D).velocity = Vector3.ZERO
 
 	# 9. Notify entity of updated grid navigation
 	var root := get_parent()
