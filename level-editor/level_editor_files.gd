@@ -15,6 +15,7 @@ var level_list: ItemList
 var size_spin: SpinBox
 var gi_pick: OptionButton
 var atmo_pick: OptionButton
+var endless_check: CheckBox          # the .lvl's "endless": the lowest and highest floors repeat for ever (level_data.gd endless())
 var slot_picks := {}
 var slot_previews := {}
 var name_dialog: ConfirmationDialog
@@ -53,6 +54,7 @@ func _open(i: int) -> void:
 	_load_floor(_parse_floor(data))
 	for k in data.get("floors", {}):
 		if data.floors[k] is Dictionary and int(k) != 0: floor_store[int(k)] = _parse_floor(data.floors[k])
+	_wells_adopt()
 	_floors_changed()
 	var migrated := _migrate_legacy()
 	selected = -1
@@ -67,6 +69,7 @@ func _open(i: int) -> void:
 	spawn_rot = float(data.get("spawn_rot", 270.0))
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
+	endless_check.set_pressed_no_signal(bool(data.get("endless", false)))
 	undo_stack.clear()
 	redo_stack.clear()
 	dirty = false
@@ -362,6 +365,8 @@ func _current_payload() -> Dictionary:
 		_: out.erase("sdfgi")
 	if atmo_pick.selected <= 0: out.erase("atmosphere")
 	else: out["atmosphere"] = ATMOS[atmo_pick.selected]
+	if endless_check.button_pressed: out["endless"] = true
+	else: out.erase("endless")
 	var mats := {}
 	for slot in SLOTS:
 		if str(materials.get(slot, "")) != "": mats[slot] = materials[slot]
@@ -461,7 +466,27 @@ func _add_floor(dir: int) -> void:
 	floor_store[f] = _new_floor()
 	_switch_floor(f)
 	_mark_dirty()
-	_status("Added %s. Draw its rooms, then join it with Stairs up / down (keys 7 / 8)" % _floor_name(f))
+	_status("Added %s, and you are on it now. Draw its rooms; to join it to %s put Stairs %s (%s) here, or Stairs %s on that floor" % [
+		_floor_name(f), _floor_name(f - dir), "down" if dir > 0 else "up", "8" if dir > 0 else "7", "up" if dir > 0 else "down"])
+
+## The floor being edited, copied into every floor below it (what was on them is replaced): the same rooms
+## storey after storey, so a pit here is a shaft through all of them. The spawn, exit, entity and TV stay on
+## the floor they are on.
+func _repeat_down() -> void:
+	var below: Array = _floor_numbers().filter(func(f: int) -> bool: return f < floor_idx)
+	if below.is_empty():
+		_status("No floor below this one. Add some with + DOWN, or tick ENDLESS and the lowest floor repeats by itself")
+		return
+	_push_undo()
+	var src := _live_floor()
+	for f: int in below:
+		var fd := _copy_floor(src)
+		for m in fd.markers: fd.markers[m] = null
+		floor_store[f] = fd
+	_mark_dirty()
+	_update_info()
+	canvas.queue_redraw()
+	_status("Copied %s into the %d floor%s below it (Ctrl+Z undoes it)" % [_floor_name(floor_idx), below.size(), "" if below.size() == 1 else "s"])
 
 func _delete_floor() -> void:
 	if floor_idx == 0:

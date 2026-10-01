@@ -99,6 +99,16 @@ a caption, the tubes over it dying or stuttering, silence, a thump, a drone, or 
 breathing, preacher, power cut). The Liminal atmosphere / zone and the "Liminal halls" generator style give
 the empty, evenly lit, hazy look. Object types and their per-object fields live in `levels/object_types.json`.
 
+**Stairs up / down** (keys 7 / 8) put a stairwell on the floor you are editing and its other end on the floor
+above / below (made if the level has none): a boxed-in switchback stair, 3 x 2 cells, its doorway on the cell
+behind the arrow. A stairs tool clicked on a stairwell that is already there carries that one on another
+floor, so one well can run through the whole building. Two floors are joined wherever both have a stairwell
+on the same cells; the status bar warns about floors no stairs lead to. Each end has a Style (the level's
+wallpaper and carpet, or bare concrete), a Light (on, flicker, off), a Rail and a floor-number Sign. In the
+game the floor is swapped while you are on the half-way landing, a piece a frame, with the stairwell kept
+round you, so there is no loading screen and nothing to see (`scripts/World/props/stairs.gd`).
+`tools/shot_stairs.gd` screenshots a floor's stairwells and tests the swap and the walk.
+
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
 the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and

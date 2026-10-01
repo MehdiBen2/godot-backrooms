@@ -30,7 +30,17 @@ var panel_ceiling: StandardMaterial3D
 var stairwells: Array = []     # this floor's stairwells (props/stairs.gd), for the light they give where they stand
 
 func build_geometry() -> void:
-	stairwells.clear()
+	_make_materials()
+	_build_surfaces()
+	_build_walls()
+	_build_objects()
+	_build_ceiling_steps()
+	_build_pit_shafts()
+	_build_dirt()
+
+## The level's shared materials, before anything is built with them
+func _make_materials() -> void:
+	_pit_materials()
 	panel_ceiling = _panel_ceiling_material()
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
@@ -42,12 +52,6 @@ func build_geometry() -> void:
 	door_frame_mat.albedo_color = Color(0.55, 0.55, 0.53)
 	door_frame_mat.roughness = 0.5
 	door_frame_mat.metallic_specular = 0.45
-	_build_surfaces()
-	_build_walls()
-	_build_objects()
-	_build_ceiling_steps()
-	_build_pit_shafts()
-	_build_dirt()
 
 # ---------------------------------------------------------------- materials
 ## The .lvl's optional "materials" ({wall, floor, ceiling, tiles} -> a folder in textures/pbr/, picked in the
@@ -160,6 +164,10 @@ func _fillable_ceiling(m: StandardMaterial3D) -> StandardMaterial3D:
 ## The ceiling's own render layer: the tube lights skip it (a point light 0.45 m under it blows a white hotspot);
 ## it is lit by bounce light, the tubes' glow and level_lighting.gd's soft ceiling-glow lights instead.
 const CEIL_LAYER := 1 << 18
+## The look-only floors above and below (level_shell.gd) are drawn on these two render layers, turn about, and
+## lit only by lights of their own: no light here has a shadow that a floor slab would stop, so a lamp that lit
+## every layer would shine straight through into the storeys under and over it.
+const SHELL_LAYERS := (1 << 10) | (1 << 11)
 
 func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0) -> MeshInstance3D:
 	# One quad per cell in a single mesh (the bulk of the level is just floor/ceiling)
@@ -192,7 +200,9 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 	add_child(mi)
 	return mi
 
-func _build_surfaces() -> void:
+## The floors and the ceilings, one mesh per material. `floors` / `ceilings`: build only one of the two (a
+## floor rebuilt in place does them a frame apart, level_builder.gd).
+func _build_surfaces(floors := true, ceilings := true) -> void:
 	var carpet_cells := []
 	var tile_cells := []
 	var classic_floor := []
@@ -207,7 +217,9 @@ func _build_surfaces() -> void:
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if stair_cells.has(c): continue         # a stairwell: props/stairs.gd builds its own floors and ceilings
-			if panel_ceiling != null: pass          # built by level_fixtures.gd with its lights
+			if not crop.is_empty() and not crop.has(c): continue
+			if open_above.has(c): pass              # a hole in the floor above: no ceiling under it
+			elif panel_ceiling != null: pass        # built by level_fixtures.gd with its lights
 			elif pc.has(c): paint_ceil.get_or_add(pc[c], []).append(c)
 			elif classic.has(c): classic_ceil.append(c)
 			else: ceil_cells.append(c)
@@ -217,19 +229,23 @@ func _build_surfaces() -> void:
 			elif classic.has(c): classic_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
+	if ceilings:
+		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
+		_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
+		for id in paint_ceil:
+			_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true).layers = CEIL_LAYER
+		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
+		if not classic_ceil.is_empty():
+			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
+		if not shell: _build_ceiling_collision(floor_cells)
+	if not floors: return
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
-	var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
-	_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
 	for id in paint_floor:
 		_cell_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
-	for id in paint_ceil:
-		_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true).layers = CEIL_LAYER
-	# Classic zone: glowing mono-yellow carpet and bright drop-ceiling tiles (the reference backrooms look)
+	# Classic zone: glowing mono-yellow carpet
 	if not classic_floor.is_empty():
 		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.2, 1.05, 0.62)), false)
-	if not classic_ceil.is_empty():
-		_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -238,8 +254,9 @@ func _build_surfaces() -> void:
 			tm = _default_tile_material()
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
+	if shell: return
 	_build_floor_collision(floor_cells)
-	_build_ceiling_collision(floor_cells)
+	_build_hole_collision()
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
 
@@ -380,9 +397,37 @@ func _build_ceiling_collision(floor_cells: Array) -> void:
 	add_child(body)
 	var by_height := {}                  # merged per ceiling height, so a slab never spans a step
 	for c in floor_cells:
+		if open_above.has(c): continue   # a hole in the floor above: you come down through here
 		by_height.get_or_add(ceiling_height(c), {})[c] = true
 	for ch: float in by_height:
 		_add_merged_boxes(body, _merge_rects(by_height[ch]), 0.4, ch + 0.2)
+
+## The sides of the holes through the slabs: under this floor's own through-pits down to the ceiling of the
+## floor below, and over this floor's ceiling up to the hole in the floor above. Someone falling through is
+## handed from one floor to the next half way down the slab (level_builder.gd), so each floor walls its own
+## half and the other's: without them you could steer sideways into the slab and come down on a ceiling.
+func _build_hole_collision() -> void:
+	var tris := PackedVector3Array()
+	var half := CELL / 2.0
+	for part: Array in [[through, WALL_H - STOREY_H, 0.0], [open_above, WALL_H, STOREY_H]]:
+		var holes: Dictionary = part[0]
+		for c: Vector2i in holes:
+			for n: Vector2i in DIRS:
+				if holes.has(c + n): continue
+				var mid := Vector3(c.x * CELL + n.x * half, 0.0, c.y * CELL + n.y * half)
+				var along := Vector3(n.y, 0.0, n.x) * half
+				var lo := Vector3(0.0, part[1], 0.0)
+				var hi := Vector3(0.0, part[2], 0.0)
+				tris.append_array([mid - along + lo, mid + along + lo, mid + along + hi, mid - along + lo, mid + along + hi, mid - along + hi])
+	if tris.is_empty(): return
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(tris)
+	shape.backface_collision = true
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
 
 ## Occlusion culling with baked portals:
 ## Partitions solid wall blocks into spatial 8x8 cell grid chunks with boundary occlusion quads,
@@ -477,7 +522,7 @@ func _build_walls() -> void:
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
 	_build_occluder(groups)
-	_build_wall_collision(groups)
+	if not shell: _build_wall_collision(groups)
 	# cells painted with a material get their own group per (height, material)
 	var pw := painted("wall")
 	if not pw.is_empty():
@@ -554,7 +599,8 @@ func _build_objects() -> void:
 				match str(info.get("shape", "")):
 					"slab", "corner", "arc": shaped.append(o)
 					"pillar", "column": _build_column(o)
-					"zone": _build_trigger(o)
+					"zone":
+						if not shell: _build_trigger(o)
 	_build_shaped_walls(shaped)
 	_build_arches(arch)
 	_build_props(props)
@@ -567,7 +613,9 @@ func _build_props(list: Array) -> void:
 		var p := IndustrialProp.new()
 		p.transform = object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
 		add_child(p)
-		p.build(str(info.model), info.get("textures", {}), info.get("light", {}), float(info.get("model_yaw", 0.0)))
+		p.build(str(info.model), info.get("textures", {}), {} if shell else info.get("light", {}), float(info.get("model_yaw", 0.0)))
+		for l in p.find_children("*", "Light3D", true, false):
+			(l as Light3D).light_cull_mask &= ~SHELL_LAYERS      # a work lamp lights its own floor, not the ones under it
 
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
@@ -893,25 +941,52 @@ func _build_door(o: Dictionary) -> void:
 # What it is given of the floors above and below is their end of the well, so the part the two floors share
 # is built the same on both: the floor is swapped under you half way up, and nothing you can see changes.
 func _build_stairs(o: Dictionary) -> void:
-	var f: int = Game.level_floor
+	if shell:
+		add_child(stair_skin(o))
+		return
+	var f := floor_no
 	var ends := {}                          # floors up from here (-1, 0, 1) -> that floor's end of the well
 	ends[0] = o
 	for d: int in [-1, 1]:
 		var p := stair_partner(level_raw, f + d, o)
 		if not p.is_empty(): ends[d] = p
-	var room_h := 0.0                       # the ceiling the well's box has to reach
-	for c in stair_footprint(o):
-		for n: Vector2i in DIRS:
-			if not walls.has(c + n): room_h = maxf(room_h, ceiling_height(c + n))
-	if room_h <= 0.0: room_h = WALL_H
+	var room_h := _stair_room_h(o)
 	var s := Stairs.new()
-	s.transform = object_transform(o)
+	s.transform = _stair_xf(o)
 	add_child(s)
+	# inside, the plain wallpaper, without the room walls' baked skirting and ceiling shadow (the well has its own
+	# boards, and they would hang in mid-air beside a flight)
+	var paper: StandardMaterial3D = _pbr_or("wall")
+	if paper == null:
+		paper = _mat("l0_wallpaper", Vector3.ONE / 2.25, Color(1.0, 0.98, 0.88))
+		paper.roughness = 0.95
+		paper.normal_scale = 0.95
+		paper.metallic_specular = 0.28
 	s.build(self, ends, f, room_h, {
-		"wall": wall_mat, "room_wall": tall_wall_mat if room_h > WALL_H else wall_mat,
+		"wall": paper, "room_wall": tall_wall_mat if room_h > WALL_H else wall_mat,
 		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
 		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
 	stairwells.append(s)
+
+## The ceiling a stairwell's box has to reach: the highest round it
+func _stair_room_h(o: Dictionary) -> float:
+	var room_h := 0.0
+	for c in stair_footprint(o):
+		for n: Vector2i in DIRS:
+			if not walls.has(c + n): room_h = maxf(room_h, ceiling_height(c + n))
+	return room_h if room_h > 0.0 else WALL_H
+
+func _stair_xf(o: Dictionary) -> Transform3D:
+	return object_transform(o) * Transform3D(Basis(), Vector3(0, 0, -CELL * 0.5 * (STAIR_WIDE - 1)))     # the middle of the well
+
+## A stairwell as a look-only floor has it: the box the room sees and nothing inside. The stair itself is
+## built by the floor you are on, right through the floors it joins, and two copies of it would overlap.
+func stair_skin(o: Dictionary) -> Node3D:
+	var room_h := _stair_room_h(o)
+	var s := Stairs.new()
+	s.transform = _stair_xf(o)
+	s.build_outside(room_h, {"room_wall": tall_wall_mat if room_h > WALL_H else wall_mat, "trim": door_frame_mat, "metal": door_hw_mat})
+	return s
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap
 # (like a drywall bulkhead) with a trim strip along its bottom edge.
@@ -1010,11 +1085,27 @@ func _build_ceiling_steps() -> void:
 	add_child(mmi)
 
 # Pit shafts: the cut edge of the floor slab, then raw concrete walls falling away into
-# blackness (vertex colours darken with depth), and a black bottom.
+# blackness (vertex colours darken with depth), and a black bottom. A pit that opens into the floor below
+# (`through`) is only the hole through the slab between the two: its sides, down to that floor's ceiling.
 func _build_pit_shafts() -> void:
 	if pits.is_empty(): return
+	var deep := {}
+	for c: Vector2i in pits:
+		if not through.has(c): deep[c] = true
+	# a pit with a wall under it on the floor below runs on down inside that wall, and stops short of a room two floors down
+	var depth := PIT_DEPTH
+	if in_stack(level_raw, floor_no - 1) and in_stack(level_raw, floor_no - 2):
+		var under: Array = floor_data(level_raw, floor_src(level_raw, floor_no - 2))["grid"]
+		for c: Vector2i in deep:
+			if c.y < under.size() and c.x < (under[c.y] as String).length() and under[c.y][c.x] != "#":
+				depth = minf(depth, STOREY_H * 2.0 - WALL_H)
+				break
+	_pit_shaft(deep, [0.0, -0.32, -1.1, -2.4, -4.4, -7.0, -10.4, -depth])
+	_pit_shaft(through, [0.0, -0.32, -1.1, -2.4, WALL_H - STOREY_H], false)
+
+func _pit_shaft(cells_in: Dictionary, levels: Array, bottom := true) -> void:
+	if cells_in.is_empty(): return
 	var H := CELL / 2.0
-	var levels := [0.0, -0.32, -1.1, -2.4, -4.4, -7.0, -10.4, -PIT_DEPTH]
 	var shade: Array[float] = []
 	for i in levels.size():
 		shade.append(1.25 if i == 0 else (1.1 if i == 1 else maxf(0.0, exp(levels[i] * 0.4) * 0.9)))
@@ -1039,31 +1130,42 @@ func _build_pit_shafts() -> void:
 				st.set_uv(q[k][2])
 				st.add_vertex(q[k][0])
 	var cells: Array = []
-	for c: Vector2i in pits.keys():
+	for c: Vector2i in cells_in.keys():
 		cells.append(c)
 		var x := c.x * CELL
 		var z := c.y * CELL
-		if not pits.has(c + Vector2i(-1, 0)): wall.call(x - H, z - H, x - H, z + H)
-		if not pits.has(c + Vector2i(1, 0)): wall.call(x + H, z - H, x + H, z + H)
-		if not pits.has(c + Vector2i(0, -1)): wall.call(x - H, z - H, x + H, z - H)
-		if not pits.has(c + Vector2i(0, 1)): wall.call(x - H, z + H, x + H, z + H)
+		if not cells_in.has(c + Vector2i(-1, 0)): wall.call(x - H, z - H, x - H, z + H)
+		if not cells_in.has(c + Vector2i(1, 0)): wall.call(x + H, z - H, x + H, z + H)
+		if not cells_in.has(c + Vector2i(0, -1)): wall.call(x - H, z - H, x + H, z - H)
+		if not cells_in.has(c + Vector2i(0, 1)): wall.call(x - H, z + H, x + H, z + H)
 	st.generate_tangents()
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = load("res://textures/concrete_color.jpg")
-	m.normal_enabled = true
-	m.normal_texture = load("res://textures/concrete_normal.jpg")
-	m.vertex_color_use_as_albedo = true
-	m.roughness = 1.0
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var mats := _pit_materials()
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
-	mi.material_override = m
+	mi.material_override = mats[0]
 	add_child(mi)
-	var black := StandardMaterial3D.new()
-	black.albedo_color = Color.BLACK
-	black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_cell_surface(cells, func(_c): return -PIT_DEPTH, black, false)
+	if bottom:
+		_cell_surface(cells, func(_c): return levels[-1], mats[1], false)
+
+## The shafts' concrete and the black of their bottoms: one of each for every floor of every level, made with
+## the level's other materials. A kind of material is compiled when the first one of it is made (a fifth of a
+## second for these), and the first pit to need one may be on a floor built while the game is being played.
+static var _pit_mats: Array = []
+static func _pit_materials() -> Array:
+	if _pit_mats.is_empty():
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = load("res://textures/concrete_color.jpg")
+		m.normal_enabled = true
+		m.normal_texture = load("res://textures/concrete_normal.jpg")
+		m.vertex_color_use_as_albedo = true
+		m.roughness = 1.0
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		var black := StandardMaterial3D.new()
+		black.albedo_color = Color.BLACK
+		black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_pit_mats = [m, black]
+	return _pit_mats
 
 # Grime clusters: the painted 'grime' zone plus ~6% scattered stains, kept off the spawn room
 func _build_dirt() -> void:

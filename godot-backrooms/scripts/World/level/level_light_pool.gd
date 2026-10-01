@@ -108,7 +108,7 @@ func _build_light_pool() -> void:
 		l.shadow_normal_bias = 1.2
 		l.shadow_blur = 1.6
 		l.visible = false
-		l.light_cull_mask &= ~CEIL_LAYER     # the ceiling gets its glow from ceil_glow instead (no hotspot)
+		l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)     # the ceiling gets its glow from ceil_glow instead (no hotspot)
 		l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 		add_child(l)
 		pool.append(l)
@@ -139,7 +139,7 @@ func _build_light_pool() -> void:
 		fl.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		fl.omni_attenuation = 1.4
 		fl.shadow_enabled = false
-		fl.light_cull_mask &= ~CEIL_LAYER
+		fl.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)
 		fl.light_energy = 0.0
 		fl.visible = false
 		fl.set_meta("gfx_managed", true)
@@ -304,6 +304,21 @@ func _update_pool(delta: float) -> void:
 		l.light_energy = energy * (1.0 - share)
 		lb.light_energy = energy * share
 	_update_far(k)
+
+## Every light the pool would fade in over the next half second, lit now: a floor that takes over under a
+## player who is already looking at it (level_builder.gd, falling through a hole) must not start dark
+func prime_pool() -> void:
+	if player == null or pool.is_empty(): return
+	_rank_timer = 0.0
+	_update_pool(0.0)
+	for i in POOL_SIZE:
+		if slot_fixture[i] == null: continue
+		slot_weight[i] = slot_target[i]
+		slot_on[i] = 1.0 if slot_want[i] else 0.0
+	for i in FAR_MAX:
+		var f = far_fixture[i]
+		if f != null: far_weight[i] = 1.0 if f.far_wanted else 0.0
+	_update_pool(0.0)
 
 # Far lights keep their tube while it stays wanted (no jumping about), fade out when it isn't, and a
 # freed light fades in on the next tube out, so moving through the level never pops.

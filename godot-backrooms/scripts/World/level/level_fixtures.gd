@@ -31,9 +31,19 @@ var tint := Color.WHITE   # events recolour every lit tube (null in the web game
 var fill_lights: Array[OmniLight3D] = []   # the two steady fill lights of bright levels (off in a power cut)
 var reflect_mmi: MultiMeshInstance3D   # the fake floor reflections of bright-zone tubes (they live below the floor)
 # ----------------------------------------------------------------- fixtures
+## A floor that can be seen from the next one, through a hole in a slab, is built twice: to walk on, and to be
+## looked at from above or below (level_shell.gd). Both must burn out and flicker the same tubes, so on those
+## floors the dice for them start from the floor's number here, whatever was rolled before (stains, which
+## depend on where you came in). A floor with no hole keeps the one sequence it always had. (An endless
+## level's repeats of a floor take that floor's number: they are the same floor, down to the dead tubes.)
+func _seed_fixtures() -> void:
+	if not (through.is_empty() and open_above.is_empty()):
+		rng.seed = 2971 + floor_src(level_raw, floor_no) * 7919
+
 # Same placement rules as the web game's _placeLights: corridor cells and a 3-cell grid, min
 # spacing 1.9 cells, some tubes burnt out, some flickering.
 func _place_fixtures() -> void:
+	_seed_fixtures()
 	var min_sp := CELL * 1.9
 	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
@@ -43,7 +53,7 @@ func _place_fixtures() -> void:
 			var c := Vector2i(x, z)
 			# no fixture over any wall, placed thin walls and doors included: the wall reaches the ceiling,
 			# so a troffer there sits on top of it and its light bleeds through both faces
-			if walls.has(c) or arch_cells.has(c) or pillar_cells.has(c): continue
+			if walls.has(c) or arch_cells.has(c) or pillar_cells.has(c) or open_above.has(c): continue
 			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
@@ -82,11 +92,12 @@ func _place_fixtures() -> void:
 
 # Panel ceilings: a fixture per open cell (its five panels), a real light only on the checkerboard cells
 func _place_panel_fixtures() -> void:
+	_seed_fixtures()
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			# thin walls and doors leave most of their cell open, so they still need their ceiling panel
-			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c): continue
+			if (walls.has(c) and not carved.has(c)) or arch_cells.has(c) or open_above.has(c): continue
 			var pos := Vector3(x * CELL, ceiling_height(c), z * CELL)
 			var is_classic := classic.has(c)
 			var is_bright := bright.has(c)
@@ -140,6 +151,15 @@ func _build_panel_ceiling() -> void:
 	panels_mm = mm
 	ceil_mats.append(mat)          # its ceiling_fill is driven by level_lighting.gd
 
+## A shader written out in code, compiled once: a floor rebuilt in place (level_builder.gd) reuses it
+static var _coded := {}
+static func _coded_shader(code: String) -> Shader:
+	if not _coded.has(code):
+		var sh := Shader.new()
+		sh.code = code
+		_coded[code] = sh
+	return _coded[code]
+
 func _mesh_world(root: Node, node: Node3D) -> Transform3D:
 	var t := Transform3D.IDENTITY
 	var n: Node = node
@@ -171,12 +191,10 @@ func _build_fixture_meshes() -> void:
 	burnt_lens.albedo_color = Color(0.2, 0.188, 0.157, 0.65)
 	burnt_lens.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	burnt_lens.roughness = 0.85
-	var tubes_shader := Shader.new()
-	tubes_shader.code = "shader_type spatial;\nrender_mode unshaded, shadows_disabled;\nvoid fragment() { ALBEDO = COLOR.rgb; }"
+	var tubes_shader := _coded_shader("shader_type spatial;\nrender_mode unshaded, shadows_disabled;\nvoid fragment() { ALBEDO = COLOR.rgb; }")
 	var lit_tubes := ShaderMaterial.new()
 	lit_tubes.shader = tubes_shader
-	var lens_shader := Shader.new()
-	lens_shader.code = "shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, shadows_disabled;\nvoid fragment() { ALBEDO = COLOR.rgb; ALPHA = 0.35; }"
+	var lens_shader := _coded_shader("shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, shadows_disabled;\nvoid fragment() { ALBEDO = COLOR.rgb; ALPHA = 0.35; }")
 	var lit_lens := ShaderMaterial.new()
 	lit_lens.shader = lens_shader
 
@@ -313,8 +331,7 @@ func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
 func _build_floor_reflections() -> void:
 	var items: Array = fx.filter(func(f): return f.bright)
 	if items.is_empty(): return
-	var shader := Shader.new()
-	shader.code = "shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;\nvoid fragment() { ALBEDO = vec3(2.2, 2.15, 1.9) * 0.55; ALPHA = 1.0; }"
+	var shader := _coded_shader("shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;\nvoid fragment() { ALBEDO = vec3(2.2, 2.15, 1.9) * 0.55; ALPHA = 1.0; }")
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	mat.render_priority = -1
@@ -349,7 +366,7 @@ func _build_floor_reflections() -> void:
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.94, 0.80)
 		l.omni_range = 24.0
-		l.light_cull_mask &= ~CEIL_LAYER
+		l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)
 		l.omni_attenuation = 1.3
 		l.light_energy = LIGHT_ENERGY * 1.5
 		l.shadow_enabled = false              # two shadowed 24 m omnis over the whole level were a big fps cost

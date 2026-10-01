@@ -19,6 +19,7 @@ const STAND_H := 1.7
 const CROUCH_H := 1.0
 const JUMP_SPEED := 5.0
 const GRAVITY := 20.0
+const FALL_SPEED_MAX := 30.0      # m/s: a shaft can run through many floors (or have no bottom), each built as you reach it
 # Movement feel: weighty but responsive, forgiving jumps
 const ACCEL_GROUND := 16.0        # x speed per second towards the wished velocity (was an instant 40 m/s^2)
 const DECEL_GROUND := 22.0        # a touch snappier when letting go, so stops feel deliberate
@@ -304,7 +305,7 @@ func _physics_process(dt: float) -> void:
 		coyote = 0.0
 		jumped.emit()
 	elif not is_on_floor():
-		velocity.y -= GRAVITY * dt
+		velocity.y = maxf(velocity.y - GRAVITY * dt, -FALL_SPEED_MAX)
 	last_vy = velocity.y
 	move_and_slide()
 	# Landing: both feet down, thud scales with the drop
@@ -330,7 +331,8 @@ func _physics_process(dt: float) -> void:
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
 
-	# fell down a pit or drop hole: seamless descent to floor below, or loop to spawn (no loading screen)
+	# fell down a pit or drop hole: seamless descent to floor below, or loop to spawn (no loading screen).
+	# (A pit that opens into the floor below never gets this far: level_builder.gd hands you to that floor.)
 	if global_position.y < -12.0 and not Death.respawn_busy:
 		if Game.level_floor > 0:
 			Game.change_floor(Game.level_floor - 1, Vector2(global_position.x / 4.5, global_position.z / 4.5), "drop_hole")

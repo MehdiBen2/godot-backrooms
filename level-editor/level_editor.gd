@@ -254,6 +254,13 @@ func _build_ui() -> void:
 	atmo_pick.item_selected.connect(func(_i): _mark_dirty())
 	atmo_row.add_child(atmo_pick)
 
+	endless_check = CheckBox.new()
+	endless_check.text = "ENDLESS FLOORS"
+	endless_check.tooltip_text = "The lowest floor repeats for ever below the level and the highest for ever above it.\nA pit shaft through the lowest floor then has no bottom: you look down into floor after floor until the haze takes them,\nand whoever falls in keeps falling, floor after floor. Stairs still end where the level's own floors do."
+	endless_check.add_theme_font_size_override("font_size", 16)
+	endless_check.toggled.connect(func(_on): _mark_dirty())
+	lv.add_child(endless_check)
+
 	# center: canvas
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -270,11 +277,12 @@ func _build_ui() -> void:
 	hb.add_child(_label("FLOOR", 12, GOLD))
 	floor_pick = OptionButton.new()
 	floor_pick.add_theme_font_size_override("font_size", 13)
-	floor_pick.tooltip_text = "Which floor of the level you are editing (PageUp / PageDown).\nStairs up / down (keys 7 / 8) join floors; the game loads one floor at a time"
+	floor_pick.tooltip_text = "Which floor of the level you are editing (PageUp / PageDown).\nStairs up / down (keys 7 / 8) join floors. A pit over an open cell of the floor below is a hole through to it:\nin the game you see the floors above and below through such holes, and fall from one into the next"
 	floor_pick.item_selected.connect(func(i): _switch_floor(floor_pick.get_item_id(i) - 1000))
 	hb.add_child(floor_pick)
 	for fb in [["+ UP", func(): _add_floor(1), "Add a floor above the top one"], ["+ DOWN", func(): _add_floor(-1), "Add a basement below the bottom one"],
-			["DEL", _delete_floor, "Delete this floor (not the ground floor). Ctrl+Z brings it back"]]:
+			["DEL", _delete_floor, "Delete this floor (not the ground floor). Ctrl+Z brings it back"],
+			["REPEAT DOWN", _repeat_down, "Copy this floor into every floor below it, replacing what is there: the same rooms storey after storey.\nPaint a pit shaft first and it runs through them all. Ctrl+Z undoes it"]]:
 		var b := _button(fb[0], fb[1])
 		b.tooltip_text = fb[2]
 		b.add_theme_font_size_override("font_size", 13)
@@ -342,7 +350,7 @@ func _build_ui() -> void:
 	_build_inspector(side)
 	_build_tabs(side)
 	var ter := _section(side, "TERRAIN")
-	var terrain := [[WALL, "Wall  (1)", "A solid full-depth wall block"], [FLOOR, "Floor  (2)", "Open floor"], [PIT, "Pit  (3)", "A shaft falling into the dark"]]
+	var terrain := [[WALL, "Wall  (1)", "A solid full-depth wall block"], [FLOOR, "Floor  (2)", "Open floor"], [PIT, "Pit  (3)", "A shaft falling into the dark. Over an open cell of the floor below it is a hole through to that floor"]]
 	for b in terrain:
 		ter.add_child(_tool_button("base:" + b[0], b[1], BASE_COLORS[b[0]], b[2]))
 	var brow := HBoxContainer.new()
@@ -947,6 +955,32 @@ func _build_inspector(side: VBoxContainer) -> void:
 	insp_params["once"] = {"row": [once_lbl, once], "ctrl": once}
 	_insp_param_spin(grid_box, "delay", "Delay", 0.0, 60.0, 0.1, " s", "seconds from walking in to the event")
 	_insp_param_spin(grid_box, "duration", "Duration", 1.0, 120.0, 1.0, " s", "how long lights_out / silence / drone last")
+	# any other type's params: a drop-down for one with "choices" (object_types.json), a tick box for a yes / no
+	for t in OBJ_TYPES:
+		var params: Dictionary = OBJ_INFO[t].get("params", {})
+		var choices: Dictionary = OBJ_INFO[t].get("choices", {})
+		for k in params:
+			if insp_params.has(k): continue
+			var title := str(k).capitalize()
+			if choices.has(k):
+				var lbl := _label(title, 14, DIM)
+				grid_box.add_child(lbl)
+				var pick := OptionButton.new()
+				var names: Array = (choices[k] as Dictionary).keys()
+				for n in names:
+					pick.add_item(str(n).capitalize())
+					pick.set_item_tooltip(pick.item_count - 1, str(choices[k][n]))
+				pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				pick.item_selected.connect(func(i): _set_prop(k, names[i]))
+				grid_box.add_child(pick)
+				insp_params[k] = {"row": [lbl, pick], "ctrl": pick, "choices": names}
+			elif params[k] is bool:
+				var lbl := _label(title, 14, DIM)
+				grid_box.add_child(lbl)
+				var tick := CheckBox.new()
+				tick.toggled.connect(func(on): _set_prop(k, on))
+				grid_box.add_child(tick)
+				insp_params[k] = {"row": [lbl, tick], "ctrl": tick}
 	var r := HBoxContainer.new()
 	insp.add_child(r)
 	for b in [["-90°", func(): _rotate_selected(-90.0)], ["+90°", func(): _rotate_selected(90.0)], ["COPY", _duplicate_selected], ["DELETE", _delete_selected]]:

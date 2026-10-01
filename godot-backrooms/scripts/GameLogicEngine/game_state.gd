@@ -268,8 +268,12 @@ func change_level(idx: int) -> void:
 
 ## Floor `f` of the same level, rebuilt in place with no loading screen. `kind` "stairs": you are walking a
 ## stairwell at cell `from` (props/stairs.gd) and stay where you stand in it, `lift` metres up or down as the
-## well moves round you. "drop_hole": you fell through one at `from` and land on the nearest open cell.
+## well moves round you. "fall": you dropped through a hole in the floor at `from` into the floor below and
+## keep falling where you are, `lift` metres up in its terms. "drop_hole": you fell down a pit with nothing
+## to be seen under it, and land on the nearest open cell.
 func change_floor(f: int, from: Vector2, kind: String, lift := 0.0) -> void:
+	if level != null and level.get("rebuilding") == true:
+		return                       # the last floor change is still being built
 	level_floor = f
 	floor_link = {"x": from.x, "y": from.y, "kind": kind, "lift": lift}
 	if level != null and level.has_method("rebuild_floor_seamless"):

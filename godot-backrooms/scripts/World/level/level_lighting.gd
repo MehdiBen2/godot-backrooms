@@ -168,9 +168,13 @@ func gi_bounds() -> Dictionary:
 	var hi := Vector3((size - 0.5) * CELL, top + 0.5, (size - 0.5) * CELL)
 	return {"center": (lo + hi) * 0.5, "size": hi - lo}
 
+var _gi_read := {}     # gi_path() -> the bake, read once: it is megabytes, and every floor of a level asks for it
+
 func _load_baked_gi() -> VoxelGIData:
-	if not ResourceLoader.exists(gi_path()): return null
-	var data := load(gi_path()) as VoxelGIData
+	var path := gi_path()
+	if not _gi_read.has(path):
+		_gi_read[path] = (load(path) as VoxelGIData) if ResourceLoader.exists(path) else null
+	var data: VoxelGIData = _gi_read[path]
 	return data if data != null and str(data.get_meta("lvl_hash", "")) == bake_hash() else null
 
 func _apply_gi() -> void:
@@ -330,8 +334,21 @@ func _blend_env(a: Dictionary) -> void:
 	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
 	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix) * (1.0 + 0.35 * glare)   # the light you stare into blooms a bit more
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
-	env.set_glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix))
+	env.set_glow_level(5, _glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix)))
 	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)
+
+## A glow level is either off or clearly on, never faint. A level with a tiny share of the glow (under about
+## 1 %: measured, 0.03 next to the other levels' 3.4 broke and 0.05 did not) still gets added to the picture
+## but its buffer is not redrawn, and after the 3D render size changes (adaptive resolution, graphics.gd) that
+## buffer is whatever was left in video memory: big blurred blocks of pink, blue and orange over a green
+## picture. The wide halo fades in from 0 with the look (liminal_mix / cam_mix), so it sat in that range
+## every time a look was blending in or out.
+const GLOW_LEVEL_MIN := 0.02       # of the other levels' sum: twice the share that breaks
+func _glow_level(idx: int, v: float) -> float:
+	var others := 0.0
+	for i in 7:
+		if i != idx: others += env.get_glow_level(i)
+	return v if v >= GLOW_LEVEL_MIN * (others if env.glow_normalized else 1.0) else 0.0
 
 ## The found-footage camera (weighted by cam_mix: the classic look). Elsewhere the eye adaptation and the
 ## glare stop-down stay as they were.

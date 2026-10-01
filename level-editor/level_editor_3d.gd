@@ -354,12 +354,39 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
 		"stairs_up", "stairs_down":
-			var rise := 0.35 * vscale * (1.0 if o.type == "stairs_up" else -1.0)       # 3 m in cell units, about
-			var steps := 8
-			for i in steps:
-				var top := rise * (i + 1) / steps
-				var base := 0.0 if rise > 0 else rise
-				parts.append([Vector3(-0.5 + (i + 0.5) / steps, (top + base) * 0.5, 0), Vector3(1.0 / steps, absf(top - base) + 0.01, span), _flat(col)])
+			# the stairwell's box (sizes in cells, as props/stairs.gd builds it) with a flight in each lane it has
+			var skin := 0.03
+			var wide: float = ed.STAIR_WIDE
+			var z0 := 0.5 - wide                         # across: its own row and the one to the left
+			var x1: float = ed.STAIR_CELLS - 0.5
+			var zm := z0 + wide * 0.5
+			var lane := 3.8 / 4.5
+			var door_z := zm + (0.5 + 1.9) / 4.5
+			var door_w := 2.2 / 4.5
+			var door_h := h * 2.8 / 5.4
+			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, z0 + skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
+			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, 0.5 - skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
+			parts.append([Vector3(x1 - skin, h * 0.5, zm), Vector3(skin * 2.0, h, wide), wall_mat])
+			var left_w := door_z - door_w * 0.5 - z0
+			var right_w := 0.5 - (door_z + door_w * 0.5)
+			parts.append([Vector3(-0.5 + skin, h * 0.5, z0 + left_w * 0.5), Vector3(skin * 2.0, h, left_w), wall_mat])
+			parts.append([Vector3(-0.5 + skin, h * 0.5, 0.5 - right_w * 0.5), Vector3(skin * 2.0, h, right_w), wall_mat])
+			parts.append([Vector3(-0.5 + skin, (h + door_h) * 0.5, door_z), Vector3(skin * 2.0, h - door_h, door_w), wall_mat])
+			var xa := -0.5 + 3.2 / 4.5
+			var xb := x1 - 3.2 / 4.5
+			parts.append([Vector3((xa + xb) * 0.5, h * 0.5, zm), Vector3(xb - xa, h, 1.0 / 4.5), wall_mat])       # the wall between the lanes
+			var steps := 10
+			for side: Array in [[1.0, ed._stair_linked(o, ed.floor_idx, 1)], [-1.0, ed._stair_linked(o, ed.floor_idx, -1)]]:
+				var zc: float = zm + side[0] * (0.5 + 1.9) / 4.5
+				if not side[1]:                           # no floor that way: the lane is walled off
+					parts.append([Vector3(xa + skin, h * 0.5, zc), Vector3(skin * 2.0, h, lane), wall_mat])
+					continue
+				for i in steps:
+					var top: float = h * 0.8 * (i + 1) / steps
+					if side[0] > 0.0:
+						parts.append([Vector3(xa + (xb - xa) * (i + 0.5) / steps, top * 0.5, zc), Vector3((xb - xa) / steps, top, lane), _flat(col)])
+					else:                                 # going down: steps sinking away under a dark slab
+						parts.append([Vector3(xa + (xb - xa) * (i + 0.5) / steps, 0.02, zc), Vector3((xb - xa) / steps, 0.04, lane), _flat(col.darkened(0.08 * (i + 1)))])
 		_:
 			var sh: String = ed._shape(o.type)
 			var hm := float(ed._param(o, "height", 0.0))

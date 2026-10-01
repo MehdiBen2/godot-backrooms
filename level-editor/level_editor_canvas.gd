@@ -167,6 +167,239 @@ func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
 			o[k] = val
 	return o
 
+# ---------------------------------------------------------------- stairwells
+# A stairwell (object_types.json "stairs": true; the game's props/stairs.gd) stands square on the grid:
+# STAIR_CELLS cells from its own along its arrow by STAIR_WIDE across (its own row, where its doorway is, and
+# the one to the left of the arrow). One well is one object on each floor it reaches, on the same cells of
+# every one, all sharing a "well" number so they move, turn and are dressed together. The game joins two
+# floors wherever both have a stairwell on the very same cells.
+const STAIR_CELLS := 3               # level_data.gd STAIR_CELLS / STAIR_WIDE
+const STAIR_WIDE := 2
+
+func _is_stairs(t: String) -> bool:
+	return bool(_info(t).get("stairs", false))
+
+func _stair_dir(o: Dictionary) -> Vector2i:
+	return Vector2i(Vector2.from_angle(deg_to_rad(float(o.rotation))).round())
+
+func _stair_cells(o: Dictionary) -> Array[Vector2i]:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var dir := _stair_dir(o)
+	var left := Vector2i(dir.y, -dir.x)
+	var out: Array[Vector2i] = []
+	for i in STAIR_CELLS:
+		for j in STAIR_WIDE: out.append(c + dir * i + left * j)
+	return out
+
+## The cell in front of the well's doorway
+func _stair_door(o: Dictionary) -> Vector2i:
+	return Vector2i(roundi(o.pos_x), roundi(o.pos_y)) - _stair_dir(o)
+
+## Square on the grid: whole cells, quarter turns, one size
+func _stair_square(o: Dictionary) -> void:
+	o.pos_x = roundf(o.pos_x)
+	o.pos_y = roundf(o.pos_y)
+	o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
+	o.scale = 1.0
+
+## The stairwell among `objs` standing on the very cells of `o`, the same way round (-1: none)
+func _stair_twin(objs: Array, o: Dictionary) -> int:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	for i in objs.size():
+		var p: Dictionary = objs[i]
+		if is_same(p, o) or not _is_stairs(str(p.type)): continue
+		if Vector2i(roundi(p.pos_x), roundi(p.pos_y)) == c and _stair_dir(p) == _stair_dir(o): return i
+	return -1
+
+## Does another stairwell among `objs` share a cell with `o` (without standing exactly on it)?
+func _stair_clash(objs: Array, o: Dictionary) -> bool:
+	var mine := _stair_cells(o)
+	var twin := _stair_twin(objs, o)
+	for i in objs.size():
+		var p: Dictionary = objs[i]
+		if i == twin or is_same(p, o) or not _is_stairs(str(p.type)): continue
+		for c in _stair_cells(p):
+			if mine.has(c): return true
+	return false
+
+## Inside the map's border wall?
+func _inner(c: Vector2i) -> bool:
+	return c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1
+
+## Do all the well's cells, and the one in front of its door, lie inside the map?
+func _stair_fits(o: Dictionary) -> bool:
+	if not _inner(_stair_door(o)): return false
+	for c in _stair_cells(o):
+		if not _inner(c): return false
+	return true
+
+## The way a new well at `o` should face: as `o` does if it fits there with an open cell at its door, else the
+## first quarter turn that does, else the first that fits at all
+func _stair_facing(o: Dictionary) -> float:
+	var probe := o.duplicate()
+	for want_open in [true, false]:
+		for k in 4:
+			probe.rotation = fposmod(float(o.rotation) + 90.0 * k, 360.0)
+			if not _stair_fits(probe) or _stair_clash(objects, probe): continue
+			var d := _stair_door(probe)
+			if not want_open or grid[d.y][d.x] != WALL: return probe.rotation
+	return o.rotation
+
+func _floor_objects(f: int) -> Array:
+	if f == floor_idx: return objects
+	return floor_store[f].objects if floor_store.has(f) else []
+
+## Is the stairwell `o` of floor `f` joined to the floor `d` up from it (-1: down)?
+func _stair_linked(o: Dictionary, f: int, d: int) -> bool:
+	return _stair_twin(_floor_objects(f + d), o) >= 0
+
+## The grid under a stairwell: floor in its cells (the game builds the well itself there) and an open cell in
+## front of its door. `landing`: where that cell was solid, a little room round it to arrive in too.
+func _stair_carve(g: Array, o: Dictionary, landing := false) -> void:
+	var cells := _stair_cells(o)
+	for c in cells:
+		if _inner(c): g[c.y][c.x] = FLOOR
+	var door := _stair_door(o)
+	if not _inner(door) or g[door.y][door.x] != WALL: return
+	g[door.y][door.x] = FLOOR
+	if not landing: return
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var n := door + Vector2i(dx, dz)
+			if _inner(n) and not cells.has(n) and g[n.y][n.x] == WALL: g[n.y][n.x] = FLOOR
+
+## A number no stairwell of the level has yet
+func _well_new() -> int:
+	var top := 0
+	var all := _all_floors()
+	for f in all:
+		for p: Dictionary in all[f].objects: top = maxi(top, int(p.get("well", 0)))
+	return top + 1
+
+## Carry stairwell `o` of this floor on to the floor `d` up from it (-1: down): that floor gets the same well
+## on the same cells, or is joined to the one already standing there. A floor the level doesn't have is made.
+func _stair_extend(o: Dictionary, d: int) -> void:
+	var f := floor_idx + d
+	var made := not floor_store.has(f)
+	if made:
+		floor_store[f] = _new_floor()
+		_floors_changed()
+	var fd: Dictionary = floor_store[f]
+	var k := _stair_twin(fd.objects, o)
+	if k >= 0:
+		var was := int(fd.objects[k].get("well", 0))
+		if was != 0 and was != int(o.well):          # two wells meet: they are one from here on
+			var all := _all_floors()
+			for g in all:
+				for p: Dictionary in all[g].objects:
+					if int(p.get("well", 0)) == was: p["well"] = o.well
+		fd.objects[k]["well"] = o.well
+		_status("This floor and %s are joined by the stairwell" % _floor_name(f))
+		return
+	var p := o.duplicate(true)
+	p.type = "stairs_down" if d > 0 else "stairs_up"
+	if _stair_clash(fd.objects, p):
+		_status("Another stairwell is in the way on %s: not joined to it" % _floor_name(f))
+		return
+	fd.objects.append(p)
+	_status("%s%s has the other end of the stairwell (PageUp / PageDown to go there)" % ["Made " if made else "", _floor_name(f)])
+
+## The other floors' ends of the stairwell `o` follow it: the same cells, the same way round, the same look
+func _well_follow(o: Dictionary) -> void:
+	var id := int(o.get("well", 0))
+	if id == 0: return
+	for f in floor_store:
+		for p: Dictionary in floor_store[f].objects:
+			if int(p.get("well", 0)) != id or not _is_stairs(str(p.type)): continue
+			p.pos_x = o.pos_x
+			p.pos_y = o.pos_y
+			p.rotation = o.rotation
+			for k in ["style", "rail"]:
+				if o.has(k): p[k] = o[k]
+
+## A stairwell was placed, moved, turned or edited: square it up, take its other ends with it and make the
+## grid right under each. False (and the edit undone) when it no longer fits where it was put.
+func _stair_settle(o: Dictionary) -> bool:
+	_stair_square(o)
+	if not _stair_fits(o) or _stair_clash(objects, o):
+		_undo()
+		_status("A stairwell needs %d x %d clear cells, and the cell in front of its door, inside the map" % [STAIR_CELLS, STAIR_WIDE])
+		return false
+	_well_follow(o)
+	_stair_carve(grid, o)
+	var id := int(o.get("well", 0))
+	for f in floor_store:
+		for p: Dictionary in floor_store[f].objects:
+			if id != 0 and int(p.get("well", 0)) == id and _is_stairs(str(p.type)): _stair_carve(floor_store[f].grid, p, true)
+	return true
+
+## An end of stairwell `id` was deleted: any other end left with no floor to lead to goes with it
+func _well_prune(id: int) -> void:
+	if id == 0: return
+	var all := _all_floors()
+	var lost: Array = []
+	var again := true
+	while again:
+		again = false
+		for f in all:
+			var objs: Array = all[f].objects
+			for i in range(objs.size() - 1, -1, -1):
+				var p: Dictionary = objs[i]
+				if int(p.get("well", 0)) != id or not _is_stairs(str(p.type)): continue
+				if _stair_linked(p, f, 1) or _stair_linked(p, f, -1): continue
+				objs.remove_at(i)
+				lost.append(_floor_name(f))
+				again = true
+	if not lost.is_empty():
+		selected = -1
+		multi = []
+		_status("Its other end on %s went with it" % ", ".join(lost))
+
+## Stairwells loaded from a file: squared up, floor under them, and numbered (ends of one well, on the same
+## cells of neighbouring floors, get the same number)
+func _wells_adopt() -> void:
+	var all := _all_floors()
+	var floors: Array = all.keys()
+	floors.sort()
+	for f in floors:
+		for o: Dictionary in all[f].objects:
+			if not _is_stairs(str(o.type)): continue
+			_stair_square(o)
+			for c in _stair_cells(o):
+				if _inner(c) and all[f].grid[c.y][c.x] == PIT: all[f].grid[c.y][c.x] = FLOOR
+			var params: Dictionary = _info(str(o.type)).get("params", {})
+			for k in params:
+				if not o.has(k): o[k] = params[k]
+			o["well"] = int(o.get("well", 0))             # a whole number, however the file had it
+			if int(o.well) != 0: continue
+			var below := _stair_twin(all[f - 1].objects, o) if all.has(f - 1) else -1
+			o["well"] = int(all[f - 1].objects[below].get("well", 0)) if below >= 0 else 0
+			if int(o.well) == 0: o["well"] = _well_new()
+
+## Floors the player can't get to from the ground floor: there is no stairwell both floors share on the way,
+## nor a drop hole down to them
+func _unreachable_floors() -> Array:
+	var all := _all_floors()
+	var seen := {0: true}
+	var todo: Array = [0]
+	while not todo.is_empty():
+		var f: int = todo.pop_back()
+		for d: int in [-1, 1]:
+			var g := f + d
+			if seen.has(g) or not all.has(g): continue
+			var joined: bool = d == -1 and all[f].markers.get("drop_hole") != null
+			for o: Dictionary in all[f].objects:
+				if joined: break
+				joined = _is_stairs(str(o.type)) and _stair_twin(all[g].objects, o) >= 0
+			if joined:
+				seen[g] = true
+				todo.append(g)
+	var out: Array = []
+	for f in all:
+		if not seen.has(f): out.append(f)
+	out.sort()
+	return out
+
 func _update_title() -> void:
 	if current < 0: return
 	title_label.text = "%s%s" % [str(index[current].get("name", "")), "  *" if dirty else ""]
@@ -187,6 +420,9 @@ func _update_info() -> void:
 				if floor_store[f].markers.get("exit") != null: found = true
 			if markers.get("exit") != null: found = true
 		if found == null: warn.append("no " + m)
+	var lost := _unreachable_floors()
+	if lost.size() == 1: warn.append("no stairs to " + _floor_name(lost[0]))
+	elif lost.size() > 1: warn.append("%d floors with no stairs to them (%s ... %s)" % [lost.size(), _floor_name(lost[0]), _floor_name(lost[-1])])
 	info.text = "%s   %dx%d   %d open   %d objects   %s" % [_floor_name(floor_idx), grid_size, grid_size, open_cells, objects.size(), ("WARN: " + ", ".join(warn)) if not warn.is_empty() else "OK"]
 	info.add_theme_color_override("font_color", RED if not warn.is_empty() else DIM)
 
@@ -194,6 +430,8 @@ var preview3d: Control               # level_editor_3d.gd: rebuilt when the map 
 
 func _mark_dirty() -> void:
 	dirty = true
+	for k in _group():
+		if k < objects.size() and _is_stairs(str(objects[k].type)): _well_follow(objects[k])
 	if preview3d != null and preview3d.visible: preview3d.mark_stale()
 	_update_title()
 	canvas.queue_redraw()
@@ -345,7 +583,10 @@ func _draw_canvas() -> void:
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
 			var t := tool.get_slice(":", 1)
 			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
-			_draw_object(ghost, 0.45)
+			if _is_stairs(t):
+				_stair_square(ghost)
+				ghost.rotation = _stair_facing(ghost)
+			_draw_object(ghost, 0.45, false)
 			_draw_arrow(ghost, Color(SEL, 0.5))
 	else:
 		_draw_hover()
@@ -431,7 +672,7 @@ func _draw_onion() -> void:
 	var col := Color(0.35, 0.85, 1.0, 0.55)
 	_outline_cells(open, col, maxf(1.0, zoom * 0.05), 0.0)
 	for o: Dictionary in fd.objects:
-		if str(o.type).begins_with("stairs_"): _draw_object(o, 0.35)
+		if _is_stairs(str(o.type)): _draw_object(o, 0.35, false)
 	if zoom >= 9.0:
 		_tag(Vector2(canvas.size.x - 200, 8), "cyan: " + _floor_name(other), col, 11)
 
@@ -1139,6 +1380,8 @@ func _obj_depth(o: Dictionary) -> float:
 
 ## The object's footprint in object space (cells): the box its gizmo outlines
 func _obj_bounds(o: Dictionary) -> Rect2:
+	if _is_stairs(str(o.type)):
+		return Rect2(-0.5, 0.5 - STAIR_WIDE, STAIR_CELLS, STAIR_WIDE)
 	match _shape(o.type):
 		"corner", "arc":
 			var pts := _shape_path(o)
@@ -1223,10 +1466,11 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_end_box(mb.position)
 			return
 		if drag != "":
-			if selected >= 0 and str(objects[selected].type).begins_with("stairs_") and drag in ["place", "rotate"]:
-				_sync_stairs_partner(objects[selected])
 			drag = ""
+			for k in _group():                    # a stairwell that was placed, moved or turned settles onto the grid
+				if k < objects.size() and _is_stairs(str(objects[k].type)) and not _stair_settle(objects[k]): break
 			_sync_inspector()
+			_mark_dirty()
 		return
 	var i := _obj_at(mb.position)
 	if mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -1252,6 +1496,13 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		group_start = multi.map(func(k): return [k, objects[k].pos_x, objects[k].pos_y])
 		group_anchor = _pos_at(mb.position)
 		drag = "group"
+	elif i >= 0 and _is_stairs(tool.get_slice(":", 1)) and _is_stairs(str(objects[i].type)):
+		# a stairs tool on a stairwell that is already here: carry that one on, up or down another floor
+		_push_undo()
+		_select(i)
+		_stair_extend(objects[i], 1 if tool == "obj:stairs_up" else -1)
+		_stair_settle(objects[i])
+		_mark_dirty()
 	elif i >= 0:
 		_select(i)
 		if mb.double_click and objects[i].type == "trigger":
@@ -1277,64 +1528,22 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			drag = "line"
 			_mark_dirty()
 			return
-		objects.append(_new_object(t, p, _wall_align(p, place_rot, t)))
-		if tool.begins_with("obj:stairs_"):
-			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
-			objects[-1].pos_y = roundf(p.y)
-			objects[-1].scale = 1.0
-			_link_stairs(objects[-1])
+		var made := _new_object(t, p, _wall_align(p, place_rot, t))
+		if _is_stairs(t):
+			# a new stairwell: here, and its other end on the floor above (Stairs up) or below (Stairs down)
+			_stair_square(made)
+			made.rotation = _stair_facing(made)
+			if not _stair_fits(made) or _stair_clash(objects, made):
+				_status("No room for a stairwell here: it needs %d x %d cells clear of other stairs, and the cell in front of its door" % [STAIR_CELLS, STAIR_WIDE])
+				return
+			made["well"] = _well_new()
+			objects.append(made)
+			_stair_extend(made, 1 if t == "stairs_up" else -1)
+		else:
+			objects.append(made)
 		_select(objects.size() - 1)
 		drag = "place"                   # keep the button down and drag away to aim it
 		_mark_dirty()
-
-## Stairs join two floors. The new flight's cell is made right for it (floor under stairs up, a pit for stairs
-## down) and the floor it leads to gets the opposite flight at the same spot, with open floor to arrive on
-## beside it; that floor is created if the level doesn't have it yet.
-func _link_stairs(o: Dictionary) -> void:
-	var up: bool = o.type == "stairs_up"
-	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
-	var dir := Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
-	if not _in_grid(c): return
-	grid[c.y][c.x] = FLOOR if up else PIT
-	if _in_grid(c - dir) and grid[c.y - dir.y][c.x - dir.x] == WALL: grid[c.y - dir.y][c.x - dir.x] = FLOOR
-	var f := floor_idx + (1 if up else -1)
-	var created := false
-	if not floor_store.has(f):
-		floor_store[f] = _new_floor()
-		created = true
-		_floors_changed()
-	var fd: Dictionary = floor_store[f]
-	var kind := "stairs_down" if up else "stairs_up"
-	for other: Dictionary in fd.objects:
-		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
-			_status("Linked to the %s already on %s" % [kind.replace("_", " "), _floor_name(f)])
-			return
-	fd.objects.append({"type": kind, "pos_x": o.pos_x, "pos_y": o.pos_y, "rotation": o.rotation, "scale": 1.0})
-	fd.grid[c.y][c.x] = PIT if up else FLOOR
-	var a := c - dir                               # where you arrive on that floor: open it, and a little landing
-	for dz in range(-1, 2):
-		for dx in range(-1, 2):
-			var n := a + Vector2i(dx, dz)
-			if n.x >= 1 and n.y >= 1 and n.x < grid_size - 1 and n.y < grid_size - 1 and n != c and fd.grid[n.y][n.x] == WALL:
-				fd.grid[n.y][n.x] = FLOOR
-	_status("%s%s got the matching %s here (PageUp / PageDown to go there)" % [("Made " if created else ""), _floor_name(f), kind.replace("_", " ")])
-
-## A flight was turned: turn its partner on the next floor the same way (arrival stays beside it)
-func _sync_stairs_partner(o: Dictionary) -> void:
-	var f := floor_idx + (1 if o.type == "stairs_up" else -1)
-	if not floor_store.has(f): return
-	var kind := "stairs_down" if o.type == "stairs_up" else "stairs_up"
-	var fd: Dictionary = floor_store[f]
-	for other: Dictionary in fd.objects:
-		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
-			other.rotation = o.rotation
-			var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
-			var a := c - Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
-			for g in [grid, fd.grid]:                  # both floors: open where you step off
-				if a.x >= 1 and a.y >= 1 and a.x < grid_size - 1 and a.y < grid_size - 1 and g[a.y][a.x] == WALL:
-					g[a.y][a.x] = FLOOR
-			_mark_dirty()
-			return
 
 func _object_drag(p: Vector2) -> void:
 	if drag == "box":
@@ -1363,6 +1572,7 @@ func _object_drag(p: Vector2) -> void:
 		return
 	if drag == "move":
 		var q := _snap_pos(_pos_at(p) + drag_off)
+		if _is_stairs(str(o.type)): q = q.round()
 		o.pos_x = q.x
 		o.pos_y = q.y
 		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
@@ -1371,6 +1581,7 @@ func _object_drag(p: Vector2) -> void:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
 		o.rotation = _snap_rot(rad_to_deg(v.angle()))
+		if _is_stairs(str(o.type)): o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
 		place_rot = o.rotation
 	_sync_inspector()
 	_mark_dirty()
@@ -1443,10 +1654,12 @@ func _select(i: int) -> void:
 	canvas.queue_redraw()
 
 func _delete_object(i: int) -> void:
+	var gone: Dictionary = objects[i]
 	objects.remove_at(i)
 	if selected == i: selected = -1
 	elif selected > i: selected -= 1
 	hover_obj = -1
+	if _is_stairs(str(gone.type)): _well_prune(int(gone.get("well", 0)))
 	_sync_inspector()
 	_mark_dirty()
 
@@ -1469,11 +1682,15 @@ func _duplicate_selected() -> void:
 	var off := SNAP_STEP if snap else 0.25
 	var made: Array = []
 	for k in g:
+		if _is_stairs(str(objects[k].type)):
+			_status("A stairwell isn't copied: place another with Stairs up / down")
+			continue
 		var o: Dictionary = objects[k].duplicate()
 		o.pos_x = minf(o.pos_x + off, grid_size - 1)
 		o.pos_y = minf(o.pos_y + off, grid_size - 1)
 		objects.append(o)
 		made.append(objects.size() - 1)
+	if made.is_empty(): return
 	selected = made[-1]
 	multi = made if made.size() > 1 else []
 	_sync_inspector()
@@ -1498,10 +1715,13 @@ func _rotate_selected(deg: float) -> void:
 			ob.pos_x = q.x
 			ob.pos_y = q.y
 			ob.rotation = fposmod(ob.rotation + deg, 360.0)
+		for k in multi:
+			if k < objects.size() and _is_stairs(str(objects[k].type)) and not _stair_settle(objects[k]): break
 		_mark_dirty()
 		return
 	var o: Dictionary = objects[selected]
 	o.rotation = fposmod(o.rotation + deg, 360.0)
+	if _is_stairs(str(o.type)) and not _stair_settle(o): return
 	place_rot = o.rotation
 	_sync_inspector()
 	_mark_dirty()
@@ -1537,6 +1757,11 @@ func _set_prop(key: String, v) -> void:
 			if raw_list is Array and not raw_list.is_empty() and raw_list[0] is Dictionary:
 				raw_list[0]["custom_event"] = v
 			_sync_inspector()
+	if _is_stairs(str(o.type)):
+		if not _stair_settle(o): return
+		insp_x.set_value_no_signal(o.pos_x)
+		insp_y.set_value_no_signal(o.pos_y)
+		insp_rot.set_value_no_signal(o.rotation)
 	_mark_dirty()
 
 func _sync_inspector() -> void:
@@ -1556,7 +1781,7 @@ func _sync_inspector() -> void:
 	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
 	var sh := _shape(o.type)
 	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
-	insp_scale_label.visible = sh not in ["pillar", "column"]
+	insp_scale_label.visible = sh not in ["pillar", "column"] and not _is_stairs(str(o.type))
 	insp_scale.visible = insp_scale_label.visible
 	if insp_trigger_btn != null:
 		insp_trigger_btn.visible = (o.type == "trigger")
@@ -1581,6 +1806,8 @@ func _sync_inspector() -> void:
 		elif ctrl is CheckBox: (ctrl as CheckBox).set_pressed_no_signal(bool(v))
 		elif ctrl is LineEdit:
 			if (ctrl as LineEdit).text != str(v): (ctrl as LineEdit).text = str(v)
+		elif ctrl is OptionButton and insp_params[k].has("choices"):          # one of object_types.json "choices"
+			(ctrl as OptionButton).select(maxi(0, (insp_params[k].choices as Array).find(str(v))))
 		elif ctrl is OptionButton:
 			var evs: Array = _info(o.type).get("events", {}).keys()
 			var ev_idx := evs.find(str(v))
@@ -1597,6 +1824,13 @@ func _describe(o: Dictionary) -> String:
 	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
 	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
 	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
+	if _is_stairs(str(o.type)) and objects.has(o):
+		var up := _stair_linked(o, floor_idx, 1)
+		var down := _stair_linked(o, floor_idx, -1)
+		t = "Stairwell   x %d   y %d   " % [roundi(o.pos_x), roundi(o.pos_y)]
+		t += "up to %s" % _floor_name(floor_idx + 1) if up else "no way up"
+		t += ",  down to %s" % _floor_name(floor_idx - 1) if down else ",  no way down"
+		t += "   (%s, lamps %s)" % [str(_param(o, "style", "carpet")), str(_param(o, "light", "on"))]
 	if params.has("event"):
 		var ev_names: Array = []
 		var raw_list = o.get("events_list", [])
@@ -1632,7 +1866,8 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 	canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0, 0, 0, col.a * 0.8), 1.0)
 
 ## Plan view of an object, the way an architect's floor plan draws it
-func _draw_object(o: Dictionary, alpha: float) -> void:
+## `own`: one of this floor's (a stairwell then shows which floors it is joined to)
+func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	var xf := _obj_xf(o)
 	var col: Color = _info(o.type).col
 	col.a = alpha
@@ -1660,20 +1895,7 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 				canvas.draw_dashed_line(xf * (Vector2(s, -half + p) * zoom), xf * (Vector2(s, half - p) * zoom),
 					Color(col, alpha * 0.8), 1.5, maxf(zoom * 0.12, 3.0))
 		"stairs_up", "stairs_down":
-			# the flight seen from above: its treads across the run, the far end (top / bottom) darker
-			var d := 0.5
-			_fill(_local_rect(xf, -d, -half, d, half), Color(col, alpha * 0.85))
-			for i in range(1, 12):
-				var x := -d + i / 12.0
-				canvas.draw_line(xf * (Vector2(x, -half) * zoom), xf * (Vector2(x, half) * zoom), Color(0, 0, 0, alpha * 0.45), 1.0)
-			_fill(_local_rect(xf, d - 0.12, -half, d, half), Color(0, 0, 0, alpha * 0.8))
-			if zoom >= 12.0:
-				var lbl := "UP" if o.type == "stairs_up" else "DN"
-				var fs := int(clampf(zoom * 0.35, 9, 18))
-				var p := xf.origin - Vector2(font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, -fs * 0.35)
-				canvas.draw_string(font, p, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
-			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
-			_draw_stairs_transition(o, xf, alpha)
+			_draw_stairs(o, xf, col, alpha, own)
 		_:
 			_draw_shaped(o, xf, col, alpha)
 
@@ -1745,24 +1967,59 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 				for i in line.size() - 1:
 					canvas.draw_dashed_line(line[i], line[i + 1], Color(1, 1, 1, alpha * 0.6), 1.0, maxf(zoom * 0.15, 3.0))
 
-func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> void:
-	var up: bool = o.type == "stairs_up"
-	var target_f: int = floor_idx + (1 if up else -1)
-	var linked := false
-	if floor_store.has(target_f):
-		var fd: Dictionary = floor_store[target_f]
-		var kind: String = "stairs_down" if up else "stairs_up"
-		for other: Dictionary in fd.get("objects", []):
-			if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.8:
-				linked = true
-				break
-	if zoom >= 10.0:
-		var symbol := "▲" if up else "▼"
-		var text := "%s TO %s [%s]" % [symbol, _floor_name(target_f).to_upper(), "LINKED" if linked else "UNLINKED"]
-		var tag_col: Color = Color("2fd968") if linked else Color("ff9922")
-		_tag(xf.origin + Vector2(-48, -maxf(zoom * 0.85, 14.0)), text, Color(tag_col, alpha), 9)
-		if linked:
-			canvas.draw_arc(xf.origin, maxf(zoom * 0.55, 8.0), 0, TAU, 16, Color(tag_col, alpha * 0.6), 1.5)
+## A stairwell in plan: its box with the doorway in the front, the wall between the lanes, and each lane's
+## steps. The right-hand lane (of the arrow) goes up, the left-hand one down; a lane with no floor to lead to
+## is drawn walled off, as the game builds it.
+func _draw_stairs(o: Dictionary, xf: Transform2D, col: Color, alpha: float, own: bool) -> void:
+	var m := 1.0 / CELL_M                             # metres -> cells (the sizes are props/stairs.gd's)
+	var x0 := -0.5
+	var x1 := STAIR_CELLS - 0.5
+	var y0 := 0.5 - STAIR_WIDE
+	var y1 := 0.5
+	var mid := (y0 + y1) * 0.5
+	var wall := maxf(0.2 * m, 2.0 / zoom)
+	var spine := 1.0 * m
+	var xa := x0 + 0.2 * m + 3.0 * m
+	var xb := x1 - 0.2 * m - 3.0 * m
+	var up := not own or _stair_linked(o, floor_idx, 1)
+	var down := not own or _stair_linked(o, floor_idx, -1)
+	var solid := Color(BASE_COLORS[WALL], alpha)
+	var ink := Color(0, 0, 0, alpha * 0.55)
+	canvas.draw_colored_polygon(_local_rect(xf, x0, y0, x1, y1), Color(col.darkened(0.6), alpha * 0.92))      # the landings
+	var fs := int(clampf(zoom * 0.3, 8, 15))
+	for lane: Array in [[mid + spine * 0.5, y1, up, "UP"], [y0, mid - spine * 0.5, down, "DOWN"]]:
+		var a: float = lane[0]
+		var b: float = lane[1]
+		if not lane[2]:
+			canvas.draw_colored_polygon(_local_rect(xf, xa, a, xb, b), solid)
+			continue
+		canvas.draw_colored_polygon(_local_rect(xf, xa, a, xb, b), Color(col, alpha * 0.9))
+		for i in 13:
+			var x := lerpf(xa, xb, i / 12.0)
+			canvas.draw_line(xf * (Vector2(x, a) * zoom), xf * (Vector2(x, b) * zoom), ink, 1.0)
+		if own and zoom >= 14.0:
+			var at := xf * (Vector2((xa + xb) * 0.5, (a + b) * 0.5) * zoom)
+			var ts := font.get_string_size(lane[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+			canvas.draw_string(font, at - Vector2(ts.x * 0.5, -fs * 0.35), lane[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
+	canvas.draw_colored_polygon(_local_rect(xf, xa, mid - spine * 0.5, xb, mid + spine * 0.5), solid)             # the wall between the lanes
+	# the box, with the doorway in the front of the up lane
+	var door_mid := mid + (spine * 0.5 + 3.8 * m * 0.5)
+	var door := 1.1 * m
+	for r: Array in [[x0, y0, x1, y0 + wall], [x0, y1 - wall, x1, y1], [x1 - wall, y0, x1, y1],
+			[x0, y0, x0 + wall, door_mid - door], [x0, door_mid + door, x0 + wall, y1]]:
+		canvas.draw_colored_polygon(_local_rect(xf, r[0], r[1], r[2], r[3]), solid)
+	var rim := _local_rect(xf, x0, y0, x1, y1)
+	canvas.draw_polyline(rim + PackedVector2Array([rim[0]]), Color(0, 0, 0, alpha * 0.8), 1.0)
+	_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
+	if not own or zoom < 9.0: return
+	var bits: Array = []
+	if up: bits.append("▲ " + _floor_name(floor_idx + 1).to_upper())
+	if down: bits.append("▼ " + _floor_name(floor_idx - 1).to_upper())
+	var tag_col := Color("2fd968") if (up or down) else Color("ff9922")
+	var corner := rim[0]
+	for q in rim:
+		if q.y < corner.y or (q.y == corner.y and q.x < corner.x): corner = q
+	_tag(corner + Vector2(0, -15), "   ".join(bits) if not bits.is_empty() else "NOT JOINED TO A FLOOR", Color(tag_col, alpha), 10)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
 	var b := _obj_bounds(o).grow(3.0 / zoom)

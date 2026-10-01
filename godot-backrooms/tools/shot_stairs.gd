@@ -64,16 +64,23 @@ func _shot(name: String) -> Image:
 func _look(which: int) -> void:
 	var w: Node3D = level.stairwells[which]
 	var views := [
-		["room", Vector3(-9.0, 0.1, 3.2), Vector3(1, 0, -0.42), 4.0],
-		["door", Vector3(-4.2, 0.1, 1.15), Vector3(1, 0, 0), 2.0],
-		["landing", Vector3(-1.5, 0.05, 1.15), Vector3(1, 0, 0), 8.0],
-		["landing_down", Vector3(-1.2, 0.05, -1.15), Vector3(1, 0, 0), -22.0],
-		["landing_back", Vector3(-0.5, 0.05, -0.2), Vector3(-1, 0, -0.5), 2.0],
-		["up_flight", Vector3(1.6, 1.0, 1.15), Vector3(1, 0, 0), 12.0],
-		["far_landing", Vector3(5.2, 2.75, 1.2), Vector3(0.25, 0, -1), 0.0],
-		["far_up", Vector3(6.0, 2.75, -0.9), Vector3(-1, 0, -0.06), 14.0],
-		["far_down", Vector3(6.0, 2.75, 1.15), Vector3(-1, 0, 0), -24.0],
+		["room", Vector3(-13.0, 0.1, 6.5), Vector3(1, 0, -0.42), 6.0],
+		["door", Vector3(-5.5, 0.1, 2.4), Vector3(1, 0, 0), 4.0],
+		["landing", Vector3(-1.6, 0.05, 2.4), Vector3(1, 0, -0.1), 10.0],
+		["landing_down", Vector3(-1.2, 0.05, -2.4), Vector3(1, 0, 0), -18.0],
+		["landing_back", Vector3(0.6, 0.05, -1.2), Vector3(-1, 0, -0.35), 6.0],
+		["up_flight", Vector3(3.5, 1.7, 2.4), Vector3(1, 0, 0), 14.0],
+		["far_landing", Vector3(8.6, w.HALF + 0.05, 2.6), Vector3(0.3, 0, -1), 4.0],
+		["far_up", Vector3(10.2, w.HALF + 0.05, -2.0), Vector3(-1, 0, -0.06), 16.0],
+		["far_down", Vector3(10.2, w.HALF + 0.05, 2.4), Vector3(-1, 0, 0), -22.0],
 	]
+	# VIEW="x,y,z,dx,dz,pitch;...": these views instead (the well's own frame)
+	var custom := OS.get_environment("VIEW")
+	if custom != "":
+		views = []
+		for part in custom.split(";", false):
+			var f := part.split_floats(",")
+			views.append(["view%d" % views.size(), Vector3(f[0], f[1], f[2]), Vector3(f[3], 0, f[4]), f[5]])
 	for v: Array in views:
 		_stand(w, v[1], v[2], v[3])
 		await _shot(v[0])
@@ -94,76 +101,114 @@ func _diff(a: Image, b: Image) -> float:
 func _swap(which: int) -> void:
 	var w: Node3D = level.stairwells[which]
 	var start: int = game.level_floor
-	# the far landing, in the down-lane half but short of the line where the floor above takes over
-	var views := [["a", Vector3(5.7, 2.75, -0.8), Vector3(-1, 0, -0.08), 10.0], ["b", Vector3(5.9, 2.75, -0.75), Vector3(-0.3, 0, 1), 0.0],
-		["c", Vector3(6.1, 2.75, -0.8), Vector3(-1, 0, 0.6), -8.0]]
+	var storey: float = w.STOREY
+	var cell: Vector2i = level.cell_of(w.to_global(Vector3.ZERO))
+	# the far landing, in the down-lane half, just short of the line where the floor above takes over
+	var y: float = w.HALF + 0.05
+	var z: float = w.SWAP_UP + 0.25
+	var views := [["a", Vector3(9.6, y, z), Vector3(-1, 0, -0.08), 10.0], ["b", Vector3(10.0, y, z), Vector3(-0.3, 0, 1), 0.0],
+		["c", Vector3(10.4, y, z), Vector3(-1, 0, 0.6), -8.0], ["d", Vector3(8.6, y, z), Vector3(0.2, 0, 1), 4.0]]
 	for v: Array in views:
 		_stand(w, v[1], v[2], v[3])
 		var before := await _shot("swap_%s_0" % v[0])
 		var again := await _shot("swap_%s_1" % v[0])
-		# over the line and back: the floor above is loaded, and stays (the way back is further across)
+		# the swap the well makes when you cross that line, taken here without moving: the same view either side of it
+		var home := w.global_position
 		var t0 := Time.get_ticks_msec()
-		_stand(w, v[1] + Vector3(0, 0, -0.5), v[2], v[3])
-		await process_frame
-		await process_frame
-		await process_frame
-		w = level.stairwells[_same_well(w)]
-		print("view %s: floor %d -> %d in about %d ms, player now at local %s" % [v[0], start, game.level_floor, Time.get_ticks_msec() - t0, w.to_local(player.global_position)])
-		_stand(w, v[1] - Vector3(0, w.STOREY, 0), v[2], v[3])
+		game.change_floor(start + 1, Vector2(cell), "stairs", -storey)
+		var worst := 0.0
+		var frames := 0
+		var mid: Image = null
+		while level.rebuilding and frames < 600:
+			var f0 := Time.get_ticks_usec()
+			await process_frame
+			worst = maxf(worst, (Time.get_ticks_usec() - f0) / 1000.0)
+			frames += 1
+			if frames == 3: mid = root.get_texture().get_image()
+		w = level.stairwells[_same_well(home)]
+		print("view %s: floor %d -> %d, built over %d frames in %d ms, longest frame %.0f ms, player at local %s" % [v[0], start, game.level_floor,
+			frames, Time.get_ticks_msec() - t0, worst, w.to_local(player.global_position).snappedf(0.01)])
 		var after := await _shot("swap_%s_2" % v[0])
-		print("  noise floor %.2f, across the swap %.2f (of 255)" % [_diff(before, again), _diff(before, after)])
+		print("  picture change (of 255): same floor twice %.2f, while it is rebuilt %.2f, on the floor above %.2f" % [
+			_diff(before, again), _diff(before, mid) if mid != null else -1.0, _diff(before, after)])
 		# and down again
-		_stand(w, Vector3(v[1].x, v[1].y - w.STOREY, -0.3), v[2], v[3])
-		await process_frame
-		await process_frame
-		await process_frame
-		w = level.stairwells[_same_well(w)]
-		print("  back down: floor %d, player at local %s" % [game.level_floor, w.to_local(player.global_position)])
+		game.change_floor(start, Vector2(cell), "stairs", storey)
+		while level.rebuilding: await process_frame
+		w = level.stairwells[_same_well(home)]
+		var back := await _shot("swap_%s_3" % v[0])
+		print("  back down: floor %d, player at local %s, picture change %.2f" % [game.level_floor, w.to_local(player.global_position).snappedf(0.01), _diff(before, back)])
 
-## After a floor swap the well is a new node: the one standing where `old` stood
-func _same_well(old: Node3D) -> int:
-	var at := old.global_position if is_instance_valid(old) else player.global_position
+## After a floor swap the well is a new node: the one standing at `at`, where the old one stood
+func _same_well(at: Vector3) -> int:
 	var best := 0
 	for i in level.stairwells.size():
 		if level.stairwells[i].global_position.distance_to(at) < level.stairwells[best].global_position.distance_to(at): best = i
 	return best
 
-## Hold a movement key for `secs`, facing `to` (the well's frame), logging where the player gets to
-func _go(well: Node3D, to: Vector3, secs: float, label: String) -> Node3D:
-	var d := well.global_transform.basis * to
-	player.rotation.y = atan2(-d.x, -d.z)
-	Input.action_press("move_forward")
-	var t := 0.0
-	var worst := 0.0
-	var last_y := player.global_position.y
-	while t < secs:
-		await physics_frame
-		t += 1.0 / Engine.physics_ticks_per_second
-		if level.stairwells.is_empty(): break
-		well = level.stairwells[_same_well(well)]
-		var y := player.global_position.y
-		if absf(y - last_y) < 2.0: worst = maxf(worst, absf(y - last_y))      # a floor swap moves it a whole storey
-		last_y = y
-	Input.action_release("move_forward")
-	print("  %-22s floor %d  local %s  on floor %s  biggest step %.3f m" % [label, game.level_floor, well.to_local(player.global_position).snappedf(0.01), player.is_on_floor(), worst])
+## Walks a body the player's size (the player goes with it, so the well sees it) to each spot in turn, in the
+## well's own frame, at `speed` m/s, and says where it got to: off the floor, stuck, or jolted up or down
+func _walk_path(well: Node3D, probe: CharacterBody3D, path: Array, speed: float) -> Node3D:
+	var home := Vector3(well.global_position.x, 0.0, well.global_position.z)
+	for leg: Array in path:
+		var target: Vector3 = leg[1]
+		var ticks := 0
+		var air := 0
+		var jolt := 0.0
+		var slowest := 0.0
+		while ticks < 1200:
+			var here := well.to_local(probe.global_position)
+			var to := Vector3(target.x - here.x, 0.0, target.z - here.z)
+			if to.length() < 0.15: break
+			var dir := (well.global_transform.basis * to.normalized())
+			probe.velocity = Vector3(dir.x * speed, probe.velocity.y, dir.z * speed)
+			if not probe.is_on_floor(): probe.velocity.y -= 20.0 / Engine.physics_ticks_per_second
+			var y0 := probe.global_position.y
+			probe.move_and_slide()
+			jolt = maxf(jolt, absf(probe.global_position.y - y0))
+			if not probe.is_on_floor(): air += 1
+			player.global_position = probe.global_position
+			ticks += 1
+			var f0 := Time.get_ticks_usec()
+			await physics_frame
+			slowest = maxf(slowest, (Time.get_ticks_usec() - f0) / 1000.0)
+			if absf(player.global_position.y - probe.global_position.y) > 1.0:      # the floor was swapped: the well moved it
+				probe.global_position = player.global_position
+			if not level.stairwells.is_empty():
+				var best := 0
+				for i in level.stairwells.size():
+					var q: Vector3 = level.stairwells[i].global_position
+					if Vector2(q.x - home.x, q.z - home.z).length() < Vector2(level.stairwells[best].global_position.x - home.x, level.stairwells[best].global_position.z - home.z).length(): best = i
+				well = level.stairwells[best]
+		print("  %-26s floor %d  at %s  %s  off the floor %d ticks, biggest step %.3f m, slowest frame %.0f ms" % [leg[0], game.level_floor,
+			well.to_local(probe.global_position).snappedf(0.01), "ok" if ticks < 1200 else "STUCK", air, jolt, slowest])
 	return well
 
 func _walk(which: int) -> void:
 	var w: Node3D = level.stairwells[which]
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_stand(w, Vector3(-4.5, 0.1, 1.15), Vector3(1, 0, 0))
-	await create_timer(0.5).timeout
-	print("walking up from floor %d" % game.level_floor)
-	w = await _go(w, Vector3(1, 0, 0), 5.2, "in and up the flight")
-	w = await _go(w, Vector3(0, 0, -1), 1.1, "across the far landing")
-	w = await _go(w, Vector3(-1, 0, 0), 4.2, "up the second flight")
-	w = await _go(w, Vector3(0, 0, 1), 1.0, "across the landing")
-	w = await _go(w, Vector3(-1, 0, 0), 1.6, "out of the door")
-	await _shot("walk_top")
-	print("walking back down from floor %d" % game.level_floor)
-	w = await _go(w, Vector3(1, 0, 0), 1.3, "in")
-	w = await _go(w, Vector3(0, 0, -1), 1.0, "across the landing")
-	w = await _go(w, Vector3(1, 0, 0), 3.6, "down the flight")
-	w = await _go(w, Vector3(0, 0, 1), 1.1, "across the far landing")
-	w = await _go(w, Vector3(-1, 0, 0), 5.0, "down and out")
-	await _shot("walk_bottom")
+	var probe := CharacterBody3D.new()
+	var cs := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.42
+	cap.height = 1.8
+	cs.shape = cap
+	cs.position.y = 0.9
+	probe.add_child(cs)
+	probe.collision_layer = 0
+	probe.collision_mask = 1
+	main.add_child(probe)
+	probe.add_collision_exception_with(player)           # the player rides along inside it
+	var lane: float = w.LANE_MID
+	var top: float = w.XB + 1.5
+	var up := [["to the door", Vector3(-3.0, 0, lane)], ["onto the landing", Vector3(-0.6, 0, lane)], ["up the first flight", Vector3(top, 0, lane)],
+		["across the far landing", Vector3(top, 0, -lane)], ["up the second flight", Vector3(-0.6, 0, -lane)], ["across the landing", Vector3(-0.6, 0, lane)],
+		["out of the door", Vector3(-4.5, 0, lane)]]
+	var down := [["back in", Vector3(-0.6, 0, lane)], ["across the landing", Vector3(-0.6, 0, -lane)], ["down the first flight", Vector3(top, 0, -lane)],
+		["across the far landing", Vector3(top, 0, lane)], ["down the second flight", Vector3(-0.6, 0, lane)], ["out of the door", Vector3(-4.5, 0, lane)]]
+	for speed: float in [2.6, 4.55]:
+		probe.global_position = w.to_global(Vector3(-5.0, 0.05, lane))
+		probe.velocity = Vector3.ZERO
+		print("up from floor %d at %.1f m/s" % [game.level_floor, speed])
+		w = await _walk_path(w, probe, up, speed)
+		print("down from floor %d" % game.level_floor)
+		w = await _walk_path(w, probe, down, speed)
+	probe.queue_free()
