@@ -14,6 +14,7 @@
     "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
     "godot-backrooms/tools/generate_ceiling_textures.py": "5bb794586049f4f44f29e4f0f0e927d06d01b432896c01105095da3d5b5e49dc",
     "godot-backrooms/tools/generate_door_textures.py": "e9c1c7ea48a0e6df38f59be6f0a54fe643e3b160f4ff742b21025ab35d18f00e",
+    "godot-backrooms/tools/generate_exit_textures.py": "2e7955e432980ec2c82b361b769d53e977e7e281e44fc7b3313dd35b8b97f6ac",
     "godot-backrooms/tools/generate_hud_icons.py": "49399b5897f2fcf4da0476144d60ef9de1c3ee1c2a026bf27bcec8b52820f457",
     "godot-backrooms/tools/generate_lens_dirt.py": "3e354d973b009bf81ad7f0e2d1ad33ffbe68e016bb274a52c3ad2a1089315d7b",
     "godot-backrooms/tools/generate_splash.py": "01fc2af4bc76c411f08dba0826163cb4de37a886066e11a411f2436fd2bd16a1",
@@ -28,8 +29,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "9d1ee6c8cf0e2dc3a9184a1ec3d9247bedfc97dc",
-  "indexed_at_timestamp": "2026-10-01T19:38:10.890805100+00:00",
+  "indexed_at_commit": "0c49a1110277a47259fade7572bae7fafb008908",
+  "indexed_at_timestamp": "2026-10-01T21:41:04.962343800+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -40,16 +41,16 @@
       "nodes": 3
     },
     "python": {
-      "calls": 221,
-      "nodes": 143
+      "calls": 249,
+      "nodes": 157
     }
   },
   "parser_version": "3.3.1",
   "schema_version": 3,
   "stats": {
-    "total_edges": 260,
-    "total_files": 27,
-    "total_nodes": 183
+    "total_edges": 288,
+    "total_files": 28,
+    "total_nodes": 197
   },
   "vexp_version": "3.2.5"
 }
