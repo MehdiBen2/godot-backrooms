@@ -44,6 +44,9 @@ uniform vec3 haze_color : source_color = vec3(0.0);
 uniform float haze_k = 0.0;         // per metre over the camera
 uniform float haze_y = 0.0;         // the camera's height
 
+// ...and the higher, the more run down: damp spreading over the walls, the tubes weaker. 0 at rot_from, full at rot_to.
+uniform float rot_from = 100000000.0;
+uniform float rot_to = 200000000.0;
 uniform float fade_from = 100000000.0;
 uniform float fade_to = 200000000.0;
 
@@ -88,13 +91,14 @@ void fragment() {
 	bool x_wall = abs(n.x) > 0.5;
 	float along = x_wall ? wpos.z : wpos.x;
 	float off = along - cell * round(along / cell);   // from the middle of the cell edge (the tube's middle)
+	float rot = smoothstep(rot_from, rot_to, wpos.y);
 
 	if (COLOR.a < 0.5) {
 		// a tube: its row's light, a touch hotter along the glass
 		float lv = row_level(row, TIME);
 		ALBEDO = vec3(0.85);
 		ROUGHNESS = 0.4;
-		EMISSION = tube_color * tube_glow * lv * (0.75 + 0.25 * COLOR.r);
+		EMISSION = tube_color * tube_glow * lv * (0.75 + 0.25 * COLOR.r) * (1.0 - 0.5 * rot);
 	} else if (COLOR.r < 0.9) {
 		// a fake corridor behind a doorway (pit_fall.gd _corridor): carpet, ceiling tiles, the level's wallpaper, and
 		// a pool of light under every ceiling light, dying away down its length. Some of them are dark.
@@ -114,7 +118,7 @@ void fragment() {
 		float reach = exp(-depth / 12.0);
 		ALBEDO = base;
 		ROUGHNESS = 0.95;
-		EMISSION = base * tube_color * lv * pools * reach * 2.2;
+		EMISSION = base * tube_color * lv * pools * reach * 2.2 * (1.0 - 0.55 * rot);
 	} else {
 		vec3 base;
 		float rough;
@@ -131,7 +135,9 @@ void fragment() {
 		float streak = vnoise1(along * 1.9 + k * 7.3) * vnoise1(along * 0.37 + 11.0 + k);
 		float reach = 1.0 + 4.5 * vnoise1(along * 0.8 + k * 3.1);
 		float wet = streak * smoothstep(band_h - reach, band_h, h) * step(h, band_h);
-		base *= 1.0 - grime * wet;
+		base *= 1.0 - min(grime + 0.45 * rot, 0.95) * wet;
+		// rot: big blotches of damp, whole stretches of wall gone dark with it
+		base *= 1.0 - 0.6 * rot * vnoise1(along * 0.31 + k * 4.7) * vnoise1(h * 0.55 + along * 0.13 + k * 1.9);
 		// the joint between wall and slab, and the slab's own seam at the storey line
 		base *= mix(0.55, 1.0, smoothstep(0.0, 0.05, abs(h - band_h)));
 		base *= mix(0.7, 1.0, smoothstep(0.0, 0.04, min(h, seg_h - h)));
@@ -151,7 +157,7 @@ void fragment() {
 		}
 		ALBEDO = base;
 		ROUGHNESS = rough;
-		EMISSION = base * tube_color * light * ao;
+		EMISSION = base * tube_color * light * ao * (1.0 - 0.45 * rot);
 	}
 	float lit = 1.0 - smoothstep(fade_from, mix(fade_from, fade_to, 0.4), wpos.y);
 	ALBEDO *= lit;

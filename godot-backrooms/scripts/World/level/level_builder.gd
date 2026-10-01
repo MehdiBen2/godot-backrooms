@@ -452,8 +452,8 @@ func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 ## higher or lower than the last. A floor you have just left is kept as it stood instead of being copied
 ## (_tear_down). Levels with no such hole have none of them.
 const Shell := preload("res://scripts/World/level/level_shell.gd")
-const SHELLS_BELOW := 8            # 72 m: past where the horizon fog has closed (level_lighting.gd HORIZON_END), so the last one is never seen to be the last
-const SHELLS_ABOVE := 8
+const SHELLS_BELOW := 12           # 108 m: past where the horizon fog has closed (level_lighting.gd HORIZON_END), so the last one is never seen to be the last
+const SHELLS_ABOVE := 12
 
 var shells := {}                   # floor -> its look-only copy
 var _shell_run := 0                # goes up whenever the stack changes: a build still under way for the old one stops

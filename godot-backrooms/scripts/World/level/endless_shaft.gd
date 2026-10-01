@@ -2,7 +2,8 @@ extends Node3D
 ## The Endless Ceiling zone (level_data.gd `endless_ceiling`), and any Open ceiling with nothing above to look up
 ## into (`shaft_up`): a ceiling that is not there. Look up and the walls round the
 ## area go on climbing, storey after storey of this level's own wall, the bare slab between floors and a
-## buzzing tube under every slab, sinking into the dark. It is the abyss (pit_fall.gd) turned over, drawn
+## buzzing tube under every slab, more run down the higher it goes (damp, dead and failing tubes), sinking
+## into the abyss's sickly haze. It is the abyss (pit_fall.gd) turned over, drawn
 ## with the same shader (pit_shaft.gdshader) and the same look, but only ever looked at: nothing falls up.
 ##
 ## Cheap: STOREYS copies of one storey of mesh, no real lights (the tubes' light on the walls is worked out in the
@@ -16,12 +17,17 @@ const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const STOREYS := 12                # drawn: past FADE_TO nothing shows, so the top of the last is never seen
 const FADE_FROM := 7.0             # m over the ceiling
 const FADE_TO := 95.0
+const ROT_FROM := 6.0              # m over the ceiling: the damp and the dying tubes start...
+const ROT_TO := 60.0               # ...and are at their worst
+const HAZE_FROM := 5.0             # m over the ceiling: the haze starts
+const HAZE_K := 0.04               # per metre: 95 % haze 75 m further up
 
 var level: Node3D
 var cells := {}                    # the cells it rises from
 var seg_h := 9.0
 var cell := 4.5
 var wall_h := 5.4
+var _haze := Color.BLACK           # what the top of the shaft dissolves into (pit_fall.gd SICK, by the level's look)
 
 func setup(lvl: Node3D, from: Dictionary) -> void:
 	level = lvl
@@ -29,6 +35,7 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 	seg_h = lvl.STOREY_H
 	cell = lvl.CELL
 	wall_h = lvl.WALL_H
+	_haze = PitFall.SICK.get(lvl.atmosphere(), PitFall.SICK.dim)
 	var runs := _runs(cells)
 	var mat := _material()
 	# storey 0 starts at the ceiling: below it is the room, whose own walls stand there
@@ -44,7 +51,7 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 		add_child(mi)
 	_add_cap(cells)
 
-## Black over the top, so the far end is never a hole to the sky
+## The haze over the top, so the far end is never a hole to the sky
 func _add_cap(cells: Dictionary) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -56,7 +63,7 @@ func _add_cap(cells: Dictionary) -> void:
 		_quad(st, [Vector3(x - h, y, z - h), Vector3(x + h, y, z - h), Vector3(x + h, y, z + h), Vector3(x - h, y, z + h)],
 				Vector3.DOWN, Color.WHITE, [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO])
 	var black := StandardMaterial3D.new()
-	black.albedo_color = Color.BLACK
+	black.albedo_color = _haze
 	black.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	black.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var mi := MeshInstance3D.new()
@@ -197,12 +204,17 @@ func _material() -> ShaderMaterial:
 	rows.resize(16)
 	for k in 16:
 		var v := r.randf()
-		rows[k] = 2.0 if v < 0.2 else 1.0              # (no dead rows: a dead one is a pitch black band, and this is looked at from underneath)
+		rows[k] = 0.0 if v < 0.2 else (2.0 if v < 0.42 else 1.0)       # dead, failing, steady: more of it failing than in the abyss
 	rows[0] = 1.0                       # (the rows over the ceiling are lit: it is what you see of the shaft from below)
 	rows[1] = 1.0
-	m.set_shader_parameter("base_light", 0.2)       # what the tubes' light leaves between rows: never pitch black
-	m.set_shader_parameter("far_light", 0.85)
-	m.set_shader_parameter("near_light", 2.0)
+	# the abyss's own light (the shader's defaults), dirtier walls, and the higher the more run down
+	m.set_shader_parameter("grime", 0.6)
+	m.set_shader_parameter("rot_from", wall_h + ROT_FROM)
+	m.set_shader_parameter("rot_to", wall_h + ROT_TO)
+	# it sinks into the abyss's sickly haze, not into black
+	m.set_shader_parameter("haze_color", _haze)
+	m.set_shader_parameter("haze_k", HAZE_K)
+	m.set_shader_parameter("haze_y", wall_h + HAZE_FROM)
 	m.set_shader_parameter("rows", rows)
 	m.set_shader_parameter("period", PitFall.ROW_PERIOD)
 	return m

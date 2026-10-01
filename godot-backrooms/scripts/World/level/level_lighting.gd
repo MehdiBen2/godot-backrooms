@@ -19,9 +19,9 @@ const GLARE_DIST := 7.0             # metres: nearer lights glare more
 const GLARE_DIM := 0.55             # exposure multiplier at full glare (the light itself stays clipped white: it's HDR)
 const GLARE_IN := 3.5               # 1/s: stopping down (fast)
 const GLARE_OUT := 0.7              # 1/s: opening back up (slow)
-const FOG_DENSITY := 0.075
+const FOG_DENSITY := 0.055
 const FOG_LIT_SCALE := 0.5
-const FOG_DARK_BOOST := 0.5
+const FOG_DARK_BOOST := 0.3
 const AMBIENT_MIN := 0.3
 const ADAPT := 1.6
 const FOG_COLOR := Color("141108")
@@ -29,8 +29,8 @@ const FOG_COLOR_DARK := Color("020201")
 # Horizon fog: past HORIZON_BEGIN everything fades into the fog colour, whatever the zone's fog density.
 # The clear-air looks thin the fog to almost nothing, so the level's edge and whatever the camera's far
 # plane cuts off showed through as bare background (black space). A screen-wide quad over the depth buffer.
-const HORIZON_BEGIN := 40.0
-const HORIZON_END := 70.0
+const HORIZON_BEGIN := 60.0
+const HORIZON_END := 110.0
 const HORIZON_SHADER := """shader_type spatial;
 render_mode unshaded, fog_disabled, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, blend_mix;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable;
