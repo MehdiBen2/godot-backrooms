@@ -72,13 +72,12 @@ var drain := {}       # sanity runs out while you stand here, whatever the light
 var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
+var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
 ## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
 ## treats them as pits, holes_below). On the top floor there is only the dark above.
 var open_ceiling := {}
 var holes_below := {} # Vector2i -> true: cells the floor below has an open ceiling under, so pits here
 var shaft_up := {}    # Vector2i -> true: open-ceiling cells with no room above to see into: a shaft up into the dark
-var shaft_floors := 0 # how many floors above this one that shaft rises through (they are solid wall there)
-var shaft_pass := {}  # Vector2i -> true: wall cells of this floor a shaft from a floor below rises through
 var fired_triggers := {}   # event triggers already spent this run (props/event_trigger.gd), across floor changes
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
@@ -302,6 +301,8 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 	# an open ceiling on the floor below is a hole in this floor too, wherever this floor is not wall
 	for c: Vector2i in zone_cells(d, f - 1, "open_ceiling"):
 		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
+	# a pit painted Abyss has no bottom, whatever is under it (pit_fall.gd): the floor below keeps its ceiling
+	for c: Vector2i in zone_cells(d, f, "abyss"): out.erase(c)
 	if out.is_empty(): return out
 	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
 	for g: int in [f, f - 1]:
@@ -311,32 +312,6 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 			if o is Dictionary and is_stairs(str(o.get("type", ""))):
 				for c in stair_footprint(load_object(o)): out.erase(c)
 	return out
-
-## Floor `f`'s open-ceiling cells with no room over them to look up into (the cell above is wall, or there
-## is no floor above): a shaft rises from them instead (level_geometry.gd)
-static func blind_cells(d: Dictionary, f: int) -> Dictionary:
-	var out := zone_cells(d, f, "open_ceiling")
-	if out.is_empty(): return out
-	for c: Vector2i in through_cells(d, f + 1): out.erase(c)
-	return out
-
-## How many of the floors above floor `f` that shaft rises through, SHAFT_FLOORS at most: the floors where each
-## of its cells is wall with wall on all four sides. Nothing of such a floor is built there, so nothing of it
-## is cut into; it only leaves the ceiling off over those cells (shaft_pass).
-const SHAFT_FLOORS := 4
-static func shaft_rise(d: Dictionary, f: int) -> int:
-	var cells := blind_cells(d, f)
-	if cells.is_empty(): return 0
-	var n := 0
-	while n < SHAFT_FLOORS and in_stack(d, f + n + 1):
-		var grid: Array = floor_data(d, floor_src(d, f + n + 1))["grid"]
-		for c: Vector2i in cells:
-			for o: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var q := c + o
-				if q.y < 0 or q.y >= grid.size() or q.x < 0 or q.x >= (grid[q.y] as String).length(): continue
-				if grid[q.y][q.x] != "#": return n
-		n += 1
-	return n
 
 ## Read floor `f` of the current level into the grid (which must be empty): off the disk, or out of `raw`,
 ## the whole .lvl already read
@@ -353,11 +328,13 @@ func load_floor(f: int, raw := {}) -> void:
 	for c: Vector2i in open_ceiling:                             # no ceiling, whether or not there is a floor above to see
 		if not open_above.has(c): shaft_up[c] = true
 		open_above[c] = true
-	shaft_floors = 0 if shaft_up.is_empty() else shaft_rise(level_raw, f)
-	shaft_pass.clear()
-	for k in range(1, SHAFT_FLOORS + 1):                         # the shafts of the floors below that reach this one
-		if shaft_rise(level_raw, f - k) >= k:
-			for c: Vector2i in blind_cells(level_raw, f - k): shaft_pass[c] = true
+	# the bottomless pits: the ones painted so, and on a floor with nothing under it every pit (it used to
+	# fall through a black floor and put you back at the spawn point)
+	for c: Vector2i in abyss.keys():
+		if not pits.has(c): abyss.erase(c)
+	if not in_stack(level_raw, f - 1):
+		for c: Vector2i in pits:
+			if not through.has(c): abyss[c] = true
 	hole_box = Rect2i()
 	for holes: Dictionary in [through, open_above]:
 		for c: Vector2i in holes.keys():
@@ -438,7 +415,7 @@ func _parse(d: Dictionary) -> void:
 			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
 	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
-			"safe", "drain", "loot", "echo", "loop", "open_ceiling"]:
+			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])

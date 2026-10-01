@@ -73,6 +73,7 @@ var floor_link := {}
 # The draw tools panel (draw_ui.gd) is open: the player flies like noclip and can move with the cursor free
 var draw_mode := false
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
+var freefall := false          # falling down a bottomless pit (pit_fall.gd): the level stands still meanwhile
 var god_mode := false
 var fullbright := false
 var infinite_stamina := false
