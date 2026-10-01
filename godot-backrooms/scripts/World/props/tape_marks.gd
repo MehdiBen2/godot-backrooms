@@ -5,9 +5,10 @@ extends Node3D
 ## your own marks again when the corridors loop. In co-op each strip goes to the others as well
 ## (Net.send_tape / Net.send_tape_removed) and theirs come in through receive() / receive_removed().
 ##
-## A strip is a dictionary {id, a, b, n, t, by}: its ends and the surface normal, when it went down
+## A strip is a dictionary {id, a, b, n, t, by, fixed}: its ends and the surface normal, when it went down
 ## (unix time, so the scanner can tell you how long ago: scanner.gd) and the callsign of whoever
-## stuck it. It is drawn as a flat quad a few millimetres off the surface, WIDTH across, with the
+## stuck it (`fixed`: it came with the level, mark_store.gd, and won't peel outside the level editor).
+## It is drawn as a flat quad a few millimetres off the surface, WIDTH across, with the
 ## tape texture repeating along it; the chevrons point from where you started pulling to where you
 ## let go. The look (glossy vinyl, retroreflective under the torch) is shaders/reflective_tape.gdshader.
 ## Built by level_builder.gd.
@@ -21,6 +22,7 @@ const TEX_ASPECT := 998.0 / 561.0    # the texture's height over its width: one 
 const SHADER := preload("res://shaders/reflective_tape.gdshader")
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
 const PICK_SLACK := 0.04             # m around a strip that still counts as aiming at it
+const RESEARCHER := "T.S.R.A. FIELD RESEARCHER"  # who laid the tape saved with a level (a level-editor test launch)
 
 static var placed := {}              # level index -> Array of strips (see the top)
 static var mine := {}                # id -> level index: the strips stuck up on this PC
@@ -37,13 +39,13 @@ func _ready() -> void:
 	live = self
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		if not placed.has(lv):
 			placed[lv] = []
 		for d in MarkStore.read(level_id).get("tape", []):
 			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
-				"n": MarkStore.v3(d.n), "t": float(d.t), "by": str(d.by)})
+				"n": MarkStore.v3(d.n), "t": float(d.t), "by": RESEARCHER, "fixed": not MarkStore.active()})
 	for s in placed.get(MarkStore.key(), []):
 		_spawn(s)
 
@@ -53,14 +55,15 @@ func reload_floor() -> void:
 			m.queue_free()
 	meshes.clear()
 	order.clear()
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		if not placed.has(lv):
 			placed[lv] = []
 		for d in MarkStore.read(level_id).get("tape", []):
 			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
-				"n": MarkStore.v3(d.n), "t": float(d.t), "by": str(d.by)})
+				"n": MarkStore.v3(d.n), "t": float(d.t), "by": RESEARCHER, "fixed": not MarkStore.active()})
 	for s in placed.get(MarkStore.key(), []):
 		_spawn(s)
 
@@ -71,7 +74,7 @@ func _exit_tree() -> void:
 ## Lay a strip from `a` to `b` on the surface with normal `n` (tape_tool.gd, on release)
 func place(a: Vector3, b: Vector3, n: Vector3) -> Dictionary:
 	var s := {"id": "%08x%08x" % [randi(), randi()], "a": a, "b": b, "n": n,
-		"t": Time.get_unix_time_from_system(), "by": Net.my_name()}
+		"t": Time.get_unix_time_from_system(), "by": RESEARCHER if MarkStore.active() else Net.my_name()}
 	_store(MarkStore.key(), s)
 	mine[s.id] = MarkStore.key()
 	_spawn(s)
@@ -87,6 +90,7 @@ func remove(id: String) -> void:
 
 ## Write this level's strips to disk (a level-editor test launch only: mark_store.gd)
 func save() -> bool:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var out: Array = []
 	for s in placed.get(MarkStore.key(), []):
 		out.append({"id": s.id, "a": MarkStore.arr(s.a), "b": MarkStore.arr(s.b), "n": MarkStore.arr(s.n),

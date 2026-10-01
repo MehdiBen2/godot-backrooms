@@ -6,6 +6,7 @@ extends Node3D
 const ArchiveScript := preload("res://scripts/GameLogicEngine/asra_archive.gd")
 const ASRA_ID := "survey_clipboard"
 const YIELD_AMOUNT := 40
+const SCAN_RANGE := 3.5
 
 var inspected := false
 var mesh_root: Node3D
@@ -85,6 +86,10 @@ func _build_mesh() -> void:
 ## Scanner interface for Q (scanner.gd)
 func scan_points() -> Array:
 	return [global_position + Vector3(0, 0.1, 0)]
+
+## How near the scanner has to be to read it (scanner.gd): an object, so up close
+func scan_range() -> float:
+	return SCAN_RANGE
 
 ## Scanner behavior readout (scanner.gd)
 func scan_behavior(_at: Vector3) -> Dictionary:

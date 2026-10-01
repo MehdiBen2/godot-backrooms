@@ -91,13 +91,67 @@ Levels are ASCII grids in `godot-backrooms/levels/*.lvl`, listed in `levels.json
 editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if the game folder isn't the
 sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `tools/bake_level.gd`.
 
-Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs. Besides grid
+Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs and shafts. Besides grid
 walls, the OBJECTS panel places free walls of any shape: thin walls and half walls (per-object Thickness and
 Height; under 1.8 m you see over them), L corners, curved walls up to a full round room, square pillars and
 round columns. An **Event trigger** (key 9) is an invisible box that runs an event when the player walks in:
 a caption, the tubes over it dying or stuttering, silence, a thump, a drone, or any director event (knocking,
 breathing, preacher, power cut). The Liminal atmosphere / zone and the "Liminal halls" generator style give
 the empty, evenly lit, hazy look. Object types and their per-object fields live in `levels/object_types.json`.
+
+In the editor a selected object has a round knob to turn it and small squares to size it on the map (a wall's
+ends and thickness, a pillar's width, a trigger's depth, a curve's diameter and arc); Shift+wheel sizes it,
+Alt+wheel turns it and the arrow keys nudge it. **Select area** (key S) drags a box of the map: Del empties
+it (objects, zones, paint), Shift+Del walls it in, and Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste it, rooms
+and all, onto any floor or level (Ctrl+Shift+V on the same cells). Ctrl+A takes every object (or the whole
+floor), and Esc always lets go of whatever is following the mouse. The line along the bottom of the map
+lists the current tool's controls.
+
+Zones are painted onto cells (ZONES panel). Besides the looks (tall / low ceilings, tiles, bright, dark, dim,
+flicker, grime, classic, liminal) and where the mannequins stand: **Safe** (no entity sets foot there: they
+path round it and are pushed out, `scripts/World/grid_nav.gd`), **Drain** (sanity runs out while you stand
+there), **Loot** (pickups turn up there far more often), **Open ceiling** (no ceiling: the floor above has a
+hole over those cells, as if it had a pit there), **Echo** (a long wet echo on everything heard) and **Loop**
+(a corridor that never ends: paint it along a straight, plain corridor of 6 cells or more and walking on down
+it puts you back near its start, unseen; turning back leads out).
+
+**Stairs up / down** (keys 7 / 8) put a stairwell on the floor you are editing and its other end on the floor
+above / below (made if the level has none): a boxed-in switchback stair, 3 x 2 cells, its doorway on the cell
+behind the arrow. A stairs tool clicked on a stairwell that is already there carries that one on another
+floor, so one well can run through the whole building. Two floors are joined wherever both have a stairwell
+on the same cells; the status bar warns about floors no stairs lead to. Each end has a Style (the level's
+wallpaper and carpet, or bare concrete), a Light (on, flicker, off), a Rail and a floor-number Sign. In the
+game the floor is swapped while you are on the half-way landing, a piece a frame, with the stairwell kept
+round you, so there is no loading screen and nothing to see (`scripts/World/props/stairs.gd`).
+`tools/shot_stairs.gd` screenshots a floor's stairwells and tests the swap and the walk.
+
+**Floors stand one above the other**, 9 m apart. A **Pit** (key 3) over an open cell of the floor below is a
+hole through the slab between them: from its edge you see the floors under you and over you, their rooms lit,
+and whoever steps in falls into the floor below and lands there (or falls on, where that floor has a pit in the
+same place). Paint a pit shaft on one floor and press **REPEAT DOWN** to copy that floor into every floor
+below it, and the shaft runs through them all. Tick **ENDLESS FLOORS** and the lowest floor repeats for ever
+below the level and the highest above it, so the shaft has no bottom to be seen or reached. How far down you
+can see is the fog's doing: a few storeys in the default dim look, to the horizon haze with the Liminal
+atmosphere. Only the floor you are on is the real thing; the others are look-only copies kept round it
+(`scripts/World/level/level_shell.gd`, `level_builder.gd`), and the floor below takes over while you are
+falling through the slab. A pit with a wall under it is a dark shaft, as before. Tall zones (10.8 m) reach
+into the storey above: leave those cells wall or pit there. `tools/shot_stack.gd` screenshots the stack and
+tests the swap and the fall.
+
+An **Endless ceiling** zone is the abyss turned upside down: no ceiling over the painted cells, and the level's wall, slab and tubes
+climb on out of sight, sinking into the dark (`scripts/World/level/endless_shaft.gd`, same shader). The torch's light on
+the shaft is faded out with height so it doesn't light it up like a box. It is only looked at, you can't climb it.
+
+An **Abyss** zone painted on pits makes them bottomless (pits on the lowest floor, with nothing under them,
+are bottomless anyway). From the rim you look down storey after storey of the level's own wall and bare slab,
+a buzzing tube under every slab, until it all goes into a sickly haze. Whoever falls in falls, faster and
+faster, the haze thickening with depth and the view streaking and widening with speed, for 5 seconds
+(`"abyss_secs"` in the .lvl; 0 is for ever), then blacks out and the recording ends: death by falling into the void
+(`scripts/World/level/pit_fall.gd`, `shaders/pit_shaft.gdshader`). It is built to stay fast at any speed and
+in any direction: one storey of low-poly shaft drawn by a fixed pool of nodes (never built or freed while you
+fall), no real lights (the tubes' light on the walls is worked out in the shader), the camera's far plane tied
+to the fog, the level hidden once it is out of reach, and the player moved back up a whole number of storey
+patterns past a depth, speed and view kept, so the drop never ends and never reaches floating-point trouble.
 
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
 entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;

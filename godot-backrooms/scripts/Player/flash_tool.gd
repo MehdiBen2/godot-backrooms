@@ -42,9 +42,8 @@ func _process(dt: float) -> void:
 	since_fired += dt
 
 func _unhandled_input(e: InputEvent) -> void:
-	var k := e as InputEventKey
 	var mb := e as InputEventMouseButton
-	var pressed := (k != null and k.pressed and not k.echo and k.physical_keycode == KEY) \
+	var pressed: bool = e.is_action_pressed("flash") \
 		or (mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT)
 	if not pressed or not _can():
 		return

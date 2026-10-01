@@ -162,9 +162,12 @@ func _draw_tape(c: Vector2, st: String) -> void:
 	var y := c.y + FOCUS.y * 0.5 + 34.0
 	_text(Vector2(c.x, y), "HAZARD TAPE // %.1f M // %d M AWAY" % [float(info.length), roundi(float(info.dist))], 19,
 		_a(Term.AMBER), 520.0, HORIZONTAL_ALIGNMENT_CENTER, wide)
-	_text(Vector2(c.x, y + 26.0), "PLACED " + _ago(float(info.age)), 18, _a(Term.TEXT), 520.0, HORIZONTAL_ALIGNMENT_CENTER)
-	var who := "BY YOU // YOU HAVE BEEN HERE" if info.mine else ("BY " + str(info.by) if str(info.by) != "" else "BY ANOTHER SURVIVOR")
-	_text(Vector2(c.x, y + 50.0), who, 17, _a(Term.GREEN if info.mine else Term.MUTED), 520.0, HORIZONTAL_ALIGNMENT_CENTER, wide)
+	var by := str(info.by)
+	var researcher := by == Scanner.TapeMarks.RESEARCHER  # tape that came with the level: nobody knows when
+	_text(Vector2(c.x, y + 26.0), "PLACED " + ("UNKNOWN" if researcher else _ago(float(info.age))), 18, _a(Term.TEXT), 520.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var mine: bool = info.mine and not researcher  # a level's own tape reads the same to its builder
+	var who := "BY YOU // YOU HAVE BEEN HERE" if mine else ("BY " + by if by != "" else "BY ANOTHER SURVIVOR")
+	_text(Vector2(c.x, y + 50.0), who, 17, _a(Term.GREEN if mine else Term.MUTED), 520.0, HORIZONTAL_ALIGNMENT_CENTER, wide)
 
 ## "12 S AGO", "4 MIN 12 S AGO", "1 H 05 MIN AGO"
 static func _ago(secs: float) -> String:

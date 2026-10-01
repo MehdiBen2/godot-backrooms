@@ -336,6 +336,7 @@ func _load() -> void:
 
 func _save() -> void:
 	var cf := ConfigFile.new()
+	cf.load(SETTINGS_PATH)
 	for k in volumes:
 		cf.set_value("volume", k, volumes[k])
 	cf.set_value("controls", "sensitivity", sensitivity)

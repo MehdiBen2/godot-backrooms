@@ -21,9 +21,11 @@ static func cell(v: float) -> int:
 func is_wall(cx: int, cz: int) -> bool:
 	return level.walls.has(Vector2i(cx, cz))
 
+## Somewhere an entity can't be: a wall, a pit, or a Safe zone (level_data.gd `safe`), which is solid to
+## whatever walks this grid (they path round it and are pushed out of it, resolve()) though they see into it
 func blocked(cx: int, cz: int) -> bool:
 	var c := Vector2i(cx, cz)
-	return level.walls.has(c) or level.pits.has(c)
+	return level.walls.has(c) or level.pits.has(c) or level.safe.has(c)
 
 func open_at(x: float, z: float) -> bool:
 	return not blocked(cell(x), cell(z))
@@ -92,7 +94,7 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 	for ox in range(-1, 2):
 		for oz in range(-1, 2):
 			var c := Vector2i(cx + ox, cz + oz)
-			if not level.walls.has(c):
+			if not (level.walls.has(c) or level.safe.has(c)):
 				continue
 			var minx := c.x * CELL - half
 			var maxx := c.x * CELL + half

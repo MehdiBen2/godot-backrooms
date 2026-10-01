@@ -19,6 +19,16 @@ const STAND_H := 1.7
 const CROUCH_H := 1.0
 const JUMP_SPEED := 5.0
 const GRAVITY := 20.0
+const DRAIN_ZONE_RATE := 4.5      # sanity a second lost in a Drain zone: more than a lit room gives back (2.2)
+const FALL_SPEED_MAX := 30.0     # m/s: a shaft can run through many floors (or have no bottom), each built as you reach it
+# A long fall: past FALL_FX_FROM m/s the view widens, shudders in the rushing air and streaks along the way you
+# are going (post.gdshader fall_blur), all of it full at FALL_FX_FULL (a bottomless pit's speed, pit_fall.gd)
+const FALL_FX_FROM := 9.0
+const FALL_FX_FULL := 50.0
+const FALL_FOV := 13.0           # degrees added at full speed
+const FALL_BLUR := 0.03          # streak length at full speed, in screen heights
+const FALL_WARP := 0.1           # extra barrel bend of the lens
+const FALL_BUFFET := 0.007       # rad of shudder
 # Movement feel: weighty but responsive, forgiving jumps
 const ACCEL_GROUND := 16.0        # x speed per second towards the wished velocity (was an instant 40 m/s^2)
 const DECEL_GROUND := 22.0        # a touch snappier when letting go, so stops feel deliberate
@@ -84,6 +94,9 @@ var eye := STAND_H
 var was_stepping := false
 var step_triggered := false
 var fov_kick := 0.0
+var fall_speed_max := FALL_SPEED_MAX   # pit_fall.gd raises it while you drop down a bottomless pit
+var fall_fx := 0.0               # 0..1 eased: how much the fall shows on the view
+var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
 var bob_amp := 1.0               # eased per-step bob height from handheld.step_amp
@@ -221,7 +234,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
 		_sync_flashlight_aim(0.35)
-	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F \
+	elif e.is_action_pressed("flashlight") \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not flash_on and battery <= 0.0:
 			dead_click.emit()          # dead battery: a dry hollow click, nothing else
@@ -233,6 +246,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if not dead and not frozen:
 		_update_flashlight_aim(delta)
+	_update_fall_fx(delta)
 
 func _physics_process(dt: float) -> void:
 	spawn_grace = maxf(0.0, spawn_grace - dt)
@@ -264,15 +278,15 @@ func _physics_process(dt: float) -> void:
 	if _was_flying:
 		_was_flying = false
 		shape.disabled = false         # the draw tools panel closed: solid again
-	var crouch := _key(KEY_C) or _key(KEY_CTRL)
+	var crouch := Input.is_action_pressed("crouch")
 	var dir := Vector2.ZERO
-	if _key(KEY_W) or _key(KEY_UP): dir.y -= 1
-	if _key(KEY_S) or _key(KEY_DOWN): dir.y += 1
-	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
-	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
+	if Input.is_action_pressed("move_forward"): dir.y -= 1
+	if Input.is_action_pressed("move_backward"): dir.y += 1
+	if Input.is_action_pressed("move_left"): dir.x -= 1
+	if Input.is_action_pressed("move_right"): dir.x += 1
 	var moving := dir != Vector2.ZERO
 	var rush := adrenaline > 0.5 and adr_active     # sprint is free during a burst
-	var sprint := _key(KEY_SHIFT) and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
+	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
@@ -292,7 +306,7 @@ func _physics_process(dt: float) -> void:
 	velocity.x = move_toward(velocity.x, wish.x, rate * speed * dt)
 	velocity.z = move_toward(velocity.z, wish.z, rate * speed * dt)
 
-	var space := _key(KEY_SPACE)
+	var space := Input.is_action_pressed("jump")
 	if space and not space_prev:
 		jump_buffer = JUMP_BUFFER
 	space_prev = space
@@ -304,7 +318,7 @@ func _physics_process(dt: float) -> void:
 		coyote = 0.0
 		jumped.emit()
 	elif not is_on_floor():
-		velocity.y -= GRAVITY * dt
+		velocity.y = maxf(velocity.y - GRAVITY * dt, -fall_speed_max)
 	last_vy = velocity.y
 	move_and_slide()
 	# Landing: both feet down, thud scales with the drop
@@ -330,8 +344,10 @@ func _physics_process(dt: float) -> void:
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
 
-	# fell down a pit or drop hole: seamless descent to floor below, or loop to spawn (no loading screen)
-	if global_position.y < -12.0 and not Death.respawn_busy:
+	# fell down a pit or drop hole: seamless descent to floor below, or loop to spawn (no loading screen).
+	# (A pit that opens into the floor below never gets this far: level_builder.gd hands you to that floor.)
+	# (A bottomless pit's fall is pit_fall.gd's, Game.freefall.)
+	if global_position.y < -12.0 and not Death.respawn_busy and not Game.freefall:
 		if Game.level_floor > 0:
 			Game.change_floor(Game.level_floor - 1, Vector2(global_position.x / 4.5, global_position.z / 4.5), "drop_hole")
 		elif global_position.y < -30.0:
@@ -345,17 +361,17 @@ var _was_flying := false
 func _fly(dt: float) -> void:
 	shape.disabled = true
 	var dir := Vector3.ZERO
-	if _key(KEY_W) or _key(KEY_UP): dir.z -= 1
-	if _key(KEY_S) or _key(KEY_DOWN): dir.z += 1
-	if _key(KEY_A) or _key(KEY_LEFT): dir.x -= 1
-	if _key(KEY_D) or _key(KEY_RIGHT): dir.x += 1
+	if Input.is_action_pressed("move_forward"): dir.z -= 1
+	if Input.is_action_pressed("move_backward"): dir.z += 1
+	if Input.is_action_pressed("move_left"): dir.x -= 1
+	if Input.is_action_pressed("move_right"): dir.x += 1
 	var wish := cam.global_transform.basis * dir
-	if _key(KEY_SPACE): wish.y += 1.0
-	if _key(KEY_C) or _key(KEY_CTRL): wish.y -= 1.0
+	if Input.is_action_pressed("jump"): wish.y += 1.0
+	if Input.is_action_pressed("crouch"): wish.y -= 1.0
 	velocity = Vector3.ZERO
 	is_moving = false
 	is_sprinting = false
-	var fly_spd := (18.0 if _key(KEY_SHIFT) else 7.0) * Game.speed_mult
+	var fly_spd := (18.0 if Input.is_action_pressed("sprint") else 7.0) * Game.speed_mult
 	global_position += wish.normalized() * fly_spd * dt
 
 func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
@@ -434,8 +450,12 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
 	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
 	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
+	# the rush of air in a long fall shakes the view, more the faster you go
+	var buffet := fall_fx * fall_fx * head_bob
+	cam.position += Vector3(sin(quake_t * 23.0) + 0.5 * sin(quake_t * 41.0 + 1.3), sin(quake_t * 29.0 + 0.7), 0.0) * 0.012 * buffet
 	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll \
-			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob)
+			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob) \
+			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)
@@ -450,7 +470,37 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
-	cam.fov = base_fov + fov_kick + ADR_FOV * adrenaline
+	cam.fov = base_fov + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
+
+## The long fall on the screen: the post shader smears the picture along the way things stream past (out of
+## the point you are falling towards, or into the one you are falling away from) and bends the lens a little.
+## Run every frame, so the streaks go the moment you land, die or freeze.
+func _update_fall_fx(dt: float) -> void:
+	var want := 0.0
+	if not (dead or frozen or Game.noclip or Game.draw_mode or is_on_floor()):
+		want = smoothstep(FALL_FX_FROM, FALL_FX_FULL, -velocity.y)
+	fall_fx += (want - fall_fx) * minf(1.0, dt * (4.0 if want > fall_fx else 9.0))
+	var post := Gfx.post_mat
+	if post == null: return
+	if fall_fx < 0.002:
+		if _fall_post:
+			_fall_post = false
+			post.set_shader_parameter("fall_blur", 0.0)
+			post.set_shader_parameter("fall_warp", 0.0)
+		return
+	_fall_post = true
+	# where the way you are going lands on the screen (Godot's fov is vertical); behind you, its opposite,
+	# which the streaks run into instead of out of: the same lines either way
+	var d := cam.global_transform.basis.inverse() * velocity.normalized()
+	if d.z > 0.0: d = -d
+	var t := tan(deg_to_rad(cam.fov) * 0.5)
+	var vp := get_viewport().get_visible_rect().size
+	var aspect := vp.x / maxf(vp.y, 1.0)
+	var z := maxf(-d.z, 0.001)
+	var foe := Vector2(0.5 + 0.5 * clampf(d.x / z / (t * aspect), -2000.0, 2000.0), 0.5 - 0.5 * clampf(d.y / z / t, -2000.0, 2000.0))
+	post.set_shader_parameter("fall_foe", foe)
+	post.set_shader_parameter("fall_blur", FALL_BLUR * fall_fx * fall_fx)
+	post.set_shader_parameter("fall_warp", FALL_WARP * fall_fx)
 
 ## How far your footsteps carry right now (the entity's hearing multiplies by this)
 func step_noise() -> float:
@@ -672,6 +722,11 @@ func _update_sanity(dt: float) -> void:
 		sanity = maxf(0.0, sanity - (1.0 + dark_ratio * 4.5) * creep * (1.4 if grid_down else 1.0) * dt)
 	else:
 		dark_time = maxf(0.0, dark_time - dt)                  # dim but not black: neither gain nor loss
+	# a Drain zone (painted in the level editor): the place itself wears you down, lit or not, torch or not
+	if sanity_lock < 0.0 and level != null:
+		var zone = level.get("drain")
+		if zone is Dictionary and zone.has(Vector2i(roundi(global_position.x / 4.5), roundi(global_position.z / 4.5))):
+			sanity = maxf(0.0, sanity - DRAIN_ZONE_RATE * dt)
 	_update_mind(dt)
 
 # A slipping mind hurts. Below HURT_SANITY the body starts to fail (faster the lower it goes), the

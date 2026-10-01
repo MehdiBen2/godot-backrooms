@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## T.S.R.A. FIELD DIAGNOSTIC & DEBUG MENU.
-## Opens with F1, ~ (Tilde), F3, the top-screen [⚡ DEBUG] button, or the Pause Menu link.
+## Opens with F1, ~ (Tilde), F3, the top-screen [DEBUG] button, or the Pause Menu link.
 ## Press 1 to open directly into the Command Console.
 ##
 ## Includes:
@@ -131,7 +131,8 @@ func _build_screen_overlay(parent: Control) -> void:
 # Top-Right On-Screen Clickable Badge Button
 func _build_quick_badge(parent: Control) -> void:
 	quick_badge_btn = Button.new()
-	quick_badge_btn.text = "⚡ DEBUG [F1]"
+	quick_badge_btn.text = "DEBUG [F1]"
+	quick_badge_btn.visible = false
 	if font: quick_badge_btn.add_theme_font_override("font", font)
 	quick_badge_btn.add_theme_font_size_override("font_size", 12)
 	quick_badge_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -185,7 +186,7 @@ func _build_menu_window(parent: Control) -> void:
 	header.add_child(title_vbox)
 
 	var title_lbl := Label.new()
-	title_lbl.text = "⚡ T.S.R.A. FIELD DIAGNOSTIC & DEBUG MATRIX // V4.7"
+	title_lbl.text = "T.S.R.A. FIELD DIAGNOSTIC & DEBUG MATRIX // V4.7"
 	if font: title_lbl.add_theme_font_override("font", font)
 	title_lbl.add_theme_font_size_override("font_size", 16)
 	title_lbl.add_theme_color_override("font_color", Color(0.25, 0.95, 0.8))
@@ -261,11 +262,11 @@ func _build_menu_window(parent: Control) -> void:
 	main_vbox.add_child(nav_bar)
 
 	var tabs := [
-		{"id": "cheats", "label": "⚡ CHEATS & PLAYER"},
-		{"id": "entities", "label": "👾 MONSTERS & AI"},
-		{"id": "world", "label": "🌍 WORLD & EVENTS"},
-		{"id": "teleport", "label": "🚀 TELEPORTATION"},
-		{"id": "console", "label": "💻 CONSOLE"}
+		{"id": "cheats", "label": "CHEATS & PLAYER"},
+		{"id": "entities", "label": "MONSTERS & AI"},
+		{"id": "world", "label": "WORLD & EVENTS"},
+		{"id": "teleport", "label": "TELEPORTATION"},
+		{"id": "console", "label": "CONSOLE"}
 	]
 	for t in tabs:
 		var tb := Button.new()
@@ -381,25 +382,25 @@ func _build_cheats_tab() -> Control:
 	refills.add_theme_constant_override("separation", 8)
 	v.add_child(refills)
 
-	refills.add_child(_action_btn("💚 RESTORE 100% HEALTH", func():
+	refills.add_child(_action_btn("RESTORE 100% HEALTH", func():
 		var pl := _get_player()
 		if pl != null: pl.health = 100.0
 	))
-	refills.add_child(_action_btn("🧠 RESTORE 100% SANITY", func():
+	refills.add_child(_action_btn("RESTORE 100% SANITY", func():
 		var pl := _get_player()
 		if pl != null:
 			pl.sanity = 100.0
 			pl.insanity = 0.0
 	))
-	refills.add_child(_action_btn("⚡ +5 CAMERA FLASHES", func(): _refill_flash()))
-	refills.add_child(_action_btn("📐 +300M HAZARD TAPE", func(): _refill_tape()))
+	refills.add_child(_action_btn("+5 CAMERA FLASHES", func(): _refill_flash()))
+	refills.add_child(_action_btn("+300M HAZARD TAPE", func(): _refill_tape()))
 
 	v.add_child(_section_header("HUD TELEMETRY OVERLAY"))
 	var hud_row := HBoxContainer.new()
 	hud_row.add_theme_constant_override("separation", 8)
 	v.add_child(hud_row)
 
-	var hud_btn := _action_btn("📊 TOGGLE SCREEN TELEMETRY OVERLAY", func():
+	var hud_btn := _action_btn("TOGGLE SCREEN TELEMETRY OVERLAY", func():
 		Game.show_debug_overlay = not Game.show_debug_overlay
 	)
 	hud_row.add_child(hud_btn)
@@ -416,7 +417,7 @@ func _build_entities_tab() -> Control:
 	scroll.add_child(v)
 
 	v.add_child(_section_header("MASTER AI CONTROLS"))
-	btn_freeze_ai = _make_toggle_btn("❄ FREEZE ALL MONSTERS (AI PAUSE)", Color(0.2, 0.8, 1.0), func(on):
+	btn_freeze_ai = _make_toggle_btn("FREEZE ALL MONSTERS (AI PAUSE)", Color(0.2, 0.8, 1.0), func(on):
 		Game.freeze_ai = on
 		_sync_quick_buttons()
 	)
@@ -526,16 +527,25 @@ func _build_world_tab() -> Control:
 	v.add_theme_constant_override("separation", 10)
 	scroll.add_child(v)
 
+	v.add_child(_section_header("LEVEL"))
+	var level_row := HBoxContainer.new()
+	level_row.add_theme_constant_override("separation", 8)
+	v.add_child(level_row)
+	# Re-reads the .lvl from disk, so the latest level editor save shows up without restarting the game.
+	level_row.add_child(_action_btn("RELOAD LEVEL (LATEST EDITOR SAVE)", func():
+		Game.change_level(Game.level_index)
+	))
+
 	v.add_child(_section_header("ELECTRICAL GRID & LIGHTING"))
 	var light_row := HBoxContainer.new()
 	light_row.add_theme_constant_override("separation", 8)
 	v.add_child(light_row)
 
-	light_row.add_child(_action_btn("⚡ TRIGGER BLACKOUT (POWER CUT)", func():
+	light_row.add_child(_action_btn("TRIGGER BLACKOUT (POWER CUT)", func():
 		var ev = root.get_node_or_null("Events")
 		if ev: ev.run_event("powerCut")
 	))
-	light_row.add_child(_action_btn("💡 RESTORE GRID LIGHTS", func():
+	light_row.add_child(_action_btn("RESTORE GRID LIGHTS", func():
 		var lvl = root.get_node_or_null("Level")
 		if lvl and lvl.has_method("restore_all"):
 			lvl.restore_all()
@@ -546,15 +556,15 @@ func _build_world_tab() -> Control:
 	scare_row.add_theme_constant_override("separation", 8)
 	v.add_child(scare_row)
 
-	scare_row.add_child(_action_btn("🔊 PREACHER WHISPER", func():
+	scare_row.add_child(_action_btn("PREACHER WHISPER", func():
 		var ev = root.get_node_or_null("Events")
 		if ev: ev.run_event("preacherWhisper")
 	))
-	scare_row.add_child(_action_btn("🔊 WALL KNOCK", func():
+	scare_row.add_child(_action_btn("WALL KNOCK", func():
 		var ev = root.get_node_or_null("Events")
 		if ev: ev.run_event("wallKnock")
 	))
-	scare_row.add_child(_action_btn("🔊 BREATH BEHIND", func():
+	scare_row.add_child(_action_btn("BREATH BEHIND", func():
 		var ev = root.get_node_or_null("Events")
 		if ev: ev.run_event("breathBehind")
 	))
@@ -564,16 +574,16 @@ func _build_world_tab() -> Control:
 	prog_row.add_theme_constant_override("separation", 8)
 	v.add_child(prog_row)
 
-	prog_row.add_child(_action_btn("🔓 GRANT MAX CLEARANCE (TIER 4)", func():
+	prog_row.add_child(_action_btn("GRANT MAX CLEARANCE (TIER 4)", func():
 		Clearance.grant(1200)
 		_print("Granted Clearance Tier 4.")
 	))
-	prog_row.add_child(_action_btn("📖 UNLOCK ALL DOSSIERS", func():
+	prog_row.add_child(_action_btn("UNLOCK ALL DOSSIERS", func():
 		for id in Archive.entities():
 			Archive.discover(str(id))
 		_print("Unlocked all entity dossiers in Archive.")
 	))
-	prog_row.add_child(_action_btn("↺ RESET CLEARANCE & ARCHIVE", func():
+	prog_row.add_child(_action_btn("RESET CLEARANCE & ARCHIVE", func():
 		Clearance.reset()
 		Archive.forget_all()
 		_print("Clearance and Archive reset.")

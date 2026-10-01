@@ -281,6 +281,7 @@ func _build() -> void:
 
 	_menu_item(col, "PLAY", _level_name().to_upper(), "", _on_play)
 	_menu_item(col, "SETTINGS", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"))
+	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"))
 	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"))
 	_menu_item(col, "QUIT", "EJECT TAPE", "", _on_quit)
 	col.add_child(_spacer(32))
@@ -732,7 +733,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if busy:
 		return
 	match k:
-		KEY_UP, KEY_W:
+		KEY_UP, KEY_W, KEY_Z:
 			_step(-1)
 		KEY_DOWN, KEY_S:
 			_step(1)

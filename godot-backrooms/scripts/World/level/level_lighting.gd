@@ -19,9 +19,9 @@ const GLARE_DIST := 7.0             # metres: nearer lights glare more
 const GLARE_DIM := 0.55             # exposure multiplier at full glare (the light itself stays clipped white: it's HDR)
 const GLARE_IN := 3.5               # 1/s: stopping down (fast)
 const GLARE_OUT := 0.7              # 1/s: opening back up (slow)
-const FOG_DENSITY := 0.075
+const FOG_DENSITY := 0.055
 const FOG_LIT_SCALE := 0.5
-const FOG_DARK_BOOST := 0.5
+const FOG_DARK_BOOST := 0.3
 const AMBIENT_MIN := 0.3
 const ADAPT := 1.6
 const FOG_COLOR := Color("141108")
@@ -29,8 +29,8 @@ const FOG_COLOR_DARK := Color("020201")
 # Horizon fog: past HORIZON_BEGIN everything fades into the fog colour, whatever the zone's fog density.
 # The clear-air looks thin the fog to almost nothing, so the level's edge and whatever the camera's far
 # plane cuts off showed through as bare background (black space). A screen-wide quad over the depth buffer.
-const HORIZON_BEGIN := 40.0
-const HORIZON_END := 70.0
+const HORIZON_BEGIN := 60.0
+const HORIZON_END := 110.0
 const HORIZON_SHADER := """shader_type spatial;
 render_mode unshaded, fog_disabled, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, blend_mix;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable;
@@ -117,6 +117,9 @@ var bright_mix := 0.0              # same idea for Bright zones (a softer versio
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
 var liminal_mix := 0.0             # 0..1: the same for the liminal look
+var shaft_mix := 0.0               # 0..1: standing by a shaft through the floors (level_data.gd hole_box)
+const SHAFT_AIR_CELLS := 5         # how near
+const SHAFT_FOG := 0.2             # share of the fog left there
 var _lim := 0.0                    # liminal_mix while the power is on (a power cut is dark in any look)
 var exposure_gain := 1.0           # what the eye / camera adds on top of the look's exposure
 var _ae := 1.0
@@ -138,6 +141,7 @@ func build_lighting() -> void:
 		_build_fixture_meshes()
 	_build_light_pool()
 	_build_floor_reflections()
+	_build_floor_glow()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
 	env = we.environment if we else null
 	_build_horizon_fog()
@@ -168,9 +172,13 @@ func gi_bounds() -> Dictionary:
 	var hi := Vector3((size - 0.5) * CELL, top + 0.5, (size - 0.5) * CELL)
 	return {"center": (lo + hi) * 0.5, "size": hi - lo}
 
+var _gi_read := {}     # gi_path() -> the bake, read once: it is megabytes, and every floor of a level asks for it
+
 func _load_baked_gi() -> VoxelGIData:
-	if not ResourceLoader.exists(gi_path()): return null
-	var data := load(gi_path()) as VoxelGIData
+	var path := gi_path()
+	if not _gi_read.has(path):
+		_gi_read[path] = (load(path) as VoxelGIData) if ResourceLoader.exists(path) else null
+	var data: VoxelGIData = _gi_read[path]
 	return data if data != null and str(data.get_meta("lvl_hash", "")) == bake_hash() else null
 
 func _apply_gi() -> void:
@@ -266,6 +274,11 @@ func _update_atmosphere(delta: float) -> void:
 	_update_camcorder(delta, seen)
 	_blend_env(ATMOSPHERES.classic)
 	zf *= lerpf(1.0, ATMOSPHERES.liminal.fog, _lim)                  # liminal: thin air, the halls fade out slowly
+	# by a shaft through the floors the air is clear, whatever the look: the lit rooms of the storeys above and
+	# below show a long way off, and past them the dark (the fog keeps its colour, there is only less of it)
+	var by_shaft := hole_box.size != Vector2i.ZERO and hole_box.grow(SHAFT_AIR_CELLS).has_point(c)
+	shaft_mix += ((1.0 if by_shaft else 0.0) - shaft_mix) * minf(1.0, delta * 1.5)
+	zf = minf(zf, lerpf(zf, SHAFT_FOG, shaft_mix))
 	zf = lerpf(zf, FF_FOG, open_mix)                                  # clear air: the far halls keep their light, only a touch of haze
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
@@ -276,7 +289,7 @@ func _update_atmosphere(delta: float) -> void:
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.liminal.haze, _lim * (1.0 - 0.6 * darkness))   # stays pale in the shadows too
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.classic.haze, open_mix * (1.0 - darkness))
 	env.background_color = env.fog_light_color
-	if _horizon_mat:
+	if is_instance_valid(_horizon) and _horizon_mat:
 		_horizon_mat.set_shader_parameter("fog_color", env.fog_light_color)
 		_horizon.visible = not Game.fullbright
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
@@ -330,8 +343,21 @@ func _blend_env(a: Dictionary) -> void:
 	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
 	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix) * (1.0 + 0.35 * glare)   # the light you stare into blooms a bit more
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
-	env.set_glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix))
+	env.set_glow_level(5, _glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix)))
 	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)
+
+## A glow level is either off or clearly on, never faint. A level with a tiny share of the glow (under about
+## 1 %: measured, 0.03 next to the other levels' 3.4 broke and 0.05 did not) still gets added to the picture
+## but its buffer is not redrawn, and after the 3D render size changes (adaptive resolution, graphics.gd) that
+## buffer is whatever was left in video memory: big blurred blocks of pink, blue and orange over a green
+## picture. The wide halo fades in from 0 with the look (liminal_mix / cam_mix), so it sat in that range
+## every time a look was blending in or out.
+const GLOW_LEVEL_MIN := 0.02       # of the other levels' sum: twice the share that breaks
+func _glow_level(idx: int, v: float) -> float:
+	var others := 0.0
+	for i in 7:
+		if i != idx: others += env.get_glow_level(i)
+	return v if v >= GLOW_LEVEL_MIN * (others if env.glow_normalized else 1.0) else 0.0
 
 ## The found-footage camera (weighted by cam_mix: the classic look). Elsewhere the eye adaptation and the
 ## glare stop-down stay as they were.

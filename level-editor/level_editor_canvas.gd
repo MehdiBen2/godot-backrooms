@@ -17,7 +17,9 @@ const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
-	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0")}
+	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
+	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
+	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -42,7 +44,7 @@ var undo_stack: Array = []
 var painting := false
 var erasing := false
 var panning := false
-var space_down := false
+var pan_button := MOUSE_BUTTON_MIDDLE    # the button the pan was started with: it ends when that one comes up
 var zoom := 14.0
 var pan := Vector2(10, 10)
 var hover := Vector2i(-1, -1)
@@ -102,6 +104,8 @@ var title_label: Label
 var status: Label
 var info: Label
 var insp: VBoxContainer
+var tool_scroll: ScrollContainer
+var insp_trigger_btn: Button
 var insp_type: OptionButton
 var insp_x: SpinBox
 var insp_y: SpinBox
@@ -157,8 +161,246 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
 	var o := {"type": t, "pos_x": at.x, "pos_y": at.y, "rotation": rot, "scale": _place_scale(t)}
 	var params: Dictionary = _info(t).get("params", {})
-	for k in params: o[k] = params[k]
+	for k in params:
+		var val = params[k]
+		if val is Array or val is Dictionary:
+			o[k] = val.duplicate(true)
+		else:
+			o[k] = val
 	return o
+
+# ---------------------------------------------------------------- stairwells
+# A stairwell (object_types.json "stairs": true; the game's props/stairs.gd) stands square on the grid:
+# STAIR_CELLS cells from its own along its arrow by STAIR_WIDE across (its own row, where its doorway is, and
+# the one to the left of the arrow). One well is one object on each floor it reaches, on the same cells of
+# every one, all sharing a "well" number so they move, turn and are dressed together. The game joins two
+# floors wherever both have a stairwell on the very same cells.
+const STAIR_CELLS := 3               # level_data.gd STAIR_CELLS / STAIR_WIDE
+const STAIR_WIDE := 2
+
+func _is_stairs(t: String) -> bool:
+	return bool(_info(t).get("stairs", false))
+
+func _stair_dir(o: Dictionary) -> Vector2i:
+	return Vector2i(Vector2.from_angle(deg_to_rad(float(o.rotation))).round())
+
+func _stair_cells(o: Dictionary) -> Array[Vector2i]:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var dir := _stair_dir(o)
+	var left := Vector2i(dir.y, -dir.x)
+	var out: Array[Vector2i] = []
+	for i in STAIR_CELLS:
+		for j in STAIR_WIDE: out.append(c + dir * i + left * j)
+	return out
+
+## The cell in front of the well's doorway
+func _stair_door(o: Dictionary) -> Vector2i:
+	return Vector2i(roundi(o.pos_x), roundi(o.pos_y)) - _stair_dir(o)
+
+## Square on the grid: whole cells, quarter turns, one size
+func _stair_square(o: Dictionary) -> void:
+	o.pos_x = roundf(o.pos_x)
+	o.pos_y = roundf(o.pos_y)
+	o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
+	o.scale = 1.0
+
+## The stairwell among `objs` standing on the very cells of `o`, the same way round (-1: none)
+func _stair_twin(objs: Array, o: Dictionary) -> int:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	for i in objs.size():
+		var p: Dictionary = objs[i]
+		if is_same(p, o) or not _is_stairs(str(p.type)): continue
+		if Vector2i(roundi(p.pos_x), roundi(p.pos_y)) == c and _stair_dir(p) == _stair_dir(o): return i
+	return -1
+
+## Does another stairwell among `objs` share a cell with `o` (without standing exactly on it)?
+func _stair_clash(objs: Array, o: Dictionary) -> bool:
+	var mine := _stair_cells(o)
+	var twin := _stair_twin(objs, o)
+	for i in objs.size():
+		var p: Dictionary = objs[i]
+		if i == twin or is_same(p, o) or not _is_stairs(str(p.type)): continue
+		for c in _stair_cells(p):
+			if mine.has(c): return true
+	return false
+
+## Inside the map's border wall?
+func _inner(c: Vector2i) -> bool:
+	return c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1
+
+## Do all the well's cells, and the one in front of its door, lie inside the map?
+func _stair_fits(o: Dictionary) -> bool:
+	if not _inner(_stair_door(o)): return false
+	for c in _stair_cells(o):
+		if not _inner(c): return false
+	return true
+
+## The way a new well at `o` should face: as `o` does if it fits there with an open cell at its door, else the
+## first quarter turn that does, else the first that fits at all
+func _stair_facing(o: Dictionary) -> float:
+	var probe := o.duplicate()
+	for want_open in [true, false]:
+		for k in 4:
+			probe.rotation = fposmod(float(o.rotation) + 90.0 * k, 360.0)
+			if not _stair_fits(probe) or _stair_clash(objects, probe): continue
+			var d := _stair_door(probe)
+			if not want_open or grid[d.y][d.x] != WALL: return probe.rotation
+	return o.rotation
+
+func _floor_objects(f: int) -> Array:
+	if f == floor_idx: return objects
+	return floor_store[f].objects if floor_store.has(f) else []
+
+## Is the stairwell `o` of floor `f` joined to the floor `d` up from it (-1: down)?
+func _stair_linked(o: Dictionary, f: int, d: int) -> bool:
+	return _stair_twin(_floor_objects(f + d), o) >= 0
+
+## The grid under a stairwell: floor in its cells (the game builds the well itself there) and an open cell in
+## front of its door. `landing`: where that cell was solid, a little room round it to arrive in too.
+func _stair_carve(g: Array, o: Dictionary, landing := false) -> void:
+	var cells := _stair_cells(o)
+	for c in cells:
+		if _inner(c): g[c.y][c.x] = FLOOR
+	var door := _stair_door(o)
+	if not _inner(door) or g[door.y][door.x] != WALL: return
+	g[door.y][door.x] = FLOOR
+	if not landing: return
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var n := door + Vector2i(dx, dz)
+			if _inner(n) and not cells.has(n) and g[n.y][n.x] == WALL: g[n.y][n.x] = FLOOR
+
+## A number no stairwell of the level has yet
+func _well_new() -> int:
+	var top := 0
+	var all := _all_floors()
+	for f in all:
+		for p: Dictionary in all[f].objects: top = maxi(top, int(p.get("well", 0)))
+	return top + 1
+
+## Carry stairwell `o` of this floor on to the floor `d` up from it (-1: down): that floor gets the same well
+## on the same cells, or is joined to the one already standing there. A floor the level doesn't have is made.
+func _stair_extend(o: Dictionary, d: int) -> void:
+	var f := floor_idx + d
+	var made := not floor_store.has(f)
+	if made:
+		floor_store[f] = _new_floor()
+		_floors_changed()
+	var fd: Dictionary = floor_store[f]
+	var k := _stair_twin(fd.objects, o)
+	if k >= 0:
+		var was := int(fd.objects[k].get("well", 0))
+		if was != 0 and was != int(o.well):          # two wells meet: they are one from here on
+			var all := _all_floors()
+			for g in all:
+				for p: Dictionary in all[g].objects:
+					if int(p.get("well", 0)) == was: p["well"] = o.well
+		fd.objects[k]["well"] = o.well
+		_status("This floor and %s are joined by the stairwell" % _floor_name(f))
+		return
+	var p := o.duplicate(true)
+	p.type = "stairs_down" if d > 0 else "stairs_up"
+	if _stair_clash(fd.objects, p):
+		_status("Another stairwell is in the way on %s: not joined to it" % _floor_name(f))
+		return
+	fd.objects.append(p)
+	_status("%s%s has the other end of the stairwell (PageUp / PageDown to go there)" % ["Made " if made else "", _floor_name(f)])
+
+## The other floors' ends of the stairwell `o` follow it: the same cells, the same way round, the same look
+func _well_follow(o: Dictionary) -> void:
+	var id := int(o.get("well", 0))
+	if id == 0: return
+	for f in floor_store:
+		for p: Dictionary in floor_store[f].objects:
+			if int(p.get("well", 0)) != id or not _is_stairs(str(p.type)): continue
+			p.pos_x = o.pos_x
+			p.pos_y = o.pos_y
+			p.rotation = o.rotation
+			for k in ["style", "rail"]:
+				if o.has(k): p[k] = o[k]
+
+## A stairwell was placed, moved, turned or edited: square it up, take its other ends with it and make the
+## grid right under each. False (and the edit undone) when it no longer fits where it was put.
+func _stair_settle(o: Dictionary) -> bool:
+	_stair_square(o)
+	if not _stair_fits(o) or _stair_clash(objects, o):
+		_undo()
+		_status("A stairwell needs %d x %d clear cells, and the cell in front of its door, inside the map" % [STAIR_CELLS, STAIR_WIDE])
+		return false
+	_well_follow(o)
+	_stair_carve(grid, o)
+	var id := int(o.get("well", 0))
+	for f in floor_store:
+		for p: Dictionary in floor_store[f].objects:
+			if id != 0 and int(p.get("well", 0)) == id and _is_stairs(str(p.type)): _stair_carve(floor_store[f].grid, p, true)
+	return true
+
+## An end of stairwell `id` was deleted: any other end left with no floor to lead to goes with it
+func _well_prune(id: int) -> void:
+	if id == 0: return
+	var all := _all_floors()
+	var lost: Array = []
+	var again := true
+	while again:
+		again = false
+		for f in all:
+			var objs: Array = all[f].objects
+			for i in range(objs.size() - 1, -1, -1):
+				var p: Dictionary = objs[i]
+				if int(p.get("well", 0)) != id or not _is_stairs(str(p.type)): continue
+				if _stair_linked(p, f, 1) or _stair_linked(p, f, -1): continue
+				objs.remove_at(i)
+				lost.append(_floor_name(f))
+				again = true
+	if not lost.is_empty():
+		selected = -1
+		multi = []
+		_status("Its other end on %s went with it" % ", ".join(lost))
+
+## Stairwells loaded from a file: squared up, floor under them, and numbered (ends of one well, on the same
+## cells of neighbouring floors, get the same number)
+func _wells_adopt() -> void:
+	var all := _all_floors()
+	var floors: Array = all.keys()
+	floors.sort()
+	for f in floors:
+		for o: Dictionary in all[f].objects:
+			if not _is_stairs(str(o.type)): continue
+			_stair_square(o)
+			for c in _stair_cells(o):
+				if _inner(c) and all[f].grid[c.y][c.x] == PIT: all[f].grid[c.y][c.x] = FLOOR
+			var params: Dictionary = _info(str(o.type)).get("params", {})
+			for k in params:
+				if not o.has(k): o[k] = params[k]
+			o["well"] = int(o.get("well", 0))             # a whole number, however the file had it
+			if int(o.well) != 0: continue
+			var below := _stair_twin(all[f - 1].objects, o) if all.has(f - 1) else -1
+			o["well"] = int(all[f - 1].objects[below].get("well", 0)) if below >= 0 else 0
+			if int(o.well) == 0: o["well"] = _well_new()
+
+## Floors the player can't get to from the ground floor: there is no stairwell both floors share on the way,
+## nor a drop hole down to them
+func _unreachable_floors() -> Array:
+	var all := _all_floors()
+	var seen := {0: true}
+	var todo: Array = [0]
+	while not todo.is_empty():
+		var f: int = todo.pop_back()
+		for d: int in [-1, 1]:
+			var g := f + d
+			if seen.has(g) or not all.has(g): continue
+			var joined: bool = d == -1 and all[f].markers.get("drop_hole") != null
+			for o: Dictionary in all[f].objects:
+				if joined: break
+				joined = _is_stairs(str(o.type)) and _stair_twin(all[g].objects, o) >= 0
+			if joined:
+				seen[g] = true
+				todo.append(g)
+	var out: Array = []
+	for f in all:
+		if not seen.has(f): out.append(f)
+	out.sort()
+	return out
 
 func _update_title() -> void:
 	if current < 0: return
@@ -180,6 +422,9 @@ func _update_info() -> void:
 				if floor_store[f].markers.get("exit") != null: found = true
 			if markers.get("exit") != null: found = true
 		if found == null: warn.append("no " + m)
+	var lost := _unreachable_floors()
+	if lost.size() == 1: warn.append("no stairs to " + _floor_name(lost[0]))
+	elif lost.size() > 1: warn.append("%d floors with no stairs to them (%s ... %s)" % [lost.size(), _floor_name(lost[0]), _floor_name(lost[-1])])
 	info.text = "%s   %dx%d   %d open   %d objects   %s" % [_floor_name(floor_idx), grid_size, grid_size, open_cells, objects.size(), ("WARN: " + ", ".join(warn)) if not warn.is_empty() else "OK"]
 	info.add_theme_color_override("font_color", RED if not warn.is_empty() else DIM)
 
@@ -187,6 +432,8 @@ var preview3d: Control               # level_editor_3d.gd: rebuilt when the map 
 
 func _mark_dirty() -> void:
 	dirty = true
+	for k in _group():
+		if k < objects.size() and _is_stairs(str(objects[k].type)): _well_follow(objects[k])
 	if preview3d != null and preview3d.visible: preview3d.mark_stale()
 	_update_title()
 	canvas.queue_redraw()
@@ -198,6 +445,7 @@ func _fit() -> void:
 		if not canvas.resized.is_connected(_fit): canvas.resized.connect(_fit, CONNECT_ONE_SHOT)
 		return
 	zoom = clampf(minf(canvas.size.x, canvas.size.y) / maxf(grid_size, 1) * 0.96, 6.0, 40.0)
+	zoom_goal = zoom
 	pan = (canvas.size - Vector2(grid_size, grid_size) * zoom) / 2.0
 	canvas.queue_redraw()
 
@@ -338,10 +586,14 @@ func _draw_canvas() -> void:
 			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
 			var t := tool.get_slice(":", 1)
 			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
-			_draw_object(ghost, 0.45)
+			if _is_stairs(t):
+				_stair_square(ghost)
+				ghost.rotation = _stair_facing(ghost)
+			_draw_object(ghost, 0.45, false)
 			_draw_arrow(ghost, Color(SEL, 0.5))
-	else:
+	elif tool != "area":
 		_draw_hover()
+	_draw_area()
 	if show_objects:
 		for k in multi:
 			if k != selected and k < objects.size():
@@ -355,6 +607,7 @@ func _draw_canvas() -> void:
 		canvas.draw_rect(r, SEL, false, 1.5)
 	canvas.draw_rect(Rect2(pan, Vector2(grid_size, grid_size) * zoom), GOLD, false, 1.5)
 	_draw_rulers()
+	_draw_hints()
 	if show_paint: _draw_legend()
 	if view_ceiling:
 		_tag(Vector2(canvas.size.x * 0.5 - 90, 8), "CEILING VIEW  (C: floor)", GOLD, 14)
@@ -424,7 +677,7 @@ func _draw_onion() -> void:
 	var col := Color(0.35, 0.85, 1.0, 0.55)
 	_outline_cells(open, col, maxf(1.0, zoom * 0.05), 0.0)
 	for o: Dictionary in fd.objects:
-		if str(o.type).begins_with("stairs_"): _draw_object(o, 0.35)
+		if _is_stairs(str(o.type)): _draw_object(o, 0.35, false)
 	if zoom >= 9.0:
 		_tag(Vector2(canvas.size.x - 200, 8), "cyan: " + _floor_name(other), col, 11)
 
@@ -494,7 +747,7 @@ func _draw_zones() -> void:
 		_outline_cells(cells, col, w, 1.0 + (i % 3) * w)       # overlapping zones step their outlines inwards
 		if zoom >= 9.0:
 			for top: Vector2i in _patch_tops(cells):
-				_tag(pan + Vector2(top) * zoom + Vector2(3, 3 + (i % 3) * 14), zn.to_upper(), col, 10)
+				_tag(pan + Vector2(top) * zoom + Vector2(3, 3 + (i % 3) * 14), str(zn).to_upper().replace("_", " "), col, 10)
 		i += 1
 
 ## Painted materials: an outline in the material's own colour round each painted patch, and its name, for
@@ -654,11 +907,31 @@ func _mode_now() -> String:
 	return mode
 
 # ---------------------------------------------------------------- input
-## Zoom by `factor`, keeping the map point under `at` fixed.
-func _zoom_at(at: Vector2, factor: float) -> void:
+## Zoom by `factor`, keeping the map point under `at` fixed. `smooth`: glide there over a few frames (the
+## mouse wheel); a trackpad pinch already comes in small steps and is taken at once.
+func _zoom_at(at: Vector2, factor: float, smooth := false) -> void:
+	if smooth:
+		zoom_goal = clampf(zoom_goal * factor, 4.0, 80.0)
+		zoom_pivot = at
+		set_process(true)
+		return
 	var before := (at - pan) / zoom
 	zoom = clampf(zoom * factor, 4.0, 80.0)
+	zoom_goal = zoom
 	pan = at - before * zoom
+	canvas.queue_redraw()
+
+var zoom_goal := 14.0                # where a wheel zoom is gliding to
+var zoom_pivot := Vector2.ZERO       # the canvas point that stays put while it does
+
+func _process(dt: float) -> void:
+	if canvas == null or is_equal_approx(zoom, zoom_goal):
+		set_process(false)
+		return
+	var before := (zoom_pivot - pan) / zoom
+	zoom = lerpf(zoom, zoom_goal, minf(1.0, dt * 16.0))
+	if absf(zoom - zoom_goal) < 0.02: zoom = zoom_goal
+	pan = zoom_pivot - before * zoom
 	canvas.queue_redraw()
 
 func _canvas_input(ev: InputEvent) -> void:
@@ -673,12 +946,22 @@ func _canvas_input(ev: InputEvent) -> void:
 			canvas.queue_redraw()
 	elif ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_zoom_at(mb.position, 1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12)
-		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
-			panning = mb.pressed
-		elif mb.button_index == MOUSE_BUTTON_LEFT and space_down:
-			panning = mb.pressed
+		if mb.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN, MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT]:
+			var up := mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_LEFT
+			if (mb.shift_pressed or mb.alt_pressed) and _object_tool() and selected >= 0 and selected < objects.size() and multi.size() <= 1:
+				if mb.pressed: _wheel_edit(up, mb.alt_pressed)      # (Shift can turn the wheel sideways: both count)
+			elif mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				_zoom_at(mb.position, 1.12 if up else 1.0 / 1.12, true)
+		elif panning and not mb.pressed and mb.button_index == pan_button:
+			panning = false                             # whatever Space is doing by now
+		elif mb.pressed and (mb.button_index == MOUSE_BUTTON_MIDDLE or (mb.button_index == MOUSE_BUTTON_LEFT and _space_held())):
+			_let_go()
+			panning = true
+			pan_button = mb.button_index
+		elif panning:
+			pass                                        # another button while panning: nothing
+		elif (mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT) and tool == "area":
+			_area_press(mb)
 		elif (mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT) and _object_tool():
 			_object_press(mb)
 		elif mb.button_index == MOUSE_BUTTON_LEFT or mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -707,8 +990,14 @@ func _canvas_input(ev: InputEvent) -> void:
 	elif ev is InputEventMouseMotion:
 		var mm := ev as InputEventMouseMotion
 		mouse_px = mm.position
+		# a button that came up without the map hearing of it (the window lost focus, a dialog opened over it):
+		# whatever it was doing stops here, instead of following the mouse about with no button down
+		if panning and not (mm.button_mask & (MOUSE_BUTTON_MASK_LEFT | MOUSE_BUTTON_MASK_MIDDLE)): panning = false
+		if not (mm.button_mask & (MOUSE_BUTTON_MASK_LEFT | MOUSE_BUTTON_MASK_RIGHT)): _let_go()
 		if panning:
 			pan += mm.relative
+		elif area_from.x >= 0:
+			pass                                        # the box is drawn from area_from to the mouse
 		elif drag != "":
 			_object_drag(mm.position)
 		elif painting and tool == "mark:spawn" and not erasing:
@@ -720,17 +1009,372 @@ func _canvas_input(ev: InputEvent) -> void:
 		hover_raw = c
 		hover_obj = _obj_at(mm.position) if _object_tool() and show_objects and drag == "" else -1
 		canvas.mouse_default_cursor_shape = Control.CURSOR_CROSS
-		if _object_tool() and (_on_handle(mm.position) or drag == "rotate"):
+		if panning:
+			canvas.mouse_default_cursor_shape = Control.CURSOR_DRAG
+		elif _object_tool() and (drag == "size" or (drag == "" and _grip_at(mm.position) >= 0)):
+			# a resize arrow the way the grip pulls on screen
+			var pull := Vector2.RIGHT
+			if drag == "size": pull = grip.get("dir_w", Vector2.RIGHT)
+			else:
+				var og: Dictionary = objects[selected]
+				pull = _obj_xf(og).basis_xform(_grips(og)[_grip_at(mm.position)].dir as Vector2)
+			canvas.mouse_default_cursor_shape = Control.CURSOR_HSIZE if absf(pull.x) >= absf(pull.y) else Control.CURSOR_VSIZE
+			hover_obj = -1
+		elif _object_tool() and (_on_handle(mm.position) or drag == "rotate"):
 			canvas.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		elif _object_tool() and (hover_obj >= 0 or drag == "move"):
 			canvas.mouse_default_cursor_shape = Control.CURSOR_MOVE
-		if drag != "" and selected >= 0:
+		if tool == "area":
+			pass                                        # its own hints stay up (_area_status)
+		elif drag != "" and selected >= 0:
 			_status(_describe(objects[selected]))
 		elif hover_obj >= 0:
 			_status(_describe(objects[hover_obj]) + "   click to select, drag to move, right click deletes")
 		elif hover.x >= 0:
 			_status(_describe_cell(hover))
 		canvas.queue_redraw()
+
+# ---------------------------------------------------------------- area selection
+## The Select area tool (S): drag a box of cells on the map, then act on everything in it at once: Del empties
+## it (objects, zones, paint, markers; the rooms stay), Shift+Del also fills it with wall, Ctrl+C / Ctrl+X /
+## Ctrl+V copy, cut and paste it, rooms and all (onto another floor or another level too). A click outside
+## the box, a right click or Esc drops it.
+var area := Rect2i()                 # the selected cells (no size: nothing selected)
+var area_from := Vector2i(-1, -1)    # the cell the box being dragged out started on
+var clip := {}                       # what was copied: {size, grid (rows of cells, or null for objects only), zones, paint, objects}
+
+func _area_press(mb: InputEventMouseButton) -> void:
+	var c := _cell_at(mb.position).clamp(Vector2i.ZERO, Vector2i(grid_size - 1, grid_size - 1))
+	if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if mb.pressed:
+			area = Rect2i()
+			area_from = Vector2i(-1, -1)
+			_area_status()
+		canvas.queue_redraw()
+		return
+	if mb.pressed:
+		area_from = c
+	elif area_from.x >= 0:
+		area = Rect2i(area_from.min(c), (area_from - c).abs() + Vector2i.ONE) if c != area_from else Rect2i()
+		area_from = Vector2i(-1, -1)
+		_area_status()
+	canvas.queue_redraw()
+
+func _area_status() -> void:
+	if not area.has_area():
+		_status("Select area: drag a box on the map. Ctrl+A takes the whole floor, Ctrl+V pastes at the mouse")
+		return
+	var n := 0
+	for o: Dictionary in objects:
+		if area.has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y))): n += 1
+	_status("%d x %d cells, %d objects selected.   Del: empty it   Shift+Del: wall it in   Ctrl+C copy   Ctrl+X cut   Ctrl+V paste   Esc: drop" % [area.size.x, area.size.y, n])
+
+## The whole floor (Ctrl+A with the area tool)
+func _area_all() -> void:
+	area = Rect2i(0, 0, grid_size, grid_size)
+	_area_status()
+	canvas.queue_redraw()
+
+## The selected cells that can be edited: the map's border stays wall
+func _area_inner() -> Array:
+	var out: Array = []
+	for z in range(maxi(area.position.y, 1), mini(area.end.y, grid_size - 1)):
+		for x in range(maxi(area.position.x, 1), mini(area.end.x, grid_size - 1)):
+			out.append(Vector2i(x, z))
+	return out
+
+## Empty the selection: its objects, zones, painted materials and markers go (the spawn stays unless the cells
+## are walled in). `terrain`: also turn every cell into this (WALL, FLOOR or PIT); "" leaves the rooms as they are.
+func _area_clear(terrain := "", undo := true) -> void:
+	if not area.has_area(): return
+	if undo: _push_undo()
+	var gone := 0
+	for i in range(objects.size() - 1, -1, -1):
+		if i < objects.size() and area.has_point(Vector2i(roundi(objects[i].pos_x), roundi(objects[i].pos_y))):
+			_delete_object(i)
+			gone += 1
+	multi = []
+	selected = -1
+	for z in zones:
+		for c: Vector2i in zones[z].keys():
+			if area.has_point(c): zones[z].erase(c)
+	for slot in paint:
+		for c: Vector2i in paint[slot].keys():
+			if area.has_point(c): paint[slot].erase(c)
+	for m in markers:
+		if markers[m] != null and area.has_point(markers[m]) and (m != "spawn" or terrain == WALL): markers[m] = null
+	if terrain != "":
+		for c: Vector2i in _area_inner(): grid[c.y][c.x] = terrain
+	_sync_inspector()
+	_mark_dirty()
+	_status("%s %d x %d cells (%d objects removed). Ctrl+Z brings it back" % [
+		{"": "Emptied", WALL: "Walled in", FLOOR: "Cleared to open floor", PIT: "Made a pit of"}.get(terrain, "Changed"), area.size.x, area.size.y, gone])
+
+## Cut the selected columns (or rows) right out of the map, on every floor: what lay beyond them closes up
+## against what lay before, so stairs and shafts still line up floor to floor. Whole columns go, however tall
+## the box is. The map is square, so it only gets smaller when the other direction has as many spare lines of
+## solid wall at its far edge; otherwise the space freed ends up as solid wall at the far edge of this
+## direction (which costs nothing in the game: buried wall is neither built nor drawn).
+func _area_cut_strip(columns: bool) -> void:
+	var what := "columns" if columns else "rows"
+	if not area.has_area():
+		_status("Drag a box over the %s to cut out first (Select area, S)" % what)
+		return
+	var n := grid_size
+	var all := _all_floors()
+	# is line `i` (a column, or a row) solid wall from end to end on every floor?
+	var solid := func(i: int, cols: bool) -> bool:
+		if i < 0 or i >= n: return true
+		for f in all:
+			var g: Array = all[f].grid
+			for j in n:
+				if (g[j][i] if cols else g[i][j]) != WALL: return false
+		return true
+	var a := clampi(area.position.x if columns else area.position.y, 0, n)
+	var b := clampi(area.end.x if columns else area.end.y, 0, n)          # one past the last line to go
+	# the line that lands on the map's border has to be solid already: if it isn't, the border line stays
+	if a <= 0: a = 0 if solid.call(b, columns) else 1
+	if b >= n: b = n if solid.call(a - 1, columns) else n - 1
+	var count := b - a
+	if count <= 0 or n - count < 8:
+		_status("Those %s can't be cut out: nothing would be left of the map" % what)
+		return
+	for f in all:
+		for o: Dictionary in all[f].objects:
+			if not _is_stairs(str(o.type)): continue
+			var inside := 0
+			var cells := _stair_cells(o)
+			for c: Vector2i in cells:
+				var i := c.x if columns else c.y
+				if i >= a and i < b: inside += 1
+			if inside > 0 and inside < cells.size():
+				_status("A stairwell on %s stands across the edge of the box: take all of it in, or none" % _floor_name(f))
+				return
+	_push_undo()
+	for f in all:
+		var fd: Dictionary = all[f]
+		var ng: Array = []
+		if columns:
+			for z in n:
+				var row: Array = (fd.grid[z] as Array).slice(0, a) + (fd.grid[z] as Array).slice(b)
+				for i in count: row.append(WALL)
+				ng.append(row)
+		else:
+			for z in n:
+				if z >= a and z < b: continue
+				ng.append((fd.grid[z] as Array).duplicate())
+			for i in count:
+				var row: Array = []
+				row.resize(n)
+				row.fill(WALL)
+				ng.append(row)
+		fd.grid = ng
+		for k in fd.zones:
+			var moved := {}
+			for c: Vector2i in fd.zones[k]:
+				var i := c.x if columns else c.y
+				if i < a: moved[c] = true
+				elif i >= b: moved[c - (Vector2i(count, 0) if columns else Vector2i(0, count))] = true
+			fd.zones[k] = moved
+		for k in fd.paint:
+			var moved := {}
+			for c: Vector2i in fd.paint[k]:
+				var i := c.x if columns else c.y
+				if i < a: moved[c] = fd.paint[k][c]
+				elif i >= b: moved[c - (Vector2i(count, 0) if columns else Vector2i(0, count))] = fd.paint[k][c]
+			fd.paint[k] = moved
+		for m in fd.markers:
+			var c = fd.markers[m]
+			if c == null: continue
+			var i: int = c.x if columns else c.y
+			if i >= a and i < b: fd.markers[m] = null
+			elif i >= b: fd.markers[m] = c - (Vector2i(count, 0) if columns else Vector2i(0, count))
+		var kept: Array = []
+		for o: Dictionary in fd.objects:
+			var i := roundi(o.pos_x if columns else o.pos_y)
+			if i >= a and i < b: continue
+			if i >= b:
+				if columns: o.pos_x -= count
+				else: o.pos_y -= count
+			kept.append(o)
+		fd.objects = kept
+	for f in all:
+		if f == floor_idx: _load_floor(all[f])
+		else: floor_store[f] = all[f]
+	selected = -1
+	multi = []
+	area = Rect2i()
+	# the square can shrink too if the other direction ends in as many lines of nothing
+	var spare := true
+	all = _all_floors()
+	for i in range(n - count - 1, n):
+		for f in all:
+			var g: Array = all[f].grid
+			for j in n:
+				if (g[i][j] if columns else g[j][i]) != WALL: spare = false
+	for f in all:
+		for o: Dictionary in all[f].objects:
+			if (o.pos_y if columns else o.pos_x) > n - count - 2: spare = false
+		for m in all[f].markers:
+			var c = all[f].markers[m]
+			if c != null and (c.y if columns else c.x) > n - count - 2: spare = false
+	if spare:
+		_reframe(n - count, Vector2i.ZERO)
+		_status("Cut out %d %s on every floor: the map is %d x %d now. Ctrl+Z brings them back" % [count, what, grid_size, grid_size])
+	else:
+		_status("Cut out %d %s on every floor and closed the gap. The map is square and its %s are still in use, so it stays %d x %d: the room freed is solid wall at the far edge" % [
+			count, what, "last rows" if columns else "last columns", n, n])
+	_sync_inspector()
+	_mark_dirty()
+	_fit()
+
+## Keep only the selected box: every floor is cut down to it (with a wall border round it)
+func _area_crop() -> void:
+	if not area.has_area():
+		_status("Drag a box round what to keep first (Select area, S)")
+		return
+	_push_undo()
+	var n := clampi(maxi(area.size.x, area.size.y) + 2, 8, MAX_SIZE)
+	_reframe(n, Vector2i(1, 1) - area.position)
+	area = Rect2i()
+	multi = []
+	_mark_dirty()
+	_fit()
+	_status("Cropped every floor to the box: the map is %d x %d now. Ctrl+Z undoes it" % [n, n])
+
+## Ctrl+C. With the area tool: the selected cells and everything on them. Otherwise: the selected objects.
+func _copy() -> bool:
+	if tool == "area":
+		if not area.has_area():
+			_status("Nothing selected to copy: drag a box with the Select area tool first")
+			return false
+		var rows: Array = []
+		for dz in area.size.y:
+			var row: Array = []
+			for dx in area.size.x:
+				var c := area.position + Vector2i(dx, dz)
+				row.append(grid[c.y][c.x] if _in_grid(c) else WALL)
+			rows.append(row)
+		clip = {"size": area.size, "at": area.position, "grid": rows, "zones": {}, "paint": {}, "objects": []}
+		for z in zones:
+			clip.zones[z] = []
+			for c: Vector2i in zones[z]:
+				if area.has_point(c): clip.zones[z].append(c - area.position)
+		for slot in paint:
+			clip.paint[slot] = {}
+			for c: Vector2i in paint[slot]:
+				if area.has_point(c): clip.paint[slot][c - area.position] = paint[slot][c]
+		for o: Dictionary in objects:
+			if area.has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y))) and not _is_stairs(str(o.type)):
+				var d: Dictionary = o.duplicate(true)
+				d.pos_x -= area.position.x
+				d.pos_y -= area.position.y
+				clip.objects.append(d)
+		_status("Copied %d x %d cells and %d objects. Ctrl+V pastes at the mouse, Ctrl+Shift+V on the same cells (of another floor, say). Stairwells are not copied" % [area.size.x, area.size.y, clip.objects.size()])
+		return true
+	var g := _group()
+	if g.is_empty():
+		_status("Nothing selected to copy")
+		return false
+	var lo := Vector2(INF, INF)
+	for k in g: lo = lo.min(Vector2(objects[k].pos_x, objects[k].pos_y))
+	lo = lo.floor()
+	clip = {"size": Vector2i.ONE, "at": Vector2i(lo), "grid": null, "zones": {}, "paint": {}, "objects": []}
+	for k in g:
+		if _is_stairs(str(objects[k].type)): continue
+		var d: Dictionary = objects[k].duplicate(true)
+		d.pos_x -= lo.x
+		d.pos_y -= lo.y
+		clip.objects.append(d)
+	_status("Copied %d objects. Ctrl+V pastes them at the mouse" % clip.objects.size())
+	return true
+
+## Ctrl+X: copy, then the area is walled in (it has moved away), or the copied objects deleted
+func _cut() -> void:
+	if not _copy(): return
+	if tool == "area": _area_clear(WALL)
+	else: _delete_selected()
+
+## Ctrl+V: what was copied goes down with its top left corner on the cell under the mouse. `in_place`
+## (Ctrl+Shift+V): on the very cells it was copied from, which on another floor puts it straight above or below.
+func _paste(in_place := false) -> void:
+	if clip.is_empty():
+		_status("Nothing copied yet: select something and press Ctrl+C")
+		return
+	var at: Vector2i = clip.at if in_place else (hover if hover.x >= 0 else (area.position if area.has_area() else Vector2i(1, 1)))
+	_push_undo()
+	var size: Vector2i = clip.size
+	if clip.grid != null:
+		var was := area
+		area = Rect2i(at, size)
+		_area_clear("", false)                           # what was there makes way
+		area = was
+		for dz in size.y:
+			for dx in size.x:
+				var c := at + Vector2i(dx, dz)
+				if c.x < 1 or c.y < 1 or c.x >= grid_size - 1 or c.y >= grid_size - 1: continue
+				grid[c.y][c.x] = clip.grid[dz][dx]
+		for z in clip.zones:
+			if not zones.has(z): continue
+			for d: Vector2i in clip.zones[z]:
+				var c := at + d
+				if c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL: zones[z][c] = true
+		for slot in clip.paint:
+			if not paint.has(slot): continue
+			for d: Vector2i in clip.paint[slot]:
+				var c := at + d
+				if _in_grid(c): paint[slot][c] = clip.paint[slot][d]
+	var made: Array = []
+	for src: Dictionary in clip.objects:
+		var o: Dictionary = src.duplicate(true)
+		o.pos_x += at.x
+		o.pos_y += at.y
+		if o.pos_x < 0.0 or o.pos_y < 0.0 or o.pos_x > grid_size - 1 or o.pos_y > grid_size - 1: continue
+		objects.append(o)
+		made.append(objects.size() - 1)
+	if clip.grid != null:
+		area = Rect2i(at, size).intersection(Rect2i(0, 0, grid_size, grid_size))
+		_status("Pasted %d x %d cells and %d objects at %d, %d (parts off the map are left out). Ctrl+Z undoes it" % [size.x, size.y, made.size(), at.x, at.y])
+	else:
+		selected = made[-1] if not made.is_empty() else -1
+		multi = made if made.size() > 1 else []
+		_status("Pasted %d objects: drag one to move them all" % made.size())
+	_sync_inspector()
+	_mark_dirty()
+
+## Every object on this floor becomes the selection (Ctrl+A with the Select tool)
+func _select_all_objects() -> void:
+	multi = range(objects.size()) if objects.size() > 1 else []
+	selected = objects.size() - 1
+	_sync_inspector()
+	_status("%d objects selected: drag one to move them all, R rotates, Ctrl+C copies, Del deletes" % objects.size())
+	canvas.queue_redraw()
+
+## The arrow keys: the selected objects a snap step that way (a whole cell with Shift)
+func _nudge(d: Vector2, undo: bool) -> void:
+	var g := _group()
+	if g.is_empty(): return
+	if undo: _push_undo()
+	var step := 1.0 if Input.is_key_pressed(KEY_SHIFT) or not snap else SNAP_STEP
+	for k in g:
+		var o: Dictionary = objects[k]
+		if _is_stairs(str(o.type)): continue          # a stairwell is moved by dragging: its other ends follow
+		o.pos_x = clampf(o.pos_x + d.x * step, 0.0, grid_size - 1)
+		o.pos_y = clampf(o.pos_y + d.y * step, 0.0, grid_size - 1)
+	_sync_inspector()
+	_mark_dirty()
+
+func _draw_area() -> void:
+	var r := area
+	if area_from.x >= 0:
+		var c := _cell_at(mouse_px).clamp(Vector2i.ZERO, Vector2i(grid_size - 1, grid_size - 1))
+		r = Rect2i(area_from.min(c), (area_from - c).abs() + Vector2i.ONE)
+	if not r.has_area(): return
+	var px := Rect2(pan + Vector2(r.position) * zoom, Vector2(r.size) * zoom)
+	canvas.draw_rect(px, Color(SEL, 0.12))
+	canvas.draw_rect(px.grow(1.0), Color(0, 0, 0, 0.8), false, 4.0)
+	canvas.draw_rect(px, SEL, false, 2.0)
+	_tag(px.position + Vector2(4, 4), "%d x %d" % [r.size.x, r.size.y], SEL, 12)      # inside the box: clear of the rulers
 
 ## The status line for a cell: where it is, what its surfaces are made of (painted or the level's) and its zones
 func _describe_cell(c: Vector2i) -> String:
@@ -1132,6 +1776,8 @@ func _obj_depth(o: Dictionary) -> float:
 
 ## The object's footprint in object space (cells): the box its gizmo outlines
 func _obj_bounds(o: Dictionary) -> Rect2:
+	if _is_stairs(str(o.type)):
+		return Rect2(-0.5, 0.5 - STAIR_WIDE, STAIR_CELLS, STAIR_WIDE)
 	match _shape(o.type):
 		"corner", "arc":
 			var pts := _shape_path(o)
@@ -1175,6 +1821,159 @@ func _handle_px(o: Dictionary) -> Vector2:
 func _on_handle(p: Vector2) -> bool:
 	return selected >= 0 and p.distance_to(_handle_px(objects[selected])) <= 9.0
 
+# ---------------------------------------------------------------- resize grips
+## The little squares round a selected object: drag one to size it on the map instead of typing in the
+## inspector. What a grip sets is its `kind`: "width" (an end of a wall, door, arch or trigger: the other end
+## stays where it is), "size" (a prop, about its middle), "thick" (a wall's thickness, a pillar's or column's
+## width), "depth" (a trigger, along its arrow), "leg" (a corner wall's legs), "diameter" and "arc" (a curved
+## wall). `at` is where it sits in the object's own space (cells; +x the way the object faces, +y along its
+## span) and `dir` the way it is pulled to make the object bigger. They stand GRIP_OUT pixels off the object,
+## so the smallest pillar can still be picked up by its middle. Snap applies (Alt: free). Stairwells have none.
+const GRIP_OUT := 9.0
+const GRIP_HIT := 8.0
+var grip := {}                       # the grip being dragged (drag == "size"), with where it and the object started
+var show_hints := true               # the line of the current tool's controls along the bottom of the map
+
+func _grips(o: Dictionary) -> Array:
+	var t := str(o.type)
+	var out: Array = []
+	if _is_stairs(t): return out
+	var half: float = float(o.scale) * 0.5
+	match _shape(t):
+		"pillar", "column":
+			var r := _thick_cells(o) * 0.5
+			for d: Vector2 in [Vector2(0, 1), Vector2(0, -1), Vector2(-1, 0)]:
+				out.append({"kind": "thick", "at": d * r, "dir": d})
+		"corner":
+			out.append({"kind": "leg", "at": Vector2(half * 2.0, 0), "dir": Vector2(1, 0)})
+			out.append({"kind": "leg", "at": Vector2(0, half * 2.0), "dir": Vector2(0, 1)})
+		"arc":
+			var arc := deg_to_rad(clampf(float(_param(o, "arc", 90.0)), 5.0, 360.0))
+			out.append({"kind": "diameter", "at": Vector2(half, 0), "dir": Vector2(1, 0)})
+			for s: float in [-1.0, 1.0]:
+				var v := Vector2.from_angle(s * arc * 0.5)
+				out.append({"kind": "arc", "at": v * half, "dir": v})
+		"zone":
+			for s: float in [-1.0, 1.0]:
+				out.append({"kind": "width", "at": Vector2(0, s * half), "dir": Vector2(0, s)})
+			out.append({"kind": "depth", "at": Vector2(-float(_param(o, "depth", 2.0)) * 0.5, 0), "dir": Vector2(-1, 0)})
+		_:
+			var kind := "size" if _info(t).has("model") else "width"
+			for s: float in [-1.0, 1.0]:
+				out.append({"kind": kind, "at": Vector2(0, s * half), "dir": Vector2(0, s)})
+			if (_info(t).get("params", {}) as Dictionary).has("thick"):
+				out.append({"kind": "thick", "at": Vector2(-_thick_cells(o) * 0.5, 0), "dir": Vector2(-1, 0)})
+	return out
+
+## Where a grip is drawn and grabbed, in canvas pixels
+func _grip_px(o: Dictionary, g: Dictionary) -> Vector2:
+	var xf := _obj_xf(o)
+	return xf * ((g.at as Vector2) * zoom) + xf.basis_xform(g.dir as Vector2).normalized() * GRIP_OUT
+
+## The grip of the selected object under canvas point `p` (its place in _grips()), or -1
+func _grip_at(p: Vector2) -> int:
+	if selected < 0 or selected >= objects.size() or multi.size() > 1 or not show_objects: return -1
+	var o: Dictionary = objects[selected]
+	var gs := _grips(o)
+	for i in gs.size():
+		if p.distance_to(_grip_px(o, gs[i])) <= GRIP_HIT: return i
+	return -1
+
+func _grab_grip(g: Dictionary, p: Vector2) -> void:
+	var o: Dictionary = objects[selected]
+	grip = g.duplicate()
+	grip["dir_w"] = (g.dir as Vector2).rotated(deg_to_rad(float(o.rotation)))      # the pull, on the map
+	grip["m0"] = _pos_at(p)
+	grip["pos0"] = Vector2(o.pos_x, o.pos_y)
+	grip["scale0"] = float(o.scale)
+	grip["thick0"] = _thick_cells(o) * CELL_M
+	grip["depth0"] = float(_param(o, "depth", 2.0))
+	drag = "size"
+
+func _stepped(v: float, step: float) -> float:
+	return v if (Input.is_key_pressed(KEY_ALT) or not snap) else snappedf(v, step)
+
+## The grip follows the mouse: how far it has been pulled along its own direction since it was grabbed
+func _resize_drag(p: Vector2) -> void:
+	var o: Dictionary = objects[selected]
+	var dir: Vector2 = grip.dir_w
+	var d: float = (_pos_at(p) - (grip.m0 as Vector2)).dot(dir)
+	var pos0: Vector2 = grip.pos0
+	var top := _max_scale(str(o.type))
+	match str(grip.kind):
+		"width":
+			var w := clampf(_stepped(float(grip.scale0) + d, SNAP_STEP), 0.5, top)
+			var mid := pos0 + dir * (w - float(grip.scale0)) * 0.5      # the other end stays where it is
+			o.scale = w
+			o.pos_x = clampf(mid.x, 0.0, grid_size - 1)
+			o.pos_y = clampf(mid.y, 0.0, grid_size - 1)
+			place_scales[o.type] = w
+		"size", "diameter":
+			o.scale = clampf(_stepped(float(grip.scale0) + d * 2.0, SNAP_STEP), 0.5, top)
+		"leg":
+			o.scale = clampf(_stepped(float(grip.scale0) + d, SNAP_STEP), 0.5, top)
+		"thick":
+			o["thick"] = clampf(_stepped(float(grip.thick0) + d * 2.0 * CELL_M, 0.05), 0.05, 4.5)
+		"depth":
+			var dep := clampf(_stepped(float(grip.depth0) + d, 0.25), 0.25, 40.0)
+			var mid := pos0 + dir * (dep - float(grip.depth0)) * 0.5
+			o["depth"] = dep
+			o.pos_x = clampf(mid.x, 0.0, grid_size - 1)
+			o.pos_y = clampf(mid.y, 0.0, grid_size - 1)
+		"arc":
+			var l := (_obj_xf(o).affine_inverse() * p) / zoom
+			o["arc"] = clampf(_stepped(absf(rad_to_deg(l.angle())) * 2.0, 5.0), 5.0, 360.0)
+	_sync_inspector()
+	_mark_dirty()
+
+## What a grip is setting, for the label beside the mouse
+func _grip_text(o: Dictionary, kind: String) -> String:
+	match kind:
+		"thick": return "%.2f m %s" % [_thick_cells(o) * CELL_M, "across" if _shape(str(o.type)) in ["pillar", "column"] else "thick"]
+		"depth": return "%.2f cells deep  (%.1f m)" % [float(_param(o, "depth", 2.0)), float(_param(o, "depth", 2.0)) * CELL_M]
+		"arc": return "arc %s°" % _deg(float(_param(o, "arc", 90.0)))
+		"size": return "size x %.2f" % float(o.scale)
+		"diameter": return "%.2f cells across  (%.1f m)" % [float(o.scale), float(o.scale) * CELL_M]
+	return "%.2f cells  (%.1f m)" % [float(o.scale), float(o.scale) * CELL_M]
+
+## Shift + wheel over the map sizes the selected object, Alt + wheel turns it 15 degrees a notch
+func _wheel_edit(up: bool, turn: bool) -> void:
+	var o: Dictionary = objects[selected]
+	var t := str(o.type)
+	if _is_stairs(t): return
+	var s := 1.0 if up else -1.0
+	if turn: _set_prop("rotation", float(o.rotation) + s * 15.0)
+	elif _shape(t) in ["pillar", "column"]: _set_prop("thick", clampf(snappedf(_thick_cells(o) * CELL_M + s * 0.1, 0.05), 0.05, 4.5))
+	else: _set_prop("scale", clampf(float(o.scale) + s * SNAP_STEP, 0.5, _max_scale(t)))
+	_sync_inspector()
+	_status(_describe(o))
+	canvas.queue_redraw()
+
+## The current tool's controls, for the line along the bottom of the map
+func _hint_text() -> String:
+	var always := "     Space / middle drag: move the map     wheel: zoom     Esc: cancel"
+	if drag == "chain": return "Click: end this wall     Shift+click: end it and start the next     right click / Esc: stop"
+	if tool == "area":
+		if area.has_area(): return "Del: empty the box     Shift+Del: wall it in     Ctrl+C copy     Ctrl+X cut     Ctrl+V paste at the mouse     Ctrl+Shift+V paste in place     Esc: drop the box"
+		return "Drag: select a box of the map     Ctrl+A: the whole floor     Ctrl+V: paste what was copied" + always
+	if tool == "select" or (tool.begins_with("obj:") and selected >= 0):
+		if multi.size() > 1: return "%d selected     drag one: move them all     arrows: nudge     R: turn     Ctrl+C / Ctrl+V     Del: delete" % multi.size()
+		if selected >= 0: return "Drag: move     squares: resize     round knob: turn     Shift+wheel: size     Alt+wheel: turn     arrows: nudge     Del: delete"
+		return "Click: select     drag on empty map: box select     Shift+click: add to the selection     Ctrl+A: all" + always
+	if tool.begins_with("obj:"):
+		if bool(_info(tool.get_slice(":", 1)).get("draw_line", false)): return "Drag: draw the wall     let go with Shift: chain the next one     right click: delete" + always
+		return "Click: place     keep the button down and drag: aim it     R: turn the next one     right click: delete" + always
+	if tool == "gen": return "Drag: the area to generate" + always
+	if tool.begins_with("mark:"): return "Click: put the marker     right click: remove it" + always
+	var pick := "     Alt+click: pick the material here" if tool.begins_with("paint:") else ""
+	return "Drag: paint     right drag: erase     Shift: rectangle     Ctrl: fill     [ ]: brush size" + pick + always
+
+func _draw_hints() -> void:
+	if not show_hints: return
+	var text := _hint_text()
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 6.0
+	_tag(Vector2(maxf(canvas.size.x - w - 8.0, 8.0), canvas.size.y - 24.0), text, CREAM, 12)
+
 ## Wall-aware placement. On a cell edge a piece lines up with that edge; square on a cell it spans the
 ## corridor or wall run it lands in (you walk through it the way the open neighbours lie, like the game's
 ## old tiles did). Of the two ways to face along that axis it keeps the one nearer `cur`, so a door keeps
@@ -1209,17 +2008,7 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_end_line(mb.shift_pressed)
 		return
 	if not mb.pressed:
-		if drag == "line":
-			_end_line(mb.shift_pressed)
-			return
-		if drag == "box":
-			_end_box(mb.position)
-			return
-		if drag != "":
-			if selected >= 0 and str(objects[selected].type).begins_with("stairs_") and drag in ["place", "rotate"]:
-				_sync_stairs_partner(objects[selected])
-			drag = ""
-			_sync_inspector()
+		_object_release(mb.position, mb.shift_pressed)
 		return
 	var i := _obj_at(mb.position)
 	if mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -1227,7 +2016,11 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_push_undo()
 			_delete_object(i)
 		return
-	if _on_handle(mb.position):
+	var gi := _grip_at(mb.position)
+	if gi >= 0:
+		_push_undo()
+		_grab_grip(_grips(objects[selected])[gi], mb.position)
+	elif _on_handle(mb.position):
 		_push_undo()
 		drag = "rotate"
 	elif i >= 0 and mb.shift_pressed:
@@ -1245,8 +2038,18 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		group_start = multi.map(func(k): return [k, objects[k].pos_x, objects[k].pos_y])
 		group_anchor = _pos_at(mb.position)
 		drag = "group"
+	elif i >= 0 and _is_stairs(tool.get_slice(":", 1)) and _is_stairs(str(objects[i].type)):
+		# a stairs tool on a stairwell that is already here: carry that one on, up or down another floor
+		_push_undo()
+		_select(i)
+		_stair_extend(objects[i], 1 if tool == "obj:stairs_up" else -1)
+		_stair_settle(objects[i])
+		_mark_dirty()
 	elif i >= 0:
 		_select(i)
+		if mb.double_click and objects[i].type == "trigger":
+			_open_trigger_dialog(i)
+			return
 		_push_undo()
 		var o: Dictionary = objects[i]
 		drag_off = Vector2(o.pos_x, o.pos_y) - _pos_at(mb.position)
@@ -1267,64 +2070,58 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			drag = "line"
 			_mark_dirty()
 			return
-		objects.append(_new_object(t, p, _wall_align(p, place_rot, t)))
-		if tool.begins_with("obj:stairs_"):
-			objects[-1].pos_x = roundf(p.x)          # stairs fill a whole cell
-			objects[-1].pos_y = roundf(p.y)
-			objects[-1].scale = 1.0
-			_link_stairs(objects[-1])
+		var made := _new_object(t, p, _wall_align(p, place_rot, t))
+		if _is_stairs(t):
+			# a new stairwell: here, and its other end on the floor above (Stairs up) or below (Stairs down)
+			_stair_square(made)
+			made.rotation = _stair_facing(made)
+			if not _stair_fits(made) or _stair_clash(objects, made):
+				_status("No room for a stairwell here: it needs %d x %d cells clear of other stairs, and the cell in front of its door" % [STAIR_CELLS, STAIR_WIDE])
+				return
+			made["well"] = _well_new()
+			objects.append(made)
+			_stair_extend(made, 1 if t == "stairs_up" else -1)
+		else:
+			objects.append(made)
 		_select(objects.size() - 1)
 		drag = "place"                   # keep the button down and drag away to aim it
 		_mark_dirty()
 
-## Stairs join two floors. The new flight's cell is made right for it (floor under stairs up, a pit for stairs
-## down) and the floor it leads to gets the opposite flight at the same spot, with open floor to arrive on
-## beside it; that floor is created if the level doesn't have it yet.
-func _link_stairs(o: Dictionary) -> void:
-	var up: bool = o.type == "stairs_up"
-	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
-	var dir := Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
-	if not _in_grid(c): return
-	grid[c.y][c.x] = FLOOR if up else PIT
-	if _in_grid(c - dir) and grid[c.y - dir.y][c.x - dir.x] == WALL: grid[c.y - dir.y][c.x - dir.x] = FLOOR
-	var f := floor_idx + (1 if up else -1)
-	var created := false
-	if not floor_store.has(f):
-		floor_store[f] = _new_floor()
-		created = true
-		_floors_changed()
-	var fd: Dictionary = floor_store[f]
-	var kind := "stairs_down" if up else "stairs_up"
-	for other: Dictionary in fd.objects:
-		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
-			_status("Linked to the %s already on %s" % [kind.replace("_", " "), _floor_name(f)])
-			return
-	fd.objects.append({"type": kind, "pos_x": o.pos_x, "pos_y": o.pos_y, "rotation": o.rotation, "scale": 1.0})
-	fd.grid[c.y][c.x] = PIT if up else FLOOR
-	var a := c - dir                               # where you arrive on that floor: open it, and a little landing
-	for dz in range(-1, 2):
-		for dx in range(-1, 2):
-			var n := a + Vector2i(dx, dz)
-			if n.x >= 1 and n.y >= 1 and n.x < grid_size - 1 and n.y < grid_size - 1 and n != c and fd.grid[n.y][n.x] == WALL:
-				fd.grid[n.y][n.x] = FLOOR
-	_status("%s%s got the matching %s here (PageUp / PageDown to go there)" % [("Made " if created else ""), _floor_name(f), kind.replace("_", " ")])
+## The button came up on whatever an object tool was dragging (a chained wall is not a drag: it waits for a click)
+func _object_release(at: Vector2, shift := false) -> void:
+	if drag == "chain" or drag == "": return
+	if drag == "line":
+		_end_line(shift)
+		return
+	if drag == "box":
+		_end_box(at)
+		return
+	drag = ""
+	for k in _group():                    # a stairwell that was placed, moved or turned settles onto the grid
+		if k < objects.size() and _is_stairs(str(objects[k].type)) and not _stair_settle(objects[k]): break
+	_sync_inspector()
+	_mark_dirty()
 
-## A flight was turned: turn its partner on the next floor the same way (arrival stays beside it)
-func _sync_stairs_partner(o: Dictionary) -> void:
-	var f := floor_idx + (1 if o.type == "stairs_up" else -1)
-	if not floor_store.has(f): return
-	var kind := "stairs_down" if o.type == "stairs_up" else "stairs_up"
-	var fd: Dictionary = floor_store[f]
-	for other: Dictionary in fd.objects:
-		if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.5:
-			other.rotation = o.rotation
-			var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
-			var a := c - Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())
-			for g in [grid, fd.grid]:                  # both floors: open where you step off
-				if a.x >= 1 and a.y >= 1 and a.x < grid_size - 1 and a.y < grid_size - 1 and g[a.y][a.x] == WALL:
-					g[a.y][a.x] = FLOOR
-			_mark_dirty()
-			return
+## Is Space held to pan? Asked of the keyboard at the click, not remembered from key events: a release that
+## never arrives (the window lost focus with it down) can't leave every click panning. Not while typing.
+func _space_held() -> bool:
+	return Input.is_key_pressed(KEY_SPACE) and not (get_viewport().gui_get_focus_owner() is LineEdit)
+
+## Stop everything a held mouse button was doing on the map: a paint stroke, a rectangle or selection box
+## being dragged out (dropped, not applied), an object being moved or turned (left where it is)
+func _let_go() -> void:
+	if painting or rect_from.x >= 0 or area_from.x >= 0:
+		painting = false
+		rect_from = Vector2i(-1, -1)
+		area_from = Vector2i(-1, -1)
+		canvas.queue_redraw()
+	if drag != "" and drag != "chain": _object_release(mouse_px)
+
+## Esc, or the window losing focus: nothing is left following the mouse
+func _cancel_all() -> void:
+	panning = false
+	_let_go()
+	if drag == "chain": _delete_selected()
 
 func _object_drag(p: Vector2) -> void:
 	if drag == "box":
@@ -1338,8 +2135,11 @@ func _object_drag(p: Vector2) -> void:
 			objects[g[0]].pos_y = clampf(g[2] + d.y, 0.0, grid_size - 1)
 		_mark_dirty()
 		return
-	if selected < 0:
+	if selected < 0 or selected >= objects.size():
 		drag = ""
+		return
+	if drag == "size":
+		_resize_drag(p)
 		return
 	var o: Dictionary = objects[selected]
 	if drag == "line" or drag == "chain":
@@ -1353,6 +2153,7 @@ func _object_drag(p: Vector2) -> void:
 		return
 	if drag == "move":
 		var q := _snap_pos(_pos_at(p) + drag_off)
+		if _is_stairs(str(o.type)): q = q.round()
 		o.pos_x = q.x
 		o.pos_y = q.y
 		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
@@ -1361,6 +2162,7 @@ func _object_drag(p: Vector2) -> void:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
 		o.rotation = _snap_rot(rad_to_deg(v.angle()))
+		if _is_stairs(str(o.type)): o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
 		place_rot = o.rotation
 	_sync_inspector()
 	_mark_dirty()
@@ -1422,6 +2224,9 @@ func _group() -> Array:
 	if multi.size() > 1: return multi.duplicate()
 	return [selected] if selected >= 0 else []
 
+func _open_trigger_dialog(_idx: int) -> void:
+	pass
+
 func _select(i: int) -> void:
 	multi = []
 	selected = i
@@ -1430,10 +2235,12 @@ func _select(i: int) -> void:
 	canvas.queue_redraw()
 
 func _delete_object(i: int) -> void:
+	var gone: Dictionary = objects[i]
 	objects.remove_at(i)
 	if selected == i: selected = -1
 	elif selected > i: selected -= 1
 	hover_obj = -1
+	if _is_stairs(str(gone.type)): _well_prune(int(gone.get("well", 0)))
 	_sync_inspector()
 	_mark_dirty()
 
@@ -1456,11 +2263,15 @@ func _duplicate_selected() -> void:
 	var off := SNAP_STEP if snap else 0.25
 	var made: Array = []
 	for k in g:
+		if _is_stairs(str(objects[k].type)):
+			_status("A stairwell isn't copied: place another with Stairs up / down")
+			continue
 		var o: Dictionary = objects[k].duplicate()
 		o.pos_x = minf(o.pos_x + off, grid_size - 1)
 		o.pos_y = minf(o.pos_y + off, grid_size - 1)
 		objects.append(o)
 		made.append(objects.size() - 1)
+	if made.is_empty(): return
 	selected = made[-1]
 	multi = made if made.size() > 1 else []
 	_sync_inspector()
@@ -1485,10 +2296,13 @@ func _rotate_selected(deg: float) -> void:
 			ob.pos_x = q.x
 			ob.pos_y = q.y
 			ob.rotation = fposmod(ob.rotation + deg, 360.0)
+		for k in multi:
+			if k < objects.size() and _is_stairs(str(objects[k].type)) and not _stair_settle(objects[k]): break
 		_mark_dirty()
 		return
 	var o: Dictionary = objects[selected]
 	o.rotation = fposmod(o.rotation + deg, 360.0)
+	if _is_stairs(str(o.type)) and not _stair_settle(o): return
 	place_rot = o.rotation
 	_sync_inspector()
 	_mark_dirty()
@@ -1514,12 +2328,29 @@ func _set_prop(key: String, v) -> void:
 				if not o.has(k): o[k] = params[k]
 			o.scale = minf(o.scale, _max_scale(v))
 			_sync_inspector()
+		"event":
+			var raw_list = o.get("events_list", [])
+			if raw_list is Array and not raw_list.is_empty() and raw_list[0] is Dictionary:
+				raw_list[0]["event"] = v
+			_sync_inspector()
+		"custom_event":
+			var raw_list = o.get("events_list", [])
+			if raw_list is Array and not raw_list.is_empty() and raw_list[0] is Dictionary:
+				raw_list[0]["custom_event"] = v
+			_sync_inspector()
+	if _is_stairs(str(o.type)):
+		if not _stair_settle(o): return
+		insp_x.set_value_no_signal(o.pos_x)
+		insp_y.set_value_no_signal(o.pos_y)
+		insp_rot.set_value_no_signal(o.rotation)
 	_mark_dirty()
 
 func _sync_inspector() -> void:
 	if insp == null: return
 	insp.get_parent().visible = selected >= 0
 	if selected < 0: return
+	if tool_scroll != null:
+		tool_scroll.scroll_vertical = 0
 	var o: Dictionary = objects[selected]
 	insp_type.select(OBJ_TYPES.find(o.type))
 	for sb: SpinBox in [insp_x, insp_y]: sb.max_value = grid_size - 1
@@ -1531,11 +2362,23 @@ func _sync_inspector() -> void:
 	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
 	var sh := _shape(o.type)
 	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
-	insp_scale_label.visible = sh not in ["pillar", "column"]
+	insp_scale_label.visible = sh not in ["pillar", "column"] and not _is_stairs(str(o.type))
 	insp_scale.visible = insp_scale_label.visible
+	if insp_trigger_btn != null:
+		insp_trigger_btn.visible = (o.type == "trigger")
+		if o.type == "trigger":
+			var raw_list = o.get("events_list", [])
+			var ev_count: int = raw_list.size() if raw_list is Array else 0
+			if ev_count > 1:
+				insp_trigger_btn.text = "CONFIGURE EVENTS (%d ACTIONS)..." % ev_count
+			else:
+				insp_trigger_btn.text = "CONFIGURE EVENT OPTIONS..."
 	var params: Dictionary = _info(o.type).get("params", {})
+	var is_custom_event: bool = (o.type == "trigger" and str(_param(o, "event")) == "custom")
 	for k in insp_params:
 		var on := params.has(k)
+		if k == "custom_event":
+			on = on and is_custom_event
 		for n: Control in insp_params[k].row: n.visible = on
 		if not on: continue
 		var ctrl: Control = insp_params[k].ctrl
@@ -1544,9 +2387,14 @@ func _sync_inspector() -> void:
 		elif ctrl is CheckBox: (ctrl as CheckBox).set_pressed_no_signal(bool(v))
 		elif ctrl is LineEdit:
 			if (ctrl as LineEdit).text != str(v): (ctrl as LineEdit).text = str(v)
+		elif ctrl is OptionButton and insp_params[k].has("choices"):          # one of object_types.json "choices"
+			(ctrl as OptionButton).select(maxi(0, (insp_params[k].choices as Array).find(str(v))))
 		elif ctrl is OptionButton:
 			var evs: Array = _info(o.type).get("events", {}).keys()
-			(ctrl as OptionButton).select(maxi(0, evs.find(str(v))))
+			var ev_idx := evs.find(str(v))
+			if ev_idx < 0:
+				ev_idx = evs.find("custom")
+			(ctrl as OptionButton).select(maxi(0, ev_idx))
 
 func _deg(d: float) -> String:
 	return str(snappedf(d, 0.1)).trim_suffix(".0")
@@ -1557,7 +2405,37 @@ func _describe(o: Dictionary) -> String:
 	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
 	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
 	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
-	if params.has("event"): t += "   event: %s%s" % [_param(o, "event"), "  (once)" if bool(_param(o, "once", true)) else ""]
+	if _is_stairs(str(o.type)) and objects.has(o):
+		var up := _stair_linked(o, floor_idx, 1)
+		var down := _stair_linked(o, floor_idx, -1)
+		t = "Stairwell   x %d   y %d   " % [roundi(o.pos_x), roundi(o.pos_y)]
+		t += "up to %s" % _floor_name(floor_idx + 1) if up else "no way up"
+		t += ",  down to %s" % _floor_name(floor_idx - 1) if down else ",  no way down"
+		t += "   (%s, lamps %s)" % [str(_param(o, "style", "carpet")), str(_param(o, "light", "on"))]
+	if params.has("event"):
+		var ev_names: Array = []
+		var raw_list = o.get("events_list", [])
+		if raw_list is Array and not raw_list.is_empty():
+			for entry in raw_list:
+				var name_str := ""
+				if entry is Dictionary:
+					name_str = str(entry.get("event", ""))
+					if name_str == "custom":
+						var c_ev := str(entry.get("custom_event", "")).strip_edges()
+						if c_ev != "": name_str = "custom (%s)" % c_ev
+				elif entry is String:
+					name_str = str(entry).strip_edges()
+				if name_str != "":
+					ev_names.append(name_str)
+		if ev_names.is_empty():
+			var ev_name := str(_param(o, "event"))
+			if ev_name == "custom":
+				var c_ev := str(_param(o, "custom_event", "")).strip_edges()
+				if c_ev != "": ev_name = "custom (%s)" % c_ev
+			ev_names.append(ev_name)
+		t += "   events: %s%s" % [", ".join(ev_names), "  (once)" if bool(_param(o, "once", true)) else ""]
+		var tx := str(_param(o, "text", "")).strip_edges()
+		if tx != "": t += '   text: "%s"' % tx
 	return t
 
 ## A rectangle in the object's local space (cells), as canvas points
@@ -1569,7 +2447,8 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 	canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0, 0, 0, col.a * 0.8), 1.0)
 
 ## Plan view of an object, the way an architect's floor plan draws it
-func _draw_object(o: Dictionary, alpha: float) -> void:
+## `own`: one of this floor's (a stairwell then shows which floors it is joined to)
+func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	var xf := _obj_xf(o)
 	var col: Color = _info(o.type).col
 	col.a = alpha
@@ -1597,20 +2476,7 @@ func _draw_object(o: Dictionary, alpha: float) -> void:
 				canvas.draw_dashed_line(xf * (Vector2(s, -half + p) * zoom), xf * (Vector2(s, half - p) * zoom),
 					Color(col, alpha * 0.8), 1.5, maxf(zoom * 0.12, 3.0))
 		"stairs_up", "stairs_down":
-			# the flight seen from above: its treads across the run, the far end (top / bottom) darker
-			var d := 0.5
-			_fill(_local_rect(xf, -d, -half, d, half), Color(col, alpha * 0.85))
-			for i in range(1, 12):
-				var x := -d + i / 12.0
-				canvas.draw_line(xf * (Vector2(x, -half) * zoom), xf * (Vector2(x, half) * zoom), Color(0, 0, 0, alpha * 0.45), 1.0)
-			_fill(_local_rect(xf, d - 0.12, -half, d, half), Color(0, 0, 0, alpha * 0.8))
-			if zoom >= 12.0:
-				var lbl := "UP" if o.type == "stairs_up" else "DN"
-				var fs := int(clampf(zoom * 0.35, 9, 18))
-				var p := xf.origin - Vector2(font.get_string_size(lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * 0.5, -fs * 0.35)
-				canvas.draw_string(font, p, lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
-			_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
-			_draw_stairs_transition(o, xf, alpha)
+			_draw_stairs(o, xf, col, alpha, own)
 		_:
 			_draw_shaped(o, xf, col, alpha)
 
@@ -1636,7 +2502,40 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 			for i in 4:
 				canvas.draw_dashed_line(pts[i], pts[(i + 1) % 4], Color(col, alpha * 0.9), 1.5, maxf(zoom * 0.2, 4.0))
 			if zoom >= 8.0:
-				var lbl := "⚡ " + str(_param(o, "event", "")) + ("" if bool(_param(o, "once", true)) else "  ↻")
+				var ev_names: Array = []
+				var raw_list = o.get("events_list", [])
+				if raw_list is Array and not raw_list.is_empty():
+					for entry in raw_list:
+						var name_str := ""
+						if entry is Dictionary:
+							name_str = str(entry.get("event", ""))
+							if name_str == "custom":
+								var c_ev := str(entry.get("custom_event", "")).strip_edges()
+								if c_ev != "": name_str = c_ev
+						elif entry is String:
+							name_str = str(entry).strip_edges()
+						if name_str != "":
+							ev_names.append(name_str)
+				if ev_names.is_empty():
+					var ev := str(_param(o, "event", ""))
+					if ev == "custom":
+						var c_ev := str(_param(o, "custom_event", "")).strip_edges()
+						if c_ev != "": ev = c_ev
+					if ev != "": ev_names.append(ev)
+				var summary := ""
+				if ev_names.size() == 1:
+					summary = ev_names[0]
+				elif ev_names.size() == 2:
+					summary = ev_names[0] + " + " + ev_names[1]
+				elif ev_names.size() > 2:
+					summary = ev_names[0] + " (+" + str(ev_names.size() - 1) + " events)"
+				else:
+					summary = "trigger"
+				var tx := str(_param(o, "text", "")).strip_edges()
+				if tx != "":
+					var preview := tx if tx.length() <= 22 else tx.substr(0, 20) + ".."
+					summary += ' "%s"' % preview
+				var lbl := summary + ("" if bool(_param(o, "once", true)) else " [repeat]")
 				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
 		_:
 			var pts := _shape_path(o)
@@ -1649,24 +2548,59 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 				for i in line.size() - 1:
 					canvas.draw_dashed_line(line[i], line[i + 1], Color(1, 1, 1, alpha * 0.6), 1.0, maxf(zoom * 0.15, 3.0))
 
-func _draw_stairs_transition(o: Dictionary, xf: Transform2D, alpha: float) -> void:
-	var up: bool = o.type == "stairs_up"
-	var target_f: int = floor_idx + (1 if up else -1)
-	var linked := false
-	if floor_store.has(target_f):
-		var fd: Dictionary = floor_store[target_f]
-		var kind: String = "stairs_down" if up else "stairs_up"
-		for other: Dictionary in fd.get("objects", []):
-			if other.type == kind and Vector2(other.pos_x, other.pos_y).distance_to(Vector2(o.pos_x, o.pos_y)) < 1.8:
-				linked = true
-				break
-	if zoom >= 10.0:
-		var symbol := "▲" if up else "▼"
-		var text := "%s TO %s [%s]" % [symbol, _floor_name(target_f).to_upper(), "LINKED" if linked else "UNLINKED"]
-		var tag_col: Color = Color("2fd968") if linked else Color("ff9922")
-		_tag(xf.origin + Vector2(-48, -maxf(zoom * 0.85, 14.0)), text, Color(tag_col, alpha), 9)
-		if linked:
-			canvas.draw_arc(xf.origin, maxf(zoom * 0.55, 8.0), 0, TAU, 16, Color(tag_col, alpha * 0.6), 1.5)
+## A stairwell in plan: its box with the doorway in the front, the wall between the lanes, and each lane's
+## steps. The right-hand lane (of the arrow) goes up, the left-hand one down; a lane with no floor to lead to
+## is drawn walled off, as the game builds it.
+func _draw_stairs(o: Dictionary, xf: Transform2D, col: Color, alpha: float, own: bool) -> void:
+	var m := 1.0 / CELL_M                             # metres -> cells (the sizes are props/stairs.gd's)
+	var x0 := -0.5
+	var x1 := STAIR_CELLS - 0.5
+	var y0 := 0.5 - STAIR_WIDE
+	var y1 := 0.5
+	var mid := (y0 + y1) * 0.5
+	var wall := maxf(0.2 * m, 2.0 / zoom)
+	var spine := 1.0 * m
+	var xa := x0 + 0.2 * m + 3.0 * m
+	var xb := x1 - 0.2 * m - 3.0 * m
+	var up := not own or _stair_linked(o, floor_idx, 1)
+	var down := not own or _stair_linked(o, floor_idx, -1)
+	var solid := Color(BASE_COLORS[WALL], alpha)
+	var ink := Color(0, 0, 0, alpha * 0.55)
+	canvas.draw_colored_polygon(_local_rect(xf, x0, y0, x1, y1), Color(col.darkened(0.6), alpha * 0.92))      # the landings
+	var fs := int(clampf(zoom * 0.3, 8, 15))
+	for lane: Array in [[mid + spine * 0.5, y1, up, "UP"], [y0, mid - spine * 0.5, down, "DOWN"]]:
+		var a: float = lane[0]
+		var b: float = lane[1]
+		if not lane[2]:
+			canvas.draw_colored_polygon(_local_rect(xf, xa, a, xb, b), solid)
+			continue
+		canvas.draw_colored_polygon(_local_rect(xf, xa, a, xb, b), Color(col, alpha * 0.9))
+		for i in 13:
+			var x := lerpf(xa, xb, i / 12.0)
+			canvas.draw_line(xf * (Vector2(x, a) * zoom), xf * (Vector2(x, b) * zoom), ink, 1.0)
+		if own and zoom >= 14.0:
+			var at := xf * (Vector2((xa + xb) * 0.5, (a + b) * 0.5) * zoom)
+			var ts := font.get_string_size(lane[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+			canvas.draw_string(font, at - Vector2(ts.x * 0.5, -fs * 0.35), lane[3], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
+	canvas.draw_colored_polygon(_local_rect(xf, xa, mid - spine * 0.5, xb, mid + spine * 0.5), solid)             # the wall between the lanes
+	# the box, with the doorway in the front of the up lane
+	var door_mid := mid + (spine * 0.5 + 3.8 * m * 0.5)
+	var door := 1.1 * m
+	for r: Array in [[x0, y0, x1, y0 + wall], [x0, y1 - wall, x1, y1], [x1 - wall, y0, x1, y1],
+			[x0, y0, x0 + wall, door_mid - door], [x0, door_mid + door, x0 + wall, y1]]:
+		canvas.draw_colored_polygon(_local_rect(xf, r[0], r[1], r[2], r[3]), solid)
+	var rim := _local_rect(xf, x0, y0, x1, y1)
+	canvas.draw_polyline(rim + PackedVector2Array([rim[0]]), Color(0, 0, 0, alpha * 0.8), 1.0)
+	_draw_arrow(o, Color(1, 1, 1, alpha * 0.8))
+	if not own or zoom < 9.0: return
+	var bits: Array = []
+	if up: bits.append("▲ " + _floor_name(floor_idx + 1).to_upper())
+	if down: bits.append("▼ " + _floor_name(floor_idx - 1).to_upper())
+	var tag_col := Color("2fd968") if (up or down) else Color("ff9922")
+	var corner := rim[0]
+	for q in rim:
+		if q.y < corner.y or (q.y == corner.y and q.x < corner.x): corner = q
+	_tag(corner + Vector2(0, -15), "   ".join(bits) if not bits.is_empty() else "NOT JOINED TO A FLOOR", Color(tag_col, alpha), 10)
 
 func _draw_outline(o: Dictionary, col: Color, width: float) -> void:
 	var b := _obj_bounds(o).grow(3.0 / zoom)
@@ -1702,6 +2636,20 @@ func _draw_gizmo(o: Dictionary) -> void:
 	if o.type == "door":
 		canvas.draw_circle(xf * (Vector2(0, -_cells("door", "opening", 1.12) * 0.5) * zoom), 3.0, Color.WHITE)
 	canvas.draw_circle(xf.origin, 2.5, SEL)
+	# the resize grips, the one under the mouse (or in hand) lit, with what it is setting beside the mouse
+	if multi.size() > 1: return
+	var over := _grip_at(mouse_px) if drag == "" else -1
+	var gs := _grips(o)
+	var said := ""
+	for i in gs.size():
+		var g: Dictionary = gs[i]
+		var held: bool = drag == "size" and str(grip.get("kind", "")) == str(g.kind) and (g.dir as Vector2).is_equal_approx(grip.get("dir", Vector2.ZERO))
+		var gp := _grip_px(o, g)
+		var box := Rect2(gp - Vector2(4.5, 4.5), Vector2(9, 9))
+		canvas.draw_rect(box.grow(1.5), Color.BLACK)
+		canvas.draw_rect(box, Color.WHITE if (held or i == over) else SEL)
+		if held or i == over: said = _grip_text(o, str(g.kind))
+	if said != "": _tag(mouse_px + Vector2(16, 14), said, SEL, 12)
 
 func _status(t: String) -> void:
 	if status: status.text = t

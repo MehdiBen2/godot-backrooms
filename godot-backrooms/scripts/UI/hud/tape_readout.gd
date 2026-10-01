@@ -185,6 +185,11 @@ func _process(dt: float) -> void:
 			_text(value, "--")
 			_text(foot, "NOTHING IN REACH")
 			_text(status, "")
+		"fixed":
+			_text(title, "TAPE")
+			_text(value, "--")
+			_text(foot, "STUCK FAST, WON'T PEEL")
+			_text(status, "")
 		"no_tape":
 			_text(title, "NO TAPE")
 			_text(value, "")

@@ -50,14 +50,13 @@ func _generate(area: Rect2i) -> void:
 		_: _bsp(inner, "mixed")
 	var joined := _connect_outside(area)
 	_round_corners(area)
-	# stairs in the area stay, with their cell and the cell you step off onto
-	var stairs: Array = []
+	# stairwells in the area stay, with their cells and the cell in front of each door
 	for o: Dictionary in objects:
-		var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
-		if str(o.type).begins_with("stairs_") and area.has_point(c):
-			stairs.append(o)
-			_gopen[c] = true
-			_gopen[c - Vector2i(Vector2.from_angle(deg_to_rad(o.rotation)).round())] = true
+		if not _is_stairs(str(o.type)): continue
+		var cells := _stair_cells(o)
+		if not cells.any(func(c): return area.has_point(c)): continue
+		for c in cells: _gopen[c] = true
+		_gopen[_stair_door(o)] = true
 	for z in range(area.position.y, area.end.y):
 		for x in range(area.position.x, area.end.x):
 			var c := Vector2i(x, z)
@@ -69,9 +68,7 @@ func _generate(area: Rect2i) -> void:
 			else:
 				paint["floor"].erase(c)
 				paint["ceiling"].erase(c)
-	for o: Dictionary in stairs:
-		if o.type == "stairs_down": grid[roundi(o.pos_y)][roundi(o.pos_x)] = PIT
-	objects = objects.filter(func(o): return str(o.type).begins_with("stairs_") or not area.has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y))))
+	objects = objects.filter(func(o): return _is_stairs(str(o.type)) or not area.has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y))))
 	objects.append_array(_gobjs)
 	for m in markers:
 		var mc = markers[m]
@@ -428,7 +425,7 @@ func _liminal_room(r: Rect2i) -> void:
 ## ever sealed behind a curve.
 func _round_corners(area: Rect2i) -> void:
 	for r: Rect2i in _round_rooms:
-		if objects.any(func(o): return str(o.type).begins_with("stairs_") and r.grow(1).has_point(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))):
+		if objects.any(func(o): return _is_stairs(str(o.type)) and _stair_cells(o).any(func(c): return r.grow(1).has_point(c))):
 			continue
 		var corners := [[Vector2i(r.position.x, r.position.y), Vector2i(1, 1), 225.0],
 			[Vector2i(r.end.x - 1, r.position.y), Vector2i(-1, 1), 315.0],
@@ -449,7 +446,7 @@ func _round_corners(area: Rect2i) -> void:
 ## An object for this run, with its type's params at their defaults bar `extra`; none on or next to stairs
 func _gobj(t: String, at: Vector2, rot: float, sc: float, extra := {}) -> void:
 	if not OBJ_INFO.has(t): return
-	if objects.any(func(o): return str(o.type).begins_with("stairs_") and Vector2(o.pos_x, o.pos_y).distance_to(at) < sc * 0.5 + 1.5):
+	if objects.any(func(o): return _is_stairs(str(o.type)) and (_stair_cells(o) + [_stair_door(o)]).any(func(c): return Vector2(c).distance_to(at) < sc * 0.5 + 1.0)):
 		return
 	var o := _new_object(t, at, rot)
 	o.scale = sc

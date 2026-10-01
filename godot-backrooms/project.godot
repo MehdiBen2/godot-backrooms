@@ -25,6 +25,7 @@ driver/enable_input=true
 [autoload]
 
 Game="*res://scripts/GameLogicEngine/game_state.gd"
+Keybinds="*res://scripts/GameLogicEngine/keybinds.gd"
 Death="*res://scripts/UI/death/death.gd"
 Net="*res://scripts/Net/net.gd"
 Gfx="*res://scripts/GameLogicEngine/graphics.gd"

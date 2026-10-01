@@ -6,7 +6,9 @@ extends Node
 ## also goes to Clearance.file() for its Research Yield (asra_clearance.gd): new sites and repeat
 ## readings of logged entities still pay, a little.
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
-## the points it can be read from in scan_points() (see the entity scripts).
+## the points it can be read from in scan_points() (see the entity scripts). Entities read from
+## anywhere in RANGE; props (survey_clipboard.gd, dead_fixture.gd) give a short scan_range(), so
+## the signal meter still leads to them from afar but the reading only starts up close.
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
 ## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`, and,
 ## by clearance (asra_clearance.gd), `signal_bearing` (C-3 range-finder) and `target_node` (C-4 deep scan).
@@ -65,7 +67,7 @@ func _process(dt: float) -> void:
 	result_t = maxf(0.0, result_t - dt)
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item("scanner")
-	var down := can and Input.is_physical_key_pressed(KEY_Q)
+	var down := can and Input.is_action_pressed("scanner")
 	if not down:
 		holding = false
 		latched = false
@@ -77,9 +79,12 @@ func _process(dt: float) -> void:
 			state = "idle"
 			target_id = ""
 			target_node = null
+		else:
+			_update_target_tracking()
 		return
 	holding = true
 	if latched:
+		_update_target_tracking()
 		return                       # keep showing the result until Q is let go
 	var hit := _best_target()
 	tape_info = _tape_under_crosshair() if hit.is_empty() and state != "lock" else {}
@@ -94,6 +99,8 @@ func _process(dt: float) -> void:
 			target_id = ""
 			target_node = null
 			progress = 0.0
+		elif state == "lock":
+			_update_target_tracking()
 	else:
 		lost_t = 0.0
 		if hit.id != target_id:
@@ -123,6 +130,31 @@ func _complete() -> void:
 	else:
 		state = "logged"
 		Archive.discover(target_id)  # -> entity_discovered -> the HUD toast and its chime
+
+## Keep target_pos and target_dist following the locked/scanned entity as it moves
+func _update_target_tracking() -> void:
+	if not is_instance_valid(target_node):
+		target_node = null
+		return
+	if not target_node.is_inside_tree():
+		return
+	if target_node.has_method("scan_points"):
+		var pts: Array = target_node.scan_points()
+		if not pts.is_empty():
+			var best_pt: Vector3 = pts[0]
+			if pts.size() > 1:
+				var best_d := target_pos.distance_squared_to(best_pt)
+				for i in range(1, pts.size()):
+					var p: Vector3 = pts[i]
+					var d := target_pos.distance_squared_to(p)
+					if d < best_d:
+						best_d = d
+						best_pt = p
+			target_pos = best_pt
+	elif target_node is Node3D:
+		target_pos = target_node.global_position
+	if player != null and player.cam != null:
+		target_dist = player.cam.global_position.distance_to(target_pos)
 
 ## The hazard tape strip the crosshair is on, within RANGE and in sight: {age (s), mine, by,
 ## length, dist}, or {}
@@ -170,6 +202,8 @@ func _best_target() -> Dictionary:
 		var id := str(n.get_meta("asra_id", ""))
 		if id == "":
 			continue
+		# entities read from anywhere in RANGE; a prop that has scan_range() only from up close
+		var lock_range: float = minf(RANGE, n.scan_range()) if n.has_method("scan_range") else RANGE
 		for p in n.scan_points():
 			var d: Vector3 = p - from
 			var dist := d.length()
@@ -181,7 +215,7 @@ func _best_target() -> Dictionary:
 				raw_signal = s
 				raw_dist = dist
 				raw_bearing = rad_to_deg(flat_fwd.angle_to(Vector2(d.x, d.z)))
-			if dot >= CONE_COS:
+			if dot >= CONE_COS and dist <= lock_range:
 				found.append([dot, id, p, dist, n])
 	if found.is_empty():
 		return {}

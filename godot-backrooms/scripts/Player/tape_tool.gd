@@ -44,8 +44,8 @@ var roll_left := TapePickup.ROLL_LENGTH
 var latched := false             # a press that found nothing to stick to: let go of T first
 var peeling := false
 var peel_full := 0.0             # m in the strip being peeled
-var state := "idle"              # idle / pull / placed / short / no_surface / no_tape / peel / peeled
-var result_t := 0.0              # s left showing placed / short / no_surface
+var state := "idle"              # idle / pull / placed / short / no_surface / no_tape / fixed / peel / peeled
+var result_t := 0.0              # s left showing placed / short / no_surface / fixed
 var result_len := 0.0            # m in the strip just placed
 var result_ry := 0               # Research Yield it filed for mapping new ground (0: none new)
 var _open_cells := -1            # the level's open cells (the survey's 100%), counted once
@@ -76,7 +76,7 @@ func _process(dt: float) -> void:
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors \
 		and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or cursor_aim)
-	var down := can and (Input.is_physical_key_pressed(KEY) or ui_down)
+	var down := can and (Input.is_action_pressed("tape") or ui_down)
 	if not down:
 		latched = false
 		if pulling:
@@ -107,6 +107,11 @@ func _start() -> void:
 		_result("no_surface", 0.0)
 		return
 	var on: Dictionary = TapeMarks.live.strip_at(hit.position, hit.normal)
+	if on.get("fixed", false):
+		latched = true
+		player.dead_click.emit()     # part of the level: it won't come off
+		_result("fixed", 0.0)
+		return
 	if not on.is_empty():
 		_begin_peel(on)
 		return

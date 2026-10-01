@@ -24,12 +24,14 @@ static var _mat: StandardMaterial3D
 
 var level_id := ""
 var meshes := {}
+var _undo: Array = []                # what was done, newest last: {op: add / del / clear, ...}
+var _redo: Array = []
 
 func _ready() -> void:
 	live = self
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		var list: Array = placed.get(lv, [])
 		for d in MarkStore.read(level_id).get("sketch", []):
@@ -50,8 +52,11 @@ func reload_floor() -> void:
 		if is_instance_valid(m):
 			m.queue_free()
 	meshes.clear()
+	_undo.clear()
+	_redo.clear()
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
-	if MarkStore.active() and not _loaded.has(lv):
+	if not _loaded.has(lv):
 		_loaded[lv] = true
 		var list: Array = placed.get(lv, [])
 		for d in MarkStore.read(level_id).get("sketch", []):
@@ -85,7 +90,7 @@ func add(pts: Array, n: Vector3, st: Dictionary) -> void:
 	_spawn(s)
 	if placed[key].size() > MAX_PER_LEVEL:
 		_drop_mesh(placed[key].pop_front().id)
-	save()
+	_done({"op": "add", "s": s})
 
 ## Rub out the stroke under the point `p` on a surface facing `n` (the newest where they cross)
 func remove_near(p: Vector3, n: Vector3) -> bool:
@@ -98,24 +103,75 @@ func remove_near(p: Vector3, n: Vector3) -> bool:
 			if (q as Vector3).distance_to(p) <= maxf(ERASE_RADIUS, float(s.w)):
 				list.remove_at(i)
 				_drop_mesh(s.id)
-				save()
+				_done({"op": "del", "s": s, "i": i})
 				return true
 	return false
 
-## Take the newest stroke back off
-func undo_last() -> bool:
-	var list: Array = placed.get(MarkStore.key(), [])
-	if list.is_empty():
+## Take back the last thing done (a line drawn, rubbed out or cleared)
+func undo() -> bool:
+	if _undo.is_empty():
 		return false
-	_drop_mesh(list.pop_back().id)
+	var op: Dictionary = _undo.pop_back()
+	_apply(op, true)
+	_redo.append(op)
+	save()
+	return true
+
+func redo() -> bool:
+	if _redo.is_empty():
+		return false
+	var op: Dictionary = _redo.pop_back()
+	_apply(op, false)
+	_undo.append(op)
 	save()
 	return true
 
 func clear_all() -> void:
-	for s in placed.get(MarkStore.key(), []):
+	var list: Array = placed.get(MarkStore.key(), [])
+	if list.is_empty():
+		return
+	_done({"op": "clear", "list": list.duplicate()})
+	for s in list:
 		_drop_mesh(s.id)
 	placed[MarkStore.key()] = []
+
+func _done(op: Dictionary) -> void:
+	_undo.append(op)
+	if _undo.size() > 200:
+		_undo.pop_front()
+	_redo.clear()
 	save()
+
+## Run `op` backwards (`back`) or forwards again
+func _apply(op: Dictionary, back: bool) -> void:
+	var key := MarkStore.key()
+	if not placed.has(key):
+		placed[key] = []
+	var list: Array = placed[key]
+	match op.op:
+		"add":
+			if back:
+				list.erase(op.s)
+				_drop_mesh(op.s.id)
+			else:
+				list.append(op.s)
+				_spawn(op.s)
+		"del":
+			if back:
+				list.insert(mini(int(op.i), list.size()), op.s)
+				_spawn(op.s)
+			else:
+				list.erase(op.s)
+				_drop_mesh(op.s.id)
+		"clear":
+			if back:
+				for s in op.list:
+					list.append(s)
+					_spawn(s)
+			else:
+				for s in op.list:
+					_drop_mesh(s.id)
+				list.clear()
 
 func _drop_mesh(id: String) -> void:
 	if meshes.has(id):
@@ -124,6 +180,7 @@ func _drop_mesh(id: String) -> void:
 
 ## Write this floor's strokes to disk; false if the file could not be written
 func save() -> bool:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var out: Array = []
 	for s in placed.get(MarkStore.key(), []):
 		var pts: Array = []

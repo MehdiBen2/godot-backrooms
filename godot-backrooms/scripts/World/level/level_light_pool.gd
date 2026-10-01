@@ -30,6 +30,9 @@ const FAR_FADE := 36.0
 # the fixture's own cell instead of bleeding over a nearby wall onto a corridor the fixture isn't even in.
 const CEIL_GLOW := 0.5              # of the slot's energy, tube fixtures (the ceiling round a troffer is well lit)
 const CEIL_GLOW_PANEL := 0.2        # panel ceilings: the panels themselves already light up the tiles round them
+# a little specular from the glow: the painted T-bars catch a glinting line of it, like a real grid under a
+# troffer. Kept low: the tiles themselves are rough, but at full strength their broad sheen became a hotspot.
+const CEIL_GLOW_SPECULAR := 0.35
 const CEIL_GLOW_DROP := 1.6         # metres under the fixture: further down = wider, softer halo
 const CEIL_GLOW_RANGE := 3.5
 const BOUNCE_RADIUS := 7.0
@@ -105,7 +108,7 @@ func _build_light_pool() -> void:
 		l.shadow_normal_bias = 1.2
 		l.shadow_blur = 1.6
 		l.visible = false
-		l.light_cull_mask &= ~CEIL_LAYER     # the ceiling gets its glow from ceil_glow instead (no hotspot)
+		l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)     # the ceiling gets its glow from ceil_glow instead (no hotspot)
 		l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 		add_child(l)
 		pool.append(l)
@@ -124,7 +127,7 @@ func _build_light_pool() -> void:
 		g.omni_range = CEIL_GLOW_RANGE
 		g.omni_attenuation = 1.6
 		g.light_cull_mask = CEIL_LAYER
-		g.light_specular = 0.0
+		g.light_specular = CEIL_GLOW_SPECULAR
 		g.shadow_enabled = false
 		g.visible = false
 		g.set_meta("gfx_managed", true)
@@ -136,7 +139,7 @@ func _build_light_pool() -> void:
 		fl.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
 		fl.omni_attenuation = 1.4
 		fl.shadow_enabled = false
-		fl.light_cull_mask &= ~CEIL_LAYER
+		fl.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)
 		fl.light_energy = 0.0
 		fl.visible = false
 		fl.set_meta("gfx_managed", true)
@@ -186,6 +189,8 @@ func _rank(p: Vector3) -> void:
 
 ## Where the player can see from: their spot and half a cell to each open side (slack round corners)
 func _eyes(p: Vector3) -> Array:
+	# inside a stairwell: its walls shut every tube out, and a shadowless one would shine straight through them
+	if stair_cells.has(cell_of(p)): return []
 	var out: Array = [p]
 	for o in [Vector3(CELL * 0.5, 0.0, 0.0), Vector3(-CELL * 0.5, 0.0, 0.0), Vector3(0.0, 0.0, CELL * 0.5), Vector3(0.0, 0.0, -CELL * 0.5)]:
 		var q: Vector3 = p + o
@@ -235,6 +240,7 @@ func _update_pool(delta: float) -> void:
 			if f == null: continue
 			slot_target[i] = 1.0 if f.wanted else 0.0
 			if slot_target[i] == 0.0 and slot_weight[i] < 0.02:
+				_glow_real(f, "rw_slot", 0.0)
 				f.slot = -1
 				slot_fixture[i] = null
 		for f in _candidates:
@@ -269,6 +275,7 @@ func _update_pool(delta: float) -> void:
 		var cast: float = 0.0 if f.black > 0.0 else f.level      # a dead tube keeps a faint ember but lights nothing
 		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
+		_glow_real(f, "rw_slot", slot_weight[i] * dist_fade * slot_on[i])     # the fake floor light gives way to this one
 		var g := ceil_glow[i]
 		# the halo only reads as "coming from this fixture" while its real ceiling is close enough
 		# to reach (a hanging fixture under a tall atrium ceiling is metres short of that: skip it
@@ -300,12 +307,28 @@ func _update_pool(delta: float) -> void:
 		lb.light_energy = energy * share
 	_update_far(k)
 
+## Every light the pool would fade in over the next half second, lit now: a floor that takes over under a
+## player who is already looking at it (level_builder.gd, falling through a hole) must not start dark
+func prime_pool() -> void:
+	if player == null or pool.is_empty(): return
+	_rank_timer = 0.0
+	_update_pool(0.0)
+	for i in POOL_SIZE:
+		if slot_fixture[i] == null: continue
+		slot_weight[i] = slot_target[i]
+		slot_on[i] = 1.0 if slot_want[i] else 0.0
+	for i in FAR_MAX:
+		var f = far_fixture[i]
+		if f != null: far_weight[i] = 1.0 if f.far_wanted else 0.0
+	_update_pool(0.0)
+
 # Far lights keep their tube while it stays wanted (no jumping about), fade out when it isn't, and a
 # freed light fades in on the next tube out, so moving through the level never pops.
 func _assign_far() -> void:
 	for i in FAR_MAX:
 		var f = far_fixture[i]
 		if f != null and not f.far_wanted and far_weight[i] < 0.02:
+			_glow_real(f, "rw_far", 0.0)
 			f.far = -1
 			far_fixture[i] = null
 	for f in _far_candidates:
@@ -327,7 +350,9 @@ func _update_far(k: float) -> void:
 			continue
 		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * (1.0 - t * t * (3.0 - 2.0 * t))
+		var far_fade := 1.0 - t * t * (3.0 - 2.0 * t)
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * far_fade
+		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
 		fl.global_position = f.light_pos
 		fl.light_energy = energy
@@ -335,6 +360,9 @@ func _update_far(k: float) -> void:
 # ------------------------------------------------------- atmosphere (lighting.js)
 # How much working tube light reaches a point (0..1): the web game's bounce estimate
 func tube_light_at(p: Vector3) -> float:
+	if stair_cells.has(cell_of(p)):          # a stairwell is lit by its own lamps
+		for s in stairwells:
+			if s.holds(p): return s.light_at(p)
 	var sum := 0.0
 	for i in POOL_SIZE:
 		var f = slot_fixture[i]

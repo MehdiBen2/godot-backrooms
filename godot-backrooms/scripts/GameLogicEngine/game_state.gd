@@ -62,14 +62,18 @@ var dev_keys := OS.is_debug_build() or OS.get_cmdline_user_args().has("--dev") o
 # Level-editor test launch: --test-level=<id from levels.json> boots straight into that level (skipping
 # the title screen) and --noclip lets you fly through walls to look around.
 var test_level := _launch_arg("--test-level=")
+## True for the whole run when launched from the level editor (test_level itself is cleared once the level opens)
+var editor_test := test_level != ""
 var test_spawn := _launch_arg("--test-spawn=")     # "x,z" cell: the editor's TEST HERE
-# Which floor of the level you are on (0 = the ground floor; the .lvl's "floors" hold the others) and, after
-# taking the stairs, the stairs you took: {x, y, kind} where kind is the stairs type to arrive beside
+# Which floor of the level you are on (0 = the ground floor; the .lvl's "floors" hold the others) and how you
+# got there: {x, y, kind, lift}, the cell you left by and "stairs" (lift: how far the stairwell moved round
+# you, in metres) or "drop_hole"
 var level_floor := int(_launch_arg("--test-floor="))
 var floor_link := {}
 # The draw tools panel (draw_ui.gd) is open: the player flies like noclip and can move with the cursor free
 var draw_mode := false
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
+var freefall := false          # falling down a bottomless pit (pit_fall.gd): the level stands still meanwhile
 var god_mode := false
 var fullbright := false
 var infinite_stamina := false
@@ -263,11 +267,16 @@ func change_level(idx: int) -> void:
 		return
 	Death.respawn_transition(restart)
 
-## Take the stairs: the same level, floor `f`, arriving beside that floor's `arrive_kind` stairs nearest `from`
-## (cells). Seamlessly rebuilt in-place with zero loading screen.
-func change_floor(f: int, from: Vector2, arrive_kind: String) -> void:
+## Floor `f` of the same level, rebuilt in place with no loading screen. `kind` "stairs": you are walking a
+## stairwell at cell `from` (props/stairs.gd) and stay where you stand in it, `lift` metres up or down as the
+## well moves round you. "fall": you dropped through a hole in the floor at `from` into the floor below and
+## keep falling where you are, `lift` metres up in its terms. "drop_hole": you fell down a pit with nothing
+## to be seen under it, and land on the nearest open cell.
+func change_floor(f: int, from: Vector2, kind: String, lift := 0.0) -> void:
+	if level != null and level.get("rebuilding") == true:
+		return                       # the last floor change is still being built
 	level_floor = f
-	floor_link = {"x": from.x, "y": from.y, "kind": arrive_kind}
+	floor_link = {"x": from.x, "y": from.y, "kind": kind, "lift": lift}
 	if level != null and level.has_method("rebuild_floor_seamless"):
 		level.rebuild_floor_seamless(f, floor_link)
 		return

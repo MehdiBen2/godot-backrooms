@@ -14,7 +14,8 @@ const WALL_H := 5.4
 const TALL_H := 10.8
 const LOW_H := 2.3
 const PIT_DEPTH := 14.0
-const SEE_OVER_H := 1.8   # a wall object lower than this (its "height") is seen over: it blocks feet, not eyes
+const STOREY_H := 9.0     # floor to floor (props/stairs.gd STOREY): the room, and the slab up to the next floor
+const SEE_OVER_H := 1.8  # a wall object lower than this (its "height") is seen over: it blocks feet, not eyes
 
 @export var level_index := 0
 
@@ -35,6 +36,19 @@ var pits := {}
 var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
 var carved := {}      # Vector2i -> true: a wall cell an object stands in, so no solid block is built there
 var arch_cells := {}  # Vector2i -> true: a cell with an arch square in it (walkable, but full of arch mass)
+## Vector2i -> true: a cell a stairwell stands in (props/stairs.gd builds everything in it, floor to ceiling).
+## A wall to the grid: nothing paths through it, no tube hangs over it, no light is seen across it.
+var stair_cells := {}
+var level_raw := {}   # the whole .lvl (every floor), for what the stairs join on the floors above and below
+## The floors of a level stand STOREY_H apart, and the ones round the floor you are on are built too, to be
+## looked at (level_builder.gd, level_shell.gd). A pit over a cell of the floor below that is not a wall is a
+## hole right through the slab: you see that floor through it, and fall into it.
+var floor_no := 0
+var shell := false        # a look-only copy of a floor: nothing to walk on, bump into or set off
+var through := {}         # Vector2i -> true: this floor's pits that open into the floor below
+var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
+var crop := {}            # Vector2i -> true: a shell builds only these cells (empty: all of them)
+var hole_box := Rect2i()  # the cells round all of this floor's holes, up and down (no size: it has none)
 var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
@@ -53,6 +67,20 @@ var flicker := {}
 var mannequin := {}   # cells where the mannequin room stands (painted in the level editor)
 var classic := {}     # the super-bright classic backrooms look: steady dense tubes, clear air, glowing yellow
 var liminal := {}     # the liminal look: every tube steady and humming, pale air you can see a long way down
+var safe := {}        # no entity sets foot here: solid to their paths and their bodies (grid_nav.gd), not to their eyes
+var drain := {}       # sanity runs out while you stand here, whatever the light (player.gd)
+var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
+var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
+var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
+var endless_ceiling := {}      # no ceiling and a shaft up that never ends: the Endless zone (endless_shaft.gd)
+var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
+## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
+## treats them as pits, holes_below). On the top floor there is only the dark above.
+var open_ceiling := {}
+var holes_below := {} # Vector2i -> true: cells the floor below has an open ceiling under, so pits here
+var shaft_up := {}    # Vector2i -> true: open-ceiling cells with no room above to see into: a shaft up into the dark
+var shaft_floors := 0 # how many floors above this one that shaft rises through (they are solid wall there)
+var shaft_pass := {}  # Vector2i -> true: wall cells of this floor a shaft from a floor below rises through
 var fired_triggers := {}   # event triggers already spent this run (props/event_trigger.gd), across floor changes
 var spawn_pos := Vector3.ZERO
 var spawn_yaw := 0.0          # set with has_spawn_yaw when you arrive by the stairs
@@ -111,6 +139,8 @@ static func load_object(o: Dictionary) -> Dictionary:
 		match typeof(params[k]):
 			TYPE_BOOL: out[k] = bool(v)
 			TYPE_FLOAT, TYPE_INT: out[k] = float(v)
+			TYPE_ARRAY: out[k] = v if v is Array else params[k]
+			TYPE_DICTIONARY: out[k] = v if v is Dictionary else params[k]
 			_: out[k] = str(v)
 	return out
 
@@ -134,6 +164,47 @@ static func shape_path(o: Dictionary) -> PackedVector2Array:
 				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * s * 0.5)
 			return pts
 	return PackedVector2Array()
+
+## Stairs ("stairs_up" / "stairs_down", the same stairwell either way: the type only says which floor the
+## level editor made its other end on). A stairwell stands square on the grid: STAIR_CELLS cells from its own
+## along its arrow by STAIR_WIDE across (its own row, where its doorway is, and the one to the left of the
+## arrow). It joins this floor to the next one up / down wherever that floor has a stairwell on the very same
+## cells (stair_partner).
+const STAIR_CELLS := 3
+const STAIR_WIDE := 2
+
+static func is_stairs(type: String) -> bool:
+	return type == "stairs_up" or type == "stairs_down"
+
+## The way a stairwell runs on the map: its arrow, squared to the grid
+static func stair_dir(o: Dictionary) -> Vector2i:
+	return Vector2i(Vector2.from_angle(deg_to_rad(float(o.rotation))).round())
+
+static func stair_footprint(o: Dictionary) -> Array[Vector2i]:
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var dir := stair_dir(o)
+	var left := Vector2i(dir.y, -dir.x)
+	var out: Array[Vector2i] = []
+	for i in STAIR_CELLS:
+		for j in STAIR_WIDE: out.append(c + dir * i + left * j)
+	return out
+
+## Does floor `f` exist in this .lvl? (floor_data() hands back the ground floor for one that doesn't)
+static func has_floor(d: Dictionary, f: int) -> bool:
+	return f == 0 or d.get("floors", {}).get(str(f)) is Dictionary
+
+## The stairwell on floor `f` standing on the same cells as `o`, the same way round ({} when there is none):
+## the other end of `o`, one floor up or down
+static func stair_partner(d: Dictionary, f: int, o: Dictionary) -> Dictionary:
+	if not has_floor(d, f): return {}
+	var objs = floor_data(d, f).get("objects")
+	if not (objs is Array): return {}
+	for other in objs:
+		if other is Dictionary and is_stairs(str(other.get("type", ""))):
+			var p := load_object(other)
+			if roundi(p.pos_x) == roundi(o.pos_x) and roundi(p.pos_y) == roundi(o.pos_y) and stair_dir(p) == stair_dir(o):
+				return p
+	return {}
 
 ## A wall object's thickness in metres: its own, else its type's
 static func object_thick(o: Dictionary) -> float:
@@ -178,8 +249,143 @@ func load_current() -> void:
 	Game.level_count = levels.size()
 	level_index = clampi(Game.level_index, 0, levels.size() - 1)
 	level_meta = levels[level_index]
-	level_data = floor_data(read_level(level_meta), Game.level_floor)
+	load_floor(Game.level_floor)
+
+## An "endless" level (the .lvl's "endless", a tick box in the level editor) goes on past its last floors: every
+## floor under the lowest is the lowest over again, every floor over the highest the highest. A shaft through
+## the lowest floor then has no bottom to be seen, and none to reach. Stairs still end where the file does.
+static func endless(d: Dictionary) -> bool:
+	return bool(d.get("endless", false))
+
+## The floor of the file that floor `f` is: itself, or past either end of an endless level the last one that way
+static func floor_src(d: Dictionary, f: int) -> int:
+	if has_floor(d, f) or not endless(d): return f
+	var lo := 0
+	var hi := 0
+	for k in d.get("floors", {}):
+		if d["floors"][k] is Dictionary:
+			lo = mini(lo, int(k))
+			hi = maxi(hi, int(k))
+	return clampi(f, lo, hi)
+
+## Is there a floor `f`, in the file or as one of an endless level's repeats?
+static func in_stack(d: Dictionary, f: int) -> bool:
+	return has_floor(d, f) or endless(d)
+
+## The cells floor `f` has zone `zone` painted on (its open cells: a zone on a wall counts for nothing)
+static func zone_cells(d: Dictionary, f: int, zone: String) -> Dictionary:
+	var out := {}
+	if not in_stack(d, f): return out
+	var fd := floor_data(d, floor_src(d, f))
+	var grid: Array = fd["grid"]
+	var zones = fd.get("zones")
+	if not (zones is Dictionary): return out
+	var n := int(d["size"])
+	for c in zones.get(zone, []):
+		var v := Vector2i(c[0], c[1])
+		if v.x < 1 or v.y < 1 or v.x >= n - 1 or v.y >= n - 1 or v.y >= grid.size(): continue
+		var row: String = grid[v.y]
+		if v.x < row.length() and row[v.x] != "#": out[v] = true
+	return out
+
+## Floor `f`'s pits that open into the floor below: the cell under them is not a wall there
+static func through_cells(d: Dictionary, f: int) -> Dictionary:
+	var out := {}
+	if not (in_stack(d, f) and in_stack(d, f - 1)): return out
+	var grid: Array = floor_data(d, floor_src(d, f))["grid"]
+	var under: Array = floor_data(d, floor_src(d, f - 1))["grid"]
+	var n := int(d["size"])
+	for z in range(1, mini(n - 1, mini(grid.size(), under.size()))):
+		var row: String = grid[z]
+		if row.find("O") == -1: continue
+		var low: String = under[z]
+		for x in range(1, mini(n - 1, mini(row.length(), low.length()))):
+			if row[x] == "O" and low[x] != "#": out[Vector2i(x, z)] = true
+	# an open ceiling on the floor below is a hole in this floor too, wherever this floor is not wall
+	for c: Vector2i in zone_cells(d, f - 1, "open_ceiling"):
+		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
+	# a pit painted Abyss has no bottom, whatever is under it (pit_fall.gd): the floor below keeps its ceiling
+	for c: Vector2i in zone_cells(d, f, "abyss"): out.erase(c)
+	if out.is_empty(): return out
+	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
+	for g: int in [f, f - 1]:
+		var objs = floor_data(d, floor_src(d, g)).get("objects")
+		if not (objs is Array): continue
+		for o in objs:
+			if o is Dictionary and is_stairs(str(o.get("type", ""))):
+				for c in stair_footprint(load_object(o)): out.erase(c)
+	return out
+
+## Floor `f`'s open-ceiling cells with no room over them to look up into (the cell above is wall, or there
+## is no floor above): a shaft rises from them instead (level_geometry.gd)
+static func blind_cells(d: Dictionary, f: int) -> Dictionary:
+	var out := zone_cells(d, f, "open_ceiling")
+	if out.is_empty(): return out
+	for c: Vector2i in through_cells(d, f + 1): out.erase(c)
+	return out
+
+## How many of the floors above floor `f` that shaft rises through, SHAFT_FLOORS at most: the floors where each
+## of its cells is wall with wall on all four sides. Nothing of such a floor is built there, so nothing of it
+## is cut into; it only leaves the ceiling off over those cells (shaft_pass).
+const SHAFT_FLOORS := 4
+static func shaft_rise(d: Dictionary, f: int) -> int:
+	var cells := blind_cells(d, f)
+	if cells.is_empty(): return 0
+	var n := 0
+	while n < SHAFT_FLOORS and in_stack(d, f + n + 1):
+		var grid: Array = floor_data(d, floor_src(d, f + n + 1))["grid"]
+		for c: Vector2i in cells:
+			for o: Vector2i in [Vector2i.ZERO, Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q := c + o
+				if q.y < 0 or q.y >= grid.size() or q.x < 0 or q.x >= (grid[q.y] as String).length(): continue
+				if grid[q.y][q.x] != "#": return n
+		n += 1
+	return n
+
+## Read floor `f` of the current level into the grid (which must be empty): off the disk, or out of `raw`,
+## the whole .lvl already read
+func load_floor(f: int, raw := {}) -> void:
+	level_raw = raw if not raw.is_empty() else read_level(level_meta)
+	level_data = floor_data(level_raw, floor_src(level_raw, f))
+	floor_no = f
+	holes_below = zone_cells(level_raw, f - 1, "open_ceiling")
 	_parse(level_data)
+	# a stairwell, or a wall object square on the cell, takes the cell over on this floor
+	through = through_cells(level_raw, f)
+	open_above = through_cells(level_raw, f + 1)
+	shaft_up.clear()
+	for c: Vector2i in endless_ceiling.keys():                           # no ceiling here, and no floor above takes it over
+		open_above[c] = true
+	for c: Vector2i in open_ceiling:                             # no ceiling, whether or not there is a floor above to see
+		if not open_above.has(c): shaft_up[c] = true
+		open_above[c] = true
+	# the bottomless pits: the ones painted so, and on a floor with nothing under it every pit (it used to
+	# fall through a black floor and put you back at the spawn point)
+	for c: Vector2i in abyss.keys():
+		if not pits.has(c): abyss.erase(c)
+	if not in_stack(level_raw, f - 1):
+		for c: Vector2i in pits:
+			if not through.has(c): abyss[c] = true
+	shaft_floors = 0 if shaft_up.is_empty() else shaft_rise(level_raw, f)
+	shaft_pass.clear()
+	for k in range(1, SHAFT_FLOORS + 1):                         # the shafts of the floors below that reach this one
+		if shaft_rise(level_raw, f - k) >= k:
+			for c: Vector2i in blind_cells(level_raw, f - k): shaft_pass[c] = true
+	for c: Vector2i in endless_ceiling.keys():
+		if walls.has(c): endless_ceiling.erase(c)
+	hole_box = Rect2i()
+	for holes: Dictionary in [through, open_above]:
+		for c: Vector2i in holes.keys():
+			if walls.has(c): holes.erase(c)
+			else: hole_box = Rect2i(c, Vector2i.ONE) if hole_box.size == Vector2i.ZERO else hole_box.merge(Rect2i(c, Vector2i.ONE))
+
+## Has the player, at `p`, dropped through one of this floor's holes into the slab under it?
+func fell_through(p: Vector3) -> bool:
+	return p.y < -FALL_SWAP and through.has(cell_of(p))
+
+## How far under the floor your feet are when the floor below takes over: your eyes are inside the slab by
+## then, with nothing of the room you left in view but what shows up the hole
+const FALL_SWAP := 2.2
 
 func _parse(d: Dictionary) -> void:
 	size = int(d["size"])
@@ -200,6 +406,8 @@ func _parse(d: Dictionary) -> void:
 				legacy[v] = "thin_wall" if ch == "T" else "door"
 			elif ch == "A":
 				legacy[v] = "arch"
+	for v: Vector2i in holes_below:                  # the floor below has no ceiling here: a hole in this floor
+		if not walls.has(v): pits[v] = true
 	# old tiles become objects facing whichever way the corridor runs (needs the full wall set first)
 	for v: Vector2i in legacy:
 		objects.append(load_object({"type": legacy[v], "pos_x": float(v.x), "pos_y": float(v.y), "rotation": 90.0 * open_axis(v)}))
@@ -218,7 +426,18 @@ func _parse(d: Dictionary) -> void:
 		var half_t := object_thick(o) * 0.5
 		var low := seen_over(o)
 		var shape := str(info.get("shape", ""))
-		if shape == "pillar" or shape == "column":
+		if is_stairs(o.type):
+			# square on the grid whatever the file says; its cells are the stairwell's, not floor or pit
+			o.pos_x = float(c.x)
+			o.pos_y = float(c.y)
+			o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
+			o.scale = 1.0
+			for sc in stair_footprint(o):
+				if sc.x > 0 and sc.y > 0 and sc.x < size - 1 and sc.y < size - 1:
+					walls[sc] = true
+					pits.erase(sc)
+					stair_cells[sc] = true
+		elif shape == "pillar" or shape == "column":
 			var at := Vector2(o.pos_x, o.pos_y)
 			wall_segments.append([at, at, half_t * (1.2 if shape == "pillar" else 1.0), true])
 			if centred and inside: pillar_cells[c] = true
@@ -233,7 +452,8 @@ func _parse(d: Dictionary) -> void:
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin"]:
+	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
+			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss", "endless_ceiling"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
@@ -255,24 +475,27 @@ func _parse(d: Dictionary) -> void:
 		var f := Vector2.from_angle(deg_to_rad(float(d.spawn_rot)))
 		spawn_yaw = atan2(-f.x, -f.y)
 		has_spawn_yaw = true
-	_arrive_by_stairs()
-	var at := Game.test_spawn.split(",")           # level editor "test from here": start on the cell it picked
-	if at.size() == 2 and not walls.has(Vector2i(int(at[0]), int(at[1]))):
-		spawn_pos = Vector3(int(at[0]) * CELL, 0.1, int(at[1]) * CELL)
+	if not shell:
+		_arrive_by_stairs()
+		var at := Game.test_spawn.split(",")           # level editor "test from here": start on the cell it picked
+		if at.size() == 2 and not walls.has(Vector2i(int(at[0]), int(at[1]))):
+			spawn_pos = Vector3(int(at[0]) * CELL, 0.1, int(at[1]) * CELL)
 	level_name = str(level_meta.get("name", "LEVEL 0"))
 
-## Arriving by the stairs (Game.floor_link): stand one cell back from the matching stairs on this floor
-## (the one nearest where you left), facing away from them. No match: the nearest open cell to that spot.
+## Arriving by the stairs (Game.floor_link): where a respawn on this floor puts you, one cell out from the
+## door of the stairwell you came by (the one nearest where you left), facing away from it. No stairs here:
+## the nearest open cell to that spot. (Walking the stairs themselves never moves you: level_builder.gd
+## rebuild_floor_seamless keeps you where you stand.)
 func _arrive_by_stairs() -> void:
 	if Game.floor_link.is_empty(): return
 	var from := Vector2(Game.floor_link.x, Game.floor_link.y)
-	if Game.floor_link.get("kind", "") == "drop_hole":
+	if Game.floor_link.get("kind", "") in ["drop_hole", "fall"]:
 		var ch := _nearest_open(Vector2i(roundi(from.x), roundi(from.y)))
 		spawn_pos = Vector3(ch.x * CELL, 0.1, ch.y * CELL)
 		return
 	var best: Dictionary = {}
 	for o: Dictionary in objects:
-		if o.type == Game.floor_link.kind and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):
+		if is_stairs(o.type) and (best.is_empty() or Vector2(o.pos_x, o.pos_y).distance_to(from) < Vector2(best.pos_x, best.pos_y).distance_to(from)):
 			best = o
 	var target := from
 	var face := Vector2.ZERO
@@ -357,12 +580,12 @@ func step_mask() -> PackedByteArray:
 	for x in size:
 		for z in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c): continue
+			if walls.has(c) or pits.has(c) or safe.has(c): continue          # (a Safe zone: no entity's path crosses it)
 			var bits := 0
 			for i in 4:
 				var nb: Vector2i = c + dirs[i]
 				if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size: continue
-				if walls.has(nb) or pits.has(nb) or edge_blocked(c, nb): continue
+				if walls.has(nb) or pits.has(nb) or safe.has(nb) or edge_blocked(c, nb): continue
 				bits |= 1 << i
 			m[x * size + z] = bits
 	_step_mask = m

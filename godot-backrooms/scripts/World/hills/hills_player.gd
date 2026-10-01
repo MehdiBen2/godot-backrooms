@@ -37,16 +37,21 @@ func _unhandled_input(e: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _physics_process(dt: float) -> void:
+	var move_right := Input.is_action_pressed("move_right")
+	var move_left := Input.is_action_pressed("move_left")
+	var move_down := Input.is_action_pressed("move_backward")
+	var move_up := Input.is_action_pressed("move_forward")
 	var dir := Vector2(
-		float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A)),
-		float(Input.is_physical_key_pressed(KEY_S)) - float(Input.is_physical_key_pressed(KEY_W)))
-	var speed := SPRINT if Input.is_physical_key_pressed(KEY_SHIFT) else WALK
+		float(move_right) - float(move_left),
+		float(move_down) - float(move_up))
+	var sprint := Input.is_action_pressed("sprint")
+	var speed := SPRINT if sprint else WALK
 	var wish := (global_transform.basis * Vector3(dir.x, 0.0, dir.y)).normalized() * speed
 	var accel := 14.0 if is_on_floor() else 3.0
 	velocity.x = move_toward(velocity.x, wish.x, accel * dt * speed)
 	velocity.z = move_toward(velocity.z, wish.z, accel * dt * speed)
 	if is_on_floor():
-		if Input.is_physical_key_pressed(KEY_SPACE):
+		if Input.is_action_pressed("jump"):
 			velocity.y = JUMP
 	else:
 		velocity.y -= 12.0 * dt

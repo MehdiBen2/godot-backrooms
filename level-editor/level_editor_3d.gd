@@ -3,7 +3,6 @@ extends SubViewportContainer
 ## materials, zones and objects at a glance. It is rebuilt from the editor's data (grid, zones, paint,
 ## objects) whenever something changes while it is open; nothing here is saved.
 ##   right drag orbit   middle drag / Shift+right drag pan   wheel zoom   WASD pan   C toggles the ceiling
-## Movement keys go by position, not letter: the WASD spot on a QWERTY keyboard is ZQSD on AZERTY.
 ## 1 cell = 1 unit; the game's cell is 4.5 m and its wall 2.7 m, hence WALL_H.
 
 const WALL_H := 0.6
@@ -44,11 +43,6 @@ func _init(editor) -> void:
 	vp = SubViewport.new()
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
-	# redraw every frame while open, never while closed: "when visible" can miss that it is on screen (the
-	# editor's embedded Game tab), leaving a frozen picture
-	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	visibility_changed.connect(func():
-		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if is_visible_in_tree() else SubViewport.UPDATE_DISABLED)
 	add_child(vp)
 	world = Node3D.new()
 	vp.add_child(world)
@@ -81,7 +75,7 @@ func _init(editor) -> void:
 	hud.add_theme_constant_override("shadow_offset_x", 2)
 	hud.add_theme_constant_override("shadow_offset_y", 2)
 	hud.add_theme_color_override("font_color", Color("cdb86a"))
-	hud.text = HUD_ORBIT % _move_keys()
+	hud.text = HUD_ORBIT
 	add_child(hud)
 	ceiling_check = CheckBox.new()
 	ceiling_check.text = "Ceiling"
@@ -90,16 +84,8 @@ func _init(editor) -> void:
 	add_child(ceiling_check)
 	_place_camera()
 
-const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   %s move   E walk"
-const HUD_WALK := "WALKING   %s walk   Shift run   right drag / arrows look   E back to overview"
-
-## The movement keys as printed on this keyboard ("WASD" on QWERTY, "ZQSD" on AZERTY)
-func _move_keys() -> String:
-	var out := ""
-	for k in [KEY_W, KEY_A, KEY_S, KEY_D]:
-		var lbl := DisplayServer.keyboard_get_label_from_physical(k)
-		out += OS.get_keycode_string(lbl if lbl != KEY_NONE else k)
-	return out
+const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   ZQSD move   E walk"
+const HUD_WALK := "WALKING   ZQSD walk   Shift run   right drag / arrows look   E back to overview"
 
 ## Walk mode on / off: start from the spawn marker (else the middle of the view), heights at true scale
 func toggle_walk() -> void:
@@ -107,7 +93,7 @@ func toggle_walk() -> void:
 	vscale = 2.0 if walking else 1.0
 	walk_light.visible = walking
 	cam.near = 0.01 if walking else 0.05
-	hud.text = (HUD_WALK if walking else HUD_ORBIT) % _move_keys()
+	hud.text = HUD_WALK if walking else HUD_ORBIT
 	if walking:
 		var sp = ed.markers.get("spawn")
 		var c: Vector2i = sp if sp != null else Vector2i(roundi(target.x), roundi(target.z))
@@ -157,19 +143,24 @@ func _process(dt: float) -> void:
 		if _delay <= 0.0:
 			stale = false
 			_rebuild()
+	var move_left := Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_Q)
+	var move_right := Input.is_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_D)
+	var move_fwd := Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_Z)
+	var move_back := Input.is_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_S)
+
 	var dir := Vector2.ZERO
 	if has_focus() or get_global_rect().has_point(get_global_mouse_position()):
 		dir = Input.get_vector("ui_left", "ui_right", "ui_up", "ui_down")
-		if Input.is_physical_key_pressed(KEY_A): dir.x -= 1.0
-		if Input.is_physical_key_pressed(KEY_D): dir.x += 1.0
-		if Input.is_physical_key_pressed(KEY_W): dir.y -= 1.0
-		if Input.is_physical_key_pressed(KEY_S): dir.y += 1.0
+		if move_left: dir.x -= 1.0
+		if move_right: dir.x += 1.0
+		if move_fwd: dir.y -= 1.0
+		if move_back: dir.y += 1.0
 	if walking:
 		if Input.is_key_pressed(KEY_LEFT): yaw += 1.8 * dt
 		if Input.is_key_pressed(KEY_RIGHT): yaw -= 1.8 * dt
 		var ahead := -dir.y if not (Input.is_key_pressed(KEY_UP) or Input.is_key_pressed(KEY_DOWN)) else \
-			(1.0 if Input.is_physical_key_pressed(KEY_W) else (-1.0 if Input.is_physical_key_pressed(KEY_S) else 0.0))
-		var side := (1.0 if Input.is_physical_key_pressed(KEY_D) else 0.0) - (1.0 if Input.is_physical_key_pressed(KEY_A) else 0.0)
+			(1.0 if move_fwd else (-1.0 if move_back else 0.0))
+		var side := (1.0 if move_right else 0.0) - (1.0 if move_left else 0.0)
 		var f := Vector2(-sin(yaw), -cos(yaw))
 		var r := Vector2(cos(yaw), -sin(yaw))
 		var step := (f * ahead + r * side).limit_length(1.0) * WALK_SPEED * (2.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0) * dt
@@ -363,12 +354,39 @@ func _object(o: Dictionary, unit: Mesh) -> void:
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
 		"stairs_up", "stairs_down":
-			var rise := 0.35 * vscale * (1.0 if o.type == "stairs_up" else -1.0)       # 3 m in cell units, about
-			var steps := 8
-			for i in steps:
-				var top := rise * (i + 1) / steps
-				var base := 0.0 if rise > 0 else rise
-				parts.append([Vector3(-0.5 + (i + 0.5) / steps, (top + base) * 0.5, 0), Vector3(1.0 / steps, absf(top - base) + 0.01, span), _flat(col)])
+			# the stairwell's box (sizes in cells, as props/stairs.gd builds it) with a flight in each lane it has
+			var skin := 0.03
+			var wide: float = ed.STAIR_WIDE
+			var z0 := 0.5 - wide                         # across: its own row and the one to the left
+			var x1: float = ed.STAIR_CELLS - 0.5
+			var zm := z0 + wide * 0.5
+			var lane := 3.8 / 4.5
+			var door_z := zm + (0.5 + 1.9) / 4.5
+			var door_w := 2.2 / 4.5
+			var door_h := h * 2.8 / 5.4
+			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, z0 + skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
+			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, 0.5 - skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
+			parts.append([Vector3(x1 - skin, h * 0.5, zm), Vector3(skin * 2.0, h, wide), wall_mat])
+			var left_w := door_z - door_w * 0.5 - z0
+			var right_w := 0.5 - (door_z + door_w * 0.5)
+			parts.append([Vector3(-0.5 + skin, h * 0.5, z0 + left_w * 0.5), Vector3(skin * 2.0, h, left_w), wall_mat])
+			parts.append([Vector3(-0.5 + skin, h * 0.5, 0.5 - right_w * 0.5), Vector3(skin * 2.0, h, right_w), wall_mat])
+			parts.append([Vector3(-0.5 + skin, (h + door_h) * 0.5, door_z), Vector3(skin * 2.0, h - door_h, door_w), wall_mat])
+			var xa := -0.5 + 3.2 / 4.5
+			var xb := x1 - 3.2 / 4.5
+			parts.append([Vector3((xa + xb) * 0.5, h * 0.5, zm), Vector3(xb - xa, h, 1.0 / 4.5), wall_mat])       # the wall between the lanes
+			var steps := 10
+			for side: Array in [[1.0, ed._stair_linked(o, ed.floor_idx, 1)], [-1.0, ed._stair_linked(o, ed.floor_idx, -1)]]:
+				var zc: float = zm + side[0] * (0.5 + 1.9) / 4.5
+				if not side[1]:                           # no floor that way: the lane is walled off
+					parts.append([Vector3(xa + skin, h * 0.5, zc), Vector3(skin * 2.0, h, lane), wall_mat])
+					continue
+				for i in steps:
+					var top: float = h * 0.8 * (i + 1) / steps
+					if side[0] > 0.0:
+						parts.append([Vector3(xa + (xb - xa) * (i + 0.5) / steps, top * 0.5, zc), Vector3((xb - xa) / steps, top, lane), _flat(col)])
+					else:                                 # going down: steps sinking away under a dark slab
+						parts.append([Vector3(xa + (xb - xa) * (i + 0.5) / steps, 0.02, zc), Vector3((xb - xa) / steps, 0.04, lane), _flat(col.darkened(0.08 * (i + 1)))])
 		_:
 			var sh: String = ed._shape(o.type)
 			var hm := float(ed._param(o, "height", 0.0))

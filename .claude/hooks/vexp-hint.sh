@@ -1,6 +1,6 @@
 #!/bin/bash
 # vexp-hint: event-driven orientation hint (UserPromptSubmit). Fails open.
-VEXP_BIN="/Users/medy/.antigravity-ide/extensions/vexp.vexp-vscode-3.2.5-darwin-x64/binaries/vexp-core-darwin-x64/vexp-core"
+VEXP_BIN="C:/Users/alhyu/.antigravity-ide/extensions/vexp.vexp-vscode-3.3.1-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe"
 # An extension upgrade removes the versioned folder above; fall back to the
 # newest installed vexp extension binary. Managed by vexp.
 if [ ! -x "$VEXP_BIN" ]; then
@@ -13,5 +13,5 @@ if [ ! -x "$VEXP_BIN" ]; then
   esac
 fi
 [ -x "$VEXP_BIN" ] || exit 0
-"$VEXP_BIN" prompt-hint 2>/dev/null
+VEXP_HOOK_AGENT="claude-code" "$VEXP_BIN" prompt-hint 2>/dev/null
 exit 0

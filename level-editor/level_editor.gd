@@ -9,7 +9,11 @@ extends "res://level_editor_files.gd"
 ##   1-3 wall/floor/pit   [ ] brush size   Ctrl+S save   Ctrl+Z undo   Ctrl+N new   Ctrl+D duplicate
 ##   objects: 4-6 thin wall/arch/door (click places, drag while placing aims it), V select / move,
 ##   drag the round handle to rotate, R / Shift+R rotate, Del delete, Esc deselect, G snap to grid,
-##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees
+##   A align to walls, Alt ignores snapping and aligning, Shift while rotating steps 15 degrees,
+##   the squares round a selected object resize it, Shift+wheel sizes and Alt+wheel turns it, arrows nudge,
+##   Ctrl+A all objects, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste
+##   S select area: drag a box of the map, Del empties it, Shift+Del walls it in, Ctrl+C / X / V work on it too
+##   Esc always lets go of whatever is following the mouse
 ## The object types (and their keys, colours and sizes) come from the game's levels/object_types.json.
 ## Types with a "model" key are decorative clutter (imported meshes, not procedural geometry); those also
 ## flagged "scatter": true can be dropped in bulk with the SCATTER PROPS button in the OBJECTS panel.
@@ -20,7 +24,17 @@ const LINE := Color("3a3522")
 const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
 	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet", "classic": "Super bright classic backrooms: steady glowing tubes, clear air",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away",
-	"mannequin": "Where the mannequins stand: paint as many areas as you like"}
+	"mannequin": "Where the mannequins stand: paint as many areas as you like",
+	"safe": "Safe: no entity sets foot here. They path round it and are pushed out of it, though they still see in\n(and can reach in from its edge: keep away from the rim)",
+	"drain": "Drain: sanity runs out while you stand here, lit or not, torch or not",
+	"loot": "Loot: battery packs, tape and camera flashes turn up here far more often",
+	"open_ceiling": "Open ceiling: no ceiling. You look up into the floor above, which gets a hole in its floor over these cells\n(whoever is up there can fall through). On the top floor there is only the dark above",
+	"echo": "Echo: a long, wet echo on footsteps and everything you hear, whatever the size of the room",
+	"loop": "Loop: a corridor that never ends. Paint it along a straight, plain corridor at least 6 cells long (12 or more hides it best):\nwalk on down it and you are back near its start, with nothing to show it. Turning back takes you out.\nIts tubes are all lit and steady, and nothing is scattered in it",
+	"abyss": "Abyss: paint it on pits. A pit with no bottom: storey after storey of this level's wall and buzzing tubes,\nfading into haze. Whoever falls in falls for 5 seconds (\"abyss_secs\" in the .lvl, 0: for ever), then the screen goes black and the recording ends: they die falling into the void.\nOver a room on the floor below it still has no bottom (that floor keeps its ceiling). Pits on the lowest floor are abysses anyway",
+	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
+fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
+or there is none: it does not make a hole in the floor above, so up there it is just floor"}
 const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
@@ -34,6 +48,16 @@ var seed_spin: SpinBox
 var swatch_buttons := {}             # pbr name -> its swatch in PAINT MATERIALS
 var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
+var trigger_dialog: ConfirmationDialog
+var trigger_dialog_target_idx := -1
+var td_events_container: VBoxContainer
+var td_event_rows: Array = []
+var td_text: LineEdit
+var td_once: CheckBox
+var td_width: SpinBox
+var td_depth: SpinBox
+var td_delay: SpinBox
+var td_duration: SpinBox
 
 func _ready() -> void:
 	_apply_ui_scale(_load_ui_scale())
@@ -244,6 +268,13 @@ func _build_ui() -> void:
 	atmo_pick.item_selected.connect(func(_i): _mark_dirty())
 	atmo_row.add_child(atmo_pick)
 
+	endless_check = CheckBox.new()
+	endless_check.text = "ENDLESS FLOORS"
+	endless_check.tooltip_text = "The lowest floor repeats for ever below the level and the highest for ever above it.\nA pit shaft through the lowest floor then has no bottom: you look down into floor after floor until the haze takes them,\nand whoever falls in keeps falling, floor after floor. Stairs still end where the level's own floors do."
+	endless_check.add_theme_font_size_override("font_size", 16)
+	endless_check.toggled.connect(func(_on): _mark_dirty())
+	lv.add_child(endless_check)
+
 	# center: canvas
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -260,11 +291,12 @@ func _build_ui() -> void:
 	hb.add_child(_label("FLOOR", 12, GOLD))
 	floor_pick = OptionButton.new()
 	floor_pick.add_theme_font_size_override("font_size", 13)
-	floor_pick.tooltip_text = "Which floor of the level you are editing (PageUp / PageDown).\nStairs up / down (keys 7 / 8) join floors; the game loads one floor at a time"
+	floor_pick.tooltip_text = "Which floor of the level you are editing (PageUp / PageDown).\nStairs up / down (keys 7 / 8) join floors. A pit over an open cell of the floor below is a hole through to it:\nin the game you see the floors above and below through such holes, and fall from one into the next"
 	floor_pick.item_selected.connect(func(i): _switch_floor(floor_pick.get_item_id(i) - 1000))
 	hb.add_child(floor_pick)
 	for fb in [["+ UP", func(): _add_floor(1), "Add a floor above the top one"], ["+ DOWN", func(): _add_floor(-1), "Add a basement below the bottom one"],
-			["DEL", _delete_floor, "Delete this floor (not the ground floor). Ctrl+Z brings it back"]]:
+			["DEL", _delete_floor, "Delete this floor (not the ground floor). Ctrl+Z brings it back"],
+			["REPEAT DOWN", _repeat_down, "Copy this floor into every floor below it, replacing what is there: the same rooms storey after storey.\nPaint a pit shaft first and it runs through them all. Ctrl+Z undoes it"]]:
 		var b := _button(fb[0], fb[1])
 		b.tooltip_text = fb[2]
 		b.add_theme_font_size_override("font_size", 13)
@@ -298,7 +330,7 @@ func _build_ui() -> void:
 		hb.add_child(b)
 	hb.add_child(VSeparator.new())
 	hb.add_child(_label("SHOW", 12, DIM))
-	for l in [["show_tex", "Textures"], ["show_zones", "Zones"], ["show_paint", "Paint"], ["show_objects", "Objects"], ["show_grid", "Grid"]]:
+	for l in [["show_tex", "Textures"], ["show_zones", "Zones"], ["show_paint", "Paint"], ["show_objects", "Objects"], ["show_grid", "Grid"], ["show_hints", "Hints"]]:
 		var cb := CheckBox.new()
 		cb.text = l[1]
 		cb.button_pressed = get(l[0])
@@ -324,6 +356,7 @@ func _build_ui() -> void:
 	_restore_splits()
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tool_scroll = scroll
 	right.add_child(scroll)
 	var side := VBoxContainer.new()
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -331,7 +364,7 @@ func _build_ui() -> void:
 	_build_inspector(side)
 	_build_tabs(side)
 	var ter := _section(side, "TERRAIN")
-	var terrain := [[WALL, "Wall  (1)", "A solid full-depth wall block"], [FLOOR, "Floor  (2)", "Open floor"], [PIT, "Pit  (3)", "A shaft falling into the dark"]]
+	var terrain := [[WALL, "Wall  (1)", "A solid full-depth wall block"], [FLOOR, "Floor  (2)", "Open floor"], [PIT, "Pit  (3)", "A shaft falling into the dark. Over an open cell of the floor below it is a hole through to that floor"]]
 	for b in terrain:
 		ter.add_child(_tool_button("base:" + b[0], b[1], BASE_COLORS[b[0]], b[2]))
 	var brow := HBoxContainer.new()
@@ -348,6 +381,30 @@ func _build_ui() -> void:
 	aw.tooltip_text = "Floor drawn as a rectangle (Rectangle mode, or Shift+drag) becomes a room: floor with a wall all round it.\nDrawing Floor past the map's edge grows the map, a wall border kept round everything"
 	aw.toggled.connect(func(on): auto_walls = on)
 	ter.add_child(aw)
+
+	var sel := _section(side, "SELECT AREA")
+	sel.add_child(_tool_button("area", "Select area  (S)", SEL,
+		"Drag a box on the map to select everything in it: rooms, zones, paint, objects.\nDel empties it, Shift+Del walls it in, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste it (on any floor or level),\nCtrl+Shift+V pastes on the same cells, Ctrl+A takes the whole floor, Esc or a right click drops the box"))
+	var selgrid := GridContainer.new()
+	selgrid.columns = 2
+	sel.add_child(selgrid)
+	for a in [["EMPTY  Del", func(): _area_clear(), "Delete every object, zone, painted material and marker in the box. The rooms stay"],
+			["WALL IN", func(): _area_clear(WALL), "Empty the box and fill it with solid wall (Shift+Del)"],
+			["FLOOR", func(): _area_clear(FLOOR), "Empty the box and make it all open floor"],
+			["PIT", func(): _area_clear(PIT), "Empty the box and make it all pit: a shaft"],
+			["COPY", _copy, "Ctrl+C"], ["CUT", _cut, "Ctrl+X: copy the box, then wall it in"],
+			["PASTE", func(): _paste(true), "Paste on the cells it was copied from (Ctrl+Shift+V): on another floor that is straight above or below.\nCtrl+V pastes at the mouse instead"],
+			["WHOLE FLOOR", _area_all, "Select the whole floor (Ctrl+A)"],
+			["CUT COLUMNS", func(): _area_cut_strip(true), "Cut the box's columns right out of the map, on every floor: everything to their right moves left to close the gap\nand the level gets narrower. Whole columns go, top to bottom. The map is square: it only gets smaller if its last rows are unused too"],
+			["CUT ROWS", func(): _area_cut_strip(false), "Cut the box's rows right out of the map, on every floor: everything below moves up to close the gap"],
+			["CROP TO BOX", _area_crop, "Keep only what is in the box: every floor is cut down to it, with a wall border round it"]]:
+		var ab := _button(a[0], func():
+			if tool != "area" and a[0] != "PASTE": _select_tool("area")
+			a[1].call())
+		ab.tooltip_text = a[2]
+		ab.add_theme_font_size_override("font_size", 13)
+		ab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		selgrid.add_child(ab)
 
 	var gen := _section(side, "GENERATE")
 	gen.add_child(_note("Pick the Generate tool and drag an area (it can reach past the map, which grows). Rooms join whatever floor is next to the area. REGENERATE rolls the last area again."))
@@ -514,7 +571,7 @@ func _build_ui() -> void:
 	# objects, one panel per object_types.json "category"
 	var obj := _section(side, "WALLS")
 	obj.add_child(_tool_button("select", "Select / move  (V)", CREAM,
-		"Click an object to edit it, drag to move, drag its round handle to rotate.\nR / Shift+R rotate, Del deletes, Esc deselects"))
+		"Click an object to edit it, drag to move, drag its round handle to rotate, drag its squares to resize it\n(a wall's ends and thickness, a pillar's width, a trigger's depth, a curve's size and arc).\nShift+wheel sizes it, Alt+wheel turns it, the arrow keys nudge it. Drag on empty map to box-select, Shift+click adds,\nCtrl+A takes every object, Ctrl+C / Ctrl+V copy and paste. R / Shift+R rotate, Del deletes, Esc deselects"))
 	tool_buttons["select"].icon = _obj_icon("_select", CREAM)
 	var panels := {"walls": obj}
 	for cat in [["openings", "DOORS & STAIRS"], ["events", "EVENTS"], ["props", "PROPS"]]:
@@ -594,6 +651,7 @@ func _build_ui() -> void:
 	_build_dialogs()
 
 func _build_dialogs() -> void:
+	_build_trigger_dialog()
 	name_dialog = ConfirmationDialog.new()
 	name_dialog.confirmed.connect(_on_name_confirmed)
 	var v := VBoxContainer.new()
@@ -618,6 +676,247 @@ func _build_dialogs() -> void:
 	godot_dialog.file_selected.connect(func(p): _save_godot_path(p); _test_level())
 	add_child(godot_dialog)
 
+func _build_trigger_dialog() -> void:
+	trigger_dialog = ConfirmationDialog.new()
+	trigger_dialog.title = "Configure Event Trigger"
+	trigger_dialog.confirmed.connect(_on_trigger_dialog_confirmed)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(460, 420)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	var tv := VBoxContainer.new()
+	tv.add_theme_constant_override("separation", 10)
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var ev_section := VBoxContainer.new()
+	ev_section.add_theme_constant_override("separation", 6)
+	ev_section.add_child(_label("EVENT TYPE(S)", 14, GOLD))
+
+	td_events_container = VBoxContainer.new()
+	td_events_container.add_theme_constant_override("separation", 8)
+	ev_section.add_child(td_events_container)
+
+	var add_ev_btn := _button("+ ADD ANOTHER EVENT", func():
+		_add_td_event_row("message", "")
+	)
+	add_ev_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	ev_section.add_child(add_ev_btn)
+
+	tv.add_child(ev_section)
+	tv.add_child(HSeparator.new())
+
+	var opt_grid := GridContainer.new()
+	opt_grid.columns = 2
+	opt_grid.add_theme_constant_override("h_separation", 12)
+	opt_grid.add_theme_constant_override("v_separation", 6)
+
+	opt_grid.add_child(_label("Screen Text:", 13, DIM))
+	td_text = LineEdit.new()
+	td_text.placeholder_text = "Caption displayed on screen (optional)"
+	td_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_text)
+
+	opt_grid.add_child(_label("Width (cells):", 13, DIM))
+	td_width = SpinBox.new()
+	td_width.min_value = 0.5
+	td_width.max_value = 40.0
+	td_width.step = 0.5
+	td_width.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_width)
+
+	opt_grid.add_child(_label("Depth (cells):", 13, DIM))
+	td_depth = SpinBox.new()
+	td_depth.min_value = 0.5
+	td_depth.max_value = 40.0
+	td_depth.step = 0.5
+	td_depth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_depth)
+
+	opt_grid.add_child(_label("Delay (seconds):", 13, DIM))
+	td_delay = SpinBox.new()
+	td_delay.min_value = 0.0
+	td_delay.max_value = 60.0
+	td_delay.step = 0.1
+	td_delay.suffix = " s"
+	td_delay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_delay)
+
+	opt_grid.add_child(_label("Duration (seconds):", 13, DIM))
+	td_duration = SpinBox.new()
+	td_duration.min_value = 1.0
+	td_duration.max_value = 120.0
+	td_duration.step = 1.0
+	td_duration.suffix = " s"
+	td_duration.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_duration)
+
+	tv.add_child(opt_grid)
+
+	td_once = CheckBox.new()
+	td_once.text = "Trigger only once (first time entered)"
+	tv.add_child(td_once)
+
+	scroll.add_child(tv)
+	trigger_dialog.add_child(scroll)
+	trigger_dialog.register_text_enter(td_text)       # Enter in the caption box = OK
+	add_child(trigger_dialog)
+
+func _add_td_event_row(ev_name: String = "flicker", custom_name: String = "") -> void:
+	var row_box := VBoxContainer.new()
+	row_box.add_theme_constant_override("separation", 3)
+
+	var top_h := HBoxContainer.new()
+	top_h.add_theme_constant_override("separation", 6)
+
+	var num_lbl := _label("Event 1:", 13, GOLD)
+	num_lbl.custom_minimum_size = Vector2(64, 0)
+	top_h.add_child(num_lbl)
+
+	var pick := OptionButton.new()
+	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
+	for e in evs:
+		pick.add_item(e)
+		pick.set_item_tooltip(pick.item_count - 1, str(evs[e]))
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var ev_keys: Array = evs.keys()
+	var sel_idx: int = ev_keys.find(ev_name)
+	if sel_idx < 0:
+		sel_idx = ev_keys.find("custom")
+		if sel_idx < 0: sel_idx = 0
+	pick.select(sel_idx)
+	top_h.add_child(pick)
+
+	var del_btn := Button.new()
+	del_btn.text = "X"
+	if font: del_btn.add_theme_font_override("font", font)
+	del_btn.custom_minimum_size = Vector2(28, 0)
+	del_btn.add_theme_color_override("font_color", RED)
+	top_h.add_child(del_btn)
+	row_box.add_child(top_h)
+
+	var active_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else ""
+	var hint := _label(str(evs.get(active_key, "")), 12, DIM)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row_box.add_child(hint)
+
+	var c_row := HBoxContainer.new()
+	c_row.add_child(_label("Custom Event: ", 13, CREAM))
+	var c_edit := LineEdit.new()
+	c_edit.placeholder_text = "e.g. secret_door_open"
+	c_edit.text = custom_name
+	c_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c_row.add_child(c_edit)
+	c_row.visible = (active_key == "custom")
+	row_box.add_child(c_row)
+
+	pick.item_selected.connect(func(i):
+		var ek: Array = evs.keys()
+		if i >= 0 and i < ek.size():
+			hint.text = str(evs[ek[i]])
+			c_row.visible = (ek[i] == "custom")
+	)
+
+	var row_data := {
+		"root": row_box,
+		"header_lbl": num_lbl,
+		"pick": pick,
+		"hint": hint,
+		"custom_row": c_row,
+		"custom_edit": c_edit,
+		"remove_btn": del_btn
+	}
+
+	del_btn.pressed.connect(func():
+		_remove_td_event_row(row_data)
+	)
+
+	td_event_rows.append(row_data)
+	td_events_container.add_child(row_box)
+	_update_td_event_rows()
+
+func _remove_td_event_row(row_data: Dictionary) -> void:
+	if td_event_rows.size() <= 1: return
+	var idx := td_event_rows.find(row_data)
+	if idx >= 0:
+		td_event_rows.remove_at(idx)
+		row_data.root.queue_free()
+		_update_td_event_rows()
+
+func _update_td_event_rows() -> void:
+	for i in td_event_rows.size():
+		var r: Dictionary = td_event_rows[i]
+		r.header_lbl.text = "Event %d:" % (i + 1)
+		r.remove_btn.visible = td_event_rows.size() > 1
+
+func _open_trigger_dialog(idx: int) -> void:
+	if idx < 0 or idx >= objects.size(): return
+	var o: Dictionary = objects[idx]
+	if o.type != "trigger": return
+	_select(idx)
+	trigger_dialog_target_idx = idx
+
+	for r in td_event_rows:
+		r.root.queue_free()
+	td_event_rows.clear()
+
+	var raw_list = o.get("events_list", [])
+	if raw_list is Array and not raw_list.is_empty():
+		for item in raw_list:
+			if item is Dictionary:
+				_add_td_event_row(str(item.get("event", "lights_out")), str(item.get("custom_event", "")))
+			elif item is String:
+				_add_td_event_row(str(item), "")
+	else:
+		var current_ev: String = str(_param(o, "event", "lights_out"))
+		var c_ev: String = str(_param(o, "custom_event", ""))
+		_add_td_event_row(current_ev, c_ev)
+
+	td_text.text = str(_param(o, "text", ""))
+	td_once.button_pressed = bool(_param(o, "once", true))
+	td_width.value = float(o.get("scale", 2.0))
+	td_depth.value = float(_param(o, "depth", 2.0))
+	td_delay.value = float(_param(o, "delay", 0.0))
+	td_duration.value = float(_param(o, "duration", 10.0))
+
+	trigger_dialog.popup_centered(Vector2(500, 520))
+
+func _on_trigger_dialog_confirmed() -> void:
+	if trigger_dialog_target_idx < 0 or trigger_dialog_target_idx >= objects.size(): return
+	var o: Dictionary = objects[trigger_dialog_target_idx]
+	if o.type != "trigger": return
+	_push_undo()
+
+	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
+	var ev_keys: Array = evs.keys()
+
+	var new_list: Array = []
+	for r in td_event_rows:
+		var sel_idx: int = r.pick.selected
+		var ev_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else "message"
+		var c_name: String = r.custom_edit.text.strip_edges()
+		new_list.append({"event": ev_key, "custom_event": c_name})
+
+	if new_list.is_empty():
+		new_list.append({"event": "message", "custom_event": ""})
+
+	o["events_list"] = new_list
+	o["event"] = new_list[0]["event"]
+	o["custom_event"] = new_list[0]["custom_event"]
+	o["text"] = td_text.text
+	o["once"] = td_once.button_pressed
+	o["scale"] = td_width.value
+	o["depth"] = td_depth.value
+	o["delay"] = td_delay.value
+	o["duration"] = td_duration.value
+	place_scales["trigger"] = o["scale"]
+	_sync_inspector()
+	_mark_dirty()
+	canvas.queue_redraw()
+
 ## The selected object's properties, at the top of the tool panel (hidden when nothing is selected)
 func _build_inspector(side: VBoxContainer) -> void:
 	var box := PanelContainer.new()
@@ -626,6 +925,13 @@ func _build_inspector(side: VBoxContainer) -> void:
 	insp = VBoxContainer.new()
 	box.add_child(insp)
 	insp.add_child(_label("SELECTED OBJECT", 16, GOLD))
+	insp_trigger_btn = _button("CONFIGURE EVENT OPTIONS...", func():
+		if selected >= 0 and selected < objects.size() and objects[selected].type == "trigger":
+			_open_trigger_dialog(selected)
+	)
+	insp_trigger_btn.add_theme_color_override("font_color", GOLD)
+	insp_trigger_btn.visible = false
+	insp.add_child(insp_trigger_btn)
 	var grid_box := GridContainer.new()
 	grid_box.columns = 2
 	insp.add_child(grid_box)
@@ -657,6 +963,16 @@ func _build_inspector(side: VBoxContainer) -> void:
 	ev_pick.item_selected.connect(func(i): _set_prop("event", evs.keys()[i]))
 	grid_box.add_child(ev_pick)
 	insp_params["event"] = {"row": [ev_lbl, ev_pick], "ctrl": ev_pick}
+	var c_ev_lbl := _label("Custom Event", 14, DIM)
+	grid_box.add_child(c_ev_lbl)
+	var c_ev := LineEdit.new()
+	c_ev.placeholder_text = "event_name"
+	c_ev.tooltip_text = "Event identifier dispatched when player enters the trigger area"
+	c_ev.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	c_ev.text_changed.connect(func(t): _set_prop("custom_event", t))
+	c_ev.text_submitted.connect(func(_t): c_ev.release_focus())
+	grid_box.add_child(c_ev)
+	insp_params["custom_event"] = {"row": [c_ev_lbl, c_ev], "ctrl": c_ev}
 	var tx_lbl := _label("Text", 14, DIM)
 	grid_box.add_child(tx_lbl)
 	var tx := LineEdit.new()
@@ -677,6 +993,32 @@ func _build_inspector(side: VBoxContainer) -> void:
 	insp_params["once"] = {"row": [once_lbl, once], "ctrl": once}
 	_insp_param_spin(grid_box, "delay", "Delay", 0.0, 60.0, 0.1, " s", "seconds from walking in to the event")
 	_insp_param_spin(grid_box, "duration", "Duration", 1.0, 120.0, 1.0, " s", "how long lights_out / silence / drone last")
+	# any other type's params: a drop-down for one with "choices" (object_types.json), a tick box for a yes / no
+	for t in OBJ_TYPES:
+		var params: Dictionary = OBJ_INFO[t].get("params", {})
+		var choices: Dictionary = OBJ_INFO[t].get("choices", {})
+		for k in params:
+			if insp_params.has(k): continue
+			var title := str(k).capitalize()
+			if choices.has(k):
+				var lbl := _label(title, 14, DIM)
+				grid_box.add_child(lbl)
+				var pick := OptionButton.new()
+				var names: Array = (choices[k] as Dictionary).keys()
+				for n in names:
+					pick.add_item(str(n).capitalize())
+					pick.set_item_tooltip(pick.item_count - 1, str(choices[k][n]))
+				pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				pick.item_selected.connect(func(i): _set_prop(k, names[i]))
+				grid_box.add_child(pick)
+				insp_params[k] = {"row": [lbl, pick], "ctrl": pick, "choices": names}
+			elif params[k] is bool:
+				var lbl := _label(title, 14, DIM)
+				grid_box.add_child(lbl)
+				var tick := CheckBox.new()
+				tick.toggled.connect(func(on): _set_prop(k, on))
+				grid_box.add_child(tick)
+				insp_params[k] = {"row": [lbl, tick], "ctrl": tick}
 	var r := HBoxContainer.new()
 	insp.add_child(r)
 	for b in [["-90°", func(): _rotate_selected(-90.0)], ["+90°", func(): _rotate_selected(90.0)], ["COPY", _duplicate_selected], ["DELETE", _delete_selected]]:
@@ -736,6 +1078,7 @@ func _note(text: String) -> Label:
 
 func _small_toggle(text: String, tip: String, group: ButtonGroup) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
 	b.text = text
 	b.tooltip_text = tip
 	b.toggle_mode = true
@@ -778,14 +1121,23 @@ func _toggle_3d() -> void:
 	if preview3d.visible: preview3d.visible = false
 	else: preview3d.open()
 
+## The window lost focus (another program, the test game, a dialog) with a button or Space down: its release
+## will not arrive here, so whatever it was doing on the map ends now
+func _notification(what: int) -> void:
+	if (what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT) and canvas != null:
+		panning = false
+		_let_go()
+
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE     # worked with the mouse: a button that kept the focus would take Space and Enter
 	b.text = text
 	b.pressed.connect(cb)
 	return b
 
 func _tool_button(id: String, text: String, col: Color, tip: String) -> Button:
 	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
 	b.custom_minimum_size = Vector2(0, 36)
 	b.add_theme_constant_override("h_separation", 10)
 	b.text = text
@@ -803,10 +1155,13 @@ func _tool_button(id: String, text: String, col: Color, tip: String) -> Button:
 	return b
 
 func _select_tool(id: String) -> void:
+	_let_go()
 	tool = id
 	if id == "paint:ceiling": _set_view(true)
 	elif id.begins_with("paint:") or id.begins_with("base:"): _set_view(false)
 	rect_from = Vector2i(-1, -1)
+	if id == "area": _area_status()
+	else: area = Rect2i()
 	canvas.queue_redraw()
 	for k in tool_buttons:
 		tool_buttons[k].button_pressed = (k == id)
@@ -829,12 +1184,17 @@ func _save_godot_path(p: String) -> void:
 func _input(ev: InputEvent) -> void:
 	var k := ev as InputEventKey
 	if k == null: return
+	var focus := get_viewport().gui_get_focus_owner()
+	var typing := focus is LineEdit or focus is TextEdit or name_dialog.visible or trigger_dialog.visible or delete_dialog.visible or godot_dialog.visible
 	if k.keycode == KEY_SPACE:
-		space_down = k.pressed
+		# Space is the pan key (Space + drag, level_editor_canvas.gd _space_held). It must not also press
+		# whichever button was clicked last, which is what Space does to a button with the keyboard focus.
+		if not typing: get_viewport().set_input_as_handled()
 		return
 	if k.keycode in [KEY_CTRL, KEY_SHIFT]:     # they change what a click does: show it
 		canvas.queue_redraw()
-	if not k.pressed or (get_viewport().gui_get_focus_owner() is LineEdit) or name_dialog.visible: return
+	# typing in a dialog (a level name, a trigger's caption) must not fire the canvas shortcuts (R, Backspace...)
+	if not k.pressed or typing: return
 	if k.keycode == KEY_SLASH and not k.ctrl_pressed and search_box != null:
 		search_box.grab_focus()
 		get_viewport().set_input_as_handled()
@@ -849,6 +1209,14 @@ func _input(ev: InputEvent) -> void:
 			KEY_Y: _redo()
 			KEY_N: _ask_new()
 			KEY_D: _ask_dup()
+			KEY_C: _copy()
+			KEY_X: _cut()
+			KEY_V: _paste(k.shift_pressed)
+			KEY_A:
+				if tool == "area": _area_all()
+				else:
+					_select_tool("select")
+					_select_all_objects()
 		return
 	if k.keycode == KEY_F5:
 		_test_level()
@@ -870,13 +1238,25 @@ func _input(ev: InputEvent) -> void:
 		KEY_2: _select_tool("base:" + FLOOR)
 		KEY_3: _select_tool("base:" + PIT)
 		KEY_V: _select_tool("select")
+		KEY_S: _select_tool("area")
 		KEY_R: _rotate_selected(-90.0 if k.shift_pressed else 90.0)
 		KEY_G: snap_check.button_pressed = not snap_check.button_pressed
 		KEY_A: align_check.button_pressed = not align_check.button_pressed
-		KEY_DELETE, KEY_BACKSPACE: _delete_selected()
+		KEY_DELETE, KEY_BACKSPACE:
+			if tool == "area": _area_clear(WALL if k.shift_pressed else "")
+			else: _delete_selected()
 		KEY_ESCAPE:
-			if drag == "chain": _delete_selected()
-			else: _select(-1)
+			# the way out of anything: whatever is following the mouse stops, then the selection goes
+			var busy := panning or painting or drag != "" or rect_from.x >= 0 or area_from.x >= 0
+			_cancel_all()
+			if not busy:
+				_select(-1)
+				area = Rect2i()
+				canvas.queue_redraw()
+		KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN:
+			if _object_tool() and not _group().is_empty():
+				_nudge({KEY_LEFT: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT, KEY_UP: Vector2.UP, KEY_DOWN: Vector2.DOWN}[k.keycode], not k.echo)
+				get_viewport().set_input_as_handled()      # not also a step of the keyboard focus
 		KEY_BRACKETLEFT: _set_brush(brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(brush + 1)
 		KEY_F: _fit()
