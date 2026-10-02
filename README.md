@@ -65,8 +65,9 @@ Up to 8 players. One PC hosts a WebSocket server on port **8910**, exposed throu
 (ship `cloudflared.exe` next to the game exe; the dev machine can also have it installed with
 `winget install Cloudflare.cloudflared`).
 
-- **Host:** press HOST GAME in the menu. After a few seconds a room code appears (e.g. `ADULT-KODAK-ROCKS-CHIP`).
-  The link itself is never shown: the code is the tunnel's random name and the game rebuilds the address from it.
+- **Host:** press HOST GAME in the menu. After a few seconds a short room code appears (e.g. `K7Q-M2X`). The tunnel
+  link is never shown: the game posts "code -> link" to a free public relay (`ROOM_SERVICE` in net.gd, ntfy.sh)
+  and joiners look it up there. Needs internet on both sides.
 - **Join:** type the room code into JOIN. For testing on one PC/network, `ip[:port]` also works.
 - The host runs the monsters and the event director; everyone else follows the host's level.
 - The Mimic walks where someone walked a few minutes ago, step for step (stops, crouches, torch and

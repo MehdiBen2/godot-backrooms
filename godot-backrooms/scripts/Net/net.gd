@@ -1,7 +1,7 @@
 extends Node
 ## Co-op over WebSocket (autoload: Net). One PC hosts a local WebSocket server; a `cloudflared tunnel` exposes it
-## publicly and the game shows only a ROOM CODE (the tunnel's random name, see code_from_url): friends type the
-## code into JOIN and the game rebuilds the wss:// address itself. The link is never shown. Tunnels only carry
+## publicly and the game shows only a short ROOM CODE: the host posts "code -> tunnel link" to a tiny public
+## relay (ROOM_SERVICE), friends type the code into JOIN and the game looks the link up. The link is never shown. Tunnels only carry
 ## HTTP/WebSocket (no UDP), which is why this is WebSocketMultiplayerPeer and not ENet.
 ## Every survivor sends a timestamped snapshot (position, look, speed, torch...) 20 times a second;
 ## the others draw it with snapshot interpolation (snap_buffer.gd). The host runs THE BACTERIA and the
@@ -24,6 +24,10 @@ const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips in one _tape_rpc (a newcomer gets everyone's in one go)
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const TUNNEL_DOMAIN := "trycloudflare.com"
+const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "code -> link" for a while; swap for your own Worker any time
+const ROOM_PREFIX := "backrooms-coop-1-"      # topic namespace on it
+const CODE_ALPHABET := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no I/O/0/1
+const CODE_LEN := 6                                          # 32^6 ~ 1e9 codes
 const CLOUDFLARED_PATHS := [
 	"C:/Program Files (x86)/cloudflared/cloudflared.exe",
 	"C:/Program Files/cloudflared/cloudflared.exe",
@@ -49,6 +53,7 @@ var _send_t := 0.0
 var _cf_pid := -1
 var _cf_thread: Thread
 var _quit := false
+var _room_token := 0            # bumped on host()/leave(): a slow lookup/publish from an old lobby is ignored
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -101,13 +106,21 @@ func host(local_only := false) -> void:
 	_set_status("LOBBY OPEN // CREATING ROOM CODE...")
 	_start_tunnel()
 
-## A room code, or an address typed in directly (127.0.0.1, 192.168.x.x:port) for testing on one network
+## A short room code, or an address typed in directly (127.0.0.1, 192.168.x.x:port) for testing on one network
 func join(address: String) -> void:
-	var url := address_to_url(address)
-	if url == "":
+	var code := normalize_code(address)
+	var url := "" if code != "" else normalize_url(address)
+	if code == "" and url == "":
 		_set_status("ENTER THE HOST'S ROOM CODE")
 		return
 	leave()
+	if code != "":
+		_set_status("LOOKING UP ROOM %s ..." % code)
+		_lookup_room(code, _room_token)
+	else:
+		_connect_url(url)
+
+func _connect_url(url: String) -> void:
 	var peer := WebSocketMultiplayerPeer.new()
 	if peer.create_client(url) != OK:
 		_set_status("BAD ROOM CODE")
@@ -116,6 +129,7 @@ func join(address: String) -> void:
 	_set_status("CONNECTING ...")
 
 func leave() -> void:
+	_room_token += 1
 	_stop_tunnel()
 	var p := multiplayer.multiplayer_peer
 	if p != null and not (p is OfflineMultiplayerPeer):
@@ -126,24 +140,78 @@ func leave() -> void:
 	_set_share_link("")
 	_set_status("OFFLINE")
 
-# ---- room codes: the tunnel's random name ("adult-kodak-rocks-chip") is the code, the rest of the link is implied ----
-## "https://adult-kodak-rocks-chip.trycloudflare.com" -> "ADULT-KODAK-ROCKS-CHIP" ("" if it is not one)
-static func code_from_url(url: String) -> String:
-	var re := RegEx.create_from_string("^https?://([a-z0-9]+(?:-[a-z0-9]+)+)\\." + TUNNEL_DOMAIN.replace(".", "\\.") + "/?$")
-	var m := re.search(url.strip_edges().to_lower())
-	return m.get_string(1).to_upper() if m else ""
+# ---- room codes: a short random code, mapped to the tunnel link by the relay ----------------------------
+static func new_code() -> String:
+	var out := ""
+	for i in CODE_LEN:
+		out += CODE_ALPHABET[randi() % CODE_ALPHABET.length()]
+	return out
 
-## "adult kodak rocks chip", "ADULT-KODAK-ROCKS-CHIP" -> "wss://adult-kodak-rocks-chip.<tunnel domain>" ("" if not a code)
-static func url_from_code(code: String) -> String:
-	var s := code.strip_edges().to_lower().replace(" ", "-").replace("_", "-")
-	var re := RegEx.create_from_string("^[a-z0-9]+(?:-[a-z0-9]+)+$")
-	if s.length() > 63 or re.search(s) == null:
+## "k7q-m2x", "K7QM2X" -> "K7QM2X"; "" if it is not a room code (so 127.0.0.1 etc. fall through to normalize_url)
+static func normalize_code(raw: String) -> String:
+	var c := raw.strip_edges().to_upper().replace("-", "").replace(" ", "")
+	if c.length() != CODE_LEN:
 		return ""
-	return "wss://%s.%s" % [s, TUNNEL_DOMAIN]
+	for ch in c:
+		if CODE_ALPHABET.find(ch) < 0:
+			return ""
+	return c
 
-static func address_to_url(addr: String) -> String:
-	var url := url_from_code(addr)
-	return url if url != "" else normalize_url(addr)
+## Only ever connect to a tunnel link: a relay entry must not be able to send players anywhere else
+static func is_tunnel_url(url: String) -> bool:
+	var re := RegEx.create_from_string("^https://[a-z0-9-]+\\." + TUNNEL_DOMAIN.replace(".", "\\.") + "/?$")
+	return re.search(url.strip_edges()) != null
+
+static func _room_url(code: String) -> String:
+	return ROOM_SERVICE + ROOM_PREFIX + code
+
+## Host: tunnel is up -> pick a code and post it with the link
+func _publish_room(url: String) -> void:
+	var code := new_code()
+	var http := HTTPRequest.new()
+	http.timeout = 8.0
+	add_child(http)
+	http.request_completed.connect(_room_published.bind(http, code, _room_token))
+	if http.request(_room_url(code), ["Content-Type: text/plain"], HTTPClient.METHOD_POST, url) != OK:
+		http.queue_free()
+		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
+
+func _room_published(result: int, response: int, _h: PackedStringArray, _b: PackedByteArray, http: HTTPRequest, code: String, token: int) -> void:
+	http.queue_free()
+	if token != _room_token or not hosting:
+		return
+	if result != HTTPRequest.RESULT_SUCCESS or response != 200:
+		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE (NO INTERNET?)")
+		return
+	_set_share_link(code.left(3) + "-" + code.substr(3))
+	_update_count()
+
+## Guest: code -> link -> connect
+func _lookup_room(code: String, token: int) -> void:
+	var http := HTTPRequest.new()
+	http.timeout = 8.0
+	add_child(http)
+	http.request_completed.connect(_room_found.bind(http, token))
+	if http.request(_room_url(code) + "/json?poll=1&since=all") != OK:
+		http.queue_free()
+		_set_status("COULD NOT REACH THE ROOM SERVICE")
+
+func _room_found(result: int, response: int, _h: PackedStringArray, body: PackedByteArray, http: HTTPRequest, token: int) -> void:
+	http.queue_free()
+	if token != _room_token:
+		return
+	if result != HTTPRequest.RESULT_SUCCESS or response != 200:
+		_set_status("COULD NOT REACH THE ROOM SERVICE // CHECK YOUR INTERNET")
+		return
+	var link := ""
+	for line in body.get_string_from_utf8().split("\n", false):     # one JSON event per line; the newest message wins
+		var ev = JSON.parse_string(line)
+		if ev is Dictionary and ev.get("event", "") == "message":
+			link = str(ev.get("message", "")).strip_edges()
+	if not is_tunnel_url(link):
+		_set_status("ROOM NOT FOUND // CHECK THE CODE (THE HOST MAY HAVE CLOSED IT)")
+		return
+	_connect_url(link.replace("https://", "wss://").trim_suffix("/"))
 
 func _lan_address() -> String:
 	for ip in IP.get_local_addresses():
@@ -636,12 +704,10 @@ func _read_tunnel(pipe: FileAccess) -> void:
 func _tunnel_found(url: String) -> void:
 	if not hosting:
 		return
-	var code := code_from_url(url)
-	if code == "":
+	if not is_tunnel_url(url):
 		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
 		return
-	_set_share_link(code)
-	_update_count()
+	_publish_room(url)
 
 func _stop_tunnel() -> void:
 	_quit = true
