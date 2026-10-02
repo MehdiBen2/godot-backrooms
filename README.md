@@ -61,12 +61,14 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 
 ## Co-op
 
-Up to 8 players. One PC hosts a WebSocket server on port **8910**.
+Up to 8 players. One PC hosts an ENet (UDP) server on port **8910**; no server or account is needed.
 
-- **Host:** press HOST in the menu. If [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-  is installed (`winget install Cloudflare.cloudflared`), the game opens a quick tunnel and shows a
-  `https://….trycloudflare.com` link to share. Without it, share your IP and forward port 8910.
-- **Join:** paste the link (or `ip[:port]`) into JOIN.
+- **Host:** press HOST GAME in the menu. The game opens the port on your router with UPnP and shows a room code
+  (your public IP and port packed into 10 letters). If it warns that the router refused UPnP or that your ISP
+  shares one IP (CGNAT), forward UDP 8910 by hand, or press HOST VIA TUNNEL: with
+  [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+  installed (`winget install Cloudflare.cloudflared`) it shows a `https://….trycloudflare.com` link (TCP, so laggier).
+- **Join:** type the room code (or the tunnel link, or `ip[:port]`) into JOIN.
 - The host runs the monsters and the event director; everyone else follows the host's level.
 - The Mimic walks where someone walked a few minutes ago, step for step (stops, crouches, torch and
   all), wearing their face in co-op: their colour, their name tag, and now and then something they said
@@ -77,7 +79,7 @@ Up to 8 players. One PC hosts a WebSocket server on port **8910**.
 Command-line options (also passed by the launcher):
 
 ```
---host / --host-local     open a lobby immediately (-local: no tunnel)
+--host / --host-local / --host-tunnel   open a lobby immediately (-local: LAN code only, -tunnel: cloudflared)
 --join=<address>          join a lobby on start
 --player-name=<name>      callsign shown above your head
 --port=<n>                use another port (two copies on one PC)

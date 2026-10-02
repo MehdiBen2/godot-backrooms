@@ -69,20 +69,23 @@ func _build_multiplayer() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	v.add_child(_section_title("HOST A GAME", true))
-	v.add_child(_hint("Start a game and send the link to your friends."))
+	v.add_child(_hint("Start a game and send the room code to your friends. If they can't connect, try the tunnel."))
 	var host_row := HBoxContainer.new()
 	host_row.add_theme_constant_override("separation", 22)
 	var host_btn := _link_button("host game")
 	host_btn.pressed.connect(func(): Net.host())
+	var tunnel_btn := _link_button("host via tunnel")
+	tunnel_btn.pressed.connect(func(): Net.host(false, true))
 	var stop_btn := _link_button("disconnect")
 	stop_btn.pressed.connect(func(): Net.leave())
 	host_row.add_child(host_btn)
+	host_row.add_child(tunnel_btn)
 	host_row.add_child(stop_btn)
 	v.add_child(host_row)
 
 	var link_row := HBoxContainer.new()
 	link_row.add_theme_constant_override("separation", 12)
-	mp_link = _text_field("LINK APPEARS HERE", Net.tunnel_url)
+	mp_link = _text_field("ROOM CODE APPEARS HERE", Net.share_link)
 	mp_link.editable = false
 	link_row.add_child(mp_link)
 	var copy_btn := _link_button("copy")
@@ -93,7 +96,7 @@ func _build_multiplayer() -> Control:
 	v.add_child(_section_title("JOIN A GAME"))
 	var join_row := HBoxContainer.new()
 	join_row.add_theme_constant_override("separation", 12)
-	mp_addr = _text_field("PASTE THE HOST'S LINK", last_address)
+	mp_addr = _text_field("TYPE THE HOST'S ROOM CODE", last_address)
 	mp_addr.text_changed.connect(func(s: String):
 		last_address = s.strip_edges()
 		_save())
@@ -110,7 +113,7 @@ func _build_multiplayer() -> Control:
 	mp_status.custom_minimum_size = Vector2(300, 0)
 	v.add_child(mp_status)
 	Net.status_changed.connect(func(s: String): mp_status.text = s)
-	Net.tunnel_url_changed.connect(func(u: String): mp_link.text = u)
+	Net.share_link_changed.connect(func(u: String): mp_link.text = u)
 	return v
 
 func _do_join() -> void:
