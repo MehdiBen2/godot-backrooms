@@ -1,8 +1,8 @@
 extends Node
-## Co-op (autoload: Net). One PC hosts an ENet (UDP) server, opens its port through the router with UPnP and
-## shows a ROOM CODE: the host's public IP and port packed into 10 letters (no server involved). Friends type
-## the code into JOIN. Where UPnP/CGNAT blocks that, "host via tunnel" is the fallback: a WebSocket server
-## exposed by `cloudflared tunnel` as a wss:// link (TCP only, so laggier), which JOIN also accepts.
+## Co-op over WebSocket (autoload: Net). One PC hosts a local WebSocket server; a `cloudflared tunnel` exposes it
+## publicly and the game shows only a ROOM CODE (the tunnel's random name, see code_from_url): friends type the
+## code into JOIN and the game rebuilds the wss:// address itself. The link is never shown. Tunnels only carry
+## HTTP/WebSocket (no UDP), which is why this is WebSocketMultiplayerPeer and not ENet.
 ## Every survivor sends a timestamped snapshot (position, look, speed, torch...) 20 times a second;
 ## the others draw it with snapshot interpolation (snap_buffer.gd). The host runs THE BACTERIA and the
 ## event director for everyone and sets which level everyone is on.
@@ -23,10 +23,7 @@ const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips in one _tape_rpc (a newcomer gets everyone's in one go)
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
-const CODE_ALPHABET := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"    # 32 symbols, no I/O/0/1
-const CODE_LEN := 10                                          # 50 bits >= 4 IP bytes + 2 port bytes
-const UPNP_DISCOVER_MS := 2000
-const IP_LOOKUP_URL := "https://api.ipify.org"
+const TUNNEL_DOMAIN := "trycloudflare.com"
 const CLOUDFLARED_PATHS := [
 	"C:/Program Files (x86)/cloudflared/cloudflared.exe",
 	"C:/Program Files/cloudflared/cloudflared.exe",
@@ -40,7 +37,7 @@ var hosting := false
 var PORT := DEFAULT_PORT        # --port=N overrides it (two copies on one PC)
 var _hello_wait := -1.0
 var status := "OFFLINE"
-var share_link := ""            # what the host sends to friends: the room code (or the tunnel link)
+var share_link := ""            # the room code the host sends to friends (a LAN address with --host-local)
 var debug := false               # --net-debug: print what the entity is doing on this machine
 var _dbg_t := 0.0
 var launch_name := ""           # --player-name= from the launcher
@@ -52,10 +49,6 @@ var _send_t := 0.0
 var _cf_pid := -1
 var _cf_thread: Thread
 var _quit := false
-var _upnp: UPNP
-var _upnp_thread: Thread
-var _port_note := ""            # shown under the room code when the router/ISP will likely block friends
-var _host_token := 0           # bumped on every host()/leave(): a slow UPnP/IP lookup from an old lobby is ignored
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -72,7 +65,7 @@ func _ready() -> void:
 			join_to = a.substr(7)
 		elif a.begins_with("--player-name="):
 			launch_name = clean_name(a.substr(14))
-		elif a == "--host" or a == "--host-local" or a == "--host-tunnel":   # open the lobby straight away (-local: LAN only, -tunnel: cloudflared)
+		elif a == "--host" or a == "--host-local":       # open the lobby straight away (-local: no tunnel, LAN address only)
 			host_mode = a
 		elif a.begins_with("--port="):
 			PORT = int(a.substr(7))
@@ -81,62 +74,42 @@ func _ready() -> void:
 	if join_to != "":
 		join.call_deferred(join_to)
 	elif host_mode != "":
-		host.call_deferred(host_mode == "--host-local", host_mode == "--host-tunnel")
+		host.call_deferred(host_mode == "--host-local")
 
 func _exit_tree() -> void:
 	_stop_tunnel()
-	_stop_upnp()
 
 # ---- public API ---------------------------------------------------------------------
 func is_online() -> bool:
 	var p := multiplayer.multiplayer_peer
 	return p != null and not (p is OfflineMultiplayerPeer) and p.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
-## Default: ENet + UPnP + room code. local_only: LAN code, no UPnP. tunnel: the cloudflared WebSocket fallback.
-func host(local_only := false, tunnel := false) -> void:
+## Opens the lobby. The online tunnel starts in the background and the room code shows up once it is ready;
+## local_only skips it (same-network testing: friends type this PC's address instead).
+func host(local_only := false) -> void:
 	leave()
-	if tunnel:
-		var ws := WebSocketMultiplayerPeer.new()
-		if ws.create_server(PORT) != OK:
-			_set_status("COULD NOT OPEN PORT %d (ALREADY HOSTING?)" % PORT)
-			return
-		multiplayer.multiplayer_peer = ws
-		hosting = true
-		_set_status("LOBBY OPEN ON PORT %d // STARTING TUNNEL..." % PORT)
-		_start_tunnel()
-		return
-	var peer := ENetMultiplayerPeer.new()
-	if peer.create_server(PORT, MAX_PLAYERS - 1) != OK:
-		_set_status("COULD NOT OPEN UDP PORT %d (ALREADY HOSTING?)" % PORT)
+	var peer := WebSocketMultiplayerPeer.new()
+	if peer.create_server(PORT) != OK:
+		_set_status("COULD NOT OPEN PORT %d (ALREADY HOSTING?)" % PORT)
 		return
 	multiplayer.multiplayer_peer = peer
 	hosting = true
 	if local_only:
-		var lan := _lan_address()
-		_set_share_link(encode_code(lan, PORT) if lan != "" else "")
-		_set_status("LAN LOBBY OPEN ON PORT %d" % PORT)
+		_set_share_link(_lan_address())
+		_set_status("LOCAL LOBBY OPEN ON PORT %d" % PORT)
 		return
-	_set_status("LOBBY OPEN ON PORT %d // OPENING THE ROUTER PORT..." % PORT)
-	_upnp_thread = Thread.new()
-	_upnp_thread.start(_upnp_worker.bind(PORT, _host_token))
+	_set_status("LOBBY OPEN // CREATING ROOM CODE...")
+	_start_tunnel()
 
-## "ABCDE-FGHJK" or "1.2.3.4[:port]" -> ENet; a wss:// link or a hostname -> the WebSocket tunnel
+## A room code, or an address typed in directly (127.0.0.1, 192.168.x.x:port) for testing on one network
 func join(address: String) -> void:
-	var target := parse_address(address)
-	if target.is_empty():
+	var url := address_to_url(address)
+	if url == "":
 		_set_status("ENTER THE HOST'S ROOM CODE")
 		return
 	leave()
-	if target.has("url"):
-		var ws := WebSocketMultiplayerPeer.new()
-		if ws.create_client(target.url) != OK:
-			_set_status("BAD ADDRESS")
-			return
-		multiplayer.multiplayer_peer = ws
-		_set_status("CONNECTING TO %s ..." % target.url.get_slice("://", 1).to_upper())
-		return
-	var peer := ENetMultiplayerPeer.new()
-	if peer.create_client(target.ip, target.port) != OK:
+	var peer := WebSocketMultiplayerPeer.new()
+	if peer.create_client(url) != OK:
 		_set_status("BAD ROOM CODE")
 		return
 	multiplayer.multiplayer_peer = peer
@@ -144,7 +117,6 @@ func join(address: String) -> void:
 
 func leave() -> void:
 	_stop_tunnel()
-	_stop_upnp()
 	var p := multiplayer.multiplayer_peer
 	if p != null and not (p is OfflineMultiplayerPeer):
 		p.close()
@@ -154,119 +126,30 @@ func leave() -> void:
 	_set_share_link("")
 	_set_status("OFFLINE")
 
-# ---- room codes: IP (4 bytes) + port (2 bytes) as 10 letters, e.g. K7QM2-XD9PA -----------------------
-static func encode_code(ip: String, port: int) -> String:
-	var parts := ip.split(".")
-	if parts.size() != 4 or port <= 0 or port > 65535:
+# ---- room codes: the tunnel's random name ("adult-kodak-rocks-chip") is the code, the rest of the link is implied ----
+## "https://adult-kodak-rocks-chip.trycloudflare.com" -> "ADULT-KODAK-ROCKS-CHIP" ("" if it is not one)
+static func code_from_url(url: String) -> String:
+	var re := RegEx.create_from_string("^https?://([a-z0-9]+(?:-[a-z0-9]+)+)\\." + TUNNEL_DOMAIN.replace(".", "\\.") + "/?$")
+	var m := re.search(url.strip_edges().to_lower())
+	return m.get_string(1).to_upper() if m else ""
+
+## "adult kodak rocks chip", "ADULT-KODAK-ROCKS-CHIP" -> "wss://adult-kodak-rocks-chip.<tunnel domain>" ("" if not a code)
+static func url_from_code(code: String) -> String:
+	var s := code.strip_edges().to_lower().replace(" ", "-").replace("_", "-")
+	var re := RegEx.create_from_string("^[a-z0-9]+(?:-[a-z0-9]+)+$")
+	if s.length() > 63 or re.search(s) == null:
 		return ""
-	var n := port
-	for i in 4:
-		var b := int(parts[i])
-		if not parts[i].is_valid_int() or b < 0 or b > 255:
-			return ""
-		n |= b << (16 + 8 * (3 - i))
-	var out := ""
-	for i in CODE_LEN:
-		out = CODE_ALPHABET[n & 31] + out
-		n >>= 5
-	return out.left(5) + "-" + out.substr(5)
+	return "wss://%s.%s" % [s, TUNNEL_DOMAIN]
 
-## {"ip", "port"} for a valid code, else {}
-static func decode_code(code: String) -> Dictionary:
-	var s := code.to_upper().replace("-", "").replace(" ", "")
-	if s.length() != CODE_LEN:
-		return {}
-	var n := 0
-	for c in s:
-		var v := CODE_ALPHABET.find(c)
-		if v < 0:
-			return {}
-		n = (n << 5) | v
-	if n >> 48 != 0:
-		return {}
-	var port := n & 0xFFFF
-	if port == 0:
-		return {}
-	return {"ip": "%d.%d.%d.%d" % [(n >> 40) & 255, (n >> 32) & 255, (n >> 24) & 255, (n >> 16) & 255], "port": port}
-
-## What the JOIN field means: {"ip","port"} (ENet), {"url"} (WebSocket tunnel) or {} (empty)
-static func parse_address(addr: String) -> Dictionary:
-	var a := addr.strip_edges()
-	if a == "":
-		return {}
-	var code := decode_code(a)
-	if not code.is_empty():
-		return code
-	var host_part := a.get_slice(":", 0)
-	if "://" not in a and host_part.is_valid_ip_address():
-		var port := int(a.get_slice(":", 1)) if ":" in a else DEFAULT_PORT
-		return {"ip": host_part, "port": port if port > 0 and port <= 65535 else DEFAULT_PORT}
-	return {"url": normalize_url(a)}
+static func address_to_url(addr: String) -> String:
+	var url := url_from_code(addr)
+	return url if url != "" else normalize_url(addr)
 
 func _lan_address() -> String:
 	for ip in IP.get_local_addresses():
 		if ip.count(".") == 3 and (ip.begins_with("192.168.") or ip.begins_with("10.") or ip.begins_with("172.")):
 			return ip
 	return ""
-
-# ---- router port (UPnP) and public IP ----------------------------------------------------------------
-func _upnp_worker(port: int, token: int) -> void:
-	var u := UPNP.new()
-	var mapped := false
-	var ext := ""
-	if u.discover(UPNP_DISCOVER_MS, 2, "InternetGatewayDevice") == UPNP.UPNP_RESULT_SUCCESS \
-			and u.get_gateway() != null and u.get_gateway().is_valid_gateway():
-		mapped = u.add_port_mapping(port, port, "Backrooms", "UDP") == UPNP.UPNP_RESULT_SUCCESS
-		ext = u.query_external_address()
-	_upnp_done.call_deferred(u, mapped, ext, token)
-
-func _upnp_done(u: UPNP, mapped: bool, router_ip: String, token: int) -> void:
-	if token != _host_token or not hosting:      # a stale lobby (its thread was already joined by _stop_upnp)
-		if mapped:
-			u.delete_port_mapping(PORT, "UDP")
-		return
-	_upnp_thread.wait_to_finish()
-	_upnp_thread = null
-	_upnp = u if mapped else null
-	var http := HTTPRequest.new()
-	http.timeout = 6.0
-	add_child(http)
-	http.request_completed.connect(_ip_looked_up.bind(http, mapped, router_ip, token))
-	if http.request(IP_LOOKUP_URL) != OK:
-		http.queue_free()
-		_publish_code("", mapped, router_ip)
-
-func _ip_looked_up(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray,
-		http: HTTPRequest, mapped: bool, router_ip: String, token: int) -> void:
-	http.queue_free()
-	if token != _host_token or not hosting:
-		return
-	var ip := body.get_string_from_utf8().strip_edges() if result == HTTPRequest.RESULT_SUCCESS and code == 200 else ""
-	_publish_code(ip if ip.is_valid_ip_address() else "", mapped, router_ip)
-
-func _publish_code(web_ip: String, mapped: bool, router_ip: String) -> void:
-	var ip := web_ip if web_ip != "" else router_ip
-	var code := encode_code(ip, PORT) if ip.count(".") == 3 else ""
-	if code == "":
-		_set_status("LOBBY OPEN // COULD NOT FIND YOUR PUBLIC IP: CHECK YOUR INTERNET, OR USE HOST VIA TUNNEL")
-		return
-	_set_share_link(code)
-	_port_note = ""
-	if router_ip != "" and web_ip != "" and router_ip != web_ip:
-		_port_note = "YOUR ISP SHARES ONE IP (CGNAT): FRIENDS CAN'T REACH YOU, USE HOST VIA TUNNEL"
-	elif not mapped:
-		_port_note = "ROUTER REFUSED UPNP: FORWARD UDP PORT %d TO THIS PC, OR USE HOST VIA TUNNEL" % PORT
-	_update_count()
-
-func _stop_upnp() -> void:
-	_host_token += 1
-	if _upnp_thread != null:
-		_upnp_thread.wait_to_finish()       # a few seconds at most (discover timeout); its callback sees the new token
-		_upnp_thread = null
-	if _upnp != null:
-		_upnp.delete_port_mapping(PORT, "UDP")
-		_upnp = null
-	_port_note = ""
 
 func my_name() -> String:
 	var n := ""
@@ -337,7 +220,7 @@ func _on_connected() -> void:
 
 func _on_connection_failed() -> void:
 	leave()
-	_set_status("COULD NOT CONNECT // CHECK THE CODE, THAT THE HOST IS ONLINE, AND THAT THEIR ROUTER OPENED THE PORT")
+	_set_status("COULD NOT CONNECT // CHECK THE CODE AND THAT THE HOST IS STILL IN THE LOBBY")
 
 func _on_server_disconnected() -> void:
 	leave()
@@ -349,8 +232,6 @@ func _update_count() -> void:
 	var n := multiplayer.get_peers().size() + 1
 	if hosting:
 		var extra := ("  //  " + share_link) if share_link != "" else ""
-		if _port_note != "":
-			extra += "  //  " + _port_note
 		_set_status("HOSTING // %d SURVIVOR(S)%s" % [n, extra])
 	else:
 		_set_status("CONNECTED // %d SURVIVORS" % n)
@@ -727,13 +608,14 @@ func _send_state(dt: float) -> void:
 # ---- cloudflared ------------------------------------------------------------------------------
 func _start_tunnel() -> void:
 	var exe := "cloudflared"
-	for path in CLOUDFLARED_PATHS:
+	var bundled := OS.get_executable_path().get_base_dir().path_join("cloudflared.exe")    # shipped next to the game
+	for path in [bundled] + CLOUDFLARED_PATHS:
 		if FileAccess.file_exists(path):
 			exe = path
 			break
 	var info := OS.execute_with_pipe(exe, ["tunnel", "--url", "http://localhost:%d" % PORT])
 	if info.is_empty():
-		_set_status("LOBBY OPEN // CLOUDFLARED NOT FOUND: INSTALL IT (winget install Cloudflare.cloudflared) OR SHARE YOUR IP:%d" % PORT)
+		_set_status("LOBBY OPEN // ONLINE SERVICE MISSING (cloudflared.exe NEXT TO THE GAME) // NO ROOM CODE")
 		return
 	_cf_pid = info["pid"]
 	_quit = false
@@ -754,7 +636,11 @@ func _read_tunnel(pipe: FileAccess) -> void:
 func _tunnel_found(url: String) -> void:
 	if not hosting:
 		return
-	_set_share_link(url)
+	var code := code_from_url(url)
+	if code == "":
+		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
+		return
+	_set_share_link(code)
 	_update_count()
 
 func _stop_tunnel() -> void:
