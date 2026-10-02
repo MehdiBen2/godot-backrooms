@@ -1,7 +1,8 @@
 extends Node3D
 ## The torch in your hand (models/flashlight.glb), low-right in view, held by your right arm
-## (models/player/playerarms.glb): the arm brings it up when you switch it on and lowers it out of view
-## when you switch it off. Swings with your stride, dips while you sprint and crouch, and jerks up across
+## (models/player/playerarms.glb, built by tools/build_player_arms.py: whole arms, shoulder to fingertips,
+## the fist closed on this torch's barrel): the arm brings it up when you switch it on and lowers it out of
+## view when you switch it off. Swings with your stride, dips while you sprint and crouch, and jerks up across
 ## your face when something is right in front of you (flinch()).
 ## Peeking round a wall edge (peek.gd, set_peek()), the hand on the wall's side takes hold of the edge and
 ## the other one hangs low, only just in view, with the torch if it's on (wall_hand.gd): peeking left the

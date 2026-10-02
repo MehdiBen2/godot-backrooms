@@ -11,7 +11,7 @@ extends CanvasLayer
 ##  - INFINITE SANITY: Locks sanity at 100%, removes distortions & mind drain
 ##  - INFINITE TORCH: Flashlight battery pinned at 100% with zero flicker
 ##  - SPEED & JUMP BOOSTS: 0.5x to 5.0x walk/fly speeds, high jumps
-##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, Grabber, & Freeze Monsters
+##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, Grabber, Skin Stealer, Burnt, & Freeze Monsters
 ##  - WORLD & SCARE EVENTS: Blackouts, Power Restore, Audio Scares
 ##  - TELEPORTATION: Warp to Spawn, Mannequins, Bacteria, Ceiling (+5m), Custom X/Z
 ##  - LIVE OVERLAY HUD: Realtime on-screen telemetry (FPS, Pos, Speed, Vitals, Radar)
@@ -28,8 +28,12 @@ const ENTITIES := {
 	"mimic": "Mimic",
 	"killer": "Killer",
 	"grabber": "Grabber",
+	"skinstealer": "SkinStealer",
+	"burnt": "Burnt",
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber"]
+const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt"]
+# other things you might type for a name
+const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt"}
 const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
 
 const FONT_PATH := "res://fonts/vcr.ttf"
@@ -530,6 +534,15 @@ func _build_entities_tab() -> Control:
 	kil_box.add_child(_label("KILLER (TEST MESH):", 12, Color(0.9, 0.8, 0.6), 160))
 	kil_box.add_child(_action_btn("SPAWN", func(): _apply("killer", true)))
 	kil_box.add_child(_action_btn("DESPAWN", func(): _apply("killer", false)))
+
+	# Skin Stealer & Burnt Rows: models only for now, stood in front of you
+	for row in [["SKIN STEALER (MODEL):", "skinstealer"], ["THE BURNT (MODEL):", "burnt"]]:
+		var mdl_box := HBoxContainer.new()
+		mdl_box.add_theme_constant_override("separation", 8)
+		v.add_child(mdl_box)
+		mdl_box.add_child(_label(row[0], 12, Color(0.9, 0.8, 0.6), 160))
+		mdl_box.add_child(_action_btn("SPAWN", func(): _apply(row[1], true)))
+		mdl_box.add_child(_action_btn("DESPAWN", func(): _apply(row[1], false)))
 
 	# Grabber Row: spawn it on the ceiling ahead, or drop it straight into a state
 	var grb_box := HBoxContainer.new()
@@ -1247,8 +1260,7 @@ func _each(arg: String, spawn: bool) -> void:
 		for n in ORDER:
 			_apply(n, spawn)
 		return
-	if arg == "entity":
-		arg = "bacteria"
+	arg = ALIASES.get(arg, arg)
 	if not ORDER.has(arg):
 		_print("[color=orange]unknown entity: " + arg + "[/color]")
 		return
@@ -1283,7 +1295,8 @@ func _apply(name: String, spawn: bool) -> void:
 	if spawn:
 		var ok = n.debug_spawn()
 		if ok == false:
-			_print("[color=orange]%s: no room to spawn here, try another spot[/color]" % name)
+			var why = n.get("last_error")
+			_print("[color=orange]%s: %s[/color]" % [name, why if why else "no room to spawn here, try another spot"])
 			return
 	else:
 		n.debug_despawn()

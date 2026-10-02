@@ -2405,6 +2405,7 @@ func _describe(o: Dictionary) -> String:
 	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
 	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
 	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
+	if params.has("elev") and float(_param(o, "elev")) > 0.0: t += "   %.2f m off the floor" % float(_param(o, "elev"))
 	if _is_stairs(str(o.type)) and objects.has(o):
 		var up := _stair_linked(o, floor_idx, 1)
 		var down := _stair_linked(o, floor_idx, -1)

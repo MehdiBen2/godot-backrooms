@@ -623,8 +623,9 @@ func _build_props(list: Array) -> void:
 		var info := object_info(o.type)
 		var p := IndustrialProp.new()
 		p.transform = object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
+		p.position.y += float(o.get("elev", 0.0))       # lifted off the floor: a sign on a wall, a box on a shelf
 		add_child(p)
-		p.build(str(info.model), info.get("textures", {}), {} if shell else info.get("light", {}), float(info.get("model_yaw", 0.0)))
+		p.build(str(info.model), info.get("textures", {}), {} if shell else info.get("light", {}), float(info.get("model_yaw", 0.0)), float(info.get("glow", 0.0)), float(info.get("model_scale", 1.0)))
 		for l in p.find_children("*", "Light3D", true, false):
 			(l as Light3D).light_cull_mask &= ~SHELL_LAYERS      # a work lamp lights its own floor, not the ones under it
 

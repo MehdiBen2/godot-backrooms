@@ -6,7 +6,7 @@ extends RefCounted
 ## "t:..." ids are scratched-in words (a stroke font); \n starts a new line.
 
 const LIST := [
-	["eye", "EYE"], ["eyes", "MANY EYES"], ["grin", "GRIN"], ["figure", "FIGURE"], ["hand", "HAND"],
+	["bacteria", "BACTERIA"], ["eye", "EYE"], ["eyes", "MANY EYES"], ["grin", "GRIN"], ["figure", "FIGURE"], ["hand", "HAND"],
 	["skull", "SKULL"], ["claws", "CLAWS"], ["scribble", "SCRIBBLE"], ["tally", "TALLY"],
 	["spiral", "SPIRAL"], ["drips", "DRIPS"],
 	["t:RUN", "RUN"], ["t:HELP ME", "HELP ME"], ["t:BEHIND\nYOU", "BEHIND YOU"],
@@ -18,7 +18,15 @@ const LIST := [
 	["t:LEAVE", "LEAVE"], ["t:IT IS\nHERE", "IT IS HERE"], ["t:DONT\nTRUST\nHIM", "DONT TRUST"], ["t:NO EXIT", "NO EXIT"],
 	["t:WAKE UP", "WAKE UP"], ["t:HE IS\nWATCHING", "WATCHING"], ["t:TURN\nBACK", "TURN BACK"],
 	["t:I SEE YOU", "I SEE YOU"], ["t:SMILE", "SMILE"], ["t:HELP", "HELP"],
+	["eyeball", "EYEBALL"], ["teeth", "TEETH"], ["ribs", "RIBS"], ["stump", "CUT HAND"], ["digits", "CUT FINGERS"],
+	["ear", "EAR"], ["heart", "HEART"], ["brain", "BRAIN"], ["tongue", "TONGUE"], ["bones", "BONES"],
+	["uncanny", "UNCANNY"], ["longneck", "LONG NECK"], ["mouthface", "ONLY MOUTH"], ["wrongeyes", "WRONG EYES"],
+	["mannequin", "MANNEQUIN"], ["stretched", "STRETCHED"], ["twins", "CONJOINED"], ["inverted", "INVERTED"],
+	["peeker", "PEEKER"], ["hollow", "HOLLOW"],
 ]
+
+const TOOTH := [-0.5, 0.3, -0.45, 0.9, -0.2, 1.0, 0, 0.85, 0.2, 1.0, 0.45, 0.9, 0.5, 0.3, 0.4, -0.6, 0.3, -1.0,
+	0.15, -0.3, 0, 0.0, -0.15, -0.3, -0.3, -1.0, -0.4, -0.6, -0.5, 0.3]
 
 ## Letters on a 4 wide, 6 tall grid: strokes as flat x, y, x, y ... lists
 const GLYPHS := {
@@ -85,6 +93,27 @@ static func make(id: String) -> Array:
 		"smileys": return _smileys()
 		"footprints": return _footprints()
 		"iris": return _iris()
+		"bacteria": return _bacteria()
+		"eyeball": return _eyeball()
+		"teeth": return _teeth()
+		"ribs": return _ribs()
+		"stump": return _stump()
+		"digits": return _digits()
+		"ear": return _ear()
+		"heart": return _heart()
+		"brain": return _brain()
+		"tongue": return _tongue()
+		"bones": return _bones()
+		"uncanny": return _uncanny()
+		"longneck": return _longneck()
+		"mouthface": return _mouthface()
+		"wrongeyes": return _wrongeyes()
+		"mannequin": return _mannequin()
+		"stretched": return _stretched()
+		"twins": return _twins()
+		"inverted": return _inverted()
+		"peeker": return _peeker()
+		"hollow": return _hollow()
 	return []
 
 # ---------------------------------------------------------------- helpers
@@ -515,6 +544,293 @@ static func _iris() -> Array:
 	for k in 16:
 		var a := k * TAU / 16.0
 		out.append(_poly([cos(a) * 0.12, sin(a) * 0.12, cos(a) * 0.62, sin(a) * 0.62]))
+	return out
+
+## A wiry strand along the corners in `flat`, gone over `n` times with a shaky hand
+static func _wire(flat: Array, n := 3, jit := 0.03) -> Array:
+	var out: Array = []
+	for w in n:
+		var q := PackedVector2Array()
+		for i in range(0, flat.size() - 3, 2):
+			var a := Vector2(flat[i], flat[i + 1])
+			var b := Vector2(flat[i + 2], flat[i + 3])
+			for j in 6:
+				q.append(a.lerp(b, j / 6.0) + Vector2(randf_range(-jit, jit), randf_range(-jit, jit)))
+		q.append(Vector2(flat[flat.size() - 2], flat[flat.size() - 1]))
+		out.append(q)
+	return out
+
+## One knotted scribble inside an ellipse
+static func _tangle(c: Vector2, rx: float, ry: float, n: int) -> PackedVector2Array:
+	var q := PackedVector2Array()
+	for i in n:
+		var v := Vector2.from_angle(randf() * TAU) * sqrt(randf())
+		q.append(c + Vector2(v.x * rx, v.y * ry))
+	return q
+
+## A plain almond eye with a pupil (3 strokes)
+static func _simple_eye(c: Vector2, s: float) -> Array:
+	return [_arc(c, s, s * 0.5, 0.0, PI, 10), _arc(c, s, s * 0.4, PI, TAU, 10), _ring(c, s * 0.22, 8)]
+
+## The Bacteria: a tall thing knotted out of black wire, arms to the floor, a hollow head. Different every time
+static func _bacteria() -> Array:
+	var out: Array = []
+	for k in 3:
+		var q := PackedVector2Array()
+		for i in 15:
+			var a := i * TAU / 14.0
+			q.append(Vector2(0.04, 0.83) + Vector2(cos(a) * 0.1, sin(a) * 0.12) * randf_range(0.85, 1.15))
+		out.append(q)
+	out.append_array(_wire([0.02, 0.71, -0.02, 0.45, -0.06, 0.1], 4, 0.04))
+	out.append(_tangle(Vector2(-0.02, 0.42), 0.11, 0.28, 30))
+	out.append_array(_wire([0.0, 0.62, -0.42, 0.3, -0.6, -0.45]))
+	out.append_array(_wire([0.0, 0.62, 0.4, 0.38, 0.7, -0.15, 0.56, -0.55]))
+	out.append_array(_wire([-0.06, 0.1, -0.3, -0.4, -0.2, -1.0]))
+	out.append_array(_wire([-0.06, 0.1, 0.25, -0.45, 0.3, -1.0]))
+	for h in [[-0.6, -0.45], [0.56, -0.55]]:
+		for d in [-0.07, -0.02, 0.03, 0.08]:
+			out.append(_poly([h[0], h[1], h[0] + d, h[1] - 0.16]))
+	return out
+
+# ---------------------------------------------------------------- body parts
+## A plucked eyeball trailing its nerve
+static func _eyeball() -> Array:
+	var c := Vector2(0, 0.4)
+	var out: Array = [_ring(c, 0.5, 30), _ring(c + Vector2(0.05, 0.0), 0.2, 16), _ring(c + Vector2(0.05, 0.0), 0.08, 10)]
+	for k in 7:
+		var a := 0.3 + k * TAU / 7.0
+		out.append(PackedVector2Array([c + Vector2.from_angle(a) * 0.5, c + Vector2.from_angle(a + 0.15) * 0.38,
+			c + Vector2.from_angle(a - 0.05) * 0.28]))
+	for sx in [-1.0, 1.0]:
+		var q := PackedVector2Array()
+		for j in 16:
+			var t := j / 15.0
+			q.append(Vector2(sx * 0.07 * (1.0 - t * 0.5) + 0.15 * sin(t * 7.0), -0.1 - t * 0.9))
+		out.append(q)
+	return out
+
+## Pulled teeth, roots and all
+static func _teeth() -> Array:
+	var out: Array = []
+	for t in [[-0.7, 0.35, 0.24], [-0.3, -0.4, 0.26], [0.05, 0.45, 0.22], [0.45, -0.35, 0.27], [0.78, 0.3, 0.2]]:
+		out.append_array(_xf([_poly(TOOTH)], Vector2(t[0], t[1]), t[2]))
+		out.append(_poly([t[0], t[1] - t[2], t[0] + 0.02, t[1] - t[2] - 0.2]))
+	return out
+
+## A ribcage on its spine
+static func _ribs() -> Array:
+	var out: Array = [_poly([0, 0.95, 0, -0.95]),
+		_poly([-0.06, 0.7, -0.06, -0.2, 0, -0.35, 0.06, -0.2, 0.06, 0.7, -0.06, 0.7])]
+	for i in 7:
+		var y := 0.7 - i * 0.2
+		var w := 0.5 + 0.4 * sin((i + 1) / 8.0 * PI)
+		out.append(_arc(Vector2(w * 0.5, y), w * 0.5, 0.09, PI, -PI * 0.6, 14))
+		out.append(_arc(Vector2(-w * 0.5, y), w * 0.5, 0.09, 0.0, PI * 1.6, 14))
+	for i in 3:
+		out.append(_poly([-0.05, -0.75 - i * 0.08, 0.05, -0.75 - i * 0.08]))
+	return out
+
+## A hand cut off at the wrist
+static func _stump() -> Array:
+	var out: Array = [
+		_poly([-0.42, -0.1, -0.4, -0.6]), _poly([0.45, -0.1, 0.4, -0.6]),
+		_poly([-0.4, -0.6, -0.3, -0.68, -0.2, -0.58, -0.1, -0.7, 0.0, -0.6, 0.1, -0.7, 0.2, -0.58, 0.3, -0.68, 0.4, -0.6]),
+		_ring(Vector2(-0.1, -0.62), 0.06, 8), _ring(Vector2(0.12, -0.62), 0.05, 8),
+		_poly([-0.25, -0.63, -0.26, -0.95]), _poly([0.05, -0.65, 0.06, -1.0]), _poly([0.3, -0.68, 0.3, -0.85])]
+	for f in [[-0.28, -0.05, 12.0, 0.7], [-0.1, -0.02, 4.0, 0.95], [0.08, -0.02, -3.0, 1.0],
+			[0.26, -0.05, -12.0, 0.8], [0.4, -0.3, 70.0, 0.55]]:
+		out.append(_finger(Vector2(f[0], f[1]), f[2], f[3], 0.075))
+	return out
+
+## Three fingers, cut off, nails and knuckles
+static func _digits() -> Array:
+	var out: Array = []
+	var w := 0.1
+	for f in [[-0.6, -0.3, 20.0, 0.9], [-0.1, -0.6, -10.0, 1.1], [0.45, -0.4, 35.0, 0.8]]:
+		var base := Vector2(f[0], f[1])
+		var length: float = f[3]
+		var dir := Vector2.from_angle(deg_to_rad(90.0 - f[2]))
+		var perp := Vector2(dir.y, -dir.x)
+		out.append(_finger(base, f[2], length, w))
+		out.append(PackedVector2Array([base + perp * w, base + perp * w * 0.5 - dir * 0.06, base,
+			base - perp * w * 0.5 - dir * 0.06, base - perp * w]))
+		for k in [0.4, 0.7]:
+			var p: Vector2 = base + dir * length * k
+			out.append(PackedVector2Array([p - perp * w * 0.8, p + perp * w * 0.8]))
+		out.append(_ring(base + dir * (length - w * 1.2), w * 0.6, 8))
+		out.append(_poly([base.x, base.y - 0.06, base.x + 0.01, base.y - 0.3]))
+	return out
+
+## A torn-off ear
+static func _ear() -> Array:
+	return [_arc(Vector2(0, 0.1), 0.5, 0.8, -PI * 0.45, PI * 1.15, 28),
+		_poly([0.078, -0.69, -0.15, -0.75, -0.3, -0.55, -0.445, -0.26]),
+		_arc(Vector2(0.02, 0.15), 0.32, 0.55, -PI * 0.3, PI, 18),
+		_ring(Vector2(-0.1, 0.0), 0.1, 10),
+		_poly([-0.445, -0.26, -0.55, -0.1, -0.45, 0.05, -0.56, 0.2, -0.46, 0.35]),
+		_poly([-0.15, -0.75, -0.14, -1.0]), _poly([-0.5, -0.2, -0.52, -0.6])]
+
+## A real heart, not the pretty kind
+static func _heart() -> Array:
+	return [_poly([0, -0.9, -0.45, -0.45, -0.6, 0.0, -0.5, 0.35, -0.25, 0.5, 0.0, 0.4, 0.3, 0.5, 0.55, 0.3,
+			0.6, -0.05, 0.4, -0.5, 0, -0.9]),
+		_poly([-0.1, 0.42, -0.15, 0.8, 0.1, 0.95, 0.3, 0.8]), _poly([0.08, 0.4, 0.05, 0.7, 0.15, 0.78]),
+		_poly([0.3, 0.5, 0.4, 0.8]), _poly([0.45, 0.42, 0.6, 0.75]),
+		_poly([-0.3, 0.48, -0.5, 0.75]), _poly([-0.42, 0.4, -0.65, 0.65]),
+		_poly([-0.1, 0.3, 0.0, -0.1, -0.15, -0.5]), _poly([0.0, -0.1, 0.25, -0.35]), _poly([0.2, 0.3, 0.35, 0.0]),
+		_poly([0, -0.9, 0.01, -1.0])]
+
+static func _brain() -> Array:
+	var rim := PackedVector2Array()
+	for i in 33:
+		var a := i * TAU / 32.0
+		var r := 1.0 + 0.07 * sin(a * 9.0)
+		rim.append(Vector2(cos(a) * 0.9 * r, 0.1 + sin(a) * 0.6 * r))
+	var out: Array = [rim, _poly([0.1, -0.5, 0.15, -0.85, 0.3, -0.9, 0.3, -0.5])]
+	for k in 5:
+		var y := 0.45 - k * 0.2
+		var u := (y - 0.1) / 0.6
+		var hw := 0.72 * sqrt(1.0 - u * u)
+		var q := PackedVector2Array()
+		for j in 21:
+			var x := lerpf(-hw, hw, j / 20.0)
+			q.append(Vector2(x, y + 0.07 * sin(x * 14.0 + k * 2.0)))
+		out.append(q)
+	return out
+
+## A mouth with its tongue hanging far too long
+static func _tongue() -> Array:
+	var out: Array = [_arc(Vector2(0, 0.6), 0.6, 0.25, 0.0, TAU, 24),
+		_poly([-0.25, 0.5, -0.3, -0.2, -0.25, -0.7, 0, -0.95, 0.25, -0.7, 0.3, -0.2, 0.25, 0.5]),
+		_poly([0, 0.45, 0.02, -0.7]), _poly([0.1, -0.9, 0.1, -1.0])]
+	for k in 6:
+		var x := -0.39 + k * 0.13
+		out.append(_poly([x, 0.78, x, 0.66, x + 0.11, 0.66, x + 0.11, 0.78]))
+	return out
+
+static func _bone(a: Vector2, b: Vector2, w: float) -> Array:
+	var perp := (b - a).normalized().orthogonal() * w
+	return [PackedVector2Array([a + perp, b + perp]), PackedVector2Array([a - perp, b - perp]),
+		_ring(a + perp * 1.3, w * 1.4, 10), _ring(a - perp * 1.3, w * 1.4, 10),
+		_ring(b + perp * 1.3, w * 1.4, 10), _ring(b - perp * 1.3, w * 1.4, 10)]
+
+static func _bones() -> Array:
+	var out: Array = _bone(Vector2(-0.65, -0.65), Vector2(0.65, 0.65), 0.07)
+	out.append_array(_bone(Vector2(-0.65, 0.65), Vector2(0.65, -0.65), 0.07))
+	return out
+
+# ---------------------------------------------------------------- uncanny
+## Almost a person: eyes too round, pupils too small, the smile too thin
+static func _uncanny() -> Array:
+	var out: Array = [_arc(Vector2.ZERO, 0.7, 0.95, 0.0, TAU, 36)]
+	for sx in [-1.0, 1.0]:
+		out.append(_ring(Vector2(sx * 0.3, 0.25), 0.2, 18))
+		out.append(_ring(Vector2(sx * 0.3, 0.25), 0.025, 6))
+		out.append(_arc(Vector2(sx * 0.3, 0.52), 0.2, 0.08, PI * 0.15, PI * 0.85, 6))
+	for d in [0.2, 0.1]:
+		var q := PackedVector2Array()
+		for i in 17:
+			var u := lerpf(-1.0, 1.0, i / 16.0)
+			q.append(Vector2(u * 0.45, -0.6 + d * u * u))
+		out.append(q)
+	return out
+
+## Someone whose neck goes on and on
+static func _longneck() -> Array:
+	var left := PackedVector2Array()
+	var right := PackedVector2Array()
+	for j in 17:
+		var t := j / 16.0
+		var cx := 0.33 * t * t
+		left.append(Vector2(cx - 0.09, -0.65 + t * 1.12))
+		right.append(Vector2(cx + 0.09, -0.65 + t * 1.12))
+	var h := Vector2(0.35, 0.68)
+	return [left, right, _poly([-0.9, -1, -0.7, -0.75, -0.09, -0.65]), _poly([0.9, -1, 0.7, -0.75, 0.09, -0.65]),
+		_ring(h, 0.22, 20), _ring(h + Vector2(-0.08, 0.05), 0.03, 6), _ring(h + Vector2(0.08, 0.05), 0.03, 6),
+		_arc(h + Vector2(0, -0.03), 0.11, 0.08, PI * 1.1, PI * 1.9, 8)]
+
+## A face that is only a mouth
+static func _mouthface() -> Array:
+	var out: Array = [_arc(Vector2.ZERO, 0.7, 0.95, 0.0, TAU, 36), _arc(Vector2.ZERO, 0.4, 0.22, 0.0, TAU, 24),
+		_poly([-0.38, 0, 0.38, 0])]
+	for k in 7:
+		var x := -0.3 + k * 0.1
+		out.append(_poly([x, -0.14, x, 0.14]))
+	return out
+
+## Eyes where eyes should not be, and the mouth turned on its side
+static func _wrongeyes() -> Array:
+	var out: Array = [_ring(Vector2.ZERO, 0.95, 40), _arc(Vector2(0, -0.55), 0.08, 0.28, 0.0, TAU, 16)]
+	for e in [[-0.4, 0.45, 0.22], [0.35, 0.5, 0.18], [0.0, 0.1, 0.2], [-0.5, -0.2, 0.15], [0.5, -0.05, 0.17]]:
+		out.append_array(_simple_eye(Vector2(e[0], e[1]), e[2]))
+	for k in 5:
+		var y := -0.75 + k * 0.1
+		out.append(_poly([-0.06, y, 0.06, y]))
+	return out
+
+## A shop dummy: no face, just seams
+static func _mannequin() -> Array:
+	return [_arc(Vector2(0, 0.35), 0.42, 0.55, 0.0, TAU, 30),
+		_poly([-0.15, -0.15, -0.17, -0.5]), _poly([0.15, -0.15, 0.17, -0.5]),
+		_poly([-0.17, -0.5, -0.8, -0.7, -0.95, -1.0]), _poly([0.17, -0.5, 0.8, -0.7, 0.95, -1.0]),
+		_poly([0, 0.9, 0, -0.2]), _arc(Vector2(0, 0.35), 0.42, 0.1, PI, TAU, 12),
+		_arc(Vector2(0, -0.5), 0.17, 0.05, 0.0, TAU, 12)]
+
+## A face pulled sideways
+static func _stretched() -> Array:
+	var out: Array = [_arc(Vector2.ZERO, 0.95, 0.45, 0.0, TAU, 40)]
+	for sx in [-1.0, 1.0]:
+		out.append(_ring(Vector2(sx * 0.7, 0.1), 0.09, 12))
+		out.append(_ring(Vector2(sx * 0.7, 0.1), 0.02, 6))
+	var q := PackedVector2Array()
+	for i in 21:
+		var u := lerpf(-1.0, 1.0, i / 20.0)
+		q.append(Vector2(u * 0.6, -0.2 + 0.05 * u * u))
+	out.append(q)
+	for k in 13:
+		var x := -0.54 + k * 0.09
+		out.append(_poly([x, -0.25, x, -0.12]))
+	return out
+
+## Two heads grown together around one eye
+static func _twins() -> Array:
+	var out: Array = [_ring(Vector2(-0.3, 0), 0.55, 30), _ring(Vector2(0.3, 0), 0.55, 30)]
+	out.append_array(_simple_eye(Vector2(0, 0.12), 0.2))
+	for sx in [-1.0, 1.0]:
+		out.append(_ring(Vector2(sx * 0.55, 0.15), 0.08, 10))
+		out.append(_ring(Vector2(sx * 0.55, 0.15), 0.02, 6))
+		out.append(_arc(Vector2(sx * 0.4, -0.22), 0.16, 0.1, PI * 1.1, PI * 1.9, 8))
+	return out
+
+## Everything on the face is in the wrong place
+static func _inverted() -> Array:
+	var out: Array = [_arc(Vector2.ZERO, 0.7, 0.95, 0.0, TAU, 36),
+		_arc(Vector2(0, 0.55), 0.4, 0.2, PI * 1.1, PI * 1.9, 12), _arc(Vector2(0, 0.55), 0.4, 0.08, PI * 1.1, PI * 1.9, 12),
+		_poly([0, -0.05, -0.08, 0.15, 0.08, 0.15, 0, -0.05])]
+	for sx in [-1.0, 1.0]:
+		out.append(_ring(Vector2(sx * 0.3, -0.4), 0.15, 14))
+		out.append(_ring(Vector2(sx * 0.3, -0.4), 0.04, 6))
+		out.append(_arc(Vector2(sx * 0.3, -0.65), 0.18, 0.06, PI * 1.15, PI * 1.85, 6))
+	return out
+
+## Someone looking round the corner at you, fingers on the edge
+static func _peeker() -> Array:
+	var out: Array = [_poly([0.1, 1, 0.1, -1]), _arc(Vector2(0.1, 0.2), 0.6, 0.7, PI * 0.5, PI * 1.5, 18),
+		_ring(Vector2(-0.2, 0.3), 0.16, 14), _ring(Vector2(-0.13, 0.3), 0.03, 6),
+		_poly([-0.35, -0.1, -0.2, -0.2, 0.1, -0.22])]
+	for k in 4:
+		out.append(_finger(Vector2(0.1, 0.0 - k * 0.13), 90.0, 0.4 - k * 0.03, 0.05))
+	return out
+
+## Hollow sockets and a mouth stuck open
+static func _hollow() -> Array:
+	var out: Array = [_arc(Vector2.ZERO, 0.65, 0.95, 0.0, TAU, 36),
+		_arc(Vector2(0, -0.45), 0.2, 0.35, 0.0, TAU, 20), _tangle(Vector2(0, -0.45), 0.16, 0.3, 18)]
+	for sx in [-1.0, 1.0]:
+		var c := Vector2(sx * 0.28, 0.3)
+		out.append(_arc(c, 0.17, 0.22, 0.0, TAU, 16))
+		out.append(_tangle(c, 0.13, 0.18, 14))
+		out.append(PackedVector2Array([c + Vector2(0, -0.22), c + Vector2(0.02, -0.6)]))
 	return out
 
 ## Scratched-in words, a little shaky

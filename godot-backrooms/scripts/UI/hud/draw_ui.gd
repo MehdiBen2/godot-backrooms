@@ -181,6 +181,9 @@ func _build() -> void:
 	_clear_btn = _button("CLEAR LINES", _clear)
 	_clear_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(_clear_btn)
+	var rec := _button("RECOVER CLEARED LINES", _recover)
+	rec.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(rec)
 	var save := _button("SAVE", _save)
 	save.add_theme_color_override("font_color", Color("2fd968"))
 	save.add_theme_color_override("font_hover_color", Color("6dffa0"))
@@ -295,6 +298,13 @@ func _clear() -> void:
 	_clear_btn.text = "CLEAR LINES"
 	m.clear_all()
 	_say("Cleared every sketch line on this floor")
+
+func _recover() -> void:
+	var m = SketchMarks.live
+	if m == null:
+		return
+	var n: int = m.recover()
+	_say("Recovered %d lines" % n if n > 0 else "Nothing to recover")
 
 func _save() -> void:
 	var ok := true

@@ -17,6 +17,8 @@ extends "res://level_editor_files.gd"
 ## The object types (and their keys, colours and sizes) come from the game's levels/object_types.json.
 ## Types with a "model" key are decorative clutter (imported meshes, not procedural geometry); those also
 ## flagged "scatter": true can be dropped in bulk with the SCATTER PROPS button in the OBJECTS panel.
+## The 3D view (F4, level_editor_3d.gd) shows them as their real models and places objects where you point:
+## on the floor, or for a "mount": "wall" prop on the wall face and at the height under the mouse.
 
 const BG := Color("0d0c08")
 const PANEL := Color("16140d")
@@ -183,7 +185,7 @@ func _build_ui() -> void:
 	here_b.add_theme_color_override("font_color", Color("2fd968"))
 	tb.add_child(here_b)
 	var view_b := _button("3D  F4", _toggle_3d)
-	view_b.tooltip_text = "Switch the map to an orbitable 3D view of the level (right drag orbit, wheel zoom, C ceiling)"
+	view_b.tooltip_text = "Switch the map to an orbitable 3D view of the level (right drag orbit, wheel zoom, C ceiling, E walk it).\nObjects can be placed there too: pick one in the tool panel and click where it goes (a wall prop: on the wall, at that height);\nwith Select / move, click an object and drag it. Props are shown as their real models"
 	tb.add_child(view_b)
 	tb.add_child(_button("UNDO", _undo))
 	tb.add_child(_button("REDO", _redo))
@@ -952,6 +954,7 @@ func _build_inspector(side: VBoxContainer) -> void:
 	_insp_param_spin(grid_box, "height", "Height", 0.0, 10.8, 0.05, " m", "0 = up to the ceiling. Under 1.8 m you see over it (a half wall, a counter)")
 	_insp_param_spin(grid_box, "arc", "Arc", 5.0, 360.0, 5.0, "°", "how much of the circle is built: 90 rounds a corner, 360 closes a round room")
 	_insp_param_spin(grid_box, "depth", "Depth", 0.25, 40.0, 0.25, "", "cells along the arrow")
+	_insp_param_spin(grid_box, "elev", "Off floor", 0.0, 10.8, 0.05, " m", "how far its lowest point is lifted off the floor: a sign on a wall, a box on a shelf.\nIn the 3D view (F4): Ctrl+wheel, or drag a wall prop up and down its wall")
 	var ev_lbl := _label("Event", 14, DIM)
 	grid_box.add_child(ev_lbl)
 	var ev_pick := OptionButton.new()

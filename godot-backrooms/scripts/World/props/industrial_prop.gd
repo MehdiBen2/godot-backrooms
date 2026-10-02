@@ -37,10 +37,28 @@ static func _get_cookie(path: String = "") -> Texture2D:
 	_floodlight_cookie = ImageTexture.create_from_image(img)
 	return _floodlight_cookie
 
-func build(model_path: String, textures: Dictionary, light: Dictionary = {}, model_yaw: float = 0.0) -> void:
-	var scene: PackedScene = load(model_path)
-	var inst := scene.instantiate()
+## The model as a scene. A .glb Godot has not imported yet (dropped in while only the level editor was open)
+## is read straight from its file, so a test run from the level editor still shows it.
+static func _instance(path: String) -> Node3D:
+	if ResourceLoader.exists(path):
+		var scene := load(path) as PackedScene
+		return scene.instantiate() as Node3D if scene != null else null
+	if path.get_extension().to_lower() in ["glb", "gltf"]:
+		var doc := GLTFDocument.new()
+		var state := GLTFState.new()
+		if doc.append_from_file(ProjectSettings.globalize_path(path), state) == OK:
+			return doc.generate_scene(state) as Node3D
+	push_warning("prop model not found: " + path)
+	return null
+
+## `textures` empty: the model keeps the materials of its own file (a .glb), and `glow` (if above 0) is how
+## bright their emissive parts are, whatever the file said. `model_scale`: the size it is built at (1 = the file's).
+func build(model_path: String, textures: Dictionary, light: Dictionary = {}, model_yaw: float = 0.0, glow: float = 0.0, model_scale: float = 1.0) -> void:
+	var inst := _instance(model_path)
+	if inst == null:
+		return
 	add_child(inst)
+	inst.scale = Vector3.ONE * model_scale
 	inst.rotation.y = deg_to_rad(model_yaw)     # some packs model the front on the wrong side: the arrow (+X) is the front
 	var mat := StandardMaterial3D.new()
 	if textures.has("albedo"):
@@ -63,15 +81,25 @@ func build(model_path: String, textures: Dictionary, light: Dictionary = {}, mod
 	var aabb := AABB()
 	var first := true
 	for mi in meshes:
-		mi.material_override = mat
+		if not textures.is_empty():
+			mi.material_override = mat
+		elif glow > 0.0:
+			_set_glow(mi, glow)
 		mi.visibility_range_end = 45.0
 		mi.visibility_range_end_margin = 8.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-		var box: AABB = mi.transform * mi.get_aabb()
+		# the mesh in the model's own space, through every node between the two (a .glb often nests its mesh
+		# under nodes that turn and scale it)
+		var xf := mi.transform
+		var up := mi.get_parent()
+		while mi != inst and up != inst and up is Node3D:
+			xf = (up as Node3D).transform * xf
+			up = up.get_parent()
+		var box: AABB = xf * mi.get_aabb()
 		aabb = box if first else aabb.merge(box)
 		first = false
 	if not first:
-		inst.position.y -= aabb.position.y
+		inst.position.y -= aabb.position.y * model_scale
 		if not light.is_empty():
 			_add_light(light, aabb)
 
@@ -132,6 +160,20 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		glow.distance_fade_length = 8.0
 		glow.position = spot_pos + Vector3(0.04, 0.0, 0.0)
 		add_child(glow)
+
+## Every emissive material of the mesh, glowing at `glow` times its emission texture
+func _set_glow(mi: MeshInstance3D, glow: float) -> void:
+	if mi.mesh == null:
+		return
+	for s in mi.mesh.get_surface_count():
+		var src := mi.mesh.surface_get_material(s) as BaseMaterial3D
+		if src == null or not src.emission_enabled:
+			continue
+		var lit: BaseMaterial3D = src.duplicate()
+		if lit.emission_texture != null:            # the texture alone, whichever way the colour is mixed with it
+			lit.emission = Color.BLACK if lit.emission_operator == BaseMaterial3D.EMISSION_OP_ADD else Color.WHITE
+		lit.emission_energy_multiplier = glow
+		mi.set_surface_override_material(s, lit)
 
 func _collect_meshes(n: Node, out: Array[MeshInstance3D]) -> void:
 	if n is MeshInstance3D:

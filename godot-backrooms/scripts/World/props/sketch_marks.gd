@@ -12,6 +12,7 @@ const LIFT := 0.006                  # m off the surface (above the tape at 0.00
 const LIFT_STEP := 0.0004
 const ERASE_RADIUS := 0.1            # m around a line that still counts as pointing at it
 const MAX_PER_LEVEL := 800
+const MAX_TRASH := 2000
 const COLORS := [Color("d92b2b"), Color("e8781a"), Color("e6c619"), Color("2fa84f"), Color("2b6fd9"),
 	Color("f2efe6"), Color("1b1b1b"), Color("000000")]
 const COLOR_NAMES := ["RED", "ORANGE", "YELLOW", "GREEN", "BLUE", "WHITE", "BLACK", "JET BLACK"]
@@ -155,6 +156,7 @@ func clear_all() -> void:
 	var list: Array = placed.get(MarkStore.key(), [])
 	if list.is_empty():
 		return
+	_bin(list)
 	_done({"op": "clear", "list": list.duplicate()})
 	for s in list:
 		_drop_mesh(s.id)
@@ -214,14 +216,74 @@ func _drop_mesh(id: String) -> void:
 ## Write this floor's strokes to disk; false if the file could not be written
 func save() -> bool:
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
+	return MarkStore.write(level_id, "sketch", _pack(placed.get(MarkStore.key(), [])))
+
+func _pack(list: Array) -> Array:
 	var out: Array = []
-	for s in placed.get(MarkStore.key(), []):
+	for s in list:
 		var pts: Array = []
 		for p in s.pts:
 			pts.append(MarkStore.arr(p))
 		out.append({"id": s.id, "pts": pts, "n": MarkStore.arr(s.n), "col": (s.col as Color).to_html(true),
 			"w": s.w, "wob": s.wob, "style": s.style})
-	return MarkStore.write(level_id, "sketch", out)
+	return out
+
+func _unpack(data: Array) -> Array:
+	var out: Array = []
+	for d in data:
+		var pts: Array = []
+		for p in d.pts:
+			pts.append(MarkStore.v3(p))
+		out.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": Color.html(str(d.get("col", "d92b2bff"))),
+			"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
+	return out
+
+## Lines wiped by CLEAR LINES are kept in the marks file too ("sketch_trash"), so they can be recovered
+## even after the game was closed
+func _bin(lines: Array) -> void:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
+	var all: Array = _unpack(MarkStore.read(level_id).get("sketch_trash", []))
+	var have := {}
+	for s in all:
+		have[s.id] = true
+	for s in lines:
+		if not have.has(s.id):
+			all.append(s)
+	if all.size() > MAX_TRASH:
+		all = all.slice(all.size() - MAX_TRASH)
+	MarkStore.write(level_id, "sketch_trash", _pack(all))
+
+## How many wiped lines could come back
+func trash_count() -> int:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
+	var live_ids := {}
+	for s in placed.get(MarkStore.key(), []):
+		live_ids[s.id] = true
+	var n := 0
+	for d in MarkStore.read(level_id).get("sketch_trash", []):
+		if not live_ids.has(str(d.id)):
+			n += 1
+	return n
+
+## Bring back every wiped line that isn't on the wall; one undo step. Returns how many came back.
+func recover() -> int:
+	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
+	var key := MarkStore.key()
+	if not placed.has(key):
+		placed[key] = []
+	var have := {}
+	for s in placed[key]:
+		have[s.id] = true
+	var made: Array = []
+	for s in _unpack(MarkStore.read(level_id).get("sketch_trash", [])):
+		if not have.has(s.id):
+			placed[key].append(s)
+			_spawn(s)
+			made.append(s)
+	if made.is_empty():
+		return 0
+	_done({"op": "addmany", "list": made})
+	return made.size()
 
 ## Delete the parts of every line that no longer have a surface under them (a wall was removed): a
 ## stroke is cut down to the stretches still on a surface, or dropped if none is left. Saved if changed.

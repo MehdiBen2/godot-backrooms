@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://euclxsjptj7" path="res://scripts/World/hills/hills_portal.gd" id="15"]
 [ext_resource type="Script" uid="uid://b40evrxfctmfq" path="res://scripts/Entities/killer/killer.gd" id="16_jbj1t"]
 [ext_resource type="Script" path="res://scripts/Entities/grabber/grabber.gd" id="17_grabber"]
+[ext_resource type="Script" path="res://scripts/Entities/model_entity.gd" id="18_model_entity"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -139,3 +140,15 @@ script = ExtResource("16_jbj1t")
 
 [node name="Grabber" type="Node3D" parent="."]
 script = ExtResource("17_grabber")
+
+[node name="SkinStealer" type="Node3D" parent="."]
+script = ExtResource("18_model_entity")
+model = "res://models/entities/skinstealer/skinstealer.glb"
+height = 2.9
+source_height = 4.456
+
+[node name="Burnt" type="Node3D" parent="."]
+script = ExtResource("18_model_entity")
+model = "res://models/entities/burnt/theburnt.glb"
+height = 3.0
+source_height = 0.978

@@ -1,5 +1,5 @@
 {
-  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on). 'stairs': true is a stairwell (props/stairs.gd): it stands square on two cells, the one it is on and the next along its arrow, and joins this floor to the next one up / down wherever that floor has a stairwell on the same cells. 'choices' lists the values a text param may take (value -> what it does); the inspector shows them as a drop-down.",
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Their 'elev' param is how far (metres) the model's lowest point is lifted off the floor. A model with no 'textures' keeps the materials in its own file (a .glb); 'glow' then sets how bright its emissive parts are. 'model_scale' is the size the model is built at (1 = as the file has it), so one file can be several types of different sizes; an object's 'scale' multiplies it. 'mount': 'wall' is a prop that hangs on a wall, back at its origin and front along the arrow: the level editor's 3D view puts it on the wall face you point at. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on). 'stairs': true is a stairwell (props/stairs.gd): it stands square on two cells, the one it is on and the next along its arrow, and joins this floor to the next one up / down wherever that floor has a stairwell on the same cells. 'choices' lists the values a text param may take (value -> what it does); the inspector shows them as a drop-down.",
   "thin_wall": {
     "label": "Thin wall",
     "key": "4",
@@ -223,6 +223,9 @@
       "roughness": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Roughness.png",
       "metallic": "res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Metallic.png"
     },
+    "params": {
+      "elev": 0.0
+    },
     "category": "props"
   },
   "prop_water_barrel": {
@@ -237,6 +240,9 @@
       "normal": "res://models/props/industrial/Water_Barrel/Water_Barrel_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Water_Barrel/Water_Barrel_Roughness.png",
       "metallic": "res://models/props/industrial/Water_Barrel/Water_Barrel_Metallic.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -253,6 +259,9 @@
       "roughness": "res://models/props/industrial/Gas_can/GasCan_Roughness.png",
       "metallic": "res://models/props/industrial/Gas_can/GasCan_Metallic.png"
     },
+    "params": {
+      "elev": 0.0
+    },
     "category": "props"
   },
   "prop_gas_cylinder": {
@@ -267,6 +276,9 @@
       "normal": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Normal.png",
       "roughness": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Roughness.png",
       "metallic": "res://models/props/industrial/Gas_Cylinder/Gas_Cylinder_Metallic.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -283,6 +295,9 @@
       "roughness": "res://models/props/industrial/CableDrum/CableDrum_Roughness.png",
       "metallic": "res://models/props/industrial/CableDrum/CableDrum_Metallic.png"
     },
+    "params": {
+      "elev": 0.0
+    },
     "category": "props"
   },
   "prop_car_jack": {
@@ -297,6 +312,9 @@
       "normal": "res://models/props/industrial/Car_Jack/CarJack_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Car_Jack/CarJack_Roughness.png",
       "metallic": "res://models/props/industrial/Car_Jack/CarJack_Metallic.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -313,6 +331,9 @@
       "roughness": "res://models/props/industrial/ElectricalBox/ElectricalBox_Roughness.png",
       "metallic": "res://models/props/industrial/ElectricalBox/ElectricalBox_Metallic.png"
     },
+    "params": {
+      "elev": 0.0
+    },
     "category": "props"
   },
   "prop_electrical_box2": {
@@ -327,6 +348,9 @@
       "normal": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Roughness.png",
       "metallic": "res://models/props/industrial/ElectricalBox02/ElectricalBox02_Metallic.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -343,6 +367,9 @@
       "roughness": "res://models/props/industrial/PalletTruck/PalletTruck_Roughness.png",
       "metallic": "res://models/props/industrial/PalletTruck/PalletTruck_Metallic.png"
     },
+    "params": {
+      "elev": 0.0
+    },
     "category": "props"
   },
   "prop_platform_trolley": {
@@ -357,6 +384,9 @@
       "normal": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Roughness.png",
       "metallic": "res://models/props/industrial/Platform_Trolley/Platform_Trolley_Metallic.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -383,6 +413,9 @@
       "roughness": "res://models/props/industrial/WorkLight/WorkLight_Roughness.png",
       "metallic": "res://models/props/industrial/WorkLight/WorkLight_Metallic.png",
       "emissive": "res://models/props/industrial/WorkLight/WorkLight_Emissive.png"
+    },
+    "params": {
+      "elev": 0.0
     },
     "category": "props"
   },
@@ -412,6 +445,53 @@
       "roughness": "res://models/props/industrial/Worklight02/WorkLight02_Roughness.png",
       "metallic": "res://models/props/industrial/Worklight02/WorkLight02_Metallic.png",
       "emissive": "res://models/props/industrial/Worklight02/WorkLight02_Emissive.png"
+    },
+    "params": {
+      "elev": 0.0
+    },
+    "category": "props"
+  },
+  "prop_exit_sign": {
+    "label": "Exit sign (small)",
+    "color": "06b833",
+    "help": "A lit green running-man EXIT sign for a wall, 31 cm wide (Width is its size multiplier). Its back sits flat on the wall and the arrow points out into the room. In the 3D view (F4) point at a wall and click: it goes on that wall, at that height",
+    "thickness": 0.1,
+    "model": "res://models/props/exit_sign/exit_sign.glb",
+    "model_yaw": 180,
+    "mount": "wall",
+    "glow": 1.0,
+    "params": {
+      "elev": 2.0
+    },
+    "category": "props"
+  },
+  "prop_exit_sign_medium": {
+    "label": "Exit sign (medium)",
+    "color": "06b833",
+    "help": "The EXIT sign at 2.5 times its size: 78 cm wide, 48 cm high, read from down a corridor. For a wall, like the small one",
+    "thickness": 0.1,
+    "model": "res://models/props/exit_sign/exit_sign.glb",
+    "model_yaw": 180,
+    "model_scale": 2.5,
+    "mount": "wall",
+    "glow": 1.0,
+    "params": {
+      "elev": 2.2
+    },
+    "category": "props"
+  },
+  "prop_exit_sign_big": {
+    "label": "Exit sign (big)",
+    "color": "06b833",
+    "help": "The EXIT sign blown up 6 times: 1.9 m wide, 1.15 m high, a wall of green light. Width takes it up to 4 times that. For a wall, like the small one",
+    "thickness": 0.15,
+    "model": "res://models/props/exit_sign/exit_sign.glb",
+    "model_yaw": 180,
+    "model_scale": 6.0,
+    "mount": "wall",
+    "glow": 1.0,
+    "params": {
+      "elev": 2.0
     },
     "category": "props"
   }

@@ -1,6 +1,6 @@
 extends Node3D
 ## A door in a thin wall: the partition with a doorway cut in it, a painted gray frame (lining inside the
-## opening, casing trim on both faces), a hinged wood door and a metal knob on each side. No interact
+## opening, casing trim on both faces) and a hinged wood door (models/props/door/wood_door.glb). No interact
 ## key, like the level's other props: it swings open away from you as you walk up and eases shut
 ## once you've gone.
 ##
@@ -18,6 +18,7 @@ const OPEN_ANGLE := deg_to_rad(95.0)
 const OPEN_DIST := 1.7       # player this close to the doorway (either side) and it opens
 const CLOSE_DIST := 2.4
 const SWING_TIME := 0.9
+const LEAF_MODEL := "res://models/props/door/wood_door.glb"
 
 var pivot: Node3D
 var leaf_collision: CollisionShape3D
@@ -68,11 +69,8 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	add_child(pivot)
 	var leaf_size := Vector3(LEAF_T, DOOR_H - 0.012, DOOR_W - 0.01)
 	var leaf_pos := Vector3(0, 0.006 + leaf_size.y * 0.5, DOOR_W * 0.5)
-	var leaf_mi := MeshInstance3D.new()
-	leaf_mi.mesh = _build_leaf_mesh(leaf_size)
-	leaf_mi.position = leaf_pos
-	leaf_mi.material_override = leaf_mat
-	pivot.add_child(leaf_mi)
+	if not _model_leaf(leaf_size, leaf_pos):
+		_plain_leaf(leaf_size, leaf_pos, leaf_mat, hw_mat)
 	var leaf_body := AnimatableBody3D.new()
 	pivot.add_child(leaf_body)
 	leaf_collision = CollisionShape3D.new()
@@ -81,6 +79,48 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	leaf_collision.shape = bs
 	leaf_collision.position = leaf_pos
 	leaf_body.add_child(leaf_collision)
+
+# The leaf is wood_door.glb, which brings its own handle and hinges. In its own frame it stands X wide
+# (hinges on -X, handle toward +X), Y tall from the floor, Z thick; here it is turned so its width runs
+# along +Z from the hinge, and stretched to the leaf's width and height (its thickness follows the height,
+# so the handle keeps its shape). False if the model isn't there (not imported yet).
+func _model_leaf(leaf_size: Vector3, leaf_pos: Vector3) -> bool:
+	if not ResourceLoader.exists(LEAF_MODEL):
+		return false
+	var packed := load(LEAF_MODEL) as PackedScene
+	if packed == null:
+		return false
+	var model: Node3D = packed.instantiate()
+	var box := AABB()
+	var first := true
+	for m in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		var xf := Transform3D.IDENTITY
+		var p: Node = mi
+		while p != null and p != model:
+			if p is Node3D:
+				xf = (p as Node3D).transform * xf
+			p = p.get_parent()
+		var b := xf * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	if first or box.size.x <= 0.0 or box.size.y <= 0.0:
+		model.free()
+		return false
+	var sy := leaf_size.y / box.size.y
+	var fit := Basis(Vector3.UP, -PI / 2.0) * Basis.from_scale(Vector3(leaf_size.z / box.size.x, sy, sy))
+	model.transform = Transform3D(fit, leaf_pos - fit * box.get_center())
+	pivot.add_child(model)
+	return true
+
+# The leaf built here instead (six-panel texture on a slab), with its knobs and hinges: what the door falls
+# back to without the model.
+func _plain_leaf(leaf_size: Vector3, leaf_pos: Vector3, leaf_mat: Material, hw_mat: Material) -> void:
+	var leaf_mi := MeshInstance3D.new()
+	leaf_mi.mesh = _build_leaf_mesh(leaf_size)
+	leaf_mi.position = leaf_pos
+	leaf_mi.material_override = leaf_mat
+	pivot.add_child(leaf_mi)
 	# a knob on each face, near the free edge: round rose, short neck, ball
 	for f: float in [-1.0, 1.0]:
 		var face := f * LEAF_T * 0.5
