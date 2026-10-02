@@ -523,17 +523,15 @@ func pick_up_item(id: String, title: String, desc: String, code: String, stack: 
 		])
 	return true
 
-## R: load a carried battery pack into the flashlight. Nothing to load or a full battery: the
-## dead click, so the key still answers.
+## R: load a carried battery pack into the flashlight: the player's hands change the cells
+## (player.gd swap_battery), and the charge is in when they're done. Nothing to load, a full battery or
+## a swap already under way: the dead click, so the key still answers.
 func use_battery() -> void:
-	if player.battery >= 99.5 or not inventory.has_item(BatteryPickup.ITEM_ID):
+	if player.battery >= 99.5 or player.swapping() or not inventory.has_item(BatteryPickup.ITEM_ID):
 		player.dead_click.emit()
 		return
 	inventory.remove_item(BatteryPickup.ITEM_ID)
-	player.battery = minf(100.0, player.battery + BatteryPickup.CHARGE)
-	var audio: Node = get_parent().get_node_or_null("Audio")
-	if audio:
-		audio.play_world("flash_click_on.wav")
+	player.swap_battery(BatteryPickup.CHARGE)
 
 func _unhandled_input(e: InputEvent) -> void:
 	var k := e as InputEventKey

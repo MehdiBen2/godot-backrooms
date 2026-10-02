@@ -494,5 +494,39 @@
       "elev": 2.0
     },
     "category": "props"
+  },
+  "prop_stop_sign": {
+    "label": "Stop sign",
+    "color": "c0241f",
+    "help": "A red STOP sign on a metal pole, 2.4 m tall. Purely decorative",
+    "thickness": 0.3,
+    "model": "res://models/props/stop_sign/stop_sign.glb",
+    "params": {
+      "elev": 0.0
+    },
+    "category": "props"
+  },
+  "prop_stop_sign_worn": {
+    "label": "Stop sign (worn)",
+    "color": "c0241f",
+    "help": "A weathered STOP sign on a pole, 2.4 m tall. Purely decorative",
+    "thickness": 0.3,
+    "model": "res://models/props/stop_sign/stop_sign_l3.glb",
+    "model_yaw": -90,
+    "params": {
+      "elev": 0.0
+    },
+    "category": "props"
+  },
+  "prop_stop_sign_tyro": {
+    "label": "Stop sign (plain)",
+    "color": "c0241f",
+    "help": "A plain STOP sign on a pole, 2.4 m tall. Purely decorative",
+    "thickness": 0.3,
+    "model": "res://models/props/stop_sign/stop_sign_tyro.glb",
+    "params": {
+      "elev": 0.0
+    },
+    "category": "props"
   }
 }

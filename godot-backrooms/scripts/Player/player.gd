@@ -74,6 +74,8 @@ var fullbright_light: OmniLight3D
 signal jumped
 signal landed(strength: float)
 signal battery_died
+signal battery_swap              # the cells are being changed (audio.gd: battery_swap.wav)
+signal battery_swap_cut          # and the change was cut short: the sound stops
 signal dead_click
 signal contact_click(off: bool)
 signal adrenaline_started
@@ -111,6 +113,8 @@ var unnerved := 0.0            # s left: something holding your gaze (the manneq
 var insanity := 0.0            # 0..1 how far gone: blur, double vision, the eyes
 var hurt_tick := 0.0
 var battery := 100.0          # flashlight battery, %
+var swap_dark := false        # mid battery swap, the cap off the torch: no light
+var swap_charge := 0.0        # % waiting to go in when the swap is done
 var flash_on := true
 var light_level := 1.0
 var flash_target := Vector3.ZERO
@@ -199,6 +203,11 @@ func _ready() -> void:
 	if not torch.build():
 		torch.queue_free()
 		torch = null
+	else:
+		torch.swap_started.connect(func(): battery_swap.emit())
+		torch.swap_cut.connect(func(): battery_swap_cut.emit())
+		torch.swap_dark.connect(func(dark: bool): swap_dark = dark)
+		torch.swap_done.connect(_swap_done)
 	shadow_body = PlayerShadow.new()
 	add_child(shadow_body)
 	if not shadow_body.build():
@@ -285,7 +294,9 @@ func _physics_process(dt: float) -> void:
 		if torch: torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
 		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
 		if dead:
-			if torch: torch.update(dt, false, false, false, bob)
+			if torch:
+				torch.end_swap()
+				torch.update(dt, false, false, false, bob)
 			flash.visible = false
 			flash.light_energy = 0.0
 			if flash_spill:
@@ -669,7 +680,7 @@ func ambient_light() -> float:
 
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
-	if flash_on:
+	if flash_on and not swap_dark:
 		if Game.infinite_battery:
 			battery = 100.0
 		else:
@@ -688,7 +699,7 @@ func _update_flashlight(dt: float) -> void:
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := ambient_light()
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
-	var lit := flash_on and not dead
+	var lit := flash_on and not dead and not swap_dark
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if lit else 0.0
 	flash.visible = lit
 	if flash_spill:
@@ -761,6 +772,22 @@ func _lens_clear_of_walls(from: Vector3, lens: Vector3) -> Vector3:
 		q.exclude.append(hit.rid)                       # a body in the way is not a wall: look past it
 	return lens
 
+## Load a battery pack worth `charge` % (hud.gd, R). The hands change the cells (torch_model.gd swap()):
+## the light is out while the cap is off, and the charge goes in when it's back on. Without the arms it
+## just goes in.
+func swap_battery(charge: float) -> void:
+	swap_charge += charge
+	if torch == null or not torch.swap():
+		battery_swap.emit()
+		_swap_done()
+
+func swapping() -> bool:
+	return torch != null and torch.swapping()
+
+func _swap_done() -> void:
+	battery = minf(100.0, battery + swap_charge)
+	swap_charge = 0.0
+
 ## The torch stutters for `secs` seconds (an event, or something big coming close)
 func trigger_flicker(secs: float) -> void:
 	flash_flicker.timer = 0.0
@@ -805,7 +832,7 @@ func _update_sanity(dt: float) -> void:
 		_update_mind(dt)
 		return
 	var ambient := ambient_light()
-	var torch_lit := flash_on and battery > 0.0
+	var torch_lit := flash_on and battery > 0.0 and not swap_dark
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
 	unnerved = maxf(0.0, unnerved - dt)
 	if sanity_lock >= 0.0:

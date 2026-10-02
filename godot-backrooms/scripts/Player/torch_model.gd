@@ -11,6 +11,9 @@ extends Node3D
 ## Standing with the torch up, the hand doesn't stay frozen: every few seconds it squeezes the barrel, rolls
 ## its fingers off it and back, or opens and takes a fresh hold (FIDGETS). And when the beam stutters it
 ## gives the torch a couple of sharp knocks (smack()).
+## swap() changes the batteries: the right arm turns the torch level, the left hand comes up, unscrews the
+## tail cap, the old cells drop out, the new pair goes in and the cap goes back on (TorchReload, close to
+## 7 s). The light is out while the cap is off: swap_started / swap_dark / swap_done tell the player when.
 ## A child of the camera, built by the player. Without the arms model the torch floats on its own.
 
 const MODEL := "res://models/flashlight.glb"
@@ -25,9 +28,21 @@ const HOLD := "TorchHold"         # held up, breathing
 const FLINCH := "TorchFlinch"     # thrown up across the face, trembling, then slowly back down
 const FIDGETS: Array[String] = ["TorchSqueeze", "TorchFingers", "TorchRegrip"]   # one-shots over the hold
 const SMACK := "TorchSmack"       # two sharp knocks, for a torch that flickers
+const RELOAD := "TorchReload"     # the battery swap, both hands
+const CELLS := "res://models/aa_batteries.glb"
+const CELLS_LENGTH := 0.07        # m: the new pair, in the left fist
+const SWAP_OUT := 1.50            # s into the swap: the cap comes loose and the light dies
+const SWAP_IN := 5.50             # the cap is tight again: the light is back, on the new cells
+const SWAP_CELLS := Vector2(3.10, 4.18)   # the new pair is in the left hand from, to
+const SWAP_WAIT := 1.5            # s it waits for the torch to be up in the right hand before it skips the show
 const FIDGET_EVERY := Vector2(6.0, 14.0)   # s from one fidget to the next
 const SMACK_GAP := Vector2(4.0, 8.0)       # s before it will knock the torch again
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
+
+signal swap_started               # the hands begin (audio/battery_swap.wav is cut to the clip)
+signal swap_dark(dark: bool)      # the cap is off, no light / it's back on
+signal swap_done                  # the new cells are in
+signal swap_cut                   # it was cut short (a flinch): the sound has to stop
 const CROUCH_DIP := 0.03          # m the torch hand sits lower crouched
 
 const SWAY_W := 15.0              # rad/s: how fast the hands catch up with the view
@@ -63,6 +78,11 @@ var _fidget_in := 8.0             # s to the next one
 var _fidget_last := ""
 var _smack_in := 0.0              # s to a knock that's been asked for (0: none)
 var _smack_wait := 0.0            # s before another can be
+var _swap := 0                    # the battery swap: 0 none, 1 getting the torch up for it, 2 under way
+var _swap_t := 0.0                # s waited to start it
+var _swap_dark := false
+var _swap_in := false             # the new cells are in (swap_done has gone out)
+var _cells: Node3D                # the new pair, in the left fist
 
 func _init() -> void:
 	name = "TorchModel"
@@ -75,8 +95,17 @@ func build() -> bool:
 	var scn := load(MODEL) as PackedScene
 	if scn == null:
 		return false
+	_torch = _hang(self, scn, LENGTH)
+	if _torch == null:
+		return false
+	_build_arms()
+	return true
+
+## A model hung under `at`: its long axis down -Z, `length` long, centred there, casting no shadow.
+## Null if it has no mesh.
+func _hang(at: Node3D, scn: PackedScene, length: float) -> Node3D:
 	var wrap := Node3D.new()
-	add_child(wrap)
+	at.add_child(wrap)
 	var inner := scn.instantiate() as Node3D
 	wrap.add_child(inner)
 	# merge the mesh bounds (in wrap space) to find the long axis and centre
@@ -89,17 +118,16 @@ func build() -> bool:
 		box = b if first else box.merge(b)
 		first = false
 	if first:
-		return false
+		wrap.queue_free()
+		return null
 	var size := box.size
 	var axis := 0 if (size.x >= size.y and size.x >= size.z) else (1 if size.y >= size.z else 2)
-	var scale_f := LENGTH / maxf(0.0001, size[axis])
+	var scale_f := length / maxf(0.0001, size[axis])
 	inner.scale = Vector3.ONE * scale_f
 	inner.position = -box.get_center() * scale_f
 	if axis == 0: wrap.rotation.y = PI / 2.0
 	elif axis == 1: wrap.rotation.x = -PI / 2.0
-	_torch = wrap
-	_build_arms()
-	return true
+	return wrap
 
 ## Put the torch in the right hand: the arms sit so that TorchGrip, in the TorchHold pose, lands on this
 ## node's origin, and the torch rides TorchGrip from then on. The torch floats alone if anything is missing.
@@ -138,6 +166,13 @@ func _build_arms() -> void:
 			_hands = null
 	for n in arms.find_children("*", "MeshInstance3D", true, false):
 		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# the new cells for a battery swap, in the left fist
+	var seat := arms.find_child("BatteryGrip", true, false) as Node3D
+	var cells := load(CELLS) as PackedScene
+	if seat != null and cells != null and _hands != null:
+		_cells = _hang(seat, cells, CELLS_LENGTH / ARMS_SCALE)
+		if _cells != null:
+			_cells.visible = false
 	var hold_at := Vector3.ZERO
 	var node: Node = anchor
 	while node != arms:
@@ -156,8 +191,9 @@ func _build_arms() -> void:
 		if _anim.has_animation(clip):
 			_anim.set_blend_time(clip, HOLD, 0.2)
 			_fidgets.append(clip)
-	if _anim.has_animation(SMACK):
-		_anim.set_blend_time(SMACK, HOLD, 0.2)
+	for clip in [SMACK, RELOAD]:
+		if _anim.has_animation(clip):
+			_anim.set_blend_time(clip, HOLD, 0.2)
 
 ## Where the beam leaves from: LENGTH ahead of the torch's middle, along the torch
 func lens() -> Vector3:
@@ -171,7 +207,8 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 	if _hands != null:
 		_hands.tick(dt)
 	if _anim != null:
-		_update_arm(shown)
+		_update_arm(shown or _swap != 0)    # a swap brings the torch up whether it's on or not
+		_swap_tick(dt)
 		_fidget(dt, sprinting)
 		_show_arms()
 	else:
@@ -243,8 +280,12 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		_hands.set_mode(right, WallHand.Mode.ANIM)
 		_hands.set_mode(left, WallHand.Mode.HIDE)
 		return
+	if _swap == 2:                    # both hands are on the torch, and the animation's
+		_hands.set_mode(right, WallHand.Mode.ANIM)
+		_hands.set_mode(left, WallHand.Mode.ANIM)
+		return
 	var busy := _anim.current_animation == PICKUP and _anim.is_playing()
-	if leaning and side != 0 and not busy:
+	if leaning and side != 0 and not busy and _swap == 0:
 		var wall := right if side < 0 else left
 		var free := 1 - wall
 		_hands.aim(wall, edge, normal, out, slow and dist <= WallHand.REACH, crouching)
@@ -339,6 +380,74 @@ func smack(after := 0.3) -> void:
 		return
 	_smack_in = after
 
+## Change the batteries. True if the hands will do it: swap_started when they begin, swap_dark while the
+## cap is off, swap_done when the new cells are in (a flinch cuts it short: the cells are in at once).
+## False if they can't (no arms, an arms model without the clip, one already under way): nothing follows.
+func swap() -> bool:
+	if _anim == null or _hands == null or _swap != 0 or not _anim.has_animation(RELOAD):
+		return false
+	_swap = 1
+	_swap_t = 0.0
+	_swap_in = false
+	return true
+
+func swapping() -> bool:
+	return _swap != 0
+
+## Whatever is left of a swap happens at once: light back, cells in, hands back to the hold
+func end_swap() -> void:
+	if _swap == 0:
+		return
+	var begun := _swap == 2
+	if _swap == 1:
+		swap_started.emit()
+	_swap = 0
+	if _swap_dark:
+		_swap_dark = false
+		swap_dark.emit(false)
+	if not _swap_in:
+		_swap_in = true
+		if begun:
+			swap_cut.emit()
+		swap_done.emit()
+	if _cells != null:
+		_cells.visible = false
+	if _anim.current_animation == RELOAD:
+		_anim.clear_queue()
+		_anim.play(HOLD, 0.2)
+
+## The swap: waits for the torch to be up in the right hand (it may have been off, or in the left for a
+## peek), plays the clip, and says when the light goes and comes back as the clip gets there
+func _swap_tick(dt: float) -> void:
+	if _swap == 0:
+		return
+	var now := String(_anim.current_animation)
+	if _swap == 1:
+		_swap_t += dt
+		if _holding() and (now == HOLD or now == SMACK or _fidgets.has(now)):
+			_swap = 2
+			_anim.clear_queue()
+			_anim.play(RELOAD, 0.15)
+			_anim.queue(HOLD)
+			swap_started.emit()
+		elif _swap_t > SWAP_WAIT:
+			end_swap()
+		return
+	if now != RELOAD:                 # played out, or a flinch took over
+		end_swap()
+		return
+	var at := _anim.current_animation_position
+	if at >= SWAP_OUT and at < SWAP_IN and not _swap_dark and not _swap_in:
+		_swap_dark = true
+		swap_dark.emit(true)
+	if at >= SWAP_IN and not _swap_in:
+		_swap_in = true
+		_swap_dark = false
+		swap_dark.emit(false)
+		swap_done.emit()
+	if _cells != null:
+		_cells.visible = at >= SWAP_CELLS.x and at < SWAP_CELLS.y
+
 ## The arm jerks up to shield your face. With the torch off it comes up from below for it and goes back
 ## down after. A flinch already under way plays out.
 func flinch() -> void:
@@ -382,3 +491,24 @@ func _update_arm(shown: bool) -> void:
 		raise = 1.0 if _on else 0.0
 	if not _on and not _anim.is_playing():
 		raise = 0.0
+
+# ---------------------------------------------------------------- debug console
+## Play one of the arm's one-shots now (console: anim <name>), past the timers that space them out in
+## play. "" if it's playing, else why not. The battery swap isn't asked for here: it goes through
+## player.gd swap_battery(), which brings its sound and the light with it.
+func debug_play(clip: String) -> String:
+	if _anim == null:
+		return "no arms model"
+	if not _anim.has_animation(clip):
+		return "the arms model has no clip " + clip
+	if clip == FLINCH:
+		flinch()
+		return ""
+	if _swap != 0:
+		return "a battery swap is under way"
+	if not _holding():
+		return "the torch has to be on, and up in the right hand"
+	_anim.clear_queue()
+	_anim.play(clip, 0.1)
+	_anim.queue(HOLD)
+	return ""

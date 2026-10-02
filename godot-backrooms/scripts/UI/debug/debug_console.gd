@@ -15,6 +15,7 @@ extends CanvasLayer
 ##  - WORLD & SCARE EVENTS: Blackouts, Power Restore, Audio Scares
 ##  - TELEPORTATION: Warp to Spawn, Mannequins, Bacteria, Ceiling (+5m), Custom X/Z
 ##  - LIVE OVERLAY HUD: Realtime on-screen telemetry (FPS, Pos, Speed, Vitals, Radar)
+##  - HAND ANIMATION TEST: Battery swap, smack, squeeze, finger roll, regrip, flinch (P plays the last again)
 ##  - COMMAND CONSOLE: Full command line with history and existing dev commands
 
 const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
@@ -35,6 +36,19 @@ const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstea
 # other things you might type for a name
 const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt"}
 const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
+# the first-person arms' one-shots (torch_model.gd): console name -> clip. "swap" goes the way R does,
+# sound and light with it, but spends no battery pack.
+const HAND_ANIMS := {
+	"swap": "TorchReload",
+	"smack": "TorchSmack",
+	"squeeze": "TorchSqueeze",
+	"fingers": "TorchFingers",
+	"regrip": "TorchRegrip",
+	"flinch": "TorchFlinch",
+}
+const HAND_ANIM_LABELS := {"swap": "BATTERY SWAP", "smack": "SMACK TORCH", "squeeze": "SQUEEZE", "fingers": "FINGER ROLL",
+	"regrip": "REGRIP", "flinch": "FLINCH"}
+const HAND_ANIM_WAIT := 0.35      # s from the menu closing to the clip, so its start is seen
 
 const FONT_PATH := "res://fonts/vcr.ttf"
 var font: FontFile
@@ -84,6 +98,8 @@ var dbg_model: Node3D
 var dbg_anim: AnimationPlayer
 var dbg_anims: Array[String] = []
 var dbg_anims_idx := 0
+
+var hand_anim_last := "swap"      # the arm clip P plays again
 
 func _ready() -> void:
 	layer = 120
@@ -419,6 +435,14 @@ func _build_cheats_tab() -> Control:
 	))
 	refills.add_child(_action_btn("+5 CAMERA FLASHES", func(): _refill_flash()))
 	refills.add_child(_action_btn("+300M HAZARD TAPE", func(): _refill_tape()))
+
+	# The arms can't be seen behind this window: a button closes it, then plays its clip
+	v.add_child(_section_header("HAND ANIMATION TEST (MENU CLOSES TO PLAY • PRESS P TO PLAY THE LAST ONE AGAIN)"))
+	var hands_row := HBoxContainer.new()
+	hands_row.add_theme_constant_override("separation", 8)
+	v.add_child(hands_row)
+	for what in HAND_ANIMS:
+		hands_row.add_child(_action_btn(HAND_ANIM_LABELS[what], func(): _hand_anim(what)))
 
 	v.add_child(_section_header("HUD & SCREENSHOTS"))
 	var hud_row := HBoxContainer.new()
@@ -1004,6 +1028,10 @@ func _input(e: InputEvent) -> void:
 	elif not menu_window.visible and e.physical_keycode == KEY_PERIOD:
 		_model_command("next")
 		get_viewport().set_input_as_handled()
+	# the arm clip tested last, again
+	elif not menu_window.visible and e.physical_keycode == KEY_P:
+		_hand_anim(hand_anim_last)
+		get_viewport().set_input_as_handled()
 
 # ---------------------------------------------------------------- CLI Commands
 func _print(text: String) -> void:
@@ -1064,6 +1092,7 @@ func _submit(line: String) -> void:
 	match cmd:
 		"help", "?":
 			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
+			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
@@ -1194,6 +1223,8 @@ func _submit(line: String) -> void:
 			_print("bacteria stalking" if ok else "[color=orange]no stalk spot found here, try another spot[/color]")
 		"model":
 			_model_command(arg)
+		"anim":
+			_hand_anim(arg)
 		"hud", "hidehud", "showhud", "togglehud":
 			if arg == "off" or arg == "hide" or arg == "0":
 				Game.hide_hud = true
@@ -1301,6 +1332,34 @@ func _apply(name: String, spawn: bool) -> void:
 	else:
 		n.debug_despawn()
 	_print("%s %s" % [name, "spawned" if spawn else "despawned"])
+
+## Play one of the first-person arms' clips (HAND_ANIMS; console: anim <name>). The menu is closed first
+## and the clip held back a moment, so it's watched from its start.
+func _hand_anim(what: String) -> void:
+	if not HAND_ANIMS.has(what):
+		_print("[color=orange]anim what? %s[/color]" % ", ".join(HAND_ANIMS.keys()))
+		return
+	hand_anim_last = what
+	if menu_window.visible:
+		_toggle(false)
+		await get_tree().create_timer(HAND_ANIM_WAIT).timeout
+	var pl := _get_player()
+	var torch = pl.get("torch") if pl != null else null
+	if torch == null:
+		_print("[color=orange]anim %s: no torch model on the player[/color]" % what)
+		return
+	var why := ""
+	if what == "swap":
+		if pl.swapping():
+			why = "a battery swap is under way"
+		else:
+			pl.swap_battery(0.0)
+	else:
+		why = torch.debug_play(HAND_ANIMS[what])
+	if why != "":
+		_print("[color=orange]anim %s: %s[/color]" % [what, why])
+	else:
+		_print("anim: " + what)
 
 func _model_command(arg: String) -> void:
 	var pl := _get_player()

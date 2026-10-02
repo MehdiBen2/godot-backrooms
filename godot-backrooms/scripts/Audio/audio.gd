@@ -100,6 +100,8 @@ func _ready() -> void:
 	player.jumped.connect(_on_jump)
 	player.landed.connect(_on_land)
 	player.battery_died.connect(func(): play_world("battery_dead.wav"))
+	player.battery_swap.connect(func(): play_world("battery_swap.wav"))
+	player.battery_swap_cut.connect(func(): stop_world("battery_swap.wav"))
 	player.dead_click.connect(func(): play_world("battery_dead_click.wav"))
 	player.contact_click.connect(func(off: bool): play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
 	var amb := Node.new()
@@ -310,6 +312,12 @@ func _play(file: String, bus: String, linear: float, pitch := 1.0) -> void:
 ## A short sound in the world with no position (clicks, the dead battery, a pickup)
 func play_world(file: String) -> void:
 	_play(file, "World", 1.0)
+
+## Cut a one-shot short where it is (the battery swap, when a flinch ends it)
+func stop_world(file: String) -> void:
+	for p in one_shots:
+		if p.playing and p.stream == stream(file):
+			p.stop()
 
 func _on_jump() -> void:
 	_play("jump.wav", "Body", 1.0)

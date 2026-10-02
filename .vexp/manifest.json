@@ -25,13 +25,13 @@
     "tools/blender/build_grabber.py": "3227fe745a8f2498bbdf82d9cecf77627239e38e49ce22a1264ad823acab4cef",
     "tools/blender/build_player_hazmat.py": "45e4d882569443cf5a10abff358273993f2036efa5396bb0fe7852cbb479e8f5",
     "tools/blender/rig_mannequin_variant.py": "dbc8d558df435f53754e5ffda2e5f81507514b5c827a3495dba38f69ef0fb1c0",
-    "tools/build_player_arms.py": "8512f517565325a1288af015987295994a002a337fab7ec8a7089ccffe4da6e0",
+    "tools/build_player_arms.py": "4d6f8ed8342e3fc36fcf740d7a9ce016fd3079a88f381c4d1c7f5f2a41c42f9b",
     "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "95aa94c1e91060520d4038855b8389f2d3baa432",
-  "indexed_at_timestamp": "2026-10-02T20:51:53.571043100+00:00",
+  "indexed_at_commit": "3e59ec528dfc31ea52560b87cc4358681cb25005",
+  "indexed_at_timestamp": "2026-10-02T21:30:02.048034100+00:00",
   "languages": {
     "markdown": {
       "calls": 0,

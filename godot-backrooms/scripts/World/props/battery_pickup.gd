@@ -65,5 +65,5 @@ func _process(_delta: float) -> void:
 		used = true
 		var audio: Node = Game.main.get_node_or_null("Audio")
 		if audio:
-			audio.play_world("flash_click_on.wav")
+			audio.play_world("battery_pickup.wav")
 		queue_free()

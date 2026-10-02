@@ -45,6 +45,19 @@ What it does:
    TorchRegrip    the hand opens a moment, all four fingers and the thumb off the barrel, and takes a
                   fresh, firm hold (the thumb alone is no use: from your eye the barrel hides it)
    TorchSmack     two sharp hammer strokes of the wrist, the fist clamped: knocking a flickering torch
+7. TorchReload, the battery swap, both arms (torch_model.gd plays it; tools/gen_battery_audio.py is the
+   sound, cut to the same times). The right arm turns the torch level across the view, tail to the left.
+   The left hand comes up from below, takes the tail cap and unscrews it in two twists with a fresh hold
+   between them (the light dies), pulls it off; the torch tips tail-down, gets a shake and the old cells
+   slide out; the hand goes down for the new pair (BatteryGrip, a new node in the left fist, is where
+   torch_model.gd shows them), pushes them in one after the other, sets the cap back, screws it down in two
+   twists (the light comes back) and drops away as the right arm goes back to the hold. Authored in the
+   camera's space, so VIEW_POS / VIEW_ROT have to be torch_model.gd's POS / ROT.
+   What keeps it from looking like a machine: every move is an intention followed by a damped spring
+   (sprung()), each with its own stiffness, so things ease in, run a little past, settle, and never all
+   arrive on the same frame; the hands wander a little while they work (drift()); the hand comes in on a
+   curve with a loose wrist that cocks into the grip as it lands; and the torch answers what's done to it:
+   it rolls with each twist of the cap, is shoved by each cell going in, and the fist on it tightens.
 
 """
 import heapq
@@ -84,6 +97,22 @@ TORCH_LENGTH = 0.27               # torch_model.gd LENGTH and GRIP_BACK, metres
 TORCH_BACK = 0.018
 SQUEEZE = 0.85                    # a finger sinks this much of its own radius short of touching the barrel
 FLEX = ((-15.0, 95.0), (0.0, 110.0), (0.0, 75.0))     # degrees each finger joint can bend, knuckle first
+VIEW_POS = (0.2, -0.2, -0.38)     # torch_model.gd POS and ROT (x, y): where the grip sits in the camera's space
+VIEW_ROT = (0.16, 0.14)
+TORCH_TAIL = 0.153                # m from the grip back to the torch's tail end (half its length + TORCH_BACK)
+# the swap, in the camera's space (m; x right, y up, -z ahead)
+SWAP_AIM = (0.92, 0.12, -0.37)    # the way the torch points while it's worked on: level, head to the right
+SWAP_FOREARM = (0.2, 0.6, -0.77)  # the way the right forearm then runs, elbow to wrist: up from below
+SWAP_AT = (0.09, -0.13, -0.36)    # where the grip is then
+SWAP_LEFT_ELBOW = (-0.14, -0.46, -0.10)   # about where the left elbow hangs: under the tail, so the wrist stays straight
+SWAP_AWAY = (-0.10, -0.24, 0.06)  # from the tail to where the left hand waits, below the view
+SWAP_SWING = (-0.05, 0.02, 0.03)  # how far the hand's way there and back bows out from the straight line
+SWAP_RELAX = 0.65                 # how much of the wrist's angle on the cap the hand lets go of, off the torch
+SWAP_DIP = 0.025                  # the torch hand's way to the working pose sags this much in the middle
+SWAP_TWIST = 45.0                 # degrees a turn of the cap
+SWAP_TIP = 28.0                   # degrees the tail dips to let the old cells out
+SWAP_GIVE = 4.0                   # degrees the torch rolls in the right hand with a twist of the cap
+SWAP_LENGTH = 6.8
 
 # ---------------------------------------------------------------------------------------------- glb
 
@@ -884,6 +913,180 @@ def main():
     hand_at = fore_at + q_mat(fore_q) @ np.array(nodes[nid["RightHand"]]["translation"])
     nodes[nid["TorchAnchor"]]["translation"] = (hand_at + q_mat(hand_q) @ np.array(grip["translation"])).tolist()
 
+    # ---- the battery swap
+    spin_y = about([0, 1, 0], VIEW_ROT[1]) @ about([1, 0, 0], VIEW_ROT[0])
+    from_view = lambda q: np.array(nodes[nid["TorchAnchor"]]["translation"]) + spin_y.T @ (np.asarray(q) - VIEW_POS) / ARMS_SCALE
+    way = lambda d: spin_y.T @ np.asarray(d, float)                  # a direction, camera -> rig
+    L = SWAP_LENGTH
+    u = 1.0 / ARMS_SCALE                                             # units per metre
+
+    def arc(a, b, part=1.0):
+        """The shortest turn that takes direction `a` to `b`, or `part` of it"""
+        axis = np.cross(unit(a), unit(b))
+        return about(axis, part * np.arctan2(np.linalg.norm(axis), unit(a) @ unit(b))) if np.linalg.norm(axis) > 1e-9 else np.eye(3)
+
+    def squared(a, f):
+        f = unit(f - a * (f @ a))
+        return np.stack([a, f, np.cross(a, f)], 1)
+
+    def sprung(target, stiff, damp=0.7):
+        """`target(t)` the way a hand follows an intention: through a damped spring (`stiff` rad/s; `damp`
+        under 1 runs a little past and settles). The spring runs 2 damp / stiff s late, so the target is
+        read that much early; over the last 0.2 s it's brought onto the target's last value exactly."""
+        step = 1.0 / 240.0
+        lead = 2.0 * damp / stiff
+        ts = np.arange(0.0, L + step, step)
+        ys = np.zeros(len(ts))
+        y, v = float(target(0.0)), 0.0
+        for i, t in enumerate(ts):
+            ys[i] = y
+            v += (stiff * stiff * (float(target(min(L, t + lead))) - y) - 2.0 * damp * stiff * v) * step
+            y += v * step
+        last = float(target(L))
+        fade = np.clip((L - ts) / 0.2, 0.0, 1.0)
+        ys = last + (ys - last) * fade * fade * (3.0 - 2.0 * fade)
+        return lambda t: float(np.interp(t, ts, ys))
+
+    def drift(seed, rate):
+        """A slow wander in -1..1, a few sines that never line up: a hand held in the air isn't still"""
+        r = np.random.default_rng(seed)
+        f, ph, a = rate * r.uniform(0.6, 1.7, 4), r.uniform(0.0, 2 * np.pi, 4), r.uniform(0.5, 1.0, 4)
+        return lambda t: float((a * np.sin(2 * np.pi * f * t + ph)).sum() / a.sum())
+
+    fore_rot, hand_rot = q_mat(fore_q), q_mat(hand_q)
+    grip_at = hand_at + hand_rot @ np.array(grip["translation"])
+    aim = -(hand_rot @ grip_rot)[:, 2]
+    # the right arm moves as one piece, turning about the grip: from the hold to the working pose
+    whole = squared(unit(way(SWAP_AIM)), way(SWAP_FOREARM)) @ squared(aim, fore_rot[:, 1]).T
+    whole_angle = np.arccos(np.clip((np.trace(whole) - 1) / 2, -1, 1))
+    whole_axis = unit(np.array([whole[2, 1] - whole[1, 2], whole[0, 2] - whole[2, 0], whole[1, 0] - whole[0, 1]]))
+    work_at = from_view(SWAP_AT)
+
+    # the times things happen at (s). torch_model.gd SWAP_OUT / SWAP_IN / SWAP_CELLS and gen_battery_audio.py
+    # are keyed on the same.
+    UNSCREW = ((1.20, 1.50), (1.84, 2.12))                           # the two twists off, each from, to
+    PULL = (2.18, 2.42)                                              # the cap drawn off
+    TIP = (2.38, 2.73, 3.13, 3.53)                                   # the tail going down, down, coming back, level
+    FETCH = (2.43, 2.88, 3.25, 3.70)                                 # the left hand leaving, gone, coming back, back
+    PUSH = (3.86, 4.16)                                              # each new cell home
+    CAP_ON = 4.52
+    SCREW = ((4.62, 4.90), (5.22, 5.50))                             # and the two twists back on
+    U0, U1, S0, S1 = UNSCREW + SCREW
+    DONE = S1[1]
+
+    # the right arm: the turn leads, the hand's place follows it in
+    turned = sprung(curve((0.0, 0.0), (0.06, 0.0), (0.76, 1.0), (DONE + 0.12, 1.0), (DONE + 0.77, 0.0), (L, 0.0)), 16.0, 0.62)
+    placed = sprung(curve((0.0, 0.0), (0.10, 0.0), (0.86, 1.0), (DONE + 0.16, 1.0), (DONE + 0.84, 0.0), (L, 0.0)), 12.0, 0.72)
+    tipped = sprung(curve((0.0, 0.0), (TIP[0], 0.0), (TIP[1], 1.0), (TIP[2], 1.0), (TIP[3], 0.0), (L, 0.0)), 14.0, 0.65)
+    shaken = curve((0.0, 0.0), (TIP[1] + 0.03, 0.0), (TIP[1] + 0.10, 0.20), (TIP[1] + 0.17, -0.06), (TIP[1] + 0.25, 0.15),
+                   (TIP[1] + 0.34, 0.0), (L, 0.0))
+    # what the left hand does to the torch: it rolls with a twist of the cap (the last one, tight, most),
+    # and is shoved along itself by the cap coming off, each cell going home and the cap going back
+    give = sprung(curve((0.0, 0.0), *[key for (a, b), most in ((U0, 1.0), (U1, 1.0), (S0, -1.0), (S1, -1.5))
+                                      for key in ((a, 0.0), (a + 0.12, most), (b - 0.02, most), (b + 0.06, 0.0))], (L, 0.0)), 22.0, 0.5)
+    shove = sprung(curve((0.0, 0.0), (PULL[1] - 0.08, 0.0), (PULL[1] - 0.02, -0.005), (PULL[1] + 0.08, 0.0), (PUSH[0] - 0.03, 0.0),
+                         (PUSH[0] + 0.01, 0.008), (PUSH[0] + 0.12, 0.0), (PUSH[1] - 0.03, 0.0), (PUSH[1] + 0.01, 0.010),
+                         (PUSH[1] + 0.12, 0.0), (CAP_ON - 0.03, 0.0), (CAP_ON + 0.02, 0.004), (CAP_ON + 0.11, 0.0), (L, 0.0)), 30.0, 0.45)
+    clamp = sprung(curve((0.0, 0.0), (U0[0] - 0.10, 0.0), (U0[0] + 0.05, 1.0), (U1[1] + 0.02, 1.0), (U1[1] + 0.20, 0.3), (PUSH[0] - 0.10, 0.3),
+                         (PUSH[0] - 0.02, 1.0), (DONE + 0.01, 1.0), (DONE + 0.17, 0.0), (L, 0.0)), 14.0, 0.7)
+    sway = [drift(11 + k, 0.45) for k in range(5)]
+
+    def right_arm(t):
+        """The right forearm (rotation, origin), the grip and the way the torch points at `t`"""
+        there = float(np.clip(placed(t), 0.0, 1.0))
+        turn = about(way([0, 0, 1]), np.radians(SWAP_TIP) * (tipped(t) + shaken(t))) @ about(whole_axis, whole_angle * turned(t))
+        turn = (about(way([1, 0, 0]), np.radians(0.9) * there * sway[0](t))
+                @ about(way([0, 1, 0]), np.radians(0.9) * there * sway[1](t)) @ turn)
+        points = turn @ aim
+        turn = about(points, np.radians(SWAP_GIVE) * sense * give(t)) @ turn
+        at = (grip_at + (work_at - grip_at) * placed(t) + points * shove(t) * u
+              + way([0.0, -SWAP_DIP, 0.0]) * u * np.sin(np.pi * there)
+              + way([sway[2](t), sway[3](t), sway[4](t)]) * 0.003 * u * there)
+        return turn @ fore_rot, at + turn @ (fore_at - grip_at), at, points
+
+    # the left hand holds the tail the way the right holds the barrel, mirrored: its grip's axis on the torch's
+    left_grip_at = MIRROR @ np.array(grip["translation"])
+    left_grip = MIRROR @ grip_rot @ MIRROR
+    elbow_hint = from_view(SWAP_LEFT_ELBOW)
+    work_points = unit(way(SWAP_AIM))
+    stray = [drift(31 + k, 0.6) for k in range(3)]
+
+    def left_arm(t, along, away, twist, sense, roll):
+        """The left forearm (rotation, origin) and hand (local rotation) with its grip `along` the torch from
+        the cap (units, + towards the head), `away` (0..1) to where it waits, turned `twist` about the torch.
+        Its way there bows out (SWAP_SWING), and off the torch the wrist lets go of the angle it holds the
+        cap at (SWAP_RELAX), so it cocks into the grip as it lands."""
+        _, _, at, points = right_arm(t)
+        off = float(np.clip(away, 0.0, 1.0))
+        # off the torch it keeps to the place the torch is worked on, not to the torch: it isn't swung about
+        # by the torch turning into place or tipping
+        at = at + (work_at - at) * off
+        points = unit(points + (work_points - points) * off)
+        z = points * sense
+        x = unit(np.cross(z, way([0, 1, 0])))
+        x = x * np.cos(roll + twist) + np.cross(z, x) * np.sin(roll + twist)
+        hand_l = np.stack([x, np.cross(z, x), z], 1) @ left_grip.T
+        centre = (at - points * (TORCH_TAIL - 0.025) * u + points * along
+                  + (way(SWAP_AWAY) * away + way(SWAP_SWING) * np.sin(np.pi * off)) * u
+                  + way([stray[0](t), stray[1](t), stray[2](t)]) * 0.005 * u * off)
+        run = unit(centre - hand_l @ left_grip_at - elbow_hint)
+        hand_l = arc(hand_l[:, 1], run, SWAP_RELAX * off) @ hand_l
+        wrist_l = centre - hand_l @ left_grip_at
+        run = unit(wrist_l - elbow_hint)
+        fore_l = arc(hand_l[:, 1], run) @ hand_l
+        return fore_l, wrist_l - run * new_len, fore_l.T @ hand_l, np.degrees(np.arccos(np.clip(hand_l[:, 1] @ run, -1, 1)))
+
+    # which way round the hand takes the cap: the way that bends the wrist least
+    sense = 1.0
+    sense, roll = min(((sn, r) for sn in (1.0, -1.0) for r in np.radians(np.arange(0, 360, 5))),
+                      key=lambda c: left_arm(1.15, 0.0, 0.0, 0.0, *c)[3])
+    # the new cells stick out of the fist towards the torch
+    nodes.append({"name": "BatteryGrip", "rotation": mat_q(left_grip).tolist(),
+                  "translation": (left_grip_at + left_grip[:, 2] * sense * 0.035 / ARMS_SCALE).tolist()})
+    nodes[nid["LeftHand"]].setdefault("children", []).append(len(nodes) - 1)
+    twist_at = np.radians(SWAP_TWIST)
+    reach = {                                                        # the left hand's moves, each its own spring
+        # along the torch: the cap drawn off, then (out of view) back behind the tail with the new pair,
+        # one pushed home, a breath, the other, and up onto the tail with the cap
+        "along": sprung(curve((0.0, 0.0), (PULL[0], 0.0), (PULL[1], -0.06 * u), (FETCH[1], -0.06 * u), (FETCH[2], -0.085 * u),
+                              (PUSH[0] - 0.12, -0.085 * u), (PUSH[0], -0.045 * u), (PUSH[0] + 0.05, -0.045 * u), (PUSH[0] + 0.17, -0.075 * u),
+                              (PUSH[1] - 0.11, -0.075 * u), (PUSH[1], -0.03 * u), (PUSH[1] + 0.08, -0.03 * u), (CAP_ON, 0.0), (L, 0.0)), 48.0, 0.85),
+        # 1 waiting below the view, 0 on the torch: up to the cap, down for the new pair, back, and away
+        "away": sprung(curve((0.0, 1.0), (0.38, 1.0), (1.04, 0.0), (FETCH[0], 0.0), (FETCH[1], 1.0), (FETCH[2], 1.0), (FETCH[3], 0.0),
+                             (DONE + 0.08, 0.0), (DONE + 0.60, 1.0), (L, 1.0)), 15.0, 0.8),
+        # about the torch, in turns of the cap either side of the easy angle: it takes hold wound back,
+        # turns, lets go, winds back (unhurried: a quarter of a second), turns again
+        "twist": sprung(curve((0.0, 0.0), (0.70, 0.0), (1.04, -0.5), (U0[0], -0.5), (U0[1], 0.5), (U0[1] + 0.07, 0.5), (U1[0] - 0.03, -0.5),
+                              (U1[0], -0.5), (U1[1], 0.5), (FETCH[0], 0.5), (FETCH[1], 0.0), (PUSH[1] + 0.08, 0.0), (CAP_ON, 0.5),
+                              (S0[0], 0.5), (S0[1], -0.5), (S0[1] + 0.06, -0.5), (S1[0] - 0.02, 0.5), (S1[0], 0.5), (S1[1], -0.5),
+                              (DONE + 0.10, -0.5), (DONE + 0.45, 0.0), (L, 0.0)), 24.0, 0.8),
+        # 1 the hand hanging open, 0 shut on the cap: it lets go between twists, keeps the cap and then
+        # the cells in a loose fist
+        "open": sprung(curve((0.0, 1.0), (0.75, 1.0), (0.98, 0.7), (U0[0] - 0.03, 0.0), (U0[1], 0.0), (U0[1] + 0.07, 0.45), (U1[0] - 0.09, 0.45),
+                             (U1[0] - 0.02, 0.0), (FETCH[0], 0.0), (FETCH[1], 0.12), (PUSH[1], 0.12), (PUSH[1] + 0.08, 0.3),
+                             (CAP_ON - 0.07, 0.3), (CAP_ON + 0.03, 0.0), (S0[1], 0.0), (S0[1] + 0.07, 0.45), (S1[0] - 0.09, 0.45),
+                             (S1[0] - 0.02, 0.0), (DONE + 0.02, 0.0), (DONE + 0.17, 0.6), (DONE + 0.55, 1.0), (L, 1.0)), 24.0, 0.75),
+    }
+    left_at = lambda t: left_arm(t, reach["along"](t), reach["away"](t), twist_at * reach["twist"](t), sense, roll)
+    turns = curled(clamp, (2.0, 4.0, 5.0))                           # the fist on the barrel tightens against the work
+    turns.update({"RightLowerArm": lambda t: mat_q(right_arm(t)[0]), "LeftLowerArm": lambda t: mat_q(left_at(t)[0]),
+                  "LeftHand": lambda t: mat_q(left_at(t)[2])})
+    moves = {"RightLowerArm": lambda t: right_arm(t)[1], "LeftLowerArm": lambda t: left_at(t)[1]}
+    for bone, q in held.items():                                     # the left fist: the right's, mirrored, opened a little
+        thumb = "Thumb" in bone
+        slack = 0.0 if thumb else (-24.0, -26.0, -14.0)[JOINTS.index(next(j for j in JOINTS if bone.endswith(j)))]
+        late = 0.0 if thumb else 0.03 * next(k for k, name in enumerate(FINGERS) if bone.startswith(name))
+
+        def finger(t, q=q * np.array([1.0, -1.0, -1.0, 1.0]), slack=slack, late=late):     # index first, little finger last
+            half = np.radians(slack * reach["open"](min(max(t - late, 0.0), L))) / 2
+            return q_mul(q, np.array([np.sin(half), 0.0, 0.0, np.cos(half)]))
+        turns["Left" + bone] = finger
+    clip("TorchReload", SWAP_LENGTH, turns, moves)
+    wrist_bend = max(left_at(t)[3] for t in np.arange(U0[0], DONE, 0.05))
+    home = lambda at, to: round(float(next(t for t in np.arange(at - 0.2, at + 0.3, 0.005) if reach["along"](t) >= (to - 0.001) * u)), 2)
+    swap_times = {"unscrew": UNSCREW, "cap off": PULL, "tip": TIP, "fetch": FETCH, "pushed home": (home(PUSH[0], -0.045), home(PUSH[1], -0.03)),
+                  "cap on": CAP_ON, "screw": SCREW}
+
     # ---- write
     material = json.loads(json.dumps(odoc["materials"][0]))
     material["name"] = "playerarms"
@@ -935,6 +1138,9 @@ def main():
     print("middle knuckle in the hand's space", new_hand.T @ (mid[0] - wrist),
           " finger %.3f" % sum(np.linalg.norm(mid[k + 1] - mid[k]) for k in range(3)))
     print("mirror: left vertices off their right twin by at most %.5f" % left_of.max())
+    print("swap: the left hand takes the cap %s, rolled %.0f deg; its wrist bends up to %.0f deg"
+          % ("thumb to the head" if sense > 0 else "thumb to the tail", np.degrees(roll), wrist_bend))
+    print("swap: %s" % swap_times)
     print("TorchGrip", np.array(grip["translation"]), "TorchAnchor", np.array(nodes[nid["TorchAnchor"]]["translation"]),
           " barrel radius %.4f" % barrel)
     for f, bend, rest in zip(FINGERS, grasp["bend"], grasp["rest_bend"]):
