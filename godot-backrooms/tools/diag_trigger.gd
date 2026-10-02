@@ -45,8 +45,8 @@ func _init() -> void:
 	dummy_player.global_position = Vector3(ldata.spawn_pos.x, 0.1, ldata.spawn_pos.z)
 	f.store_line("Player spawn_pos: " + str(dummy_player.global_position))
 	
-	var l := tr.global_transform.affine_inverse() * dummy_player.global_position
-	var inside := absf(l.x) <= tr.half.x and absf(l.z) <= tr.half.z and l.y > -1.0 and l.y < tr.half.y * 2.0
+	var l = tr.global_transform.affine_inverse() * dummy_player.global_position
+	var inside = absf(l.x) <= tr.half.x and absf(l.z) <= tr.half.z and l.y > -1.0 and l.y < tr.half.y * 2.0
 	f.store_line("Local offset l: " + str(l))
 	f.store_line("Inside check: " + str(inside))
 	

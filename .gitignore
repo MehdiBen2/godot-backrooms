@@ -37,3 +37,4 @@ desktop.ini
 *.blend1
 *.import
 *.import
+.vexp/manifest.json
