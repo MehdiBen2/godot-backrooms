@@ -29,8 +29,8 @@ const FOG_COLOR_DARK := Color("020201")
 # Horizon fog: past HORIZON_BEGIN everything fades into the fog colour, whatever the zone's fog density.
 # The clear-air looks thin the fog to almost nothing, so the level's edge and whatever the camera's far
 # plane cuts off showed through as bare background (black space). A screen-wide quad over the depth buffer.
-const HORIZON_BEGIN := 140.0
-const HORIZON_END := 260.0
+const HORIZON_BEGIN := 90.0
+const HORIZON_END := 170.0
 const HORIZON_SHADER := """shader_type spatial;
 render_mode unshaded, fog_disabled, depth_test_disabled, depth_draw_never, cull_disabled, shadows_disabled, blend_mix;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest, repeat_disable;
@@ -61,15 +61,15 @@ void fragment() {
 ## that meters, pumps and drifts on its own (_update_camcorder).
 const ATMOSPHERES := {
 	"classic": {
-		"ambient_energy": 0.8, "ambient_color": Color(0.36, 0.31, 0.17),   # even yellow fill, low enough that the lights still shape the walls
-		"exposure": 1.12, "tonemap_white": 3.0,       # a touch overexposed: panels clip white, walls stay readable
+		"ambient_energy": 0.85, "ambient_color": Color(0.42, 0.37, 0.14),   # richer mono-yellow fill, low enough that the lights still shape the walls
+		"exposure": 1.18, "tonemap_white": 2.6,       # a touch overexposed, punchier: panels clip white, walls stay readable
 		"glow_threshold": 1.15,                       # only the panels themselves bleed, not bright walls
 		# no bloom-everything and only a small wide halo: the far panels bunched up near the horizon used to
 		# merge into one glowing band across the ceiling
-		"glow_intensity": 0.9, "glow_bloom": 0.0, "glow_wide": 0.25,
-		"ssao_intensity": 1.2,                        # fluorescent light is flat and shadowless: only a hint of contact AO
+		"glow_intensity": 1.0, "glow_bloom": 0.0, "glow_wide": 0.3,
+		"ssao_intensity": 1.2,                        # a bit more contact AO in corners and under the ceiling grid for depth
 		# the distance loses contrast toward a dim wall tone; a bright haze made everything far away glow
-		"haze": Color(0.36, 0.32, 0.2),
+		"haze": Color(0.4, 0.35, 0.16),
 	},
 	# "liminal" (the Liminal zone, or "atmosphere": "liminal") is an empty place in the middle of the night
 	# with every light left on: flat, shadowless, a little too bright and a little too pale, the far end of a

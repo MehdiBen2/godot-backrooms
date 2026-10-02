@@ -74,7 +74,7 @@ func _process(dt: float) -> void:
 	if not pulling and not peeling and result_t <= 0.0:
 		state = "idle"
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
-		and not player.dead and not player.frozen and not Game.outdoors \
+		and not player.dead and not player.frozen and not Game.outdoors and player.lens_up <= 0.0 \
 		and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or cursor_aim)
 	var down := can and (Input.is_action_pressed("tape") or ui_down)
 	if not down:

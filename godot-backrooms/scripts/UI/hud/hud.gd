@@ -20,6 +20,8 @@ const SketchTool := preload("res://scripts/Player/sketch_tool.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
+const ZoomTool := preload("res://scripts/Player/zoom_tool.gd")
+const ZoomReadout := preload("res://scripts/UI/hud/zoom_readout.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
 const PlayerScript := preload("res://scripts/Player/player.gd")
@@ -40,6 +42,7 @@ var inventory: Control
 var scanner: Node
 var tape: Node
 var flash: Node                          # flash_tool.gd: the camera flash (G / right click)
+var zoom: Node                           # zoom_tool.gd: the camcorder raised to the eye (hold E, wheel zooms)
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween
@@ -88,6 +91,7 @@ func _ready() -> void:
 	_build_scanner()
 	_build_tape()
 	_build_flash()
+	_build_zoom()
 	_show_pending_route.call_deferred()
 
 	Game.hud_visibility_changed.connect(_on_hud_visibility_changed)
@@ -382,6 +386,33 @@ func _build_flash() -> void:
 	add_child(flash)
 	vitals.flash = flash
 
+## The camcorder's zoom lens (zoom_tool.gd). Its lens grade reads the finished picture, so it gets a canvas
+## layer of its own between the post pass and the HUD: the OSD's text and brackets stay sharp under it. The
+## viewfinder marks (zoom_readout.gd) live in hud_root and fade with the OSD.
+func _build_zoom() -> void:
+	zoom = ZoomTool.new()
+	zoom.player = player
+	zoom.scanner = scanner
+	zoom.tape = tape
+	add_child(zoom)
+	var grade_layer := CanvasLayer.new()
+	grade_layer.layer = 2
+	var rect := ColorRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.visible = false
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/cam_zoom.gdshader")
+	rect.material = mat
+	grade_layer.add_child(rect)
+	get_parent().add_child.call_deferred(grade_layer)
+	var readout := ZoomReadout.new()
+	readout.zoom = zoom
+	readout.player = player
+	readout.grade_mat = mat
+	readout.grade_rect = rect
+	hud_root.add_child(readout)
+
 ## A first contact: the entry with the Research Yield it filed (scanner.gd files it just before)
 func _on_entity_logged(id: String) -> void:
 	if id == "":                 # Archive.forget_all(): nothing new to announce
@@ -507,7 +538,7 @@ func use_battery() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
 	var is_batt: bool = e.is_action_pressed("battery")
-	if is_batt and Game.playing and not Game.dead \
+	if is_batt and Game.playing and not Game.dead and player.lens_up <= 0.0 \
 			and not player.dead and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		use_battery()
 		get_viewport().set_input_as_handled()

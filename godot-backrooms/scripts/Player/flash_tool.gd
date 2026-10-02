@@ -52,7 +52,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _can() -> bool:
 	return player != null and inventory != null and Game.playing and not Game.dead and not player.dead \
-		and not player.frozen and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		and not player.frozen and player.lens_up <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 
 ## Set one off, if there is a charge and it is ready. True when it went off.
 func fire() -> bool:

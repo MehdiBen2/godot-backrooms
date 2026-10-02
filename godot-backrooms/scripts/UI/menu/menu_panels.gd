@@ -447,6 +447,7 @@ func _build_controls() -> Control:
 	other_box.add_theme_constant_override("separation", 6)
 	for item in [
 		[["Mouse"], "Look", "Aim camera / flashlight"],
+		[["Wheel"], "Zoom", "While the camcorder is raised"],
 		[["F11"], "Fullscreen", "Alt+Enter works too"],
 		[["Esc"], "Pause", "Resume or open settings"]
 	]:

@@ -1,11 +1,11 @@
 {
   "file_hashes": {
-    ".claude/CLAUDE.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
-    ".claude/hooks/vexp-hint.sh": "907d672738e420c1a930d71675bbce86ac977d2fc6e326db495d23a62b61e52a",
-    ".claude/hooks/vexp-restore.sh": "8f0e2747c0d5b8dd966b9ebc4fb21ec6730ea85f3e6a9d63efb94def49e5723b",
-    "AGENTS.md": "9ac997cab89bf1c178b9ee8b5901f7cfad8d7bc1183f0dd7663fcafc4d380cf4",
-    "README.md": "5d3af2b03f6d256ecdafab1db1fa71ef877a9b2ba3bf4181b91848a888af79de",
-    "futurtoeditlore.md": "7be597fb80db18a31fc6fb1f9f39d7b09d575cca6c073e810a0225469b7272c5",
+    ".claude/CLAUDE.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
+    ".claude/hooks/vexp-hint.sh": "044d6df9e57eb121c61d48aae7a328f6fe5db6d2e96f6a3f44d1176301ea74fc",
+    ".claude/hooks/vexp-restore.sh": "bcdf8e0d380cefbb750d1a9b690ee3be2792923ec92e2afbac0e45b05da64bf4",
+    "AGENTS.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
+    "README.md": "ad74e747d1ff17749f9ae8b5463e2c4b58e3a3ce97048f328af274906fae4af2",
+    "futurtoeditlore.md": "1dcbc0e7fd6d32e8cdc9683e0bf9f4f8d29631999473e17dc4d5d5f9e4a485b3",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
@@ -29,8 +29,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "7ef9f1d0d8dad20face630fad83fe6ac4838cb60",
-  "indexed_at_timestamp": "2026-10-02T10:52:05.839709600+00:00",
+  "indexed_at_commit": "ea51368a9067ac8c53a67788ae4b853ccf784786",
+  "indexed_at_timestamp": "2026-10-02T17:26:22.990014600+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -45,7 +45,7 @@
       "nodes": 157
     }
   },
-  "parser_version": "3.3.1",
+  "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
     "total_edges": 286,

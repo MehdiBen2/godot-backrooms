@@ -89,6 +89,14 @@ const ACTIONS: Array[Dictionary] = [
 		"alt_keys": []
 	},
 	{
+		"id": "camera",
+		"name": "Camcorder Zoom",
+		"desc": "Hold to raise the camcorder, mouse wheel to zoom",
+		"default_qwerty": KEY_E,
+		"default_azerty": KEY_E,
+		"alt_keys": []
+	},
+	{
 		"id": "tape",
 		"name": "Hazard Tape",
 		"desc": "Mark your path on walls or floor",

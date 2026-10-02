@@ -100,6 +100,9 @@ var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
 var cam_shake := 1.0             # 0 = no handheld camcorder shake while walking / running, 1 = full
+var lens_up := 0.0               # 0..1 the camcorder raised to your eye (zoom_tool.gd, hold E)
+var lens_zoom := 1.0             # magnification it gives at that raise: narrows the field of view, slows the aim
+var fov_flat := BASE_FOV         # the field of view before the lens zoom
 var bob_amp := 1.0              # eased per-step bob height from handheld.step_amp
 var health := 100.0
 var sanity := 100.0
@@ -113,10 +116,16 @@ var light_level := 1.0
 var flash_target := Vector3.ZERO
 var flash_flicker := {"timer": 6.0, "active": false, "step": 0.0, "value": 1.0}
 var flicker_left := 0.0
-var dead := false
+var dead := false:
+	set(v):
+		dead = v
+		if v: _drop_lens()
 var grid_down := false       # power cut: the torch drains slowly
 var spawn_grace := 0.0
-var frozen := false          # grabbed / snapped: no input
+var frozen := false:         # grabbed / snapped: no input
+	set(v):
+		frozen = v
+		if v: _drop_lens()
 var stamina := 100.0
 var exhausted := false
 var rest_timer := 0.0
@@ -127,6 +136,10 @@ var adr_glow := 0.0
 var adr_cooldown := 0.0
 var bob := 0.0
 var bob_w := 0.0                 # eased 0..1: how much of a walking stride is in the view
+var bob_rate := 5.3              # how fast `bob` runs right now (rad/s): one step per PI
+var stair_w := 0.0               # eased 0..1: how much of a stair flight is underfoot
+var stair_vy := 0.0              # smoothed climb rate on a flight (m/s, + up)
+var stair_prev_y := 0.0
 var breath := 0.0
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/on.mp3")
@@ -231,13 +244,15 @@ func _unhandled_input(e: InputEvent) -> void:
 		# off the direction the level spawns you facing: ignore motion for a moment after capture
 		if look_from < 0: look_from = Time.get_ticks_msec()
 		if Time.get_ticks_msec() - look_from < 150: return
-		rotate_y(-e.relative.x * sens)
-		turn_accum += -e.relative.x * sens
+		# zoomed in, the same hand movement sweeps a smaller slice of the world: the aim slows with the lens
+		var aim := sens / pow(lens_zoom, 0.8)
+		rotate_y(-e.relative.x * aim)
+		turn_accum += -e.relative.x * aim
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
-		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * sens, -1.49, 1.49)
+		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * aim, -1.49, 1.49)
 		_sync_flashlight_aim(0.35)
-	elif e.is_action_pressed("flashlight") \
+	elif e.is_action_pressed("flashlight") and lens_up <= 0.0 \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if not flash_on and battery <= 0.0:
 			dead_click.emit()          # dead battery: a dry hollow click, nothing else
@@ -341,6 +356,8 @@ func _physics_process(dt: float) -> void:
 		var slow := Vector2(velocity.x, velocity.z).length() < PEEK_HOLD_SPEED
 		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
+		if lens_up > 0.02:
+			torch.visible = false        # the camcorder is at your eye: both hands are on it
 	if shadow_body:
 		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length())
 	_update_flashlight(dt)
@@ -416,12 +433,19 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		was_stepping = true
 		walk_goal = 1.0
 		# one step per PI of `bob`: the body is lowest as each foot lands, and rises over the planted leg
+		# the cadence follows how fast you are really going (speeding up into a run, an adrenaline burst, a
+		# wall in the way): 5.3 at a walk, and the stride lengthens as you go faster, so 8.2 at a full sprint
+		var base := SPEED * maxf(Game.speed_mult, 0.01) * (CROUCH_MULT if crouch else 1.0)
+		var gait_k := horiz / base
 		var before := floori(bob / PI)
-		bob += dt * (8.2 if sprint else (4.1 if crouch else 5.3))
+		bob_rate = (4.1 if crouch else 5.3) * pow(clampf(gait_k, 0.3, 2.0), 0.78)
+		bob += dt * bob_rate
 		bob_amp = lerpf(bob_amp, handheld.step_amp, minf(1.0, dt * 8.0))    # no two steps the same height
 		if floori(bob / PI) != before:
-			footsteps.step(sprint, crouch, 1.0)
+			footsteps.step(sprint, crouch, 1.0, clampf((gait_k - 1.0) / (SPRINT_MULT - 1.0), 0.0, 1.0))
 			handheld.step(0.6 if crouch else 1.0, sprint)
+			if stair_vy < -0.3:
+				land_dip += 0.014 * stair_w       # stepping down a flight: each foot drops onto the tread below
 		step_triggered = fposmod(bob, PI) < PI * 0.5
 	bob_w = lerpf(bob_w, walk_goal, minf(1.0, dt * (9.0 if walk_goal > 0.0 else 5.0)))
 	breath += dt * 1.5
@@ -438,6 +462,22 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var bob_roll := side * (0.012 if sprint else (0.004 if crouch else 0.006)) * gait
 	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait
 	y += (rise - 0.64) * vert * bob_amp * gait
+	# Stairs: the flight's walking surface is a smooth slope, but legs take it a tread at a time. Climbing,
+	# the head goes up early in each stride as the leg pushes onto the next step, then levels; going down
+	# it hangs, then drops as the foot lands. Nothing at a footfall itself, so it joins the bob seamlessly.
+	var dy := global_position.y - stair_prev_y
+	stair_prev_y = global_position.y
+	var on_flight := walking and is_on_floor() and _on_stair_flight()
+	if absf(dy) < 0.5:                                      # not a teleport or the floor swap on a far landing
+		stair_vy = lerpf(stair_vy, dy / maxf(dt, 0.0001) if on_flight else 0.0, minf(1.0, dt * 10.0))
+	stair_w = lerpf(stair_w, 1.0 if on_flight else 0.0, minf(1.0, dt * 6.0))
+	if stair_w > 0.001:
+		var stair_p := fposmod(bob, PI) / PI                # 0 at a footfall .. 1 at the next
+		var stair_h := minf(absf(stair_vy) * PI / maxf(bob_rate, 0.1), 0.45)    # height won per step
+		var stair_lift := (1.0 - pow(1.0 - stair_p, 2.5)) - stair_p if stair_vy > 0.0 else stair_p - pow(stair_p, 2.5)
+		y += stair_lift * stair_h * stair_w * head_bob * 0.8
+		if stair_vy > 0.0:
+			bob_nod -= stair_lift * stair_h * stair_w * head_bob * 0.2    # leaning into the climb as you push up
 	land_dip *= exp(-dt * 9.0)
 	# the floor shaking under something heavy: a short low rumble, not a wobble. Squared so light steps
 	# barely register and the close ones hit; scaled by the head-bob setting like the rest of the motion.
@@ -455,6 +495,11 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
 	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
 	var motion := (1.8 if sprint else (0.6 if crouch else 1.0)) if walking else 0.0
+	# held out at your eye the camcorder never quite stills: the shake is there standing, and the longer the
+	# lens the more of it you see. Crouched you brace it against your knee.
+	var steady := 0.55 if crouch else 1.0
+	motion = maxf(motion, 0.55 * lens_up * steady)
+	shake += lens_up * (lens_zoom - 1.0) * 0.15
 	handheld.update(dt, motion, shake, cam_shake)
 	if torch != null:
 		torch.sway_amount = maxf(head_bob, cam_shake)    # the hands trail the view unless both are off
@@ -487,7 +532,23 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
-	cam.fov = base_fov + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
+	fov_flat = base_fov + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
+	cam.fov = _zoomed_fov(fov_flat)
+
+## The field of view through the camcorder's lens: `flat` narrowed by the magnification (a true zoom, so the
+## picture is the middle of the wide one scaled up, not a bend of it)
+func _zoomed_fov(flat: float) -> float:
+	if lens_zoom <= 1.001:
+		return flat
+	return rad_to_deg(2.0 * atan(tan(deg_to_rad(flat) * 0.5) / lens_zoom))
+
+## Grabbed, snapped or dead: the camcorder drops from your eye at once, so the sequences that take the
+## view over start from the plain field of view
+func _drop_lens() -> void:
+	lens_up = 0.0
+	lens_zoom = 1.0
+	if is_instance_valid(cam):
+		cam.fov = fov_flat
 
 ## The long fall on the screen: the post shader smears the picture along the way things stream past (out of
 ## the point you are falling towards, or into the one you are falling away from) and bends the lens a little.
@@ -518,6 +579,18 @@ func _update_fall_fx(dt: float) -> void:
 	post.set_shader_parameter("fall_foe", foe)
 	post.set_shader_parameter("fall_blur", FALL_BLUR * fall_fx * fall_fx)
 	post.set_shader_parameter("fall_warp", FALL_WARP * fall_fx)
+
+## Walking up or down a stairwell flight (its sloped solid underfoot, props/stairs.gd tags it), not a landing
+func _on_stair_flight() -> bool:
+	if get_floor_normal().y > 0.97:
+		return false
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		if c.get_normal().y > 0.5:
+			var sh = c.get_collider_shape()
+			if sh is Node and sh.has_meta("surface"):
+				return true
+	return false
 
 ## How far your footsteps carry right now (the entity's hearing multiplies by this)
 func step_noise() -> float:

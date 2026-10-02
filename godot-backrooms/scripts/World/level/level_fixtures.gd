@@ -292,7 +292,17 @@ func cut_power(duration: float) -> void:
 
 func restore_power() -> void:
 	for f in lit:
-		if f.black > 0.0: f.black = 0.001
+		if f.black > 0.0 or f.burst > 0 or f.level < 0.5:
+			f.black = 0.0
+			f.burst = 0
+			f.level = 1.0
+			f.timer = 1.0 + rng.randf() * 3.0
+			_set_lit_color(f, 1.0)
+			fixture_event.emit(f, true)
+
+func restore_all() -> void:
+	restore_power()
+	set_tint(Color.WHITE)
 
 ## Something big passing under the tubes: every working tube within `radius` of `pos` may stutter (a
 ## short burst of dropouts and re-strikes, with their pops). `strength` 0..1 = how likely each one is.

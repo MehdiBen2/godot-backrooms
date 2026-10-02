@@ -575,13 +575,10 @@ func _build_world_tab() -> Control:
 	v.add_child(light_row)
 
 	light_row.add_child(_action_btn("TRIGGER BLACKOUT (POWER CUT)", func():
-		var ev = root.get_node_or_null("Events")
-		if ev: ev.run_event("powerCut")
+		_trigger_blackout()
 	))
 	light_row.add_child(_action_btn("RESTORE GRID LIGHTS", func():
-		var lvl = root.get_node_or_null("Level")
-		if lvl and lvl.has_method("restore_all"):
-			lvl.restore_all()
+		_restore_grid()
 	))
 
 	v.add_child(_section_header("AMBIENT SCARE DIRECTORS"))
@@ -891,6 +888,39 @@ func _refill_tape() -> void:
 func _get_player() -> Node:
 	return root.get_node_or_null("Player")
 
+func _trigger_blackout() -> void:
+	var ev = root.get_node_or_null("Events")
+	if ev != null and ev.has_method("run_event"):
+		var ok = ev.run_event("powerCut")
+		_print("grid blackout: %s" % str(ok))
+	else:
+		var lvl = root.get_node_or_null("Level")
+		if lvl != null and lvl.has_method("cut_power"):
+			lvl.cut_power(60.0)
+			_print("grid power cut (direct)")
+		else:
+			_print("[color=orange]Events/Level node not found[/color]")
+
+func _restore_grid() -> void:
+	var lvl = root.get_node_or_null("Level")
+	if lvl != null:
+		if lvl.has_method("restore_all"):
+			lvl.restore_all()
+		elif lvl.has_method("restore_power"):
+			lvl.restore_power()
+			if lvl.has_method("set_tint"):
+				lvl.set_tint(Color.WHITE)
+	var ev = root.get_node_or_null("Events")
+	if ev != null and ev.has_method("clear_events"):
+		ev.clear_events()
+	var pl = _get_player()
+	if pl != null and "grid_down" in pl:
+		pl.grid_down = false
+	var sc = root.get_node_or_null("Scares")
+	if sc != null and sc.has_method("grid_on"):
+		sc.grid_on()
+	_print("grid restored")
+
 func toggle_menu() -> void:
 	_toggle(not menu_window.visible)
 
@@ -1008,6 +1038,12 @@ func _submit(line: String) -> void:
 		Game.hide_hands = not Game.hide_hands
 		_print("Hands: " + ("[color=orange]HIDDEN[/color]" if Game.hide_hands else "[color=lime]VISIBLE[/color]"))
 		return
+	elif raw_lower in ["restore grid", "restore the grid", "restore lights", "restore grid lights", "restore grid light", "restore light", "restore power"]:
+		_restore_grid()
+		return
+	elif raw_lower in ["cut power", "power cut", "trigger blackout", "blackout", "lights out", "lights off", "light off", "light out"]:
+		_trigger_blackout()
+		return
 
 	var parts := line.to_lower().split(" ", false)
 	var cmd := parts[0]
@@ -1016,7 +1052,7 @@ func _submit(line: String) -> void:
 		"help", "?":
 			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
-			_print("World: lightout, lighton, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
+			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 		"noclip":
@@ -1093,12 +1129,39 @@ func _submit(line: String) -> void:
 			if arg.is_valid_float():
 				pl.health = clampf(arg.to_float(), 0.0, 100.0)
 			_print("health %d" % int(pl.health))
-		"lightout", "lightsout", "lightsoff":
-			_print("grid lightout: %s" % str(root.get_node("Events").run_event("powerCut")))
-		"lighton", "lightson":
-			var lvl = root.get_node_or_null("Level")
-			if lvl and lvl.has_method("restore_all"): lvl.restore_all()
-			_print("grid restored")
+		"lightout", "lightsout", "lightsoff", "blackout":
+			_trigger_blackout()
+		"lighton", "lightson", "restoregrid", "poweron":
+			_restore_grid()
+		"restore":
+			if arg in ["grid", "lights", "light", "power", ""]:
+				_restore_grid()
+			elif arg == "health":
+				var pl := _get_player()
+				if pl != null: pl.health = 100.0
+				_print("health restored to 100%")
+			elif arg == "sanity":
+				var pl := _get_player()
+				if pl != null:
+					pl.sanity = 100.0
+					pl.insanity = 0.0
+				_print("sanity restored to 100%")
+			else:
+				_print("[color=orange]restore <grid|health|sanity>[/color]")
+		"grid":
+			if arg in ["restore", "on", "reset", "up"]:
+				_restore_grid()
+			elif arg in ["cut", "off", "out", "blackout", "down"]:
+				_trigger_blackout()
+			else:
+				_print("[color=orange]grid <on|off|restore>[/color]")
+		"light", "lights", "power":
+			if arg in ["on", "restore", "reset", "up"]:
+				_restore_grid()
+			elif arg in ["off", "out", "cut", "down"]:
+				_trigger_blackout()
+			else:
+				_print("[color=orange]light <on|off>[/color]")
 		"archive":
 			if arg == "reset":
 				Archive.forget_all()

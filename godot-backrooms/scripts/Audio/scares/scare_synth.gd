@@ -329,13 +329,34 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				a[i] = v * clampf((dur - t) / 0.06, 0.0, 1.0)
 			w = _wav(_normalize(a, 0.7))
 		"heel":        # your heel on carpet laid over concrete: the low knock the recorded scuffs lack
+			# arg: the take (0..3), each a touch higher / lower and tighter / looser than take 0
+			var tk := int(arg) % 4
+			var f: float = [1.0, 1.04, 0.96, 1.02][tk]
+			var dk: float = [1.0, 0.9, 1.12, 1.06][tk]
 			var a := _buf(0.14)
-			var nz := _noise_lp(a.size(), 380.0)
+			var nz := _noise_lp(a.size(), 380.0 * f)
 			for i in a.size():
 				var t := float(i) / SR
-				a[i] = (nz[i] * 2.6 * exp(-t * 40.0) + sin(TAU * (92.0 + 45.0 * exp(-t * 60.0)) * t) * 0.55 * exp(-t * 32.0)) \
+				a[i] = (nz[i] * 2.6 * exp(-t * 40.0 * dk) + sin(TAU * (92.0 + 45.0 * exp(-t * 60.0)) * f * t) * 0.55 * exp(-t * 32.0 * dk)) \
 					* minf(1.0, t / 0.002) * 0.85
 			w = _wav(a)
+		"concrete_step": # a hard sole on bare concrete: no wax tick, a gritty scrape and a low, short knock (arg: the take)
+			var tk := int(arg) % 4
+			var f: float = [1.0, 1.04, 0.96, 1.02][tk]
+			var a := _buf(0.2)
+			var k_lo := 1.0 - exp(-TAU * 2200.0 / SR)
+			var k_hi := 1.0 - exp(-TAU * 5200.0 / SR)
+			var lo := 0.0
+			var hi := 0.0
+			for i in a.size():
+				var t := float(i) / SR
+				var x := rng.randf_range(-1.0, 1.0)
+				lo += (x - lo) * k_lo
+				hi += (x - hi) * k_hi
+				var grit := (hi - lo) * exp(-t * 60.0) * 0.7                         # grit under the sole: a band, not a click
+				var knock := sin(TAU * (150.0 + 50.0 * exp(-t * 80.0)) * f * t) * exp(-t * 38.0) * 0.65
+				a[i] = (grit + knock + lo * exp(-t * 55.0) * 0.5) * minf(1.0, t / 0.001)
+			w = _wav(_normalize(a, 0.8))
 		"bone_crack":  # a knuckle / joint cracking under the weight
 			var a := _buf(0.06)
 			var k := 1.0 - exp(-TAU * 2600.0 / SR)
@@ -359,7 +380,8 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 			w = _wav(_normalize(_breath(int(arg)), 0.85))
 		"neck_snap":   # the mannequin wrenches your head round: cartilage popping, one deep crunch, gristle
 			w = _wav(_normalize(_neck_snap(), 0.95))
-		"tile_step":   # a heel on waxed vinyl tile over concrete: a hard tick and a short knock
+		"tile_step":   # a heel on waxed vinyl tile over concrete: a hard tick and a short knock (arg: the take)
+			var f: float = [1.0, 1.04, 0.96, 1.02][int(arg) % 4]
 			var a := _buf(0.16)
 			var k_lo := 1.0 - exp(-TAU * 900.0 / SR)
 			var lo := 0.0
@@ -368,8 +390,8 @@ func render(name: String, arg := 0.0) -> AudioStreamWAV:
 				var x := rng.randf_range(-1.0, 1.0)
 				lo += (x - lo) * k_lo
 				var tick := (x - lo) * exp(-t * 320.0) * 0.9                       # the high click of the heel
-				var knock := sin(TAU * (190.0 + 60.0 * exp(-t * 90.0)) * t) * exp(-t * 55.0) * 0.6
-				var ring := sin(TAU * 1250.0 * t) * exp(-t * 90.0) * 0.08           # the tile itself, briefly
+				var knock := sin(TAU * (190.0 + 60.0 * exp(-t * 90.0)) * f * t) * exp(-t * 55.0) * 0.6
+				var ring := sin(TAU * 1250.0 * f * t) * exp(-t * 90.0) * 0.08       # the tile itself, briefly
 				a[i] = (tick + knock + ring + lo * exp(-t * 70.0) * 0.8) * minf(1.0, t / 0.0006)
 			w = _wav(_normalize(a, 0.8))
 		"rasp_loop":   # THE BACTERIA breathing: a wet rattling draw in, a long growling breath out, silence

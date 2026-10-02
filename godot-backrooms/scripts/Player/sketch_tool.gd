@@ -60,7 +60,7 @@ func _process(dt: float) -> void:
 	_label_t = maxf(0.0, _label_t - dt)
 	_label.visible = _label_t > 0.0
 	var can: bool = player != null and Game.playing and not Game.dead and not player.dead \
-		and not player.frozen and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or _cursor()) \
+		and not player.frozen and player.lens_up <= 0.0 and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or _cursor()) \
 		and SketchMarks.live != null
 	var c_down := can and Input.is_physical_key_pressed(KEY_COLOR)
 	if c_down and not _color_down and not drawing:

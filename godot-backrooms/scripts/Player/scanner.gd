@@ -66,7 +66,8 @@ func _player(path: String, db: float) -> AudioStreamPlayer:
 func _process(dt: float) -> void:
 	result_t = maxf(0.0, result_t - dt)
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
-		and not player.dead and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item("scanner")
+		and not player.dead and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item("scanner") \
+		and player.lens_up <= 0.0       # the camcorder is at your eye: both hands are on it
 	var down := can and Input.is_action_pressed("scanner")
 	if not down:
 		holding = false

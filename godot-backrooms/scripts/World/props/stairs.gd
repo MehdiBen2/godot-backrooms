@@ -76,6 +76,7 @@ var _looks := {}                       # look name -> its materials
 var _mats := {}
 var _lamps: Array = []                 # [light, tube material, flickers, which lamp of the well]
 var _taken := false
+var _surface := "carpet"               # what the solids being built are made of (footsteps.gd reads it off each shape)
 
 ## `ends`: floors up from this one (-1, 0, 1) -> that floor's stairs object where it has one on these cells.
 ## `room_h`: the ceiling round the well, which its box reaches. `mats`: the level's materials (wall, room_wall,
@@ -164,6 +165,7 @@ func _shell(room_h: float, lo: float, hi: float) -> void:
 func _front_landing(k: int, o: Dictionary, lane_up: bool, lane_down: bool, door: bool) -> void:
 	var y := k * STOREY
 	var look := _look(o)
+	_surface = str(o.get("style", "carpet"))
 	var top := y + HEADROOM
 	# half a tread under the flights, to where their walking slope comes level with it (any further and its edge is a kerb across the slope)
 	_solid(Vector3((X0 + XA + TREAD * 0.5) * 0.5, y - 0.15, 0), Vector3(XA + TREAD * 0.5 - X0, 0.3, HW * 2.0))
@@ -198,6 +200,7 @@ func _front_landing(k: int, o: Dictionary, lane_up: bool, lane_down: bool, door:
 func _storey(k: int, o: Dictionary) -> void:
 	var y := k * STOREY
 	var look := _look(o)
+	_surface = str(o.get("style", "carpet"))
 	var mid := y + HALF
 	var top := mid + HEADROOM
 	_flight(look, o, SIDE, XA, XB, y)
@@ -426,6 +429,7 @@ func _solid(at: Vector3, size: Vector3, turn := Basis.IDENTITY) -> void:
 	bs.size = size
 	cs.shape = bs
 	cs.transform = Transform3D(turn, at)
+	cs.set_meta("surface", _surface)
 	_body.add_child(cs)
 
 # ---------------------------------------------------------------- running

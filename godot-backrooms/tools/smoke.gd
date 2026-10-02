@@ -84,7 +84,7 @@ func _process(_dt: float) -> bool:
 			var c: Vector2i = lvl2.tiles.keys()[0]
 			ply.global_position = Vector3(c.x * lvl2.CELL, 0.1, c.y * lvl2.CELL)
 			ply.footsteps.step(false, false, 1.0)
-			print("tile step: on_tile=", ply.footsteps.on_tile, " noise=", ply.step_noise(), " surface=", lvl2.surface_at(ply.global_position))
+			print("tile step: surface=", ply.footsteps.surface, " noise=", ply.step_noise(), " level surface=", lvl2.surface_at(ply.global_position))
 		# every preset applies cleanly (then the player's own settings are put back exactly as they were)
 		var gfx = root.get_node("Gfx")
 		var saved_s: Dictionary = gfx.s.duplicate()

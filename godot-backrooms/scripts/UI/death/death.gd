@@ -105,6 +105,8 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	death_pos  = p_pos
 	cam_start  = cam_start_global
 	player_yaw = p_yaw
+	if is_instance_valid(_cam) and _cam.get_parent() != null and _cam.get_parent().has_method("_drop_lens"):
+		_cam.get_parent()._drop_lens()           # the camcorder's zoom ends with you: start from the plain view
 	_fov0 = _cam.fov if is_instance_valid(_cam) else 75.0
 	_orbit_ang = 0.0
 	_radius_now = ORBIT_RADIUS
