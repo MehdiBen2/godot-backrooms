@@ -205,7 +205,6 @@
       "wallKnock": "Director event: knocking inside a wall behind you",
       "breathBehind": "Director event: something breathing on your neck",
       "preacherWhisper": "Director event: a preacher's voice down a corridor",
-      "tiltDrift": "Director event: the world slowly tilts",
       "powerCut": "Director event: the whole floor's power fails for a minute",
       "custom": "Custom event (type custom event name)"
     },

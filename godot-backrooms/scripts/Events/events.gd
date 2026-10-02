@@ -5,7 +5,7 @@ extends Node
 ## and pass their own when()/score(). Events use later() / watch() / on_clear().
 ##
 ## Dev keys: F1 random event, F6 mannequin room + bacteria, F7 power cut, F8 preacher whisper,
-## F9 stop all events, F12 tilt drift.
+## F9 stop all events.
 
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 
@@ -65,9 +65,6 @@ func _define_events() -> void:
 		# hits hardest when you're relying on the tubes, not your own light
 		"score": func(c): return (1.4 if c.dark else 1.0) * (1.3 if c.battery < 25.0 else 1.0),
 		"run": _event_power_cut})
-	define({"name": "tiltDrift", "weight": 2.0, "cooldown": 180.0, "duration": 14.0, "intensity": 0.4,
-		"score": func(c): return (1.5 if c.still > 4.0 else 1.0) * (1.5 if c.sanity < 50.0 else 1.0),
-		"run": _event_tilt_drift})
 	define({"name": "preacherWhisper", "weight": 2.0, "cooldown": 360.0, "duration": 12.0, "intensity": 0.5,
 		"when": func(c): return c.since_last > 60.0,
 		"score": func(c): return 1.0 + minf(1.0, c.still / 10.0),
@@ -314,11 +311,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_F7: run_event("powerCut")
 		KEY_F8: run_event("preacherWhisper")
 		KEY_F9: stop_all()
-		KEY_F12: run_event("tiltDrift")
 
 # DEBUG F6: warp into the mannequin room and drop the bacteria a few metres away, already screeching.
 # Dev keys: Shift+F1 random event, Shift+F2 mannequin room (plain F1-F3 change level, see level_builder), F4 bacteria stalk, F5 mimic session,
-# F6 mannequin + bacteria, F7 power cut, F8 preacher, F9 stop all, F10 bacteria in front, F12 tilt drift.
+# F6 mannequin + bacteria, F7 power cut, F8 preacher, F9 stop all, F10 bacteria in front.
 func debug_spawn_hunters() -> void:
 	var root := get_parent()
 	var mannequin: Node = root.get_node("Mannequin")
@@ -374,19 +370,6 @@ func _event_power_cut() -> void:
 				scares.play_scare("footThump", sound_spot(d), 0.5 + 0.5 * (1.0 - d / 18.0))
 				haunt(0.4 + 0.4 * (1.0 - d / 18.0)))
 		later(POWER_CUT_SECONDS, func(): scares.grid_on()))
-
-# ---------------------------------------------------------------- tilt drift
-func _event_tilt_drift() -> void:
-	var secs := 14.0
-	on_clear(func(): player.cam.rotation.z = 0.0)
-	scares.play_scare("drone", secs)
-	watch(func(_dt: float, t: float) -> bool:
-		var env := minf(1.0, t / 3.0) * minf(1.0, (secs - t) / 3.0)
-		player.cam.rotation.z = 0.32 * sin(t * 0.7) * maxf(0.0, env)
-		if t < secs:
-			return true
-		player.cam.rotation.z = 0.0
-		return false)
 
 # ---------------------------------------------------------------- preacher whisper
 # A Mandela Catalogue-style preacher voice from down a corridor, drifting closer

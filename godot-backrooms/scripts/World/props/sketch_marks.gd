@@ -47,7 +47,7 @@ func _ready() -> void:
 	_spawn_all(lv)
 
 ## Wait for the level's colliders to exist before checking what the lines sit on
-func _spawn_all(lv: String) -> void:
+func _spawn_all(lv: int) -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	if not is_inside_tree():
@@ -201,7 +201,7 @@ func save() -> bool:
 
 ## Delete the parts of every line that no longer have a surface under them (a wall was removed): a
 ## stroke is cut down to the stretches still on a surface, or dropped if none is left. Saved if changed.
-func _prune(lv: String) -> void:
+func _prune(lv: int) -> void:
 	var list: Array = placed.get(lv, [])
 	var out: Array = []
 	var changed := false

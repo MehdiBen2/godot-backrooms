@@ -82,6 +82,7 @@ var real_pose := {}
 var real_yaw := 0.0
 var hunt := {}
 var awake := false
+var summoned := false             # a trigger / the debug warp asked for it; otherwise it only exists where the level paints a Mannequin zone
 var moving := false
 var rest_left := 0.0
 var hunt_clock := 0.0
@@ -219,6 +220,9 @@ func reset() -> void:
 	awake = false
 	moving = false
 	snap.finish()
+	if level.mannequin.is_empty() and not summoned:
+		real_node = null                # no zone painted in this level: no mannequins
+		return
 	var slots := room_slots(COUNT)
 	if slots.size() < 3:
 		push_warning("mannequin room has no floor")
@@ -748,6 +752,9 @@ func _update_whisper(delta: float) -> void:
 
 # ================================================================= dev
 func warp_to_room() -> void:
+	if not summoned:
+		summoned = true
+		reset()
 	var c := room_centre()
 	# the open cell in (or at the doorway of) the room that is clearest of mannequins
 	var best := Vector2i(-1, -1)

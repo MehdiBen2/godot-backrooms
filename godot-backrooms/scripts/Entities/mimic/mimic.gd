@@ -87,6 +87,7 @@ var rng := RandomNumberGenerator.new()
 # ---- peer
 var session := false
 var spawned := false
+var summoned := false                  # the console started a session; without it only a trigger spawns it
 var wait := 0.0
 var mode := "echo"
 var speed := 0.0
@@ -253,6 +254,7 @@ func grid_down() -> void:
 
 func toggle_session() -> void:
 	session = not session
+	summoned = session
 	if session:
 		wait = 1.0
 	else:
@@ -374,6 +376,8 @@ func update_peer(delta: float) -> void:
 	t_pos = tg.pos
 	t_fwd = tg.fwd
 	if not spawned:
+		if not summoned:
+			return                                  # it never starts on its own: a trigger (appear) or the console brings it in
 		wait -= delta
 		if wait > 0.0:
 			return

@@ -78,7 +78,7 @@ var body: GrabberBody
 var drag: GrabberDrag
 var net: GrabberNet
 var puppet := false
-var enabled := true                           # the debug console's despawn turns it off
+var enabled := false                          # the debug console's despawn turns it off
 
 var state := "away"
 var state_time := 0.0

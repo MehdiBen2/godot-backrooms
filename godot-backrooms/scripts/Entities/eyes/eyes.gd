@@ -88,8 +88,7 @@ func target_count() -> int:
 		return mini(debug_count, MAX_WATCHERS)
 	if is_safe():
 		return 0
-	var low := clampf((FAR_BELOW - player.sanity) / FAR_BELOW, 0.0, 1.0)
-	return int(round(pow(low, 0.8) * MAX_WATCHERS))
+	return MAX_WATCHERS if player.sanity <= FAR_BELOW else 0     # a pair as soon as sanity reaches 30
 
 func alive_count() -> int:
 	var n := 0
