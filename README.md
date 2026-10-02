@@ -51,7 +51,7 @@ godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smok
 | F | Torch on/off |
 | Q (hold) | T.S.R.A. field scanner: hold on an entity near the crosshair to log it |
 | G / right click | Camera flash (2 per run, rare spares on the floor): blinds the Bacteria for a few seconds if it catches it full in the face. Get out of its sight before its eyes clear and it has lost you; stay close and in view and it comes straight back. A miss is loud |
-| E (hold) + mouse wheel | Camcorder zoom: raise the camcorder to your eye and zoom up to 8x to read far walls and signs. Autofocus hunts when you zoom or change subject, the aim slows and the shake shows more the longer the lens. Both hands are on it: the scanner, hazard tape, flash, torch switch and battery are out of use while it is up, and sprinting or a long fall lowers it. Rebind it under Settings > Keybinds |
+| X (hold) + mouse wheel | Camcorder zoom: raise the camcorder to your eye and zoom up to 4x to read far walls and signs. Autofocus hunts when you zoom or change subject, the aim slows and the shake shows more the longer the lens. Both hands are on it: the scanner, hazard tape, flash, torch switch and battery are out of use while it is up, and sprinting or a long fall lowers it. Rebind it under Settings > Keybinds |
 | T (hold) | Reflective hazard tape: hold on a wall or the floor, look along it to pull a strip out, let go to stick it. Mark corridors you've already walked. Hold on an existing strip to peel it back off (the tape goes back on the roll). Q on a strip tells you when it went down and who stuck it |
 | Tab | Inventory (T.S.R.A. field terminal) |
 | ↑ ↓ / F1–F5 or ← → / PgUp PgDn | In the terminal: select item or entry / switch page / scroll |

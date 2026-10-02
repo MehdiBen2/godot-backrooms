@@ -100,7 +100,7 @@ var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
 var cam_shake := 1.0             # 0 = no handheld camcorder shake while walking / running, 1 = full
-var lens_up := 0.0               # 0..1 the camcorder raised to your eye (zoom_tool.gd, hold E)
+var lens_up := 0.0               # 0..1 the camcorder raised to your eye (zoom_tool.gd, hold X)
 var lens_zoom := 1.0             # magnification it gives at that raise: narrows the field of view, slows the aim
 var fov_flat := BASE_FOV         # the field of view before the lens zoom
 var bob_amp := 1.0              # eased per-step bob height from handheld.step_amp

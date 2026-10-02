@@ -16,6 +16,7 @@ const MIN_GAP := 0.18                  # seconds: never two steps closer than th
 const TILE_NOISE := 1.35               # a step on tile is heard this much further off
 const CONCRETE_NOISE := 1.3
 const HEEL_TAKES := 4
+const GAIN := 0.55                     # over every step: the level of the whole set
 
 ## A shuffle bag: hands out every item once, in a random order, then reshuffles; never the same item twice
 ## running, not even across a reshuffle
@@ -41,6 +42,7 @@ var player: Node3D
 var walk: Bag
 var sprint: Bag
 var scuff: AudioStreamPlayer
+var under: AudioStreamPlayer           # a second, different take laid under the first, so no two steps share a sound
 var heel: AudioStreamPlayer
 var heels := {}                        # surface -> Bag of synth heel takes
 var recorded := {}                     # "tile" / "concrete" -> Bag of recorded takes, when there are any
@@ -68,6 +70,7 @@ func _ready() -> void:
 	walk = Bag.new(w)
 	sprint = Bag.new(s)
 	scuff = _voice()
+	under = _voice()
 	heel = _voice()
 	var synth := ScareSynth.new()
 	for kind: Array in [["carpet", "heel"], ["tile", "tile_step"], ["concrete", "concrete_step"]]:
@@ -135,12 +138,26 @@ func _outdoor_step(crouching: bool, intensity: float, pace: float) -> void:
 	surface = hills.surface_at(player.global_position.x, player.global_position.z) if hills != null else "grass"
 	var take: Array = outdoor[surface].next()
 	var mult := 0.15 if crouching else lerpf(0.4, 0.65, pace)
-	scuff.stream = take[0]
-	scuff.volume_linear = OUTDOOR_LEVEL[surface] * take[1] * mult * randf_range(0.85, 1.1) * intensity
-	scuff.pitch_scale = (0.94 if crouching else 1.0) * randf_range(0.93, 1.07) * lerpf(1.0, 1.06, pace)
 	foot = -foot
+	var side := 0.97 if foot < 0.0 else 1.03
+	scuff.stream = take[0]
+	scuff.volume_linear = OUTDOOR_LEVEL[surface] * take[1] * mult * randf_range(0.75, 1.1) * intensity * GAIN
+	scuff.pitch_scale = (0.94 if crouching else 1.0) * randf_range(0.9, 1.1) * side * lerpf(1.0, 1.06, pace)
+	var other: Array = outdoor[surface].next()
+	_layer(other[0], scuff.volume_linear * other[1] / take[1], scuff.pitch_scale)
 	_bus(crouching)
 	scuff.play()
+
+## The take under the main one: quieter by a different amount each step, at its own pitch, a moment late
+func _layer(stream: AudioStream, level: float, pitch: float) -> void:
+	under.stream = stream
+	under.volume_linear = level * randf_range(0.25, 0.6)
+	under.pitch_scale = pitch * randf_range(0.86, 1.16)
+	var late := randf_range(0.0, 0.035)
+	if late < 0.006:
+		under.play()
+	else:
+		get_tree().create_timer(late).timeout.connect(under.play)
 
 ## The other side of the step: which foot, for the panning, and the crouch muffle
 func _bus(crouching: bool) -> void:
@@ -167,19 +184,25 @@ func step(sprinting: bool, crouching: bool, intensity: float, pace := -1.0) -> v
 	surface = _surface_under()
 	var feel: Array = SURFACE[surface]
 	var level := 0.015 if crouching else lerpf(0.05, 0.09, pace)
+	foot = -foot
+	var side := 0.97 if foot < 0.0 else 1.03               # the two feet never land alike
+	var pitch: float = (0.92 if crouching else 1.0) * randf_range(0.9, 1.1) * side * lerpf(1.0, 0.97, pace)
+	var loud: float = level * randf_range(0.75, 1.1) * intensity * GAIN
 	if recorded.has(surface):
 		scuff.stream = recorded[surface].next()
-		scuff.volume_linear = level * randf_range(0.85, 1.1) * intensity
-		scuff.pitch_scale = (0.92 if crouching else 1.0) * randf_range(0.93, 1.07) * lerpf(1.0, 0.97, pace)
+		scuff.volume_linear = loud
+		scuff.pitch_scale = pitch
+		_layer(recorded[surface].next(), loud, pitch)
 	else:
+		# the other set's take goes underneath: a walking take under a running one and the other way round
 		scuff.stream = (sprint if sprinting else walk).next()
-		scuff.volume_linear = level * randf_range(0.85, 1.1) * intensity * feel[0]
-		scuff.pitch_scale = (0.92 if crouching else 1.0) * randf_range(0.93, 1.07) * lerpf(1.0, 0.97, pace) * feel[1]
-	# the knock underneath: deeper and heavier the faster you go, hardly any creeping; the two feet never land alike
-	foot = -foot
-	var weight := (0.15 if crouching else lerpf(0.32, 0.6, pace)) * feel[2]
+		scuff.volume_linear = loud * feel[0]
+		scuff.pitch_scale = pitch * feel[1]
+		_layer((walk if sprinting else sprint).next(), loud * feel[0], pitch * feel[1])
+	# the knock underneath: deeper and heavier the faster you go, hardly any creeping, and never the same share of the step
+	var weight: float = (0.15 if crouching else lerpf(0.32, 0.6, pace)) * feel[2] * randf_range(0.6, 1.25)
 	heel.stream = heels[surface].next()
-	heel.volume_linear = level * weight * randf_range(0.8, 1.1) * intensity
+	heel.volume_linear = level * weight * randf_range(0.8, 1.1) * intensity * GAIN
 	heel.pitch_scale = randf_range(0.9, 1.1) * (0.96 if foot < 0.0 else 1.02) * lerpf(1.0, 0.86, pace)
 	_bus(crouching)
 	scuff.play()

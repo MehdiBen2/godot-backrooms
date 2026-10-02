@@ -1,5 +1,5 @@
 extends Control
-## Camcorder viewfinder while the lens is up (scripts/Player/zoom_tool.gd, hold E). It shows only what a
+## Camcorder viewfinder while the lens is up (scripts/Player/zoom_tool.gd, hold X). It shows only what a
 ## camcorder's own display does, burned into the picture like the REC block (hud.gd's OSD layer, same
 ## tape treatment): the zoom scale along the bottom, W to T with a tick at each doubling and the
 ## magnification beside it. It appears while the motor runs and slips away a couple of seconds after.
@@ -108,8 +108,9 @@ func _draw_scale(sz: Vector2, k: float) -> void:
 	var a := bar
 	var share := clampf(log(shown_zoom) / log(ZoomTool.ZOOM_MAX), 0.0, 1.0)
 	_stroke(Vector2(x0, y), Vector2(x0 + w, y), 1.0 * k, 0.45 * a)
-	for i in 4:
-		var tx := x0 + w * float(i) / 3.0
+	var stops := roundi(log(ZoomTool.ZOOM_MAX) / log(2.0))        # a tick per doubling: 1x 2x 4x
+	for i in stops + 1:
+		var tx := x0 + w * float(i) / stops
 		_stroke(Vector2(tx, y - 5.0 * k), Vector2(tx, y + 5.0 * k), 1.0 * k, 0.7 * a)
 		_text(Vector2(tx - 20.0 * k, y + 28.0 * k), "%dX" % (1 << i), int(14 * k), 0.6 * a, HORIZONTAL_ALIGNMENT_CENTER, 40.0 * k)
 	_stroke(Vector2(x0, y), Vector2(x0 + w * share, y), 3.0 * k, a)

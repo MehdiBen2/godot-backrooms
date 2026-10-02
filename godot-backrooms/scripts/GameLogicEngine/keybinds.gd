@@ -92,8 +92,8 @@ const ACTIONS: Array[Dictionary] = [
 		"id": "camera",
 		"name": "Camcorder Zoom",
 		"desc": "Hold to raise the camcorder, mouse wheel to zoom",
-		"default_qwerty": KEY_E,
-		"default_azerty": KEY_E,
+		"default_qwerty": KEY_X,
+		"default_azerty": KEY_X,
 		"alt_keys": []
 	},
 	{

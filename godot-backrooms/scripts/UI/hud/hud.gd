@@ -42,7 +42,7 @@ var inventory: Control
 var scanner: Node
 var tape: Node
 var flash: Node                          # flash_tool.gd: the camera flash (G / right click)
-var zoom: Node                           # zoom_tool.gd: the camcorder raised to the eye (hold E, wheel zooms)
+var zoom: Node                           # zoom_tool.gd: the camcorder raised to the eye (hold X, wheel zooms)
 var toast: Control
 var hud_root: Control
 var hud_fade: Tween

@@ -6,12 +6,14 @@ extends CanvasLayer
 ##  - MARKER: hold the left button and drag to draw (sketch_tool.gd), with a colour, width, wobble, opacity,
 ##    solid / dashed / dotted, and FREEHAND or a straight LINE
 ##  - ERASER: hold the left button over a sketch line to rub it out
+##  - STAMP: click to press a scary design on (an eye, a grin, a figure, scratched words ...; scary_stamps.gd)
 ## While it is open you fly like noclip (WASD, Space up, C down, Shift fast); hold the right button to look. SAVE writes the tape
 ## and the sketches to disk now (they are also written as each one is placed).
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
+const Stamps := preload("res://scripts/World/props/scary_stamps.gd")
 
 const KEY := KEY_Y
 const INK := Color("c9bea0")
@@ -29,6 +31,9 @@ var world_lmb := false           # the left button is held, and it went down ove
 var _panel: PanelContainer
 var _tool_btns := {}
 var _marker_box: VBoxContainer
+var _stamp_box: VBoxContainer
+var _shape_box: VBoxContainer
+var _stamp_btns := {}
 var _tip: Label
 var _status: Label
 var _swatches: Array = []
@@ -72,7 +77,7 @@ func _build() -> void:
 	row.add_theme_constant_override("separation", 4)
 	v.add_child(row)
 	var group := ButtonGroup.new()
-	for t in ["tape", "marker", "eraser"]:
+	for t in ["tape", "marker", "eraser", "stamp"]:
 		var b := _button(t.to_upper(), func(): _set_tool(t))
 		b.toggle_mode = true
 		b.button_group = group
@@ -84,6 +89,33 @@ func _build() -> void:
 	_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tip.custom_minimum_size = Vector2(PANEL_W - 24, 0)
 	v.add_child(_tip)
+
+	_stamp_box = VBoxContainer.new()
+	_stamp_box.add_theme_constant_override("separation", 6)
+	v.add_child(_stamp_box)
+	var stgrid := GridContainer.new()
+	stgrid.columns = 3
+	stgrid.add_theme_constant_override("h_separation", 3)
+	stgrid.add_theme_constant_override("v_separation", 3)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(PANEL_W - 24, 150)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_stamp_box.add_child(scroll)
+	stgrid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(stgrid)
+	var stgroup := ButtonGroup.new()
+	for d in Stamps.LIST:
+		var id: String = d[0]
+		var b := _button(d[1], func():
+			sketch.stamp = id)
+		b.add_theme_font_size_override("font_size", 10)
+		b.clip_text = true
+		b.toggle_mode = true
+		b.button_group = stgroup
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stgrid.add_child(b)
+		_stamp_btns[id] = b
+	_add_slider("SIZE", "stamp_size", 20.0, 300.0, 5.0, 100.0, " cm", _stamp_box)
 
 	_marker_box = VBoxContainer.new()
 	_marker_box.add_theme_constant_override("separation", 6)
@@ -119,10 +151,13 @@ func _build() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		srow.add_child(b)
 		_style_btns[st] = b
-	_marker_box.add_child(_label("SHAPE", 12, INK))
+	_shape_box = VBoxContainer.new()
+	_shape_box.add_theme_constant_override("separation", 6)
+	_marker_box.add_child(_shape_box)
+	_shape_box.add_child(_label("SHAPE", 12, INK))
 	var hrow := HBoxContainer.new()
 	hrow.add_theme_constant_override("separation", 4)
-	_marker_box.add_child(hrow)
+	_shape_box.add_child(hrow)
 	var hgroup := ButtonGroup.new()
 	for sh in ["freehand", "line"]:
 		var b := _button(sh.to_upper(), func():
@@ -172,9 +207,9 @@ func _button(text: String, cb: Callable) -> Button:
 	b.pressed.connect(cb)
 	return b
 
-func _add_slider(title: String, prop: String, lo: float, hi: float, step: float, scale: float, unit: String) -> void:
+func _add_slider(title: String, prop: String, lo: float, hi: float, step: float, scale: float, unit: String, box: Control = null) -> void:
 	var row := HBoxContainer.new()
-	_marker_box.add_child(row)
+	(box if box != null else _marker_box).add_child(row)
 	var name_l := _label(title, 12, INK)
 	name_l.custom_minimum_size = Vector2(62, 0)
 	row.add_child(name_l)
@@ -218,13 +253,18 @@ func sync_from_tool() -> void:
 		(d.label as Label).text = (("%.1f" if d.scale == 100.0 else "%.2f") % x) + str(d.unit)
 	_style_btns[sketch.style].button_pressed = true
 	_shape_btns[sketch.shape].button_pressed = true
+	if _stamp_btns.has(sketch.stamp):
+		_stamp_btns[sketch.stamp].button_pressed = true
 
 func _set_tool(t: String) -> void:
 	tool = t
 	if _marker_box != null:
-		_marker_box.visible = t == "marker"
+		_marker_box.visible = t == "marker" or t == "stamp"
+		_shape_box.visible = t == "marker"
+		_stamp_box.visible = t == "stamp"
 	if _tip != null:
 		_tip.text = {
+			"stamp": "Pick a design, then click a wall, floor or ceiling to press it on. Colour, width and wobble come from the pen.",
 			"tape": "Hold the left mouse on a wall or floor and drag to pull tape out; let go to stick it. Click a strip to peel it off.",
 			"marker": "Hold the left mouse and drag to draw on a wall, floor or ceiling.",
 			"eraser": "Hold the left mouse over a sketch line to rub it out."}[t]

@@ -11,7 +11,7 @@ const WIDTH := 0.03                  # m: the default marker line
 const LIFT := 0.006                  # m off the surface (above the tape at 0.004)
 const LIFT_STEP := 0.0004
 const ERASE_RADIUS := 0.1            # m around a line that still counts as pointing at it
-const MAX_PER_LEVEL := 400
+const MAX_PER_LEVEL := 800
 const COLORS := [Color("d92b2b"), Color("e8781a"), Color("e6c619"), Color("2fa84f"), Color("2b6fd9"),
 	Color("f2efe6"), Color("1b1b1b"), Color("000000")]
 const COLOR_NAMES := ["RED", "ORANGE", "YELLOW", "GREEN", "BLUE", "WHITE", "BLACK", "JET BLACK"]
@@ -101,6 +101,22 @@ func add(pts: Array, n: Vector3, st: Dictionary) -> void:
 		_drop_mesh(placed[key].pop_front().id)
 	_done({"op": "add", "s": s})
 
+## Add several strokes at once (a stamp), undone together
+func add_many(lines: Array, n: Vector3, st: Dictionary) -> void:
+	var key := MarkStore.key()
+	if not placed.has(key):
+		placed[key] = []
+	var made: Array = []
+	for pts in lines:
+		var s := {"id": "%08x%08x" % [randi(), randi()], "pts": pts, "n": n, "col": st.col, "w": st.w,
+			"wob": st.wob, "style": st.style}
+		placed[key].append(s)
+		_spawn(s)
+		made.append(s)
+	while placed[key].size() > MAX_PER_LEVEL:
+		_drop_mesh(placed[key].pop_front().id)
+	_done({"op": "addmany", "list": made})
+
 ## Rub out the stroke under the point `p` on a surface facing `n` (the newest where they cross)
 func remove_near(p: Vector3, n: Vector3) -> bool:
 	var list: Array = placed.get(MarkStore.key(), [])
@@ -165,6 +181,14 @@ func _apply(op: Dictionary, back: bool) -> void:
 			else:
 				list.append(op.s)
 				_spawn(op.s)
+		"addmany":
+			for s in op.list:
+				if back:
+					list.erase(s)
+					_drop_mesh(s.id)
+				else:
+					list.append(s)
+					_spawn(s)
 		"del":
 			if back:
 				list.insert(mini(int(op.i), list.size()), op.s)

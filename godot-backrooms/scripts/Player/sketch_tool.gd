@@ -1,7 +1,7 @@
 extends Node
 ## Freehand marker in the hand. Two ways to use it:
 ##  - keys: hold B looking at a wall, floor or ceiling within REACH and drag your aim across it; N changes
-##    the colour, hold X on a line to rub it out.
+##    the colour, hold H on a line to rub it out.
 ##  - the draw tools panel (draw_ui.gd, Y): the mouse cursor is the pen. The MARKER tool draws under the
 ##    left button, the ERASER rubs out; the panel sets the colour, width, wobble, opacity, dashes and
 ##    whether it is FREEHAND or a straight LINE.
@@ -12,8 +12,9 @@ const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 
 const KEY := KEY_B
 const KEY_COLOR := KEY_N
-const KEY_ERASE := KEY_X
+const KEY_ERASE := KEY_H        # not X: that is the camcorder zoom's default
 const LensPointer := preload("res://scripts/UI/hud/lens_pointer.gd")
+const Stamps := preload("res://scripts/World/props/scary_stamps.gd")
 const CURSOR_REACH := 300.0     # m: with the draw tools panel open the pen reaches this far
 const REACH := 3.0               # m
 const STEP := 0.02               # m between points
@@ -32,6 +33,9 @@ var opacity := 1.0
 var style := "solid"             # solid / dashed / dotted
 var shape := "freehand"          # freehand / line
 
+var stamp := "eye"               # the STAMP tool's design (scary_stamps.gd)
+var stamp_size := 1.0            # m across
+
 var drawing := false
 var _pts: Array = []
 var _n := Vector3.UP
@@ -41,6 +45,7 @@ var _mesh := ArrayMesh.new()
 var _label: Label
 var _label_t := 0.0
 var _color_down := false
+var _stamp_down := false
 var _palette := 0
 
 func _ready() -> void:
@@ -74,6 +79,10 @@ func _process(dt: float) -> void:
 		or (_cursor() and ui.tool == "marker" and ui.world_lmb))
 	var erase_down: bool = can and (Input.is_physical_key_pressed(KEY_ERASE) \
 		or (_cursor() and ui.tool == "eraser" and ui.world_lmb))
+	var stamp_now: bool = can and _cursor() and ui.tool == "stamp" and ui.world_lmb
+	if stamp_now and not _stamp_down:
+		_stamp()
+	_stamp_down = stamp_now
 	if not pen_down:
 		if drawing:
 			_finish()
@@ -86,6 +95,50 @@ func _erase() -> void:
 	var hit := _aim()
 	if not hit.is_empty():
 		SketchMarks.live.remove_near(hit.position, (hit.normal as Vector3).normalized())
+
+## Press a scary design onto the surface under the cursor, upright on a wall and facing the way you look
+## on a floor or ceiling, with a little random tilt
+func _stamp() -> void:
+	var hit := _aim()
+	if hit.is_empty():
+		return
+	var p: Vector3 = hit.position
+	var n: Vector3 = (hit.normal as Vector3).normalized()
+	var up := Vector3.UP
+	if absf(n.y) > 0.8:
+		var f: Vector3 = -player.cam.global_transform.basis.z
+		f -= n * f.dot(n)
+		up = f.normalized() if f.length() > 0.01 else Vector3.RIGHT
+		if n.y < 0.0:
+			up = -up
+	else:
+		up = (up - n * up.dot(n)).normalized()
+	var right := up.cross(n).normalized()
+	var tilt := randf_range(-0.12, 0.12)
+	var half := stamp_size * 0.5
+	var pen := {"col": Color(color, opacity), "w": width, "wob": wobble, "style": style, "shape": "freehand"}
+	var lines: Array = []
+	for poly in Stamps.make(stamp):
+		var corners: Array = []
+		for v in poly:
+			var r: Vector2 = (v as Vector2).rotated(tilt)
+			corners.append(p + right * (r.x * half) + up * (r.y * half))
+		var pts: Array = [corners[0]]
+		for i in range(1, corners.size()):
+			var a: Vector3 = corners[i - 1]
+			var b: Vector3 = corners[i]
+			var k := ceili(a.distance_to(b) / STEP)
+			for j in range(1, k + 1):
+				pts.append(a.lerp(b, float(j) / k))
+		if pts.size() > MAX_POINTS:
+			var thin: Array = []
+			for i in MAX_POINTS:
+				thin.append(pts[int(float(i) * pts.size() / MAX_POINTS)])
+			pts = thin
+		if pts.size() >= 2:
+			lines.append(pts)
+	if not lines.is_empty():
+		SketchMarks.live.add_many(lines, n, pen)
 
 ## What the pen points at: through the cursor with the panel open, else the middle of the screen
 func _aim() -> Dictionary:
@@ -149,6 +202,6 @@ func _finish() -> void:
 func _show() -> void:
 	if _cursor():
 		return                   # the panel shows the pen
-	_label.text = "MARKER: " + SketchMarks.COLOR_NAMES[_palette] + "   (B draw, N colour, X erase, Y tools)"
+	_label.text = "MARKER: " + SketchMarks.COLOR_NAMES[_palette] + "   (B draw, N colour, H erase, Y tools)"
 	_label.add_theme_color_override("font_color", color.lightened(0.25))
 	_label_t = 1.6

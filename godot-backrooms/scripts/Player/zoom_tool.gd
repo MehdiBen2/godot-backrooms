@@ -1,5 +1,5 @@
 extends Node
-## The camcorder raised to your eye. Hold E (the "camera" action) to look through it; the mouse wheel
+## The camcorder raised to your eye. Hold X (the "camera" action) to look through it; the mouse wheel
 ## zooms, so you can read a far wall, a sign or what is standing at the end of a hall before you walk
 ## down it. Built by hud.gd; zoom_readout.gd draws the viewfinder and the lens grade off the values below.
 ##
@@ -14,8 +14,8 @@ extends Node
 
 const ZoomSounds := preload("res://scripts/Player/zoom_sounds.gd")
 
-const ZOOM_MAX := 8.0
-const ZOOM_START := 2.0          # what the first raise gives
+const ZOOM_MAX := 4.0
+const ZOOM_START := 1.6         # what the first raise gives
 const ZOOM_STEP := 1.3           # x per wheel notch
 const ZOOM_RATE := 1.6           # stops (doublings) per second the motor can run
 const RAISE_TIME := 0.3          # s to bring the camcorder up to your eye
@@ -45,17 +45,17 @@ var _click_on: AudioStream = load("res://audio/flash_click_on.wav")
 var _click_off: AudioStream = load("res://audio/flash_click_off.wav")
 var _click: AudioStreamPlayer
 var _whirr: AudioStreamPlayer    # the zoom motor: a looped servo, louder and higher the harder it runs
-var _sfx: AudioStreamPlayer      # the one-shots: motor tick, end stop, autofocus chirp
+var _sfx: AudioStreamPlayer      # the one-shots: motor tick and end stop
 var _dir := 0.0                  # eased +1 zooming in, -1 out: the motor's pitch follows it
-var _running := false            # the zoom motor is driving the lens
-var _focused := true             # the autofocus had a lock (it chirps as it loses and as it finds one)
+var _idle_t := 1.0               # s since the motor last ran
+var _running := false           # the zoom motor is driving the lens
 var _t := 0.0
 static var _sounds := {}         # built once: ZoomSounds streams
 
 func _ready() -> void:
 	_ok = player != null and "lens_up" in player
 	if _sounds.is_empty():
-		_sounds = {"motor": ZoomSounds.motor(), "tick": ZoomSounds.tick(), "clunk": ZoomSounds.clunk(), "chirp": ZoomSounds.chirp()}
+		_sounds = {"motor": ZoomSounds.motor(), "tick": ZoomSounds.tick(), "clunk": ZoomSounds.clunk()}
 	_click = AudioStreamPlayer.new()
 	_click.bus = "World"
 	_click.volume_db = -20.0
@@ -190,11 +190,11 @@ func _update_whirr(dt: float, dir: float) -> void:
 	if dir != 0.0:
 		_dir = move_toward(_dir, dir, dt * 8.0)
 	var running := motor > 0.5 and dir != 0.0
-	if running and not _running:
-		_blip("tick", -30.0, 1.0)
-	elif _running and not running and motor > 0.2:
-		var end := zoom <= 1.001 or zoom >= ZOOM_MAX - 0.001
-		_blip("clunk", -21.0 if end else -32.0, 1.0 if end else 1.25)
+	if running and not _running and _idle_t > 0.6:
+		_blip("tick", -30.0, 1.0)             # only from standstill: a run of wheel notches is one start
+	elif _running and not running and (zoom <= 1.001 or zoom >= ZOOM_MAX - 0.001):
+		_blip("clunk", -21.0, 1.0)            # the barrel hitting an end stop
+	_idle_t = 0.0 if running else _idle_t + dt
 	_running = running
 	if motor > 0.01:
 		if not _whirr.playing:
@@ -238,10 +238,3 @@ func _autofocus(dt: float) -> void:
 		want = 3.0                                       # too close to focus on
 	blur = lerpf(blur, want, minf(1.0, dt * 14.0))
 	lock = 1.0 - clampf(blur / 1.2, 0.0, 1.0)
-	# the focus motor buzzes as it goes to work and once more as it finds the subject
-	if _focused and lock < 0.45 and motor < 0.05:
-		_focused = false
-		_blip("chirp", -36.0, 0.95)
-	elif not _focused and lock > 0.85:
-		_focused = true
-		_blip("chirp", -40.0, 1.15)
