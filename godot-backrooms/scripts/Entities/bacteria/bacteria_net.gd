@@ -1,5 +1,5 @@
 extends RefCounted
-## THE BACTERIA in co-op. The host's copy runs the AI and broadcasts itself 20 times a second
+## THE BACTERIA in co-op. The host's copy runs the entity logic and broadcasts itself 20 times a second
 ## (Net.send_entity); on every other machine the entity is a puppet that glides after those snapshots.
 ## Its fear, sounds and the grab still play on each machine, against that machine's own player.
 

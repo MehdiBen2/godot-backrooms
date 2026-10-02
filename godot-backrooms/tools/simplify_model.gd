@@ -1,5 +1,5 @@
 extends SceneTree
-## Cuts a heavy .glb (AI-generated Tripo models come in at millions of triangles) down to about TRIS
+## Cuts a heavy .glb (high-poly models come in at millions of triangles) down to about TRIS
 ## triangles with Godot's own LOD simplifier (meshoptimizer), keeping its UVs, normals, tangents and
 ## material, and writes a small .glb with JPEG textures. First surface of the first mesh only.
 ## models/camera_flash.glb came from asetsuimprot/camera+flash+3d+model.glb this way (1.97M -> 15k

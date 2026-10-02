@@ -11,7 +11,7 @@ extends CanvasLayer
 ##  - INFINITE SANITY: Locks sanity at 100%, removes distortions & mind drain
 ##  - INFINITE TORCH: Flashlight battery pinned at 100% with zero flicker
 ##  - SPEED & JUMP BOOSTS: 0.5x to 5.0x walk/fly speeds, high jumps
-##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, Grabber, & Freeze AI
+##  - ENTITY CONTROLLER: Spawn/Despawn/Stalk Bacteria, Mannequins, Mimic, Eyes, Killer, Grabber, & Freeze Monsters
 ##  - WORLD & SCARE EVENTS: Blackouts, Power Restore, Audio Scares
 ##  - TELEPORTATION: Warp to Spawn, Mannequins, Bacteria, Ceiling (+5m), Custom X/Z
 ##  - LIVE OVERLAY HUD: Realtime on-screen telemetry (FPS, Pos, Speed, Vitals, Radar)
@@ -284,7 +284,7 @@ func _build_menu_window(parent: Control) -> void:
 
 	var tabs := [
 		{"id": "cheats", "label": "CHEATS & PLAYER"},
-		{"id": "entities", "label": "MONSTERS & AI"},
+		{"id": "entities", "label": "MONSTERS & BEHAVIOR"},
 		{"id": "world", "label": "WORLD & EVENTS"},
 		{"id": "teleport", "label": "TELEPORTATION"},
 		{"id": "console", "label": "CONSOLE"}
@@ -440,7 +440,7 @@ func _build_cheats_tab() -> Control:
 
 	return scroll
 
-# TAB 2: Entities & AI
+# TAB 2: Entities & Behavior
 func _build_entities_tab() -> Control:
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -449,8 +449,8 @@ func _build_entities_tab() -> Control:
 	v.add_theme_constant_override("separation", 10)
 	scroll.add_child(v)
 
-	v.add_child(_section_header("MASTER AI CONTROLS"))
-	btn_freeze_ai = _make_toggle_btn("FREEZE ALL MONSTERS (AI PAUSE)", Color(0.2, 0.8, 1.0), func(on):
+	v.add_child(_section_header("MASTER MONSTER CONTROLS"))
+	btn_freeze_ai = _make_toggle_btn("FREEZE ALL MONSTERS (PAUSE)", Color(0.2, 0.8, 1.0), func(on):
 		Game.freeze_ai = on
 		_sync_quick_buttons()
 	)
@@ -743,7 +743,7 @@ func _sync_quick_buttons() -> void:
 	_update_toggle_btn(btn_inf_sanity, Game.infinite_sanity, "INF SANITY", Color(0.85, 0.4, 1.0))
 	_update_toggle_btn(btn_inf_torch, Game.infinite_battery, "INF TORCH", Color(1.0, 0.8, 0.25))
 	if btn_freeze_ai != null:
-		_update_toggle_btn(btn_freeze_ai, Game.freeze_ai, "❄ FREEZE ALL MONSTERS (AI PAUSE)", Color(0.2, 0.8, 1.0))
+		_update_toggle_btn(btn_freeze_ai, Game.freeze_ai, "❄ FREEZE ALL MONSTERS (PAUSE)", Color(0.2, 0.8, 1.0))
 	_sync_hud_state()
 
 func _sync_hud_state() -> void:
@@ -843,7 +843,7 @@ func _update_overlay_text() -> void:
 	if Game.infinite_stamina: cheats.append("INF-STAM")
 	if Game.infinite_sanity: cheats.append("INF-SAN")
 	if Game.infinite_battery: cheats.append("INF-BATT")
-	if Game.freeze_ai: cheats.append("AI-FROZEN")
+	if Game.freeze_ai: cheats.append("FROZEN")
 	var cheats_str: String = ", ".join(cheats) if not cheats.is_empty() else "NONE"
 
 	var ent: Node = root.get_node_or_null("Entity")
@@ -1056,7 +1056,7 @@ func _submit(line: String) -> void:
 		"freeze":
 			Game.freeze_ai = not Game.freeze_ai
 			_sync_quick_buttons()
-			_print("freeze AI: " + ("ON" if Game.freeze_ai else "OFF"))
+			_print("freeze monsters: " + ("ON" if Game.freeze_ai else "OFF"))
 		"tp":
 			var pl := _get_player()
 			if arg == "mannequin":

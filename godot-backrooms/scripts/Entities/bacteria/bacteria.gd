@@ -1,7 +1,7 @@
 extends "res://scripts/Entities/bacteria/bacteria_stalk.gd"
 ## THE BACTERIA (the Howler). Port of js/game/entity.js.
 ##
-## AI: roam -> investigate (noise / glimpse) -> screech (first sighting) -> chase -> search (lost you);
+## Behavior: roam -> investigate (noise / glimpse) -> screech (first sighting) -> chase -> search (lost you);
 ## stunned when shot, blinded by a camera flash (flashed: get out of its sight before its eyes clear
 ## and it has lost you); stalk (peeks from behind a corner) -> flee when you look at it or come close;
 ## lurk (lost you: it waits in silence where you were heading and springs when you walk into it).

@@ -1,6 +1,6 @@
 extends Node3D
 ## THE KILLER (placeholder). Character_Monster_06 from the PSX Characters Extras pack, standing still,
-## facing the player. No AI yet: it only exists so `spawn killer` in the debug console shows how the
+## facing the player. No behavior logic yet: it only exists so `spawn killer` in the debug console shows how the
 ## model reads in the level (scale, texture, lighting).
 
 const GridNav := preload("res://scripts/World/grid_nav.gd")

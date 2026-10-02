@@ -20,7 +20,7 @@ Inside the game project:
 | --- | --- |
 | `scripts/GameLogicEngine/` | `Game` and `Gfx` autoloads (game state, level flow, graphics settings), `main.gd` (scene root). |
 | `scripts/Player/` | First-person controller, footsteps, breathing/heart, torch, blink. |
-| `scripts/Entities/` | Monsters: the Bacteria (layered AI + procedural rig), Mannequin, Mimic, Eyes. |
+| `scripts/Entities/` | Monsters: the Bacteria (layered behavior + procedural rig), Mannequin, Mimic, Eyes. |
 | `scripts/World/` | Level loading from `.lvl` grids, geometry and lighting builders, grid navigation, the outdoor Hills. |
 | `scripts/Audio/` | Ambience, scare director and synthesized scare sounds. |
 | `scripts/Events/` | The event director (power cuts, whispers, ...). |
@@ -185,5 +185,5 @@ Only processed, in-game assets live in this repo. Raw source packs (sound librar
 go in `assetsimported/`, which is git-ignored. Keep those on a drive or attach them to a release.
 Third-party sound credits are in `godot-backrooms/audio/footsteps/CREDITS.txt`.
 
-The `addons/godot_ai` and `addons/godot_mcp` plugins are editor tooling for AI assistants. They are
+The editor plugins in `addons/` are development tooling and are
 stripped from or disabled in exported builds.

@@ -81,7 +81,7 @@ shape = SubResource("Capsule")
 [node name="Camera3D" type="Camera3D" parent="Player" unique_id=597345044]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
 current = true
-far = 200.0
+far = 400.0
 
 [node name="Flashlight" type="SpotLight3D" parent="Player/Camera3D" unique_id=1789189779]
 light_color = Color(1, 0.96, 0.88, 1)

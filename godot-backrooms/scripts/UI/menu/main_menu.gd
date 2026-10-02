@@ -111,6 +111,9 @@ var idle_tw: Tween
 var idle_root: Control
 var idle_prompt: Label
 var corner_tw: Tween
+var group := "main"                     # which entry list is up: "main" or "sub" (Settings categories)
+var group_tw: Tween
+var group_filler: Control
 var loading_root: Control
 var load_title: Label
 var load_bar: ColorRect
@@ -291,10 +294,15 @@ func _build() -> void:
 
 	_menu_item(col, "PLAY", _level_name().to_upper(), "", _on_play)
 	_menu_item(col, "JOIN A GAME", "INPUT ROOM CODE", "multiplayer", _open_join_panel)
-	_menu_item(col, "SETTINGS", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"))
-	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"))
-	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"))
+	_menu_item(col, "SETTINGS", "GRAPHICS / CONTROLS / AUDIO", "", _set_group.bind("sub"))
 	_menu_item(col, "QUIT", "EJECT TAPE", "", _on_quit)
+	group_filler = _spacer(ROW_H)       # the Settings list is one row longer: keeps the title from jumping
+	col.add_child(group_filler)
+	_menu_item(col, "GENERAL", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"), "sub")
+	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"), "sub")
+	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"), "sub")
+	_menu_item(col, "VOICE", "MICROPHONE / PROXIMITY", "voice", _open_panel.bind("voice"), "sub")
+	_menu_item(col, "GO BACK", "MAIN MENU", "", _set_group.bind("main"), "sub")
 	col.add_child(_spacer(32))
 	footer = _label("BUILD 0.1 // TAPE 04        UP / DOWN  SELECT    ENTER  CONFIRM", 11, Color(0.9, 0.882, 0.804, 0.3), 3)
 	col.add_child(footer)
@@ -383,8 +391,9 @@ func _next_bg() -> void:
 ## One entry: a red ► cursor and the word, which steps right when selected, plus a short caption
 ## that types itself out beside it. The hit box is only as wide as the word, not the whole column.
 ## Everything sits in `inner` so the intro can slide the entry in without fighting the hover motion.
-func _menu_item(col: Control, text: String, hint: String, panel: String, action: Callable) -> void:
+func _menu_item(col: Control, text: String, hint: String, panel: String, action: Callable, group := "main") -> void:
 	var b := Button.new()
+	b.visible = group == "main"
 	b.flat = true
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -420,7 +429,7 @@ func _menu_item(col: Control, text: String, hint: String, panel: String, action:
 	inner.add_child(h)
 
 	var i := items.size()
-	items.append({"button": b, "inner": inner, "label": l, "mark": mark, "hint": h, "panel": panel, "action": action, "tw": null})
+	items.append({"button": b, "inner": inner, "label": l, "mark": mark, "hint": h, "panel": panel, "action": action, "group": group, "tw": null})
 	b.mouse_entered.connect(func(): _select(i))
 	b.mouse_exited.connect(func():
 		if sel == i: _select(-1))
@@ -459,11 +468,20 @@ func _item_state(i: int) -> void:
 		tw.tween_property(h, "visible_ratio", 1.0, 0.3).set_delay(0.08)
 	it["tw"] = tw
 
+func _group_items() -> Array[int]:
+	var ids: Array[int] = []
+	for i in items.size():
+		if items[i]["group"] == group:
+			ids.append(i)
+	return ids
+
 func _step(d: int) -> void:
-	if sel < 0:
-		_select(0 if d > 0 else items.size() - 1)
+	var ids := _group_items()
+	var at := ids.find(sel)
+	if at < 0:
+		_select(ids[0] if d > 0 else ids[-1])
 	else:
-		_select(posmod(sel + d, items.size()))
+		_select(ids[posmod(at + d, ids.size())])
 
 ## Click / Enter: the word blinks like a VCR menu confirming, then the entry does its thing
 func _activate(i: int) -> void:
@@ -486,6 +504,35 @@ func _on_panel_changed(name: String) -> void:
 	corner_tw = create_tween().set_parallel(true)
 	for c in [counter, credits]:
 		corner_tw.tween_property(c, "modulate:a", 0.0 if name != "" else 1.0, 0.2)
+
+## SETTINGS / GO BACK: the list swaps for the other one. The old entries slide out and fade, the new ones
+## slide in one after another; picking a category then opens its panel on the right.
+func _set_group(g: String) -> void:
+	if g == group:
+		return
+	W._finish(intro)
+	if group_tw: W._finish(group_tw)
+	settings_menu.close_panel()
+	var old := group
+	group = g
+	_select(-1)
+	group_tw = create_tween().set_parallel(true)
+	for it in items:
+		if it["group"] == old:
+			group_tw.tween_property(it["inner"], "modulate:a", 0.0, 0.14)
+	group_tw.chain().tween_callback(func():
+		group_filler.visible = g == "main"
+		var n := 0
+		for it in items:
+			it["button"].visible = it["group"] == g
+			if it["group"] == g:
+				var inner: Control = it["inner"]
+				inner.position.x = -24.0
+				inner.modulate.a = 0.0
+				var tw := create_tween().set_parallel(true)
+				tw.tween_property(inner, "position:x", 0.0, 0.45).set_delay(n * 0.05).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+				tw.tween_property(inner, "modulate:a", 1.0, 0.3).set_delay(n * 0.05)
+				n += 1)
 
 # ---- intro ----------------------------------------------------------------------------
 ## Out of black, then the column builds itself: tag types, the title's tracking locks in, the sub line
@@ -754,7 +801,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	var k: Key = e.physical_keycode
 	if k == KEY_ESCAPE and not e.echo:
-		settings_menu.close_panel()
+		if not settings_menu.close_panel() and group == "sub":     # panel first, then the list
+			_set_group("main")
 		return
 	if busy:
 		return
@@ -765,7 +813,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			_step(1)
 		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
 			if not e.echo:
-				_activate(sel if sel >= 0 else 0)     # nothing picked yet: Enter still means PLAY
+				_activate(sel if sel >= 0 else _group_items()[0])     # nothing picked yet: Enter takes the first entry (PLAY)
 
 # ---- per-frame -----------------------------------------------------------------------
 func _process(dt: float) -> void:

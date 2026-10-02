@@ -32,7 +32,7 @@ var glitch_left := 0.0
 var glitch_tick := 0.0
 var next_glitch := 2.5
 
-var embedded := false                   # title-screen mode: only the Settings / Graphics side panel
+var embedded := false                   # title-screen mode: only the side panel
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

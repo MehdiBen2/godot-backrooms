@@ -15,7 +15,7 @@ The Green Light (Map Expansion): The Backrooms isn't entirely static; it activel
 Biomes/Levels: The traditional yellow wallpaper is just the surface (Subdivision A). Deeper explorations reveal "Pitfalls" (a street of houses bathed in red light), dark industrial spaces, fake forests, and makeshift radio towers.
 
 3. The Entities (Enemy Types)
-If you are coding monster AI, the lore provides two distinct types of hostiles:
+If you are coding monster behavior, the lore provides two distinct types of hostiles:
 
 The Bacteria / Life Forms: When a human dies in the Backrooms, a mutated strain of Haybacillus bacteria overtakes their corpse. It stunts decomposition and strings their vocal cords and limbs together. These monsters mimic human speech (like crying out for help or repeating panicked phrases) to lure in new prey. They are fast, aggressive, and nest in dark zones.
 

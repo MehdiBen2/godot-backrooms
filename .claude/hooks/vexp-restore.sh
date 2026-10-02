@@ -1,6 +1,6 @@
 #!/bin/bash
 # vexp-restore: context lifecycle restore on SessionStart (compact/resume). Fails open.
-VEXP_BIN="C:/Users/alhyu/.antigravity-ide/extensions/vexp.vexp-vscode-3.3.1-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe"
+VEXP_BIN="C:/Users/alhyu/.antigravity-ide/extensions/vexp.vexp-vscode-3.3.2-win32-x64/binaries/vexp-core-win32-x64/vexp-core.exe"
 # An extension upgrade removes the versioned folder above; fall back to the
 # newest installed vexp extension binary. Managed by vexp.
 if [ ! -x "$VEXP_BIN" ]; then

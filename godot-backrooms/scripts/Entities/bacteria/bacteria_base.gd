@@ -60,7 +60,7 @@ const LURK_SENSE := 2.4           # awareness builds this much faster while it w
 const LURK_HEAR := 1.4            # and it hears this much further
 const LURK_POUNCE := 7.0          # seen this close while it waits: it doesn't wait for certainty
 
-# ---- co-op: the host's PC runs the AI and hunts the nearest living survivor; everyone else gets a
+# ---- co-op: the host's PC runs the monster logic and hunts the nearest living survivor; everyone else gets a
 # puppet that follows the host's broadcast (bacteria_net.gd). Order matters: it is sent as an index.
 const STATES := ["roam", "investigate", "search", "chase", "screech", "stalk", "stunned", "flee", "lurk"]
 

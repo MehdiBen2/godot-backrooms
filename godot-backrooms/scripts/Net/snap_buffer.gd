@@ -79,6 +79,6 @@ func sample(dt: float) -> Dictionary:
 		out.speed = lerpf(a.speed, b.speed, k)
 	return out
 
-## Latest known position, for AI that must react to where they are now rather than drawn
+## Latest known position, for entities that must react to where they are now rather than drawn
 func latest() -> Dictionary:
 	return {} if snaps.is_empty() else snaps[-1]
