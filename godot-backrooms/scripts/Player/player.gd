@@ -624,7 +624,8 @@ func _sync_flashlight_aim(factor: float) -> void:
 	beam_pos = beam_pos.lerp(where, factor)
 	flash.global_position = beam_pos
 	var fwd := -cam.global_transform.basis.z * 16.0
-	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
+	var tilt := 0.0 if (Game.hide_hud or Game.hide_hands) else beam_tilt
+	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -tilt)
 	flash_target = flash_target.lerp(want, factor)
 	if flash_target.distance_to(beam_pos) > 0.01:
 		flash.look_at(flash_target, Vector3.UP)
@@ -637,9 +638,10 @@ func _update_flashlight_aim(dt: float) -> void:
 	if not is_instance_valid(flash) or not flash.visible:
 		return
 	var dip_target := 0.0
-	if torch != null:
+	if torch != null and not (Game.hide_hud or Game.hide_hands):
 		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
-	beam_tilt = lerpf(beam_tilt, clampf(dip_target, 0.0, BEAM_TILT_MAX), minf(1.0, 8.0 * dt))
+	var tilt_target := 0.0 if (Game.hide_hud or Game.hide_hands) else clampf(dip_target, 0.0, BEAM_TILT_MAX)
+	beam_tilt = lerpf(beam_tilt, tilt_target, minf(1.0, 8.0 * dt))
 	var lens := cam.global_position
 	if torch != null and torch.visible:
 		lens = torch.lens()
@@ -648,7 +650,8 @@ func _update_flashlight_aim(dt: float) -> void:
 	beam_pos = where if beam_pos.distance_to(where) > 2.0 else beam_pos.lerp(where, minf(1.0, pos_rate * dt))
 	flash.global_position = beam_pos
 	var fwd := -cam.global_transform.basis.z * 16.0
-	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -beam_tilt)
+	var current_tilt := 0.0 if (Game.hide_hud or Game.hide_hands) else beam_tilt
+	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -current_tilt)
 	var look_delta := (want - flash_target).length()
 	var track_rate := lerpf(24.0, 85.0, clampf(look_delta * 3.0, 0.0, 1.0))
 	flash_target = flash_target.lerp(want, minf(1.0, track_rate * dt))

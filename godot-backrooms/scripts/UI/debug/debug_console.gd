@@ -92,6 +92,9 @@ func _ready() -> void:
 	Game.hud_visibility_changed.connect(func(_v: bool):
 		_sync_hud_state()
 	)
+	Game.hands_visibility_changed.connect(func(_v: bool):
+		_sync_hud_state()
+	)
 	_sync_hud_state()
 	_print("[color=gray]T.S.R.A. Diagnostic Matrix online. Press [b]F1[/b] or [b]~[/b] for visual menu, [b]help[/b] for commands.[/color]")
 
@@ -206,14 +209,14 @@ func _build_menu_window(parent: Control) -> void:
 	title_vbox.add_child(subtitle_lbl)
 
 	btn_header_hud = Button.new()
-	btn_header_hud.text = "📷 HIDE HUD"
+	btn_header_hud.text = "📷 HIDE HUD & HANDS"
 	if font: btn_header_hud.add_theme_font_override("font", font)
 	btn_header_hud.add_theme_font_size_override("font_size", 12)
 	btn_header_hud.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_header_hud.pressed.connect(func():
 		Game.hide_hud = not Game.hide_hud
 		_sync_hud_state()
-		_print("HUD: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
 	)
 	header.add_child(btn_header_hud)
 
@@ -418,10 +421,10 @@ func _build_cheats_tab() -> Control:
 	hud_row.add_theme_constant_override("separation", 8)
 	v.add_child(hud_row)
 
-	btn_toggle_hud = _make_toggle_btn("HIDE ALL HUD (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0), func(on):
+	btn_toggle_hud = _make_toggle_btn("HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0), func(on):
 		Game.hide_hud = on
 		_sync_hud_state()
-		_print("HUD: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
 	)
 	hud_row.add_child(btn_toggle_hud)
 
@@ -745,13 +748,13 @@ func _sync_quick_buttons() -> void:
 
 func _sync_hud_state() -> void:
 	if btn_header_hud != null:
-		btn_header_hud.text = "📷 SHOW HUD" if Game.hide_hud else "📷 HIDE HUD"
+		btn_header_hud.text = "📷 SHOW HUD & HANDS" if Game.hide_hud else "📷 HIDE HUD & HANDS"
 		var bg := Color(0.18, 0.45, 0.35, 0.9) if Game.hide_hud else Color(0.1, 0.14, 0.18, 0.8)
 		var bdr := Color(0.3, 0.95, 0.7, 0.9) if Game.hide_hud else Color(0.3, 0.5, 0.5, 0.6)
 		btn_header_hud.add_theme_stylebox_override("normal", _make_box(bg, bdr, 1, 4, 8))
 		btn_header_hud.add_theme_stylebox_override("hover", _make_box(bg * 1.3, Color(0.4, 1.0, 0.85), 1, 4, 8))
 	if btn_toggle_hud != null:
-		_update_toggle_btn(btn_toggle_hud, Game.hide_hud, "HIDE ALL HUD (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0))
+		_update_toggle_btn(btn_toggle_hud, Game.hide_hud, "HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0))
 
 func _make_toggle_btn(label: String, tint: Color, callback: Callable) -> Button:
 	var btn := Button.new()
@@ -978,20 +981,32 @@ func _submit(line: String) -> void:
 	history_at = history.size()
 	_print("[color=cyan]> " + line + "[/color]")
 	var raw_lower := line.to_lower().strip_edges()
-	if raw_lower in ["hide all hud", "hide hud", "hide all", "hide all huds"]:
+	if raw_lower in ["hide all hud", "hide hud", "hide all", "hide all huds", "hide all hud and hands", "hide hud and hands", "hide all hud and hand"]:
 		Game.hide_hud = true
 		_sync_hud_state()
-		_print("HUD: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+		_print("HUD & Hands: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
 		return
-	elif raw_lower in ["show all hud", "show hud", "show all", "show all huds"]:
+	elif raw_lower in ["show all hud", "show hud", "show all", "show all huds", "show all hud and hands", "show hud and hands", "show all hud and hand"]:
 		Game.hide_hud = false
 		_sync_hud_state()
-		_print("HUD: [color=lime]VISIBLE[/color]")
+		_print("HUD & Hands: [color=lime]VISIBLE[/color]")
 		return
-	elif raw_lower in ["toggle hud", "toggle all hud"]:
+	elif raw_lower in ["toggle hud", "toggle all hud", "toggle hud and hands", "toggle hud and hand"]:
 		Game.hide_hud = not Game.hide_hud
 		_sync_hud_state()
-		_print("HUD: " + ("[color=orange]HIDDEN[/color] (Screenshot Mode)" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=orange]HIDDEN[/color] (Screenshot Mode)" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		return
+	elif raw_lower in ["hide hand", "hide hands", "hand off", "hands off"]:
+		Game.hide_hands = true
+		_print("Hands: [color=orange]HIDDEN[/color]")
+		return
+	elif raw_lower in ["show hand", "show hands", "hand on", "hands on"]:
+		Game.hide_hands = false
+		_print("Hands: [color=lime]VISIBLE[/color]")
+		return
+	elif raw_lower in ["toggle hand", "toggle hands"]:
+		Game.hide_hands = not Game.hide_hands
+		_print("Hands: " + ("[color=orange]HIDDEN[/color]" if Game.hide_hands else "[color=lime]VISIBLE[/color]"))
 		return
 
 	var parts := line.to_lower().split(" ", false)
@@ -1002,7 +1017,7 @@ func _submit(line: String) -> void:
 			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: lightout, lighton, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
-			_print("HUD / Screenshots: hud [on|off], screenshot")
+			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 		"noclip":
 			Game.noclip = not Game.noclip
@@ -1116,9 +1131,21 @@ func _submit(line: String) -> void:
 				Game.hide_hud = not Game.hide_hud
 			_sync_hud_state()
 			if Game.hide_hud:
-				_print("HUD: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+				_print("HUD & Hands: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
 			else:
-				_print("HUD: [color=lime]VISIBLE[/color]")
+				_print("HUD & Hands: [color=lime]VISIBLE[/color]")
+		"hand", "hands", "hidehand", "showhand", "togglehand":
+			if arg == "off" or arg == "hide" or arg == "0":
+				Game.hide_hands = true
+			elif arg == "on" or arg == "show" or arg == "1":
+				Game.hide_hands = false
+			elif cmd == "hidehand":
+				Game.hide_hands = true
+			elif cmd == "showhand":
+				Game.hide_hands = false
+			else:
+				Game.hide_hands = not Game.hide_hands
+			_print("Hands: " + ("[color=orange]HIDDEN[/color]" if Game.hide_hands else "[color=lime]VISIBLE[/color]"))
 		"screenshot", "shot", "snap":
 			_take_screenshot()
 		"clear":

@@ -154,7 +154,7 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		_update_arm(shown)
 		_show_arms()
 	else:
-		visible = shown
+		visible = shown and not (Game.hide_hud or Game.hide_hands)
 		if not shown:
 			raise = 0.0
 			lower = 0.0
@@ -255,6 +255,12 @@ func _hand_torch(i: int) -> void:
 ## What's in view: the right arm while the torch is up (or on its way) or while it's off the animation and
 ## not let down, the left arm while it's not let down, the torch while it's on
 func _show_arms() -> void:
+	if Game.hide_hud or Game.hide_hands:
+		if _arms[0] != null: _arms[0].visible = false
+		if _arms[1] != null: _arms[1].visible = false
+		if _torch != null: _torch.visible = false
+		visible = false
+		return
 	var away := not _on and not _anim.is_playing() and not _flinching
 	var right_seen := not away
 	var left_seen := false
@@ -275,7 +281,7 @@ func flinch() -> void:
 	if _anim == null or _anim.current_animation == FLINCH:
 		return
 	_flinching = true
-	visible = true
+	visible = not (Game.hide_hud or Game.hide_hands)
 	_anim.clear_queue()
 	_anim.play(FLINCH, 0.06)
 

@@ -52,6 +52,7 @@ func _spawn_all(lv: String) -> void:
 	await get_tree().physics_frame
 	if not is_inside_tree():
 		return
+	_prune(lv)
 	for s in placed.get(lv, []):
 		if not meshes.has(s.id):
 			_spawn(s)
@@ -198,19 +199,34 @@ func save() -> bool:
 			"w": s.w, "wob": s.wob, "style": s.style})
 	return MarkStore.write(level_id, "sketch", out)
 
-## Only the stretches of the line that still have a surface under them are drawn, so a line left
-## hanging in the void where a wall was removed doesn't show (the stroke itself is kept)
+## Delete the parts of every line that no longer have a surface under them (a wall was removed): a
+## stroke is cut down to the stretches still on a surface, or dropped if none is left. Saved if changed.
+func _prune(lv: String) -> void:
+	var list: Array = placed.get(lv, [])
+	var out: Array = []
+	var changed := false
+	for s in list:
+		var runs := _supported_runs(s)
+		if runs.size() == 1 and runs[0].size() == s.pts.size():
+			out.append(s)
+			continue
+		changed = true
+		for run in runs:
+			var piece: Dictionary = s.duplicate()
+			piece.id = "%08x%08x" % [randi(), randi()]
+			piece.pts = run
+			out.append(piece)
+	if changed:
+		placed[lv] = out
+		save()
+
 func _spawn(s: Dictionary) -> void:
-	var holder := Node3D.new()
-	add_child(holder)
-	meshes[s.id] = holder
-	var lift := LIFT + LIFT_STEP * (meshes.size() % 8)
-	for run in _supported_runs(s):
-		var mi := MeshInstance3D.new()
-		mi.mesh = ribbon(run, s.n, s, lift, global_position)
-		mi.material_override = material()
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		holder.add_child(mi)
+	var mi := MeshInstance3D.new()
+	mi.mesh = ribbon(s.pts, s.n, s, LIFT + LIFT_STEP * (meshes.size() % 8), global_position)
+	mi.material_override = material()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	meshes[s.id] = mi
 
 func _supported_runs(s: Dictionary) -> Array:
 	var space := get_world_3d().direct_space_state
