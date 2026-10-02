@@ -134,6 +134,7 @@ var adr_active := false
 var adr_time := 0.0
 var adr_glow := 0.0
 var adr_cooldown := 0.0
+var adr_idle := 0.0            # seconds since an entity last ticked the adrenaline (it stops when they despawn or hide)
 var bob := 0.0
 var bob_w := 0.0                 # eased 0..1: how much of a walking stride is in the view
 var bob_rate := 5.3              # how fast `bob` runs right now (rad/s): one step per PI
@@ -268,6 +269,10 @@ func _process(delta: float) -> void:
 
 func _physics_process(dt: float) -> void:
 	spawn_grace = maxf(0.0, spawn_grace - dt)
+	# nothing is hunting you any more (or nothing is left to say so): let the burst wind down on its own
+	adr_idle += dt
+	if adr_idle > 0.5 and (adr_active or adrenaline > 0.0):
+		_tick_adrenaline(dt, false)
 	if dead or frozen:
 		if adrenaline > 0.0 or adr_active: end_adrenaline()
 		velocity.x = 0.0
@@ -611,6 +616,10 @@ func flinch() -> void:
 
 # Adrenaline: the bacteria calls this every frame with whether it is hunting you close by
 func update_adrenaline(dt: float, hunted: bool) -> void:
+	adr_idle = 0.0
+	_tick_adrenaline(dt, hunted)
+
+func _tick_adrenaline(dt: float, hunted: bool) -> void:
 	if dead or frozen: hunted = false
 	adr_cooldown = maxf(0.0, adr_cooldown - dt)
 	if not adr_active and hunted and adr_cooldown <= 0.0:
@@ -674,6 +683,7 @@ func _update_flashlight(dt: float) -> void:
 		k *= 0.35 + 0.65 * ratio
 		if randf() < (0.32 if battery < BATTERY_CRIT else 0.10):
 			k *= 0.05 + randf() * 0.45
+			if torch: torch.smack()
 	k *= _contact_flicker(dt)
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := ambient_light()
@@ -757,6 +767,7 @@ func trigger_flicker(secs: float) -> void:
 	flash_flicker.active = true
 	flash_flicker.step = 0.0
 	flicker_left = maxf(flicker_left, secs)
+	if torch: torch.smack()
 
 # Loose contact: long steady stretches, then a burst of dropouts
 func _contact_flicker(dt: float) -> float:
@@ -766,6 +777,7 @@ func _contact_flicker(dt: float) -> float:
 	if not fl.active:
 		fl.active = true
 		fl.step = 0.0
+		if torch: torch.smack()                         # a loose contact: knock it
 	fl.step -= dt
 	if fl.step <= 0.0:
 		fl.step = 0.03 + randf() * 0.05

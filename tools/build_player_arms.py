@@ -38,6 +38,13 @@ What it does:
    fingers in the Torch* clips; TorchGrip moves to the seat and TorchAnchor to where it is in TorchHold.
 5. WallPalm, a new one-pose clip: the thumbs laid out flat beside the palm, for a hand pressed on a wall
    (wall_hand.gd reads it; at rest this glove's thumb points out of the palm, into the wall).
+6. Four one-shot clips on the torch hold, each starting and ending on its first pose (torch_model.gd plays
+   them over the hold and goes back to it):
+   TorchSqueeze   the fist tightens on the barrel, trembles a little, lets go a touch past normal, settles
+   TorchFingers   the fingers lift off the barrel and come back one after another, little finger first
+   TorchRegrip    the hand opens a moment, all four fingers and the thumb off the barrel, and takes a
+                  fresh, firm hold (the thumb alone is no use: from your eye the barrel hides it)
+   TorchSmack     two sharp hammer strokes of the wrist, the fist clamped: knocking a flickering torch
 
 """
 import heapq
@@ -478,7 +485,8 @@ def solve_grip(axis, radius, palm, fingers, thumb, row, across_old):
             v, best_c = trial, c
         if i % 500 == 499:
             spread *= 0.6
-    return {"seat": seat, "bend": bends, "rest_bend": rests, "thumb": laid(v)[0]}
+    swings, joints = laid(v)
+    return {"seat": seat, "bend": bends, "rest_bend": rests, "thumb": swings, "thumb_at": joints}
 
 
 # ------------------------------------------------------------------------------------------------ main
@@ -781,6 +789,93 @@ def main():
                              "interpolation": "LINEAR"})
             channels.append({"sampler": len(samplers) - 1, "target": {"node": nid[side + n], "path": "rotation"}})
     anims.append({"name": PALM, "samplers": samplers, "channels": channels})
+
+    # ---- the fidgets: the hold's first pose, with a few bones moved over it
+    def curve(*keys):
+        """f(t) through (time, value) keys, eased from each to the next; flat before the first and after the last"""
+        ts = np.array([k[0] for k in keys])
+        vs = np.array([k[1] for k in keys])
+
+        def f(t):
+            i = int(np.clip(np.searchsorted(ts, t, side="right") - 1, 0, len(ts) - 2))
+            u = float(np.clip((t - ts[i]) / (ts[i + 1] - ts[i]), 0.0, 1.0))
+            return vs[i] + (vs[i + 1] - vs[i]) * u * u * (3.0 - 2.0 * u)
+        return f
+
+    def spun(bone, axis, degrees):
+        """The hold's rotation of `bone`, turned `degrees(t)` about its own `axis` (0 x, 1 y, 2 z)"""
+        base = hold_pose[("Right" + bone, "rotation")]
+
+        def f(t):
+            half = np.radians(degrees(t)) / 2
+            q = np.zeros(4)
+            q[axis], q[3] = np.sin(half), np.cos(half)
+            return q_mul(base, q)
+        return f
+
+    def curled(amount, degrees, delay=0.0, fingers=FINGERS):
+        """Every joint of `fingers` bent `degrees` (knuckle, middle, tip) x `amount(t)` more than in the hold,
+        each finger `delay` after the one before"""
+        turns = {}
+        for k, name in enumerate(fingers):
+            for j, deg in enumerate(degrees):
+                turns["Right" + name + JOINTS[j]] = spun(name + JOINTS[j], 0, lambda t, k=k, deg=deg: deg * amount(t - delay * k))
+        return turns
+
+    # the thumb off the barrel: its last two bones swung about the knuckle, straight away from the barrel
+    thumb_at = grasp["thumb_at"]
+    along_thumb = unit(thumb_at[2] - thumb_at[1])
+    off = thumb_at[2] - grasp["seat"]
+    barrel_axis = unit(-grip_rot[:, 2])
+    lift_about = unit(np.cross(along_thumb, off - barrel_axis * (off @ barrel_axis)))
+
+    def thumb_lifted(degrees):
+        def bone(n):
+            def f(t):
+                lift = about(lift_about, np.radians(degrees(t)))
+                return thumb_turns([grasp["thumb"][0], lift @ grasp["thumb"][1], lift @ grasp["thumb"][2]])[n]
+            return f
+        return {"Right" + n: bone(n) for n in THUMB}
+
+    def clip(name, length, turns, moves=None):
+        times = np.arange(0.0, length + 1e-6, 1.0 / 30.0).astype(np.float32)
+        when = out.add(times, "SCALAR", bounds=True)
+        samplers, channels = [], []
+        for (node, path), base in hold_pose.items():
+            f = (turns if path == "rotation" else moves or {}).get(node)
+            val = np.array([f(float(t)) for t in times]) if f else np.repeat(base[None], len(times), 0)
+            samplers.append({"input": when, "output": out.add(val.astype(np.float32), "VEC4" if path == "rotation" else "VEC3"),
+                             "interpolation": "LINEAR"})
+            channels.append({"sampler": len(samplers) - 1, "target": {"node": nid[node], "path": path}})
+        anims.append({"name": name, "samplers": samplers, "channels": channels})
+
+    grip_on = curve((0.0, 0.0), (0.22, 1.0), (0.70, 1.0), (0.98, -0.3), (1.40, 0.0), (1.50, 0.0))
+    shaking = curve((0.0, 0.0), (0.22, 1.0), (0.70, 1.0), (0.85, 0.0), (1.50, 0.0))
+    turns = curled(grip_on, (4.0, 8.0, 8.0), delay=0.025)
+    turns.update(thumb_lifted(lambda t: -4.0 * grip_on(t)))
+    turns["RightHand"] = spun("Hand", 0, lambda t: 4.0 * grip_on(t) + 0.4 * np.sin(2 * np.pi * 9.0 * t) * shaking(t))
+    clip("TorchSqueeze", 1.5, turns)
+
+    turns = {}
+    for i, name in enumerate(reversed(FINGERS)):
+        at = 0.1 + 0.2 * i
+        up = curve((0.0, 0.0), (at, 0.0), (at + 0.22, 1.0), (at + 0.45, -0.15), (at + 0.70, 0.0), (1.65, 0.0))
+        turns.update(curled(up, (-14.0, -20.0, -10.0), fingers=[name]))
+    clip("TorchFingers", 1.65, turns)
+
+    loose = curve((0.0, 0.0), (0.08, 0.0), (0.26, 1.0), (0.40, 1.0), (0.56, -0.35), (0.85, 0.05), (1.05, 0.0), (1.20, 0.0))
+    turns = curled(loose, (-16.0, -22.0, -10.0), delay=0.02)
+    turns.update(thumb_lifted(lambda t: 10.0 * loose(t)))
+    turns["RightHand"] = spun("Hand", 0, lambda t: -3.0 * loose(t))
+    clip("TorchRegrip", 1.2, turns)
+
+    knock = curve((0.0, 0.0), (0.08, -5.0), (0.17, 14.0), (0.30, -1.0), (0.38, -4.0), (0.47, 9.0), (0.62, -1.0), (0.80, 0.0), (0.90, 0.0))
+    clamp = curve((0.0, 0.0), (0.08, 1.0), (0.55, 1.0), (0.80, 0.0), (0.90, 0.0))
+    turns = curled(clamp, (2.0, 4.0, 5.0))
+    turns["RightHand"] = spun("Hand", 2, knock)
+    fore_base = hold_pose[("RightLowerArm", "translation")]
+    fore_along = q_mat(hold_pose[("RightLowerArm", "rotation")])[:, 1]
+    clip("TorchSmack", 0.9, turns, {"RightLowerArm": lambda t: fore_base + fore_along * 0.0012 * knock(t)})
 
     # TorchAnchor: where TorchGrip is in the hold
     fore_q = hold_pose[("RightLowerArm", "rotation")]

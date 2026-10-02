@@ -1,6 +1,10 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://bmjlpq7mh8xg0"]
 
-[ext_resource type="Script" path="res://scripts/World/hills/hills.gd" id="1"]
+[ext_resource type="Script" uid="uid://pbcr1eh50eci" path="res://scripts/World/hills/hills.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://clage8xc5vfml" path="res://models/player/fp_arms.glb" id="2_jfc83"]
 
-[node name="Hills" type="Node3D"]
+[node name="Hills" type="Node3D" unique_id=904249675]
 script = ExtResource("1")
+
+[node name="Sketchfab_Scene" parent="." unique_id=1297265867 instance=ExtResource("2_jfc83")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.043413162, 0, 2.6484833)

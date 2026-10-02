@@ -8,6 +8,9 @@ extends Node3D
 ## the other one hangs low, only just in view, with the torch if it's on (wall_hand.gd): peeking left the
 ## right hand goes on the wall, so the torch is passed to the left hand first, below the view. The left
 ## arm is out of view otherwise.
+## Standing with the torch up, the hand doesn't stay frozen: every few seconds it squeezes the barrel, rolls
+## its fingers off it and back, or opens and takes a fresh hold (FIDGETS). And when the beam stutters it
+## gives the torch a couple of sharp knocks (smack()).
 ## A child of the camera, built by the player. Without the arms model the torch floats on its own.
 
 const MODEL := "res://models/flashlight.glb"
@@ -20,6 +23,10 @@ const GRIP_BACK := 0.018          # the fist closes on the handle this far behin
 const PICKUP := "TorchPickup"     # arm swings the torch up into view (played backwards to put it away)
 const HOLD := "TorchHold"         # held up, breathing
 const FLINCH := "TorchFlinch"     # thrown up across the face, trembling, then slowly back down
+const FIDGETS: Array[String] = ["TorchSqueeze", "TorchFingers", "TorchRegrip"]   # one-shots over the hold
+const SMACK := "TorchSmack"       # two sharp knocks, for a torch that flickers
+const FIDGET_EVERY := Vector2(6.0, 14.0)   # s from one fidget to the next
+const SMACK_GAP := Vector2(4.0, 8.0)       # s before it will knock the torch again
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const CROUCH_DIP := 0.03          # m the torch hand sits lower crouched
 
@@ -51,6 +58,11 @@ var _hands: WallHand              # both hands while you peek round a wall edge
 var _arms: Array[Node3D] = [null, null]    # the LeftArm / RightArm meshes
 var _crouch := 0.0
 var _crouch_goal := 0.0
+var _fidgets: Array[String] = []  # the FIDGETS this model has
+var _fidget_in := 8.0             # s to the next one
+var _fidget_last := ""
+var _smack_in := 0.0              # s to a knock that's been asked for (0: none)
+var _smack_wait := 0.0            # s before another can be
 
 func _init() -> void:
 	name = "TorchModel"
@@ -139,6 +151,13 @@ func _build_arms() -> void:
 	_grip = grip
 	_grips[1] = grip
 	_anim = players[0] as AnimationPlayer
+	# the one-shots ease back into the hold they're queued before
+	for clip in FIDGETS:
+		if _anim.has_animation(clip):
+			_anim.set_blend_time(clip, HOLD, 0.2)
+			_fidgets.append(clip)
+	if _anim.has_animation(SMACK):
+		_anim.set_blend_time(SMACK, HOLD, 0.2)
 
 ## Where the beam leaves from: LENGTH ahead of the torch's middle, along the torch
 func lens() -> Vector3:
@@ -153,6 +172,7 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		_hands.tick(dt)
 	if _anim != null:
 		_update_arm(shown)
+		_fidget(dt, sprinting)
 		_show_arms()
 	else:
 		visible = shown and not (Game.hide_hud or Game.hide_hands)
@@ -275,6 +295,49 @@ func _show_arms() -> void:
 		_arms[1].visible = right_seen
 	_torch.visible = not away
 	visible = right_seen or left_seen
+
+## Just holding the torch up: on, in the right hand, that hand left to the animation and not flinching
+func _holding() -> bool:
+	if not _on or _flinching or _torch_in != WallHand.RIGHT:
+		return false
+	return _hands == null or (_hands.mode_of(WallHand.RIGHT) == WallHand.Mode.ANIM and _hands.settled(WallHand.RIGHT))
+
+## Life in the holding hand: a fidget now and then while it's just holding (not sprinting), and the knock
+## that smack() asked for. Each plays once over the hold and eases back into it; switching off, a flinch
+## or a peek cut it short the way they cut the hold.
+func _fidget(dt: float, sprinting: bool) -> void:
+	var now := String(_anim.current_animation)
+	_smack_wait = maxf(0.0, _smack_wait - dt)
+	if _smack_in > 0.0:
+		_smack_in -= dt
+		if _smack_in <= 0.0:
+			_smack_in = 0.0
+			if _holding() and (now == HOLD or _fidgets.has(now)):
+				_anim.clear_queue()
+				_anim.play(SMACK, 0.08)
+				_anim.queue(HOLD)
+				_smack_wait = randf_range(SMACK_GAP.x, SMACK_GAP.y)
+				_fidget_in = randf_range(FIDGET_EVERY.x, FIDGET_EVERY.y)
+		return
+	if _fidgets.is_empty() or sprinting or now != HOLD or not _holding():
+		return
+	_fidget_in -= dt
+	if _fidget_in > 0.0:
+		return
+	_fidget_in = randf_range(FIDGET_EVERY.x, FIDGET_EVERY.y)
+	var pick: String = _fidgets.pick_random()
+	if pick == _fidget_last and _fidgets.size() > 1:
+		pick = _fidgets[(_fidgets.find(pick) + 1) % _fidgets.size()]
+	_fidget_last = pick
+	_anim.play(pick, 0.2)
+	_anim.queue(HOLD)
+
+## The beam is stuttering: `after` s from now the hand knocks the torch, if it's just holding it then.
+## Asked again before SMACK_GAP is up, or with one already on its way, nothing more happens.
+func smack(after := 0.3) -> void:
+	if _anim == null or not _on or _smack_in > 0.0 or _smack_wait > 0.0 or not _anim.has_animation(SMACK):
+		return
+	_smack_in = after
 
 ## The arm jerks up to shield your face. With the torch off it comes up from below for it and goes back
 ## down after. A flinch already under way plays out.
