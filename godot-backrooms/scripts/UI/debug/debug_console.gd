@@ -49,6 +49,8 @@ var btn_inf_stamina: Button
 var btn_inf_sanity: Button
 var btn_inf_torch: Button
 var btn_freeze_ai: Button
+var btn_header_hud: Button
+var btn_toggle_hud: Button
 
 # Tabs & content panels
 var tab_buttons := {}
@@ -87,10 +89,14 @@ func _ready() -> void:
 		font = load(FONT_PATH)
 	_build_ui()
 	menu_window.visible = false
+	Game.hud_visibility_changed.connect(func(_v: bool):
+		_sync_hud_state()
+	)
+	_sync_hud_state()
 	_print("[color=gray]T.S.R.A. Diagnostic Matrix online. Press [b]F1[/b] or [b]~[/b] for visual menu, [b]help[/b] for commands.[/color]")
 
 func _process(_dt: float) -> void:
-	if Game.show_debug_overlay:
+	if Game.show_debug_overlay and not Game.hide_hud:
 		screen_overlay.visible = true
 		_update_overlay_text()
 	else:
@@ -198,6 +204,18 @@ func _build_menu_window(parent: Control) -> void:
 	subtitle_lbl.add_theme_font_size_override("font_size", 10)
 	subtitle_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.72, 0.75))
 	title_vbox.add_child(subtitle_lbl)
+
+	btn_header_hud = Button.new()
+	btn_header_hud.text = "📷 HIDE HUD"
+	if font: btn_header_hud.add_theme_font_override("font", font)
+	btn_header_hud.add_theme_font_size_override("font_size", 12)
+	btn_header_hud.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn_header_hud.pressed.connect(func():
+		Game.hide_hud = not Game.hide_hud
+		_sync_hud_state()
+		_print("HUD: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+	)
+	header.add_child(btn_header_hud)
 
 	var close_btn := Button.new()
 	close_btn.text = "✕ CLOSE"
@@ -395,12 +413,24 @@ func _build_cheats_tab() -> Control:
 	refills.add_child(_action_btn("+5 CAMERA FLASHES", func(): _refill_flash()))
 	refills.add_child(_action_btn("+300M HAZARD TAPE", func(): _refill_tape()))
 
-	v.add_child(_section_header("HUD TELEMETRY OVERLAY"))
+	v.add_child(_section_header("HUD & SCREENSHOTS"))
 	var hud_row := HBoxContainer.new()
 	hud_row.add_theme_constant_override("separation", 8)
 	v.add_child(hud_row)
 
-	var hud_btn := _action_btn("TOGGLE SCREEN TELEMETRY OVERLAY", func():
+	btn_toggle_hud = _make_toggle_btn("HIDE ALL HUD (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0), func(on):
+		Game.hide_hud = on
+		_sync_hud_state()
+		_print("HUD: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+	)
+	hud_row.add_child(btn_toggle_hud)
+
+	var snap_btn := _action_btn("📷 TAKE SCREENSHOT", func():
+		_take_screenshot()
+	)
+	hud_row.add_child(snap_btn)
+
+	var hud_btn := _action_btn("TOGGLE TELEMETRY OVERLAY", func():
 		Game.show_debug_overlay = not Game.show_debug_overlay
 	)
 	hud_row.add_child(hud_btn)
@@ -673,7 +703,7 @@ func _build_console_tab() -> Control:
 	chips_row.add_theme_constant_override("separation", 6)
 	v.add_child(chips_row)
 
-	for cmd in ["help", "list", "spawn all", "kill all", "stalk", "lightout", "clear"]:
+	for cmd in ["help", "list", "hud", "spawn all", "kill all", "screenshot", "stalk", "lightout", "clear"]:
 		var chip := Button.new()
 		chip.text = cmd
 		if font: chip.add_theme_font_override("font", font)
@@ -711,6 +741,17 @@ func _sync_quick_buttons() -> void:
 	_update_toggle_btn(btn_inf_torch, Game.infinite_battery, "INF TORCH", Color(1.0, 0.8, 0.25))
 	if btn_freeze_ai != null:
 		_update_toggle_btn(btn_freeze_ai, Game.freeze_ai, "❄ FREEZE ALL MONSTERS (AI PAUSE)", Color(0.2, 0.8, 1.0))
+	_sync_hud_state()
+
+func _sync_hud_state() -> void:
+	if btn_header_hud != null:
+		btn_header_hud.text = "📷 SHOW HUD" if Game.hide_hud else "📷 HIDE HUD"
+		var bg := Color(0.18, 0.45, 0.35, 0.9) if Game.hide_hud else Color(0.1, 0.14, 0.18, 0.8)
+		var bdr := Color(0.3, 0.95, 0.7, 0.9) if Game.hide_hud else Color(0.3, 0.5, 0.5, 0.6)
+		btn_header_hud.add_theme_stylebox_override("normal", _make_box(bg, bdr, 1, 4, 8))
+		btn_header_hud.add_theme_stylebox_override("hover", _make_box(bg * 1.3, Color(0.4, 1.0, 0.85), 1, 4, 8))
+	if btn_toggle_hud != null:
+		_update_toggle_btn(btn_toggle_hud, Game.hide_hud, "HIDE ALL HUD (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0))
 
 func _make_toggle_btn(label: String, tint: Color, callback: Callable) -> Button:
 	var btn := Button.new()
@@ -936,6 +977,23 @@ func _submit(line: String) -> void:
 	history.append(line)
 	history_at = history.size()
 	_print("[color=cyan]> " + line + "[/color]")
+	var raw_lower := line.to_lower().strip_edges()
+	if raw_lower in ["hide all hud", "hide hud", "hide all", "hide all huds"]:
+		Game.hide_hud = true
+		_sync_hud_state()
+		_print("HUD: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+		return
+	elif raw_lower in ["show all hud", "show hud", "show all", "show all huds"]:
+		Game.hide_hud = false
+		_sync_hud_state()
+		_print("HUD: [color=lime]VISIBLE[/color]")
+		return
+	elif raw_lower in ["toggle hud", "toggle all hud"]:
+		Game.hide_hud = not Game.hide_hud
+		_sync_hud_state()
+		_print("HUD: " + ("[color=orange]HIDDEN[/color] (Screenshot Mode)" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		return
+
 	var parts := line.to_lower().split(" ", false)
 	var cmd := parts[0]
 	var arg := parts[1] if parts.size() > 1 else ""
@@ -944,6 +1002,7 @@ func _submit(line: String) -> void:
 			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: lightout, lighton, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
+			_print("HUD / Screenshots: hud [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 		"noclip":
 			Game.noclip = not Game.noclip
@@ -1044,10 +1103,51 @@ func _submit(line: String) -> void:
 			_print("bacteria stalking" if ok else "[color=orange]no stalk spot found here, try another spot[/color]")
 		"model":
 			_model_command(arg)
+		"hud", "hidehud", "showhud", "togglehud":
+			if arg == "off" or arg == "hide" or arg == "0":
+				Game.hide_hud = true
+			elif arg == "on" or arg == "show" or arg == "1":
+				Game.hide_hud = false
+			elif cmd == "hidehud":
+				Game.hide_hud = true
+			elif cmd == "showhud":
+				Game.hide_hud = false
+			else:
+				Game.hide_hud = not Game.hide_hud
+			_sync_hud_state()
+			if Game.hide_hud:
+				_print("HUD: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+			else:
+				_print("HUD: [color=lime]VISIBLE[/color]")
+		"screenshot", "shot", "snap":
+			_take_screenshot()
 		"clear":
 			log_label.clear()
 		_:
 			_print("[color=orange]unknown command: " + cmd + "[/color]")
+
+func _take_screenshot() -> void:
+	var was_visible := menu_window.visible
+	if was_visible:
+		menu_window.visible = false
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var img := get_viewport().get_texture().get_image()
+	if was_visible:
+		menu_window.visible = true
+	var dir_path := "user://screenshots"
+	DirAccess.make_dir_recursive_absolute(dir_path)
+	var dt := Time.get_datetime_dict_from_system()
+	var filename := "screenshot_%04d%02d%02d_%02d%02d%02d.png" % [
+		dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second
+	]
+	var full_path := dir_path + "/" + filename
+	var err := img.save_png(full_path)
+	if err == OK:
+		var global_path := ProjectSettings.globalize_path(full_path)
+		_print("[color=lime]Screenshot saved:[/color] " + global_path)
+	else:
+		_print("[color=red]Failed to save screenshot (error %d)[/color]" % err)
 
 func _each(arg: String, spawn: bool) -> void:
 	if arg == "":

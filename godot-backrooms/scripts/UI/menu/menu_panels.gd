@@ -62,13 +62,46 @@ func _build_settings() -> Control:
 		_save()
 		settings_changed.emit())
 	v.add_child(_gfx_row("Head bob", bob))
-	v.add_child(_hint("Turn head bob off if the camera sway makes you feel sick."))
+	var shake := _link_button("")
+	shake.custom_minimum_size = Vector2(96, 0)
+	shake.text = "ON" if cam_shake else "OFF"
+	shake.pressed.connect(func():
+		cam_shake = not cam_shake
+		shake.text = "ON" if cam_shake else "OFF"
+		_save()
+		settings_changed.emit())
+	v.add_child(_gfx_row("Camera shake", shake))
+	v.add_child(_hint("Head bob is the step bounce; camera shake is the handheld camcorder wobble while walking. Turn them off if the camera makes you feel sick."))
 	return v
 
 func _build_multiplayer() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
-	v.add_child(_section_title("HOST A GAME", true))
+	v.add_child(_section_title("JOIN A GAME", true))
+	v.add_child(_hint("Input the room code to join that session."))
+	var join_row := HBoxContainer.new()
+	join_row.add_theme_constant_override("separation", 12)
+	mp_addr = _text_field("TYPE THE HOST'S ROOM CODE", last_address)
+	mp_addr.text_changed.connect(func(s: String):
+		last_address = s.strip_edges()
+		_save())
+	mp_addr.text_submitted.connect(func(_s): _do_join())
+	join_row.add_child(mp_addr)
+	var join_btn := _link_button("join")
+	join_btn.pressed.connect(_do_join)
+	join_row.add_child(join_btn)
+	v.add_child(join_row)
+
+	v.add_child(_spacer(4))
+	mp_status = _label(Net.status, 12, Color(0.9, 0.882, 0.804, 0.7), 2)
+	mp_status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	mp_status.custom_minimum_size = Vector2(300, 0)
+	v.add_child(mp_status)
+	Net.status_changed.connect(func(s: String): mp_status.text = s)
+	Net.share_link_changed.connect(func(u: String): mp_link.text = u)
+
+	v.add_child(_spacer(14))
+	v.add_child(_section_title("HOST A GAME"))
 	v.add_child(_hint("Start a game and send the room code to your friends."))
 	var host_row := HBoxContainer.new()
 	host_row.add_theme_constant_override("separation", 22)
@@ -89,28 +122,6 @@ func _build_multiplayer() -> Control:
 	copy_btn.pressed.connect(func(): DisplayServer.clipboard_set(mp_link.text))
 	link_row.add_child(copy_btn)
 	v.add_child(link_row)
-
-	v.add_child(_section_title("JOIN A GAME"))
-	var join_row := HBoxContainer.new()
-	join_row.add_theme_constant_override("separation", 12)
-	mp_addr = _text_field("TYPE THE HOST'S ROOM CODE", last_address)
-	mp_addr.text_changed.connect(func(s: String):
-		last_address = s.strip_edges()
-		_save())
-	mp_addr.text_submitted.connect(func(_s): _do_join())
-	join_row.add_child(mp_addr)
-	var join_btn := _link_button("join")
-	join_btn.pressed.connect(_do_join)
-	join_row.add_child(join_btn)
-	v.add_child(join_row)
-
-	v.add_child(_spacer(6))
-	mp_status = _label(Net.status, 12, Color(0.9, 0.882, 0.804, 0.7), 2)
-	mp_status.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	mp_status.custom_minimum_size = Vector2(300, 0)
-	v.add_child(mp_status)
-	Net.status_changed.connect(func(s: String): mp_status.text = s)
-	Net.share_link_changed.connect(func(u: String): mp_link.text = u)
 	return v
 
 func _do_join() -> void:

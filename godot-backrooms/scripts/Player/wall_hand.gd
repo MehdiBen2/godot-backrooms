@@ -50,7 +50,10 @@ const HIDE_DROP := 0.25           # m further down again: out of view
 const ARC := 0.05                 # m the hand lifts on its way onto the wall
 const FINGER := 0.33              # armature units from the wrist to the fingertips
 const NEAR := 0.15                # m: the hand never comes nearer the camera than this
-const CLEAR := 0.03               # m kept between the fingertips and anything in the way
+const HUG_RANGE := 0.2            # m: how far either side of the hand the wall face is looked for
+const HUG_GAP := 0.012            # m: the palm's rest off the wall holding on
+const HUG_GAP_BRACED := 0.04      # m: braced, it stays a little off
+const CLEAR := 0.03              # m kept between the fingertips and anything in the way
 
 class Hand:
 	var side := 1.0               # 1 right, -1 left
@@ -303,10 +306,27 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 	at = brace.lerp(at, h.grab)
 	at += ((elbow - at).normalized() * 0.012 - up * 0.008) * h.shift  # re-gripping
 	at = _clear(cam, at, at + fingers * ((FINGER - KNUCKLE) * unit), space)
+	at = _hug(cam, at, h.normal, h.grab, space)
 	var wrist_at := at - knuckle
 	var dir := (wrist_at - elbow).normalized()
 	var fore := Quaternion((hand * Vector3.UP).normalized(), dir) * hand
 	return [wrist_at - dir * fore_len, fore, fore.inverse() * hand]
+
+## `at` (camera space) laid onto the wall face right under it (along the wall's normal), so the palm rests
+## on the surface instead of floating in front of it; braced (not holding) it keeps a bit of a gap
+func _hug(cam: Transform3D, at: Vector3, normal: Vector3, grab: float, space: PhysicsDirectSpaceState3D) -> Vector3:
+	if space == null:
+		return at
+	var p := cam * at
+	var q := PhysicsRayQueryParameters3D.create(p + normal * HUG_RANGE, p - normal * HUG_RANGE)
+	var body := view.get_parent() as CollisionObject3D
+	if body != null:
+		q.exclude = [body.get_rid()]
+	var hit := space.intersect_ray(q)
+	if hit.is_empty() or not hit.collider is StaticBody3D:
+		return at
+	var snug: Vector3 = hit.position + normal * lerpf(HUG_GAP_BRACED, HUG_GAP, grab)
+	return cam.affine_inverse() * snug
 
 ## The physics space and the player's body (the camera's parent), for _clear()
 func _space() -> PhysicsDirectSpaceState3D:

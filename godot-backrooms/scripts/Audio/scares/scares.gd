@@ -207,6 +207,15 @@ func grid_off(pos := Vector3.INF) -> void:
 	if _stream(GRID_OFF) != null:
 		spawn3d(_stream(GRID_OFF), pos, 2.0, "Scares", 12.0, 1.0, false)
 
+# The grid coming back: a deep relay thunk through the building, then the tubes striking in ragged waves
+func grid_on() -> void:
+	spawn_flat(synth("thump"), 0.9, "Scares", 0.6)
+	var s := _stream(TUBE_RESTRIKE)
+	if s == null: return
+	for i in 4:
+		get_tree().create_timer(0.15 + i * 0.22 + rng.randf() * 0.12).timeout.connect(func():
+			spawn_flat(s, 0.9 - i * 0.12, "Scares", rng.randf_range(0.8, 1.05)))
+
 # ------------------------------------------------------------------ the heart and the body
 # One heart: two callers asking for a beat in the same instant (the grab and the entity's proximity
 # beat, say) get ONE beat, never a flam that sounds like it stuttered

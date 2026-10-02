@@ -22,6 +22,7 @@ var volumes := {"master": 1.0, "ambient": 1.0, "footsteps": 1.0, "hum": 1.0, "br
 var sensitivity := SENS_DEFAULT
 var fov := FOV_DEFAULT
 var head_bob := true
+var cam_shake := true
 var callsign := ""
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
@@ -331,6 +332,7 @@ func _load() -> void:
 	sensitivity = clampi(int(cf.get_value("controls", "sensitivity", SENS_DEFAULT)), SENS_MIN, SENS_MAX)
 	fov = clampi(int(cf.get_value("controls", "fov", FOV_DEFAULT)), FOV_MIN, FOV_MAX)
 	head_bob = bool(cf.get_value("controls", "head_bob", true))
+	cam_shake = bool(cf.get_value("controls", "cam_shake", true))
 	callsign = str(cf.get_value("player", "callsign", ""))
 	last_address = str(cf.get_value("net", "address", ""))
 
@@ -342,6 +344,7 @@ func _save() -> void:
 	cf.set_value("controls", "sensitivity", sensitivity)
 	cf.set_value("controls", "fov", fov)
 	cf.set_value("controls", "head_bob", head_bob)
+	cf.set_value("controls", "cam_shake", cam_shake)
 	cf.set_value("player", "callsign", callsign)
 	cf.set_value("net", "address", last_address)
 	cf.save(SETTINGS_PATH)

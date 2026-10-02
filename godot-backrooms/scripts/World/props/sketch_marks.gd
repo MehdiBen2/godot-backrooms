@@ -44,8 +44,17 @@ func _ready() -> void:
 			list.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
 				"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
 		placed[lv] = list
+	_spawn_all(lv)
+
+## Wait for the level's colliders to exist before checking what the lines sit on
+func _spawn_all(lv: String) -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if not is_inside_tree():
+		return
 	for s in placed.get(lv, []):
-		_spawn(s)
+		if not meshes.has(s.id):
+			_spawn(s)
 
 func reload_floor() -> void:
 	for m in meshes.values():
@@ -69,8 +78,7 @@ func reload_floor() -> void:
 			list.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
 				"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
 		placed[lv] = list
-	for s in placed.get(lv, []):
-		_spawn(s)
+	_spawn_all(lv)
 
 func _exit_tree() -> void:
 	if live == self:
@@ -190,13 +198,36 @@ func save() -> bool:
 			"w": s.w, "wob": s.wob, "style": s.style})
 	return MarkStore.write(level_id, "sketch", out)
 
+## Only the stretches of the line that still have a surface under them are drawn, so a line left
+## hanging in the void where a wall was removed doesn't show (the stroke itself is kept)
 func _spawn(s: Dictionary) -> void:
-	var mi := MeshInstance3D.new()
-	mi.mesh = ribbon(s.pts, s.n, s, LIFT + LIFT_STEP * (meshes.size() % 8), global_position)
-	mi.material_override = material()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	meshes[s.id] = mi
+	var holder := Node3D.new()
+	add_child(holder)
+	meshes[s.id] = holder
+	var lift := LIFT + LIFT_STEP * (meshes.size() % 8)
+	for run in _supported_runs(s):
+		var mi := MeshInstance3D.new()
+		mi.mesh = ribbon(run, s.n, s, lift, global_position)
+		mi.material_override = material()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		holder.add_child(mi)
+
+func _supported_runs(s: Dictionary) -> Array:
+	var space := get_world_3d().direct_space_state
+	var n: Vector3 = s.n
+	var runs: Array = []
+	var cur: Array = []
+	for p in s.pts:
+		var q := PhysicsRayQueryParameters3D.create(p + n * 0.1, p - n * 0.1, 1)
+		if space.intersect_ray(q).is_empty():
+			if cur.size() >= 2:
+				runs.append(cur)
+			cur = []
+		else:
+			cur.append(p)
+	if cur.size() >= 2:
+		runs.append(cur)
+	return runs
 
 static func material() -> StandardMaterial3D:
 	if _mat == null:

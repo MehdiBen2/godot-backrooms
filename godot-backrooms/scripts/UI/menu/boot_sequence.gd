@@ -286,9 +286,13 @@ func _build_logo() -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 26)
 	center.add_child(col)
-	var title := _label("THE BACKROOMS", 124, Color("ece3bf"), 34)
+	var title := _label("THE BACKROOMS", 124, Color("ece3bf"), 28)
+	title.add_theme_constant_override("outline_size", 5)   # VCR has no bold: a same-colour outline thickens the strokes
+	title.add_theme_color_override("font_outline_color", Color("ece3bf"))
 	for f in [[Vector2(-4, 0), Color(1, 0.1, 0.1, 0.35)], [Vector2(4, 1), Color(0.1, 0.4, 1, 0.35)]]:
-		var fringe := _label("THE BACKROOMS", 124, f[1], 34)
+		var fringe := _label("THE BACKROOMS", 124, f[1], 28)
+		fringe.add_theme_constant_override("outline_size", 5)
+		fringe.add_theme_color_override("font_outline_color", f[1])
 		fringe.position = f[0]
 		fringe.show_behind_parent = true
 		title.add_child(fringe)

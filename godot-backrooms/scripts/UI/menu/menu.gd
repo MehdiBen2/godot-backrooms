@@ -114,8 +114,7 @@ func _build() -> void:
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dot_c.add_child(tag_dot)
 	tag.add_child(dot_c)
-	var level_tag := load("res://scripts/World/level/level_data.gd")
-	tag.add_child(_label("ARCHIVAL FOOTAGE // " + level_tag.current_level_tag(), 12, Color(0.9, 0.882, 0.804, 0.55), 4))
+	tag.add_child(_label("ARCHIVAL FOOTAGE", 12, Color(0.9, 0.882, 0.804, 0.55), 4))
 	main.add_child(tag)
 	main.add_child(_spacer(18))
 
@@ -133,15 +132,9 @@ func _build() -> void:
 	title_label.add_child(title_static)
 
 	main.add_child(_spacer(22))
-	sub_label = _label("THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", 12, Color(0.9, 0.882, 0.804, 0.5), 4)
+	sub_label = _label("T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY", 12, Color(0.9, 0.882, 0.804, 0.5), 4)
 	main.add_child(sub_label)
 	sub_base = sub_label.text
-
-	main.add_child(_spacer(22))
-	lore_label = _label("Unknown area, unknown location.", 14, Color(0.9, 0.882, 0.804, 0.4))
-	lore_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lore_label.custom_minimum_size = Vector2(300, 0)
-	main.add_child(lore_label)
 
 	# Callsign
 	main.add_child(_spacer(22))
@@ -273,7 +266,7 @@ func _show_panel(name: String) -> void:
 	else:
 		for n in sections:
 			sections[n].visible = n == name
-		panel_title.text = name.to_upper()
+		panel_title.text = "JOIN A GAME" if name == "multiplayer" else name.to_upper()
 		panel.visible = true
 		_animate_panel_in(switching)
 	for n in nav_buttons:
@@ -347,7 +340,8 @@ func _reveal(intro: bool) -> void:
 	_lock_in(reveal, title_label, title_label.get_meta("fringes"), 0.15 if intro else 0.02, 0.9 if intro else 0.45, 30.0 if intro else 14.0)
 	if intro:
 		_type_in(reveal, sub_label, 0.5, 0.55)
-		_type_in(reveal, lore_label, 0.75, 0.6)
+		if lore_label:
+			_type_in(reveal, lore_label, 0.75, 0.6)
 		_type_in(reveal, action_label, 1.1, 0.45)
 
 ## ESC closes an open panel first (like input.js); returns true if it consumed the key
@@ -358,14 +352,15 @@ func close_panel() -> bool:
 	return true
 
 # ---- text --------------------------------------------------------------------------------
-func set_text(title: String, sub: String, lore: String, action: String) -> void:
+func set_text(title: String, sub: String, arg3: String, arg4: String = "") -> void:
 	title_label.text = title
 	for f in title_label.get_meta("fringes"):
 		f.text = title
 	sub_base = sub
 	sub_label.text = sub
-	lore_label.text = lore
-	action_label.text = action
+	if lore_label:
+		lore_label.text = arg3
+	action_label.text = arg4 if arg4 != "" else arg3
 
 func release_focus_all() -> void:
 	name_input.release_focus()

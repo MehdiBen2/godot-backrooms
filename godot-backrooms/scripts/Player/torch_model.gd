@@ -22,8 +22,22 @@ const FLINCH := "TorchFlinch"     # thrown up across the face, trembling, then s
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const CROUCH_DIP := 0.03          # m the torch hand sits lower crouched
 
+const SWAY_W := 15.0              # rad/s: how fast the hands catch up with the view
+const SWAY_Z := 0.45              # damping: under 1 so they overshoot a touch and settle
+const SWAY_MAX_RATE := 8.0        # rad/s: a mouse flick beyond this doesn't throw them further
+const SWAY_MAX_VEL := 3.0         # m/s
+
 var raise := 0.0
 var lower := 0.0
+var sway_amount := 1.0            # 0 = hands rigid with the camera (player.gd: head bob / camera shake settings)
+
+var _have_prev := false
+var _prev_basis := Basis.IDENTITY
+var _prev_pos := Vector3.ZERO
+var _lag := Vector3.ZERO          # camera space, m: how far the hands trail
+var _lag_v := Vector3.ZERO
+var _lag_rot := Vector3.ZERO      # rad (pitch, yaw, roll)
+var _lag_rot_v := Vector3.ZERO
 
 var _torch: Node3D                # the fitted flashlight
 var _anim: AnimationPlayer
@@ -133,6 +147,7 @@ func lens() -> Vector3:
 
 ## `bob`: the head-bob phase (the swing follows your stride)
 func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -> void:
+	_follow_camera(dt)
 	if _hands != null:
 		_hands.tick(dt)
 	if _anim != null:
@@ -157,8 +172,38 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 	position = Vector3(
 		POS.x + step * 0.01 - lower * 0.03,
 		POS.y + absf(step) * 0.008 + breathe - down * 0.3 - lower * 0.03 - _crouch * CROUCH_DIP,
-		POS.z)
-	rotation = Vector3(ROT.x - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02)
+		POS.z) + _lag * sway_amount
+	rotation = Vector3(ROT.x - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02) + _lag_rot * sway_amount
+
+## The hands are held, not bolted to the camera: they trail behind a turn of the view and behind the
+## bounce of a step, then catch up with a slight overshoot (a damped spring). The camera's own motion
+## (mouse look, head bob, camcorder shake, landings) is read off its transform, so anything that moves
+## the view moves the hands after it. In camera space the hand drifts opposite to the way the view goes.
+func _follow_camera(dt: float) -> void:
+	var cam := get_parent() as Node3D
+	if cam == null or dt <= 0.0:
+		return
+	var basis_now := cam.global_transform.basis.orthonormalized()
+	var pos_now := cam.position
+	if not _have_prev:
+		_have_prev = true
+		_prev_basis = basis_now
+		_prev_pos = pos_now
+		return
+	var e := (_prev_basis.inverse() * basis_now).get_euler()
+	var rate := (Vector3(e.x, e.y, e.z) / dt).clampf(-SWAY_MAX_RATE, SWAY_MAX_RATE)    # pitch, yaw, roll rad/s
+	var vel := ((pos_now - _prev_pos) / dt).clampf(-SWAY_MAX_VEL, SWAY_MAX_VEL)        # m/s
+	_prev_basis = basis_now
+	_prev_pos = pos_now
+	var goal := Vector3(rate.y * 0.010, -rate.x * 0.010, 0.0) - vel * 0.035
+	var goal_rot := Vector3(-rate.x * 0.016, -rate.y * 0.016, -rate.z * 0.020) + Vector3(vel.y * 0.12, 0.0, -vel.x * 0.15)
+	var step := minf(dt, 0.033)
+	_lag_v += (SWAY_W * SWAY_W * (goal - _lag) - 2.0 * SWAY_Z * SWAY_W * _lag_v) * step
+	_lag += _lag_v * step
+	_lag_rot_v += (SWAY_W * SWAY_W * (goal_rot - _lag_rot) - 2.0 * SWAY_Z * SWAY_W * _lag_rot_v) * step
+	_lag_rot += _lag_rot_v * step
+	_lag = _lag.clampf(-0.06, 0.06)
+	_lag_rot = _lag_rot.clampf(-0.25, 0.25)
 
 ## The peek this tick (peek.gd): which side you lean to (-1 left, +1 right, 0 none), whether you're
 ## leaning in, the edge (world point at eye height, wall normal, the way it lies, how far from the eye),

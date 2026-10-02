@@ -99,7 +99,8 @@ var fall_fx := 0.0               # 0..1 eased: how much the fall shows on the vi
 var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
-var bob_amp := 1.0               # eased per-step bob height from handheld.step_amp
+var cam_shake := 1.0             # 0 = no handheld camcorder shake while walking / running, 1 = full
+var bob_amp := 1.0              # eased per-step bob height from handheld.step_amp
 var health := 100.0
 var sanity := 100.0
 var sanity_lock := -1.0        # >= 0 pins sanity there (debug console)
@@ -125,6 +126,8 @@ var adr_time := 0.0
 var adr_glow := 0.0
 var adr_cooldown := 0.0
 var bob := 0.0
+var bob_w := 0.0                 # eased 0..1: how much of a walking stride is in the view
+var breath := 0.0
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/on.mp3")
 var click_off: AudioStream = load("res://audio/off.mp3")
@@ -399,6 +402,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var horiz := Vector2(velocity.x, velocity.z).length()
 	var walking := moving and horiz > 0.3
 	var y := eye
+	var walk_goal := 0.0
 	if not is_on_floor():
 		pass                                  # no bob while airborne
 	elif not walking:
@@ -408,21 +412,32 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 				footsteps.step(false, crouch, 0.5)   # trailing foot comes down softly
 				handheld.step(0.5, false)
 		handheld.settle()
-		bob += dt * 1.5
-		y = eye + sin(bob) * 0.012 * head_bob
 	else:
 		was_stepping = true
-		var freq := 12.0 if sprint else (6.0 if crouch else 8.5)
-		bob += dt * freq
-		var b := sin(bob)
+		walk_goal = 1.0
+		# one step per PI of `bob`: the body is lowest as each foot lands, and rises over the planted leg
+		var before := floori(bob / PI)
+		bob += dt * (8.2 if sprint else (4.1 if crouch else 5.3))
 		bob_amp = lerpf(bob_amp, handheld.step_amp, minf(1.0, dt * 8.0))    # no two steps the same height
-		y = eye + b * (0.07 if sprint else 0.035) * head_bob * bob_amp
-		if b < -0.85 and not step_triggered:
-			step_triggered = true
+		if floori(bob / PI) != before:
 			footsteps.step(sprint, crouch, 1.0)
 			handheld.step(0.6 if crouch else 1.0, sprint)
-		elif b > 0.0:
-			step_triggered = false
+		step_triggered = fposmod(bob, PI) < PI * 0.5
+	bob_w = lerpf(bob_w, walk_goal, minf(1.0, dt * (9.0 if walk_goal > 0.0 else 5.0)))
+	breath += dt * 1.5
+	if is_on_floor():
+		y += sin(breath) * 0.012 * head_bob * (1.0 - bob_w)    # standing: slow breathing
+	# Walking view, like an inverted pendulum: a sharp low at each footfall and a rounded top, the body
+	# swaying over the planted foot (one full side-to-side swing per two steps), a little roll with it and
+	# a nod forward as the foot lands.
+	var gait := head_bob * bob_w
+	var rise := absf(sin(bob))                              # 0 at a footfall, 1 mid-stride
+	var vert := 0.075 if sprint else (0.028 if crouch else 0.04)
+	var side := sin(bob * 0.5)
+	var bob_side := side * (0.035 if sprint else (0.014 if crouch else 0.022)) * gait
+	var bob_roll := side * (0.012 if sprint else (0.004 if crouch else 0.006)) * gait
+	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait
+	y += (rise - 0.64) * vert * bob_amp * gait
 	land_dip *= exp(-dt * 9.0)
 	# the floor shaking under something heavy: a short low rumble, not a wobble. Squared so light steps
 	# barely register and the close ones hit; scaled by the head-bob setting like the rest of the motion.
@@ -431,7 +446,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var qk := quake_amt * quake_amt * head_bob
 	var qx := (sin(quake_t * 31.0) + 0.6 * sin(quake_t * 53.0 + 1.7)) * 0.625
 	var qy := (sin(quake_t * 37.0 + 0.4) + 0.6 * sin(quake_t * 61.0 + 2.9)) * 0.625
-	cam.position = Vector3(qx * 0.025 * qk, y - land_dip * head_bob + qy * 0.035 * qk, 0.0)
+	cam.position = Vector3(qx * 0.025 * qk + bob_side, y- land_dip * head_bob + qy * 0.035 * qk, 0.0)
 	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
 	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
 	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
@@ -440,9 +455,11 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
 	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
 	var motion := (1.8 if sprint else (0.6 if crouch else 1.0)) if walking else 0.0
-	handheld.update(dt, motion, shake, head_bob)
+	handheld.update(dt, motion, shake, cam_shake)
+	if torch != null:
+		torch.sway_amount = maxf(head_bob, cam_shake)    # the hands trail the view unless both are off
 	cam.position += handheld.offset
-	cam.position += Vector3(peek.offset, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
+	cam.position += global_transform.basis.inverse() * peek.shift + Vector3(0.0, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
 	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
@@ -453,7 +470,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# the rush of air in a long fall shakes the view, more the faster you go
 	var buffet := fall_fx * fall_fx * head_bob
 	cam.position += Vector3(sin(quake_t * 23.0) + 0.5 * sin(quake_t * 41.0 + 1.3), sin(quake_t * 29.0 + 0.7), 0.0) * 0.012 * buffet
-	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll \
+	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll + bob_roll \
 			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob) \
 			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
@@ -464,7 +481,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	var pitch_total := pitch_off + qx * 0.006 * qk + handheld.pitch
+	var pitch_total := pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod
 	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline

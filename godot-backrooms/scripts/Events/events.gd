@@ -135,6 +135,7 @@ func find_corridor_spot(min_d := 10.0, max_d := 24.0) -> Dictionary:
 func _build_banner() -> void:
 	banner_layer = CanvasLayer.new()
 	banner_layer.layer = 6
+	banner_layer.visible = not Game.hide_hud
 	add_child(banner_layer)
 	banner = Label.new()
 	banner.add_theme_font_override("font", load("res://fonts/vcr.ttf"))
@@ -146,10 +147,13 @@ func _build_banner() -> void:
 	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.visible = false
 	banner_layer.add_child(banner)
+	Game.hud_visibility_changed.connect(func(v: bool):
+		if banner_layer: banner_layer.visible = v
+	)
 
 func show_banner(text: String) -> void:
 	banner.text = text
-	banner.visible = true
+	banner.visible = not Game.hide_hud
 
 func hide_banner() -> void:
 	banner.visible = false
@@ -369,7 +373,7 @@ func _event_power_cut() -> void:
 				var d: float = s[1]
 				scares.play_scare("footThump", sound_spot(d), 0.5 + 0.5 * (1.0 - d / 18.0))
 				haunt(0.4 + 0.4 * (1.0 - d / 18.0)))
-		later(POWER_CUT_SECONDS, func(): scares.play_scare("restrike")))
+		later(POWER_CUT_SECONDS, func(): scares.grid_on()))
 
 # ---------------------------------------------------------------- tilt drift
 func _event_tilt_drift() -> void:

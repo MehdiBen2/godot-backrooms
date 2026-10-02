@@ -16,6 +16,8 @@ extends RefCounted
 
 const REACH := 1.0                # m: how far ahead the wall can be
 const FACING := 0.6               # it has to face you this squarely (cos of the angle)
+const HOLD_FACING := 0.35         # holding a wall, it stays held until you've turned this far from it (cos, ~70°): look into the wall and it lets go
+const REACH_HOLD := 1.3           # m: and it can be this far
 const STEPS: Array[float] = [0.15, 0.25, 0.35, 0.45, 0.55]   # m: how far out to the side the edge is looked for
 const PAST := 0.6                 # m: a probe that runs this far past the wall has found the gap
 const CLEAR := 0.18               # m: room kept between the leaned eye and anything beside it
@@ -32,7 +34,8 @@ var side := 0                     # -1 left, +1 right, 0 none (held while easing
 var amount := 0.0                 # 0..~1.02 how far into the lean, sprung
 var leaning := false              # going into / holding the lean (false while it eases back out)
 var offset := 0.0                 # m sideways, signed: what the camera moves by
-var edge := Vector3.ZERO          # world: a point on the wall face just in from its edge, at eye height
+var shift := Vector3.ZERO         # world: the lean as a move along the wall (not along where you look), so turning never takes the eye into it
+var edge := Vector3.ZERO        # world: a point on the wall face just in from its edge, at eye height
 var normal := Vector3.ZERO        # world: the wall face's normal
 var out := Vector3.ZERO           # world: from the wall towards its edge (the way you lean)
 var dist := 0.0                   # m from the eye to `edge`
@@ -76,6 +79,7 @@ func update(dt: float, body: CharacterBody3D, eye_h: float, can: bool) -> void:
 			side = 0              # fully back: free to lean the other way
 			_seen = 0.0
 	offset = side * _lean * amount
+	shift = out * (_lean * amount) if side != 0 else Vector3.ZERO
 
 ## -1 / +1: the side with an edge to peek round (and the edge fields set for it), 0: none
 func _detect(body: CharacterBody3D, eye_h: float) -> int:
@@ -88,9 +92,19 @@ func _detect(body: CharacterBody3D, eye_h: float) -> int:
 	if fwd.length_squared() < 0.0001:
 		return 0
 	fwd = fwd.normalized()
+	# holding a wall: stay square to it however far you turn your head, so the hand keeps its grip
+	var held := side != 0 and leaning and normal != Vector3.ZERO
+	var facing := FACING
+	var reach := REACH
+	if held:
+		var square := Vector3(-normal.x, 0.0, -normal.z)
+		if square.length_squared() > 0.0001 and square.normalized().dot(fwd) > HOLD_FACING:
+			fwd = square.normalized()
+			facing = 0.9
+			reach = REACH_HOLD
 	var right := Vector3(-fwd.z, 0.0, fwd.x)
-	var hit := _ray(space, body, eye, eye + fwd * REACH)
-	if hit.is_empty() or (hit.normal as Vector3).dot(-fwd) < FACING:
+	var hit := _ray(space, body, eye, eye + fwd * reach)
+	if hit.is_empty() or (hit.normal as Vector3).dot(-fwd) < facing:
 		return 0
 	var ahead: float = (hit.position - eye).dot(fwd)
 	var best := 0

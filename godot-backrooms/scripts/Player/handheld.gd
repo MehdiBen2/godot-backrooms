@@ -13,10 +13,10 @@ extends RefCounted
 ##   steps       each footfall dips and rolls the camera differently, eased in and out
 ##
 ## player.gd feeds it footfalls and how hard you move, and reads `pitch`, `yaw`, `roll` (rad) and `offset` (m).
-## Only while sprinting (standing and walking keep a steady camera). Scaled by the head-bob setting: 0 turns
-## all of it off; AMOUNT scales everything.
+## Only while moving (standing keeps a steady camera): about half strength walking, full sprinting. Scaled by
+## the camera-shake setting: 0 turns all of it off; AMOUNT scales everything.
 
-const AMOUNT := 0.6               # 1.0 = about 1 deg of sway standing (1.5 was far too much)
+const AMOUNT := 0.75              # 1.0 = about 1 deg of sway standing (1.5 was far too much)
 # layers: amplitude (rad) and noise speed (roughly Hz)
 const SWAY_PITCH := 0.012
 const SWAY_YAW := 0.005           # sideways sway is the least comfortable: kept smallest
@@ -27,8 +27,8 @@ const CORRECT_SPEED := 2.2
 const TREMOR := 0.001
 const TREMOR_SPEED := 8.0
 # footfalls
-const STEP_PITCH := 0.010         # rad: the dip as the foot takes the weight
-const STEP_ROLL := 0.008          # rad: a lean onto that foot
+const STEP_PITCH := 0.014        # rad: the dip as the foot takes the weight
+const STEP_ROLL := 0.011         # rad: a lean onto that foot
 const STEP_SIDE := 0.012          # m: the body shifting over the foot
 const STEP_RISE := 14.0           # 1/s: how fast a step's dip eases in
 const STEP_FALL := 5.0            # 1/s: and eases back out
@@ -40,7 +40,7 @@ var offset := Vector3.ZERO
 var step_amp := 1.0               # this step's bob height (player.gd multiplies its vertical bob by it)
 
 var _motion := 0.0                # eased: 0 standing, 1 walking, ~1.8 sprinting
-var _run := 0.0                   # eased 0..1: the shake is only there while sprinting
+var _run := 0.0                   # eased 0..1: the shake is only there while moving
 var _step_goal := Vector2.ZERO    # (pitch, roll) this step wants, fading out
 var _step := Vector2.ZERO
 var _side := 0.0
@@ -60,11 +60,11 @@ func _n(row: float, speed: float) -> float:
 	return _noise.get_noise_2d(_t * speed, row * 31.0)
 
 ## One frame. motion: 0 standing, 1 walking, 1.8 sprinting. shake: 1 normal, more when out of breath or
-## on adrenaline. amount: the head-bob setting (0..1).
+## on adrenaline. amount: the camera-shake setting (0..1).
 func update(dt: float, motion: float, shake: float, amount: float) -> void:
 	_t += dt
 	_motion = lerpf(_motion, motion, minf(1.0, dt * 3.0))
-	_run = lerpf(_run, 1.0 if motion > 1.5 else 0.0, minf(1.0, dt * 3.0))    # fades in / out over ~0.5 s
+	_run = lerpf(_run, clampf(motion / 1.8, 0.0, 1.0), minf(1.0, dt * 3.0))    # 0 standing, ~0.55 walking, 1 sprinting; fades over ~0.5 s
 	var sway := 1.0 + 0.7 * _motion
 	var corr := 1.0 + 1.2 * _motion
 	var trem := shake * (1.0 + 0.8 * _motion)

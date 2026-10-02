@@ -3,6 +3,8 @@ extends Node
 ## and the death sequence. Autoload name: Game.
 
 signal player_died(reason: String)
+signal hud_visibility_changed(visible: bool)
+signal hands_visibility_changed(visible: bool)
 
 const DeathOverlay := preload("res://scripts/UI/death/death_overlay.gd")
 
@@ -83,6 +85,14 @@ var speed_mult := 1.0
 var jump_mult := 1.0
 var freeze_ai := false
 var show_debug_overlay := false
+var hide_hud := false:
+	set(val):
+		hide_hud = val
+		hud_visibility_changed.emit(not val)
+var hide_hands := false:
+	set(val):
+		hide_hands = val
+		hands_visibility_changed.emit(not val)
 
 static func _launch_arg(prefix: String) -> String:
 	for a in OS.get_cmdline_args() + OS.get_cmdline_user_args():
@@ -262,6 +272,8 @@ func change_level(idx: int) -> void:
 	Net.broadcast_level(level_index)      # co-op: the host takes everyone along
 	if level != null and level.has_method("load_level_seamless"):
 		level.load_level_seamless(level_index)
+		return
+	if level == null:
 		return
 	if Death.respawn_busy:
 		return

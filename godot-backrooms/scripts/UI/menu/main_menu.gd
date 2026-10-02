@@ -105,6 +105,11 @@ var footer: Label
 var credits: Label
 var counter: Label
 var intro: Tween
+var idle_time := 0.0
+var idle := false                       # AFK screen up: logo centred, "click to resume tape"
+var idle_tw: Tween
+var idle_root: Control
+var idle_prompt: Label
 var corner_tw: Tween
 var loading_root: Control
 var load_title: Label
@@ -130,6 +135,7 @@ var crt_line: ColorRect
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	multiplayer.connected_to_server.connect(_on_multiplayer_connected)
 	_build()
 	if Game.test_level == "" and not Game.boot_played:   # first time up this launch: warnings, logo, CRT on
 		Game.boot_played = true
@@ -265,21 +271,26 @@ func _build() -> void:
 	col.add_child(tag)
 	tag_row = tag
 	col.add_child(_spacer(18))
-	title_label = _label("THE BACKROOMS", 84, TITLE, 24)     # smaller and widely tracked: reads as a caption, not a logo
+	title_label = _label(TITLE_TEXT, 84, TITLE, 20)     # smaller and widely tracked: reads as a caption, not a logo
+	title_label.add_theme_constant_override("outline_size", 4)   # VCR has no bold: a same-colour outline thickens the strokes
+	title_label.add_theme_color_override("font_outline_color", TITLE)
 	fringes = []
 	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
-		var s := _label("THE BACKROOMS", 84, f[1], 24)
+		var s := _label(TITLE_TEXT, 84, f[1], 20)
+		s.add_theme_constant_override("outline_size", 4)
+		s.add_theme_color_override("font_outline_color", f[1])
 		s.position = f[0]
 		s.show_behind_parent = true
 		title_label.add_child(s)
 		fringes.append(s)
 	col.add_child(title_label)
 	col.add_child(_spacer(8))
-	sub_label = _label("THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
+	sub_label = _label("T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
 	col.add_child(sub_label)
 	col.add_child(_spacer(46))
 
 	_menu_item(col, "PLAY", _level_name().to_upper(), "", _on_play)
+	_menu_item(col, "JOIN A GAME", "INPUT ROOM CODE", "multiplayer", _open_join_panel)
 	_menu_item(col, "SETTINGS", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"))
 	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"))
 	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"))
@@ -639,6 +650,15 @@ func _click() -> void:
 func _open_panel(name: String) -> void:
 	settings_menu._on_nav(name)
 
+func _open_join_panel() -> void:
+	_open_panel("multiplayer")
+	if settings_menu and settings_menu.mp_addr:
+		settings_menu.mp_addr.grab_focus()
+
+func _on_multiplayer_connected() -> void:
+	if not busy:
+		_on_play()
+
 ## Switch the set off: the picture collapses to a bright line, the line to nothing, then exit
 func _on_quit() -> void:
 	if busy:
@@ -719,6 +739,12 @@ func _finish_loading() -> void:
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:
+	if e is InputEventKey or e is InputEventMouseButton or (e is InputEventMouseMotion and e.relative.length() > 1.0):
+		idle_time = 0.0
+	if idle and e.is_pressed() and not e.is_echo() and (e is InputEventKey or e is InputEventMouseButton):
+		get_viewport().set_input_as_handled()     # the wake-up press is not a menu click
+		_leave_idle()
+		return
 	if intro and intro.is_valid() and e.is_pressed() and not e.is_echo() \
 			and (e is InputEventKey or e is InputEventMouseButton):
 		W._finish(intro)
@@ -747,6 +773,12 @@ func _process(dt: float) -> void:
 	if loading:
 		_process_loading(dt)
 	else:
+		if idle:
+			idle_prompt.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 2.4))
+		elif not busy and active_panel == "" and not (intro and intro.is_valid()):
+			idle_time += dt
+			if idle_time >= IDLE_AFTER:
+				_enter_idle()
 		_update_glitch(dt)
 		bg_timer += dt
 		if bg_timer >= BG_HOLD and not bg_fading and bg_tex.size() > 1:
@@ -791,10 +823,91 @@ func _process_loading(dt: float) -> void:
 		load_pct.text = "100%"
 		_finish_loading()
 
+# ---- AFK screen: the column fades away, the logo sits in the middle, a click brings the menu back ----
+const IDLE_AFTER := 15.0
+
+func _build_idle() -> void:
+	idle_root = Control.new()
+	idle_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	idle_root.modulate.a = 0.0
+	add_child(idle_root)
+	_full(idle_root)
+	idle_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	if crt and crt.get_parent() == self:
+		move_child(idle_root, crt.get_index())       # keep the CRT effect on top of it
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	idle_root.add_child(center)
+	_full(center)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 30)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(col)
+	var logo := _label(TITLE_TEXT, 84, TITLE, 20)
+	logo.add_theme_constant_override("outline_size", 4)
+	logo.add_theme_color_override("font_outline_color", TITLE)
+	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
+		var fr := _label(TITLE_TEXT, 84, f[1], 20)
+		fr.add_theme_constant_override("outline_size", 4)
+		fr.add_theme_color_override("font_outline_color", f[1])
+		fr.position = f[0]
+		fr.show_behind_parent = true
+		logo.add_child(fr)
+	col.add_child(logo)
+	idle_prompt = _label("❚❚  CLICK TO RESUME TAPE", 16, Color(0.9, 0.882, 0.804, 0.8), 6)
+	idle_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(idle_prompt)
+
+func _fade_menu(to: float, dur: float) -> void:
+	if idle_tw and idle_tw.is_valid():
+		idle_tw.kill()
+	idle_tw = create_tween().set_parallel(true)
+	for c in [menu_box, counter, credits]:
+		idle_tw.tween_property(c, "modulate:a", to, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	idle_tw.tween_property(idle_root, "modulate:a", 1.0 - to, dur).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+
+func _enter_idle() -> void:
+	if idle_root == null:
+		_build_idle()
+	idle = true
+	idle_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	_fade_menu(0.0, 1.2)
+
+func _leave_idle() -> void:
+	idle = false
+	idle_time = 0.0
+	idle_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_menu(1.0, 0.9)
+
 # ---- random VHS glitch on the title -------------------------------------------------
+const TITLE_TEXT := "THE BACKROOMS"
+const WRONG_GLYPHS := {"T": "7", "H": "N", "E": "3", "B": "8", "A": "4", "C": "(", "K": "X",
+		"R": "P", "O": "0", "M": "W", "S": "5"}   # lookalikes; W is the M turned upside down
+var next_wrong := 1.5
+
+# One letter of the title briefly turns into a lookalike, then snaps back
+func _wrong_letter() -> void:
+	var idx := randi() % TITLE_TEXT.length()
+	while not WRONG_GLYPHS.has(TITLE_TEXT[idx]):
+		idx = randi() % TITLE_TEXT.length()
+	var bad: String = TITLE_TEXT.substr(0, idx) + WRONG_GLYPHS[TITLE_TEXT[idx]] + TITLE_TEXT.substr(idx + 1)
+	_set_title_text(bad)
+	await get_tree().create_timer(randf_range(0.2, 0.45)).timeout
+	_set_title_text(TITLE_TEXT)
+
+func _set_title_text(txt: String) -> void:
+	title_label.text = txt
+	for f in fringes:
+		f.text = txt
+
 func _update_glitch(dt: float) -> void:
 	if intro and intro.is_valid():
 		return                              # the intro's lock-in owns the fringes until it settles
+	next_wrong -= dt
+	if next_wrong <= 0.0:
+		next_wrong = randf_range(1.2, 3.5)
+		_wrong_letter()
 	if glitch_left > 0.0:
 		glitch_left -= dt
 		glitch_tick -= dt

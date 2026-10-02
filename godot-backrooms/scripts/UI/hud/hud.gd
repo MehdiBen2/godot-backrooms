@@ -90,6 +90,22 @@ func _ready() -> void:
 	_build_flash()
 	_show_pending_route.call_deferred()
 
+	Game.hud_visibility_changed.connect(_on_hud_visibility_changed)
+	if hud_root:
+		hud_root.visible = not Game.hide_hud
+
+func _on_hud_visibility_changed(hud_visible: bool) -> void:
+	if hud_root:
+		hud_root.visible = hud_visible
+		if hud_visible:
+			var in_menu: bool = menu != null and menu.shown
+			var in_inv: bool = inventory != null and inventory.shown
+			if not in_menu and not in_inv:
+				hud_root.modulate.a = 1.0
+
+func set_hud_visible(show: bool) -> void:
+	Game.hide_hud = not show
+
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:
 	var fv := FontVariation.new()
@@ -538,6 +554,7 @@ func apply_settings() -> void:
 		player.sens = menu.mouse_sens()
 		player.base_fov = float(menu.fov)
 		player.head_bob = 1.0 if menu.head_bob else 0.0
+		player.cam_shake = 1.0 if menu.cam_shake else 0.0
 
 ## Start screen (first launch) and pause share one menu; only the title block differs
 func set_paused(on: bool, start := false) -> void:
@@ -547,10 +564,11 @@ func set_paused(on: bool, start := false) -> void:
 		hud_fade = create_tween()
 		hud_fade.tween_property(hud_root, "modulate:a", 0.3 if on else 1.0, 0.45)
 	if on:
+		var sub := "T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY"
 		if start:
-			menu.set_text("THE BACKROOMS", "THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", "Unknown area, unknown location.", "CLICK TO ENTER THE LOBBY")
+			menu.set_text("THE BACKROOMS", sub, "CLICK TO ENTER THE LOBBY")
 		else:
-			menu.set_text("THE BACKROOMS", "THRESHOLD SECTOR • NON-EUCLIDEAN ZONE", "Unknown area, unknown location.", "CLICK OR PRESS ESC TO RESUME")
+			menu.set_text("THE BACKROOMS", sub, "CLICK OR PRESS ESC TO RESUME")
 	else:
 		menu.release_focus_all()
 	playing_label.text = "|| PAUSE" if on else "► PLAY"
@@ -584,7 +602,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("adrenaline", player.adrenaline if player else 0.0)
 		post_mat.set_shader_parameter("insanity", player.insanity if player else 0.0)
 	_update_rec()
-	osd.running = hud_root.modulate.a > 0.01     # nothing to render while the OSD is faded out
+	osd.running = hud_root.visible and hud_root.modulate.a > 0.01     # nothing to render while the OSD is faded out or hidden
 	# Handheld-camera jitter on the viewfinder brackets
 	for i in corners.size():
 		var c := corners[i]
