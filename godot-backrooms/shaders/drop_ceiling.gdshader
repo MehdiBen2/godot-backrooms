@@ -36,6 +36,9 @@ uniform float specular = 0.35;
 // bounce light on the ceiling (level_lighting.gd); pools round the lit cells like panel_ceiling.gdshader's
 uniform float ceiling_fill = 0.0;
 uniform float fill_between = 0.3;
+// endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
+// minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
+uniform vec3 world_shift = vec3(0.0);
 
 varying vec4 info;      // INSTANCE_CUSTOM: x, y two vents (0 none, see level_fixtures.gd _vent_code), z 1 on a lit-grid cell
 
@@ -73,7 +76,7 @@ void fragment() {
 	float ts = cell / 6.0;
 	bool longt = long_tiles > 0.5;
 	vec2 tsz = longt ? vec2(ts * 2.0, ts) : vec2(ts);
-	vec2 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz;
+	vec2 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz + world_shift.xz;
 	vec2 p = world - round(world / cell) * cell;        // metres from this cell's middle
 	vec2 wt = world / tsz;
 	vec2 tile = round(wt);                              // the tile, world wide (shared by the cells it spans)

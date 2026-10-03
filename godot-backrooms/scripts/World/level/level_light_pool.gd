@@ -158,7 +158,13 @@ func slot_level(i: int) -> float:
 
 func slot_position(i: int) -> Vector3:
 	var f = slot_fixture[i]
-	return Vector3.ZERO if f == null else f.light_pos
+	return Vector3.ZERO if f == null else f.light_pos + _img(f)
+
+## Where tube `f` is seen from the player, as an offset from where it hangs: nothing, or on an endless level
+## (level_data.gd edge_wrap) the way to the copy of it nearest the player, set by _rank. Its real light goes
+## there, so the far side of the seam is lit just like this side.
+static func _img(f: Dictionary) -> Vector3:
+	return f.get("img", Vector3.ZERO)
 
 ## The tubes in reach, nearest first. Only the index squares round the player are read (level_fixtures.gd
 ## fixtures_near), not every tube of the level; the ones the lights hold now are re-measured too, so a tube the
@@ -170,23 +176,42 @@ func _rank(p: Vector3) -> void:
 	for held: Array in [slot_fixture, far_fixture]:
 		for f in held:
 			if f == null: continue
-			var hx: float = f.pos.x - p.x
-			var hz: float = f.pos.z - p.z
+			if edge_wrap: f.img = wrap_near(f.pos, p) - f.pos
+			var hx: float = f.pos.x + _img(f).x - p.x
+			var hz: float = f.pos.z + _img(f).z - p.z
 			f.dsq = hx * hx + hz * hz
 			f.wanted = false
 			f.far_wanted = false
-	var span := _fx_span(p, FAR_RADIUS)
-	for x in range(span[0].x, span[1].x + 1):
-		for z in range(span[0].y, span[1].y + 1):
-			var sq = _fx_grid.get(Vector2i(x, z))
-			if sq == null: continue
-			for f: Dictionary in sq:
-				var dx: float = f.pos.x - p.x
-				var dz: float = f.pos.z - p.z
-				f.dsq = dx * dx + dz * dz
-				f.wanted = false
-				f.far_wanted = false
-				if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
+	# on an endless level the tubes across the seam count too: the index is read round the player's spot as
+	# seen from each copy of the level that comes within reach
+	var looks: Array = [p]
+	var found := {}
+	if edge_wrap:
+		looks.clear()
+		var w := wrap_size()
+		var lo := 0.5 * CELL - FAR_RADIUS
+		var hi := (size - 1.5) * CELL + FAR_RADIUS
+		for sx in range(-1, 2):
+			for sz in range(-1, 2):
+				var q := p - Vector3(sx * w, 0.0, sz * w)
+				if q.x > lo and q.x < hi and q.z > lo and q.z < hi: looks.append(q)
+	for q: Vector3 in looks:
+		var span := _fx_span(q, FAR_RADIUS)
+		for x in range(span[0].x, span[1].x + 1):
+			for z in range(span[0].y, span[1].y + 1):
+				var sq = _fx_grid.get(Vector2i(x, z))
+				if sq == null: continue
+				for f: Dictionary in sq:
+					if edge_wrap:
+						if found.has(f.index): continue       # (a small level: two copies of one tube within reach)
+						found[f.index] = true
+						f.img = wrap_near(f.pos, p) - f.pos
+					var dx: float = f.pos.x + _img(f).x - p.x
+					var dz: float = f.pos.z + _img(f).z - p.z
+					f.dsq = dx * dx + dz * dz
+					f.wanted = false
+					f.far_wanted = false
+					if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
 	_candidates.sort_custom(func(a, b): return a.dsq < b.dsq)
 	_look_from(p)
 	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls);
@@ -244,8 +269,9 @@ func _eyes(p: Vector3) -> Array:
 	return out
 
 func _seen_from(eyes: Array, f: Dictionary) -> bool:
+	var at: Vector3 = f.pos + _img(f)
 	for e in eyes:
-		if _line_clear(e, f.pos, true): return true
+		if _line_clear(e, at, true): return true
 	return false
 
 # Which slots are lit (the nearest `_lit_cap`) and which of those cast shadows (the nearest `_shadow_cap`)
@@ -322,6 +348,7 @@ func _update_pool(delta: float) -> void:
 			ceil_glow[i].visible = false
 			continue
 		slot_weight[i] = _ease_to(slot_weight[i], slot_target[i], k)
+		var lp: Vector3 = f.light_pos + _img(f)         # (the copy nearest the player on an endless level)
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
@@ -337,11 +364,11 @@ func _update_pool(delta: float) -> void:
 		var ceil_gap: float = ceil_h - f.light_pos.y
 		var ceil_reach := clampf(1.0 - (ceil_gap - CEIL_GLOW_DROP) / (CEIL_GLOW_RANGE - CEIL_GLOW_DROP), 0.0, 1.0)
 		g.visible = l.visible and ceil_reach > 0.0
-		_move(g, Vector3(f.light_pos.x, ceil_h - CEIL_GLOW_DROP, f.light_pos.z))
+		_move(g, Vector3(lp.x, ceil_h - CEIL_GLOW_DROP, lp.z))
 		_energy(g, energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach)
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
-			_move(l, f.light_pos)
+			_move(l, lp)
 			_energy(l, energy)
 			continue
 		# One light at each end of the tube, so the floor is lit along its whole length, not from a point. Only
@@ -353,8 +380,8 @@ func _update_pool(delta: float) -> void:
 		var twin := (1.0 - slot_single[i]) if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0
 		lb.visible = l.visible and twin > 0.01
 		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin
-		_move(l, f.light_pos + axis)
-		_move(lb, f.light_pos - axis)
+		_move(l, lp + axis)
+		_move(lb, lp - axis)
 		var share := 0.5 * twin if lb.visible else 0.0
 		_energy(l, energy * (1.0 - share))
 		_energy(lb, energy * share)
@@ -407,7 +434,7 @@ func _update_far(k: float) -> void:
 		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * far_fade
 		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
-		_move(fl, f.light_pos)
+		_move(fl, f.light_pos + _img(f))
 		_energy(fl, energy)
 
 # ------------------------------------------------------- atmosphere (lighting.js)
@@ -429,10 +456,11 @@ func tube_light_at(p: Vector3) -> float:
 		if f == null: continue
 		var w: float = f.level * slot_weight[i]
 		if w < 0.001: continue               # (a dark slot adds nothing: no sight line to walk)
-		var dsq := (f.pos as Vector3).distance_squared_to(p)
+		var at: Vector3 = wrap_near(f.pos, p)       # (across the seam of an endless level: its nearest copy)
+		var dsq := at.distance_squared_to(p)
 		# a tube behind a wall only reaches you by bouncing round (it used to count in full, so standing in a
 		# dark corridor beside a lit one read as lit: the eye adaptation, fog and sanity all got it wrong)
-		var seen := 1.0 if _line_clear(p, f.pos, true) else HIDDEN_BOUNCE
+		var seen := 1.0 if _line_clear(p, at, true) else HIDDEN_BOUNCE
 		sum += w * seen / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
 	var out := minf(1.0, sum / BOUNCE_FULL)
 	if _tla_memo.size() < 64: _tla_memo[p] = out
@@ -446,9 +474,10 @@ var _tla_memo := {}                 # this frame's tube_light_at answers, by spo
 func _line_clear(a: Vector3, b: Vector3, see_carved := false) -> bool:
 	var steps := maxi(1, ceili(Vector2(b.x - a.x, b.z - a.z).length() / (CELL * 0.5)))
 	for k in range(1, steps):
-		var c := cell_of(a.lerp(b, float(k) / steps))
+		var c := wrap_cell(cell_of(a.lerp(b, float(k) / steps)))    # (an endless level: across the seam)
 		if walls.has(c) and not (see_carved and carved.has(c)): return false
 	return true
 
 func _solid(c: Vector2i) -> bool:
+	c = wrap_cell(c)
 	return walls.has(c) and not carved.has(c)

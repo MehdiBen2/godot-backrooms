@@ -162,7 +162,8 @@ func _apply_gi() -> void:
 	# floor to ceiling, and their seams showed as a dark line across every wall at eye height plus uneven
 	# bounce on the far ceiling. The look's even ambient fill does that job cleanly, so no GI there.
 	var flat_lit := atmosphere() == "classic"
-	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat and not flat_lit) else null
+	# (an endless level: the bake covers the map only, so the halls past the seam would sit darker than this side)
+	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat and not flat_lit and not edge_wrap) else null
 	if data != null:
 		if voxel_gi == null:
 			voxel_gi = VoxelGI.new()
@@ -184,8 +185,11 @@ func _apply_gi() -> void:
 	var want: bool = level_data.get("sdfgi", not classic.is_empty()) and not flat_lit
 	env.sdfgi_enabled = data == null and want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
 	if env.sdfgi_enabled:
-		env.sdfgi_cascades = 3
+		env.sdfgi_cascades = 4               # one more doubling of range: the last cascade's edge showed on the far ceiling
 		env.sdfgi_min_cell_size = 0.5
+		# No sky in here: rays that slip out through the coarse far cascades (or past the last one) read the
+		# background, which is the pale haze colour, and washed the far ceiling out to white
+		env.sdfgi_read_sky_light = false
 		# cells half as tall as they are wide: more detail at a 3 m ceiling and less bounce light leaking
 		# through the (single-quad) ceiling in the coarse far cascades, which made the far ceiling brighter
 		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_50_PERCENT
@@ -292,13 +296,14 @@ func _glare_now(cam: Camera3D) -> float:
 	for i in POOL_SIZE:
 		var f = slot_fixture[i]
 		if f == null or f.black > 0.0: continue
-		var to: Vector3 = (f.pos as Vector3) - cp
+		var at: Vector3 = f.pos + _img(f)           # (an endless level: the copy of it the player sees)
+		var to: Vector3 = at - cp
 		var d := to.length()
 		if d < 0.2: continue
 		var facing := fwd.dot(to / d)
 		if facing < GLARE_CONE: continue
 		var w := smoothstep(GLARE_CONE, GLARE_FULL, facing) * slot_level(i) / (1.0 + d * d / (GLARE_DIST * GLARE_DIST))
-		if w > 0.01 and _line_clear(cp, f.pos): sum += w
+		if w > 0.01 and _line_clear(cp, at): sum += w
 	return clampf(sum, 0.0, 1.0)
 
 func _blend_env(a: Dictionary) -> void:

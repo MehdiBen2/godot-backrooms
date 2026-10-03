@@ -40,6 +40,9 @@ uniform float cell = 4.5;               // level_data.gd CELL
 uniform float fill_between = 0.3;       // share of the fill left halfway between two lit cells
 // A drop ceiling is never flat: some tiles sit a little tilted in their grid and catch the light unevenly
 uniform float tilted = 0.2;             // share of tiles that do
+// endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
+// minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
+uniform vec3 world_shift = vec3(0.0);
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -66,7 +69,7 @@ void fragment() {
 	float panel = clamp(dot(emit, vec3(0.333)) * 1.4, 0.0, 1.0);
 	float glow = clamp(max(max(COLOR.r, COLOR.g), COLOR.b), 0.0, 1.0);
 	// which tile this is, in world space (tile edges sit at (x + tile/2) / tile = whole numbers)
-	vec2 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz;
+	vec2 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz + world_shift.xz;
 	vec2 tile = floor((world + tile_size * 0.5) / tile_size);
 	// this tile in the cell's texture, and where in the tile this point is (-0.5 .. 0.5)
 	vec2 kf = floor(UV * 6.0 + 0.5);

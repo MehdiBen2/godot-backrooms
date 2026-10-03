@@ -24,11 +24,14 @@ uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.6;
 uniform float mid_distance : hint_range(15.0, 60.0) = 30.0;
 uniform float mid_fade_range : hint_range(2.0, 10.0) = 5.0;
 
+// endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
+// minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
+uniform vec3 world_shift = vec3(0.0);
 varying vec3 v_world_pos;
 varying vec2 v_uv;
 
 void vertex() {
-	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	v_uv = (length(UV) > 0.0001 ? UV : v_world_pos.xz) * uv_scale;
 }
 

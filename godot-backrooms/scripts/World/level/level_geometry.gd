@@ -245,6 +245,13 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			elif classic.has(c): classic_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
+	# endless halls: the open border cells are walked on too (the copy beyond the seam draws their floor), so
+	# whatever ends up on one (a monster spawned there, a dropped battery) stands on something
+	var solid_cells := floor_cells
+	if edge_wrap:
+		solid_cells = floor_cells.duplicate()
+		for c: Vector2i in wrap_ring:
+			if not walls.has(c): solid_cells.append(c)
 	if ceilings:
 		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
 		_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
@@ -253,7 +260,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
 			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
-		if not shell: _build_ceiling_collision(floor_cells)
+		if not shell: _build_ceiling_collision(solid_cells)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
@@ -275,7 +282,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
 	if shell: return
-	_build_floor_collision(floor_cells)
+	_build_floor_collision(solid_cells)
 	_build_hole_collision()
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
@@ -541,8 +548,12 @@ func _build_walls() -> void:
 			if tall.has(c + n): near_tall = true
 		if exposed:
 			groups[TALL_H if near_tall else WALL_H].append(c)
-	_build_occluder(groups)
 	if not shell: _build_wall_collision(groups)
+	# endless halls: the border's blocks only stop you (the copy of the level beyond the seam draws them)
+	if edge_wrap:
+		for height in groups.keys():
+			groups[height] = (groups[height] as Array).filter(func(c: Vector2i) -> bool: return not wrap_ring.has(c))
+	_build_occluder(groups)
 	# cells painted with a material get their own group per (height, material)
 	var pw := painted("wall")
 	if not pw.is_empty():

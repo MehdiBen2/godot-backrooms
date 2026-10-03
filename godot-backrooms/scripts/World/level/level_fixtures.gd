@@ -559,12 +559,13 @@ uniform float cell = 4.5;
 uniform float energy = 2.2;
 uniform float range = 20.0;
 uniform float decay = 1.4;
+uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): back onto the level
 varying vec2 lp;          // metres from the spot under the tube
 varying vec3 wp;
 varying vec4 info;        // x: which cells round it are open (bits), y: the tube's direction, z: 1 on tiles, w: the lamp's height
 void vertex() {
 	lp = VERTEX.xz;
-	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	info = INSTANCE_CUSTOM;
 }
 void fragment() {
@@ -703,11 +704,12 @@ uniform float strength = 1.0;
 uniform float energy = 2.2;
 uniform float range = 20.0;
 uniform float decay = 1.4;
+uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): its lamps are the level's
 varying vec3 wp;
 varying vec3 wn;
 varying vec3 lamp;
 void vertex() {
-	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	lamp = INSTANCE_CUSTOM.xyz;
 }

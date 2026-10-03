@@ -278,6 +278,13 @@ func _build_ui() -> void:
 	endless_check.toggled.connect(func(_on): _mark_dirty())
 	lv.add_child(endless_check)
 
+	wrap_check = CheckBox.new()
+	wrap_check.text = "ENDLESS HALLS (WRAP)"
+	wrap_check.tooltip_text = "The level never ends: walk off one edge and you are on the opposite side, seamlessly, and the halls are drawn\nrepeating past every edge out to the horizon. The border cells don't count: the map's opposite edges are joined,\nso leave openings on the edges (a hall running off the right edge comes back in on the left). Best with Classic halls.\nMonsters stay inside the map: crossing the edge is a way to lose one."
+	wrap_check.add_theme_font_size_override("font_size", 16)
+	wrap_check.toggled.connect(func(_on): _mark_dirty())
+	lv.add_child(wrap_check)
+
 	# center: canvas
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -26,6 +26,9 @@ uniform float band_h = 5.4;         // its room-height band of wall (WALL_H); th
 uniform float tube_y = 5.05;        // height of the tubes in their storey
 uniform float tube_half = 0.6;
 uniform float cell = 4.5;
+// endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
+// minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
+uniform vec3 world_shift = vec3(0.0);
 uniform float shaft_w = 4.5;        // across the shaft: how far off the tubes on the far wall are
 
 uniform vec3 tube_color : source_color = vec3(1.0, 0.93, 0.78);
@@ -80,7 +83,7 @@ float row_level(float row, float t) {
 }
 
 void vertex() {
-	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	wnrm = (MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz;
 }
 

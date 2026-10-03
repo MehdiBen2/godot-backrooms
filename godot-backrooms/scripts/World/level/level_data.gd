@@ -72,6 +72,13 @@ var drain := {}       # sanity runs out while you stand here, whatever the light
 var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
+## Endless halls (the .lvl's "wrap", the editor's ENDLESS HALLS): the map's opposite edges are joined. The border
+## cells stop being a wall: each mirrors the interior cell across the map from it (so the grid, the colliders and
+## sight lines all see the other side of the seam), and the player crossing it is moved to the other side
+## (level_builder.gd _wrap_player). The level's look is drawn repeated round it (level_builder.gd _build_wrap_copies). The interior,
+## cells 1 .. size - 2, is one period: wrap_size() metres.
+var edge_wrap := false
+var wrap_ring := {}   # Vector2i -> true: the border cells, the other side's stand-ins (no entity walks them)
 var endless_ceiling := {}      # no ceiling and a shaft up that never ends: the Endless zone (endless_shaft.gd)
 var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
 ## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
@@ -378,6 +385,37 @@ func load_floor(f: int, raw := {}) -> void:
 		for c: Vector2i in holes.keys():
 			if walls.has(c): holes.erase(c)
 			else: hole_box = Rect2i(c, Vector2i.ONE) if hole_box.size == Vector2i.ZERO else hole_box.merge(Rect2i(c, Vector2i.ONE))
+	edge_wrap = bool(level_raw.get("wrap", false)) and size > 6
+	wrap_ring.clear()
+	if edge_wrap: _wrap_edges()
+
+## Endless halls: the border cells take the walls of the interior cells across the map from them (a thin wall,
+## a door or an arch there leaves the stand-in open; a pit makes it solid, so nothing steps onto nothing)
+func _wrap_edges() -> void:
+	for i in size:
+		for e: Vector2i in [Vector2i(i, 0), Vector2i(i, size - 1), Vector2i(0, i), Vector2i(size - 1, i)]:
+			wrap_ring[e] = true
+	for e: Vector2i in wrap_ring:
+		var s := wrap_cell(e)
+		if (walls.has(s) and not carved.has(s)) or pits.has(s) or stair_cells.has(s): walls[e] = true
+		else: walls.erase(e)
+
+## One period of the endless halls, in metres (the interior, cells 1 .. size - 2)
+func wrap_size() -> float:
+	return float(size - 2) * CELL
+
+## The interior cell that `c` stands for (itself when the level doesn't wrap)
+func wrap_cell(c: Vector2i) -> Vector2i:
+	if not edge_wrap: return c
+	var n := size - 2
+	return Vector2i(posmod(c.x - 1, n) + 1, posmod(c.y - 1, n) + 1)
+
+## The copy of world point `at` nearest to `from` (itself when the level doesn't wrap): where something on the
+## other side of the seam is, seen from here
+func wrap_near(at: Vector3, from: Vector3) -> Vector3:
+	if not edge_wrap: return at
+	var w := wrap_size()
+	return at + Vector3(roundf((from.x - at.x) / w) * w, 0.0, roundf((from.z - at.z) / w) * w)
 
 ## Has the player, at `p`, dropped through one of this floor's holes into the slab under it?
 func fell_through(p: Vector3) -> bool:
@@ -580,12 +618,13 @@ func step_mask() -> PackedByteArray:
 	for x in size:
 		for z in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c) or safe.has(c): continue          # (a Safe zone: no entity's path crosses it)
+			if walls.has(c) or pits.has(c) or safe.has(c) or wrap_ring.has(c): continue          # (a Safe zone: no entity's path crosses it)
 			var bits := 0
 			for i in 4:
 				var nb: Vector2i = c + dirs[i]
 				if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size: continue
-				if walls.has(nb) or pits.has(nb) or safe.has(nb) or edge_blocked(c, nb): continue
+				# (the border of an endless level is the other side's stand-in: monsters keep to the map)
+				if walls.has(nb) or pits.has(nb) or safe.has(nb) or wrap_ring.has(nb) or edge_blocked(c, nb): continue
 				bits |= 1 << i
 			m[x * size + z] = bits
 	_step_mask = m

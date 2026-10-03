@@ -52,6 +52,7 @@ func _ready() -> void:
 	add_child(sketches)
 	_find_loops()
 	_sync_shells()
+	_build_wrap_copies()
 
 func _process(delta: float) -> void:
 	if rebuilding: return              # no fixtures to light with until the floor is built
@@ -61,8 +62,10 @@ func _process(delta: float) -> void:
 ## Through a hole in the floor into the one below: that floor takes over half way down the slab between them,
 ## with the player where they are, still falling (rebuild_floor_seamless, kind "fall")
 func _physics_process(_delta: float) -> void:
-	if rebuilding or player == null or Game.noclip or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
+	if rebuilding or player == null or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
 		return
+	if edge_wrap: _wrap_player()          # (noclip too: flying off the edge of an endless level comes back round)
+	if Game.noclip: return
 	if not _loops.is_empty(): _walk_loops()
 	if through.is_empty(): return
 	var p := player.global_position
@@ -140,6 +143,136 @@ func _walk_loops() -> void:
 	if move == 0.0: return
 	if run.axis == 0: player.global_position.x += move
 	else: player.global_position.z += move
+
+# ---------------------------------------------------------------- halls that never end
+## Endless halls (level_data.gd edge_wrap): the player who crosses the edge of the map is moved one period back,
+## onto the other side, which looks exactly like what they were walking into (the copies, _build_wrap_copies).
+## The real lights follow at once (_rank_timer: re-ranked this frame), so nothing pops. Monsters keep to the
+## map (the border is closed to their paths): crossing the seam is a way to lose one.
+signal wrapped(move: Vector3)
+
+func _wrap_player() -> void:
+	var p := player.global_position
+	var lo := 0.5 * CELL
+	var hi := (size - 1.5) * CELL
+	var w := wrap_size()
+	var move := Vector3.ZERO
+	if p.x > hi: move.x = -w
+	elif p.x < lo: move.x = w
+	if p.z > hi: move.z = -w
+	elif p.z < lo: move.z = w
+	if move == Vector3.ZERO: return
+	player.global_position += move
+	_rank_timer = 0.0
+	wrapped.emit(move)
+
+## The level drawn again one period away on all eight sides, so the halls run on past every edge out to the
+## horizon (and what is across the seam is there to see before you cross it). Each copy shares the level's
+## meshes and MultiMeshes, so a tube flickering, a power cut or a tint shows in every copy at once, and costs
+## draw calls only where it is in view: frustum and occlusion culling (the occluders are copied too) drop the
+## rest. Only what the floor itself built is copied: no props, monsters, marks or stairwells.
+var _wrap_root: Node3D
+var _view_far := -1.0                  # the camera's own far plane, put back on a level that doesn't wrap
+
+func _build_wrap_copies() -> void:
+	if is_instance_valid(_wrap_root): _wrap_root.free()
+	_wrap_root = null
+	_apply_wrap_view.call_deferred()       # (deferred: the level is built before main.gd hands it the player)
+	if not edge_wrap or shell: return
+	var src: Array = []
+	_collect_wrap(self, src)
+	_wrap_root = Node3D.new()
+	_wrap_root.name = "WrapCopies"
+	add_child(_wrap_root)
+	var w := wrap_size()
+	var mats := {}
+	for sx in range(-1, 2):
+		for sz in range(-1, 2):
+			if sx == 0 and sz == 0: continue
+			var off := Vector3(sx * w, 0.0, sz * w)
+			for n: Node3D in src:
+				var c := _wrap_copy(n, off, mats)
+				if c == null: continue
+				_wrap_root.add_child(c)
+				c.global_transform = Transform3D(n.global_transform.basis, n.global_transform.origin + off)
+
+## The plain geometry the floor's build made (no scripted node or scene, nor anything under one)
+func _collect_wrap(n: Node, out: Array) -> void:
+	for c in n.get_children():
+		if c == _wrap_root or c == _horizon or c == voxel_gi or c in shells.values() or c.has_meta("demoted"): continue
+		if c.get_script() != null or c.scene_file_path != "" or c is Light3D: continue
+		if (c is GeometryInstance3D and (c as Node3D).visible) or c is OccluderInstance3D: out.append(c)
+		if c is Node3D: _collect_wrap(c, out)
+
+func _wrap_copy(n: Node3D, off: Vector3, mats: Dictionary) -> Node3D:
+	if n is OccluderInstance3D:
+		var oi := OccluderInstance3D.new()
+		oi.occluder = (n as OccluderInstance3D).occluder
+		return oi
+	var g: GeometryInstance3D
+	if n is MultiMeshInstance3D:
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = (n as MultiMeshInstance3D).multimesh
+		g = mmi
+	elif n is MeshInstance3D:
+		var src := n as MeshInstance3D
+		var mi := MeshInstance3D.new()
+		mi.mesh = src.mesh
+		for i in src.get_surface_override_material_count():
+			mi.set_surface_override_material(i, _wrap_mat(src.get_surface_override_material(i), off, mats))
+		g = mi
+	else:
+		return null
+	var s := n as GeometryInstance3D
+	g.material_override = _wrap_mat(s.material_override, off, mats)
+	g.material_overlay = s.material_overlay
+	g.cast_shadow = s.cast_shadow
+	g.layers = s.layers
+	g.extra_cull_margin = s.extra_cull_margin
+	g.gi_mode = GeometryInstance3D.GI_MODE_DISABLED     # (the baked GI covers the level itself only)
+	return g
+
+## A material as the copy `off` away needs it: one that textures by world position samples where the level it
+## copies would (world-triplanar ones by their uv offset, the level's own shaders by their world_shift), so
+## the pattern runs on across the seam without a jump. Anything else is shared as it is.
+func _wrap_mat(m: Material, off: Vector3, cache: Dictionary) -> Material:
+	if m == null: return null
+	var shifted := false
+	if m is BaseMaterial3D:
+		shifted = (m as BaseMaterial3D).uv1_triplanar and (m as BaseMaterial3D).uv1_world_triplanar
+	elif m is ShaderMaterial:
+		var sh := (m as ShaderMaterial).shader
+		shifted = sh != null and sh.code.contains("world_shift")
+	if not shifted: return m
+	var key := "%d|%s" % [m.get_instance_id(), off]
+	if not cache.has(key):
+		var d := m.duplicate() as Material
+		if d is BaseMaterial3D:
+			var b := d as BaseMaterial3D
+			b.uv1_offset = b.uv1_offset - off * b.uv1_scale
+		else:
+			(d as ShaderMaterial).set_shader_parameter("world_shift", -off)
+		if m in ceil_mats: ceil_mats.append(d)        # (level_lighting.gd drives their ceiling fill too)
+		cache[key] = d
+	return cache[key]
+
+## How far the view reaches: on an endless level the horizon fog is pushed out to nearly a period (the copies
+## fill that far in every direction) and the camera's far plane with it; elsewhere both are as they were
+const WRAP_HORIZON_MAX := 320.0
+
+func _apply_wrap_view() -> void:
+	var cam: Camera3D = player.get("cam") if player != null and is_instance_valid(player) else null
+	if cam != null and _view_far < 0.0: _view_far = cam.far
+	var begin := HORIZON_BEGIN
+	var end := HORIZON_END
+	if edge_wrap and not shell:
+		end = clampf(wrap_size() * 0.95, HORIZON_END, WRAP_HORIZON_MAX)
+		begin = maxf(HORIZON_BEGIN, end * 0.45)
+	if _horizon_mat != null:
+		_horizon_mat.set_shader_parameter("begin", begin)
+		_horizon_mat.set_shader_parameter("end", end)
+	if cam != null and _view_far > 0.0:
+		cam.far = maxf(_view_far, end + 30.0) if edge_wrap else _view_far
 
 ## What is underfoot at `p`: "tile" in the polished rooms, "carpet" everywhere else
 func surface_at(p: Vector3) -> String:
@@ -307,6 +440,8 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 ## the floor about to be built), and the grid is emptied for the next floor's. `demote`: the old floor is in
 ## view from the new one, through a hole, so it is not freed: as it stands it becomes one of the look-only floors.
 func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
+	if is_instance_valid(_wrap_root): _wrap_root.free()          # (never kept as a look-only floor: only the floor itself)
+	_wrap_root = null
 	var marks := get_node_or_null("TapeMarks")
 	var sketches := get_node_or_null("SketchMarks")
 	var pool_set := {}
@@ -556,6 +691,7 @@ func _sync_shells() -> void:
 ## The new floor stands: its tape and sketches, and the entity on its grid
 func _floor_ready() -> void:
 	_find_loops()
+	_build_wrap_copies()
 	var marks := get_node_or_null("TapeMarks")
 	var sketches := get_node_or_null("SketchMarks")
 	if marks != null and marks.has_method("reload_floor"):

@@ -16,6 +16,7 @@ var size_spin: SpinBox
 var gi_pick: OptionButton
 var atmo_pick: OptionButton
 var endless_check: CheckBox          # the .lvl's "endless": the lowest and highest floors repeat for ever (level_data.gd endless())
+var wrap_check: CheckBox             # the .lvl's "wrap": opposite map edges joined, the halls never end (level_data.gd wrap)
 var slot_picks := {}
 var slot_previews := {}
 var name_dialog: ConfirmationDialog
@@ -70,6 +71,7 @@ func _open(i: int) -> void:
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
 	endless_check.set_pressed_no_signal(bool(data.get("endless", false)))
+	wrap_check.set_pressed_no_signal(bool(data.get("wrap", false)))
 	undo_stack.clear()
 	redo_stack.clear()
 	dirty = false
@@ -367,6 +369,8 @@ func _current_payload() -> Dictionary:
 	else: out["atmosphere"] = ATMOS[atmo_pick.selected]
 	if endless_check.button_pressed: out["endless"] = true
 	else: out.erase("endless")
+	if wrap_check.button_pressed: out["wrap"] = true
+	else: out.erase("wrap")
 	var mats := {}
 	for slot in SLOTS:
 		if str(materials.get(slot, "")) != "": mats[slot] = materials[slot]
