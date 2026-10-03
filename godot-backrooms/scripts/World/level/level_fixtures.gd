@@ -31,6 +31,50 @@ var tint := Color.WHITE   # events recolour every lit tube (null in the web game
 
 var fill_lights: Array[OmniLight3D] = []   # the two steady fill lights of bright levels (off in a power cut)
 var reflect_mmi: MultiMeshInstance3D   # the fake floor reflections of bright-zone tubes (they live below the floor)
+
+# ----------------------------------------------------------------- fixture index
+# A big level has a thousand tubes or more, and most of what asks about them only wants the few near a point
+# (the light pool ten times a second, a monster stuttering the tubes it runs under) or the few doing something
+# (the flicker model, every frame). Both used to walk the whole list. The index: the tubes by grid square, and
+# the set that is awake (flickering, in a burst, cut). Rebuilt whenever `lit` is (_index_fixtures).
+const FX_SQUARE := 4                # cells along a side of an index square
+var _fx_grid := {}                  # Vector2i square -> Array of the lit fixtures in it
+var _awake := {}                    # lit index -> fixture: the ones _update_fixtures has to look at
+
+func _index_fixtures() -> void:
+	_fx_grid.clear()
+	_awake.clear()
+	for f: Dictionary in lit:
+		var k := _fx_square(f.pos)
+		if not _fx_grid.has(k): _fx_grid[k] = []
+		(_fx_grid[k] as Array).append(f)
+		if f.flickers or f.black > 0.0 or f.burst > 0: _wake(f)
+
+func _fx_square(p: Vector3) -> Vector2i:
+	return Vector2i(floori(p.x / (CELL * FX_SQUARE)), floori(p.z / (CELL * FX_SQUARE)))
+
+## Every index square a circle round `p` (on the floor plan) touches, as [first, last] corners
+func _fx_span(p: Vector3, radius: float) -> Array[Vector2i]:
+	return [_fx_square(p - Vector3(radius, 0.0, radius)), _fx_square(p + Vector3(radius, 0.0, radius))]
+
+## The lit fixtures within `radius` of `p` on the floor plan (height ignored, like every light test here)
+func fixtures_near(p: Vector3, radius: float) -> Array:
+	var out: Array = []
+	var r2 := radius * radius
+	var span := _fx_span(p, radius)
+	for x in range(span[0].x, span[1].x + 1):
+		for z in range(span[0].y, span[1].y + 1):
+			var sq = _fx_grid.get(Vector2i(x, z))
+			if sq == null: continue
+			for f: Dictionary in sq:
+				var dx: float = f.pos.x - p.x
+				var dz: float = f.pos.z - p.z
+				if dx * dx + dz * dz <= r2: out.append(f)
+	return out
+
+## A tube that has something to do from now on (a burst, a cut): the flicker model looks at it until it settles
+func _wake(f: Dictionary) -> void:
+	if int(f.index) >= 0: _awake[int(f.index)] = f
 # ----------------------------------------------------------------- fixtures
 ## A floor that can be seen from the next one, through a hole in a slab, is built twice: to walk on, and to be
 ## looked at from above or below (level_shell.gd). Both must burn out and flicker the same tubes, so on those
@@ -93,6 +137,7 @@ func _place_fixtures() -> void:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
+	_index_fixtures()
 
 # Panel ceilings: a fixture per open cell (its five panels), a real light only on the checkerboard cells
 func _place_panel_fixtures() -> void:
@@ -124,6 +169,7 @@ func _place_panel_fixtures() -> void:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
+	_index_fixtures()
 
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
 func _build_panel_ceiling() -> void:
@@ -282,6 +328,7 @@ func cut_fixture(f: Dictionary, duration: float) -> void:
 	f.black = duration
 	f.level = 0.03
 	_set_lit_color(f, 0.03)
+	_wake(f)
 
 # Every tube dies at once; they return at staggered times after `duration`
 func cut_power(duration: float) -> void:
@@ -289,6 +336,7 @@ func cut_power(duration: float) -> void:
 		f.black = duration + rng.randf() * 1.6
 		f.level = 0.03
 		_set_lit_color(f, 0.03)
+		_wake(f)
 
 func restore_power() -> void:
 	for f in lit:
@@ -307,25 +355,18 @@ func restore_all() -> void:
 ## Something big passing under the tubes: every working tube within `radius` of `pos` may stutter (a
 ## short burst of dropouts and re-strikes, with their pops). `strength` 0..1 = how likely each one is.
 func disturb(pos: Vector3, radius: float, strength: float) -> void:
-	var r2 := radius * radius
-	for f in lit:
-		if f.black > 0.0 or f.burst > 0:
-			continue
-		var d2 := Vector2(f.pos.x - pos.x, f.pos.z - pos.z).length_squared()
-		if d2 > r2 or rng.randf() > strength:
+	for f in fixtures_near(pos, radius):
+		if f.black > 0.0 or f.burst > 0 or rng.randf() > strength:
 			continue
 		f.burst = 2 * (2 + rng.randi() % 3)
 		f.timer = 0.02 + rng.randf() * 0.08
+		_wake(f)
 
 ## Flicker tubes near `pos` actively for `duration` seconds
 func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
-	var r2 := radius * radius
 	var affected: Array = []
-	for f in lit:
-		if f.black > 0.0: continue
-		var d2 := Vector2(f.pos.x - pos.x, f.pos.z - pos.z).length_squared()
-		if d2 <= r2:
-			affected.append(f)
+	for f in fixtures_near(pos, radius):
+		if f.black <= 0.0: affected.append(f)
 
 	# If the trigger was placed in a gap between fixtures, grab nearest lit tubes
 	if affected.is_empty() and not lit.is_empty():
@@ -344,6 +385,7 @@ func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
 		f["flicker_until"] = end_time
 		f.burst = 2 * (3 + rng.randi() % 4)      # 6 to 14 rapid bursts
 		f.timer = 0.01 + rng.randf() * 0.04
+		_wake(f)
 
 # The light under a tube that has no real light on it. Only the nearest tubes get real lights
 # (level_light_pool.gd), so from a distance the floor under a lit tube stayed as dark as under a dead one until
@@ -713,9 +755,14 @@ func _build_floor_reflections() -> void:
 		fill_lights.append(l)
 
 # Failing-tube model: long stable stretches, then a burst of rapid dropouts and re-strikes.
-# Steady tubes only stutter when something disturbs them (a burst already set).
+# Steady tubes only stutter when something disturbs them (a burst already set). Only the awake tubes are
+# looked at (_wake); a steady one goes back to sleep once it has nothing left to do.
 func _update_fixtures(delta: float) -> void:
-	for f in lit:
+	var settled: Array[int] = []
+	# (a copy of the keys: whatever listens to fixture_event may set more tubes off while this runs)
+	for i: int in _awake.keys():
+		var f = _awake.get(i)
+		if f == null: continue
 		if f.black > 0.0:
 			f.black -= delta
 			if f.black <= 0.0:
@@ -726,7 +773,9 @@ func _update_fixtures(delta: float) -> void:
 				fixture_event.emit(f, true)
 			continue
 		var is_event_flickering: bool = float(f.get("flicker_until", 0.0)) > Game.time
-		if not f.flickers and not is_event_flickering and f.burst == 0: continue
+		if not f.flickers and not is_event_flickering and f.burst == 0:
+			settled.append(i)
+			continue
 		f.timer -= delta
 		if f.timer > 0.0: continue
 		if f.burst == 0:
@@ -743,3 +792,7 @@ func _update_fixtures(delta: float) -> void:
 			f.timer = (0.08 + rng.randf() * 0.25) if is_event_flickering else (1.5 + rng.randf() * 6.0)
 		_set_lit_color(f, 0.06 if going_off else f.level)
 		fixture_event.emit(f, not going_off)
+	for i in settled:
+		var f = _awake.get(i)
+		# (unless something set it off again since)
+		if f != null and f.black <= 0.0 and f.burst == 0: _awake.erase(i)

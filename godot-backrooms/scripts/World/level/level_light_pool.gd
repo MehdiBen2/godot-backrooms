@@ -7,6 +7,10 @@ extends "res://scripts/World/level/level_fixtures.gd"
 ## `light_shadows`), which is what keeps this playable on a weak PC. Past them, cheap shadowless far lights
 ## (Gfx `far_lights`) keep distant walls lit. The tube-light estimate that drives sanity, fog and the
 ## entity's sight (tube_light_at) is the same on every preset.
+##
+## Cost: the ranking reads only the tubes in the index squares round the player (level_fixtures.gd), sight lines
+## are kept per half cell (_look_from), and a light's energy or position is written only when it changes, so a
+## player standing still costs the renderer nothing here.
 
 signal slot_assigned(slot: int)                              # a light came into range (hum "notice")
 
@@ -156,19 +160,35 @@ func slot_position(i: int) -> Vector3:
 	var f = slot_fixture[i]
 	return Vector3.ZERO if f == null else f.light_pos
 
+## The tubes in reach, nearest first. Only the index squares round the player are read (level_fixtures.gd
+## fixtures_near), not every tube of the level; the ones the lights hold now are re-measured too, so a tube the
+## player left behind (a teleport, a fall) is let go.
 func _rank(p: Vector3) -> void:
 	var max_sq := SELECT_RADIUS * SELECT_RADIUS
 	var far_sq := FAR_RADIUS * FAR_RADIUS
 	_candidates.clear()
-	for f in lit:
-		var dx: float = f.pos.x - p.x
-		var dz: float = f.pos.z - p.z
-		f.dsq = dx * dx + dz * dz
-		f.wanted = false
-		f.far_wanted = false
-		if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
+	for held: Array in [slot_fixture, far_fixture]:
+		for f in held:
+			if f == null: continue
+			var hx: float = f.pos.x - p.x
+			var hz: float = f.pos.z - p.z
+			f.dsq = hx * hx + hz * hz
+			f.wanted = false
+			f.far_wanted = false
+	var span := _fx_span(p, FAR_RADIUS)
+	for x in range(span[0].x, span[1].x + 1):
+		for z in range(span[0].y, span[1].y + 1):
+			var sq = _fx_grid.get(Vector2i(x, z))
+			if sq == null: continue
+			for f: Dictionary in sq:
+				var dx: float = f.pos.x - p.x
+				var dz: float = f.pos.z - p.z
+				f.dsq = dx * dx + dz * dz
+				f.wanted = false
+				f.far_wanted = false
+				if f.dsq < far_sq and f.get("casts", true): _candidates.append(f)
 	_candidates.sort_custom(func(a, b): return a.dsq < b.dsq)
-	var eyes := _eyes(p)
+	_look_from(p)
 	# the far lights take over where the preset's lit cap stops (so a low preset still lights distant walls);
 	# they never cast shadows, so only tubes you can see (see HIDDEN_BOUNCE)
 	_far_candidates = []
@@ -176,16 +196,42 @@ func _rank(p: Vector3) -> void:
 	var scan_end := mini(_candidates.size(), i + _far_cap * FAR_SCAN)
 	while i < scan_end and _far_candidates.size() < _far_cap:
 		var fc: Dictionary = _candidates[i]
-		if _seen_from(eyes, fc):
+		if _seen(fc):
 			fc.far_wanted = true
 			_far_candidates.append(fc)
 		i += 1
 	var n := 0
 	while n < mini(_candidates.size(), POOL_SIZE) and _candidates[n].dsq < max_sq:
 		_candidates[n].wanted = true
-		_candidates[n].seen = _seen_from(eyes, _candidates[n])
+		_candidates[n].seen = _seen(_candidates[n])
 		n += 1
 	_candidates.resize(n)
+
+# Sight lines, cached. Each one is a walk across the grid, from up to five eyes, for up to 140 tubes, ten times
+# a second: most of what the pool cost. They are worked out from the middle of the half cell the player is in
+# (always inside the player's own cell) and kept until the player crosses into another half cell, so standing
+# or walking within one asks nothing again. (The eyes already reach half a cell to each side, so the middle of
+# the half cell sees what the player sees.)
+const SEEN_NONE := Vector2i(-(1 << 30), 0)
+var _seen_key := SEEN_NONE
+var _seen_of := {}                  # lit index -> bool, for the eyes at _seen_key
+var _look_eyes: Array = []
+
+func _look_from(p: Vector3) -> void:
+	var h := CELL * 0.5
+	var key := Vector2i(floori(p.x / h), floori(p.z / h))
+	if key == _seen_key: return
+	_seen_key = key
+	_seen_of.clear()
+	_look_eyes = _eyes(Vector3((key.x + 0.5) * h, p.y, (key.y + 0.5) * h))
+
+func _seen(f: Dictionary) -> bool:
+	var i: int = f.index
+	var v = _seen_of.get(i)
+	if v == null:
+		v = _seen_from(_look_eyes, f)
+		_seen_of[i] = v
+	return v
 
 ## Where the player can see from: their spot and half a cell to each open side (slack round corners)
 func _eyes(p: Vector3) -> Array:
@@ -229,6 +275,12 @@ static func _move(l: Node3D, p: Vector3) -> void:
 	if not l.global_position.is_equal_approx(p):
 		l.global_position = p
 
+## Set a light's energy only when it really changed: every write is a renderer update, and the pool has up to
+## 68 lights whose energy, once faded in, sits still
+static func _energy(l: Light3D, e: float) -> void:
+	if absf(l.light_energy - e) > 0.0005:
+		l.light_energy = e
+
 func _update_pool(delta: float) -> void:
 	var p := player.global_position
 	_rank_timer -= delta
@@ -260,15 +312,16 @@ func _update_pool(delta: float) -> void:
 	for i in POOL_SIZE:
 		var l := pool[i]
 		var f = slot_fixture[i]
-		slot_on[i] += ((1.0 if (f != null and slot_want[i]) else 0.0) - slot_on[i]) * k_on
+		# (the eases land on their target: a weight creeping by a hair forever rewrote every light every frame)
+		slot_on[i] = _ease_to(slot_on[i], 1.0 if (f != null and slot_want[i]) else 0.0, k_on)
 		var lb := pool_b[i]
 		if f == null:
-			l.light_energy = 0.0
+			_energy(l, 0.0)
 			l.visible = false
 			lb.visible = false
 			ceil_glow[i].visible = false
 			continue
-		slot_weight[i] += (slot_target[i] - slot_weight[i]) * k
+		slot_weight[i] = _ease_to(slot_weight[i], slot_target[i], k)
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
@@ -285,11 +338,11 @@ func _update_pool(delta: float) -> void:
 		var ceil_reach := clampf(1.0 - (ceil_gap - CEIL_GLOW_DROP) / (CEIL_GLOW_RANGE - CEIL_GLOW_DROP), 0.0, 1.0)
 		g.visible = l.visible and ceil_reach > 0.0
 		_move(g, Vector3(f.light_pos.x, ceil_h - CEIL_GLOW_DROP, f.light_pos.z))
-		g.light_energy = energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach
+		_energy(g, energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach)
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
 			_move(l, f.light_pos)
-			l.light_energy = energy
+			_energy(l, energy)
 			continue
 		# One light at each end of the tube, so the floor is lit along its whole length, not from a point. Only
 		# the first end can cast a shadow, and a shadowless twin next to it leaks through every wall round it,
@@ -303,8 +356,8 @@ func _update_pool(delta: float) -> void:
 		_move(l, f.light_pos + axis)
 		_move(lb, f.light_pos - axis)
 		var share := 0.5 * twin if lb.visible else 0.0
-		l.light_energy = energy * (1.0 - share)
-		lb.light_energy = energy * share
+		_energy(l, energy * (1.0 - share))
+		_energy(lb, energy * share)
 	_update_far(k)
 
 ## Every light the pool would fade in over the next half second, lit now: a floor that takes over under a
@@ -348,14 +401,14 @@ func _update_far(k: float) -> void:
 		if f == null:
 			fl.visible = false
 			continue
-		far_weight[i] += ((1.0 if f.far_wanted else 0.0) - far_weight[i]) * k
+		far_weight[i] = _ease_to(far_weight[i], 1.0 if f.far_wanted else 0.0, k)
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
 		var far_fade := 1.0 - t * t * (3.0 - 2.0 * t)
 		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * far_fade
 		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
-		fl.global_position = f.light_pos
-		fl.light_energy = energy
+		_move(fl, f.light_pos)
+		_energy(fl, energy)
 
 # ------------------------------------------------------- atmosphere (lighting.js)
 # How much working tube light reaches a point (0..1): the web game's bounce estimate
@@ -363,16 +416,30 @@ func tube_light_at(p: Vector3) -> float:
 	if stair_cells.has(cell_of(p)):          # a stairwell is lit by its own lamps
 		for s in stairwells:
 			if s.holds(p): return s.light_at(p)
+	# asked several times a frame for the same spot (the eye, the fog, the player's own light level): worked out once
+	var frame := Engine.get_process_frames()
+	if frame != _tla_frame:
+		_tla_frame = frame
+		_tla_memo.clear()
+	var hit = _tla_memo.get(p)
+	if hit != null: return hit
 	var sum := 0.0
 	for i in POOL_SIZE:
 		var f = slot_fixture[i]
 		if f == null: continue
+		var w: float = f.level * slot_weight[i]
+		if w < 0.001: continue               # (a dark slot adds nothing: no sight line to walk)
 		var dsq := (f.pos as Vector3).distance_squared_to(p)
 		# a tube behind a wall only reaches you by bouncing round (it used to count in full, so standing in a
 		# dark corridor beside a lit one read as lit: the eye adaptation, fog and sanity all got it wrong)
 		var seen := 1.0 if _line_clear(p, f.pos, true) else HIDDEN_BOUNCE
-		sum += f.level * slot_weight[i] * seen / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
-	return minf(1.0, sum / BOUNCE_FULL)
+		sum += w * seen / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
+	var out := minf(1.0, sum / BOUNCE_FULL)
+	if _tla_memo.size() < 64: _tla_memo[p] = out
+	return out
+
+var _tla_frame := -1
+var _tla_memo := {}                 # this frame's tube_light_at answers, by spot
 
 ## True when no wall cell lies between two points (half-cell steps across the grid). `see_carved`: door and
 ## thin-wall cells count as open (most of the cell is air; light gets past them)

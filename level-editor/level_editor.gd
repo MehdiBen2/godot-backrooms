@@ -24,8 +24,9 @@ const BG := Color("0d0c08")
 const PANEL := Color("16140d")
 const LINE := Color("3a3522")
 const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
-	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Most tubes dead", "flicker": "Failing tubes", "grime": "Stained carpet", "classic": "Super bright classic backrooms: steady glowing tubes, clear air",
-	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away",
+	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Dim: most tubes dead, the halls darker and foggier (your Dim look, pushed further)", "flicker": "Failing tubes", "grime": "Stained carpet",
+	"classic": "Classic: the Kane Pixels found-footage look. Every tube steady and glowing, flat overexposed mono-yellow,\nclear air, milky blacks. Filmed on the camcorder (VHS tape) while you stand in it, with the Camera setting on Auto",
+	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away. Filmed on the bodycam",
 	"mannequin": "Where the mannequins stand: paint as many areas as you like",
 	"safe": "Safe: no entity sets foot here. They path round it and are pushed out of it, though they still see in\n(and can reach in from its edge: keep away from the rim)",
 	"drain": "Drain: sanity runs out while you stand here, lit or not, torch or not",
@@ -37,7 +38,7 @@ const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling
 	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
-const ATMO_HELP := "dim = failing tubes, light dies in the fog (default)\nclassic = the whole level is a Classic zone: bright, steady, clear air\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into\nA ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
+const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
 var brush_label: Label

@@ -59,6 +59,16 @@ var _unit: BoxMesh
 var _sel_line: StandardMaterial3D
 var _sel_fill: StandardMaterial3D
 var _models := {}                        # object type -> {parts, mat, bounds} ({}: no model, drawn as a box)
+var env: Environment
+var sun: DirectionalLight3D
+## The level's atmosphere (the ATMOSPHERE picker), as a hint of how it will feel in the game: the background,
+## the fill light's colour and the sun. Kept bright enough to edit in; the game's real looks are in
+## scripts/Render/atmospheres.gd and main.tscn (dim). [background, ambient colour, ambient energy, sun colour, sun energy]
+const ATMO_PREVIEW := {
+	"dim": [Color("0d0c08"), Color("8a7a52"), 0.7, Color(1.0, 0.9, 0.7), 0.9],                   # warm, dark, foggy halls
+	"classic": [Color("6b5d2c"), Color("e8d27a"), 1.15, Color(1.0, 0.98, 0.9), 1.25],            # Kane Pixels: bright, flat yellow
+	"liminal": [Color("4a4a3c"), Color("c8ccb8"), 1.0, Color(0.95, 0.98, 0.9), 1.1],             # pale, cool, hazy
+}
 
 func _init(editor) -> void:
 	ed = editor
@@ -73,7 +83,7 @@ func _init(editor) -> void:
 	add_child(vp)
 	world = Node3D.new()
 	vp.add_child(world)
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color("0d0c08")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -82,7 +92,7 @@ func _init(editor) -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	vp.add_child(we)
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation = Vector3(-0.9, 0.6, 0.0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
@@ -363,7 +373,19 @@ func _wall_height(c: Vector2i) -> float:
 			if not ed.zones["low"].has(n): all_low = false
 	return (LOW_H if all_low else WALL_H) * vscale
 
+func _apply_atmosphere() -> void:
+	var a := "dim"
+	if ed.atmo_pick != null and ed.atmo_pick.selected >= 0:
+		a = ed.ATMOS[ed.atmo_pick.selected]
+	var p: Array = ATMO_PREVIEW.get(a, ATMO_PREVIEW.dim)
+	env.background_color = p[0]
+	env.ambient_light_color = p[1]
+	env.ambient_light_energy = p[2]
+	sun.light_color = p[3]
+	sun.light_energy = p[4]
+
 func _rebuild() -> void:
+	_apply_atmosphere()
 	_clear()
 	var n: int = ed.grid_size
 	var unit := _unit

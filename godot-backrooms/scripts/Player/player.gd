@@ -22,7 +22,7 @@ const GRAVITY := 20.0
 const DRAIN_ZONE_RATE := 4.5      # sanity a second lost in a Drain zone: more than a lit room gives back (2.2)
 const FALL_SPEED_MAX := 30.0     # m/s: a shaft can run through many floors (or have no bottom), each built as you reach it
 # A long fall: past FALL_FX_FROM m/s the view widens, shudders in the rushing air and streaks along the way you
-# are going (post.gdshader fall_blur), all of it full at FALL_FX_FULL (a bottomless pit's speed, pit_fall.gd)
+# are going (camera.gdshader fall_blur), all of it full at FALL_FX_FULL (a bottomless pit's speed, pit_fall.gd)
 const FALL_FX_FROM := 9.0
 const FALL_FX_FULL := 50.0
 const FALL_FOV := 13.0           # degrees added at full speed
@@ -548,7 +548,8 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
-	fov_flat = base_fov + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
+	# (Render.fov_boost: the bodycam's fisheye magnifies the middle of the picture; the render widens to give it back)
+	fov_flat = base_fov + Render.fov_boost + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
 	cam.fov = _zoomed_fov(fov_flat)
 
 ## The field of view through the camcorder's lens: `flat` narrowed by the magnification (a true zoom, so the

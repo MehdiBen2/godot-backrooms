@@ -142,6 +142,14 @@ func _cycle_row(title: String, key: String, opts: Array) -> Control:
 	gfx_refresh.append(func(): b.text = str(opts[_opt_index(opts, key)][1]).to_upper())
 	return _gfx_row(title, b)
 
+## A setting that lives outside the presets (Gfx.camera): steps through `opts` on each click
+func _choice_row(title: String, get_v: Callable, opts: Array, set_v: Callable, labels: Dictionary) -> Control:
+	var b := _link_button("")
+	b.custom_minimum_size = Vector2(96, 0)
+	b.pressed.connect(func(): set_v.call(opts[(opts.find(get_v.call()) + 1) % opts.size()]))
+	gfx_refresh.append(func(): b.text = str(labels.get(get_v.call(), get_v.call())).to_upper())
+	return _gfx_row(title, b)
+
 func _build_graphics() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 0)
@@ -173,6 +181,10 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("FPS limit", "fps", [[30, "30"], [60, "60"], [80, "80"], [100, "100"], [120, "120"], [0, "Unlimited"]]))
 	v.add_child(_cycle_row("Smooth motion", "smooth", off_on))
 	v.add_child(_cycle_row("Adaptive resolution", "adapt", off_on))
+
+	v.add_child(_section_title("CAMERA"))
+	v.add_child(_choice_row("Camera", func(): return Gfx.camera, Gfx.CAMERAS, func(x: String): Gfx.set_camera(x),
+		{"auto": "Auto", "bodycam": "Bodycam", "camcorder": "Camcorder"}))
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))

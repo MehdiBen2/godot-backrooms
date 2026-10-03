@@ -377,6 +377,8 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	rng.seed = _floor_seed()
 	fx.clear()
 	lit.clear()
+	_index_fixtures()                  # (empties it: nothing may stutter a torn-down floor's tubes)
+	_seen_key = SEEN_NONE
 	fill_lights.clear()
 	reflect_mmi = null
 	tubes_mm = null

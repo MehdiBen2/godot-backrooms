@@ -60,8 +60,14 @@ var preset := "high"            # a preset name, or "custom" once an option was 
 var fullscreen := false
 var compat := false             # OpenGL fallback renderer: no SSAO / SSR / volumetric fog / GI
 var post_mat: ShaderMaterial
-var _post_full: Shader
-var _post_lite: Shader          # same shader without the mip-mapped screen copy (cheaper)
+## Not a quality setting (presets leave it alone): which camera films the game (render_engine.gd)
+const CAMERAS := ["bodycam", "camcorder", "auto"]
+var camera := "bodycam"
+## Bumped when the default camera changes, so a saved old default doesn't override the new one
+const CAMERA_REV := 2
+const CAMERA_SHADER := "res://shaders/render/camera.gdshader"
+## [full, lite]. Lite: the same shader without the mip-mapped screen copy (cheaper, Low preset).
+var _post_shaders: Array = []
 ## Adaptive resolution: the live fraction of the preset scale (1.0 = no reduction), plus the
 ## frame-time sampler that moves it. Only ever drops below the preset, never above.
 var adapt_ratio := 1.0
@@ -189,13 +195,28 @@ func set_fullscreen(on: bool) -> void:
 func particle_scale() -> float:
 	return [0.45, 0.75, 1.0][clampi(int(s.get("post", 2)), 0, 2)]
 
-## ui.gd hands over the post-process material so quality changes can reach it
+func set_camera(c: String) -> void:
+	if c in CAMERAS and c != camera:
+		camera = c
+		_save()
+		changed.emit()
+
+## hud.gd hands over the post-process material so quality changes can reach it. The camera shader is built
+## here once with its cheaper no-mipmap twin, so a quality change is just a swap.
 func register_post(mat: ShaderMaterial) -> void:
 	post_mat = mat
-	_post_full = mat.shader
-	_post_lite = mat.shader.duplicate()
-	_post_lite.code = _post_lite.code.replace("filter_linear_mipmap", "filter_linear")
+	if _post_shaders.is_empty():
+		var sh := load(CAMERA_SHADER) as Shader
+		if sh == null:
+			push_error("graphics: %s did not load" % CAMERA_SHADER)
+			return
+		_post_shaders = _with_lite(sh)
 	_apply_post()
+
+static func _with_lite(sh: Shader) -> Array:
+	var lite: Shader = sh.duplicate()
+	lite.code = lite.code.replace("filter_linear_mipmap", "filter_linear")
+	return [sh, lite]
 
 ## World-side settings: environment effects and light shadows of the scene that is running
 func apply_scene(root: Node = null) -> void:
@@ -289,9 +310,20 @@ func _render_scale() -> void:
 	vp.fsr_sharpness = 0.1                # 0 = sharpest: FSR's own sharpening puts back what the upscale softens
 
 func _apply_post() -> void:
-	if post_mat == null:
+	if post_mat == null or _post_shaders.is_empty():
 		return
-	post_mat.shader = _post_full if s.post >= 1 else _post_lite
+	var want: Shader = _post_shaders[0] if s.post >= 1 else _post_shaders[1]
+	if post_mat.shader != want:
+		# carry every value already set (the lens dirt textures, the live effect levels) across the swap
+		var keep := {}
+		if post_mat.shader != null:
+			for u in post_mat.shader.get_shader_uniform_list():
+				var v = post_mat.get_shader_parameter(u.name)
+				if v != null:
+					keep[u.name] = v
+		post_mat.shader = want
+		for k in keep:
+			post_mat.set_shader_parameter(k, keep[k])
 	post_mat.set_shader_parameter("post_quality", s.post)
 
 func _commit() -> void:
@@ -331,6 +363,10 @@ func _load() -> void:
 			if typeof(v) == typeof(s[k]):
 				s[k] = v
 	fullscreen = bool(cf.get_value("gfx", "fullscreen", false))
+	# a settings file from before bodycam became the default holds the old default ("auto"): start on bodycam
+	if int(cf.get_value("gfx", "camera_rev", 0)) >= CAMERA_REV:
+		var c := str(cf.get_value("gfx", "camera", camera))
+		camera = c if c in CAMERAS else "bodycam"
 	if fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
@@ -343,6 +379,8 @@ func _save() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("gfx", "preset", preset)
 	cf.set_value("gfx", "fullscreen", fullscreen)
+	cf.set_value("gfx", "camera", camera)
+	cf.set_value("gfx", "camera_rev", CAMERA_REV)
 	for k in s:
 		cf.set_value("gfx", k, s[k])
 	cf.save(PATH)

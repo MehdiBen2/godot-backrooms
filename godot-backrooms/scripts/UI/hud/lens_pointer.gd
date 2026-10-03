@@ -1,5 +1,5 @@
 extends RefCounted
-## Where on the 3D render the mouse cursor really points. The post shader (shaders/post.gdshader) bends the
+## Where on the 3D render the mouse cursor really points. The camera shader (shaders/render/camera.gdshader) bends the
 ## picture through a barrel "fish eye" lens (plus zoom and skew), so a pixel of the screen shows a different
 ## spot of the undistorted render. This runs the shader's screen -> render mapping for the cursor, so a
 ## camera ray through the result lands on what is under the cursor. Used by the draw tools (draw_ui.gd).

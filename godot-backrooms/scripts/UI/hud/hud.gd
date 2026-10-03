@@ -74,7 +74,7 @@ func _ready() -> void:
 	post.set_anchors_preset(Control.PRESET_FULL_RECT)
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
-	mat.shader = load("res://shaders/post.gdshader")
+	mat.shader = load(Gfx.CAMERA_SHADER)       # the camera (render_engine.gd drives it)
 	if ResourceLoader.exists("res://textures/lens_dirt.png"):
 		mat.set_shader_parameter("lens_dirt_tex", load("res://textures/lens_dirt.png"))
 	if ResourceLoader.exists("res://textures/lens_smudge.png"):

@@ -52,44 +52,15 @@ void fragment() {
 }
 """
 
-## Level-wide looks. "dim" is what main.tscn's WorldEnvironment is tuned for; the others are where the
-## environment blends to while you stand in them (classic_mix: the Classic zone, or "atmosphere":
-## "classic" for the whole level). Tune the classic backrooms look here.
-##
-## "classic" is the found-footage look (the famous 1996 camcorder tape): a flat, evenly lit, overexposed
-## mono-yellow office, a bright ceiling, clear air, highlights that clip hard like a cheap CCD, and a camera
-## that meters, pumps and drifts on its own (_update_camcorder).
-const ATMOSPHERES := {
-	"classic": {
-		"ambient_energy": 0.85, "ambient_color": Color(0.42, 0.37, 0.14),   # richer mono-yellow fill, low enough that the lights still shape the walls
-		"exposure": 1.18, "tonemap_white": 2.6,       # a touch overexposed, punchier: panels clip white, walls stay readable
-		"glow_threshold": 1.15,                       # only the panels themselves bleed, not bright walls
-		# no bloom-everything and only a small wide halo: the far panels bunched up near the horizon used to
-		# merge into one glowing band across the ceiling
-		"glow_intensity": 1.0, "glow_bloom": 0.0, "glow_wide": 0.3,
-		"ssao_intensity": 1.2,                        # a bit more contact AO in corners and under the ceiling grid for depth
-		# the distance loses contrast toward a dim wall tone; a bright haze made everything far away glow
-		"haze": Color(0.4, 0.35, 0.16),
-	},
-	# "liminal" (the Liminal zone, or "atmosphere": "liminal") is an empty place in the middle of the night
-	# with every light left on: flat, shadowless, a little too bright and a little too pale, the far end of a
-	# hall dissolving into haze rather than dark so it seems to go on forever. It sits under "classic": the
-	# base look blends toward it first (liminal_mix), and a Classic / Bright zone takes over from there.
-	"liminal": {
-		"ambient_energy": 0.65, "ambient_color": Color(0.31, 0.3, 0.25),    # pale, washed-out fill: shadows go grey, not black
-		"exposure": 1.1, "tonemap_white": 2.4,        # a touch bright, highlights rolled off softly
-		"glow_threshold": 1.0, "glow_intensity": 0.85,
-		"glow_bloom": 0.06, "glow_wide": 0.35,        # a faint dreamy halo round the tubes
-		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow
-		"haze": Color(0.3, 0.29, 0.23),               # the distance fades to this
-		"fog": 0.2,                                   # share of the fog left: you see a long way, but not the end
-		"light": Color(0.95, 0.98, 0.9),              # cool fluorescent white with a hint of green
-	},
-}
+## Level-wide looks: "dim" is main.tscn's WorldEnvironment (the base), "liminal" and "classic" are where the
+## environment blends to while you stand in them. They live in the render engine: scripts/Render/atmospheres.gd.
+## (The found-footage camera that meters, pumps and drifts on its own in the classic look: _update_camcorder.)
+const Atmospheres := preload("res://scripts/Render/atmospheres.gd")
+var ATMOSPHERES: Dictionary = Atmospheres.LOOKS
 const FF_FOG := 0.05                # found footage: fog left at this share (clear air, far walls readable)
-const FF_CEIL_FILL := 0.2           # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader)
+const FF_CEIL_FILL := 0.3           # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader): a bright ceiling
 const VFOG_EMISSION := Color(0.035, 0.03, 0.015)   # main.tscn's volumetric fog emission (the dim look)
-const FF_BLACK_LIFT := 0.07         # found footage: camcorder black level (post.gdshader black_lift)
+const FF_BLACK_LIFT := 0.1          # found footage: camcorder black level (camera.gdshader black_lift): milky, never black
 # Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles
 const AE_KEY := 0.75                # meter reading that gives a gain of 1 (a typical lit hall)
 const AE_MIN := 0.55
@@ -129,10 +100,12 @@ var _wb_t := 0.0
 var _wb_corr := Vector3.ONE
 var _wb_noise := FastNoiseLite.new()
 var _ceil_fill := -1.0
+var _tube_col := Color(-1, -1, -1)  # the pool lights' colour as last written (forces the first write)
 var _horizon: MeshInstance3D
 var _horizon_mat: ShaderMaterial
 
 func build_lighting() -> void:
+	_tube_col = Color(-1, -1, -1)       # fresh lights: their colour must be written again
 	if panel_ceiling != null:
 		_place_panel_fixtures()
 		_build_panel_ceiling()
@@ -248,8 +221,13 @@ func _update_atmosphere(delta: float) -> void:
 	Game.fx_classic = classic_mix
 	if reflect_mmi != null:                                              # noclip under the map would show them as huge white panels
 		reflect_mmi.visible = player.global_position.y > 0.0
-	for l in pool + pool_b + far_pool + ceil_glow:                                   # stark white tubes in the classic zone, so the light reads against the yellow walls
-		l.light_color = LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix)
+	# stark white tubes in the classic zone, so the light reads against the yellow walls. Written only when it
+	# changes: it used to be set on all ~70 pooled lights every frame, each one a renderer update
+	var tube_col := LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix)
+	if not tube_col.is_equal_approx(_tube_col):
+		_tube_col = tube_col
+		for l in pool + pool_b + far_pool + ceil_glow:
+			l.light_color = tube_col
 	cam_mix = maxf(classic_mix, bright_mix * 0.7)
 	if dark.has(c):
 		za = 0.12; zf = 1.35
@@ -270,7 +248,7 @@ func _update_atmosphere(delta: float) -> void:
 		var target := _glare_now(cam)
 		glare += (target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
 	if Gfx.post_mat:
-		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (post.gdshader)
+		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (camera.gdshader)
 	_update_camcorder(delta, seen)
 	_blend_env(ATMOSPHERES.classic)
 	zf *= lerpf(1.0, ATMOSPHERES.liminal.fog, _lim)                  # liminal: thin air, the halls fade out slowly
