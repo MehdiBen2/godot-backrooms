@@ -54,6 +54,7 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/godo
 
 [rendering]
 
+rendering_device/driver.windows="d3d12"
 lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3
 textures/default_filters/anisotropic_filtering_level=4
 environment/ssao/quality=3
