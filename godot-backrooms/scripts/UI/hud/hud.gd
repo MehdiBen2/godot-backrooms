@@ -625,6 +625,7 @@ func _process(dt: float) -> void:
 		post_mat.set_shader_parameter("fx_shock", Game.fx_shock)
 		post_mat.set_shader_parameter("fx_blood", Game.fx_blood)
 		post_mat.set_shader_parameter("fx_static", Game.fx_static)
+		post_mat.set_shader_parameter("corrupt", Game.fx_corrupt)
 		post_mat.set_shader_parameter("fx_warp", Game.fx_warp)
 		post_mat.set_shader_parameter("fx_blink", Game.fx_blink)
 		post_mat.set_shader_parameter("exhaust", 0.8 if (player and player.get("exhausted")) else 0.0)

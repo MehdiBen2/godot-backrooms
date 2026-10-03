@@ -91,6 +91,10 @@ func _process(dt: float) -> void:
 	var gr: Color = a.grade
 	mat.set_shader_parameter("grade_digital", Vector3(gr.r, gr.g, gr.b))
 	mat.set_shader_parameter("iso", _sensor_gain())
+	# fluorescent banding (Gfx `banding`, the CAMERA menu): as strong as the tube light on the player, none outdoors
+	# (full strength under any ordinary lamp: the tube light on the player is rarely over a half)
+	var tubes := 0.0 if Game.outdoors else clampf(Game.fx_tubes * 2.5, 0.0, 1.0)
+	mat.set_shader_parameter("banding", tubes if bool(Gfx.s.get("banding", true)) else 0.0)
 
 ## The camera that is drawing the frame: its field of view, and how fast its view is turning, as the speed the
 ## picture slides across the screen (what the rolling shutter and the motion blur need)

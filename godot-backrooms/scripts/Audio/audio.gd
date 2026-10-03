@@ -25,6 +25,7 @@ const HUM_HABITUATED := 0.45         # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0         # AUDIO.humHabituationTime
 const DRONE_BASE := 0.2
 const SLOT_GAIN := 0.3               # per-fixture hum voice gain
+const POP_UNSEEN := 8.0              # metres: a tube out of sight only clicks this close (level_light_pool.gd `seen`)
 const ONE_SHOTS := 8
 
 # Every bus the game owns. The scene is reloaded on each respawn but the AudioServer keeps its buses,
@@ -283,6 +284,10 @@ func _update_hum(dt: float) -> void:
 # ---------------------------------------------------------------- tube pops
 func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
 	if Game.outdoors or not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
+	# Only a tube you can see, or one right by you. A quarter of the tubes flicker on and off for good, and every
+	# one within the light pool's reach (26 m, round corners and behind walls too) used to pop: the same click
+	# over and over with no light to be seen doing it.
+	if not f.get("seen", true) and float(f.get("dsq", 0.0)) > POP_UNSEEN * POP_UNSEEN: return
 	var file := "tube_restrike.wav" if restrike else "tube_drop.wav"
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream(file)
@@ -290,7 +295,9 @@ func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
 	p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 	p.unit_size = 1.6
 	p.max_distance = 40.0
-	p.volume_linear = hum_mix * HUM_VOLUME * hum_user * 2.0
+	# no two clicks alike (one recording at one pitch, over and over, is heard as a loop)
+	p.pitch_scale = randf_range(0.88, 1.12)
+	p.volume_linear = hum_mix * HUM_VOLUME * hum_user * 2.0 * randf_range(0.65, 1.0)
 	add_child(p)
 	p.global_position = f.light_pos
 	occlude(p, true)

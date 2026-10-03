@@ -27,8 +27,56 @@ uniform float mid_fade_range : hint_range(2.0, 10.0) = 5.0;
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
 uniform vec3 world_shift = vec3(0.0);
+
+// How the carpet has lived (level_geometry.gd _floor_map): the floor plan, one texel a cell. r: a solid wall
+// block stands there, g: how much foot traffic the cell gets (corridors and doorways most, big halls little).
+//   - worn lanes: the pile flattened, darker and greyer down the middle of the walked routes, untouched along
+//     the walls (nobody walks there);
+//   - the grey line along the skirting (filtration soiling: air drawn under the skirting and the walls leaves
+//     its dust in the pile right at their foot);
+//   - big soft unevenness in colour, which also hides the texture's 2 m repeat.
+uniform sampler2D floor_map : filter_linear, repeat_disable;
+uniform float map_cells = 0.0;          // the map's size in cells (0: no map)
+uniform float map_cell = 4.5;           // level_data.gd CELL
+uniform float wear_amount = 1.0;
+uniform float edge_soil = 1.0;
+uniform float macro_vary = 1.0;
+
 varying vec3 v_world_pos;
 varying vec2 v_uv;
+
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+		mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// Metres from `p` (floor plan, world) to the nearest solid wall block round its cell (99 when none is next to it)
+float wall_dist(vec2 p) {
+	vec2 cf = p / map_cell;
+	ivec2 ci = ivec2(round(cf));
+	vec2 loc = (cf - vec2(ci)) * map_cell;
+	float d = 99.0;
+	int n = int(map_cells);
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dz = -1; dz <= 1; dz++) {
+			ivec2 nc = ci + ivec2(dx, dz);
+			if ((dx == 0 && dz == 0) || nc.x < 0 || nc.y < 0 || nc.x >= n || nc.y >= n) continue;
+			if (texelFetch(floor_map, nc, 0).r < 0.5) continue;
+			vec2 q = abs(loc - vec2(float(dx), float(dz)) * map_cell) - map_cell * 0.5;
+			d = min(d, length(max(q, vec2(0.0))));
+		}
+	}
+	return d;
+}
 
 void vertex() {
 	v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
@@ -95,6 +143,22 @@ void fragment() {
 
 	float crevice_occ = 1.0 - pow(final_depth, 1.3) * crevice_ao_strength;
 	float final_ao = clamp(base_ao * crevice_occ, 0.0, 1.0);
+
+	vec2 fp = v_world_pos.xz;
+	float macro = vnoise(fp / 5.5) * 0.6 + vnoise(fp / 1.7 + 13.0) * 0.4;
+	alb.rgb *= 1.0 + (macro - 0.5) * 0.12 * macro_vary;
+	alb.b *= 1.0 + (vnoise(fp / 9.0 + 7.0) - 0.5) * 0.06 * macro_vary;
+	if (map_cells > 0.5) {
+		float dw = wall_dist(fp);
+		float wear = texture(floor_map, (fp / map_cell + 0.5) / map_cells).g * smoothstep(0.3, 1.4, dw);
+		wear = clamp(wear * (0.7 + 0.6 * vnoise(fp * 0.8 + 3.0)) * wear_amount, 0.0, 1.0);
+		float lum = dot(alb.rgb, vec3(0.3333));
+		alb.rgb = mix(alb.rgb, vec3(lum) * vec3(0.98, 0.95, 0.9), wear * 0.25) * (1.0 - 0.16 * wear);
+		active_normal_depth *= 1.0 - 0.45 * wear;
+		rough *= 1.0 - 0.08 * wear;
+		float soil = (1.0 - smoothstep(0.02, 0.1, dw)) * (0.6 + 0.4 * vnoise(fp * 3.0)) * edge_soil;
+		alb.rgb *= 1.0 - 0.4 * soil;
+	}
 
 	ALBEDO = alb.rgb * mix(vec3(0.85), vec3(1.0), 1.0 - final_depth * 0.4);
 	NORMAL_MAP = textureGrad(normal_tex, uv, uv_dx, uv_dy).rgb;

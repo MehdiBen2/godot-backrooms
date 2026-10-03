@@ -37,12 +37,14 @@ func build_geometry() -> void:
 	_build_surfaces()
 	_build_walls()
 	_build_objects()
+	call("_build_trim")                  # (level_trim.gd, the layer over this one: skirting, fittings, wear)
 	_build_ceiling_steps()
 	_build_pit_shafts()
 	_build_dirt()
 
 ## The level's shared materials, before anything is built with them
 func _make_materials() -> void:
+	_floor_map_tex = null                # (this floor's plan: built with its first carpet)
 	_pit_materials()
 	_shaft_mat = null
 	panel_ceiling = _panel_ceiling_material()
@@ -311,7 +313,55 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("crevice_ao_strength", 0.6)
 	sm.set_shader_parameter("mid_distance", 30.0)
 	sm.set_shader_parameter("mid_fade_range", 5.0)
+	if _floor_map_tex == null: _floor_map_tex = _floor_map()
+	sm.set_shader_parameter("floor_map", _floor_map_tex)
+	sm.set_shader_parameter("map_cells", float(size))
+	sm.set_shader_parameter("map_cell", CELL)
 	return sm
+
+## The floor plan the carpet wears by (carpet_pom.gdshader), one texel a cell. r: a solid wall block (the carpet
+## greys along its foot), g: foot traffic. People keep to the middle of corridors, all go through a doorway, and
+## spread out across a big room, so the fewer open cells round a cell (5 x 5) the more it is walked; then
+## smoothed over its neighbours so a lane runs on round a corner. Counted with summed-area tables: a big level
+## is tens of thousands of cells.
+var _floor_map_tex: ImageTexture
+func _floor_map() -> ImageTexture:
+	var n := size
+	var w := n + 1
+	var on_floor := func(c: Vector2i) -> bool: return not _block_at(c) and not stair_cells.has(c) and not pits.has(c)
+	var sat := PackedInt32Array()
+	sat.resize(w * w)
+	for z in n:
+		for x in n:
+			var v := 1 if on_floor.call(Vector2i(x, z)) else 0
+			sat[(z + 1) * w + x + 1] = v + sat[z * w + x + 1] + sat[(z + 1) * w + x] - sat[z * w + x]
+	var box_sum := func(t: PackedFloat32Array, x0: int, z0: int, x1: int, z1: int) -> float:
+		x0 = clampi(x0, 0, n); z0 = clampi(z0, 0, n); x1 = clampi(x1, 0, n); z1 = clampi(z1, 0, n)
+		return t[z1 * w + x1] - t[z0 * w + x1] - t[z1 * w + x0] + t[z0 * w + x0]
+	var satf := PackedFloat32Array()
+	satf.resize(w * w)
+	for i in w * w: satf[i] = sat[i]
+	var traffic := PackedFloat32Array()
+	traffic.resize(w * w)               # summed-area table of the raw traffic, for the smoothing
+	for z in n:
+		for x in n:
+			var t := 0.0
+			if on_floor.call(Vector2i(x, z)):
+				var open_round: float = box_sum.call(satf, x - 2, z - 2, x + 3, z + 3) - 1.0
+				t = clampf((16.0 - open_round) / 12.0, 0.15, 1.0)
+				if carved.has(Vector2i(x, z)): t = 1.0         # a doorway: everyone passes through it
+			traffic[(z + 1) * w + x + 1] = t + traffic[z * w + x + 1] + traffic[(z + 1) * w + x] - traffic[z * w + x]
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for z in n:
+		for x in n:
+			var c := Vector2i(x, z)
+			var solid := _block_at(c) or stair_cells.has(c)
+			var g := 0.0
+			if on_floor.call(c):
+				var cnt: float = box_sum.call(satf, x - 1, z - 1, x + 2, z + 2)
+				g = box_sum.call(traffic, x - 1, z - 1, x + 2, z + 2) / maxf(cnt, 1.0)
+			img.set_pixel(x, z, Color(1.0 if solid else 0.0, g, 0.0, 1.0))
+	return ImageTexture.create_from_image(img)
 
 const AcousticCeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
 
@@ -574,25 +624,91 @@ func _build_walls() -> void:
 			var ch := Vector2i(c.x / 8, c.y / 8)
 			chunks.get_or_add(ch, []).append(c)
 		for ch in chunks:
-			var ch_list: Array = chunks[ch]
-			var mm := MultiMesh.new()
-			mm.transform_format = MultiMesh.TRANSFORM_3D
-			var box := BoxMesh.new()
-			box.size = Vector3(CELL, height, CELL)
-			mm.mesh = box
-			mm.instance_count = ch_list.size()
-			var buf := MMBuffer.alloc(mm)
-			var st := MMBuffer.stride(mm)
-			for i in ch_list.size():
-				var c: Vector2i = ch_list[i]
-				MMBuffer.put_at(buf, i * st, Vector3(c.x * CELL, height / 2.0, c.y * CELL))
-			mm.buffer = buf
-			var mmi := MultiMeshInstance3D.new()
-			mmi.multimesh = mm
-			mmi.material_override = mat
-			# No visibility_range: it measures to the chunk's AABB centre, so walls in plain view down a
-			# long corridor dithered out. Unseen chunks are already dropped by frustum + occlusion culling.
-			add_child(mmi)
+			# a block standing out into the room gets its outside corners rounded (_wall_block), so they are
+			# grouped by which of its edges those are
+			var by_shape := {}
+			for c: Vector2i in chunks[ch]:
+				by_shape.get_or_add(_outer_corners(c), []).append(c)
+			for shape: int in by_shape:
+				var ch_list: Array = by_shape[shape]
+				var mm := MultiMesh.new()
+				mm.transform_format = MultiMesh.TRANSFORM_3D
+				mm.mesh = _wall_block(height, shape)
+				mm.instance_count = ch_list.size()
+				var buf := MMBuffer.alloc(mm)
+				var st := MMBuffer.stride(mm)
+				for i in ch_list.size():
+					var c: Vector2i = ch_list[i]
+					MMBuffer.put_at(buf, i * st, Vector3(c.x * CELL, height / 2.0, c.y * CELL))
+				mm.buffer = buf
+				var mmi := MultiMeshInstance3D.new()
+				mmi.multimesh = mm
+				mmi.material_override = mat
+				# No visibility_range: it measures to the chunk's AABB centre, so walls in plain view down a
+				# long corridor dithered out. Unseen chunks are already dropped by frustum + occlusion culling.
+				add_child(mmi)
+
+## Real outside corners are never knife sharp: the drywall's corner bead rounds them, and the rounded edge
+## catches the light in a soft line down the corner. The four vertical edges of wall block `c` that are outside
+## corners (both sides and the cell across the corner open), as bits in _wall_block's order: +x+z, -x+z,
+## -x-z, +x-z. An edge another block meets stays square, or a straight wall would show a notch at every joint.
+const CORNER_ROUND := 0.025         # metres
+const CORNER_SIGNS := [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(-1, -1), Vector2i(1, -1)]
+func _outer_corners(c: Vector2i) -> int:
+	var m := 0
+	for k in 4:
+		var s: Vector2i = CORNER_SIGNS[k]
+		if not (_block_at(c + Vector2i(s.x, 0)) or _block_at(c + Vector2i(0, s.y)) or _block_at(c + s)): m |= 1 << k
+	return m
+
+## A wall block CELL square and `height` tall (centred, like the BoxMesh it replaces) with the vertical edges in
+## `round_mask` rounded. No bottom (it stands on the floor) and no UVs (the wall materials are world triplanar).
+var _blocks := {}
+func _wall_block(height: float, round_mask: int) -> Mesh:
+	var key := "%s|%d" % [height, round_mask]
+	if _blocks.has(key): return _blocks[key]
+	var mesh: Mesh
+	if round_mask == 0:
+		var box := BoxMesh.new()
+		box.size = Vector3(CELL, height, CELL)
+		mesh = box
+	else:
+		# the plan's outline, corner by corner round the block: [point, normal before it, normal after it]
+		var hc := CELL * 0.5
+		var r := CORNER_ROUND
+		var ring: Array = []
+		for k in 4:
+			var s: Vector2i = CORNER_SIGNS[k]
+			var mid := PI * 0.25 + PI * 0.5 * k
+			if round_mask & (1 << k):
+				var ctr := Vector2(s.x * (hc - r), s.y * (hc - r))
+				for j in 5:
+					var a := mid - PI * 0.25 + PI * 0.5 * j / 4.0
+					var nrm := Vector2(cos(a), sin(a))
+					ring.append([ctr + nrm * r, nrm, nrm])
+			else:
+				var a0 := mid - PI * 0.25
+				var a1 := mid + PI * 0.25
+				ring.append([Vector2(s.x * hc, s.y * hc), Vector2(cos(a0), sin(a0)).round(), Vector2(cos(a1), sin(a1)).round()])
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var lo := -height * 0.5
+		var hi := height * 0.5
+		var top := Vector3(0.0, hi, 0.0)
+		for i in ring.size():
+			var a: Array = ring[i]
+			var b: Array = ring[(i + 1) % ring.size()]
+			var pa := Vector3(a[0].x, 0.0, a[0].y)
+			var pb := Vector3(b[0].x, 0.0, b[0].y)
+			var na := Vector3(a[2].x, 0.0, a[2].y)
+			var nb := Vector3(b[1].x, 0.0, b[1].y)
+			if pa.distance_to(pb) > 0.0001:
+				_quad(st, [pa + Vector3(0, lo, 0), pb + Vector3(0, lo, 0), pb + Vector3(0, hi, 0), pa + Vector3(0, hi, 0)],
+					[na, nb, nb, na], (na + nb).normalized())
+				_quad(st, [top, pa + Vector3(0, hi, 0), pb + Vector3(0, hi, 0), top], [Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP], Vector3.UP)
+		mesh = st.commit()
+	_blocks[key] = mesh
+	return mesh
 
 ## Wall collision: the exposed blocks of each height merged into large boxes per chunk (see _merge_rects)
 ## instead of one box per block. Buried blocks (walled in on every side, never drawn) are filler: they

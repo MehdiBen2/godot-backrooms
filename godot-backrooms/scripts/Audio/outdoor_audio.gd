@@ -7,11 +7,17 @@ extends Node
 ## They sit on the "Ambience" bus, which audio.gd / ambience.gd hold open outdoors (no corridor muffle).
 ## The clips were mastered at very different loudnesses, so each has a gain measured to land the beds
 ## around -36 .. -40 dBFS RMS, under the footsteps.
+## Now and then the air goes dead calm (CALM_CHANCE per gust): the wind drops to almost nothing and the
+## birds / crickets fall back for a while, then it all comes back.
 
 const DIR := "res://audio/ambients/outdoor/"
 const FOREST_GAIN := 7.0              # raw -53 dB RMS
 const CRICKET_GAIN := 0.9             # raw -36.5 dB
 const WIND_GAIN := 0.08               # raw -18 dB
+const CALM_CHANCE := 0.15
+const CALM_MIN := 20.0
+const CALM_MAX := 60.0
+const CALM_LIFE := 0.4                # the forest / cricket level through a dead calm
 
 var audio: Node
 var forest: AudioStreamPlayer
@@ -20,6 +26,8 @@ var wind: AudioStreamPlayer
 var gust := 0.5
 var gust_target := 0.5
 var gust_timer := 4.0
+var calm := false
+var life := 1.0                       # eased forest / cricket level (CALM_LIFE in a dead calm)
 
 func _ready() -> void:
 	audio = get_parent()
@@ -59,11 +67,17 @@ func _process(dt: float) -> void:
 	var night := 1.0 - smoothstep(0.15, 0.6, Game.day_light)
 	gust_timer -= dt
 	if gust_timer <= 0.0:
-		gust_timer = randf_range(4.0, 10.0)
-		gust_target = randf_range(0.15, 1.0)
-	gust += (gust_target - gust) * (1.0 - exp(-dt / 2.5))
+		calm = not calm and randf() < CALM_CHANCE        # never two calms back to back
+		if calm:
+			gust_timer = randf_range(CALM_MIN, CALM_MAX)
+			gust_target = 0.03
+		else:
+			gust_timer = randf_range(4.0, 10.0)
+			gust_target = randf_range(0.15, 1.0)
+	gust += (gust_target - gust) * (1.0 - exp(-dt / (6.0 if calm else 2.5)))
+	life += ((CALM_LIFE if calm else 1.0) - life) * (1.0 - exp(-dt / 5.0))
 	var user: float = audio.vol.ambient
-	forest.volume_linear = FOREST_GAIN * day * o * user
-	crickets.volume_linear = CRICKET_GAIN * night * o * user
-	wind.volume_linear = WIND_GAIN * (0.35 + 0.65 * gust) * lerpf(1.0, 1.3, night) * o * user
+	forest.volume_linear = FOREST_GAIN * day * life * o * user
+	crickets.volume_linear = CRICKET_GAIN * night * life * o * user
+	wind.volume_linear = WIND_GAIN * (0.35 + 0.65 * gust) * life * lerpf(1.0, 1.3, night) * o * user
 	wind.pitch_scale = 0.95 + 0.1 * gust

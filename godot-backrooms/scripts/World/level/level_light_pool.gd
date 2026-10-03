@@ -21,7 +21,7 @@ const POOL_SIZE := 12
 const SELECT_RADIUS := 26.0
 const FADE_START := 18.0
 # Far lights: past the main pool every tube you can see still lights the walls round it. Cheap, shadowless,
-# short-ranged point lights (Forward+ clusters them) on the next nearest tubes out to FAR_RADIUS; how many
+# short-ranged spots like the near ones (Forward+ clusters them) on the next nearest tubes out to FAR_RADIUS; how many
 # comes from the graphics preset (Gfx `far_lights`). Same range and falloff as the near lights, so a wall
 # 30 m away is lit exactly like the same wall up close (anything else reads as a flat, fake distance).
 const FAR_MAX := 32
@@ -60,8 +60,12 @@ const TUBE_LIGHT_SIZE := 0.5        # metres: a troffer (Godot's emitter is a sp
 const PANEL_ENERGY := 1.9
 const PANEL_RANGE := 16.0
 # ---- light pool
-var pool: Array[OmniLight3D] = []
-var pool_b: Array[OmniLight3D] = []     # a twin for each slot: the two ends of the long tube (Godot has no area lights)
+# Spots pointing straight down, their cone like a diffuser's spread (level_fixtures.gd SPOT_ANGLE): a troffer
+# lights the room under it, not the ceiling round it or the top of the wall beside it
+var pool: Array[SpotLight3D] = []
+var pool_b: Array[SpotLight3D] = []     # a twin for each slot: the two ends of the long tube (Godot has no area lights)
+## The tubes' white for the zone the player is in (level_lighting.gd); each light takes it times its own lamp's
+var tube_color := LIGHT_COLOR
 const TWIN_RANGE := 15.0              # metres: beyond this only one light per tube
 const TUBE_HALF := 0.65                # metres from the fixture centre to each end light
 var slot_fixture: Array = []       # fixture Dictionary or null
@@ -75,7 +79,7 @@ var _candidates: Array = []
 var _lit_cap := POOL_SIZE
 var _shadow_cap := 4
 
-var far_pool: Array[OmniLight3D] = []
+var far_pool: Array[SpotLight3D] = []
 var ceil_glow: Array[OmniLight3D] = []   # one per pool slot: lights only the ceiling layer
 var far_fixture: Array = []        # fixture Dictionary or null
 var far_weight: Array[float] = []
@@ -94,29 +98,34 @@ func _read_quality() -> void:
 	_rank_timer = 0.0
 
 # ---------------------------------------------------------------- light pool
+## A ceiling lamp's light: a spot hung pointing straight down (its -Z), shadowless and dark until a tube takes it
+func _lamp_light() -> SpotLight3D:
+	var l := SpotLight3D.new()
+	l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	l.light_color = LIGHT_COLOR
+	l.spot_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
+	l.spot_attenuation = 1.4
+	l.spot_angle = SPOT_ANGLE
+	l.spot_angle_attenuation = SPOT_SOFT
+	l.light_energy = 0.0
+	l.shadow_enabled = false
+	l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)     # the ceiling gets its glow from ceil_glow instead (no hotspot)
+	l.visible = false
+	l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
+	return l
+
 func _build_light_pool() -> void:
 	for i in POOL_SIZE:
-		var l := OmniLight3D.new()
-		l.light_color = LIGHT_COLOR
+		var l := _lamp_light()
 		l.light_size = 0.0                   # set by _read_quality (soft area-light shadows on High / Ultra)
-		# Cube shadows. Dual paraboloid is cheaper (2 renders instead of 6) but it warps the shadow map and only
-		# gets it right at mesh vertices: the walls here are big boxes with a handful of vertices, so the
-		# straight edge of a thin wall threw a curved, banana-shaped shadow onto the wall beside it. Only the
-		# nearest `light_shadows` tubes cast at all (Gfx preset), which is where that cost is controlled.
-		l.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
-		l.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
-		l.omni_attenuation = 1.4
-		l.light_energy = 0.0
-		l.shadow_enabled = false
+		# A spot's shadow is one map (an omni's took six renders, and dual paraboloid bent the straight edge of
+		# a thin wall into a banana-shaped shadow). Only the nearest `light_shadows` tubes cast at all (Gfx preset).
 		l.shadow_bias = 0.04
 		l.shadow_normal_bias = 1.2
 		l.shadow_blur = 1.6
-		l.visible = false
-		l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)     # the ceiling gets its glow from ceil_glow instead (no hotspot)
-		l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 		add_child(l)
 		pool.append(l)
-		var lb := l.duplicate() as OmniLight3D           # the tube's other end; unshadowed (only the first casts)
+		var lb := l.duplicate() as SpotLight3D           # the tube's other end; unshadowed (only the first casts)
 		lb.set_meta("gfx_managed", true)
 		add_child(lb)
 		pool_b.append(lb)
@@ -138,15 +147,7 @@ func _build_light_pool() -> void:
 		add_child(g)
 		ceil_glow.append(g)
 	for i in FAR_MAX:
-		var fl := OmniLight3D.new()
-		fl.light_color = LIGHT_COLOR
-		fl.omni_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
-		fl.omni_attenuation = 1.4
-		fl.shadow_enabled = false
-		fl.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)
-		fl.light_energy = 0.0
-		fl.visible = false
-		fl.set_meta("gfx_managed", true)
+		var fl := _lamp_light()
 		add_child(fl)
 		far_pool.append(fl)
 		far_fixture.append(null)
@@ -352,9 +353,15 @@ func _update_pool(delta: float) -> void:
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var cast: float = 0.0 if f.black > 0.0 else f.level      # a dead tube keeps a faint ember but lights nothing
-		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
+		var cast := lamp_out(f)          # (a dead tube keeps a faint ember but lights nothing)
+		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * SPOT_GAIN * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
+		# its own lamp's white (written only when it changes: a slot taking a new tube, the zone's white moving)
+		var col: Color = tube_color * (f.get("warm", Color.WHITE) as Color)
+		if not l.light_color.is_equal_approx(col):
+			l.light_color = col
+			lb.light_color = col
+			ceil_glow[i].light_color = col
 		_glow_real(f, "rw_slot", slot_weight[i] * dist_fade * slot_on[i])     # the fake floor light gives way to this one
 		var g := ceil_glow[i]
 		# the halo only reads as "coming from this fixture" while its real ceiling is close enough
@@ -365,7 +372,7 @@ func _update_pool(delta: float) -> void:
 		var ceil_reach := clampf(1.0 - (ceil_gap - CEIL_GLOW_DROP) / (CEIL_GLOW_RANGE - CEIL_GLOW_DROP), 0.0, 1.0)
 		g.visible = l.visible and ceil_reach > 0.0
 		_move(g, Vector3(lp.x, ceil_h - CEIL_GLOW_DROP, lp.z))
-		_energy(g, energy * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach)
+		_energy(g, energy / SPOT_GAIN * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach)
 		if panels_mm:                        # square panels: one point light, no tube ends
 			lb.visible = false
 			_move(l, lp)
@@ -421,7 +428,7 @@ func _assign_far() -> void:
 
 func _update_far(k: float) -> void:
 	var fade_range := FAR_RADIUS - FAR_FADE
-	var base := PANEL_ENERGY if panels_mm else LIGHT_ENERGY
+	var base := (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * SPOT_GAIN
 	for i in FAR_MAX:
 		var fl := far_pool[i]
 		var f = far_fixture[i]
@@ -431,9 +438,11 @@ func _update_far(k: float) -> void:
 		far_weight[i] = _ease_to(far_weight[i], 1.0 if f.far_wanted else 0.0, k)
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
 		var far_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * (0.0 if f.black > 0.0 else f.level) * far_weight[i] * far_fade
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * lamp_out(f) * far_weight[i] * far_fade
 		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
+		var col: Color = tube_color * (f.get("warm", Color.WHITE) as Color)
+		if not fl.light_color.is_equal_approx(col): fl.light_color = col
 		_move(fl, f.light_pos + _img(f))
 		_energy(fl, energy)
 
@@ -454,7 +463,7 @@ func tube_light_at(p: Vector3) -> float:
 	for i in POOL_SIZE:
 		var f = slot_fixture[i]
 		if f == null: continue
-		var w: float = f.level * slot_weight[i]
+		var w: float = lamp_out(f) * slot_weight[i]
 		if w < 0.001: continue               # (a dark slot adds nothing: no sight line to walk)
 		var at: Vector3 = wrap_near(f.pos, p)       # (across the seam of an endless level: its nearest copy)
 		var dsq := at.distance_squared_to(p)

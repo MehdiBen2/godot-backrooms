@@ -372,7 +372,7 @@ func _event_power_cut() -> void:
 		later(POWER_CUT_SECONDS, func(): scares.grid_on()))
 
 # ---------------------------------------------------------------- preacher whisper
-# A Mandela Catalogue-style preacher voice from down a corridor, drifting closer
+# A Mandela Catalogue-style preacher voice from far down a corridor, behind the walls (preacher.gd)
 func _event_preacher(forced: int) -> Dictionary:
 	var corridor := find_corridor_spot(11.0, 24.0)
 	var variant := clampi(forced, 0, 5) if forced >= 0 else rng.randi() % 6

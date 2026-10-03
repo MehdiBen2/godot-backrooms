@@ -58,6 +58,40 @@ vec2 hash22(vec2 p) {
 	return fract((p3.xx + p3.yz) * p3.zy);
 }
 
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+		mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+
+// A leak stain: a yellowed blotch with brown tide lines round it (see drop_ceiling.gdshader, the same stains)
+vec2 leak(vec2 w, float aa) {
+	vec2 reg = floor(w / 3.0);
+	if (hash12(reg + 151.0) > 0.18) return vec2(0.0);
+	vec2 c = (reg + 0.5 + (vec2(hash12(reg + 7.0), hash12(reg + 13.0)) - 0.5) * 0.23) * 3.0;
+	float r = 0.25 + 0.4 * hash12(reg + 29.0);
+	vec2 q = (w - c) * vec2(1.0, 0.8 + 0.4 * hash12(reg + 41.0));
+	float wob = vnoise(w * 2.4 + reg * 5.0) * 0.6 + vnoise(w * 7.0 + reg * 3.0) * 0.4;
+	float d = length(q) + (wob - 0.5) * r * 0.45 - r;          // metres outside the edge (< 0 inside)
+	aa = max(aa, 0.003);
+	// the water sat longest at its edge: the brown gathers there, patchy, and fades toward the middle
+	float inside = 1.0 - smoothstep(-aa, aa, d);
+	float body = inside * (0.3 + 0.7 * smoothstep(-r * 0.7, 0.0, d)) * (0.55 + 0.45 * vnoise(w * 9.0 + reg * 7.0));
+	// one tide line where it stopped: uneven in width and broken along its length, never a drawn circle
+	float run = vnoise(w * 5.0 + reg * 2.0);
+	float wdt = 0.003 + 0.008 * run;
+	float line = (1.0 - smoothstep(wdt - aa, wdt + aa, abs(d))) * smoothstep(0.15, 0.55, run);
+	// and on some, a fainter one from an older leak, a little further out and off true with this one
+	if (hash12(reg + 61.0) < 0.4) {
+		float d2 = d - r * (0.1 + 0.12 * hash12(reg + 71.0)) - (vnoise(w * 3.1 + reg * 4.0) - 0.5) * r * 0.3;
+		float run2 = vnoise(w * 4.0 - reg * 3.0);
+		line = max(line, (1.0 - smoothstep(0.003 - aa, 0.003 + aa, abs(d2))) * 0.4 * smoothstep(0.35, 0.7, run2));
+	}
+	return vec2(body, line) * (0.55 + 0.45 * hash12(reg + 57.0));
+}
+
 // Smooth value noise of random vec3s (xy = normal slope, z = albedo speckle), -1..1, in cell units
 vec3 grain_noise(vec2 g) {
 	vec2 i = floor(g);
@@ -98,6 +132,11 @@ void fragment() {
 	vec2 tile = floor(tuv * 6.0);
 	vec3 shade = vec3(1.0 + (hash12(tile) - 0.5) * 2.0 * tile_vary);
 	if (hash12(tile + 17.3) < stained) shade *= vec3(0.98, 0.93, 0.8);
+	// far off a tile shrinks to a few pixels and its own shade flickers from pixel to pixel: settle it
+	float tpp = max(length(dFdx(tuv)), length(dFdy(tuv))) * 6.0;
+	shade = mix(vec3(0.999, 0.996, 0.988), shade, 1.0 - smoothstep(0.08, 0.25, tpp));
+	vec2 lk = leak(world, length(fwidth(world)));
+	shade *= mix(vec3(1.0), vec3(0.95, 0.9, 0.77), lk.x * 0.7) * mix(vec3(1.0), vec3(0.7, 0.58, 0.4), lk.y);
 	ALBEDO = texture(albedo_tex, tuv).rgb * albedo_tint * shade;
 
 	float rail = 1.0 - smoothstep(0.38, 0.45, rough);     // T-bar face

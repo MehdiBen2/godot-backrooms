@@ -185,6 +185,7 @@ func _build_graphics() -> Control:
 	v.add_child(_section_title("CAMERA"))
 	v.add_child(_choice_row("Camera", func(): return Gfx.camera, Gfx.CAMERAS, func(x: String): Gfx.set_camera(x),
 		{"auto": "Auto", "bodycam": "Bodycam", "camcorder": "Camcorder"}))
+	v.add_child(_cycle_row("Fluorescent banding", "banding", off_on))
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))

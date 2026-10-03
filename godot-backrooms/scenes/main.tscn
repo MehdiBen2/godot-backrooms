@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://b40evrxfctmfq" path="res://scripts/Entities/killer/killer.gd" id="16_jbj1t"]
 [ext_resource type="Script" path="res://scripts/Entities/grabber/grabber.gd" id="17_grabber"]
 [ext_resource type="Script" path="res://scripts/Entities/model_entity.gd" id="18_model_entity"]
+[ext_resource type="Script" path="res://scripts/Entities/burnt/burnt.gd" id="18_burnt"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -148,7 +149,7 @@ height = 2.9
 source_height = 4.456
 
 [node name="Burnt" type="Node3D" parent="."]
-script = ExtResource("18_model_entity")
+script = ExtResource("18_burnt")
 model = "res://models/entities/burnt/theburnt.glb"
 height = 4.5
 source_height = 0.978

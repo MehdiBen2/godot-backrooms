@@ -13,7 +13,6 @@ static func scare_paths() -> Array:
 	var paths := [
 		"res://audio/entity/scream.mp3", "res://audio/entity/mannequin_whisper.mp3",
 		"res://audio/events/preacher.mp3", "res://audio/tape_rip.wav",
-		"res://audio/ambients/hgoliya08-scary-sound-effect-298866.mp3",
 	]
 	for n in range(1, 31):
 		paths.append("res://audio/entity/entity_%d.wav" % n)

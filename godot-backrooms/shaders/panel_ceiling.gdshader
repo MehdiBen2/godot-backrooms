@@ -58,6 +58,32 @@ float vnoise(vec2 p) {
 		mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
+// A leak stain: a yellowed blotch with brown tide lines round it (see drop_ceiling.gdshader, the same stains)
+vec2 leak(vec2 w, float aa) {
+	vec2 reg = floor(w / 3.0);
+	if (hash12(reg + 151.0) > 0.18) return vec2(0.0);
+	vec2 c = (reg + 0.5 + (vec2(hash12(reg + 7.0), hash12(reg + 13.0)) - 0.5) * 0.23) * 3.0;
+	float r = 0.25 + 0.4 * hash12(reg + 29.0);
+	vec2 q = (w - c) * vec2(1.0, 0.8 + 0.4 * hash12(reg + 41.0));
+	float wob = vnoise(w * 2.4 + reg * 5.0) * 0.6 + vnoise(w * 7.0 + reg * 3.0) * 0.4;
+	float d = length(q) + (wob - 0.5) * r * 0.45 - r;          // metres outside the edge (< 0 inside)
+	aa = max(aa, 0.003);
+	// the water sat longest at its edge: the brown gathers there, patchy, and fades toward the middle
+	float inside = 1.0 - smoothstep(-aa, aa, d);
+	float body = inside * (0.3 + 0.7 * smoothstep(-r * 0.7, 0.0, d)) * (0.55 + 0.45 * vnoise(w * 9.0 + reg * 7.0));
+	// one tide line where it stopped: uneven in width and broken along its length, never a drawn circle
+	float run = vnoise(w * 5.0 + reg * 2.0);
+	float wdt = 0.003 + 0.008 * run;
+	float line = (1.0 - smoothstep(wdt - aa, wdt + aa, abs(d))) * smoothstep(0.15, 0.55, run);
+	// and on some, a fainter one from an older leak, a little further out and off true with this one
+	if (hash12(reg + 61.0) < 0.4) {
+		float d2 = d - r * (0.1 + 0.12 * hash12(reg + 71.0)) - (vnoise(w * 3.1 + reg * 4.0) - 0.5) * r * 0.3;
+		float run2 = vnoise(w * 4.0 - reg * 3.0);
+		line = max(line, (1.0 - smoothstep(0.003 - aa, 0.003 + aa, abs(d2))) * 0.4 * smoothstep(0.35, 0.7, run2));
+	}
+	return vec2(body, line) * (0.55 + 0.45 * hash12(reg + 57.0));
+}
+
 // In BRC_A's layout (6 x 6 tiles a cell, tile k centred at UV k / 6) the panels are tiles (1,1) (5,1) (1,5)
 // (5,5) and (3,3): the middle and the four diagonals (level_fixtures.gd PANEL_OFFSETS)
 bool is_panel_tile(ivec2 k) {
@@ -96,16 +122,27 @@ void fragment() {
 	if (hash12(tile + 17.3) < stained) shade *= vec3(0.97, 0.92, 0.78);
 	// a tilted tile: one side a touch brighter than the other
 	if (hash12(tile + 5.1) < tilted) shade *= 1.0 + dot(local, vec2(hash12(tile + 2.2), hash12(tile + 3.3)) - 0.5) * 0.22;
+	// far off a tile shrinks to a few pixels and what is picked per tile flickers from pixel to pixel: settle it
+	float keep = 1.0 - smoothstep(0.08, 0.25, max(length(dFdx(world)), length(dFdy(world))) / tile_size);
+	shade = mix(vec3(0.998, 0.995, 0.987), shade, keep);
 	// wide water stains: soft yellow-brown patches a few metres across, over many tiles at once
 	float blot = vnoise(world / 6.5) * 0.65 + vnoise(world / 2.2 + 31.0) * 0.35;
 	shade *= mix(vec3(1.0), vec3(0.93, 0.87, 0.72), smoothstep(0.58, 0.85, blot) * water_stains);
-	ALBEDO = textureGrad(albedo_tex, tuv, gx, gy).rgb * albedo_tint * mix(shade, vec3(1.0), panel * glow);
+	vec2 lk = leak(world, length(fwidth(world)));
+	shade *= mix(vec3(1.0), vec3(0.95, 0.9, 0.77), lk.x * 0.7) * mix(vec3(1.0), vec3(0.7, 0.58, 0.4), lk.y);
+	// the tiles sit in the grid a little above the T-bars' faces: a thin shadow just inside every bar (see
+	// drop_ceiling.gdshader), settling to its average far off
+	vec2 em = (0.5 - abs(local)) * tile_size;
+	float edge = min(em.x, em.y);
+	float recess = 1.0 - 0.32 * (1.0 - smoothstep(0.016, 0.045, edge)) * smoothstep(0.012, 0.018, edge);
+	recess = mix(0.985, recess, keep);
+	ALBEDO = textureGrad(albedo_tex, tuv, gx, gy).rgb * albedo_tint * mix(shade, vec3(1.0), panel * glow) * mix(recess, 1.0, panel * glow);
 	vec3 nm = textureGrad(normal_tex, tuv, gx, gy).rgb;
 	// a mirrored tile's bumps lean the other way
 	if (flip.x < 0.0) nm.r = 1.0 - nm.r;
 	if (flip.y < 0.0) nm.g = 1.0 - nm.g;
 	NORMAL_MAP = nm;
-	NORMAL_MAP_DEPTH = normal_depth;
+	NORMAL_MAP_DEPTH = normal_depth * mix(0.25, 1.0, keep);
 	AO = orm.r;
 	AO_LIGHT_AFFECT = ao_light_affect;
 	ROUGHNESS = max(orm.g, 0.55);         // painted steel T-bars and mineral tiles: matte, so a torch lights them

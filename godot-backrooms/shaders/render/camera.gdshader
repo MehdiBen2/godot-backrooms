@@ -52,6 +52,8 @@ uniform float threat = 0.0;
 uniform float glitch = 0.0;
 uniform float pulse = 0.0;
 uniform float classic = 0.0;
+uniform float corrupt = 0.0;           // 0..1 the recording breaking up into blocks (Game.fx_corrupt)
+uniform float banding = 0.0;          // fluorescent banding: 0 off, else how much tube light the picture is lit by
 uniform vec3 wb = vec3(1.0);
 uniform float black_lift = 0.0;
 uniform float exhaust = 0.0;
@@ -315,6 +317,56 @@ void fragment() {
 		col += (b1 * smoothstep(0.5, 0.95, dot(b1, LUMA)) * 0.05 + b2 * smoothstep(0.65, 1.0, dot(b2, LUMA)) * 0.025) * classic * vec3(1.0, 0.96, 0.82);
 		col = mix(col, vec3(dot(col, LUMA)), 0.16 * classic);
 		col = mix(col, col * vec3(1.0, 0.99, 0.88) + vec3(0.035, 0.032, 0.01), classic);
+	}
+
+	// ---- the recording breaking up (the Burnt, Game.fx_corrupt): a digital camera's codec losing the stream. The
+	// picture comes apart in square macroblocks: one copied from somewhere else, one frozen to a flat smear of
+	// colour, one with its channels swapped, one posterized to a few wrong colours, one smeared down from its top
+	// row, one inverted. Bands of rows slip sideways, and dead columns of sensor light streak down. It updates
+	// in jerky steps, faster the worse it gets, never smoothly.
+	if (corrupt > 0.001) {
+		float cq_tick = floor(TIME * mix(5.0, 16.0, corrupt));
+		vec2 cq_px = FRAGCOORD.xy;
+		for (int cq_l = 0; cq_l < 3; cq_l++) {
+			float cq_bs = cq_l == 0 ? 96.0 : (cq_l == 1 ? 48.0 : 16.0);       // big blocks rare, small ones common
+			vec2 cq_cell = floor(cq_px / cq_bs);
+			float cq_h = hash12(cq_cell + cq_tick * 13.1 + float(cq_l) * 71.0);
+			if (cq_h >= corrupt * (cq_l == 0 ? 0.12 : (cq_l == 1 ? 0.22 : 0.3))) continue;
+			float cq_kind = hash12(cq_cell * 1.7 + cq_tick + float(cq_l));
+			vec2 cq_jump = (vec2(hash12(cq_cell + cq_tick * 3.3), hash12(cq_cell + cq_tick * 5.7)) - 0.5) * 0.3 * corrupt;
+			vec3 cq_b = textureLod(screen_tex, clamp(SCREEN_UV + cq_jump, 0.0, 1.0), 0.0).rgb;
+			if (cq_kind < 0.28) col = cq_b;
+			else if (cq_kind < 0.46) col = textureLod(screen_tex, clamp((cq_cell + 0.5) * cq_bs * SCREEN_PIXEL_SIZE, 0.0, 1.0), 4.5).rgb;
+			else if (cq_kind < 0.6) col = cq_b.gbr;
+			else if (cq_kind < 0.74) col = floor(cq_b * 3.0 + 0.5) / 3.0 * vec3(1.25, 0.75, 1.15);
+			else if (cq_kind < 0.88) col = textureLod(screen_tex, clamp(vec2(SCREEN_UV.x, cq_cell.y * cq_bs * SCREEN_PIXEL_SIZE.y), 0.0, 1.0), 0.0).rgb;
+			else col = vec3(1.0) - clamp(cq_b, 0.0, 1.0);
+			// the block's edge: codecs leave a hard seam round a broken block
+			vec2 cq_e = fract(cq_px / cq_bs);
+			if (min(min(cq_e.x, cq_e.y), min(1.0 - cq_e.x, 1.0 - cq_e.y)) * cq_bs < 1.0) col *= 0.6;
+			break;
+		}
+		// whole bands of rows slip sideways
+		float cq_band = floor(cq_px.y / 6.0);
+		if (hash12(vec2(cq_band, cq_tick * 0.7)) < corrupt * 0.12) {
+			float cq_slip = (hash12(vec2(cq_band, cq_tick + 4.0)) - 0.5) * 0.2 * corrupt;
+			col = mix(col, textureLod(screen_tex, clamp(SCREEN_UV + vec2(cq_slip, 0.0), 0.0, 1.0), 0.0).rgb, 0.85);
+		}
+		// dead sensor columns: thin streaks of light down the frame
+		float cq_col = floor(cq_px.x / 2.0);
+		if (hash12(vec2(cq_col, floor(TIME * 3.0))) < corrupt * 0.006) col += vec3(0.7, 0.75, 0.9) * corrupt;
+	}
+
+	// ---- fluorescent banding: the tubes flicker 100 / 120 times a second and a CMOS sensor reads the frame a line
+	// at a time, so the flicker lands on the picture as soft horizontal bands crawling slowly up it (the beat of
+	// the mains against the frame rate). A camcorder's CCD reads the whole frame at once: there it is a faint pulse
+	// of the picture instead. A multiply, so only what the tubes light shows it (render_engine.gd sets how much).
+	if (banding > 0.001) {
+		float yb = SCREEN_UV.y;
+		float bands = sin((yb * 1.6 + TIME * 0.08) * 6.2832);      // a couple of wide bands, drifting slowly one way
+		float frame_beat = sin(TIME * 6.2832 * 0.35);   // (not `pulse`: that is the heartbeat uniform)
+		float kb = mix(bands, frame_beat * 0.6, cam_mode) * banding;
+		col *= vec3(1.0 + 0.03 * kb, 1.0 + 0.028 * kb, 1.0 + 0.024 * kb);     // (gentle: any stronger is hard on the eyes)
 	}
 
 	// ---- colour: the camcorder's warm tape grade, or the bodycam's flatter, slightly green fluorescent read

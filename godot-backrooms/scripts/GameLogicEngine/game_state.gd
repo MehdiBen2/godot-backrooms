@@ -45,7 +45,9 @@ var fx_shock := 0.0
 var fx_blood := 0.0
 var fx_static := 0.0
 var fx_warp := 0.0
+var fx_corrupt := 0.0          # 0..1 the picture breaking up into blocks (the Burnt), drawn by the post shader
 var fx_classic := 0.0         # 0..1 in a Classic zone (set by level_lighting.gd, read by the post shader)
+var fx_tubes := 0.0           # 0..1 how much tube light is on the player (level_lighting.gd): the camera's fluorescent banding
 var fx_blink := 0.0           # 0 eyes open .. 1 lids shut (player/blink.gd, drawn by the post shader)
 var fx_fade_release := false  # after death the black/red edges clear over 1.8s (endGrab(dying))
 var level_index := 0          # which levels/levels.json entry is loaded (survives the scene reload)
@@ -115,12 +117,13 @@ var _have_pos := false
 func fx_reset(keep_fade := false) -> void:
 	fx_blur = 0.0; fx_contrast = 1.0; fx_sat = 1.0; fx_hue = 0.0; fx_zoom = 1.0; fx_skew = 0.0; fx_flash = 0.0; fx_shock = 0.0; fx_blink = 0.0
 	if not keep_fade:
-		fx_blood = 0.0; fx_static = 0.0; fx_warp = 0.0; fx_fade = 0.0
+		fx_blood = 0.0; fx_static = 0.0; fx_warp = 0.0; fx_fade = 0.0; fx_corrupt = 0.0
 	fx_fade_release = false
 
 func _process(dt: float) -> void:
 	fx_flash *= exp(-dt * 18.0)
 	fx_shock *= exp(-dt * 9.0)
+	fx_corrupt = maxf(0.0, fx_corrupt - dt * 0.5)   # (whatever drives it keeps it up; left alone it heals)
 	if fx_fade_release:
 		fx_fade = maxf(0.0, fx_fade - dt / 1.8)
 		fx_static = maxf(0.0, fx_static - dt * 0.12)

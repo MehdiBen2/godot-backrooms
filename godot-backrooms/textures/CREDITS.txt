@@ -9,3 +9,17 @@ Textures and models under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0
       "Backrooms Blender Kit" by Huuxloc (https://sketchfab.com/rjh41),
       https://sketchfab.com/3d-models/backrooms-blender-kit-89fad66d968e44aabedf65ac5a06f877, CC BY 4.0.
       Only the vent meshes are used, relit with the game's own materials.
+
+Models under the Sketchfab Standard licence (https://sketchfab.com/licenses):
+
+- ../models/props/wall_socket/light_switch_and_wall_socket.glb (the wall outlets and light switches)
+      "Light Switch And Wall Socket" by Theocritus (https://sketchfab.com/Theocritus),
+      https://sketchfab.com/3d-models/light-switch-and-wall-socket-4aa182aae23c4f85a1568e9101b2b9c5.
+      Taken apart into the socket and the switch, placed on the walls by scripts/World/level/level_trim.gd.
+
+Supplied with the project (asetsuimprot/), source and licence to be confirmed:
+
+- damp_atlas.jpg (the water damage down the walls, scripts/World/level/level_trim.gd _build_damp)
+      Made from "grungy-stained-concrete-wall-texture.jpg", "grungy-stained-concrete-wall-texture (1).jpg" and
+      "grungy-weathered-concrete-wall-texture.jpg": each turned into a multiply map (clean plaster white),
+      2048 x 1365, stacked in one picture.

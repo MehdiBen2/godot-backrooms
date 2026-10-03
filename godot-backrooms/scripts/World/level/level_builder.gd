@@ -461,7 +461,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 		stay[away] = true
 	var mats: Array = []
 	for c in get_children():
-		if c == marks or c == sketches or pool_set.has(c) or c == voxel_gi or c == keep or c == cover or stay.has(c):
+		if c == marks or c == sketches or pool_set.has(c) or c == voxel_gi or c == dust or c == keep or c == cover or stay.has(c):
 			continue
 		# (the fake floor reflections hang under their floor, which from here would be in the room below it)
 		if away != null and not (c in stairwells) and c != reflect_mmi and c != pit_fall:
@@ -579,7 +579,8 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 			if old_well != null and is_instance_valid(old_well):
 				stairwells.erase(old_well)
 				old_well.free()
-			_build_objects(),
+			_build_objects()
+			_build_trim(),
 		func() -> void:
 			_build_ceiling_steps()
 			_build_pit_shafts(),

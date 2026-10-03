@@ -1,4 +1,4 @@
-extends "res://scripts/World/level/level_geometry.gd"
+extends "res://scripts/World/level/level_trim.gd"
 ## THE LEVEL, layer 3a: the light fixtures themselves (the web game's level.js _placeLights).
 ##
 ## Troffer fixtures and ceiling panels are placed some burnt out, some flickering, and drawn as MultiMeshes
@@ -17,9 +17,30 @@ const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom thresho
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
 const PANEL_GLOW := Color(3.6, 3.25, 2.75)  # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
-const PANEL_BURNT_CHANCE := 0.08
-const PANEL_FLICKER_CHANCE := 0.06
+# a panel ceiling is one lamp per lit cell in a perfectly regular grid: with too few dead or failing ones it reads
+# as a repeating pattern, so its lamps fail far more often than a troffer's tubes
+const PANEL_BURNT_CHANCE := 0.22
+const PANEL_FLICKER_CHANCE := 0.15
+const PANEL_DYING_CHANCE := 0.12
+const PANEL_AGE := 0.45             # how far an old panel's output can fall (a troffer tube: 0.15)
 const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]
+# The light a fixture throws. A troffer or a panel shines down through its diffuser, not all round: the pool's
+# real lights are spots (level_light_pool.gd) whose cone falls off close to a diffuser's cosine (full straight
+# down, about half at 60 degrees, nothing past 80). So the top of a wall beside a lamp sits on its dark side and
+# the light lands on the walls in soft arcs, where a point light lit a wall brightest right under the ceiling.
+const SPOT_ANGLE := 80.0
+const SPOT_SOFT := 1.6              # SpotLight3D spot_angle_attenuation
+const SPOT_GAIN := 1.15             # the cone gives up the light a point light threw sideways: a little more goes down
+# Each lamp its own (_characterise). Lamps lose output as they age, no two are quite the same white, and a few
+# are on their way out: dim, a little pink, their light never quite settling.
+const DYING_CHANCE := 0.06
+# Flicker that the room feels (_update_mods): a lamp back from a cut starts dim and warms up, and a tube striking
+# pulls the lamps on its circuit down for an instant
+const WARMUP := 1.6                 # seconds from a cold start to full output
+const WARM_FROM := 0.7
+const SAG := 0.08
+const SAG_RADIUS := 7.0
+const SWIRL_REACH := 45.0           # metres: past this a dying lamp's swirl is left as it was (nobody sees it move)
 
 var panels_mm: MultiMesh   # panel ceilings: one instance per fixture, its colour = that cell's panel glow
 var fx: Array = []        # every fixture
@@ -40,15 +61,18 @@ var reflect_mmi: MultiMeshInstance3D   # the fake floor reflections of bright-zo
 const FX_SQUARE := 4                # cells along a side of an index square
 var _fx_grid := {}                  # Vector2i square -> Array of the lit fixtures in it
 var _awake := {}                    # lit index -> fixture: the ones _update_fixtures has to look at
+var _moving := {}                   # lit index -> fixture: output easing (warm-up, a sag, a dying lamp's swirl)
 
 func _index_fixtures() -> void:
 	_fx_grid.clear()
 	_awake.clear()
+	_moving.clear()
 	for f: Dictionary in lit:
 		var k := _fx_square(f.pos)
 		if not _fx_grid.has(k): _fx_grid[k] = []
 		(_fx_grid[k] as Array).append(f)
 		if f.flickers or f.black > 0.0 or f.burst > 0: _wake(f)
+		if f.get("dying", false): _moving[int(f.index)] = f
 
 func _fx_square(p: Vector3) -> Vector2i:
 	return Vector2i(floori(p.x / (CELL * FX_SQUARE)), floori(p.z / (CELL * FX_SQUARE)))
@@ -132,6 +156,7 @@ func _place_fixtures() -> void:
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
+			_characterise(fx[-1], c)
 			at_cell[c] = pos
 	for f in fx:
 		if not f.burnt:
@@ -165,11 +190,53 @@ func _place_panel_fixtures() -> void:
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "cell": fx.size(), "wanted": false, "vents": _pick_vents(c)})
+			_characterise(fx[-1], c)
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
 	_index_fixtures()
+
+## What sort of lamp tube `f` (in cell `c`) is. Rolled with a dice of its own, by cell and floor like the vents,
+## so it never shifts the level's burnt / flickering tubes and a look-only copy of the floor (level_shell.gd)
+## gets the same lamps.
+##   peak: the share of its light an ageing lamp still gives; warm: its white, from about 3000 K to 4100 K round
+##   the tubes' own, a few gone a little green or pink; dying: on its way out (dim, pinkish, never settled).
+## Bright, Classic and liminal ceilings are kept close to even (a regular, well kept ceiling), and a repeating
+## loop corridor fully even (or the repeat would show).
+func _characterise(f: Dictionary, c: Vector2i) -> void:
+	var r := RandomNumberGenerator.new()
+	r.seed = hash(Vector3i(c.x, c.y, floor_src(level_raw, floor_no) + 5309))
+	f.seed = r.randf()
+	f.mod = 1.0
+	f.warm_t = 0.0
+	f.dip = 0.0
+	f.dying = false
+	f.peak = 1.0
+	f.warm = Color.WHITE
+	if loop.has(c): return
+	var kelvin := r.randf_range(-1.0, 1.0)
+	var tinge := r.randf()
+	var age := r.randf() * r.randf()                  # most nearly new, a few well down
+	var is_panel := f.has("cell")
+	var doomed := r.randf() < (PANEL_DYING_CHANCE if is_panel else DYING_CHANCE)
+	if f.bright or f.classic or liminal.has(c):
+		f.warm = Color(1.0 + 0.012 * kelvin, 1.0, 1.0 - 0.025 * kelvin)
+		f.peak = 1.0 - 0.04 * age
+		return
+	var warm := Color(1.0 + 0.035 * kelvin, 1.0, 1.0 - 0.07 * kelvin)
+	if tinge < 0.1: warm *= Color(0.97, 1.02, 0.95)              # the phosphor gone a little green
+	elif tinge < 0.17: warm *= Color(1.03, 0.97, 1.0)            # a little pink
+	f.peak = 1.0 - (PANEL_AGE if is_panel else 0.15) * age
+	if doomed and not f.burnt:
+		f.dying = true
+		f.peak *= 0.45 + 0.2 * r.randf()
+		warm *= Color(1.05, 0.93, 0.9)
+	f.warm = warm
+
+## What tube `f` puts out now (0 while cut): its flicker level times its age and the moment's warm-up, sag or swirl
+func lamp_out(f: Dictionary) -> float:
+	return 0.0 if f.black > 0.0 else f.level * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
 
 ## A drop ceiling built tile by tile (drop_ceiling.gdshader) rather than a cell-sized picture with its panels baked
 ## in (panel_ceiling.gdshader): a textures/pbr material whose .tres says "metadata/drop_ceiling" (YBR_Ceiling*)
@@ -216,7 +283,7 @@ func _build_panel_ceiling() -> void:
 	for f in fx:
 		var o: int = f.cell * st
 		MMBuffer.put(buf, o, Transform3D(down, f.pos))
-		MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW)
+		MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW * (f.warm as Color) * float(f.peak))
 		if drop:
 			var v: Array = f.get("vents", [])
 			buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
@@ -295,9 +362,13 @@ func _build_vents() -> void:
 	metal.metallic = 0.35
 	metal.roughness = 0.5
 	metal.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# the kit's faces are wound either way (its own materials are all double-sided): drawn one-sided, half of a
+	# diffuser's louvres were culled and the black duct showed through as a dark triangle
+	metal.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var dark := StandardMaterial3D.new()              # the duct behind the diffuser's cones
 	dark.albedo_color = Color(0.02, 0.02, 0.02)
 	dark.roughness = 1.0
+	dark.cull_mode = BaseMaterial3D.CULL_DISABLED
 	# (the diffuser is sized and hung by its backing plate: the widest part, and the one flush with the ceiling)
 	var diffuser_box: Mesh = parts.get("diffuser_dark", parts.get("diffuser_Vent"))
 	var sets := [[at[0], parts.get("diffuser_Vent"), metal, diffuser_box],
@@ -397,7 +468,7 @@ func _build_fixture_meshes() -> void:
 			var f: Dictionary = items[i]
 			var t := Transform3D(Basis(Vector3.UP, f.rot), f.pos + yoff) * base_off * mw
 			MMBuffer.put(buf, i * st, t)
-			if colored: MMBuffer.put_color(buf, i * st, LIT_DIFFUSER if part == "Object_5" else LIT_DIFFUSER * 0.45)
+			if colored: MMBuffer.put_color(buf, i * st, LIT_DIFFUSER * (f.warm as Color) * float(f.peak) * (1.0 if part == "Object_5" else 0.45))
 		mm.buffer = buf
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
@@ -439,11 +510,13 @@ func _build_fixture_meshes() -> void:
 		add_child(cmi)
 
 func _set_lit_color(f: Dictionary, lvl: float) -> void:
-	if tubes_mm: tubes_mm.set_instance_color(f.index, LIT_DIFFUSER * tint * lvl)
-	if lens_mm: lens_mm.set_instance_color(f.index, LIT_DIFFUSER * tint * (lvl * 0.45))
-	f.glow_lvl = lvl
+	var k: float = lvl * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
+	var w: Color = tint * (f.get("warm", Color.WHITE) as Color)
+	if tubes_mm: tubes_mm.set_instance_color(f.index, LIT_DIFFUSER * w * k)
+	if lens_mm: lens_mm.set_instance_color(f.index, LIT_DIFFUSER * w * (k * 0.45))
+	f.glow_lvl = k
 	_write_glow(f)
-	if panels_mm: panels_mm.set_instance_color(f.cell, PANEL_GLOW * tint * lvl)
+	if panels_mm: panels_mm.set_instance_color(f.cell, PANEL_GLOW * w * k)
 
 # Recolour every lit tube; Color.WHITE puts the normal warm white back (random events)
 func set_tint(c: Color) -> void:
@@ -474,6 +547,7 @@ func restore_power() -> void:
 			f.burst = 0
 			f.level = 1.0
 			f.timer = 1.0 + rng.randf() * 3.0
+			_restrike(f, false)          # (everything strikes at once: no one lamp's sag to see)
 			_set_lit_color(f, 1.0)
 			fixture_event.emit(f, true)
 
@@ -531,7 +605,7 @@ func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
 # so walking up to a tube swaps the fake for the real thing.
 const GLOW_CELLS := 3               # the pool's quad, in cells: the tube's own and one each way
 # the real lights these stand in for (level_light_pool.gd, declared below this script: keep in step with
-# LIGHT_RANGE / PANEL_RANGE, PANEL_ENERGY, the pool's omni_attenuation and CLASSIC_BOOST)
+# LIGHT_RANGE / PANEL_RANGE, PANEL_ENERGY, the pool's spot_attenuation and CLASSIC_BOOST; the cone is SPOT_ANGLE)
 const GLOW_RANGE := 20.0
 const GLOW_RANGE_PANEL := 16.0
 const GLOW_ENERGY_PANEL := 1.9
@@ -559,6 +633,8 @@ uniform float cell = 4.5;
 uniform float energy = 2.2;
 uniform float range = 20.0;
 uniform float decay = 1.4;
+uniform float cone_cos = 0.1736;        // the real light's cone (level_fixtures.gd SPOT_ANGLE, as a cosine)
+uniform float cone_soft = 1.6;          // ...and how it falls off toward the edge (SPOT_SOFT)
 uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): back onto the level
 varying vec2 lp;          // metres from the spot under the tube
 varying vec3 wp;
@@ -591,6 +667,8 @@ void fragment() {
 	nd *= nd;
 	nd = max(1.0 - nd * nd, 0.0);
 	float e = energy * nd * nd * pow(d, -decay) * (info.w / d);
+	// the spot's cone, worked out as SpotLight3D does it
+	e *= 1.0 - pow(clamp((1.0 - info.w / d) / (1.0 - cone_cos), 0.0001, 1.0), cone_soft);
 	e *= 1.0 - smoothstep(cell * 0.75, cell * 1.45, length(lp));
 	vec3 base = info.z > 0.5 ? texture(tile_tex, wp.xz * tile_scale).rgb : texture(floor_tex, wp.xz * floor_scale).rgb * floor_tint;
 	ALBEDO = base * light_color * COLOR.rgb * e * strength;
@@ -605,13 +683,16 @@ void fragment() {
 	else:
 		mat.set_shader_parameter("floor_tex", load("res://textures/l0_carpet_color.webp"))
 	mat.set_shader_parameter("tile_tex", load("res://textures/tiles_color.png"))
-	var energy: float = GLOW_ENERGY_PANEL if panels_mm else LIGHT_ENERGY
+	var energy: float = (GLOW_ENERGY_PANEL if panels_mm else LIGHT_ENERGY) * SPOT_GAIN
 	var reach: float = GLOW_RANGE_PANEL if panels_mm else GLOW_RANGE
+	var cone_cos := cos(deg_to_rad(SPOT_ANGLE))
 	mat.set_shader_parameter("light_color", GLOW_COLOR)
 	mat.set_shader_parameter("cell", CELL)
 	mat.set_shader_parameter("energy", energy)
 	mat.set_shader_parameter("range", reach)
 	mat.set_shader_parameter("decay", GLOW_DECAY)
+	mat.set_shader_parameter("cone_cos", cone_cos)
+	mat.set_shader_parameter("cone_soft", SPOT_SOFT)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
@@ -624,7 +705,7 @@ void fragment() {
 	var st := MMBuffer.stride(mm)
 	for i in lit.size():
 		var f: Dictionary = lit[i]
-		f.glow_lvl = 1.0
+		f.glow_lvl = float(f.get("peak", 1.0))
 		f.glow_share = 1.0
 		var c := cell_of(f.pos)
 		MMBuffer.put_at(buf, i * st, Vector3(f.pos.x, 0.02, f.pos.z))
@@ -704,6 +785,8 @@ uniform float strength = 1.0;
 uniform float energy = 2.2;
 uniform float range = 20.0;
 uniform float decay = 1.4;
+uniform float cone_cos = 0.1736;
+uniform float cone_soft = 1.6;
 uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): its lamps are the level's
 varying vec3 wp;
 varying vec3 wn;
@@ -720,6 +803,8 @@ void fragment() {
 	nd *= nd;
 	nd = max(1.0 - nd * nd, 0.0);
 	float e = energy * nd * nd * pow(d, -decay) * max(dot(wn, l / d), 0.0);
+	// the spot's cone: the top of the wall, beside the lamp, is on its dark side
+	e *= 1.0 - pow(clamp((1.0 - l.y / d) / (1.0 - cone_cos), 0.0001, 1.0), cone_soft);
 	// it dies away along the wall as the pool does across the floor: no lit rectangle with a hard end
 	e *= 1.0 - smoothstep(cell * 0.75, cell * 1.45, length(l.xz));
 	float h = COLOR.a * 16.0;
@@ -743,6 +828,8 @@ void fragment() {
 	wmat.set_shader_parameter("energy", energy)
 	wmat.set_shader_parameter("range", reach)
 	wmat.set_shader_parameter("decay", GLOW_DECAY)
+	wmat.set_shader_parameter("cone_cos", cone_cos)
+	wmat.set_shader_parameter("cone_soft", SPOT_SOFT)
 	var faces: Array = []            # [transform, the tube's light, the wall's height]
 	for f: Dictionary in lit:
 		f.glow_faces = PackedInt32Array()
@@ -817,7 +904,8 @@ func _glow_floor(c: Vector2i) -> bool:
 func _write_glow(f: Dictionary) -> void:
 	if glow_mm == null or int(f.index) < 0: return
 	var k: float = float(f.get("glow_lvl", 1.0)) * float(f.get("glow_share", 1.0))
-	var c := Color(tint.r * k, tint.g * k, tint.b * k)
+	var w: Color = f.get("warm", Color.WHITE)
+	var c := Color(tint.r * w.r * k, tint.g * w.g * k, tint.b * w.b * k)
 	if cone_mm: cone_mm.set_instance_color(f.index, c)
 	if f.classic: c = Color(c.r * GLOW_CLASSIC, c.g * GLOW_CLASSIC, c.b * GLOW_CLASSIC)
 	glow_mm.set_instance_color(f.index, c)
@@ -900,6 +988,7 @@ func _update_fixtures(delta: float) -> void:
 				f.level = 1.0
 				f.burst = 0
 				f.timer = 1.0 + rng.randf() * 3.0
+				_restrike(f)
 				_set_lit_color(f, 1.0)
 				fixture_event.emit(f, true)
 			continue
@@ -922,8 +1011,67 @@ func _update_fixtures(delta: float) -> void:
 			f.level = 1.0
 			f.timer = (0.08 + rng.randf() * 0.25) if is_event_flickering else (1.5 + rng.randf() * 6.0)
 		_set_lit_color(f, 0.06 if going_off else f.level)
+		if not going_off: _sag_round(f)
 		fixture_event.emit(f, not going_off)
 	for i in settled:
 		var f = _awake.get(i)
 		# (unless something set it off again since)
 		if f != null and f.black <= 0.0 and f.burst == 0: _awake.erase(i)
+	_update_mods(delta)
+
+## Tube `f` comes back on from cold (the end of a cut or a power cut): it strikes dim and warms up to full, and
+## the lamps round it dip as it strikes. Far from the player it just comes on (nobody is there to see it).
+func _restrike(f: Dictionary, sag := true) -> void:
+	if int(f.index) < 0 or not f.has("mod"): return
+	if player == null or player.global_position.distance_to(f.pos) < SWIRL_REACH:
+		f.warm_t = WARMUP
+		f.mod = WARM_FROM
+		_moving[int(f.index)] = f
+	if sag: _sag_round(f)
+
+## A tube striking draws a surge: the lamps on its circuit (the ones round it) sag for an instant, so a flicker
+## shows in the light of the whole room, not just the one panel
+func _sag_round(f: Dictionary) -> void:
+	for g: Dictionary in fixtures_near(f.pos, SAG_RADIUS):
+		if is_same(g, f) or g.black > 0.0 or not g.has("dip"): continue
+		g.dip = maxf(g.dip, SAG)
+		_moving[int(g.index)] = g
+
+## Every lamp whose output is on the move this frame: warming up, sagging, or dying (a slow swirl)
+func _update_mods(delta: float) -> void:
+	if _moving.is_empty(): return
+	var done: Array[int] = []
+	var reach_sq := SWIRL_REACH * SWIRL_REACH
+	for i: int in _moving.keys():
+		var f = _moving.get(i)
+		if f == null: continue
+		var m := 1.0
+		var busy := false
+		if f.warm_t > 0.0:
+			f.warm_t = maxf(0.0, f.warm_t - delta)
+			var k: float = 1.0 - f.warm_t / WARMUP
+			m *= lerpf(WARM_FROM, 1.0, k * k * (3.0 - 2.0 * k))
+			busy = true
+		if f.dip > 0.0:
+			m *= 1.0 - f.dip
+			f.dip = maxf(0.0, f.dip - delta * SAG / 0.15)        # back up in 0.15 s
+			busy = true
+		if f.dying:
+			busy = true
+			if not (m == 1.0 and player != null and player.global_position.distance_squared_to(f.pos) > reach_sq):
+				m *= _swirl(f)
+			else:
+				continue
+		if not busy: done.append(i)
+		if absf(m - f.mod) > 0.003 or (not busy and m != f.mod):
+			f.mod = m
+			if f.black <= 0.0 and f.level > 0.3: _set_lit_color(f, f.level)
+	for i in done: _moving.erase(i)
+
+## A dying lamp's light: the arc wandering in the worn tube, never settled, now and then sagging hard
+static func _swirl(f: Dictionary) -> float:
+	var t: float = Game.time + float(f.seed) * 100.0
+	var wobble := sin(t * 2.3) * 0.5 + sin(t * 5.9 + 1.7) * 0.3 + sin(t * 0.41 + 4.0) * 0.2
+	var m := 0.9 + 0.06 * wobble
+	if fposmod(sin(floorf(t * 4.0) * 12.9898 + float(f.seed) * 78.233) * 43758.5453, 1.0) < 0.03: m *= 0.6
+	return m

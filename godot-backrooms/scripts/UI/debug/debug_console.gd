@@ -567,8 +567,8 @@ func _build_entities_tab() -> Control:
 	kil_box.add_child(_action_btn("SPAWN", func(): _apply("killer", true)))
 	kil_box.add_child(_action_btn("DESPAWN", func(): _apply("killer", false)))
 
-	# Skin Stealer & Burnt Rows: models only for now, stood in front of you
-	for row in [["SKIN STEALER (MODEL):", "skinstealer"], ["THE BURNT (MODEL):", "burnt"]]:
+	# Skin Stealer (a model only for now) & the Burnt (stalks you; burnt.gd), stood in front of you
+	for row in [["SKIN STEALER (MODEL):", "skinstealer"], ["THE BURNT:", "burnt"]]:
 		var mdl_box := HBoxContainer.new()
 		mdl_box.add_theme_constant_override("separation", 8)
 		v.add_child(mdl_box)
@@ -1100,9 +1100,12 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 # ---------------------------------------------------------------- CLI Commands
+## Into the CONSOLE tab, and Godot's Output panel too: the other tabs' buttons (SPAWN etc.) report here,
+## where it isn't seen unless that tab is open
 func _print(text: String) -> void:
 	if log_label != null:
 		log_label.append_text(text + "\n")
+	print_rich("[debug] " + text)
 
 func _recall(dir: int) -> void:
 	if history.is_empty(): return
@@ -1161,6 +1164,7 @@ func _submit(line: String) -> void:
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
+			_print("Sound: amb [status|silence <seconds>|bed]")
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 		"noclip":
@@ -1197,6 +1201,19 @@ func _submit(line: String) -> void:
 			for n in ORDER:
 				var on := _active(n)
 				_print("  %-10s %s" % [n, "[color=lime]active[/color]" if on else "[color=gray]off[/color]"])
+		"amb", "ambience":
+			var amb = root.get_node_or_null("Audio/Ambience")
+			if amb == null:
+				_print("ambience: not running")
+			elif arg == "silence":
+				var secs := parts[2].to_float() if parts.size() > 2 and parts[2].is_valid_float() else 120.0
+				amb.force_silence(secs)
+				_print("ambience: silence for %ds (a threat closing in still breaks it)" % int(secs))
+			elif arg == "bed":
+				var file: String = amb.force_bed()
+				_print("ambience: " + (file if file != "" else "no bed imported yet"))
+			else:
+				_print("ambience: " + amb.status())
 		"grabber":
 			_grabber_state(arg)
 		"spawn":

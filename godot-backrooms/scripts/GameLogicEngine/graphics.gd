@@ -43,16 +43,16 @@ const PHYS_WINDOW := 2.0
 const PRESETS := {
 	"low": {"scale": 60, "msaa": 0, "fxaa": false, "taa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
 		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60,
-		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true},
+		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
-		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true},
+		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
 	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
 		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true},
+		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "taa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
 		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 8, "far_lights": 32, "baked_gi": true, "smooth": true, "adapt": true},
+		"lights": 12, "light_shadows": 8, "far_lights": 32, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)
@@ -255,7 +255,9 @@ func apply() -> void:
 	vp.msaa_3d = {0: Viewport.MSAA_DISABLED, 2: Viewport.MSAA_2X, 4: Viewport.MSAA_4X}.get(s.msaa, Viewport.MSAA_DISABLED)
 	# FXAA blurs the whole frame (distant texture detail first); with MSAA or TAA on the edges are already clean
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if (s.fxaa and s.msaa == 0 and not vp.use_taa) else Viewport.SCREEN_SPACE_AA_DISABLED
-	vp.texture_mipmap_bias = -0.35        # slightly sharper mips: wallpaper and carpet stay readable down a long hall
+	# slightly sharper mips keep wallpaper and carpet readable down a long hall, but only TAA can afford them:
+	# without it the sharper mips crawl and shimmer on the far ceiling grid
+	vp.texture_mipmap_bias = -0.35 if vp.use_taa else 0.0
 	vp.anisotropic_filtering_level = {0: Viewport.ANISOTROPY_DISABLED, 2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X,
 		8: Viewport.ANISOTROPY_8X, 16: Viewport.ANISOTROPY_16X}.get(s.aniso, Viewport.ANISOTROPY_DISABLED)
 

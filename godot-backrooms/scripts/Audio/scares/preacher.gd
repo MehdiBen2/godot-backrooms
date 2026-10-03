@@ -1,8 +1,15 @@
 extends RefCounted
 ## The preacher whisper (js/audio/scares2.js): one recording, six ways of hearing it, each its own
 ## effect chain on the "Preacher" bus. Owned by scares.gd; update() drives the glitch variant.
+## Whatever the variant, it is heard from far off, through the walls: every chain ends in a heavy
+## low-pass (FAR_CUTOFF) and a mostly-wet tail, it plays low (GAIN, a short unit size), and it only
+## drifts APPROACH of the way toward you instead of walking right up.
 
 const PATH := "res://audio/events/preacher.mp3"
+const GAIN := 0.45                           # was 1.5: far too present for a voice down the corridor
+const UNIT_SIZE := 3.5                       # was 7.0: falls off fast, so 10-20 m away is faint
+const APPROACH := 0.25                       # how far along its glide toward you it gets
+const FAR_CUTOFF := 1300.0                   # through the drywall: no consonants, just the shape of a voice
 const NAMES := [
 	"Distant Corridor Echo", "Deep Sub-Bass Alternate", "Corrupted Radio / EVP",
 	"Cavernous Hallway Delay", "Glitch Tremolo & Flickering Apparatus", "Approaching Corridor Stalker",
@@ -52,15 +59,25 @@ func _bus(variant: int) -> void:
 			lp.cutoff_hz = 6000.0
 			rev.room_size = 0.3; rev.wet = 0.15
 			chain = [lp, rev]
+	# then, for every variant, the distance: muffled behind the walls, with more room than voice in it
+	var wall := AudioEffectLowPassFilter.new()
+	wall.cutoff_hz = FAR_CUTOFF
+	wall.db = AudioEffectFilter.FILTER_12DB
+	var far := AudioEffectReverb.new()
+	far.room_size = 0.75
+	far.damping = 0.8
+	far.dry = 0.35
+	far.wet = 0.5
+	chain.append_array([wall, far])
 	for fx in chain:
 		AudioServer.add_bus_effect(idx, fx)
 
 func play(pos: Vector3, variant: int, end_pos: Vector3, glide: float, volume := 1.0) -> void:
 	_bus(variant)
-	var gain := 1.5 * volume * (1.6 if variant == 1 else 1.0)
-	var p: AudioStreamPlayer3D = scares.spawn3d(preload("res://scripts/Audio/sfx_pool.gd").get_stream(PATH), pos, gain, "Preacher", 7.0)
+	var gain := GAIN * volume * (1.3 if variant == 1 else 1.0)
+	var p: AudioStreamPlayer3D = scares.spawn3d(preload("res://scripts/Audio/sfx_pool.gd").get_stream(PATH), pos, gain, "Preacher", UNIT_SIZE)
 	if end_pos != pos and glide > 0.0:
-		p.create_tween().tween_property(p, "global_position", end_pos, glide)
+		p.create_tween().tween_property(p, "global_position", pos.lerp(end_pos, APPROACH), glide)
 	if variant == 4:
 		glitchers.append([p, 0.1, p.volume_db])
 

@@ -45,6 +45,7 @@ func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 		_build_walls,
 		func() -> void:
 			_build_objects()
+			_build_trim()
 			_build_ceiling_steps()
 			_build_pit_shafts(),
 		func() -> void:
@@ -147,15 +148,22 @@ static func add_lights(to: Node3D, fixtures: Array, holes: Array, layer: int, en
 	to.set_meta("glows", glows)
 	for i in mini(MAX_LIGHTS, ranked.size()):
 		var f: Dictionary = ranked[i][1]
-		var color := Color(1.0, 0.99, 0.96) if f.classic else (LIMINAL_COLOR if cool.has(cell_of(f.pos)) else LIGHT_COLOR)
-		var l := _light(color, energy * (CLASSIC_BOOST if f.classic else 1.0), LIGHT_REACH, layer)
-		l.omni_attenuation = 1.4
+		var color: Color = (Color(1.0, 0.99, 0.96) if f.classic else (LIMINAL_COLOR if cool.has(cell_of(f.pos)) else LIGHT_COLOR)) * (f.get("warm", Color.WHITE) as Color)
+		var lamp := energy * (CLASSIC_BOOST if f.classic else 1.0) * float(f.get("peak", 1.0))
+		# a spot pointing down, like the floor you walk on (level_light_pool.gd)
+		var l := SpotLight3D.new()
+		l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+		_setup(l, color, lamp * SPOT_GAIN, layer)
+		l.spot_range = LIGHT_REACH
+		l.spot_attenuation = 1.4
+		l.spot_angle = SPOT_ANGLE
+		l.spot_angle_attenuation = SPOT_SOFT
 		l.position = f.light_pos
 		to.add_child(l)
 		mains.append(l)
 		if i >= MAX_GLOWS: continue
 		var top: float = f.get("ceil_h", f.pos.y)
-		var g := _light(color, l.light_energy * 0.5, 3.5, CEIL_LAYER)
+		var g := _light(color, lamp * 0.5, 3.5, CEIL_LAYER)
 		g.omni_attenuation = 1.6
 		g.light_specular = 0.35
 		g.position = Vector3(f.pos.x, top - 1.6, f.pos.z)
@@ -174,9 +182,13 @@ static func show_lights(of: Node, storeys: int) -> void:
 
 static func _light(color: Color, energy: float, reach: float, mask: int) -> OmniLight3D:
 	var l := OmniLight3D.new()
+	_setup(l, color, energy, mask)
+	l.omni_range = reach
+	return l
+
+static func _setup(l: Light3D, color: Color, energy: float, mask: int) -> void:
 	l.light_color = color
 	l.light_energy = energy
-	l.omni_range = reach
 	l.shadow_enabled = false
 	l.light_cull_mask = mask
 	l.light_volumetric_fog_energy = 0.0
@@ -185,4 +197,3 @@ static func _light(color: Color, energy: float, reach: float, mask: int) -> Omni
 	l.distance_fade_begin = 70.0
 	l.distance_fade_length = 20.0
 	l.set_meta("gfx_managed", true)          # Gfx.apply_scene leaves it alone
-	return l

@@ -232,8 +232,7 @@ func _update_atmosphere(delta: float) -> void:
 	var tube_col := LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix)
 	if not tube_col.is_equal_approx(_tube_col):
 		_tube_col = tube_col
-		for l in pool + pool_b + far_pool + ceil_glow:
-			l.light_color = tube_col
+		tube_color = tube_col            # (each pooled light takes it times its own lamp's white, level_light_pool.gd)
 	cam_mix = maxf(classic_mix, bright_mix * 0.7)
 	if dark.has(c):
 		za = 0.12; zf = 1.35
@@ -241,6 +240,7 @@ func _update_atmosphere(delta: float) -> void:
 		za = 0.55; zf = 1.15
 	var k := minf(1.0, delta * ADAPT)
 	bounce += (tube_light_at(player.global_position) - bounce) * k
+	Game.fx_tubes = clampf(bounce, 0.0, 1.0)
 	zone_amb += (za - zone_amb) * k
 	# eye adaptation: light where you stand and where you look (a lit hall ahead calms the exposure down,
 	# a wall in shade in front of you opens it up); only where the zone is meant to be readable
@@ -411,3 +411,33 @@ func update_lighting(delta: float) -> void:
 	_update_fixtures(delta)
 	_update_pool(delta)
 	_update_atmosphere(delta)
+	_update_dust()
+
+## The dust hanging in the air round the player (dust_motes.gd), lit by the pool's nearest working tubes.
+## A floor rebuilt in place frees it with everything else of the old floor: it is made again here.
+const DustMotes := preload("res://scripts/World/level/dust_motes.gd")
+var dust: DustMotes
+
+func _update_dust() -> void:
+	var want: bool = int(Gfx.s.get("post", 2)) > 0 and not Gfx.compat
+	if not want:
+		if is_instance_valid(dust):
+			dust.emitting = false
+			dust.visible = false
+		return
+	if not is_instance_valid(dust):
+		dust = DustMotes.new()
+		add_child(dust)
+	dust.visible = true
+	dust.emitting = true
+	var at := to_local(player.global_position)
+	dust.position = Vector3(at.x, 2.75, at.z)
+	var lamps: Array = []
+	for i in POOL_SIZE:
+		var f = slot_fixture[i]
+		if f == null: continue
+		var w: float = lamp_out(f) * slot_weight[i] * slot_on[i] * (CLASSIC_BOOST if f.classic else 1.0)
+		if w > 0.01: lamps.append([f.light_pos + _img(f), w, f.dsq])
+	lamps.sort_custom(func(a: Array, b: Array) -> bool: return a[2] < b[2])
+	dust.set_lamps(lamps, tube_color)
+	dust.set_torch(player.get("flash") as SpotLight3D)

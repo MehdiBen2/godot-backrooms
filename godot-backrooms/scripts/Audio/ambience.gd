@@ -11,31 +11,46 @@ extends Node
 ## The recordings were mastered anywhere from -16 to -28 dB RMS, so each bed is first matched to the
 ## same loudness (clip_levels.gd), then trimmed by its `gain`.
 ##
-## Also owns a sparse layer of far-off events (muffled thumps behind walls, now and then something
-## worse) so the silence between beds is never truly empty.
+## Also owns a sparse layer of far-off events (muffled thumps behind walls) so the silence between beds
+## is never truly empty.
 ##
-## Proximity: the nearest live threat (the entity, an awake mannequin, a spawned mimic) pushes the bed
+## Proximity: the nearest live threat (the entity, an awake mannequin, a spawned mimic, the burnt) pushes the bed
 ## louder, lower and more open the closer it gets, with fewer walls in between counting for more.
 ## On top of that every bed drifts on its own: slow random wanders in level and pitch, sudden swells
 ## and moments where the tape sags out of tune, so it never settles into something you stop hearing.
 ##
 ## Whichever threat is nearest also colours WHICH bed gets picked (`tag` on each TRACKS entry, matched
-## against NEAR_RANGE's keys: "Entity" is the bacteria, "Mannequin", "Mimic"): once something is close
+## against NEAR_RANGE's keys: "Entity" is the bacteria, "Mannequin", "Mimic", "Burnt"; "Statue" matches
+## either of the two that only move while you aren't looking: the mannequins and the burnt): once something is close
 ## enough to matter, its own beds are favoured over the general untagged ones (_pick()'s entity_w).
-## Nothing close by: an untagged bed on mood alone, or - as always - nothing at all (the gap_timer
-## silence between beds is deliberate, not a bug; closer threats just shorten it, they never remove it).
+## Nothing close by: an untagged bed on mood alone, or - as always - nothing at all.
+##
+## Phases (the silence is deliberate, not a bug):
+##   BED      one bed up, creeping in over FADE_IN from a random point in the file and fading out at another
+##            random point (anywhere from BED_MIN_PLAY in to the file's own end), so no two plays are the same stretch
+##   BREATH   a short gap between two beds; the far-off thumps can still come through it
+##   SILENCE  a long stretch with no bed, 1-4 minutes: the fluorescent hum, and whatever is out there (the
+##            far-off thumps, the entities' feet and voices) heard all the plainer for it.
+##            A silence budget keeps it near SILENCE_SHARE of the calm airtime: the less silence there has
+##            been lately, the likelier the next bed is followed by one. Never while things are tense or
+##            something is close; a threat closing in breaks it at once with a quick (FADE_IN_URGENT) bed.
+## A run opens on a short silence, so the first thing you hear down here is the hum.
 
 const ClipLevels := preload("res://scripts/Audio/clip_levels.gd")
-const SfxPool := preload("res://scripts/Audio/sfx_pool.gd")
 
 const DIR := "res://audio/ambients/"
 const BASE := 0.1                      # AmbientSystem.BASE_VOLUME
 const BED_RMS := -20.0                 # every bed is matched to this loudness before BASE and its trim
-const FADE_IN := 4.0
-const FADE_OUT := 5.0
+const FADE_IN := 10.0                  # eased in from nothing: it is already there before you notice it start
+const FADE_IN_URGENT := 3.0            # a silence broken by tension or a threat closing in
+const FADE_OUT := 12.0
 const KILL_FADE := 3.0                 # crossfade when the mood changes mid-track
 const SWITCH_GAP := 45.0               # min seconds between mood switches
-const NEAR_RANGE := {"Entity": 38.0, "Mannequin": 22.0, "Mimic": 26.0}
+const NEAR_RANGE := {"Entity": 38.0, "Mannequin": 22.0, "Mimic": 26.0, "Burnt": 24.0}
+# the threats that stand still while watched and move while you look away: a "Statue" bed is theirs
+const STATUES := ["Mannequin", "Burnt"]
+# ...and once one of them is this close (near, 0..1), its bed is put on outright, not just favoured
+const STATUE_FORCE := 0.1
 const NEAR_BOOST := 1.8                # extra level at point-blank (x2.8 overall)
 const NEAR_PITCH := 0.08               # how far the bed drops in pitch as it closes in
 # tension = the mood each bed suits; gain = level trim between the recordings (tune by ear);
@@ -58,27 +73,32 @@ const TRACKS := [
 	{"file": "universfield-creepy-tension-background-30-352872.mp3", "tension": 0.7, "gain": 1.0, "tag": "Mimic"},
 	{"file": "dragon-studio-dark-horror-ambient-05-425468.mp3", "tension": 0.75, "gain": 1.0, "tag": ""},   # sub-bass booms, widest range
 	{"file": "universfield-dark-horror-soundscape-345814.mp3", "tension": 0.8, "gain": 1.0, "tag": ""},
-	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0, "tag": "Entity"},
+	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0, "tag": "Statue"},
 ]
 # While tension is under this, every bed at or under it counts as an equally good fit (the calm pool), so a
 # quiet walk rotates through all of them instead of the one nearest in tension winning every time.
 const CALM_POOL := 0.3
 # how much a track tagged for the nearest threat is favoured over an untagged one, scaled by `near`
 const ENTITY_PULL := 2.2
-# A far-off event is now and then this instead of footfalls: something that should not be down here
-const DISTANT_STING := "hgoliya08-scary-sound-effect-298866.mp3"
-const STING_CHANCE := 0.18
 # A track unplayed this long gets up to this much extra weight in _pick() (scales in), so all TRACKS get
 # a turn over a long session instead of the 2-3 closest in tension hogging the airtime.
 const STARVED_AFTER := 90.0
 const STARVED_BONUS := 2.0
-# Liminal dead air: instead of always starting a new bed once the gap ends, sometimes let the silence run
-# long (nothing at all, no hum of a bed) before the next one picks up. Only when things are calm - a hunt
-# or a close threat should never go quiet.
-const SILENCE_CHANCE := 0.4
-const SILENCE_MIN := 25.0
-const SILENCE_MAX := 70.0
-const SILENCE_TENSION_MAX := 0.4          # never rolled at or above this tension
+# A bed plays this long at most (a long file fades out early), then a BREATH or a SILENCE follows
+const BED_MIN_PLAY := 40.0                # a bed plays at least this long (or the whole file if shorter)
+const BREATH_MIN := 8.0
+const BREATH_MAX := 25.0
+# Liminal dead air: only the fluorescent hum. Only when things are calm - a hunt or a close threat never goes quiet.
+const SILENCE_MIN := 60.0
+const SILENCE_MAX := 240.0
+const OPENING_MIN := 30.0                 # the silence a run opens on
+const OPENING_MAX := 60.0
+const SILENCE_SHARE := 0.5                # the share of (bed + silence) airtime the budget aims for
+const AIR_MEMORY := 600.0                 # seconds: how far back the budget remembers
+const SILENCE_TENSION_MAX := 0.4          # never silent at or above this tension
+const SILENCE_NEAR_MAX := 0.2             # ...or with a threat this close
+
+enum Phase { BED, BREATH, SILENCE }
 
 var audio: Node
 var player: Node
@@ -94,7 +114,8 @@ var hush := 1.0                        # hush_for(): 1 = bed as normal, near 0 =
 var _hush_until := 0.0
 var cutoff := 12000.0
 var lfo := 0.0
-var gap_timer := 10.0
+var phase := Phase.SILENCE
+var phase_left := 0.0                  # seconds left in a BREATH / SILENCE (a BED runs on its voice)
 var switch_cd := 0.0
 var event_timer := 30.0
 var near := 0.0                        # 0..1 smoothed closeness of the nearest threat
@@ -108,8 +129,8 @@ var sag_target := 0.0
 var sag_timer := 20.0
 var _threats := {}                     # NEAR_RANGE key -> node (looked up once)
 var _since_played := {}                # track idx -> seconds since it last played (starved bonus in _pick())
-var _in_silence := false               # a liminal silence is running (no bed; the fluorescent hum carries on)
-var _just_silent := false              # true right after a liminal silence, so the next gap always ends in a bed
+var _bed_air := 0.0                    # recent seconds with a bed up / in silence (decay over AIR_MEMORY)
+var _silence_air := 0.0
 
 func _ready() -> void:
 	rng.randomize()
@@ -117,7 +138,7 @@ func _ready() -> void:
 	player = audio.player
 	lp = AudioServer.get_bus_effect(AudioServer.get_bus_index("Ambience"), 1) as AudioEffectLowPassFilter
 	cutoff = lp.cutoff_hz
-	gap_timer = 8.0 + rng.randf() * 8.0
+	phase_left = rng.randf_range(OPENING_MIN, OPENING_MAX)     # open on the hum alone
 	var root: Node = audio.get_parent()
 	for key in NEAR_RANGE:
 		_threats[key] = root.get_node_or_null(key)
@@ -165,7 +186,8 @@ func _pick() -> int:
 		if tag != "":
 			# tagged for whatever is nearest: pulled in as it closes; tagged for something else
 			# (or nothing is near): pushed out in favour of the untagged/matching beds
-			w *= (1.0 + ENTITY_PULL * near) if tag == near_key else (1.0 - 0.7 * near)
+			var mine := tag == near_key or (tag == "Statue" and STATUES.has(near_key))
+			w *= (1.0 + ENTITY_PULL * near) if mine else (1.0 - 0.7 * near)
 		if recent.has(i):
 			w *= 0.05
 		# gone unplayed a while: nudged back in so a long session cycles through all of TRACKS instead of
@@ -184,7 +206,7 @@ func _pick() -> int:
 			break
 	return best
 
-func _start(i: int) -> void:
+func _start(i: int, fade_in := FADE_IN) -> void:
 	var s := _stream(i)
 	if s == null:
 		return
@@ -194,7 +216,7 @@ func _start(i: int) -> void:
 			v.dying_t = 0.0
 	var len := s.get_length()
 	# the long beds join part-way through, so the same track never sounds like the same track
-	var from := rng.randf() * len * 0.5 if (len > 60.0 and rng.randf() < 0.6) else 0.0
+	var from := rng.randf() * len * 0.5 if (len > 60.0 and rng.randf() < 0.75) else 0.0
 	var p := AudioStreamPlayer.new()
 	p.stream = s
 	p.bus = "Ambience"
@@ -202,52 +224,102 @@ func _start(i: int) -> void:
 	add_child(p)
 	p.play(from)
 	var gain: float = TRACKS[i].gain * ClipLevels.gain(DIR + TRACKS[i].file, BED_RMS, -1.0)
-	voices.append({"p": p, "idx": i, "t": 0.0, "left": len - from, "gain": gain, "dying": false, "dying_t": 0.0,
+	# no fixed cap: it fades out at a random point somewhere between BED_MIN_PLAY in and the file's own end,
+	# so with the random start each play is a different stretch of the recording
+	var rest := len - from
+	var left := rng.randf_range(minf(BED_MIN_PLAY, rest), rest)
+	voices.append({"p": p, "idx": i, "t": 0.0, "left": left, "gain": gain, "dying": false, "dying_t": 0.0,
+		"fade_in": minf(fade_in, left * 0.4), "fade_out": minf(FADE_OUT, left * 0.4),    # a short file still gets its middle
 		"dv": 1.0, "dv_to": 1.0, "dp": 1.0, "dp_to": 1.0, "drift_t": 0.0})
 	recent.append(i)
 	if recent.size() > 2:
 		recent.pop_front()
 	switch_cd = SWITCH_GAP
 	_since_played[i] = 0.0
+	phase = Phase.BED
+
+func _statue_track() -> int:
+	for i in TRACKS.size():
+		if TRACKS[i].tag == "Statue":
+			return i
+	return -1
+
+# The bed that is playing on: not crossfading out, not into its closing fade (null = nothing is)
+func _current():
+	var current = null
+	for v in voices:
+		if not v.dying and v.left - v.t > v.fade_out:
+			current = v
+	return current
+
+func _silence_ok() -> bool:
+	return tension < SILENCE_TENSION_MAX and near < SILENCE_NEAR_MAX and not Game.hunted and audio.outdoor_mix < 0.5
+
+func _silence_share() -> float:
+	var total := _bed_air + _silence_air
+	return _silence_air / total if total > 1.0 else SILENCE_SHARE
+
+# The less silence there has been lately, the likelier the next one
+func _silence_chance() -> float:
+	return clampf(0.5 + 1.5 * (SILENCE_SHARE - _silence_share()), 0.15, 0.9)
+
+func _enter_silence(seconds: float) -> void:
+	phase = Phase.SILENCE
+	phase_left = seconds
+	audio.hum_notice(0.35)                    # with the bed gone, the buzz comes back to the ear
+
+# A bed has just ended: a long silence, or a short breath before the next one
+func _after_bed() -> void:
+	if _silence_ok() and rng.randf() < _silence_chance():
+		_enter_silence(rng.randf_range(SILENCE_MIN, SILENCE_MAX))
+	else:
+		phase = Phase.BREATH
+		phase_left = rng.randf_range(BREATH_MIN, BREATH_MAX) * (1.0 - 0.6 * tension)
 
 func _schedule(dt: float) -> void:
 	for i in _since_played:
 		_since_played[i] += dt
+	var keep := exp(-dt / AIR_MEMORY)
+	_bed_air *= keep
+	_silence_air *= keep
 	if audio.outdoor_mix > 0.5:               # under the open sky: let the horror beds fade out and start no new one
 		for v in voices:
 			v.dying = true
 		return
 	switch_cd = maxf(0.0, switch_cd - dt)
-	var current = null
-	for v in voices:
-		if not v.dying:
-			current = v
-	if current == null:
-		# things turned tense mid-silence: cut it short so a hunt never plays out in dead air
-		if _in_silence and (tension >= SILENCE_TENSION_MAX or near > 0.2):
-			gap_timer = minf(gap_timer, 1.0)
-		gap_timer -= dt * (1.0 + 6.0 * near)
-		if gap_timer <= 0.0:
-			_in_silence = false
-			# liminal dead air: skip starting anything this once and let the silence run long, so the
-			# place doesn't always have a bed under it. Never right after another silence (that would
-			# just be two long silences back to back) and never once things are tense.
-			if not _just_silent and tension < SILENCE_TENSION_MAX and rng.randf() < SILENCE_CHANCE:
-				gap_timer = rng.randf_range(SILENCE_MIN, SILENCE_MAX)
-				_just_silent = true
-				_in_silence = true
-				return
+	var current = _current()
+	# a mannequin or the burnt is close: its bed comes on now, whatever was playing or however quiet it was
+	var statue_near := STATUES.has(near_key) and near > STATUE_FORCE
+	if statue_near:
+		var statue := _statue_track()
+		if statue >= 0 and (current == null or current.idx != statue) and _stream(statue) != null:
+			_start(statue, KILL_FADE if current != null else FADE_IN_URGENT)
+			current = _current()
+	if current != null:
+		_bed_air += dt
+		# the mood has moved on from what is playing: crossfade to a better fit
+		if not statue_near and current.t > 20.0 and switch_cd <= 0.0 and absf(tension - TRACKS[current.idx].tension) > 0.45:
 			var i := _pick()
 			if i >= 0:
-				_start(i)
-				_just_silent = false
-			gap_timer = 20.0                       # nothing importable yet: try again shortly
+				_start(i, KILL_FADE)
 		return
-	# the mood has moved on from what is playing: crossfade to a better fit
-	if current.t > 20.0 and switch_cd <= 0.0 and absf(tension - TRACKS[current.idx].tension) > 0.45:
-		var i := _pick()
-		if i >= 0:
-			_start(i)
+	if phase == Phase.BED:
+		_after_bed()
+	if phase == Phase.SILENCE:
+		_silence_air += dt
+	# things turned tense: cut a silence short so a hunt never plays out in dead air
+	var broken := phase == Phase.SILENCE and not _silence_ok()
+	if broken:
+		phase_left = 0.0
+	phase_left -= dt * (1.0 + 6.0 * near)
+	if phase_left > 0.0:
+		return
+	var next := _pick()
+	if next >= 0:
+		_start(next, FADE_IN_URGENT if broken else FADE_IN)
+	else:
+		phase = Phase.BREATH                  # nothing importable yet: try again shortly
+		phase_left = 20.0
 
 # ---------------------------------------------------------------- playback
 func _update_voices(dt: float) -> void:
@@ -268,16 +340,16 @@ func _update_voices(dt: float) -> void:
 		var v: Dictionary = voices[i]
 		var p: AudioStreamPlayer = v.p
 		v.t += dt
-		var fade := minf(1.0, v.t / FADE_IN)
-		fade = minf(fade, maxf(0.0, (v.left - v.t) / FADE_OUT))
+		# squared both ways: it creeps in from nothing, and its tail lingers as it goes
+		var fin := minf(1.0, v.t / v.fade_in)
+		var fout := clampf((v.left - v.t) / v.fade_out, 0.0, 1.0)
+		var fade := minf(fin * fin, fout * fout)
 		if v.dying:
 			v.dying_t += dt
 			fade = minf(fade, maxf(0.0, 1.0 - v.dying_t / KILL_FADE))
 		if (fade <= 0.0 and v.t > 0.5) or not p.playing:
 			p.queue_free()
 			voices.remove_at(i)
-			if voices.is_empty():
-				gap_timer = (8.0 + rng.randf() * 18.0) * (1.0 - 0.6 * tension)
 		else:
 			_drift(v, dt)
 			p.volume_linear = fade * v.gain * v.dv * BASE * mood * duck * audio.vol.ambient
@@ -342,6 +414,8 @@ func _threat_pos(n: Node):
 		return n.real_node.global_position if n.awake and n.real_node != null else null
 	if n.name == "Mimic":
 		return n.body.global_position if n.spawned and n.body != null else null
+	if n.name == "Burnt":
+		return n.global_position if n.present and n.state != "off" else null
 	return n.global_position
 
 # Darker in tight corridors, at low sanity and in a blackout; a slow swell keeps it from sitting still
@@ -369,6 +443,7 @@ func _update_events(dt: float) -> void:
 	event_timer = (30.0 + rng.randf() * 50.0) * (1.0 - 0.5 * tension)
 	if Game.hunted or audio.paused or not Game.playing or player.dead:
 		return
+	var level := 0.7 if _current() != null else 1.0    # under a bed: kept back so the two don't crowd
 	var nav = audio.grid()
 	if nav == null:
 		return
@@ -382,16 +457,37 @@ func _update_events(dt: float) -> void:
 		if not nav.open_at(x, z):
 			continue
 		var at := Vector3(x, pp.y + 0.2, z)
-		if rng.randf() < STING_CHANCE * (0.5 + tension) and ResourceLoader.exists(DIR + DISTANT_STING):
-			# something far off that should not be down here, heard through the walls
-			var g := ClipLevels.gain(DIR + DISTANT_STING, -22.0, -6.0)
-			scares.spawn3d(SfxPool.get_stream(DIR + DISTANT_STING), at + Vector3(0.0, 1.0, 0.0), g * 0.9, "Scares", 6.0, rng.randf_range(0.8, 0.95))
-			Game.haunt(0.3)
-			return
 		for k in 1 + rng.randi() % 3:
 			get_tree().create_timer(k * (0.4 + rng.randf() * 0.15), false).timeout.connect(func():
-				scares.play_scare("footThump", at, 0.5))
+				scares.play_scare("footThump", at, 0.5 * level))
 		return
+
+# ---------------------------------------------------------------- debug console (`amb`)
+func status() -> String:
+	var cur = _current()
+	var bed := "-"
+	var left := phase_left
+	if cur != null:
+		bed = TRACKS[cur.idx].file
+		left = cur.left - cur.t
+	return "%s, %ds left | bed %s | tension %.2f, near %.2f | silence share %d%% (aim %d%%)" % [
+		Phase.keys()[phase], int(left), bed, tension, near, int(_silence_share() * 100.0), int(SILENCE_SHARE * 100.0)]
+
+## Fade out whatever is playing and hold a silence for `seconds` (still broken by a threat closing in)
+func force_silence(seconds: float) -> void:
+	for v in voices:
+		if not v.dying:
+			v.dying = true
+			v.dying_t = 0.0
+	_enter_silence(seconds)
+
+## Bring a bed in now; returns its file, or "" when none is importable
+func force_bed() -> String:
+	var i := _pick()
+	if i < 0:
+		return ""
+	_start(i, FADE_IN_URGENT)
+	return TRACKS[i].file
 
 func _process(dt: float) -> void:
 	_update_near(dt)
