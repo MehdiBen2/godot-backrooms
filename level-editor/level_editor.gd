@@ -38,7 +38,7 @@ const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling
 	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
-const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (e.g. BRC_A) swaps the tubes for its panels."
+const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (YBR_CeilingSquare, YBR_CeilingLong, BRC_A) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
 var brush_label: Label
@@ -549,6 +549,7 @@ func _build_ui() -> void:
 
 	var mats := _section(side, "LEVEL MATERIALS")
 	mats.add_child(_note("The look of every cell you have not painted."))
+	mats.add_child(_note("Ceiling YBR_CeilingSquare / YBR_CeilingLong: a real drop ceiling (2x2 or 2x4 tiles), every tile varied, light panels on the lights, air vents. YBR_*: Yasu's Backrooms Material Pack (CC BY 4.0)."))
 	for slot in SLOTS:
 		var row := HBoxContainer.new()
 		mats.add_child(row)

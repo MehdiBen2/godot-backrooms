@@ -58,7 +58,9 @@ void fragment() {
 const Atmospheres := preload("res://scripts/Render/atmospheres.gd")
 var ATMOSPHERES: Dictionary = Atmospheres.LOOKS
 const FF_FOG := 0.05                # found footage: fog left at this share (clear air, far walls readable)
-const FF_CEIL_FILL := 0.3           # found footage: ceiling bounce-light fill (see panel_ceiling.gdshader): a bright ceiling
+# found footage: ceiling bounce-light fill (panel_ceiling / drop_ceiling.gdshader). Off: in the classic look it made
+# the ceiling glow on its own, flat and fake; the ceiling is lit by its real lights only, as in every other look
+const FF_CEIL_FILL := 0.0
 const VFOG_EMISSION := Color(0.035, 0.03, 0.015)   # main.tscn's volumetric fog emission (the dim look)
 const FF_BLACK_LIFT := 0.1          # found footage: camcorder black level (camera.gdshader black_lift): milky, never black
 # Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles

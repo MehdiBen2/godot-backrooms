@@ -1,0 +1,11 @@
+Textures and models under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/):
+
+- pbr/YBR_*/ (ceilings, carpet, wallpapers)
+      "Yasu's Backrooms Material Pack" v1.0 by @mvyasu, CC BY 4.0.
+      Scaled from 4096 to 2048 px and regrouped one material a folder; the ceiling materials pair each tile set
+      with its light panel set (Backrooms_Ceiling_01 + 03 = YBR_CeilingSquare, 02 + 04 = YBR_CeilingLong).
+
+- ../models/ceiling/backrooms_blender_kit.glb (the air vents on the drop ceilings)
+      "Backrooms Blender Kit" by Huuxloc (https://sketchfab.com/rjh41),
+      https://sketchfab.com/3d-models/backrooms-blender-kit-89fad66d968e44aabedf65ac5a06f877, CC BY 4.0.
+      Only the vent meshes are used, relit with the game's own materials.

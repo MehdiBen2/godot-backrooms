@@ -338,6 +338,10 @@ func _pbr(key: String) -> StandardMaterial3D:
 		m.uv1_triplanar = true
 		m.uv1_world_triplanar = true
 		m.uv1_scale = Vector3.ONE * 0.5
+		if key.begins_with("YBR_Ceiling"):
+			# the drop ceilings: their picture is two 0.75 m tiles, on the game's tile grid (level_geometry.gd _pbr_by_id)
+			m.uv1_scale = Vector3.ONE / 1.5
+			m.uv1_offset = Vector3(0.5 if key == "YBR_CeilingLong" else 0.25, 0.25, 0.25)
 		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	else:
 		m.albedo_color = t.avg

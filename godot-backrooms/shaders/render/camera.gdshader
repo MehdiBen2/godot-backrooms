@@ -404,12 +404,17 @@ void fragment() {
 	float l_out = dot(col, LUMA);
 	// camcorder: tape grain and soft scanlines
 	col *= 1.0 - 0.015 * vhs * (0.5 + 0.5 * sin(fc.y * 1.57));
+	// Deep black stays nearly clean: a real camera crushes its blacks (and there is next to no signal there to be
+	// noisy), so the noise lives in the dim shadows just above them. Added at full strength on black, it turned a
+	// dark hall or a power cut into a screen of TV static.
+	float black_w = 0.2 + 0.8 * smoothstep(0.0, 0.15, l_out);
 	float g = hash12(fc + fract(TIME * 7.13) * 917.0) - 0.5;
-	col += g * (grain * max(cam_mode, tape) * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05 + burst * 0.08) * (1.15 - l_out * 0.6);
+	col += g * ((grain * max(cam_mode, tape) * (1.0 - 0.7 * classic) + fear * 0.02 + threat * 0.05) * black_w + burst * 0.08) * (1.15 - l_out * 0.6);
 	// bodycam: CMOS noise. Lives in the shadows and climbs with gain; the colour part comes in soft 2 px blotches
 	if (digital > 0.01) {
-		float shadow_w = 0.3 + 0.7 * (1.0 - smoothstep(0.0, 0.45, l_out));
-		float gain = clamp(iso, 0.4, 3.0);
+		float shadow_w = black_w * (0.3 + 0.7 * (1.0 - smoothstep(0.1, 0.5, l_out)));
+		// the gain shows in the noise gently: the eye adaptation opening up in the dark used to triple it
+		float gain = clamp(sqrt(max(iso, 0.0)), 0.8, 1.35);
 		float ln = (hash12(fc * 1.37 + fract(TIME * 11.3) * 613.0) + hash12(fc * 0.71 + fract(TIME * 5.9) * 271.0) - 1.0);
 		vec2 cfc = floor(fc * 0.5);
 		vec3 cn = vec3(hash12(cfc + fract(TIME * 9.1) * 401.0), hash12(cfc + 17.3 + fract(TIME * 9.1) * 401.0),

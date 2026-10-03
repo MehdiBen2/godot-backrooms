@@ -20,8 +20,9 @@ const LOOKS := {
 	# walls), a washed-out mono-yellow, a soft glow round the tubes, and very little contact shadow: the place
 	# looks flat and too bright, which is what makes it uncanny.
 	"classic": {
-		"ambient_energy": 1.05, "ambient_color": Color(0.45, 0.4, 0.19),    # strong washed-out yellow fill: no real shadows anywhere
-		"exposure": 1.32, "tonemap_white": 2.2,       # overexposed, and the highlights clip sooner: blown-out tubes and walls
+		# (pulled back a step after the first Kane pass: the ceiling read as one flat glowing sheet, too bright to be real)
+		"ambient_energy": 0.88, "ambient_color": Color(0.45, 0.4, 0.19),    # washed-out yellow fill: shadows stay soft and shallow
+		"exposure": 1.24, "tonemap_white": 2.2,       # overexposed, and the highlights clip sooner: blown-out tubes and walls
 		"glow_threshold": 1.0,                        # the panels and the brightest wall right under them bleed
 		# a soft halo round the tubes, but still no bloom-everything: the far panels bunched up near the horizon
 		# merged into one glowing band across the ceiling when the bloom was high

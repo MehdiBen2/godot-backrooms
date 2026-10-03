@@ -97,6 +97,15 @@ func _pbr_by_id(id: String) -> StandardMaterial3D:
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if bool(m.get_meta("drop_ceiling", false)):
+		# a drop ceiling (YBR_Ceiling*) painted on cells: plain tiles only (its emission map is the light panels'),
+		# the texture's two tiles a 1.5 m repeat, and its grid on the level's tile grid (edges half a tile off the
+		# cell centres, as drop_ceiling.gdshader lays them)
+		m.emission_enabled = false
+		m.emission_texture = null
+		m.uv1_scale = Vector3.ONE / 1.5
+		# (2 x 4 tiles: one long tile across the texture, its ends on the cell edges)
+		m.uv1_offset = Vector3(0.5 if bool(m.get_meta("long_tiles", false)) else 0.25, 0.25, 0.25)
 	return m
 
 func _panel_ceiling_material() -> StandardMaterial3D:

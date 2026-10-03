@@ -164,36 +164,64 @@ func _place_panel_fixtures() -> void:
 			fx.append({"pos": pos, "light_pos": pos - Vector3(0, PANEL_DROP, 0), "rot": 0.0, "casts": on_grid,
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
-				"index": -1, "cell": fx.size(), "wanted": false})
+				"index": -1, "cell": fx.size(), "wanted": false, "vents": _pick_vents(c)})
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
 	_index_fixtures()
 
+## A drop ceiling built tile by tile (drop_ceiling.gdshader) rather than a cell-sized picture with its panels baked
+## in (panel_ceiling.gdshader): a textures/pbr material whose .tres says "metadata/drop_ceiling" (YBR_Ceiling*)
+func drop_ceiling() -> bool:
+	return panel_ceiling != null and bool(panel_ceiling.get_meta("drop_ceiling", false))
+
+func _long_tiles() -> bool:
+	return panel_ceiling != null and bool(panel_ceiling.get_meta("long_tiles", false))
+
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
 func _build_panel_ceiling() -> void:
 	if fx.is_empty(): return
-	var sh: Shader = load("res://shaders/panel_ceiling.gdshader")
+	var drop := drop_ceiling()
 	var mat := ShaderMaterial.new()
-	mat.shader = sh
-	mat.set_shader_parameter("albedo_tex", panel_ceiling.albedo_texture)
-	mat.set_shader_parameter("normal_tex", panel_ceiling.normal_texture)
-	mat.set_shader_parameter("orm_tex", panel_ceiling.roughness_texture)
-	mat.set_shader_parameter("emission_tex", panel_ceiling.emission_texture)
+	if drop:
+		mat.shader = load("res://shaders/drop_ceiling.gdshader")
+		mat.set_shader_parameter("tile_albedo", panel_ceiling.albedo_texture)
+		mat.set_shader_parameter("tile_normal", panel_ceiling.normal_texture)
+		mat.set_shader_parameter("tile_rough", panel_ceiling.roughness_texture)
+		mat.set_shader_parameter("light_albedo", panel_ceiling.get_meta("light_albedo", null))
+		mat.set_shader_parameter("light_normal", panel_ceiling.get_meta("light_normal", null))
+		mat.set_shader_parameter("light_rough", panel_ceiling.get_meta("light_roughness", null))
+		mat.set_shader_parameter("light_metal", panel_ceiling.get_meta("light_metallic", null))
+		mat.set_shader_parameter("light_emit", panel_ceiling.emission_texture)
+		mat.set_shader_parameter("long_tiles", 1.0 if _long_tiles() else 0.0)
+	else:
+		mat.shader = load("res://shaders/panel_ceiling.gdshader")
+		mat.set_shader_parameter("albedo_tex", panel_ceiling.albedo_texture)
+		mat.set_shader_parameter("normal_tex", panel_ceiling.normal_texture)
+		mat.set_shader_parameter("orm_tex", panel_ceiling.roughness_texture)
+		mat.set_shader_parameter("emission_tex", panel_ceiling.emission_texture)
+	mat.set_shader_parameter("cell", CELL)
 	var quad := PlaneMesh.new()
 	quad.size = Vector2(CELL, CELL)
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.use_colors = true
+	mm.use_custom_data = drop          # the cell's vents and whether it is on the grid of lit cells (drop_ceiling.gdshader)
 	mm.mesh = quad
 	mm.instance_count = fx.size()
 	var down := Basis(Vector3.RIGHT, PI)              # PlaneMesh faces up; flip it to face the floor
 	var buf := MMBuffer.alloc(mm)
 	var st := MMBuffer.stride(mm)
 	for f in fx:
-		MMBuffer.put(buf, f.cell * st, Transform3D(down, f.pos))
-		MMBuffer.put_color(buf, f.cell * st, Color.BLACK if f.burnt else PANEL_GLOW)
+		var o: int = f.cell * st
+		MMBuffer.put(buf, o, Transform3D(down, f.pos))
+		MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW)
+		if drop:
+			var v: Array = f.get("vents", [])
+			buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
+			buf[o + 17] = float(v[1]) if v.size() > 1 else 0.0
+			buf[o + 18] = 1.0 if f.get("casts", false) else 0.0
 	mm.buffer = buf
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
@@ -203,6 +231,107 @@ func _build_panel_ceiling() -> void:
 	add_child(mmi)
 	panels_mm = mm
 	ceil_mats.append(mat)          # its ceiling_fill is driven by level_lighting.gd
+	if drop: _build_vents()
+
+# ---- air vents (drop ceilings): the Backrooms Blender Kit's models (Huuxloc, CC BY 4.0), set into random tiles
+const VENT_KIT := "res://models/ceiling/backrooms_blender_kit.glb"
+const VENT_SIZE := 0.7              # metres across, inside a 0.75 m tile and its grid bars
+const VENT_DIFFUSER := 0.14         # chance a cell has a square supply diffuser
+const VENT_GRILLE := 0.08           # chance it has a slotted return-air grille
+
+## The vents of cell `c`, as drop_ceiling.gdshader codes ([0, 0]: none). Rolled from the cell and the floor with
+## a dice of their own, so they don't shift the level's burnt / flickering tubes, and a floor seen through a
+## hole (level_shell.gd) gets the same vents.
+func _pick_vents(c: Vector2i) -> Array:
+	if not drop_ceiling() or carved.has(c): return [0, 0]
+	var r := RandomNumberGenerator.new()
+	r.seed = hash(Vector3i(c.x, c.y, floor_src(level_raw, floor_no) + 7121))
+	var spots: Array = []                  # tile centres in 0.375 m steps from the cell's middle, never on a light
+	if _long_tiles():
+		for jx in range(-1, 2):
+			for kz in range(-2, 3):
+				if not ((jx == 0 and kz == 0) or (absi(jx) == 1 and absi(kz) == 2)): spots.append(Vector2i(jx * 4, kz * 2))
+	else:
+		for kx in range(-2, 3):
+			for kz in range(-2, 3):
+				if not ((kx == 0 and kz == 0) or (absi(kx) == 2 and absi(kz) == 2)): spots.append(Vector2i(kx * 2, kz * 2))
+	var out := [0, 0]
+	for kind in 2:
+		if r.randf() >= (VENT_DIFFUSER if kind == 0 else VENT_GRILLE): continue
+		var at: Vector2i = spots.pop_at(r.randi() % spots.size())
+		out[kind] = _vent_code(kind, at)
+	return out
+
+## 1 + kind * 1024 + (ix + 16) + (iz + 16) * 32 (kind 0 diffuser, 1 grille; ix / iz in 0.375 m steps), see drop_ceiling.gdshader
+static func _vent_code(kind: int, at: Vector2i) -> int:
+	return 1 + kind * 1024 + (at.x + 16) + (at.y + 16) * 32
+
+func _build_vents() -> void:
+	var at: Array = [[], []]               # diffusers, grilles: where (on the ceiling)
+	for f: Dictionary in fx:
+		for code in f.get("vents", []):
+			if int(code) <= 0: continue
+			var c := int(code) - 1
+			var off := Vector2(c % 1024 % 32 - 16, c % 1024 / 32 - 16) * (CELL / 12.0)
+			at[c / 1024].append(Vector3(f.pos.x + off.x, f.pos.y, f.pos.z + off.y))
+	if (at[0] as Array).is_empty() and (at[1] as Array).is_empty(): return
+	if not ResourceLoader.exists(VENT_KIT): return
+	var root: Node = (load(VENT_KIT) as PackedScene).instantiate()
+	# the kit's parts, by the node they hang under and their (unlit, in the kit) material's name
+	var parts := {}
+	for mi: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or mi.mesh.get_surface_count() == 0: continue
+		var m := mi.mesh.surface_get_material(0)
+		var mname := m.resource_name if m != null else ""
+		var owner_name := String(mi.get_parent().name)
+		if owner_name.begins_with("Air_Vent_35"): parts["diffuser_" + mname] = mi.mesh
+		elif owner_name.begins_with("Ceiling_Tile_with_Vent_36") and mname == "Vent": parts["grille"] = mi.mesh
+		if mname == "Vent" and m is BaseMaterial3D and not parts.has("metal_tex"):
+			parts["metal_tex"] = (m as BaseMaterial3D).albedo_texture
+	root.queue_free()
+	var metal := StandardMaterial3D.new()             # brushed sheet metal, lit (the kit draws it unlit)
+	metal.albedo_texture = parts.get("metal_tex")
+	metal.albedo_color = Color(0.86, 0.86, 0.83)
+	metal.metallic = 0.35
+	metal.roughness = 0.5
+	metal.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var dark := StandardMaterial3D.new()              # the duct behind the diffuser's cones
+	dark.albedo_color = Color(0.02, 0.02, 0.02)
+	dark.roughness = 1.0
+	# (the diffuser is sized and hung by its backing plate: the widest part, and the one flush with the ceiling)
+	var diffuser_box: Mesh = parts.get("diffuser_dark", parts.get("diffuser_Vent"))
+	var sets := [[at[0], parts.get("diffuser_Vent"), metal, diffuser_box],
+		[at[0], parts.get("diffuser_dark"), dark, diffuser_box],
+		[at[1], parts.get("grille"), metal, parts.get("grille")]]
+	for s: Array in sets:
+		var where: Array = s[0]
+		var mesh: Mesh = s[1]
+		var sizing: Mesh = s[3]
+		if where.is_empty() or mesh == null or sizing == null: continue
+		# scaled to VENT_SIZE across and hung with its top just under the ceiling (a grille sits recessed in
+		# the kit; here its slots open onto the dark the ceiling shader leaves behind it)
+		var box := sizing.get_aabb()
+		var k := VENT_SIZE / maxf(box.size.x, box.size.z)
+		var top := box.end.y * k + 0.004
+		var mid := box.get_center() * k
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = where.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for i in where.size():
+			var p: Vector3 = where[i]
+			var turn := float(posmod(int(p.x * 7.0 + p.z * 13.0), 4)) * PI * 0.5    # grilles face either way
+			var b := Basis(Vector3.UP, turn).scaled(Vector3.ONE * k)
+			MMBuffer.put(buf, i * st, Transform3D(b, p - Vector3(0.0, top, 0.0) - Basis(Vector3.UP, turn) * Vector3(mid.x, 0.0, mid.z)))
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = s[2]
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.layers = CEIL_LAYER        # lit like the ceiling round it (level_light_pool.gd ceil_glow)
+		add_child(mmi)
 
 ## A shader written out in code, compiled once: a floor rebuilt in place (level_builder.gd) reuses it
 static var _coded := {}
@@ -717,7 +846,7 @@ func _build_floor_reflections() -> void:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var box := BoxMesh.new()
-	box.size = Vector3(0.7, 0.02, 0.7) if panels_mm else Vector3(1.95, 0.02, 0.82)
+	box.size = (Vector3(1.4, 0.02, 0.7) if _long_tiles() else Vector3(0.7, 0.02, 0.7)) if panels_mm else Vector3(1.95, 0.02, 0.82)
 	mm.mesh = box
 	var offs: Array = PANEL_OFFSETS if panels_mm else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
 	mm.instance_count = items.size() * offs.size()
