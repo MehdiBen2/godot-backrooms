@@ -18,10 +18,21 @@ const MAX_PLAYERS := 8
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 5
+const PROTOCOL := 6
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
-const TAPE_BATCH_MAX := 1000     # strips in one _tape_rpc (a newcomer gets everyone's in one go)
+const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
+const TAPE_CHUNK := 150          # a newcomer gets the tape already up in chunks this size (one huge message stalls the socket)
+## WebSocket buffers. Godot's default is 64 KB each way: one big reliable message (a newcomer's tape) or a
+## hitch with voice + snapshots queued behind it overflowed that, and the peer dropped the data or the link.
+const WS_BUFFER := 4 * 1024 * 1024
+const WS_MAX_QUEUED := 8192
+## Host monsters: snapshots that didn't change since the last one aren't sent again (a Mimic that is away,
+## a Grabber that is off, a still Mannequin), only this often so a guest that just joined still gets them
+const KEEPALIVE := 0.5
+const MQ_VIEW_KEEPALIVE := 0.25  # a guest repeats "I'm (not) looking at the mannequin" this often (the host forgets after 0.6 s)
+enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC }
+const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic"]
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const TUNNEL_DOMAIN := "trycloudflare.com"
 const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "code -> link" for a while; swap for your own Worker any time
@@ -50,6 +61,15 @@ var build_tag := ""             # release tag from the launcher's version.txt ("
 var remotes := {}               # peer id -> RemotePlayer
 
 var _send_t := 0.0
+var _sim_t := 0.0               # clock(): physics time this machine has simulated (see clock())
+var _out := {}                  # Ent -> [t, bytes]: monster snapshots waiting for this frame's _flush_world
+var _sent := {}                 # Ent -> [t, bytes, sent_at]: the last one that went out
+var _held := {}                 # Ent -> [t, bytes]: the newest one NOT sent because nothing had changed
+var _flush_queued := false
+var _mq_view_last := -1         # what we last told the host (-1 never), and when
+var _mq_view_at := 0.0
+var _survivors_cache: Array = []
+var _survivors_frame := -1
 var _cf_pid := -1
 var _cf_thread: Thread
 var _quit := false
@@ -93,7 +113,7 @@ func is_online() -> bool:
 ## local_only skips it (same-network testing: friends type this PC's address instead).
 func host(local_only := false) -> void:
 	leave()
-	var peer := WebSocketMultiplayerPeer.new()
+	var peer := _new_peer()
 	if peer.create_server(PORT) != OK:
 		_set_status("COULD NOT OPEN PORT %d (ALREADY HOSTING?)" % PORT)
 		return
@@ -121,12 +141,19 @@ func join(address: String) -> void:
 		_connect_url(url)
 
 func _connect_url(url: String) -> void:
-	var peer := WebSocketMultiplayerPeer.new()
+	var peer := _new_peer()
 	if peer.create_client(url) != OK:
 		_set_status("BAD ROOM CODE")
 		return
 	multiplayer.multiplayer_peer = peer
 	_set_status("CONNECTING ...")
+
+func _new_peer() -> WebSocketMultiplayerPeer:
+	var peer := WebSocketMultiplayerPeer.new()
+	peer.inbound_buffer_size = WS_BUFFER
+	peer.outbound_buffer_size = WS_BUFFER
+	peer.max_queued_packets = WS_MAX_QUEUED
+	return peer
 
 func leave() -> void:
 	_room_token += 1
@@ -137,8 +164,24 @@ func leave() -> void:
 	multiplayer.multiplayer_peer = null
 	hosting = false
 	_clear_remotes()
+	_out.clear()
+	_sent.clear()
+	_held.clear()
+	_mq_view.clear()
+	_mq_view_last = -1
 	_set_share_link("")
 	_set_status("OFFLINE")
+
+## Leave with a message, from inside a network callback (a signal the peer emits while it is being polled,
+## or an RPC being dispatched): pulling the peer out from under SceneMultiplayer mid-poll can crash, so it
+## waits for the end of the frame
+func _drop(msg: String) -> void:
+	leave()
+	_set_status(msg)
+
+func _kick(id: int) -> void:
+	if hosting and is_online() and multiplayer.get_peers().has(id):
+		multiplayer.multiplayer_peer.disconnect_peer(id)
 
 # ---- room codes: a short random code, mapped to the tunnel link by the relay ----------------------------
 static func new_code() -> String:
@@ -259,7 +302,7 @@ static func normalize_url(addr: String) -> String:
 # ---- connection events ----------------------------------------------------------------
 func _on_peer_connected(id: int) -> void:
 	if multiplayer.get_peers().size() + 1 > MAX_PLAYERS and hosting:
-		multiplayer.multiplayer_peer.disconnect_peer(id)
+		_kick.call_deferred(id)
 		return
 	names[id] = ""
 	_hello.rpc_id(id, my_name(), PROTOCOL, build_tag)
@@ -267,9 +310,12 @@ func _on_peer_connected(id: int) -> void:
 		_level.rpc_id(id, Game.level_index)
 		if mq_level >= 0:
 			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
+		_sent.clear()                                        # every monster goes out in full next frame, for the newcomer
 	var tape := TapeMarks.pack_mine()
 	if not tape.is_empty():
-		_tape_rpc.rpc_id(id, tape.slice(-TAPE_BATCH_MAX))  # the tape we already stuck up, for the newcomer
+		tape = tape.slice(-TAPE_BATCH_MAX)                  # the tape we already stuck up, for the newcomer
+		for i in range(0, tape.size(), TAPE_CHUNK):
+			_tape_rpc.rpc_id(id, tape.slice(i, i + TAPE_CHUNK))
 	_ensure_remote(id)
 	_update_count()
 
@@ -280,6 +326,7 @@ func _on_peer_disconnected(id: int) -> void:
 	remotes.erase(id)
 	names.erase(id)
 	_mq_view.erase(id)
+	_survivors_frame = -1
 	_update_count()
 
 func _on_connected() -> void:
@@ -287,12 +334,10 @@ func _on_connected() -> void:
 	_set_status("CONNECTED // %d SURVIVOR(S)" % (multiplayer.get_peers().size() + 1))
 
 func _on_connection_failed() -> void:
-	leave()
-	_set_status("COULD NOT CONNECT // CHECK THE CODE AND THAT THE HOST IS STILL IN THE LOBBY")
+	_drop.call_deferred("COULD NOT CONNECT // CHECK THE CODE AND THAT THE HOST IS STILL IN THE LOBBY")
 
 func _on_server_disconnected() -> void:
-	leave()
-	_set_status("SIGNAL LOST // HOST CLOSED THE LOBBY")
+	_drop.call_deferred("SIGNAL LOST // HOST CLOSED THE LOBBY")
 
 func _update_count() -> void:
 	if not is_online():
@@ -311,10 +356,9 @@ func _hello(callsign: String, protocol: int, their_build: String) -> void:
 	if protocol != PROTOCOL:
 		var theirs := their_build.left(24).to_upper()
 		if hosting:
-			multiplayer.multiplayer_peer.disconnect_peer(id)    # they get the message from their own side
+			_kick.call_deferred(id)                         # they get the message from their own side
 		elif id == 1:
-			leave()
-			_set_status("VERSION MISMATCH // HOST: %s  YOU: %s // BOTH OF YOU: UPDATE IN THE LAUNCHER" % [theirs, build_tag])
+			_drop.call_deferred("VERSION MISMATCH // HOST: %s  YOU: %s // BOTH OF YOU: UPDATE IN THE LAUNCHER" % [theirs, build_tag])
 		return
 	names[id] = clean_name(callsign)
 	if id == 1:
@@ -330,13 +374,40 @@ func _level(idx: int) -> void:
 	if idx != Game.level_index:
 		Game.change_level(idx)
 
+## A survivor's snapshot, 36 bytes: t (f64), feet x y z, yaw, pitch, ground speed (f32), flags (u8),
+## level (u8), floor (s16). Floors matter: two survivors on different floors of one level share x/z.
+const STATE_SIZE := 36
+
+static func pack_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int, floor_i: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.resize(STATE_SIZE)
+	b.encode_double(0, t)
+	b.encode_float(8, pos.x)
+	b.encode_float(12, pos.y)
+	b.encode_float(16, pos.z)
+	b.encode_float(20, yaw)
+	b.encode_float(24, pitch)
+	b.encode_float(28, spd)
+	b.encode_u8(32, flags & 0xFF)
+	b.encode_u8(33, clampi(level, 0, 255))
+	b.encode_s16(34, clampi(floor_i, -32768, 32767))
+	return b
+
 @rpc("any_peer", "call_remote", "unreliable_ordered")
-func _state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
+func _state(b: PackedByteArray) -> void:
 	var id := multiplayer.get_remote_sender_id()
-	if not _is_peer(id) or not _valid_state(t, pos, yaw, pitch, spd, level):
+	if not _is_peer(id) or b.size() != STATE_SIZE:
+		return
+	var t := b.decode_double(0)
+	var pos := Vector3(b.decode_float(8), b.decode_float(12), b.decode_float(16))
+	var yaw := b.decode_float(20)
+	var pitch := b.decode_float(24)
+	var spd := b.decode_float(28)
+	var level := b.decode_u8(33)
+	if not _valid_state(t, pos, yaw, pitch, spd, level):
 		return
 	var r: Node = _ensure_remote(id)
-	r.push_state(t, pos, yaw, pitch, spd, flags, level)
+	r.push_state(t, pos, yaw, pitch, spd, b.decode_u8(32), level, b.decode_s16(34))
 
 ## Snapshot clock: simulated time of the physics step the position comes from. Wall time would be off
 ## by up to a frame (several physics steps run back to back in one frame), which shows as stutter.
@@ -346,9 +417,11 @@ static func _valid_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: 
 	return absf(pos.x) < MAX_COORD and absf(pos.y) < MAX_COORD and absf(pos.z) < MAX_COORD \
 		and spd >= 0.0 and spd < 1000.0 and level >= 0 and level < 64
 
-## A peer that is actually connected right now (a late packet must not bring a player back after they left)
+## A peer that is actually connected right now (a late packet must not bring a player back after they left).
+## `names` holds exactly the connected peers (peer_connected / peer_disconnected) and, unlike
+## multiplayer.get_peers(), doesn't build a fresh array for every packet.
 func _is_peer(id: int) -> bool:
-	return id > 0 and multiplayer.get_peers().has(id)
+	return id > 0 and names.has(id)
 
 ## Callsigns are shown on 3D labels and in the lobby list: printable ASCII only, trimmed, capped
 static func clean_name(raw: String) -> String:
@@ -369,8 +442,11 @@ static func _read_build_tag() -> String:
 		return "DEV"
 	return f.get_as_text().strip_edges().left(24)
 
-static func clock() -> float:
-	return Engine.get_physics_frames() / float(Engine.physics_ticks_per_second)
+## Snapshot clock: the physics time this machine has simulated, summed step by step. (Physics frames
+## divided by the tick rate jumped whenever the tick rate changed: a graphics setting, the display's
+## refresh rate, Gfx easing the rate off on a struggling PC. Every jump read as a hitch on the far side.)
+func clock() -> float:
+	return _sim_t
 
 # ---- monsters and events: the host's PC decides, everyone else follows ----------------------
 func id_of(node: Node) -> int:
@@ -384,15 +460,147 @@ func _scene_node(node_name: String) -> Node:
 		return Game.main.get_node_or_null(node_name)
 	return null
 
+## Host: the monsters' snapshots (bacteria_net.gd, grabber_net.gd, mannequin.gd, mimic.gd each hand one
+## over 20 times a second). They used to go out as four messages of Variant arrays (a float 12 bytes, a
+## bool 8); now whatever was handed over this frame goes out once at the end of it, as one message of
+## packed bytes, and a snapshot identical to the last one sent is held back (KEEPALIVE).
 func send_entity(m: Array) -> void:
-	if hosting and is_online() and not multiplayer.get_peers().is_empty():
-		_entity.rpc(clock(), m)
+	_queue_ent(Ent.BACTERIA, m)
+
+func _queue_ent(kind: int, m: Array) -> void:
+	if not _has_peers():
+		return
+	_out[kind] = [clock(), pack_values(m)]
+	if not _flush_queued:
+		_flush_queued = true
+		_flush_world.call_deferred()
+
+func _flush_world() -> void:
+	_flush_queued = false
+	if _out.is_empty() or not _has_peers():
+		_out.clear()
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	var w := StreamPeerBuffer.new()
+	var n := 0
+	w.put_u8(0)                                   # entry count, filled in below
+	for kind: int in _out:
+		var t: float = _out[kind][0]
+		var bytes: PackedByteArray = _out[kind][1]
+		var last: Array = _sent.get(kind, [])
+		if not last.is_empty() and last[1] == bytes and now - float(last[2]) < KEEPALIVE:
+			_held[kind] = [t, bytes]                  # nothing new: hold it back
+			continue
+		# it starts moving again: the snapshot from just before goes first, so a guest draws it standing
+		# still until then instead of gliding there from the last one it got (up to KEEPALIVE ago)
+		var held: Array = _held.get(kind, [])
+		if not held.is_empty() and held[1] != bytes and held[0] > (last[0] if not last.is_empty() else -INF):
+			_put_entry(w, kind, held[0], held[1])
+			n += 1
+		_held.erase(kind)
+		_put_entry(w, kind, t, bytes)
+		n += 1
+		_sent[kind] = [t, bytes, now]
+	_out.clear()
+	if n == 0:
+		return
+	var b := w.data_array
+	b[0] = n
+	_world.rpc(b)
+
+static func _put_entry(w: StreamPeerBuffer, kind: int, t: float, bytes: PackedByteArray) -> void:
+	w.put_u8(kind)
+	w.put_double(t)
+	w.put_u16(bytes.size())
+	w.put_data(bytes)
 
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _entity(t: float, m: Array) -> void:
-	var ent := _scene_node("Entity")
-	if ent != null and ent.has_method("net_apply"):
-		ent.net_apply(t, m)
+func _world(b: PackedByteArray) -> void:
+	var r := StreamPeerBuffer.new()
+	r.data_array = b
+	if r.get_available_bytes() < 1:
+		return
+	var n := r.get_u8()
+	for i in n:
+		if r.get_available_bytes() < 11:
+			return
+		var kind := r.get_u8()
+		var t := r.get_double()
+		var size := r.get_u16()
+		if r.get_available_bytes() < size or kind >= ENT_NODES.size() or not is_finite(t):
+			return
+		var got: Array = r.get_data(size)
+		var m = unpack_values(got[1])
+		if m == null:
+			continue
+		var node := _scene_node(ENT_NODES[kind])
+		if node != null and node.has_method("net_apply"):
+			node.net_apply(t, m)
+
+## Snapshot values as bytes: a tag, then the value. Floats travel as 32-bit (plenty for positions, angles
+## and clip times), ints as 32-bit (peer ids fit), bools as the tag alone, arrays (one level: the
+## mannequin's pose) as a count and their values.
+enum Tag { F32, I32, FALSE, TRUE, ARR }
+
+static func pack_values(m: Array) -> PackedByteArray:
+	var w := StreamPeerBuffer.new()
+	_pack_into(w, m)
+	return w.data_array
+
+static func _pack_into(w: StreamPeerBuffer, m: Array) -> void:
+	w.put_u8(mini(m.size(), 255))
+	for i in mini(m.size(), 255):
+		var v = m[i]
+		match typeof(v):
+			TYPE_BOOL:
+				w.put_u8(Tag.TRUE if v else Tag.FALSE)
+			TYPE_INT:
+				w.put_u8(Tag.I32)
+				w.put_32(clampi(v, -2147483648, 2147483647))
+			TYPE_ARRAY:
+				w.put_u8(Tag.ARR)
+				_pack_into(w, v)
+			_:
+				w.put_u8(Tag.F32)
+				w.put_float(float(v) if (typeof(v) == TYPE_FLOAT or typeof(v) == TYPE_INT) else 0.0)
+
+## null if the bytes are malformed (never trust the wire)
+static func unpack_values(b: PackedByteArray) -> Variant:
+	var r := StreamPeerBuffer.new()
+	r.data_array = b
+	return _unpack_from(r, 0)
+
+static func _unpack_from(r: StreamPeerBuffer, depth: int) -> Variant:
+	if depth > 2 or r.get_available_bytes() < 1:
+		return null
+	var n := r.get_u8()
+	var out: Array = []
+	out.resize(n)
+	for i in n:
+		if r.get_available_bytes() < 1:
+			return null
+		match r.get_u8():
+			Tag.F32:
+				if r.get_available_bytes() < 4:
+					return null
+				var f := r.get_float()
+				out[i] = f if is_finite(f) else 0.0
+			Tag.I32:
+				if r.get_available_bytes() < 4:
+					return null
+				out[i] = r.get_32()
+			Tag.FALSE:
+				out[i] = false
+			Tag.TRUE:
+				out[i] = true
+			Tag.ARR:
+				var sub = _unpack_from(r, depth + 1)
+				if sub == null:
+					return null
+				out[i] = sub
+			_:
+				return null
+	return out
 
 ## Host: an event just started (or was stopped): everyone gets the same scare at the same moment
 func send_event(event_name: String) -> void:
@@ -418,7 +626,16 @@ func _stop_events() -> void:
 # ---- who the monsters can hunt ------------------------------------------------------------------
 ## Every survivor a monster may target right now: this player and each remote one that is alive and in
 ## the game (not dead, not sitting in a menu). {node, id, pos, fwd (flat, unit), local}
+## Built once per frame and shared (every monster asks several times a frame): treat it as read-only.
 func survivors() -> Array:
+	var frame := Engine.get_process_frames() * 64 + Engine.get_physics_frames() % 64
+	if frame == _survivors_frame:
+		return _survivors_cache
+	_survivors_frame = frame
+	_survivors_cache = _build_survivors()
+	return _survivors_cache
+
+func _build_survivors() -> Array:
 	var out: Array = []
 	var p: Node = Game.player
 	if p != null and is_instance_valid(p) and not p.dead and Game.playing and not Game.invisible:
@@ -452,14 +669,7 @@ func _has_peers() -> bool:
 
 # ---- THE GRABBER: the host runs it; whoever it takes plays the drag on their own machine ----------
 func send_grabber(m: Array) -> void:
-	if _has_peers():
-		_grabber_snap_rpc.rpc(clock(), m)
-
-@rpc("authority", "call_remote", "unreliable_ordered")
-func _grabber_snap_rpc(t: float, m: Array) -> void:
-	var g := _scene_node("Grabber")
-	if g != null and g.has_method("net_apply"):
-		g.net_apply(t, m)
+	_queue_ent(Ent.GRABBER, m)
 
 ## Host: it has taken `peer_id`'s survivor
 func send_grabber_grab(peer_id: int) -> void:
@@ -505,18 +715,18 @@ func _mq_seed_rpc(level_idx: int, seed_v: int) -> void:
 		mq.net_seed(seed_v)
 
 func send_mq(m: Array) -> void:
-	if _has_peers():
-		_mq_snap_rpc.rpc(clock(), m)
+	_queue_ent(Ent.MANNEQUIN, m)
 
-@rpc("authority", "call_remote", "unreliable_ordered")
-func _mq_snap_rpc(t: float, m: Array) -> void:
-	var mq := _scene_node("Mannequin")
-	if mq != null and mq.has_method("net_apply"):
-		mq.net_apply(t, m)
-
+## Guest: only when it changes, and every MQ_VIEW_KEEPALIVE while it holds (it was 10 messages a second)
 func send_mq_view(seen: bool) -> void:
-	if _to_host_ready():
-		_mq_view_rpc.rpc_id(1, seen)
+	if not _to_host_ready():
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if int(seen) == _mq_view_last and now - _mq_view_at < MQ_VIEW_KEEPALIVE:
+		return
+	_mq_view_last = int(seen)
+	_mq_view_at = now
+	_mq_view_rpc.rpc_id(1, seen)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
 func _mq_view_rpc(seen: bool) -> void:
@@ -544,24 +754,57 @@ func _mq_kill_rpc() -> void:
 
 # ---- THE MIMIC: the host runs the body, each survivor gets the same one ---------------------------
 func send_mm(m: Array) -> void:
-	if _has_peers():
-		_mm_rpc.rpc(clock(), m)
-
-@rpc("authority", "call_remote", "unreliable_ordered")
-func _mm_rpc(t: float, m: Array) -> void:
-	var mm := _scene_node("Mimic")
-	if mm != null and mm.has_method("net_apply"):
-		mm.net_apply(t, m)
+	_queue_ent(Ent.MIMIC, m)
 
 func send_mm_hit(id: int) -> void:
-	if _has_peers():
+	if _has_peers() and _is_peer(id):
 		_mm_hit_rpc.rpc_id(id)
 
 @rpc("authority", "call_remote", "reliable")
 func _mm_hit_rpc() -> void:
 	var mm := _scene_node("Mimic")
-	if mm != null:
+	if mm != null and mm.has_method("hit_player"):
 		mm.hit_player()
+
+## Is the host on this level and floor? (its monsters live on its floor: on another one they would walk
+## through our walls, so the puppets hide). True for the host itself and before its first snapshot.
+func host_here() -> bool:
+	if not is_online() or hosting:
+		return true
+	var h: Node = remotes.get(1)
+	return h == null or not is_instance_valid(h) or not h.seen or h.here
+
+# ---- event triggers a guest walks into (event_trigger.gd): what the host runs, the host runs ------------
+## Guest: a trigger fired a monster or a director event. The host does it, for everyone (a guest's own copy
+## of those is a puppet, or has no say), near the guest who walked in.
+func send_trigger(ev: String, at: Vector3) -> void:
+	if _to_host_ready() and ev.length() <= 64 and at.is_finite():
+		_trigger_rpc.rpc_id(1, ev, at)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _trigger_rpc(ev: String, at: Vector3) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not hosting or not _is_peer(id) or ev.length() > 64 or not at.is_finite():
+		return
+	var r: Node3D = remotes.get(id)
+	if r == null or not is_instance_valid(r) or not r.here or r.target_pos.distance_to(at) > 30.0:
+		return                            # it has to be where that survivor actually is, on our floor
+	var root := Game.main if Game.main != null and is_instance_valid(Game.main) else null
+	if root == null:
+		return
+	match ev:
+		"spawn_mimic":
+			var mm := root.get_node_or_null("Mimic")
+			if mm != null and mm.has_method("appear"):
+				mm.appear(r.target_pos)
+		"spawn_bacteria":
+			var ent := root.get_node_or_null("Entity")
+			if ent != null and ent.has_method("spawn_stalk"):
+				ent.spawn_stalk(true)
+		_:
+			var evs := root.get_node_or_null("Events")
+			if evs != null and evs.has_method("run_event"):
+				evs.run_event(ev)              # broadcasts itself to everyone (events.gd run_event)
 
 # ---- hazard tape: every strip anyone sticks up or peels off, everyone sees (tape_marks.gd) -----
 ## strips: TapeMarks.pack()ed, [[level, a, b, n, id, t, by], ...]
@@ -636,6 +879,7 @@ func _clear_remotes() -> void:
 			r.queue_free()
 	remotes.clear()
 	names.clear()
+	_survivors_frame = -1
 
 func _process(dt: float) -> void:
 	if not is_online():
@@ -643,8 +887,7 @@ func _process(dt: float) -> void:
 	if _hello_wait > 0.0:
 		_hello_wait -= dt
 		if _hello_wait <= 0.0:
-			leave()
-			_set_status("THE HOST RUNS A DIFFERENT VERSION // BOTH OF YOU: UPDATE IN THE LAUNCHER")
+			_drop("THE HOST RUNS A DIFFERENT VERSION // BOTH OF YOU: UPDATE IN THE LAUNCHER")
 			return
 	if debug:
 		_dbg_t -= dt
@@ -670,8 +913,8 @@ func _send_state(dt: float) -> void:
 	var cam: Camera3D = p.get_node_or_null("Camera3D")
 	var v: Vector3 = p.velocity if p is CharacterBody3D else Vector3.ZERO
 	var flags := (1 if p.get("is_crouching") else 0) | (2 if p.get("flash_on") else 0) | (4 if p.get("dead") else 0) | (8 if Game.playing else 0) | (16 if Game.invisible else 0)
-	_state.rpc(clock(), p.global_position, p.rotation.y, cam.rotation.x if cam else 0.0,
-		Vector2(v.x, v.z).length(), flags, Game.level_index)
+	_state.rpc(pack_state(clock(), p.global_position, p.rotation.y, cam.rotation.x if cam else 0.0,
+		Vector2(v.x, v.z).length(), flags, Game.level_index, Game.level_floor))
 
 # ---- cloudflared ------------------------------------------------------------------------------
 func _start_tunnel() -> void:
@@ -728,6 +971,7 @@ func _set_status(text: String) -> void:
 
 # Snapshots are sent from the physics step, on a fixed grid
 func _physics_process(dt: float) -> void:
+	_sim_t += dt                       # first thing each step (an autoload steps before the scene): the whole step reads one clock
 	if not is_online():
 		return
 	_send_state(dt)

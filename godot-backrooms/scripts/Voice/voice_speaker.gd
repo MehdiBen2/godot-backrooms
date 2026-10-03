@@ -83,6 +83,11 @@ func setup(peer_id: int, is_spatial := true) -> void:
 		_pb = _p2.get_stream_playback()
 
 func _exit_tree() -> void:
+	# stop the stream before its bus goes: a player still mixing into a bus that is being removed under it
+	# is a crash risk on the audio thread
+	if _p3 != null:
+		_p3.stop()
+		_p3.bus = &"Master"
 	if _bus != "":
 		var idx := AudioServer.get_bus_index(_bus)
 		if idx >= 0:

@@ -36,6 +36,8 @@ func send(delta: float) -> void:
 
 ## Guest: the host's latest snapshot (Net._entity)
 func apply(t: float, m: Array) -> void:
+	if m.size() < 19:
+		return
 	buf.push(t, {"pos": Vector3(m[0], 0.0, m[1]), "yaw": float(m[2]), "speed": float(m[4]), "m": m})
 
 ## Guest: take up the host's pose and state for this frame
@@ -55,7 +57,7 @@ func step(delta: float) -> void:
 	e.staring = m[8]
 	e.seen_target = m[9]
 	e.focus = e.player if int(m[10]) == e.multiplayer.get_unique_id() else Net.remotes.get(int(m[10]))
-	e.visible = m[11]
+	e.visible = bool(m[11]) and Net.host_here()       # the host's floor, not ours: it isn't in our halls
 	# its corner: the rig hooks the same hand round the same edge here
 	e.peek_dir = m[12]
 	e.stalk_corner = Vector3(m[13], 0.0, m[14])

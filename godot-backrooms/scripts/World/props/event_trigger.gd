@@ -92,11 +92,20 @@ func _run() -> void:
 	if text.strip_edges() != "":
 		_caption(text)
 
+## Run by the host in co-op: monsters (a guest's are puppets of the host's) and the director's events
+## (shared by everyone). Everything else here is what this player alone sees and hears.
+const HOST_EVENTS := ["spawn_bacteria", "spawn_mimic"]
+const LOCAL_EVENTS := ["message", "text", "lights_out", "flicker", "silence", "thump", "drone", "static",
+	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination"]
+
 func _execute_event(ev: String) -> void:
 	var root: Node = level.get_parent() if level != null else null
 	if root == null and Game.main != null:
 		root = Game.main
 	var p := Game.player as Node3D
+	if Net.is_online() and not Net.hosting and (ev in HOST_EVENTS or ev not in LOCAL_EVENTS):
+		Net.send_trigger(ev, p.global_position if p != null else global_position)
+		return
 	match ev:
 		"message", "text":
 			pass                               # the caption below is all it does

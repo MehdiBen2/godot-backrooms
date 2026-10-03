@@ -31,6 +31,8 @@ func send(delta: float) -> void:
 
 ## Guest: the host's latest snapshot (Net._grabber_snap_rpc)
 func apply(t: float, m: Array) -> void:
+	if m.size() < 11:
+		return
 	buf.push(t, {"pos": Vector3(m[0], m[1], m[2]), "yaw": float(m[3]), "m": m})
 
 ## Guest: take up the host's place, state and clip for this frame
@@ -46,7 +48,7 @@ func step(delta: float) -> void:
 	if s != e.state:
 		e.state = s
 		e.state_time = 0.0
-	e.visible = bool(m[10])
+	e.visible = bool(m[10]) and Net.host_here()       # the host's floor, not ours: it isn't in our halls
 	var b = e.body
 	if b == null:
 		return

@@ -53,6 +53,13 @@ const HAND_ANIM_WAIT := 0.35      # s from the menu closing to the clip, so its 
 const FONT_PATH := "res://fonts/vcr.ttf"
 var font: FontFile
 
+# The console stays locked until the code is typed once; static, so it holds until the game is closed
+const ACCESS_CODE := "200021"
+static var unlocked := false
+var gate: PanelContainer
+var gate_input: LineEdit
+var gate_msg: Label
+
 var root: Node
 var menu_window: PanelContainer
 var screen_overlay: PanelContainer
@@ -135,6 +142,7 @@ func _build_ui() -> void:
 	_build_screen_overlay(root_ctrl)
 	_build_quick_badge(root_ctrl)
 	_build_menu_window(root_ctrl)
+	_build_gate(root_ctrl)
 
 # Top-Left Live Telemetry HUD Overlay
 func _build_screen_overlay(parent: Control) -> void:
@@ -967,8 +975,56 @@ func open_menu() -> void:
 func close_menu() -> void:
 	_toggle(false)
 
+func _build_gate(parent: Control) -> void:
+	gate = PanelContainer.new()
+	gate.set_anchors_preset(Control.PRESET_CENTER)
+	gate.custom_minimum_size = Vector2(380, 0)
+	gate.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	gate.grow_vertical = Control.GROW_DIRECTION_BOTH
+	gate.position = Vector2(-190, -60)
+	gate.add_theme_stylebox_override("panel", _make_box(Color(0.045, 0.055, 0.075, 0.97), Color(0.2, 0.8, 0.68, 0.9), 2, 6, 14))
+	gate.visible = false
+	parent.add_child(gate)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	gate.add_child(v)
+	v.add_child(_label("T.S.R.A. DIAGNOSTIC // ACCESS CODE", 14, Color(0.25, 0.95, 0.8)))
+
+	gate_input = LineEdit.new()
+	gate_input.secret = true
+	gate_input.placeholder_text = "enter code"
+	gate_input.text_submitted.connect(_try_unlock)
+	v.add_child(gate_input)
+
+	gate_msg = _label("ENTER to confirm, ESC to cancel", 10, Color(0.65, 0.75, 0.72))
+	v.add_child(gate_msg)
+
+func _try_unlock(code: String) -> void:
+	if code.strip_edges() == ACCESS_CODE:
+		unlocked = true
+		gate.visible = false
+		gate_input.release_focus()
+		_toggle(true)
+	else:
+		gate_input.clear()
+		gate_msg.text = "ACCESS DENIED"
+		gate_msg.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+
 func _toggle(on: bool) -> void:
 	if on and Game.dead:
+		return
+	if on and not unlocked:
+		gate.visible = true
+		gate_input.clear()
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		gate_input.grab_focus()
+		return
+	if not on and gate.visible:
+		gate.visible = false
+		gate_input.release_focus()
+		if not Game.dead:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		return
 	menu_window.visible = on
 	if on:
@@ -987,6 +1043,16 @@ func _toggle(on: bool) -> void:
 
 func _input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):
+		return
+
+	# code prompt up: only F1 / ESC are ours, everything else is typing into it
+	if gate.visible:
+		if e.physical_keycode == KEY_F1 or e.physical_keycode == KEY_ESCAPE:
+			_toggle(false)
+			get_viewport().set_input_as_handled()
+		return
+	# locked: the console and its hotkeys stay out of the way except to ask for the code
+	if not unlocked and e.physical_keycode == KEY_1:
 		return
 
 	# Special toggle buttons: F1, Tilde (`~`), F3
@@ -1015,7 +1081,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if not Game.dev_keys:
+	if not Game.dev_keys or not unlocked:
 		return
 
 	# Survivor model preview hotkeys

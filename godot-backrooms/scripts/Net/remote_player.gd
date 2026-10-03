@@ -9,6 +9,8 @@ const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
 const MODEL := SurvivorAnim.MODEL
 const MODEL_HEIGHT := 2.0       # metres: eye / visor level matches the 1.7 m camera in the idle pose
 const SMOOTH := 12.0
+const LIGHT_FADE := 34.0
+const SHADOW_FADE := 18.0
 
 var color := Color("c9a44a")
 
@@ -19,6 +21,7 @@ var crouching := false
 var torch_on := true
 var dead := false
 var seen := false
+var here := true                 # on our level AND floor (an invisible spectator is still `here`)
 var peer_id := 0
 var playing := true              # false while they sit in the menu: the monsters leave them alone
 
@@ -66,10 +69,16 @@ func _ready() -> void:
 	light.light_energy = 2.5
 	light.light_color = Color("fff0c8")
 	# Without a shadow their torch shines straight through walls: you'd see a pool of light on your floor
-	# from a survivor in the next corridor. One spot shadow each is cheap; off on the Low preset.
+	# from a survivor in the next corridor. Off on the Low preset. Every shadowed torch is one more shadow
+	# render of the level a frame, so with a full lobby they only keep it close by: the shadow fades out
+	# past SHADOW_FADE m (a torch that far off lights little but its own wall) and the light past LIGHT_FADE.
 	light.shadow_enabled = int(Gfx.s.get("shadows", 1)) > 0
 	light.shadow_bias = 0.04
 	light.shadow_normal_bias = 1.5
+	light.distance_fade_enabled = true
+	light.distance_fade_begin = LIGHT_FADE
+	light.distance_fade_length = 8.0
+	light.distance_fade_shadow = SHADOW_FADE
 	body.add_child(light)
 
 	tag = Label3D.new()
@@ -138,8 +147,8 @@ func _play(role: String) -> void:
 	anim.play(clips[role], SurvivorAnim.FADE)
 
 ## A snapshot from the network: sender clock t (s), feet position, facing, look pitch, ground speed
-func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int) -> void:
-	buf.push(t, {"pos": pos, "yaw": yaw, "pitch": pitch, "speed": spd, "flags": flags, "level": level})
+func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int, floor_i: int) -> void:
+	buf.push(t, {"pos": pos, "yaw": yaw, "pitch": pitch, "speed": spd, "flags": flags, "level": level, "floor": floor_i})
 
 func _process(dt: float) -> void:
 	var st := buf.sample(dt)
@@ -150,9 +159,11 @@ func _process(dt: float) -> void:
 	torch_on = flags & 2 != 0
 	dead = flags & 4 != 0
 	playing = flags & 8 != 0
-	# a survivor still loading another level (level change, respawn) isn't in our world yet
-	# (an invisible spectator, flag 16, is hidden the same way: it also drops out of net.survivors())
-	visible = int(st.level) == Game.level_index and flags & 16 == 0
+	# a survivor still loading another level (level change, respawn), or up or down the stairs on another
+	# floor of it, isn't in our world: hidden, out of earshot, and out of net.survivors() (no monster here
+	# hunts them through the floor). An invisible spectator, flag 16, is hidden the same way.
+	here = int(st.level) == Game.level_index and int(st.get("floor", 0)) == Game.level_floor
+	visible = here and flags & 16 == 0
 	global_position = st.pos
 	rotation.y = st.yaw
 	target_pos = buf.latest().pos
@@ -170,6 +181,9 @@ func _process(dt: float) -> void:
 	light.visible = torch_on and not dead and visible
 
 	if anim != null:
+		anim.active = visible                    # nobody sees them: don't pose a skeleton every frame
+		if not visible:
+			return
 		_play(SurvivorAnim.pick_role(clips, _role, _speed, _speed > SurvivorAnim.SPRINT_ABOVE, crouching, dead))
 		anim.speed_scale = SurvivorAnim.speed_scale(_role, _speed)    # feet match the real movement
 		_floor.on = not dead

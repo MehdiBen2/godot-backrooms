@@ -17,6 +17,8 @@ extends Node3D
 ##         once (it hurts and stuns). Catch it in your torch up close and it walks off. One try per
 ##         blackout, then it is gone until the lights are back.
 ## It stirs once there are ECHO_START seconds of anyone's route to walk (or a power cut, or F5).
+## Alone it only comes when a trigger or the console calls it in; in co-op (someone else in the lobby)
+## it comes on its own, which is what the disguise is for.
 ##
 ## In co-op it wears the face of the survivor whose route it walks: their colour and their name tag,
 ## exactly as a teammate's (remote_player.gd), and now and then it says something they said lately, in
@@ -155,6 +157,11 @@ var lure_go_at := 0.0
 var lure_patience_until := 0.0
 var lure_spoke := false
 var wander_start := 0.0
+var _net_seen := false               # guest: had a snapshot yet (the first one doesn't replay a line it said before we came)
+const PICK_TRIES := 24               # route moments _pick_start weighs per call at most (each costs line-of-sight checks)
+const PICK_LOS_BUDGET := 160         # and line-of-sight checks in all
+const VIEW_STEP := 0.5               # m between grid samples on the "could anyone see it" checks (cells are 4.5 m)
+const ALLY_WATCH := 22.0             # m: a teammate watching it from this close counts, in the dark, as you watching it
 
 func _ready() -> void:
 	rng.randomize()
@@ -214,6 +221,10 @@ func _build_body() -> void:
 	torch.shadow_enabled = int(Gfx.s.get("shadows", 1)) > 0
 	torch.shadow_bias = 0.04
 	torch.shadow_normal_bias = 1.5
+	torch.distance_fade_enabled = true           # as a survivor's torch (remote_player.gd): no far-off shadow renders
+	torch.distance_fade_begin = 34.0
+	torch.distance_fade_length = 8.0
+	torch.distance_fade_shadow = 18.0
 	torch.visible = false
 	body.add_child(torch)
 	# its voice goes out exactly as a survivor's does over voice chat (voice_speaker.gd): the same
@@ -299,21 +310,62 @@ func spot_around() -> Variant:
 			return Vector2(x, z)
 	return null
 
-## A power cut: it turns up out of your sight, near you, to charge (the echo has its own way in)
-func appear() -> bool:
+## A power cut (or a trigger): it turns up out of sight, near the survivor nearest `near` (default: you).
+## In the dark it comes to charge; with the lights on it walks into view on someone's old route if it can,
+## or else as a survivor passing by. Only the machine that runs it decides (a guest's copy is a puppet:
+## its trigger goes to the host, net.gd send_trigger).
+func appear(near := Vector3.INF) -> bool:
+	if puppet or spawned:
+		return false
+	var tg := Net.nearest_survivor(player.global_position if near == Vector3.INF else near, -1)
+	if tg.is_empty():
+		return false
+	t_id = tg.id
+	t_pos = tg.pos
+	t_fwd = tg.fwd
+	session = true
+	if not player.grid_down and _begin_echo(echo_clock):
+		return true
 	var spot = spot_around()
 	if spot == null:
 		return false
 	var p := t_pos
 	body.global_position = Vector3(spot.x, p.y, spot.y)
 	speed = 0.0
-	mode = "charge"
 	_route_mode = ""
 	spawned = true
 	body.visible = true
 	disguise_id = _pick_disguise()
 	_next_voice = echo_clock + rng.randf_range(4.0, 10.0)
+	if player.grid_down:
+		mode = "charge"
+	else:
+		# lights on and no route to walk: a survivor passing through, who goes once nobody is looking
+		_start_wander(echo_clock)
+		wander_start = echo_clock + 6.0            # (it hangs about long enough to be seen at all)
+		torch_on = true
+		crouch = false
+		pitch = 0.0
 	return true
+
+## Someone else is in the lobby: it comes on its own (alone, only a trigger or the console calls it in)
+func _coop() -> bool:
+	return Net.is_online() and not multiplayer.get_peers().is_empty()
+
+## A new floor or level was built under it (level_builder.gd _floor_ready): its grid, the routes it
+## remembers (they ran through the old walls) and wherever it stood are all gone
+func on_floor_changed() -> void:
+	if level == null or body == null:
+		return                                    # not set up yet: _ready builds it on the floor as it is
+	nav = GridNav.new(level)
+	echo.tracks.clear()
+	lure_path = []
+	lure_i = 0
+	if spawned:
+		_vanish()
+		wait = rng.randf_range(ECHO_REST.x * 0.5, ECHO_REST.x)
+	if not summoned:
+		session = false                           # the next one waits for ECHO_START of route on this floor again
 
 # ---------------------------------------------------------------- T.S.R.A. scanner
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
@@ -376,8 +428,8 @@ func update_peer(delta: float) -> void:
 	t_pos = tg.pos
 	t_fwd = tg.fwd
 	if not spawned:
-		if not summoned:
-			return                                  # it never starts on its own: a trigger (appear) or the console brings it in
+		if not summoned and not _coop():
+			return                                  # alone it never starts on its own: a trigger (appear) or the console brings it in
 		wait -= delta
 		if wait > 0.0:
 			return
@@ -401,7 +453,9 @@ func update_peer(delta: float) -> void:
 	var dz := pp.z - pos.z
 	var dist := maxf(Vector2(dx, dz).length(), 0.001)
 	var to_player := atan2(dx, dz)
-	var watched := watched_by(pos.x, pos.z, VIEW_CONE)
+	# in co-op, a teammate with their eyes on it covers your back: it won't close in or strike while anyone
+	# is watching it (it only ever moves on you unseen), so sticking together in the dark keeps you safe
+	var watched := watched_by(pos.x, pos.z, VIEW_CONE) or _ally_watching(pos)
 	if Game.heart != null:
 		var near := clampf(1.0 - ldist / 12.0, 0.0, 1.0)
 		Game.heart.feed("mimic", 0.9 if mode == "charge" else 0.2 + 0.5 * clampf(1.0 - ldist / 25.0, 0.0, 1.0), 3.0 * near * near)
@@ -499,12 +553,22 @@ func update_peer(delta: float) -> void:
 ## In co-op the route is someone else's than the survivor it is nearest if it can (they would know
 ## where they have been); alone, it is yours.
 func _begin_echo(t: float) -> bool:
-	var sources: Array = []
+	# whose face it wears: best someone its target can't see right now and who is well away (it can't be
+	# them, standing next to you), then anyone else, then the target's own route
+	var believable: Array = []
+	var others: Array = []
 	if Net.is_online():
 		for s in Net.survivors():
-			if s.id != t_id:
-				sources.append(s.id)
-	sources.shuffle()
+			if s.id == t_id:
+				continue
+			var far: bool = Vector2(s.pos.x - t_pos.x, s.pos.z - t_pos.z).length() > 20.0
+			if far and not nav.clear_line(t_pos.x, t_pos.z, s.pos.x, s.pos.z, VIEW_STEP):
+				believable.append(s.id)
+			else:
+				others.append(s.id)
+	believable.shuffle()
+	others.shuffle()
+	var sources: Array = believable + others
 	sources.append(t_id)                            # nothing good on theirs: its target's own will do
 	for src in sources:
 		var tr: Array = echo.track(src)
@@ -546,25 +610,36 @@ func _pick_start(tr: Array, t: float) -> float:
 	# checks every retry would cost a frame
 	var shows := PackedByteArray()
 	shows.resize(n)
-	var picks: Array = []
-	var j := 0
-	while j < n:
+	# candidates in random order, and the first that works wins (as fair as picking among all of them,
+	# for a fraction of the line-of-sight checks: the full sweep stalled the host's frame with a full lobby)
+	var order: Array = range(0, n, 4)
+	order.shuffle()
+	var tries := 0
+	var los := 0
+	for j: int in order:
 		var age := t - float(tr[j].t)
 		var p: Vector3 = tr[j].p
 		var d := Vector2(p.x - t_pos.x, p.z - t_pos.z).length()
-		if age >= ECHO_MIN_AGE and age <= ECHO_MAX_AGE and d >= ECHO_NEAR and d <= ECHO_FAR and not _seen_by_anyone(p):
-			for k in range(j + 4, mini(n, j + ahead), 2):
-				if tr[k].cut or tr[k - 1].cut:
-					break
-				if shows[k] == 0:
-					var q: Vector3 = tr[k].p
-					var in_view: bool = Vector2(q.x - t_pos.x, q.z - t_pos.z).length() < ECHO_VIEW and nav.clear_line(t_pos.x, t_pos.z, q.x, q.z)
-					shows[k] = 2 if in_view else 1
-				if shows[k] == 2:
-					picks.append(float(tr[j].t))
-					break
-		j += 4
-	return picks.pick_random() if not picks.is_empty() else -1.0
+		if age < ECHO_MIN_AGE or age > ECHO_MAX_AGE or d < ECHO_NEAR or d > ECHO_FAR:
+			continue
+		tries += 1
+		if tries > PICK_TRIES or los > PICK_LOS_BUDGET:
+			break
+		if _seen_by_anyone(p):
+			continue
+		for k in range(j + 4, mini(n, j + ahead), 2):
+			if tr[k].cut or tr[k - 1].cut:
+				break
+			if shows[k] == 0:
+				var q: Vector3 = tr[k].p
+				var in_view := false
+				if Vector2(q.x - t_pos.x, q.z - t_pos.z).length() < ECHO_VIEW:
+					los += 1
+					in_view = nav.clear_line(t_pos.x, t_pos.z, q.x, q.z, VIEW_STEP)
+				shows[k] = 2 if in_view else 1
+			if shows[k] == 2:
+				return float(tr[j].t)
+	return -1.0
 
 ## One frame of the act: walk the route, or stop and look back at someone watching from close by
 func _echo_step(delta: float, t: float) -> void:
@@ -988,7 +1063,19 @@ func _seen_by_anyone(p: Vector3) -> bool:
 		if l < 4.0:
 			return true
 		var f: Vector3 = s.fwd
-		if l < 45.0 and (f.x * d.x + f.z * d.y) / l > VIEW_CONE - 0.15 and nav.clear_line(s.pos.x, s.pos.z, p.x, p.z):
+		if l < 45.0 and (f.x * d.x + f.z * d.y) / l > VIEW_CONE - 0.15 and nav.clear_line(s.pos.x, s.pos.z, p.x, p.z, VIEW_STEP):
+			return true
+	return false
+
+## Is a survivor other than its target looking straight at it from close by, with nothing in between?
+func _ally_watching(p: Vector3) -> bool:
+	for s in Net.survivors():
+		if s.id == t_id:
+			continue
+		var d := Vector2(p.x - s.pos.x, p.z - s.pos.z)
+		var l := d.length()
+		var f: Vector3 = s.fwd
+		if l > 0.5 and l < ALLY_WATCH and (f.x * d.x + f.z * d.y) / l > VIEW_CONE and nav.clear_line(s.pos.x, s.pos.z, p.x, p.z, VIEW_STEP):
 			return true
 	return false
 
@@ -1030,11 +1117,19 @@ func _update_disguise() -> void:
 		var me := multiplayer.get_unique_id()
 		if disguise_id != me and Net.remotes.has(disguise_id):
 			want = disguise_id
+		elif _fallback_face_ok(shown_id, me):
+			want = shown_id                     # keep the face it already wears here: no swapping in front of you
 		else:
+			# it is wearing YOUR face on the host's say-so: here it wears someone else's, the one furthest
+			# from you (a teammate standing beside you would give it away at once)
+			var best_d := -1.0
+			var at := player.global_position
 			for id in Net.remotes:
-				if id != me and is_instance_valid(Net.remotes[id]) and not Net.remotes[id].dead:
-					want = id
-					break
+				if _fallback_face_ok(id, me):
+					var d: float = (Net.remotes[id] as Node3D).global_position.distance_squared_to(at)
+					if d > best_d:
+						best_d = d
+						want = id
 	if want != shown_id:
 		shown_id = want
 		_wear(want)
@@ -1046,6 +1141,12 @@ func _update_disguise() -> void:
 		# the tag goes green while it "talks", like a survivor's on voice chat
 		tag.modulate = Color(0.55, 1.0, 0.6) if mouth.playing else Color(0.94, 0.91, 0.75)
 	_present()
+
+func _fallback_face_ok(id: int, me: int) -> bool:
+	if id == 0 or id == me or not Net.remotes.has(id):
+		return false
+	var r = Net.remotes[id]
+	return is_instance_valid(r) and not r.dead
 
 ## The torch and the tag, as a survivor's: the torch on where the route had it on (or while it wears
 ## a face in a charge), pitched where it looks; the tag lower when it crouches. Alone, it even clicks
@@ -1169,6 +1270,8 @@ func _net_send(delta: float) -> void:
 	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode)), disguise_id, voice_n, crouch, torch_on, pitch])
 
 func net_apply(t: float, m: Array) -> void:
+	if m.size() < 12:
+		return
 	net_buf.send_interval = 0.05
 	net_buf.push(t, {"pos": Vector3(m[0], m[1], m[2]), "yaw": float(m[3]), "speed": float(m[4]), "m": m})
 
@@ -1178,15 +1281,18 @@ func _puppet_step(delta: float) -> void:
 	if st.is_empty():
 		return
 	var m: Array = st.m
-	spawned = m[5]
+	if m.size() < 12:
+		return
+	spawned = bool(m[5]) and Net.host_here()        # the host's floor, not ours: it isn't in our halls
 	body.visible = spawned
-	if m.size() >= 9:
-		disguise_id = int(m[7])
-		voice_n = int(m[8])
-	if m.size() >= 12:
-		crouch = bool(m[9])
-		torch_on = bool(m[10])
-		pitch = float(m[11])
+	disguise_id = int(m[7])
+	voice_n = int(m[8])
+	if not _net_seen:
+		_net_seen = true
+		_voice_heard = voice_n                      # just joined: don't replay a line it said before we came
+	crouch = bool(m[9])
+	torch_on = bool(m[10])
+	pitch = float(m[11])
 	if not spawned:
 		return
 	mode = MODES[clampi(int(m[6]), 0, MODES.size() - 1)]
@@ -1216,11 +1322,14 @@ func debug_active() -> bool:
 
 func debug_despawn() -> void:
 	session = false
-	spawned = false
-	body.visible = false
+	summoned = false
+	if spawned:
+		_vanish()
 
+## (summoned too: without it the session never spawned anything since the trigger-only change)
 func debug_spawn() -> bool:
 	session = true
+	summoned = true
 	if not spawned:
 		wait = 0.1
 	return true

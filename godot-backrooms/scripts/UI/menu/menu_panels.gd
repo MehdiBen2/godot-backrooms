@@ -170,7 +170,7 @@ func _build_graphics() -> Control:
 	v.add_child(_gfx_row("Fullscreen", fs))
 	var off_on := [[false, "Off"], [true, "On"]]
 	v.add_child(_cycle_row("VSync", "vsync", off_on))
-	v.add_child(_cycle_row("FPS limit", "fps", [[0, "Unlimited"], [30, "30"], [60, "60"], [120, "120"], [144, "144"]]))
+	v.add_child(_cycle_row("FPS limit", "fps", [[30, "30"], [60, "60"], [80, "80"], [100, "100"], [120, "120"], [0, "Unlimited"]]))
 	v.add_child(_cycle_row("Smooth motion", "smooth", off_on))
 	v.add_child(_cycle_row("Adaptive resolution", "adapt", off_on))
 

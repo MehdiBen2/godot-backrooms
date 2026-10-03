@@ -23,10 +23,21 @@ const SMOOTH_MAX_HZ := 165
 const ADAPT_FLOOR := 0.72       # lower than this and FSR turns the far end of a hall to mush
 const ADAPT_SLOW := 1.25
 const ADAPT_FAST := 1.06
-const ADAPT_DOWN := 0.05
-const ADAPT_UP := 0.02
+const ADAPT_DOWN := 0.1          # each change reallocates every screen buffer (~130 ms hitch): few, big steps
+const ADAPT_UP := 0.1
 const ADAPT_WINDOW := 0.5
 const ADAPT_MAX_HZ := 120
+## Every change of the render scale frees and rebuilds every render buffer (AO, GI, fog, TAA history,
+## MSAA): it used to happen up to twice a second while the frame rate hovered near the target, which is
+## a lot of video memory churn for a driver to take (and a hitch each time). Now it waits this long
+## between changes, and longer before going back up than down.
+const ADAPT_COOLDOWN := 8.0
+const ADAPT_UP_WAIT := 40.0      # headroom has to last this long before the picture is sharpened again
+## Physics at the display rate (`smooth`) on a PC that can't keep up runs several physics steps per drawn
+## frame, which makes the frame slower still. Under this share of the physics rate for PHYS_WINDOW
+## seconds, physics drops back to 60 Hz until the settings are applied again.
+const PHYS_FALLBACK := 0.6
+const PHYS_WINDOW := 2.0
 
 # `scale` is the ceiling; `adapt` lets adaptive resolution drop below it.
 const PRESETS := {
@@ -56,6 +67,10 @@ var _post_lite: Shader          # same shader without the mip-mapped screen copy
 var adapt_ratio := 1.0
 var _ft_acc := 0.0
 var _ft_n := 0
+var _adapt_wait := 0.0
+var _phys_acc := 0.0
+var _phys_n := 0
+var phys_capped := false        # physics fell back to 60 Hz (see PHYS_FALLBACK)
 
 func _ready() -> void:
 	compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
@@ -65,8 +80,11 @@ func _ready() -> void:
 ## Ratchets the render scale down when frames miss the target and back up while there is headroom.
 ## `dt` is the real frame interval, so a GPU- or vsync-bound frame shows up here as a longer dt.
 func _process(dt: float) -> void:
+	_log_hitch(dt)
+	_guard_physics(dt)
 	if not bool(s.get("adapt", false)) or compat or float(s.get("scale", 100)) <= 0.0:
 		return
+	_adapt_wait -= dt
 	_ft_acc += dt
 	_ft_n += 1
 	if _ft_n < 12 or _ft_acc < ADAPT_WINDOW:
@@ -74,13 +92,64 @@ func _process(dt: float) -> void:
 	var avg := _ft_acc / _ft_n
 	_ft_acc = 0.0
 	_ft_n = 0
+	if _adapt_wait > 0.0 or avg > 0.2:
+		return                                   # (a freeze or load is not a reason to blur the picture)
 	var target := 1.0 / float(target_fps())
-	if avg > target * ADAPT_SLOW:
+	if avg > target * ADAPT_SLOW and adapt_ratio > ADAPT_FLOOR:
 		adapt_ratio = maxf(ADAPT_FLOOR, adapt_ratio - ADAPT_DOWN)
 		_render_scale()
+		_adapt_wait = ADAPT_COOLDOWN
 	elif avg < target * ADAPT_FAST and adapt_ratio < 1.0:
 		adapt_ratio = minf(1.0, adapt_ratio + ADAPT_UP)
 		_render_scale()
+		_adapt_wait = ADAPT_UP_WAIT
+
+## Every frame longer than HITCH_LOG seconds is appended to user://hitches.log with what the game was
+## doing, so a random freeze can be traced afterwards. (The frame time is the freeze's length.)
+const HITCH_LOG := 0.12
+var _hitch_count := 0
+
+func _log_hitch(dt: float) -> void:
+	if dt < HITCH_LOG or _hitch_count >= 200:
+		return
+	_hitch_count += 1
+	var f := FileAccess.open("user://hitches.log", FileAccess.READ_WRITE if FileAccess.file_exists("user://hitches.log") else FileAccess.WRITE)
+	if f == null:
+		return
+	f.seek_end()
+	var p: Node = Game.player
+	var main: Node = Game.main if Game.main != null and is_instance_valid(Game.main) else null
+	var ents := []
+	if main != null:
+		for nm in ["Entity", "Mannequin", "Mimic", "Grabber", "Eyes"]:
+			var e: Node = main.get_node_or_null(nm)
+			if e != null and e.is_visible_in_tree():
+				ents.append(nm)
+	# CPU split: if process + physics are a few ms while the frame was 140, the stall is the GPU / driver
+	f.store_string("cpu_process=%.1fms cpu_physics=%.1fms draws=%d objs=%d  " % [
+		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+		int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)), int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME))])
+	f.store_line("%s  %.0f ms  preset=%s scale=%.2f physhz=%d  online=%s host=%s peers=%d  level=%d floor=%d  pos=%s  active=%s  fps_cap=%d  vram_tex=%.0fMB" % [
+		Time.get_datetime_string_from_system(), dt * 1000.0, preset, adapt_ratio, Engine.physics_ticks_per_second,
+		Net.is_online(), Net.hosting, Net.remotes.size(), Game.level_index, Game.level_floor,
+		p.global_position if p != null and is_instance_valid(p) else Vector3.ZERO, ents, int(s.get("fps", 0)),
+		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TEXTURE_MEM_USED) / 1048576.0])
+	f.close()
+
+func _guard_physics(dt: float) -> void:
+	if phys_capped or Engine.physics_ticks_per_second <= 60 or dt > 0.25:
+		return                          # (a single long frame is a load or a hitch, not a slow PC)
+	_phys_acc += dt
+	_phys_n += 1
+	if _phys_acc < PHYS_WINDOW:
+		return
+	var fps := _phys_n / _phys_acc
+	_phys_acc = 0.0
+	_phys_n = 0
+	if fps < Engine.physics_ticks_per_second * PHYS_FALLBACK:
+		phys_capped = true
+		Engine.physics_ticks_per_second = 60
+		print("graphics: %d fps can't keep physics at the display rate: back to 60 Hz" % roundi(fps))
 
 ## The frame rate adaptive resolution aims at: the FPS cap if set, else the screen's refresh rate up to
 ## ADAPT_MAX_HZ. Chasing a 200 Hz screen would pin the render scale at ADAPT_FLOOR for good (a blurry
@@ -191,6 +260,9 @@ func apply() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if s.vsync else DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = s.fps
 	Engine.physics_ticks_per_second = physics_hz()
+	phys_capped = false
+	_phys_acc = 0.0
+	_phys_n = 0
 	apply_scene()
 	changed.emit()
 

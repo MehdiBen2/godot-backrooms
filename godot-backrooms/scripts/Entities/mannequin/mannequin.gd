@@ -598,6 +598,8 @@ func _net_send(delta: float) -> void:
 	Net.send_mq([real_node.position.x, real_node.position.z, real_yaw, int(hunt.get("step_idx", 0)), awake, moving, pose])
 
 func net_apply(t: float, m: Array) -> void:
+	if m.size() < 7 or not (m[6] is Array) or (m[6] as Array).size() < POSE_KEYS.size():
+		return
 	net_buf.send_interval = 0.05
 	net_buf.push(t, {"pos": Vector3(m[0], 0.0, m[1]), "yaw": float(m[2]), "m": m})
 

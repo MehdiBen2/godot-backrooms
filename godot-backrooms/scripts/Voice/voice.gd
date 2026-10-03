@@ -19,7 +19,12 @@ const PATH := "user://voice.cfg"
 const CAPTURE_BUS := "VoiceCapture"
 const RATE := 16000
 const FRAME := 320                          # 20 ms
-const MAX_PKT := 2 + Adpcm.HEADER + FRAME   # seq + header + 4-bit samples, with room to spare
+const BLOCK := Adpcm.HEADER + FRAME / 2     # one encoded frame
+## Frames per network message: 40 ms of voice each, so half as many messages through the tunnel (every
+## one carries WebSocket and RPC overhead and sits in the same queue as the snapshots) for 20 ms more delay
+const FRAMES_PER_PKT := 2
+const MAX_BLOCKS := 4
+const MAX_PKT := 2 + BLOCK * MAX_BLOCKS     # seq + blocks
 const PTT_KEY := KEY_V
 const HANG_TIME := 0.35                     # keeps sending this long after the voice drops (no clipped word endings)
 const PTT_HANG := 0.15
@@ -55,6 +60,8 @@ var _hp_x := 0.0
 var _hp_y := 0.0
 var _hang := 0.0
 var _seq := 0
+var _out_blocks := PackedByteArray()        # encoded frames waiting to fill a message
+var _out_n := 0
 var _test = null
 var _nav
 var _nav_level: Node
@@ -365,6 +372,7 @@ func _process_frame(frame: PackedFloat32Array) -> void:
 		_send_frame(frame)
 	elif transmitting:
 		transmitting = false
+		_flush_voice()                      # the last word's tail, not left waiting for a partner frame
 		_enc.reset()
 
 func _send_frame(frame: PackedFloat32Array) -> void:
@@ -372,11 +380,26 @@ func _send_frame(frame: PackedFloat32Array) -> void:
 	if loopback:
 		_hear_myself(block)
 	if not Net.is_online():
+		_out_blocks.clear()
+		_out_n = 0
 		return
-	_seq = (_seq + 1) & 0xFFFF
-	var pkt := PackedByteArray([_seq & 0xFF, (_seq >> 8) & 0xFF])
-	pkt.append_array(block)
-	_pkt.rpc(pkt)
+	_out_blocks.append_array(block)
+	_out_n += 1
+	if _out_n >= FRAMES_PER_PKT:
+		_flush_voice()
+
+func _flush_voice() -> void:
+	if _out_n == 0:
+		return
+	var pkt := PackedByteArray()
+	if Net.is_online():
+		_seq = (_seq + 1) & 0xFFFF
+		pkt = PackedByteArray([_seq & 0xFF, (_seq >> 8) & 0xFF])
+		pkt.append_array(_out_blocks)
+	_out_blocks = PackedByteArray()
+	_out_n = 0
+	if not pkt.is_empty():
+		_pkt.rpc(pkt)
 
 func _hear_myself(block: PackedByteArray) -> void:
 	if _test == null:
@@ -388,7 +411,7 @@ func _hear_myself(block: PackedByteArray) -> void:
 # ---- network ----------------------------------------------------------------------------------------
 @rpc("any_peer", "call_remote", "unreliable")
 func _pkt(pkt: PackedByteArray) -> void:
-	if deafened or pkt.size() <= Adpcm.HEADER + 2 or pkt.size() > MAX_PKT:
+	if deafened or pkt.size() < 2 + BLOCK or pkt.size() > MAX_PKT or (pkt.size() - 2) % BLOCK != 0:
 		return
 	var id := multiplayer.get_remote_sender_id()
 	if not Net.remotes.has(id):           # only survivors we know about get a speaker (no node spam from strangers)
@@ -399,7 +422,8 @@ func _pkt(pkt: PackedByteArray) -> void:
 		add_child(s)
 		s.setup(id)
 		speakers[id] = s
-	s.feed(pkt.slice(2))
+	for at in range(2, pkt.size(), BLOCK):
+		s.feed(pkt.slice(at, at + BLOCK))
 
 func _tidy_speakers() -> void:
 	for id in speakers.keys():

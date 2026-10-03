@@ -568,6 +568,10 @@ func _floor_ready() -> void:
 			if ent.has_method("_spawn_cell"):
 				var sp: Array = ent._spawn_cell()
 				ent.global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
+		# the Mimic's grid (a new level can be another size) and the routes it remembers
+		var mm: Node = root.get_node_or_null("Mimic")
+		if mm != null and mm.has_method("on_floor_changed"):
+			mm.on_floor_changed()
 
 ## Seamless in-place level transition: changes to playlist entry `idx` without a loading screen.
 func load_level_seamless(idx: int) -> void:
