@@ -151,7 +151,8 @@ func _process(dt: float) -> void:
 	dead = flags & 4 != 0
 	playing = flags & 8 != 0
 	# a survivor still loading another level (level change, respawn) isn't in our world yet
-	visible = int(st.level) == Game.level_index
+	# (an invisible spectator, flag 16, is hidden the same way: it also drops out of net.survivors())
+	visible = int(st.level) == Game.level_index and flags & 16 == 0
 	global_position = st.pos
 	rotation.y = st.yaw
 	target_pos = buf.latest().pos

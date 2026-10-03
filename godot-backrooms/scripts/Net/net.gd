@@ -421,7 +421,7 @@ func _stop_events() -> void:
 func survivors() -> Array:
 	var out: Array = []
 	var p: Node = Game.player
-	if p != null and is_instance_valid(p) and not p.dead and Game.playing:
+	if p != null and is_instance_valid(p) and not p.dead and Game.playing and not Game.invisible:
 		var f: Vector3 = -p.global_transform.basis.z
 		f.y = 0.0
 		out.append({"node": p, "id": multiplayer.get_unique_id() if is_online() else 1, "pos": p.global_position,
@@ -669,7 +669,7 @@ func _send_state(dt: float) -> void:
 		return
 	var cam: Camera3D = p.get_node_or_null("Camera3D")
 	var v: Vector3 = p.velocity if p is CharacterBody3D else Vector3.ZERO
-	var flags := (1 if p.get("is_crouching") else 0) | (2 if p.get("flash_on") else 0) | (4 if p.get("dead") else 0) | (8 if Game.playing else 0)
+	var flags := (1 if p.get("is_crouching") else 0) | (2 if p.get("flash_on") else 0) | (4 if p.get("dead") else 0) | (8 if Game.playing else 0) | (16 if Game.invisible else 0)
 	_state.rpc(clock(), p.global_position, p.rotation.y, cam.rotation.x if cam else 0.0,
 		Vector2(v.x, v.z).length(), flags, Game.level_index)
 

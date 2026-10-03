@@ -8,6 +8,7 @@
     "futurtoeditlore.md": "1dcbc0e7fd6d32e8cdc9683e0bf9f4f8d29631999473e17dc4d5d5f9e4a485b3",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
+    "godot-backrooms/tools/gen_battery_audio.py": "6ba2964eacf47c54ea97bbd5203306d5bfb64968109ef12e805cdfa9c755e89a",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
     "godot-backrooms/tools/gen_tape_audio.py": "213a8a33e21a7667946aab3890db3e148770bd7a8d50ea2aa4b2bdeb631b0f85",
     "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
@@ -24,14 +25,15 @@
     "launcher/README.md": "05035f5a6e603121333959ea639c0ed24ecca785aa014656f442f05b8755bd81",
     "tools/blender/build_grabber.py": "3227fe745a8f2498bbdf82d9cecf77627239e38e49ce22a1264ad823acab4cef",
     "tools/blender/build_player_hazmat.py": "45e4d882569443cf5a10abff358273993f2036efa5396bb0fe7852cbb479e8f5",
+    "tools/blender/build_stop_signs.py": "c4f4d973b27d4fb7cdf17e2638e2077a0a0aa604b28ab8a26d0d8830c2485553",
     "tools/blender/rig_mannequin_variant.py": "dbc8d558df435f53754e5ffda2e5f81507514b5c827a3495dba38f69ef0fb1c0",
-    "tools/build_player_arms.py": "4d6f8ed8342e3fc36fcf740d7a9ce016fd3079a88f381c4d1c7f5f2a41c42f9b",
+    "tools/build_player_arms.py": "5d79d0c7f9aee7c3f76e5529d68a4416ce9ee62d41b98c2389cbe237ff949947",
     "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "3e59ec528dfc31ea52560b87cc4358681cb25005",
-  "indexed_at_timestamp": "2026-10-02T21:30:02.048034100+00:00",
+  "indexed_at_commit": "de63adaa6702d59bda4132955733fa83b40a0d3f",
+  "indexed_at_timestamp": "2026-10-03T10:21:32.024209900+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -42,16 +44,16 @@
       "nodes": 3
     },
     "python": {
-      "calls": 277,
-      "nodes": 179
+      "calls": 309,
+      "nodes": 200
     }
   },
   "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
-    "total_edges": 320,
-    "total_files": 29,
-    "total_nodes": 217
+    "total_edges": 352,
+    "total_files": 31,
+    "total_nodes": 238
   },
   "vexp_version": "3.2.5"
 }

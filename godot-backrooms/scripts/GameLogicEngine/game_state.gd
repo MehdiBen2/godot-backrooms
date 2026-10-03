@@ -77,6 +77,7 @@ var draw_mode := false
 var noclip := OS.get_cmdline_user_args().has("--noclip") or OS.get_cmdline_args().has("--noclip")
 var freefall := false          # falling down a bottomless pit (pit_fall.gd): the level stands still meanwhile
 var god_mode := false
+var invisible := false         # spectating: other players see no body, torch or name tag, and monsters don't hunt you (net.gd flag 16)
 var fullbright := false
 var infinite_stamina := false
 var infinite_sanity := false

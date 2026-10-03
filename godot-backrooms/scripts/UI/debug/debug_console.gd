@@ -1091,7 +1091,7 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("Cheats: noclip, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
+			_print("Cheats: noclip, invisible, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
@@ -1113,6 +1113,12 @@ func _submit(line: String) -> void:
 			Game.god_mode = not Game.god_mode
 			_sync_quick_buttons()
 			_print("god mode: " + ("ON" if Game.god_mode else "OFF"))
+		"invisible", "invis", "spectate":
+			# hidden from other players and monsters; god mode goes with it so nothing near you can kill you
+			Game.invisible = not Game.invisible
+			Game.god_mode = Game.invisible
+			_sync_quick_buttons()
+			_print("invisible: " + ("ON (god mode on too)" if Game.invisible else "OFF"))
 		"stamina":
 			Game.infinite_stamina = not Game.infinite_stamina
 			_sync_quick_buttons()
