@@ -10,6 +10,7 @@ audio/events/. Windows (the party crowd is the system's SAPI voice, through Powe
                     through a wall (everything over ~350 Hz gone, the bass thumping through)
   phone_ring.wav    phoneRing: one ring of an old desk phone's bell (two gongs struck by a 20 Hz clapper),
                     2 s, then the silence the event spaces them with
+  doorbell.wav      doorbell: a cheap two-tone door chime (ding... dong), struck metal bars ringing out
 Every file is peak-normalized to 0.8; the event sets the level it plays at.
 """
 import os, subprocess, tempfile, wave
@@ -154,9 +155,26 @@ def phone():
     write('phone_ring.wav', np.concatenate([x, np.zeros(int(SR * 0.2))]).astype(np.float32))
 
 
+# ---------------------------------------------------------------- doorbell
+def doorbell():
+    out = np.zeros(int(SR * 3.2), dtype=np.float32)
+    for at, f0, g in ((0.0, 659.3, 1.0), (0.62, 523.3, 0.9)):        # E5 ding, C5 dong
+        t = t_axis(2.6)
+        bar = np.zeros_like(t)
+        for ratio, pg, decay in ((1.0, 1.0, 1.4), (2.76, 0.35, 0.5), (5.4, 0.12, 0.25), (8.93, 0.05, 0.15)):
+            bar += pg * np.sin(2 * np.pi * f0 * ratio * t) * np.exp(-t / decay)
+        bar *= g * np.clip(t / 0.003, 0, 1)
+        s = int(at * SR)
+        out[s:s + len(bar)] += bar[:max(0, min(len(bar), len(out) - s))]
+    out = out + 0.2 * lowpass(out, 700.0)                          # the plastic housing
+    write('doorbell.wav', out)
+
+
 if __name__ == '__main__':
+    import sys
     os.makedirs(OUT, exist_ok=True)
-    hum()
-    phone()
-    party()
+    only = sys.argv[1:]                       # e.g. "doorbell": just that one
+    for name, fn in (('hum', hum), ('phone', phone), ('party', party), ('doorbell', doorbell)):
+        if not only or name in only:
+            fn()
     print('written to', os.path.abspath(OUT))

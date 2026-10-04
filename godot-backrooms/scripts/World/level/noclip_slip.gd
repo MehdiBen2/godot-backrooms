@@ -1,39 +1,26 @@
 extends Node3D
-## NOCLIP FLOOR (level_data.gd `noclip_floor`, painted in the level editor): ordinary-looking floor that you fall
-## straight through, the way the Kane Pixels film opens. Nothing to see: stand on it a moment and it gives.
-##   gives     a jolt, the picture tears, a deep thud; your feet sink into the carpet
-##   through   you sink through the floor itself, the camera passing through the slab; the picture breaking up
-##   void      under it there is nothing: the level seen from below, a falling body, static rising, then black
-##   after     in the black you hit the ground, and wake up in the floor's Noclip destination (noclip_wake.gd)
-## Built by level_geometry.gd on a floor that has any. Holds the player's body itself (process priority after
-## the player) while it happens.
+## NOCLIP through the floor (level_data.gd `noclip_floor`: the Noclip zone painted on plain floor, or the Noclip
+## Floor zone): ordinary-looking floor that you clip straight through, the way the Kane Pixels film opens. Stand
+## on it a moment and you start to sink into it, then drop through it; the instant your eyes pass the carpet it is
+## black. No sound but your body landing somewhere else. noclip_wake.gd then has you come to in the floor's
+## Noclip destination. Built by level_geometry.gd on a floor that has any. Holds the player's body itself (process
+## priority after the player) while it happens; nothing is rolled (the HUD's vitals tilt with the camera's roll).
 
 const NoclipWake := preload("res://scripts/World/level/noclip_wake.gd")
-const STAND := 0.35           # s standing on it before it gives
-const GIVE := 0.55            # the jolt and the sinking feet
-const THROUGH := 1.25         # sinking through the slab
-const VOID := 1.9             # falling under it, until the black
-const BLACK_IN := 0.8         # the last part of the fall going black
+const STAND := 0.35           # s standing on it before it takes you
+const SINK := 0.45            # feet sinking into the carpet, slowly
+const DROP := 0.55            # then dropping through, faster and faster
+const HOLD := 0.35            # black, before you land
 
 var level: Node3D
 var _on := 0.0
 var _t := -1.0
 var _y0 := 0.0
-var _vy := 0.0
-var _depth := 0.0
-var _sounded := {}
+var _eye := 1.6               # the camera's height over your feet when it started
 
 func setup(l: Node3D) -> void:
 	level = l
 	process_physics_priority = 100
-
-func _scares() -> Node:
-	return level.get_parent().get_node_or_null("Scares") if level != null and level.get_parent() != null else null
-
-func _once(key: String, call: Callable) -> void:
-	if _sounded.has(key): return
-	_sounded[key] = true
-	call.call()
 
 func _physics_process(dt: float) -> void:
 	if level == null: return
@@ -49,69 +36,44 @@ func _physics_process(dt: float) -> void:
 			_on = 0.0
 		return
 	_t += dt
-	var t := _t
-	var sc := _scares()
 	p.frozen = true
 	p.velocity = Vector3.ZERO
-	if t < GIVE:
-		# the floor gives: a jolt, feet into the carpet
-		var k := t / GIVE
-		_depth = 0.55 * k * k
-		p.rotation.z = 0.06 * sin(t * 40.0) * (1.0 - k)
-		Game.fx_corrupt = maxf(Game.fx_corrupt, 0.35)
-	elif t < GIVE + THROUGH:
-		# through the slab: slow, then giving way
-		var k := (t - GIVE) / THROUGH
-		_depth = 0.55 + 2.1 * k * k
-		p.rotation.z = lerpf(0.0, 0.22, k)                        # going over sideways as you drop
-		Game.glitch = maxf(Game.glitch, 0.4 + 0.5 * k)
-		Game.fx_warp = 0.004 + 0.02 * k
-		if randf() < dt * 6.0: Game.fx_corrupt = maxf(Game.fx_corrupt, 0.3 + 0.5 * k)
-		if sc != null:
-			_once("through", func(): sc.play_scare("staticHit", 1.0))
+	var depth := 0.0
+	if _t < SINK:
+		var k: float = _t / SINK
+		depth = 0.3 * k * k                                      # the floor gives under you
+	elif _t < SINK + DROP:
+		var k: float = (_t - SINK) / DROP
+		depth = 0.3 + (_eye + 0.4) * k * k                       # and you go through it
+		if k > 0.35 and randf() < dt * 8.0:
+			Game.fx_corrupt = maxf(Game.fx_corrupt, 0.25)        # the picture catching on the geometry
 	else:
-		# under it: nothing but the level seen from below, falling faster
-		var k := (t - GIVE - THROUGH) / VOID
-		_vy += 14.0 * dt
-		_depth += _vy * dt
-		p.rotation.z = 0.22 + 0.15 * k
-		Game.fx_static = 0.2 + 0.8 * k
-		Game.glitch = maxf(Game.glitch, 0.6)
-		if Gfx.post_mat:
-			Gfx.post_mat.set_shader_parameter("fall_fade", smoothstep(VOID - BLACK_IN, VOID, t - GIVE - THROUGH))
-		if k >= 1.0:
-			_land(p)
+		depth = 0.3 + _eye + 0.4
+		if _t >= SINK + DROP + HOLD:
+			_land()
 			return
-	p.global_position.y = _y0 - _depth
+	# black the moment your eyes reach the carpet: you never see what is under the level
+	if Gfx.post_mat:
+		Gfx.post_mat.set_shader_parameter("fall_fade", smoothstep(_eye - 0.7, _eye - 0.1, depth))
+	p.global_position.y = _y0 - depth
 
 func _start(p) -> void:
 	_t = 0.0
 	_on = 0.0
 	_y0 = p.global_position.y
-	_vy = 1.5
-	_depth = 0.0
-	_sounded.clear()
+	var cam: Camera3D = p.cam
+	_eye = maxf(0.6, cam.global_position.y - _y0)
 	p.frozen = true
 	p.velocity = Vector3.ZERO
-	var sc := _scares()
-	if sc != null:
-		sc.spawn_flat(sc.synth("thump"), 0.9, "Scares", 0.32)
-		sc.play_scare("staticHit", 0.8)
-	Game.fx_shock = 0.8
-	Game.add_glitch(0.6)
+	Game.fx_shock = 0.35                                         # the jolt of the floor giving
 
 ## In the black: the ground, and the level you fell into, built behind it
-func _land(p) -> void:
+func _land() -> void:
 	_t = -2.0
-	p.rotation.z = 0.0
-	Game.fx_static = 0.0
-	Game.fx_warp = 0.0
-	Game.glitch = 0.0
 	if Gfx.post_mat: Gfx.post_mat.set_shader_parameter("fall_fade", 1.0)
-	var sc := _scares()
+	var sc: Node = level.get_parent().get_node_or_null("Scares") if level.get_parent() != null else null
 	if sc != null and sc.has_method("body_fall"):
 		sc.body_fall(0.0, false)
-	Game.fx_shock = 1.0
 	var to := str(level.get("noclip_to"))
 	var idx := Game.level_index + 1
 	var levels: Array = level.read_index()

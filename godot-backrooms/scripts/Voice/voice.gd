@@ -10,6 +10,9 @@ extends Node
 ## someone is actually talking. Settings live in user://voice.cfg and the menu's VOICE panel.
 
 signal changed
+## You stopped talking (your own mic, local only: nothing here goes over the network). `syllables` roughly how
+## many words, `loud` the peak level 0..1. events.gd listens: itHeardYou, answerBack.
+signal you_spoke(pcm: PackedFloat32Array, syllables: int, loud: float)
 
 const Adpcm := preload("res://scripts/Voice/adpcm.gd")
 const Speaker := preload("res://scripts/Voice/voice_speaker.gd")
@@ -67,6 +70,19 @@ var _nav
 var _nav_level: Node
 var _overlay: Label
 var _in_rate := 48000.0
+var my_clips: Array = []                    # your own last few sentences, clean enough to play back (yourOwnVoice)
+const MY_CLIPS_KEPT := 4
+## Hearing you, for the events (local only, voice chat or not, muted or not: nothing of it is sent). Its own
+## detector, not the voice-chat gate: a level over the room's own noise floor (which it follows slowly, so a hum or a
+## fan doesn't count), held through the gaps between words.
+const SPEECH_OVER_FLOOR := 12.0             # dB over the noise floor that counts as you talking
+const SPEECH_HANG := 0.45                   # s of quiet that ends a sentence
+var heard_at := -100.0                      # when you last finished saying something (Time.get_ticks_msec / 1000)
+var speaking_now := false
+var _noise_db := -60.0
+var _spk_hang := 0.0
+var _my_take := PackedFloat32Array()
+var _my_peak := 0.0
 
 func _ready() -> void:
 	_load()
@@ -250,6 +266,93 @@ func _trim(pcm: PackedFloat32Array) -> PackedFloat32Array:
 		out[out.size() - 1 - i] *= k
 	return out
 
+## Is the mic open at all (voice mode not Off, the device capturing)?
+func mic_live() -> bool:
+	return _capture != null and _mic != null and _mic.playing
+
+## The events' own ear (see SPEECH_OVER_FLOOR): a sentence starts when the level climbs well over the room's floor
+## and ends after SPEECH_HANG of quiet
+func _detect_speech(frame: PackedFloat32Array, db: float) -> void:
+	# the floor falls quickly to quiet and climbs only slowly: it follows the room, not your voice
+	_noise_db = lerpf(_noise_db, db, 0.25 if db < _noise_db else 0.0015)
+	var loud := db > maxf(_noise_db + SPEECH_OVER_FLOOR, -58.0)
+	if loud:
+		_spk_hang = SPEECH_HANG
+		if not speaking_now:
+			speaking_now = true
+			_my_take = PackedFloat32Array()
+			for f in _preroll:
+				_my_take.append_array(f)
+			_my_peak = 0.0
+	else:
+		_spk_hang -= FRAME / float(RATE)
+	if not speaking_now:
+		return
+	if _my_take.size() < RATE * 6:
+		_my_take.append_array(frame)
+	_my_peak = maxf(_my_peak, clampf((db + 70.0) / 70.0, 0.0, 1.0))
+	if _spk_hang <= 0.0:
+		speaking_now = false
+		_end_take()
+
+## Something you just said: told to whoever listens (you_spoke), and kept if it would play back clean. Not kept
+## if the game itself was loud just then (a scare's sound coming back in through the mic is not your voice).
+func _end_take() -> void:
+	var take := _my_take
+	var peak := _my_peak
+	_my_take = PackedFloat32Array()
+	_my_peak = 0.0
+	if take.size() < int(0.25 * RATE):
+		return
+	var pcm := _trim(take)
+	var syl := count_syllables(pcm)
+	heard_at = Time.get_ticks_msec() / 1000.0
+	you_spoke.emit(pcm, syl, peak)
+	var bus := AudioServer.get_bus_index("Scares")
+	var bleed := bus >= 0 and AudioServer.get_bus_peak_volume_left_db(bus, 0) > -26.0
+	if not bleed and syl >= 2 and _clip_score(pcm) >= 1.5:
+		my_clips.append(pcm)
+		if my_clips.size() > MY_CLIPS_KEPT:
+			my_clips.pop_front()
+
+## One of your own recent sentences (empty if you haven't said anything usable)
+func my_clip() -> PackedFloat32Array:
+	if my_clips.is_empty():
+		return PackedFloat32Array()
+	return my_clips[randi() % my_clips.size()]
+
+## Roughly how many syllables: peaks in the 20 ms energy envelope at least 100 ms apart
+func count_syllables(pcm: PackedFloat32Array) -> int:
+	var fl := int(FRAME_S * CLIP_RATE)
+	var env := PackedFloat32Array()
+	for f in range(0, pcm.size() - fl, fl):
+		var e := 0.0
+		for i in fl:
+			e += pcm[f + i] * pcm[f + i]
+		env.append(sqrt(e / fl))
+	var peak := 0.0
+	for e in env: peak = maxf(peak, e)
+	var n := 0
+	var last := -100
+	for i in range(1, env.size() - 1):
+		if env[i] > peak * 0.35 and env[i] >= env[i - 1] and env[i] >= env[i + 1] and i - last >= 5:
+			n += 1
+			last = i
+	return n
+
+## 16 kHz samples as something an AudioStreamPlayer can play
+static func pcm_stream(samples: PackedFloat32Array) -> AudioStreamWAV:
+	var pcm := PackedByteArray()
+	pcm.resize(samples.size() * 2)
+	for i in samples.size():
+		pcm.encode_s16(i * 2, int(clampf(samples[i], -1.0, 1.0) * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = CLIP_RATE
+	wav.stereo = false
+	wav.data = pcm
+	return wav
+
 func is_speaking(peer_id: int) -> bool:
 	var s = speakers.get(peer_id)
 	return s != null and is_instance_valid(s) and s.speaking()
@@ -372,6 +475,7 @@ func _process_frame(frame: PackedFloat32Array) -> void:
 	_preroll.append(frame)
 	if _preroll.size() > PREROLL:
 		_preroll.pop_front()
+	_detect_speech(frame, db)
 	if _hang > 0.0:
 		if not transmitting:
 			transmitting = true

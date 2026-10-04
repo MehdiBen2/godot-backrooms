@@ -50,6 +50,14 @@ const EVENTS := {
 	"phonering": ["phoneRing", "a phone ringing down the halls; it stops before you reach it, then rings behind you"],
 	"houndpacing": ["houndPacing", "real footsteps far off behind the walls keeping pace with you; stop and they stop, then one step nearer"],
 	"run": ["run", "black, then red lights rush down the hall toward you with something heavy running under them"],
+	"itheardyou": ["itHeardYou", "DO NOT SPEAK: it listens to your mic; say anything and the lights die and something comes"],
+	"sayyourname": ["sayYourName", "the machine voice slowly says your actual callsign, twice"],
+	"answerback": ["answerBack", "two knocks; say something and the wall knocks back once for every word"],
+	"yourownvoice": ["yourOwnVoice", "your own voice, saying something you said earlier, from down the hall"],
+	"doorbell": ["doorbell", "a doorbell, far off, then nearer, in a building with no doors"],
+	"looktogether": ["lookTogether", "an advisory: do not look up... we will look together. Your head tilts back by itself"],
+	"soundstoavoid": ["soundsToAvoid", "a card lists three sounds to avoid; a little later you hear the third"],
+	"countdown": ["countdown", "a timer counts down from 60; at zero nothing happens; then it counts up"],
 }
 const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt"]
 # other things you might type for a name
@@ -149,16 +157,20 @@ func _ready() -> void:
 const EVENT_GROUPS := [
 	["LIGHTS & POWER", Color("e0a63c"), [["BLACKOUT", "powerCut"], ["RED ALERT", "redAlert"], ["EMERGENCY PULSE", "emergencyPulse"],
 		["LIGHTS OUT", "lightsOut"], ["ONE LAMP", "oneLamp"], ["RUN", "run"]]],
-	["VOICES & SOUND", Color("5fc9b8"), [["MACHINE VOICE", "machineVoice"], ["PREACHER WHISPER", "preacherWhisper"],
-		["DEAD AIR", "deadAir"], ["HUM RISES", "humRises"]]],
+	["VOICES & SOUND", Color("5fc9b8"), [["MACHINE VOICE", "machineVoice"], ["SAY YOUR NAME", "sayYourName"],
+		["PREACHER WHISPER", "preacherWhisper"], ["DEAD AIR", "deadAir"], ["HUM RISES", "humRises"], ["DOORBELL", "doorbell"]]],
+	["IT HEARS YOU (MIC)", Color("b98cf0"), [["IT HEARD YOU", "itHeardYou"], ["ANSWER BACK", "answerBack"],
+		["YOUR OWN VOICE", "yourOwnVoice"]]],
 	["SOMETHING NEARBY", Color("d0574a"), [["WALL KNOCK", "wallKnock"], ["HOUND PACING", "houndPacing"],
 		["PARTY WALL", "partyWall"], ["PHONE RING", "phoneRing"]]],
-	["SIGNAL & ROSTER", Color("7fc77a"), [["GHOST ROSTER", "ghostRoster"]]],
+	["SIGNAL & TERMINAL", Color("7fc77a"), [["GHOST ROSTER", "ghostRoster"], ["LOOK UP", "lookTogether"],
+		["SOUNDS TO AVOID", "soundsToAvoid"], ["COUNTDOWN", "countdown"]]],
 ]
 var _ev_status: Label
 var _ev_buttons := {}            # event name -> [Button, group colour, label, description]
 var _ev_groups: Array = []       # [header row, flow] per group, for the filter
 var _ev_last := ""
+var _mic_label: Label            # the IT HEARS YOU group's live readout of the mic
 
 func _events_node() -> Node:
 	return root.get_node_or_null("Events") if root != null else null
@@ -253,9 +265,15 @@ func _build_event_panel() -> Control:
 			var ev_name: String = pair[1]
 			var b := _action_btn(str(pair[0]), func(): _fire_event(ev_name))
 			b.tooltip_text = _event_desc(ev_name)
+			if ev_name == "machineVoice":                  # this one asks which voice and which line first
+				b = _action_btn(str(pair[0]) + "...", func(): _open_voice_picker())
+				b.tooltip_text = "Choose a voice and a line to play (or let the director pick)"
 			_ev_style(b, col, false)
 			flow.add_child(b)
 			_ev_buttons[ev_name] = [b, col, str(pair[0]), _event_desc(ev_name)]
+		if str(g[0]).begins_with("IT HEARS YOU"):
+			_mic_label = _label("MIC: ...", 11, Color(0.7, 0.6, 0.85))
+			v.add_child(_mic_label)
 		if g[0] == "LIGHTS & POWER":
 			var restore := _action_btn("RESTORE GRID", func(): _restore_grid())
 			restore.tooltip_text = "Every tube back on, white, right now (doesn't stop the event that cut them)"
@@ -283,6 +301,8 @@ func _update_event_status() -> void:
 	var ev := _events_node()
 	if ev == null or _ev_status == null:
 		return
+	if _mic_label != null:
+		_mic_label.text = _mic_readout()
 	var running: bool = not (ev.watchers as Array).is_empty() or not (ev.queue as Array).is_empty()
 	var cur: String = str(ev.last)
 	if running and cur != "":
@@ -301,6 +321,127 @@ func _update_event_status() -> void:
 		if (e[0] as Button).get_meta("on", false) != on:
 			(e[0] as Button).set_meta("on", on)
 			_ev_style(e[0], e[1], on)
+
+# ---------------------------------------------------------------- the machine voice picker
+const MachineVoice := preload("res://scripts/Audio/machine_voice_lines.gd")
+const VOICE_COL := Color("5fc9b8")
+var _mv_panel: PanelContainer
+var _mv_voice := "sam"
+var _mv_voice_btns := {}
+var _mv_rows: Array = []          # [Button, text, tag]
+
+func _open_voice_picker() -> void:
+	if _mv_panel == null:
+		_build_voice_picker()
+	_mv_panel.visible = true
+
+func _build_voice_picker() -> void:
+	_mv_panel = PanelContainer.new()
+	_mv_panel.add_theme_stylebox_override("panel", _make_box(Color(0.02, 0.035, 0.045, 0.98), Color(VOICE_COL, 0.6), 1, 4, 16))
+	_mv_panel.visible = false
+	menu_window.add_child(_mv_panel)                    # (a PanelContainer: it lies over the whole menu)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	_mv_panel.add_child(v)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var title := _label("MACHINE VOICE  //  CHOOSE A VOICE, THEN A LINE", 14, VOICE_COL)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	head.add_child(_action_btn("LET THE DIRECTOR PICK", func(): _fire_event("machineVoice")))
+	head.add_child(_action_btn("CLOSE", func(): _mv_panel.visible = false))
+	v.add_child(head)
+	# the voices
+	v.add_child(_label("VOICE", 11, Color(0.55, 0.7, 0.66)))
+	var voices := HFlowContainer.new()
+	voices.add_theme_constant_override("h_separation", 6)
+	voices.add_theme_constant_override("v_separation", 6)
+	v.add_child(voices)
+	_mv_voice_btns.clear()
+	for e in MachineVoice.VOICES:
+		var vid: String = e[0]
+		var vb := _action_btn(str(e[1]), func(): _pick_voice(vid))
+		voices.add_child(vb)
+		_mv_voice_btns[vid] = vb
+	_pick_voice(_mv_voice)
+	# the lines
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(_label("LINE", 11, Color(0.55, 0.7, 0.66)))
+	var find := LineEdit.new()
+	find.placeholder_text = "filter lines... (words, or a tag: dark, alone, group...)"
+	find.clear_button_enabled = true
+	find.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if font: find.add_theme_font_override("font", font)
+	find.add_theme_font_size_override("font_size", 11)
+	find.add_theme_stylebox_override("normal", _make_box(Color(0.03, 0.05, 0.06, 0.9), Color(VOICE_COL, 0.35), 1, 3, 6))
+	find.text_changed.connect(_filter_lines)
+	row.add_child(find)
+	row.add_child(_action_btn("RANDOM LINE", func(): _play_line(randi() % MachineVoice.LINES.size())))
+	v.add_child(row)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 3)
+	scroll.add_child(list)
+	_mv_rows.clear()
+	for i in MachineVoice.LINES.size():
+		var line: Dictionary = MachineVoice.LINES[i]
+		var tag := str(line.tag)
+		var text := "%02d   %s" % [i + 1, str(line.text)]
+		if tag != "":
+			text += "      [%s]" % tag.to_upper()
+		var idx := i
+		var lb := Button.new()
+		lb.text = text
+		lb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		lb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		lb.clip_text = true
+		lb.focus_mode = Control.FOCUS_NONE
+		lb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		if font: lb.add_theme_font_override("font", font)
+		lb.add_theme_font_size_override("font_size", 11)
+		lb.add_theme_stylebox_override("normal", _make_box(Color(0.04, 0.06, 0.07, 0.7), Color(0, 0, 0, 0), 0, 2, 6))
+		lb.add_theme_stylebox_override("hover", _make_box(Color(VOICE_COL, 0.12), Color(VOICE_COL, 0.7), 1, 2, 6))
+		lb.add_theme_stylebox_override("pressed", _make_box(Color(VOICE_COL, 0.25), VOICE_COL, 1, 2, 6))
+		lb.add_theme_color_override("font_color", Color(0.9, 0.55, 0.45) if tag != "" else Color(0.82, 0.86, 0.84))
+		lb.tooltip_text = ("Said when this is true of you: %s" % tag) if tag != "" else "Any time"
+		lb.pressed.connect(func(): _play_line(idx))
+		list.add_child(lb)
+		_mv_rows.append([lb, str(line.text), tag])
+	v.add_child(_label("Plays on your machine only. Lines in red have a tag: the director prefers them when that is true of you.", 10, Color(0.5, 0.6, 0.58)))
+
+func _pick_voice(vid: String) -> void:
+	_mv_voice = vid
+	for k in _mv_voice_btns:
+		_ev_style(_mv_voice_btns[k], VOICE_COL, k == vid)
+
+func _play_line(idx: int) -> void:
+	var ev := _events_node()
+	if ev == null or not ev.has_method("play_machine_voice"):
+		return
+	if ev.play_machine_voice(_mv_voice, idx):
+		_print("[color=#5fc9b8]voice[/color] %s  [color=gray]%s[/color]" % [_mv_voice, str(MachineVoice.LINES[idx].text)])
+	else:
+		_print("[color=orange]that line isn't imported yet: open the project in the Godot editor once[/color]")
+
+func _filter_lines(q: String) -> void:
+	q = q.strip_edges().to_lower()
+	for r in _mv_rows:
+		(r[0] as Button).visible = q == "" or str(r[1]).to_lower().contains(q) or str(r[2]).contains(q)
+
+## The mic, as the listening events hear it: on or off, its level against the room's floor, when it last heard you
+func _mic_readout() -> String:
+	if not Voice.mic_live():
+		return "MIC: OFF  //  set Voice mode to Voice activity or Push to talk in Settings (the events listen locally, solo too)"
+	var cells := clampi(roundi(Voice.level * 12.0), 0, 12)
+	var bar := "|".repeat(cells) + ".".repeat(12 - cells)
+	var ago: float = Time.get_ticks_msec() / 1000.0 - Voice.heard_at
+	var heard := "HEARING YOU NOW" if Voice.speaking_now else ("LAST HEARD %ds AGO" % int(ago) if ago < 600.0 else "NOT HEARD YET")
+	return "MIC: LIVE  [%s]  //  %s  //  %d CLIP(S) OF YOUR VOICE KEPT" % [bar, heard, Voice.my_clips.size()]
 
 ## In co-op only the host may use the console (a guest's spawns and events would only half-happen, on their own screen)
 func _guest_locked() -> bool:

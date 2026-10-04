@@ -21,6 +21,7 @@ config/windows_native_icon="res://icon.ico"
 [audio]
 
 driver/enable_input=true
+general/text_to_speech=true
 
 [autoload]
 

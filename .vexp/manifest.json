@@ -10,7 +10,9 @@
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
     "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
     "godot-backrooms/tools/gen_battery_audio.py": "352e35667bd8ba97527e9e83ef7fcd10a844b991843014bc1e850fcdd2d3b719",
+    "godot-backrooms/tools/gen_event_audio.py": "409e72620cd3f7c5e6ee6e64142cec6d2baa0785fff0ecbe45f36717ccbdcd14",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
+    "godot-backrooms/tools/gen_machine_voice.py": "01f2a774f06875594d57ae1648de3d132f8f3a819546f988c40031904d331e10",
     "godot-backrooms/tools/gen_tape_audio.py": "213a8a33e21a7667946aab3890db3e148770bd7a8d50ea2aa4b2bdeb631b0f85",
     "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
     "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
@@ -33,8 +35,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "52fccec8f4c1be2c5395d2d6c820336b4e5ec910",
-  "indexed_at_timestamp": "2026-10-04T19:41:11.546741200+00:00",
+  "indexed_at_commit": "7cf8b00ff4e7185524abddf4ddd3bc871a66f203",
+  "indexed_at_timestamp": "2026-10-04T21:21:04.712027200+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -45,16 +47,16 @@
       "nodes": 3
     },
     "python": {
-      "calls": 310,
-      "nodes": 200
+      "calls": 332,
+      "nodes": 212
     }
   },
   "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
-    "total_edges": 363,
-    "total_files": 32,
-    "total_nodes": 249
+    "total_edges": 385,
+    "total_files": 34,
+    "total_nodes": 261
   },
   "vexp_version": "3.2.5"
 }

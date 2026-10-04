@@ -506,10 +506,10 @@ func _parse(d: Dictionary) -> void:
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
-	# Noclip: the floor opens wherever it is painted (a pit of its own: you fall through reality, not into the
-	# floor below), so it works on plain floor as well as on pits
+	# Noclip on plain floor: no hole, you clip straight through the floor (noclip_slip.gd); on a pit it is the
+	# bottomless fall (pit_fall.gd). Both end in the floor's Noclip destination.
 	for c: Vector2i in noclip.keys():
-		pits[c] = true
+		if not pits.has(c): noclip_floor[c] = true
 	# A level-wide atmosphere ("atmosphere" in the .lvl, picked in the level editor). "classic" is the
 	# Classic zone painted over every open cell, except where a Dark / Dim zone says the tubes are dead.
 	# "liminal" is the same for the Liminal zone.

@@ -230,6 +230,14 @@
       "phoneRing": "Director event: a phone rings down the halls; it stops before you reach it, then rings behind you",
       "houndPacing": "Director event: footsteps far off behind the walls keep pace with you; stop and they stop, then one step nearer",
       "run": "Director event: black, then red lights rush down the hall toward you with something running under them",
+      "itHeardYou": "Director event: DO NOT SPEAK. It listens to the microphone; say anything and the lights die and something comes",
+      "sayYourName": "Director event: the machine voice slowly says the player's callsign, twice",
+      "answerBack": "Director event: two knocks; say something and the wall knocks back once for every word",
+      "yourOwnVoice": "Director event: the player's own voice, saying something they said earlier, from down the hall",
+      "doorbell": "Director event: a doorbell far off, then nearer",
+      "lookTogether": "Director event: an advisory (do not look up... we will look together); the head tilts back by itself",
+      "soundsToAvoid": "Director event: a card lists three sounds to avoid; a little later you hear the third",
+      "countdown": "Director event: a timer counts down from 60; at zero nothing happens; then it counts up",
       "custom": "Custom event (type custom event name)"
     },
     "category": "events"

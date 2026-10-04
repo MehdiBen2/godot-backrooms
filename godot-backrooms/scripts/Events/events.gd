@@ -120,6 +120,30 @@ func _define_events() -> void:
 	define({"name": "run", "weight": 0.8, "cooldown": 720.0, "duration": 28.0, "intensity": 1.0,
 		"when": func(c): return level.lit.size() > 10 and c.since_last > 60.0,
 		"run": _event_run})
+	define({"name": "itHeardYou", "weight": 1.1, "cooldown": 480.0, "duration": 34.0, "intensity": 0.6,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_it_heard_you})
+	define({"name": "sayYourName", "weight": 0.8, "cooldown": 900.0, "duration": 10.0, "intensity": 0.7,
+		"when": func(c): return c.since_last > 60.0,
+		"run": _event_say_your_name})
+	define({"name": "answerBack", "weight": 1.0, "cooldown": 420.0, "duration": 46.0, "intensity": 0.5,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_answer_back})
+	define({"name": "yourOwnVoice", "weight": 1.0, "cooldown": 600.0, "duration": 12.0, "intensity": 0.7,
+		"when": func(c): return c.since_last > 60.0 and not Voice.my_clips.is_empty(),
+		"run": _event_your_own_voice})
+	define({"name": "doorbell", "weight": 1.0, "cooldown": 480.0, "duration": 12.0, "intensity": 0.4,
+		"when": func(c): return c.since_last > 30.0,
+		"run": _event_doorbell})
+	define({"name": "lookTogether", "weight": 0.8, "cooldown": 900.0, "duration": 20.0, "intensity": 0.8,
+		"when": func(c): return c.since_last > 60.0,
+		"run": _event_look_together})
+	define({"name": "soundsToAvoid", "weight": 1.0, "cooldown": 600.0, "duration": 18.0, "intensity": 0.6,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_sounds_to_avoid})
+	define({"name": "countdown", "weight": 0.7, "cooldown": 900.0, "duration": 95.0, "intensity": 0.3,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_countdown})
 
 # ---------------------------------------------------------------- tools for events
 func later(seconds: float, fn: Callable) -> void:
@@ -828,27 +852,81 @@ func _event_dead_air() -> void:
 		scares.heartbeat(1.0))
 
 # ---------------------------------------------------------------- the machine voice
-# An old text-to-speech voice, flat and crushed, reads out one line (tools/gen_machine_voice.py renders them into
-# audio/tts/), and the words type themselves across the screen in red as it says them. Sometimes it comes out of
-# your own camera; sometimes from a speaker somewhere inside the wall behind you. Everything else goes quiet for
-# it. Never the same line twice in a row (the last twelve are held back).
+# A text-to-speech voice reads out one line, and the words type themselves across the screen in red as it says them
+# (tools/gen_machine_voice.py renders every line in every voice: the Mandela Catalogue's crushed Sam, an emergency
+# broadcast, an alternate wearing a voice, a whisper, something deep, an old tape). When something is true of you
+# (in the dark, light dying, alone, a teammate dead...) it prefers a line that says so. Out of your own camera, from
+# a speaker inside the wall behind you, or (the whisper) right at your ear. Everything else goes quiet for it.
+# Never one of the last twelve lines again.
+const VOICE_WEIGHTS := {"sam": 3.0, "broadcast": 2.0, "alternate": 2.0, "whisper": 1.5, "deep": 1.5, "tape": 2.0}
 var _voice_recent: Array = []
 
+## What it can see of you right now: the tags of machine_voice_lines.gd
+func _voice_context() -> Array:
+	var tags: Array = []
+	var dark: bool = not player.flash_on
+	var lv: float = player.ambient_light() if player.has_method("ambient_light") else 1.0
+	if dark and lv < 0.3: tags.append("dark")
+	if float(player.battery) < 20.0: tags.append("lowbattery")
+	if still > 8.0: tags.append("still")
+	if bool(player.get("is_sprinting")): tags.append("running")
+	if float(player.sanity) < 40.0: tags.append("lowsanity")
+	if float(player.get("health") if player.get("health") != null else 100.0) < 40.0: tags.append("lowhealth")
+	if Game.time > 1200.0: tags.append("longtime")
+	if Game.time < 150.0: tags.append("newarrival")
+	if Game.presence > 0.35: tags.append("nearentity")
+	if bool(player.get("grid_down")): tags.append("powercut")
+	if Net.is_online() and not Net.remotes.is_empty():
+		var nearest := INF
+		var any_dead := false
+		for r in Net.remotes.values():
+			if not is_instance_valid(r): continue
+			if r.dead: any_dead = true
+			elif r.here: nearest = minf(nearest, (r.global_position - player.global_position).length())
+		if any_dead: tags.append("teammate_dead")
+		if nearest > 40.0: tags.append("alone")
+		elif nearest < 8.0: tags.append("group")
+	else:
+		tags.append("alone")
+	return tags
+
 func _event_machine_voice() -> void:
-	var pool: Array = []
+	# the voice: weighted
+	var total := 0.0
+	for v in VOICE_WEIGHTS: total += float(VOICE_WEIGHTS[v])
+	var r := rng.randf() * total
+	var voice := "sam"
+	for v in VOICE_WEIGHTS:
+		r -= float(VOICE_WEIGHTS[v])
+		if r <= 0.0:
+			voice = v
+			break
+	# the line: one about you if there is one (most of the time), else any; never a recent one
+	var ctx := _voice_context()
+	var about_you: Array = []
+	var any: Array = []
 	for i in MachineVoice.LINES.size():
-		if not _voice_recent.has(i):
-			pool.append(i)
-	if pool.is_empty():
-		return
-	var pick: int = pool[rng.randi() % pool.size()]
-	_voice_recent.append(pick)
+		if _voice_recent.has(i): continue
+		var tag := str(MachineVoice.LINES[i].tag)
+		if tag == "": any.append(i)
+		elif ctx.has(tag): about_you.append(i)
+	var pool: Array = about_you if not about_you.is_empty() and rng.randf() < 0.65 else any
+	if pool.is_empty(): pool = about_you
+	if pool.is_empty(): return
+	play_machine_voice(voice, int(pool[rng.randi() % pool.size()]))
+
+## One line in one voice (the debug console's MACHINE VOICE picker calls this directly). False if not imported yet.
+func play_machine_voice(voice: String, idx: int) -> bool:
+	if idx < 0 or idx >= MachineVoice.LINES.size():
+		return false
+	var line: Dictionary = MachineVoice.LINES[idx]
+	var path := MachineVoice.path(voice, str(line.id))
+	if not ResourceLoader.exists(path):
+		return false                                   # (not imported yet: open the project in the editor once)
+	var stream: AudioStream = load(path)
+	_voice_recent.append(idx)
 	if _voice_recent.size() > 12:
 		_voice_recent.pop_front()
-	var line: Array = MachineVoice.LINES[pick]
-	var stream: AudioStream = load(line[0]) if ResourceLoader.exists(line[0]) else null
-	if stream == null:
-		return                                   # (not imported yet: open the project in the editor once)
 	var dur := stream.get_length()
 	on_clear(func():
 		banner.visible_ratio = 1.0
@@ -857,11 +935,14 @@ func _event_machine_voice() -> void:
 	haunt(0.5)
 	Game.add_glitch(0.35)
 	var wall := _wall_face_behind(4.0, 9.0)
-	if rng.randf() < 0.4 and wall.is_finite():
+	if voice == "whisper":
+		var p: AudioStreamPlayer3D = scares.spawn3d(stream, _behind_neck(0.35), 0.7, "Scares", 0.6, 1.0, false)   # at your ear
+		p.max_distance = 6.0
+	elif voice != "broadcast" and rng.randf() < 0.4 and wall.is_finite():
 		scares.spawn3d(stream, wall, 0.9, "Scares", 5.0)          # a speaker somewhere in the wall
 	else:
 		scares.spawn_flat(stream, 0.5)                             # out of your own camera
-	_banner_red(str(line[1]))
+	_banner_red(str(line.text))
 	banner.visible_ratio = 0.0
 	watch(func(dt: float, t: float) -> bool:
 		if t > dur + 1.0:
@@ -873,6 +954,7 @@ func _event_machine_voice() -> void:
 		banner.modulate.a = 0.55 if rng.randf() < 0.06 else 1.0     # the text stutters
 		Game.fx_static = 0.1 + 0.06 * sin(t * 11.0)
 		return true)
+	return true
 
 # ---------------------------------------------------------------- shared by the events below
 ## A looping player (the imported wav doesn't loop, so it restarts itself), flat or at `pos`
@@ -1186,3 +1268,398 @@ func _event_run() -> void:
 			Game.fx_reset()
 			return false
 		return true)
+
+# ---------------------------------------------------------------- shared by the listening events
+## The HUD's terminal card (hud.gd toast), for the events that speak through the terminal
+func _toast(title: String, lines: Array) -> void:
+	var ui: Node = get_parent().get_node_or_null("UI")
+	var t = ui.get("toast") if ui != null else null
+	if t != null and t.has_method("push"):
+		t.push(title, lines)
+
+## Listen to your own voice (Voice.you_spoke) for as long as the event lasts; `fn(pcm, syllables, loud)`
+func _listen(fn: Callable) -> void:
+	if not Voice.you_spoke.is_connected(fn):
+		Voice.you_spoke.connect(fn)
+	on_clear(func():
+		if Voice.you_spoke.is_connected(fn): Voice.you_spoke.disconnect(fn))
+
+func _unlisten(fn: Callable) -> void:
+	if Voice.you_spoke.is_connected(fn):
+		Voice.you_spoke.disconnect(fn)
+
+# ---------------------------------------------------------------- it heard you
+# The hum drops away to almost nothing, the way a room goes quiet when something in it starts to listen. Two
+# words on the screen: DO NOT SPEAK. For half a minute it listens: to your microphone (Voice.you_spoke, which works
+# in single player too), and to your feet (sprinting is noise too, so it works without a mic). Stay quiet and the
+# hum comes back and nothing happened. Make a sound, and the tubes go out around you, one after another, from you
+# outward, and footsteps start toward you from far off, closer each time, and stop just short of you.
+func _event_it_heard_you() -> void:
+	var au: Node = get_parent().get_node_or_null("Audio")
+	var st := {"heard": false}
+	on_clear(func():
+		if au != null: au.hum_event_target = 1.0)
+	if au != null: au.hum_event_target = 0.12
+	_banner_red("DO NOT SPEAK")
+	later(3.5, hide_banner)
+	haunt(0.3)
+	var heard := func() -> void:
+		if st.heard: return
+		st.heard = true
+		var p := player.global_position
+		var near: Array = level.fixtures_near(p, 20.0)
+		near.sort_custom(func(x, y): return Vector2(x.pos.x - p.x, x.pos.z - p.z).length() < Vector2(y.pos.x - p.x, y.pos.z - p.z).length())
+		for i in mini(near.size(), 12):
+			var f: Dictionary = near[i]
+			later(0.4 + i * 0.16, func():
+				if f.black <= 0.0:
+					level.cut_fixture(f, 14.0)
+					level.fixture_event.emit(f, false))
+		haunt(0.8)
+		var from := sound_spot(20.0)
+		for k in 6:
+			later(2.2 + k * 0.85, func(): _carpet_step(from.lerp(p, 0.15 * k), 0.5 + 0.08 * k))
+		later(8.0, func(): scares.heartbeat(0.9))
+		later(13.0, func():
+			if au != null: au.hum_event_target = 1.0)
+	var on_voice := func(_pcm: PackedFloat32Array, _syl: int, _loud: float) -> void: heard.call()
+	_listen(on_voice)
+	watch(func(dt: float, t: float) -> bool:
+		if st.heard: return false
+		if t > 1.5 and (Voice.speaking_now or bool(player.get("is_sprinting"))):
+			heard.call()                                          # (mid-word counts: it doesn't wait for you to finish)
+			return false
+		return t < 32.0)
+	later(32.0, func():
+		_unlisten(on_voice)
+		if not st.heard and au != null:
+			au.hum_event_target = 1.0)                          # you held your breath: nothing
+
+# ---------------------------------------------------------------- it says your name
+# Everything goes quiet. Then the machine voice, slow and low, crushed like the rest of them, says your name. Your
+# actual callsign. A pause. It says it again, and the letters type across the screen as it does.
+# On Windows the name is rendered on the spot by the system's speech voice (PowerShell, as tools/gen_machine_voice.py
+# does) and wrecked here the way the Sam voice is (_wreck_voice); elsewhere, or if that fails, the system voice
+# says it through DisplayServer.
+var _name_stream: AudioStreamWAV
+var _name_for := ""
+
+func _event_say_your_name() -> void:
+	var me: String = Net.my_name()
+	if me == "": me = "researcher"
+	on_clear(func():
+		DisplayServer.tts_stop()
+		Game.fx_static = 0.0)
+	_hush(12.0, 0.08)
+	haunt(0.5)
+	var st := {"said": 0, "next": 1.5}
+	if _name_for != me:
+		_name_stream = null
+		_render_name(me)
+	watch(func(dt: float, t: float) -> bool:
+		if _name_stream == null and _name_for == me:
+			_name_stream = _load_name()                          # ready yet?
+		if t < st.next: return true
+		if _name_stream == null and t < 6.0: return true          # (give the render a few seconds)
+		st.said += 1
+		Game.fx_static = 0.12
+		Game.add_glitch(0.3)
+		if _name_stream != null:
+			scares.spawn_flat(_name_stream, 0.6)
+		else:
+			var voices := DisplayServer.tts_get_voices_for_language("en")
+			if not voices.is_empty(): DisplayServer.tts_speak(me.to_lower(), voices[0], 70, 0.3, 0.55)
+		if st.said == 2:
+			_banner_red(" ".join(me.to_upper().split("")))
+			haunt(0.9)
+			later(4.0, func():
+				hide_banner()
+				Game.fx_static = 0.0)
+			return false
+		st.next = t + 3.2
+		return true)
+
+## Windows: the system voice says `who` into user://tts_name_raw.wav, in the background
+func _render_name(who: String) -> void:
+	_name_for = who
+	if OS.get_name() != "Windows":
+		return
+	var out := ProjectSettings.globalize_path("user://tts_name_raw.wav")
+	var txt := ProjectSettings.globalize_path("user://tts_name.txt")
+	DirAccess.remove_absolute(out)
+	var f := FileAccess.open(txt, FileAccess.WRITE)
+	if f == null: return
+	f.store_string(who)
+	f.close()
+	var ps := ("Add-Type -AssemblyName System.Speech;$s = New-Object System.Speech.Synthesis.SpeechSynthesizer;" +
+		"$v = $s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -like 'en-*' } | Select-Object -First 1;" +
+		"if ($v) { $s.SelectVoice($v.VoiceInfo.Name) };$s.Rate = -4;" +
+		"$fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(22050, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono);" +
+		"$s.SetOutputToWaveFile('%s.tmp', $fmt);$s.Speak([IO.File]::ReadAllText('%s'));$s.Dispose();" +
+		"Move-Item -Force '%s.tmp' '%s'") % [out, txt, out, out]
+	OS.create_process("powershell", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", ps])
+
+## The rendered name, wrecked, once it is there (the render writes a .tmp and renames it when done)
+func _load_name() -> AudioStreamWAV:
+	var path := ProjectSettings.globalize_path("user://tts_name_raw.wav")
+	if not FileAccess.file_exists(path): return null
+	var bytes := FileAccess.get_file_as_bytes(path)
+	var at := 12
+	var data := PackedByteArray()
+	while at + 8 <= bytes.size():                                 # the RIFF chunks: find "data"
+		var id := bytes.slice(at, at + 4).get_string_from_ascii()
+		var size := bytes.decode_u32(at + 4)
+		if id == "data":
+			data = bytes.slice(at + 8, at + 8 + size)
+			break
+		at += 8 + size + (size & 1)
+	if data.size() < 2000: return null
+	var x := PackedFloat32Array()
+	x.resize(data.size() / 2)
+	for i in x.size():
+		x[i] = data.decode_s16(i * 2) / 32768.0
+	return _wreck_voice(x, 22050)
+
+## The Sam voice, in GDScript (tools/gen_machine_voice.py v_sam, without the extras): slowed and lowered,
+## sample-and-hold aliasing, bit-crushed, a slow ring modulation, soft-clipped, a short cheap echo, hiss
+func _wreck_voice(x: PackedFloat32Array, rate: int) -> AudioStreamWAV:
+	var slow := 0.8
+	var n := int(x.size() / slow)
+	var y := PackedFloat32Array()
+	y.resize(n + int(rate * 0.8))
+	var peak := 0.001
+	for i in n:
+		var src := i * slow
+		var k := int(src)
+		var a := x[mini(k, x.size() - 1)]
+		var b := x[mini(k + 1, x.size() - 1)]
+		peak = maxf(peak, absf(lerpf(a, b, src - k)))
+	var held := 0.0
+	var echo := int(rate * 0.11)
+	for i in n:
+		if i % 3 == 0:                                             # sample and hold
+			var src := i * slow
+			var k := int(src)
+			held = lerpf(x[mini(k, x.size() - 1)], x[mini(k + 1, x.size() - 1)], src - k) / peak
+		var v := roundf(held * 32.0) / 32.0                        # crushed
+		v *= 0.72 + 0.28 * sin(TAU * 47.0 * i / rate)              # the metal in it
+		v = tanh(v * 2.2) / tanh(2.2)
+		y[i] += v
+		if i + echo < y.size(): y[i + echo] += v * 0.22
+	for i in y.size():
+		y[i] = clampf(y[i] * 0.8 + randf_range(-0.012, 0.012), -1.0, 1.0)
+	var pcm := PackedByteArray()
+	pcm.resize(y.size() * 2)
+	for i in y.size():
+		pcm.encode_s16(i * 2, int(y[i] * 32767.0))
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = rate
+	wav.stereo = false
+	wav.data = pcm
+	return wav
+
+# ---------------------------------------------------------------- answer back
+# Two knocks in the wall beside you. Then it waits. Say anything, and when you stop, after a moment, the wall knocks
+# back: once for every word you said. (No microphone: it knocks back three times anyway, after a while.)
+func _event_answer_back() -> void:
+	var face := _wall_face_nearest(6.0)
+	if not face.is_finite():
+		face = _wall_face_behind(4.0, 9.0)
+	if not face.is_finite():
+		return
+	var st := {"done": false}
+	later(0.5, func(): scares.knock(face, 0.9))
+	later(0.95, func(): scares.knock(face, 0.9))
+	haunt(0.3)
+	var knock_back := func(n: int) -> void:
+		if st.done: return
+		st.done = true
+		_hush(4.0 + n * 0.5, 0.1)
+		for i in n:
+			later(1.8 + i * 0.45, func(): scares.knock(face, 1.0 + 0.04 * i))
+		later(2.0 + n * 0.45, func(): haunt(0.9))
+	var answer := func(_pcm: PackedFloat32Array, syl: int, _loud: float) -> void: knock_back.call(clampi(syl, 1, 9))
+	_listen(answer)
+	if not Voice.mic_live():
+		later(9.0, func(): knock_back.call(3))
+	later(45.0, func(): _unlisten(answer))
+
+# ---------------------------------------------------------------- your own voice
+# Your voice, saying something you said a while ago, from somewhere ahead of you down the hall, clear, as if you were
+# standing there. A little later, again, nearer, a little lower. (Your own last few sentences into the mic, kept on
+# your machine only, single player too. Nothing recorded yet: the terminal says so, and nothing plays.)
+func _event_your_own_voice() -> void:
+	var clip: PackedFloat32Array = Voice.my_clip()
+	if clip.is_empty():
+		_toast("ACOUSTIC ARCHIVE", [{"kind": "text", "text": "NO RECORDING OF YOUR VOICE YET.", "size": 15},
+			{"kind": "text", "text": "SPEAK INTO YOUR MICROPHONE. IT IS LISTENING.", "size": 13, "color": Color(0.949, 0.902, 0.722, 0.5)}])
+		return
+	var stream := Voice.pcm_stream(clip)
+	var far: Vector3 = find_corridor_spot(9.0, 18.0).pos
+	haunt(0.5)
+	_hush(10.0, 0.2)
+	later(0.8, func():
+		var p: AudioStreamPlayer3D = scares.spawn3d(stream, far, 1.0, "Scares", 7.0, 1.0, false)     # not through walls: clear
+		p.max_distance = 40.0)
+	later(8.0, func():
+		var nearer := far.lerp(player.global_position + Vector3.UP * 1.4, 0.6)
+		var p: AudioStreamPlayer3D = scares.spawn3d(stream, nearer, 0.95, "Scares", 5.0, 0.95, false)
+		p.max_distance = 30.0
+		haunt(0.8))
+
+# ---------------------------------------------------------------- the doorbell
+# A doorbell. Ding, dong. In a building with no doors that open onto anything. Far off down the halls; a while
+# later, nearer.
+func _event_doorbell() -> void:
+	if not ResourceLoader.exists("res://audio/events/doorbell.wav"):
+		return
+	var bell: AudioStream = load("res://audio/events/doorbell.wav")
+	var far: Vector3 = find_corridor_spot(14.0, 26.0).pos
+	_hush(4.0, 0.3)
+	later(0.6, func(): scares.spawn3d(bell, far, 0.8, "Scares", 7.0, 1.0))
+	later(9.0, func():
+		scares.spawn3d(bell, far.lerp(player.global_position + Vector3.UP * 1.4, 0.6), 0.7, "Scares", 5.0, 0.97)
+		haunt(0.7))
+
+# ---------------------------------------------------------------- look up
+# A terminal advisory, calm and official: a meteorological event overhead, do not look up. A moment later, another
+# card: IF YOU ARE AFRAID, WE WILL LOOK TOGETHER. And your head tilts back, by itself, slowly, until you are looking
+# straight up at the ceiling tiles. The tubes over you go out. You hold there in the dark, then you are let go.
+# (Local 58, "Weather Service".)
+func _event_look_together() -> void:
+	on_clear(func():
+		player.frozen = false
+		Game.fx_reset())
+	_toast("COUNTY SERVICE ADVISORY", [
+		{"kind": "text", "text": "A METEOROLOGICAL EVENT IS IN PROGRESS OVERHEAD.", "size": 16, "wrap": true},
+		{"kind": "rule"},
+		{"kind": "pair", "left": "DO NOT LOOK UP", "right": "ADVISED", "color": Color("ff4636")},
+	])
+	_hush(20.0, 0.2)
+	later(7.5, func():
+		_toast("COUNTY SERVICE ADVISORY", [
+			{"kind": "text", "text": "IF YOU ARE AFRAID, WE WILL LOOK TOGETHER.", "size": 18, "wrap": true},
+		])
+		haunt(0.6))
+	var st := {"fired": false}
+	watch(func(dt: float, t: float) -> bool:
+		if t < 9.5:
+			return true
+		if t > 18.0:
+			player.frozen = false
+			Game.fx_reset()
+			return false
+		player.frozen = true
+		var cam: Camera3D = player.cam
+		if t < 15.0:
+			cam.rotation.x = minf(cam.rotation.x + dt * 0.24, 1.35)          # your head going back, slowly
+			Game.fx_blur = 0.12 * smoothstep(9.5, 15.0, t)
+		elif not st.fired:
+			st.fired = true
+			for f in level.fixtures_near(player.global_position, 7.0):
+				level.cut_fixture(f, 6.0)
+				level.fixture_event.emit(f, false)
+			scares.heartbeat(1.0)
+			haunt(1.0)
+		return true)
+
+# ---------------------------------------------------------------- sounds to avoid
+# A terminal card lists three sounds to avoid, plainly, like a safety leaflet. A little later you hear the third
+# one. (Gemini Home Entertainment, "Sounds to Avoid".)
+func _avoid_knocks() -> void:
+	var face := _wall_face_behind(4.0, 10.0)
+	if not face.is_finite(): face = sound_spot(6.0)
+	for i in 3:
+		later(i * 0.9, func(): scares.knock(face, 1.1, scares.KNOCK_FIST))
+
+func _avoid_breath() -> void:
+	scares.breath_behind(_behind_neck(0.7), 1.0)
+
+func _avoid_steps() -> void:
+	var at := sound_spot(5.0)
+	for i in 3:
+		later(i * 0.7, func(): _carpet_step(at, 0.7))
+
+func _avoid_doorbell() -> void:
+	if ResourceLoader.exists("res://audio/events/doorbell.wav"):
+		scares.spawn3d(load("res://audio/events/doorbell.wav"), find_corridor_spot(8.0, 16.0).pos, 0.75, "Scares", 6.0, 1.0)
+
+func _avoid_phone() -> void:
+	if ResourceLoader.exists("res://audio/events/phone_ring.wav"):
+		var p: AudioStreamPlayer3D = scares.spawn3d(load("res://audio/events/phone_ring.wav"), find_corridor_spot(10.0, 20.0).pos, 0.8, "Scares", 7.0, 1.0)
+		get_tree().create_timer(1.1).timeout.connect(func(): _free(p))
+
+func _avoid_own_voice() -> void:
+	var clip: PackedFloat32Array = Voice.my_clip()
+	if not clip.is_empty():
+		scares.spawn3d(Voice.pcm_stream(clip), find_corridor_spot(8.0, 16.0).pos, 0.9, "Scares", 5.0, 0.96)
+
+func _event_sounds_to_avoid() -> void:
+	var options: Array = [
+		["THREE SLOW KNOCKS", _avoid_knocks],
+		["BREATHING THAT IS NOT YOUR OWN", _avoid_breath],
+		["FOOTSTEPS THAT STOP WHEN YOU DO", _avoid_steps],
+		["A DOORBELL", _avoid_doorbell],
+		["A PHONE THAT STOPS RINGING", _avoid_phone],
+	]
+	if not Voice.my_clips.is_empty():
+		options.append(["YOUR OWN VOICE", _avoid_own_voice])
+	options.shuffle()
+	var picks: Array = options.slice(0, 3)
+	_toast("SOUNDS TO AVOID", [
+		{"kind": "text", "text": "01   %s" % picks[0][0], "size": 15},
+		{"kind": "text", "text": "02   %s" % picks[1][0], "size": 15},
+		{"kind": "text", "text": "03   %s" % picks[2][0], "size": 15},
+		{"kind": "rule"},
+		{"kind": "text", "text": "IF YOU HEAR ONE OF THESE, DO NOT RESPOND.", "size": 14, "color": Color(0.949, 0.902, 0.722, 0.5), "wrap": true},
+	])
+	later(10.0, func():
+		_hush(6.0, 0.15)
+		(picks[2][1] as Callable).call()
+		haunt(0.8))
+
+# ---------------------------------------------------------------- countdown
+# A timer appears at the top of the screen, counting down from sixty. Nothing explains it. At zero it blinks, and
+# nothing happens. Then it starts counting up.
+var _count_label: Label
+
+func _event_countdown() -> void:
+	if _count_label == null or not is_instance_valid(_count_label):
+		_count_label = Label.new()
+		_count_label.add_theme_font_override("font", load("res://fonts/vcr.ttf"))
+		_count_label.add_theme_font_size_override("font_size", 40)
+		_count_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+		_count_label.add_theme_constant_override("shadow_offset_y", 2)
+		_count_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_count_label.position = Vector2(-200, 130)
+		_count_label.size = Vector2(400, 50)
+		_count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		banner_layer.add_child(_count_label)
+	var lab := _count_label
+	lab.visible = not Game.hide_hud
+	on_clear(func():
+		if is_instance_valid(lab): lab.visible = false)
+	haunt(0.2)
+	watch(func(dt: float, t: float) -> bool:
+		if not is_instance_valid(lab):
+			return false
+		lab.visible = not Game.hide_hud
+		if t < 60.0:
+			var left := ceili(60.0 - t)
+			lab.text = "00:%02d" % left
+			lab.add_theme_color_override("font_color", Color(0.85, 0.12, 0.08) if left <= 10 else Color(0.75, 0.1, 0.06, 0.85))
+		elif t < 64.0:
+			lab.text = "00:00"
+			lab.modulate.a = 1.0 if fmod(t, 0.6) < 0.3 else 0.0           # it blinks. Nothing happens
+		elif t < 94.0:
+			lab.modulate.a = 1.0
+			lab.text = "+00:%02d" % int(t - 64.0)
+			lab.add_theme_color_override("font_color", Color(0.6, 0.08, 0.05, 0.55))
+		else:
+			lab.visible = false
+			return false
+		return true)
+	later(60.0, func():
+		_hush(4.0, 0.0)
+		haunt(0.7))
