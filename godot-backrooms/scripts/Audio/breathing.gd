@@ -19,6 +19,7 @@ var b_exertion := 0.0
 var b_anxiety := 0.0
 var b_terror := 0.0
 var loudness := 0.0
+var _tight := 0.0                    # 0..1: squeezed through a slit (player.tight_k)
 var b_next := 0.0
 var b_last := -1e9
 var b_last_jitter := 1.0
@@ -68,7 +69,8 @@ func update(dt: float) -> void:
 	b_debt = _approach(b_debt, stamina_debt, 1.2, 0.09, dt)
 	var e := clamp01(0.3 * b_drive + 0.8 * b_debt)
 	if moving: e = maxf(e, 0.05)
-	e = maxf(e, 0.55 * maxf(float(audio.player.get("tight_k")), 0.7 * float(audio.player.get("crawl_k"))))   # squeezed through a slit or crawling: short, heavy breaths
+	_tight = float(audio.player.get("tight_k"))
+	e = maxf(e, 0.3 * maxf(_tight, 0.7 * float(audio.player.get("crawl_k"))))   # squeezed through a slit or crawling: short, held breaths
 	# adrenaline: stamina is free but the lungs aren't - hard, fast, open-mouthed panting
 	var adr: float = audio.player.adrenaline
 	e = maxf(e, adr * (0.85 if moving else 0.6))
@@ -119,7 +121,7 @@ func update(dt: float) -> void:
 	# Reduced multipliers: 0.9 -> 0.6 for exertion, 0.35 -> 0.2 for arousal
 	var loud := clamp01(smooth(0.08, 1.0, e) * 0.6 + arousal * 0.2) if active else CALM_BREATH
 	# Cap the loudness to prevent breathing from getting too loud during high exertion/panic
-	loud = minf(loud, 0.5)
+	loud = minf(loud, 0.5) * (1.0 - 0.5 * _tight)       # in a slit it's a hushed, held breath, not a pant
 	if b_holding: loud = 0.0
 	loudness = loud
 	_schedule(loud)
@@ -139,7 +141,7 @@ func _schedule(loud: float) -> void:
 	var e := b_exertion
 	var a := _arousal()
 	var t0 := b_terror
-	var bpm := 13.0 + 32.0 * e + 14.0 * a * (1.0 - e)
+	var bpm := (13.0 + 32.0 * e + 14.0 * a * (1.0 - e)) * (1.0 - 0.35 * _tight)
 	var period := 60.0 / bpm
 	var due := b_last + period * b_last_jitter
 	b_next = maxf(t_now + 0.05, maxf(b_busy_until + 0.08, minf(b_next, due)))

@@ -59,10 +59,10 @@ func _make_materials() -> void:
 		door_leaf_mat.roughness = 0.75
 	door_hw_mat = (load("res://textures/pbr/Metal038/Metal038.tres") as StandardMaterial3D).duplicate()
 	door_hw_mat.roughness = 0.35
-	door_frame_mat = StandardMaterial3D.new()          # painted gray metal frame and casing
-	door_frame_mat.albedo_color = Color(0.55, 0.55, 0.53)
-	door_frame_mat.roughness = 0.5
-	door_frame_mat.metallic_specular = 0.45
+	door_frame_mat = StandardMaterial3D.new()          # old painted frame and casing: a dingy warm cream, flat, no sheen
+	door_frame_mat.albedo_color = Color(0.40, 0.37, 0.29)
+	door_frame_mat.roughness = 0.85
+	door_frame_mat.metallic_specular = 0.08
 
 # ---------------------------------------------------------------- materials
 ## The .lvl's optional "materials" ({wall, floor, ceiling, tiles} -> a folder in textures/pbr/, picked in the
@@ -1198,6 +1198,10 @@ func stair_skin(o: Dictionary) -> Node3D:
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap
 # (like a drywall bulkhead) with a trim strip along its bottom edge.
+const STEP_TRIM_H := 0.1           # metres: the trim along a ceiling step's bottom edge
+const STEP_TRIM_RUN := CELL          # a strip's length: exactly a cell (longer, its ends stuck out past a corner as little ears; at 4 mm thick the notch at a corner is not visible)
+const STEP_TRIM_D := 0.004          # ...and how far it stands out from the step's face
+const STEP_TRIM_TOP := 0.06         # the strip along the face's top edge, under the tall ceiling
 func _build_ceiling_steps() -> void:
 	var batches := [
 		{"height": WALL_H, "st": SurfaceTool.new(), "n": 0},
@@ -1238,14 +1242,22 @@ func _build_ceiling_steps() -> void:
 					[Vector3(bx + ax, hi, bz + az), Vector2(u0 + 2.0, v_hi)],
 					[Vector3(bx - ax, hi, bz - az), Vector2(u0, v_hi)]]
 				var nrm := Vector3(dv.x, 0, dv.y)
-				for i in [0, 1, 2, 0, 2, 3]:
-					st.set_normal(nrm)
-					st.set_uv(pts[i][1])
-					st.add_vertex(pts[i][0])
-					collider_tris.append(pts[i][0])
+				# one face for each side, wound and shaded to face its own way (a single face with culling off gets
+				# its normal flipped from the far side, and was lit as if it faced away: black)
+				var plane_n := ((pts[1][0] - pts[0][0]) as Vector3).cross((pts[2][0] - pts[0][0]) as Vector3)
+				for facing: float in [1.0, -1.0]:
+					var order := [0, 2, 1, 0, 3, 2] if plane_n.dot(nrm * facing) > 0.0 else [0, 1, 2, 0, 2, 3]
+					for i in order:
+						st.set_normal(nrm * facing)
+						st.set_uv(pts[i][1])
+						st.add_vertex(pts[i][0])
+				for i in [0, 1, 2, 0, 2, 3]: collider_tris.append(pts[i][0])
 				batch.n += 1
 				var side := 1.0 if b2 > a else -1.0
-				trims.append({"x": bx + dv.x * side * 0.03, "z": bz + dv.y * side * 0.03, "y": lo - 0.05, "along_x": dv.x == 0})
+				# (flush on the bulkhead's face, a hand's width up from its bottom edge, like the skirting on the walls)
+				# and a strip along the top where the face meets the tall ceiling, as the walls have at theirs
+				for strip: Array in [[lo + STEP_TRIM_H * 0.5, STEP_TRIM_H], [hi - STEP_TRIM_TOP * 0.5, STEP_TRIM_TOP]]:
+					trims.append({"x": bx + dv.x * side * STEP_TRIM_D * 0.5, "z": bz + dv.y * side * STEP_TRIM_D * 0.5, "y": strip[0], "h": strip[1], "along_x": dv.x == 0})
 	for i in batches.size():
 		var b: Dictionary = batches[i]
 		if b.n == 0: continue
@@ -1260,8 +1272,7 @@ func _build_ceiling_steps() -> void:
 			m.uv1_scale = Vector3.ONE
 		else:
 			m = _wall_material("wall" if i == 0 else "wall_tall", b.height, false)
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED    # seen from whichever cell is taller
-		mi.material_override = m
+		mi.material_override = m          # (both sides are in the mesh, each facing its own way: lit like any wall)
 		add_child(mi)
 	if not collider_tris.is_empty():
 		var body := StaticBody3D.new()
@@ -1273,9 +1284,16 @@ func _build_ceiling_steps() -> void:
 		cs.shape = shape
 		body.add_child(cs)
 	if trims.is_empty(): return
-	var tm := StandardMaterial3D.new()
-	tm.albedo_color = Color("cfc6a8")
-	tm.roughness = 0.75
+	# the same dark vinyl as the skirting (level_trim.gd), so it is lit like it: a cream one read as a glowing white bar
+	var tm: Material
+	if has_method("_skirt_material"):
+		tm = call("_skirt_material")
+	else:
+		var sm := StandardMaterial3D.new()
+		sm.albedo_color = Color(0.17, 0.145, 0.12)
+		sm.roughness = 1.0
+		sm.metallic_specular = 0.0
+		tm = sm
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	mm.mesh = BoxMesh.new()
@@ -1284,7 +1302,7 @@ func _build_ceiling_steps() -> void:
 	var st := MMBuffer.stride(mm)
 	for i in trims.size():
 		var t: Dictionary = trims[i]
-		var sc := Vector3(CELL if t.along_x else 0.1, 0.1, 0.1 if t.along_x else CELL)
+		var sc := Vector3(STEP_TRIM_RUN if t.along_x else STEP_TRIM_D, t.h, STEP_TRIM_D if t.along_x else STEP_TRIM_RUN)
 		MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
 	mm.buffer = buf
 	var mmi := MultiMeshInstance3D.new()

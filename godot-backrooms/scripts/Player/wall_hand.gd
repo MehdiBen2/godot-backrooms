@@ -23,7 +23,9 @@ extends SkeletonModifier3D
 ## else in the way (a wall beside you, a door frame) pushes the hand back along that line, never nearer
 ## than NEAR.
 
-enum Mode { ANIM, HIDE, CARRY, WALL }
+##   SLIDE  squeezed through a slit: palm flat on the wall at exactly the point given (no probing, no reach
+##          limit, no line-of-sight fallback), so it slides along with you; the arm follows from the shoulder
+enum Mode { ANIM, HIDE, CARRY, WALL, SLIDE }
 
 const LEFT := 0
 const RIGHT := 1
@@ -34,7 +36,12 @@ const HOLD_ANIM := "TorchHold"
 const PALM_ANIM := "WallPalm"     # one pose: the thumbs laid flat beside the palm (at rest they point into the wall)
 const WRAP: Array[float] = [-0.05, 0.06, 0.04]    # rad each finger joint bends pressed on the wall: flat
 const OPEN: Array[float] = [0.2, 0.15, 0.08]      # braced / landing: fingers relaxed, a little bent
-const TILT := 0.6                 # the fingers point out over the edge and up this much
+const LIFT: Array[float] = [0.0, 0.0, -0.04, -0.12]  # rad, per finger (index..little): the knuckle lifts a touch so the outer fingers don't dig in
+const LIFT_JOINT: Array[float] = [1.0, -0.6, -0.6]   # the two joints beyond it bend back the other way, so the finger lies flat again (no kink)
+const SLIDE_SHOULDER := Vector3(0.24, -0.2, 0.14)   # m, camera space: SLIDE's shoulder, off the lower corner and behind the eye
+const SLIDE_SHOULDER_FRONT := 0.03  # m, camera z: leaning after a hand, SLIDE's shoulder comes no further forward than this
+const SLIDE_TILT := 1.2         # in a slit the fingers point forward and well up (the hand slides, not grips)
+const TILT := 0.6               # the fingers point out over the edge and up this much
 const SNAP := 30.0                # rad/s: how fast a finger presses flat (a little past, then back)
 const SNAP_DAMP := 0.5
 const SNAP_STAGGER := 0.04        # s between one finger and the next, index first
@@ -50,7 +57,8 @@ const EDGE_OUT := -0.08           # m: from peek.gd's point on the wall (4 cm in
                                   # finger's length short of the edge, so the fingertips reach it
 const RISE := 0.0                 # m above the eye the hand takes the wall
 const RISE_CROUCH := -0.10        # crouched it takes it lower
-const REACH := 1.15               # m: an edge this close can be taken hold of
+const SHOULDER_OFF := 0.02       # m: the shoulder stays at least this far out from the wall's plane
+const REACH := 1.15              # m: an edge this close can be taken hold of
 const BRACE_BACK := 0.12          # braced, the hand stays this much of the way back towards the shoulder
 const CARRY_DROP := 0.13          # m the carrying hand sits below the usual torch hold
 const CARRY_OUT := 0.03           # m out to its side
@@ -59,7 +67,7 @@ const ARC := 0.05                 # m the hand lifts on its way onto the wall
 const FINGER := 0.17              # armature units from the knuckles to the fingertips
 const NEAR := 0.15                # m: the hand never comes nearer the camera than this
 const HUG_RANGE := 0.2            # m: how far either side of the hand the wall face is looked for
-const HUG_GAP := 0.012            # m: the palm's rest off the wall holding on
+const HUG_GAP := 0.02           # m: the palm's rest off the wall holding on
 const HUG_GAP_BRACED := 0.04      # m: braced, it stays a little off
 const AT_SMOOTH := 30.0           # 1/s: the knuckles' target is low-passed, so a probe flicker never shows as the hand jumping
 const CLEAR_SMOOTH := 18.0        # 1/s: how fast the hand follows an obstruction coming or going
@@ -208,7 +216,7 @@ func tick(dt: float) -> void:
 		h.vel += (s.x * s.x * (1.0 - h.u) - 2.0 * s.y * s.x * h.vel) * dt
 		h.u += h.vel * dt
 		h.crouch = lerpf(h.crouch, h.crouch_goal, minf(1.0, dt * 8.0))
-		var on_wall := h.mode == Mode.WALL
+		var on_wall := h.mode == Mode.WALL or h.mode == Mode.SLIDE
 		h.grab = lerpf(h.grab, 1.0 if on_wall and h.holding else 0.0, minf(1.0, dt * 8.0))
 		h.t += dt
 		# holding on: every few seconds the hand eases off a touch and takes a fresh grip
@@ -281,6 +289,13 @@ func _process_modification_with_delta(delta: float) -> void:
 				q = _wall_fingers(h, wall[2])
 				if h.bones.size() > q.size():
 					q.append(wall[3])
+			Mode.SLIDE:
+				var slid := _slide(h, cam, skel.get_bone_rest(h.bones[0]).origin, unit)
+				pos = slid[0]
+				rot = slid[1]
+				q = _wall_fingers(h, slid[2])
+				if h.bones.size() > q.size():
+					q.append(slid[3])
 		if not h.seen:
 			h.from_pos = pos
 			h.from_rot = rot
@@ -307,7 +322,8 @@ func _wall_fingers(h: Hand, wrist: Quaternion) -> Array[Quaternion]:
 	for f in 4:
 		for j in 3:
 			var k := 1 + f * 3 + j
-			var bend := lerpf(OPEN[j], WRAP[j], h.hook[f])
+			# the outer fingers sit lower than the middle ones, so they're held a little back off the wall (the pinky most)
+			var bend := lerpf(OPEN[j], WRAP[j] + LIFT[f] * LIFT_JOINT[j], h.hook[f])
 			q.append(h.rest[k] * Quaternion(Vector3.RIGHT, bend - h.rest_curl[k]))
 	for j in 3:
 		q.append(h.palm[j])
@@ -336,6 +352,10 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 	var body := view.get_parent() as Node3D
 	var square := to_cam.basis * (body.global_transform.basis.orthonormalized() if body != null else cam.basis)
 	var shoulder := square * Vector3(SHOULDER.x * h.side, SHOULDER.y, SHOULDER.z)
+	# never inside the wall itself (a squeeze gap is barely wider than the shoulders): the arm would run through it
+	var in_wall := (shoulder - wall).dot(n)
+	if in_wall < SHOULDER_OFF:
+		shoulder += n * (SHOULDER_OFF - in_wall)
 	var lean := wall - knuckle - shoulder
 	var short := lean.length() - reach
 	if short > 0.0:
@@ -364,6 +384,45 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 	h.at_s = h.at_s.lerp(at, 1.0 - exp(-_dt * AT_SMOOTH)) if h.at_ok else at
 	h.at_ok = true
 	at = h.at_s
+	return _limb(h, at, hand, knuckle, shoulder, square, up, n, fore_len, upper_len, reach)
+
+## Squeezed through a slit (SLIDE): the knuckles right on the wall at `h.edge` (world, already where the hand
+## should be), the palm flat on it, fingers forward along the slit and up. Nothing probed: it goes where it's told.
+func _slide(h: Hand, cam: Transform3D, wrist: Vector3, unit: float) -> Array:
+	var to_cam := cam.affine_inverse()
+	var up := (to_cam.basis * Vector3.UP).normalized()
+	var n := (to_cam.basis * h.normal).normalized()
+	var out := (to_cam.basis * h.out).normalized()
+	var fingers := out + up * SLIDE_TILT
+	fingers = (fingers - n * fingers.dot(n)).normalized()
+	var hand := Basis(fingers.cross(-n), fingers, -n).get_rotation_quaternion()
+	var fore_len := wrist.length() * unit
+	var upper_len := UPPER * unit
+	var reach := (fore_len + upper_len) * STRETCH
+	var knuckle := hand * (h.knuckle * unit)
+	var at := to_cam * (h.edge + h.normal * HUG_GAP)
+	# the shoulder rides the camera here, not the body: crawling you look straight down past your own shoulders,
+	# and a shoulder placed off the body then sat right in view with the sleeve's open end showing. Kept behind
+	# the eye (camera z > 0), its end is never in front of the lens, wherever you look.
+	var square := Basis.IDENTITY
+	var shoulder := Vector3(SLIDE_SHOULDER.x * h.side, SLIDE_SHOULDER.y, SLIDE_SHOULDER.z)
+	var in_wall := (shoulder - at).dot(n)
+	if in_wall < SHOULDER_OFF:
+		shoulder += n * (SHOULDER_OFF - in_wall)
+	# out of reach: the shoulder leans after the hand, but never past the eye (the sleeve's open end would show);
+	# what's still too far, the hand stops short of
+	var span := at - knuckle - shoulder
+	if span.length() > reach:
+		shoulder += span.normalized() * (span.length() - reach)
+		shoulder.z = maxf(shoulder.z, SLIDE_SHOULDER_FRONT)
+		span = at - knuckle - shoulder
+		if span.length() > reach:
+			at = shoulder + knuckle + span.normalized() * reach
+	return _limb(h, at, hand, knuckle, shoulder, square, up, n, fore_len, upper_len, reach)
+
+## Shoulder, elbow, wrist putting the knuckles at `at` (camera space) with the hand turned `hand`: [forearm
+## position (the elbow), forearm turn, wrist turn (local to the forearm), upper arm turn (local to the forearm)]
+func _limb(h: Hand, at: Vector3, hand: Quaternion, knuckle: Vector3, shoulder: Vector3, square: Basis, up: Vector3, n: Vector3, fore_len: float, upper_len: float, reach: float) -> Array:
 	var wrist_at := at - knuckle
 	# shoulder, elbow, wrist: whatever moved the hand, the shoulder gives before the arm stretches
 	var span := wrist_at - shoulder
@@ -375,6 +434,9 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 	var to_wrist := (wrist_at - shoulder).normalized()
 	var bend := clampf((upper_len * upper_len + far * far - fore_len * fore_len) / (2.0 * upper_len * far), -1.0, 1.0)
 	var sag := square * Vector3(SAG * h.side, 0.0, 0.0) - up
+	sag = sag.normalized()
+	sag -= n * minf(0.0, sag.dot(n))                                       # the elbow hangs along the wall, never into it
+	sag = sag.normalized()
 	sag = (sag - to_wrist * sag.dot(to_wrist)).normalized()
 	var elbow := shoulder + (to_wrist * bend + sag * sqrt(1.0 - bend * bend)) * upper_len
 	var dir := (wrist_at - elbow).normalized()

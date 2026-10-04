@@ -197,7 +197,13 @@ func _object_outlines(o: Dictionary) -> Array:
 		var g := clampf(float(o.get("gap", 0.55)), 0.35, 0.9) * 0.5
 		return [[[Vector2(-half, -half), Vector2(half, -half), Vector2(half, -g), Vector2(-half, -g)], false],
 			[[Vector2(-half, g), Vector2(half, g), Vector2(half, half), Vector2(-half, half)], false]]
-	if o.type in ["door", "arch"] or is_stairs(o.type): return []
+	if o.type == "door":                     # the partition's two sides either side of the doorway (props/door.gd), skirted like any wall
+		var t := float(object_info("door").get("thickness", 0.3)) * 0.5
+		var span := CELL * float(o.scale) * 0.5
+		var gap := (Door.DOOR_W + Door.LINING * 2.0) * 0.5
+		return [[[Vector2(-t, -span), Vector2(t, -span), Vector2(t, -gap), Vector2(-t, -gap)], false],
+			[[Vector2(-t, gap), Vector2(t, gap), Vector2(t, span), Vector2(-t, span)], false]]
+	if o.type == "arch" or is_stairs(o.type): return []
 	var info := object_info(o.type)
 	if info.has("model"): return []
 	match str(info.get("shape", "")):
@@ -248,23 +254,42 @@ static func _area(pts: Array) -> float:
 		a += p.x * q.y - q.x * p.y
 	return absf(a)
 
-## Dark brown vinyl, satin: the sheen of a mopped rubber strip, a little uneven
+## Dark brown vinyl, matte: a pebbled rubber strip, scuffed and uneven, that takes the light like the wall
+## above it. Kept rough with little specular: a glossy one mirrored the bright ceiling at a low camera
+## (crawling) and read as a white stripe whatever the light on it.
 func _skirt_material() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.115, 0.098, 0.082)
-	m.roughness = 0.5
-	m.metallic_specular = 0.5
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.05
+	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
+	m.roughness = 0.92
+	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera
+	var grain := FastNoiseLite.new()
+	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	grain.frequency = 0.35                 # fine: it was big blotches at the wall's scale, which read as marble
+	grain.fractal_octaves = 3
 	var tex := NoiseTexture2D.new()
-	tex.noise = noise
+	tex.noise = grain
 	tex.width = 256
 	tex.height = 256
 	tex.seamless = true
-	m.roughness_texture = tex
+	m.albedo_texture = tex                  # the scuffs and the dirt: light and dark patches over the brown
+	var pebble := FastNoiseLite.new()
+	pebble.noise_type = FastNoiseLite.TYPE_CELLULAR
+	pebble.frequency = 0.22
+	pebble.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	var bump := NoiseTexture2D.new()
+	bump.noise = pebble
+	bump.width = 256
+	bump.height = 256
+	bump.seamless = true
+	bump.as_normal_map = true
+	bump.bump_strength = 6.0
+	m.normal_enabled = true
+	m.normal_texture = bump                 # the pebbled rubber: catches a torch beam in a fine grain
+	m.normal_scale = 0.45
+	m.ao_enabled = false
 	m.uv1_triplanar = true
 	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * 0.6
+	m.uv1_scale = Vector3.ONE * 2.5
 	return m
 
 # ---------------------------------------------------------------- outlets and switches

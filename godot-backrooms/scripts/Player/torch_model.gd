@@ -92,6 +92,7 @@ var _hug_slow := false
 var _hands: WallHand              # both hands while you peek round a wall edge
 var _arms: Array[Node3D] = [null, null]    # the LeftArm / RightArm meshes
 var _crouch := 0.0
+var _walk := 0.0                  # 0..1: eased "walking", what the stride sway is scaled by
 var _pull := 0.0                  # m a close wall has drawn the torch back
 var _crouch_goal := 0.0
 var _fidgets: Array[String] = []  # the FIDGETS this model has
@@ -246,17 +247,22 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 	_crouch = lerpf(_crouch, _crouch_goal, minf(1.0, dt * 8.0))
 	# without the arm the torch itself slides up from below; the arm's pickup does that otherwise
 	var down := (1.0 - raise) * (1.0 - raise) if _anim == null else 0.0
-	var step := sin(bob) if moving else 0.0
+	# the stride: the hand swings side to side, dips and rises twice a cycle, pushes fore and aft and rolls with
+	# each step, more when sprinting; eased in and out so starting or stopping never snaps it
+	_walk = lerpf(_walk, 1.0 if moving else 0.0, minf(1.0, dt * 6.0))
+	var gait := _walk * sway_amount * (1.0 + lower * 0.8)
+	var step := sin(bob) * gait
+	var beat := cos(bob * 2.0) * gait               # twice a cycle: once a footfall
 	var breathe := sin(Time.get_ticks_msec() * 0.0016) * 0.003
 	position = Vector3(
-		POS.x + step * 0.01 - lower * 0.03,
-		POS.y + absf(step) * 0.008 + breathe - down * 0.3 - lower * 0.03 - _crouch * CROUCH_DIP,
-		POS.z) + _lag * sway_amount
+		POS.x + step * 0.022 - lower * 0.03,
+		POS.y + beat * 0.014 + absf(step) * 0.006 + breathe - down * 0.3 - lower * 0.03 - _crouch * CROUCH_DIP,
+		POS.z + beat * 0.012) + _lag * sway_amount
 	# a wall closer than the torch is long: draw it back (and tuck it down and up) so it never goes into it
 	_pull = lerpf(_pull, _wall_pull(), minf(1.0, dt * 12.0))
 	var tuck := clampf(_pull / 0.25, 0.0, 1.0)
 	position += Vector3(0.0, -WALL_TUCK * tuck, _pull)
-	rotation = Vector3(ROT.x - WALL_TILT * tuck - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02) + _lag_rot * sway_amount
+	rotation = Vector3(ROT.x - WALL_TILT * tuck - lower * 0.35 + beat * 0.035, ROT.y + lower * 0.25 + step * 0.04, ROT.z + step * 0.06) + _lag_rot * sway_amount
 
 ## How far back the torch has to come for its front to clear the wall straight ahead of the camera
 func _wall_pull() -> float:
@@ -328,11 +334,11 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		_hands.set_mode(left, WallHand.Mode.ANIM)
 		return
 	var busy := _anim.current_animation == PICKUP and _anim.is_playing()
-	if _sq_on and not leaning and not busy and _swap == 0:
+	if _sq_on and not busy and _swap == 0:          # (no peeking in a slit: the hands just slide along its walls)
 		_hands.aim(right, _sq_r[0], _sq_r[1], _sq_out, true, crouching)
 		_hands.aim(left, _sq_l[0], _sq_l[1], _sq_out, true, crouching)
-		_hands.set_mode(right, WallHand.Mode.WALL)
-		_hands.set_mode(left, WallHand.Mode.WALL)
+		_hands.set_mode(right, WallHand.Mode.SLIDE)
+		_hands.set_mode(left, WallHand.Mode.SLIDE)
 		return
 	if _grab and not _hug and not leaning and not busy and _swap == 0:
 		var wall := right if _grab_side > 0 else left
@@ -382,7 +388,7 @@ func set_squeeze(on: bool, r_point: Vector3, r_normal: Vector3, l_point: Vector3
 	_sq_out = out
 
 func squeezing() -> bool:
-	return _sq_on and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.WALL and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.WALL
+	return _sq_on and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.SLIDE and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.SLIDE
 
 ## Walking past a wall's corner (corner_grab.gd): the hand on that side takes hold of the edge as you go by
 func set_grab(on: bool, side: int, point: Vector3, normal: Vector3, out: Vector3) -> void:
@@ -433,7 +439,7 @@ func _show_arms() -> void:
 		_arms[0].visible = left_seen
 	if _arms[1] != null:
 		_arms[1].visible = right_seen
-	_torch.visible = not away and not ((_hug or _sq_on) and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.WALL)
+	_torch.visible = not away and not ((_hug or _sq_on) and _hands != null and _hands.mode_of(WallHand.RIGHT) in [WallHand.Mode.WALL, WallHand.Mode.SLIDE])
 	visible = right_seen or left_seen
 
 ## Just holding the torch up: on, in the right hand, that hand left to the animation and not flinching

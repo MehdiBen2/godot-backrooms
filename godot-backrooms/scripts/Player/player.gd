@@ -183,21 +183,53 @@ var corner := CornerGrab.new()
 # Squeeze gap (levels' "squeeze_gap" objects): a slit in a wall you turn sideways to pass
 const SQUEEZE_RADIUS := 0.15      # m: the body's width while at a slit (normal: the capsule's own)
 const SQUEEZE_SPEED := 0.3        # share of walking speed through it
-const SQUEEZE_BEAM := 0.12        # the torch's share of its beam in the slit: a dim glow, not darkness
-const SQUEEZE_GLANCE := 0.55      # rad: how far the view turns to one side as you go in, before coming back
-const SQUEEZE_GLANCE_TIME := 1.8  # s the glance takes
+# Head lamp: a small, weak lamp on the forehead for tight spots (crouched, crawling, in a slit), where the
+# hand torch is put away. On by itself there, off everywhere else; it doesn't use the torch's battery.
+const HEAD_LAMP_ENERGY := 1.5
+const HEAD_LAMP_RANGE := 7.0      # m
+const HEAD_LAMP_ANGLE := 58.0     # deg
+const HEAD_LAMP_AT := Vector3(0.0, 0.07, -0.04)   # m off the eye: on the forehead
+var head_lamp: SpotLight3D
+var _head_k := 0.0                # 0..1 eased: how far the head lamp is on
 # Crawl space (the editor's CRAWL zone): a ceiling you have to get right down under
 const CRAWL_EYE := 0.62           # m: eye height crawling
 const CRAWL_SPEED := 0.7          # share of crouch speed
-const CRAWL_REACH := 0.5          # m: how far ahead of you each hand goes on the floor
-const CRAWL_SWING := 0.2          # m: how far a hand moves back and forth as you crawl
+const CRAWL_REACH := 0.3          # m: how far ahead of you each hand goes on the floor (inside arm's reach from a crawling shoulder)
+const CRAWL_LEAD_MAX := 0.42      # m: the furthest ahead a reaching hand lands, however fast you go
+const CRAWL_SWING_SHARE := 0.4    # share of a hand's cycle (two footfalls) spent in the air reaching forward
+const CRAWL_LIFT := 0.07          # m a hand lifts off the carpet as it reaches
+const CRAWL_WIDTH := 0.22         # m each hand is out to its side
+var _cr_on := false
+var _cr_plant: Array = [Vector3.ZERO, Vector3.ZERO]   # world: where each hand is down (left, right)
+var _cr_from: Array = [Vector3.ZERO, Vector3.ZERO]    # world: where a reaching hand set off from
+var _cr_swinging: Array = [false, false]
 var crawl_k := 0.0                # 0..1 eased: in a crawl space
-var tight_k := 0.0                # 0..1 eased: how far into a squeeze (the breathing and the head bob read it)
+const SQ_AHEAD: Array[float] = [0.24, 0.3]   # m ahead of you each hand (left, right) slides along its wall
+const SQ_WANDER := Vector2(0.04, 0.025)      # m the hands drift fore-aft / up-down, slowly
+const SQ_RAISE_EVERY := Vector2(1.6, 3.8)    # s between one hand coming off the wall and the next
+const SQ_RAISE_TIME := 0.55                  # s a raise takes, off the wall and back on
+const SQ_LIFT_UP := 0.06                     # m a raised hand comes up, and
+const SQ_LIFT_OUT := 0.06                    # m off the wall
+var _sq_clock := 0.0
+var _sq_raise_in := 2.0                      # s to the next raise
+var _sq_raise_t: Array[float] = [-1.0, -1.0] # s into each hand's raise (-1 none)
+var _sq_raise_dy: Array[float] = [0.0, 0.0]  # m: where each hand was put back, up or down from the middle
+# The way in and out of a slit, on the camera: [t (s), yaw, roll, pitch (rad), y, z (m), fov (deg)], yaw and
+# roll towards _sq_side. Going in: a little pull back first, then the shoulder turns in, head ducked and low,
+# settling into the squeezed hold. Coming out: a shove the other way, then you pop free, stand tall and look
+# up with the view opening wide, and settle.
+const SQ_ENTER := [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.22, -0.05, -0.03, 0.02, -0.015, 0.03, -1.0],
+	[0.75, 0.36, 0.14, -0.07, -0.06, 0.0, -5.0], [1.4, 0.06, 0.05, -0.02, -0.03, 0.0, -4.0]]
+const SQ_EXIT := [[0.0, 0.06, 0.05, -0.02, -0.03, 0.0, -4.0], [0.2, -0.12, -0.07, 0.0, -0.01, -0.02, -2.0],
+	[0.55, -0.04, -0.02, 0.06, 0.03, 0.0, 5.0], [1.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+var _sq_cam_anim := 0                        # 0 out, 1 going in, 2 in, 3 coming out
+var _sq_cam_t := 0.0
+var _sq_cam_keys: Array = []                 # the clip playing (its first key: where it set out from)
+var _sq_cam: Array = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]   # yaw, roll, pitch, y, z, fov right now
+var tight_k := 0.0               # 0..1 eased: how far into a squeeze (the breathing and the head bob read it)
 var _sq := {}                     # the squeeze gap here (level_geometry.gd squeeze_at), {} when none
 var _sq_radius := 0.0             # the capsule's normal radius
-var _sq_glance_t := -1.0          # s into the glance, -1 none
-var _sq_side := 1.0
-var _sq_look := 0.0               # rad: the glance right now (added to the camera's yaw)
+var _sq_side := 1.0               # which shoulder goes in first (+1 right)
 var _corner_on := false
 var _corner_t := 0.0
 var _corner_cd := 0.0
@@ -241,6 +273,20 @@ func _ready() -> void:
 		flash_spill.spot_angle_attenuation = 1.3
 		flash_spill.shadow_enabled = false
 		flash.add_child(flash_spill)
+	head_lamp = SpotLight3D.new()
+	head_lamp.name = "HeadLamp"
+	head_lamp.position = HEAD_LAMP_AT
+	head_lamp.light_color = Color(1.0, 0.93, 0.8)
+	head_lamp.spot_range = HEAD_LAMP_RANGE
+	head_lamp.spot_angle = HEAD_LAMP_ANGLE
+	head_lamp.spot_attenuation = 1.4
+	head_lamp.spot_angle_attenuation = 1.6
+	head_lamp.shadow_enabled = true
+	head_lamp.shadow_normal_bias = 2.0
+	head_lamp.shadow_blur = 1.5
+	head_lamp.light_energy = 0.0
+	head_lamp.visible = false
+	cam.add_child(head_lamp)
 	torch = TorchModel.new()
 	cam.add_child(torch)
 	if not torch.build():
@@ -266,6 +312,8 @@ func _ready() -> void:
 		flash.shadow_caster_mask &= ~PlayerShadow.SHADOW_LAYER
 		flash_spill.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
 		flash_spill.shadow_caster_mask &= ~PlayerShadow.SHADOW_LAYER
+		head_lamp.light_cull_mask &= ~PlayerShadow.SHADOW_LAYER
+		head_lamp.shadow_caster_mask &= ~PlayerShadow.SHADOW_LAYER
 	footsteps = Footsteps.new()
 	footsteps.name = "Footsteps"
 	add_child(footsteps)
@@ -426,7 +474,7 @@ func _physics_process(dt: float) -> void:
 	else:
 		was_airborne = true
 		air_time += dt
-	peek.update(dt, self, eye, is_on_floor() and not sprint)
+	peek.update(dt, self, eye, is_on_floor() and not sprint and tight_k < 0.3)    # no peeking from inside a slit
 	_update_swing(dt, crouch)
 	_update_corner(dt, sprint, crouch)
 	if torch:
@@ -437,7 +485,7 @@ func _physics_process(dt: float) -> void:
 		torch.set_grab(_corner_on, corner.side, corner.point, corner.normal, corner.out)
 		torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
 		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
-		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
+		torch.update(dt, flash_on and not dead and not _tight_spot(), is_sprinting, is_moving, bob)
 		if lens_up > 0.02:
 			torch.visible = false        # the camcorder is at your eye: both hands are on it
 	if shadow_body:
@@ -591,7 +639,10 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		torch.sway_amount = maxf(head_bob, cam_shake)    # the hands trail the view unless both are off
 	cam.position += handheld.offset
 	cam.position += global_transform.basis.inverse() * peek.shift + Vector3(0.0, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
-	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_look
+	# the squeeze gap's way in / out (_update_squeeze): shoulder turn, duck, pop free
+	var sq_hb := maxf(head_bob, 0.3)
+	cam.position += Vector3(0.0, _sq_cam[3], _sq_cam[4]) * sq_hb
+	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_side * _sq_cam[0] * sq_hb
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
 	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
@@ -603,7 +654,8 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	cam.position += Vector3(sin(quake_t * 23.0) + 0.5 * sin(quake_t * 41.0 + 1.3), sin(quake_t * 29.0 + 0.7), 0.0) * 0.012 * buffet
 	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll + bob_roll \
 			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob) \
-			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet
+			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet \
+			+ _sq_side * _sq_cam[1] * sq_hb
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)
@@ -612,11 +664,11 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	var pitch_total := pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod
+	var pitch_total: float = pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb
 	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
-	var fov_target := (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0)
+	var fov_target: float = (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0) + float(_sq_cam[5])
 	fov_kick += (fov_target - fov_kick) * minf(1.0, 9.0 * dt)
 	# (Render.fov_boost: the bodycam's fisheye magnifies the middle of the picture; the render widens to give it back)
 	fov_flat = base_fov + Render.fov_boost + fov_kick + ADR_FOV * adrenaline + FALL_FOV * fall_fx * fall_fx
@@ -749,12 +801,25 @@ func ambient_light() -> float:
 		return Game.day_light
 	return level.tube_light_at(global_position) if level != null else 1.0
 
+## Crouched, crawling or squeezed through a slit: no room to hold the torch up, the head lamp is on instead
+func _tight_spot() -> bool:
+	return is_crouching or crawl_k > 0.5 or tight_k > 0.4
+
+func _update_head_lamp(dt: float) -> void:
+	if head_lamp == null:
+		return
+	var goal := 1.0 if _tight_spot() and not dead else 0.0
+	_head_k = move_toward(_head_k, goal, dt * (4.0 if goal > _head_k else 2.5))
+	head_lamp.light_energy = HEAD_LAMP_ENERGY * _head_k
+	head_lamp.visible = _head_k > 0.01
+
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
-	# both hands on a wall: the torch is put down, so the beam fades out (and the battery rests); squeezed
-	# through a slit it's held low, a dim glow left
+	# both hands on a wall, or crouched / crawling / squeezed through a slit: the torch is put away, so the beam
+	# fades out (and the battery rests); in a tight spot the head lamp takes over
 	var hugging: bool = torch != null and torch.hugging()
-	var beam_goal := 0.0 if hugging else (SQUEEZE_BEAM if tight_k > 0.4 or crawl_k > 0.5 else 1.0)
+	var beam_goal := 0.0 if hugging or _tight_spot() else 1.0
+	_update_head_lamp(dt)
 	_hug_dim = move_toward(_hug_dim, beam_goal, dt * (8.0 if beam_goal < _hug_dim else 5.0))
 	if flash_on and not swap_dark and _hug_dim > 0.5:
 		if Game.infinite_battery:
@@ -793,20 +858,58 @@ func _update_squeeze(dt: float) -> void:
 		_sq_radius = cap.radius
 	cap.radius = move_toward(cap.radius, SQUEEZE_RADIUS if not _sq.is_empty() else _sq_radius, dt * (3.0 if not _sq.is_empty() else 0.8))
 	var inside: bool = not _sq.is_empty() and absf((_sq.local as Vector3).x) <= Game.level.CELL * 0.5 + 0.1
-	var was := tight_k
 	tight_k = lerpf(tight_k, 1.0 if inside else 0.0, minf(1.0, dt * 3.0))
-	if was < 0.3 and tight_k >= 0.3 and _sq_glance_t < 0.0:
-		_sq_glance_t = 0.0
-		_sq_side = 1.0 if randf() < 0.5 else -1.0
-	if _sq_glance_t >= 0.0:
-		_sq_glance_t += dt
-		var p := _sq_glance_t / SQUEEZE_GLANCE_TIME
-		_sq_look = _sq_side * SQUEEZE_GLANCE * sin(PI * clampf(p, 0.0, 1.0))
-		if p >= 1.0:
-			_sq_glance_t = -1.0
-			_sq_look = 0.0
-	if tight_k < 0.05 and _sq_glance_t < 0.0:
-		_sq_look = 0.0
+	# the camera's way in and out (thresholds apart, so hovering at the mouth doesn't restart them)
+	if tight_k >= 0.35 and (_sq_cam_anim == 0 or _sq_cam_anim == 3):
+		if _sq_cam_anim == 0:
+			_sq_side = 1.0 if randf() < 0.5 else -1.0
+		_sq_cam_play(1, SQ_ENTER)
+	elif tight_k < 0.25 and (_sq_cam_anim == 1 or _sq_cam_anim == 2):
+		_sq_cam_play(3, SQ_EXIT)
+	if _sq_cam_anim == 1 or _sq_cam_anim == 3:
+		_sq_cam_t += dt
+		_sq_cam = _sq_cam_sample(_sq_cam_keys, _sq_cam_t)
+		if _sq_cam_t >= float(_sq_cam_keys[-1][0]):
+			_sq_cam_anim = 2 if _sq_cam_anim == 1 else 0
+	# the hands in the slit: their slow drift, and now and then one comes up off the wall and goes back
+	_sq_clock += dt
+	for i in 2:
+		if _sq_raise_t[i] >= 0.0:
+			_sq_raise_t[i] += dt
+			if _sq_raise_t[i] >= SQ_RAISE_TIME * 0.5 and _sq_raise_t[i] - dt < SQ_RAISE_TIME * 0.5:
+				_sq_raise_dy[i] = randf_range(-0.05, 0.05)     # put back somewhere a little different
+			if _sq_raise_t[i] >= SQ_RAISE_TIME:
+				_sq_raise_t[i] = -1.0
+	if tight_k > 0.5:
+		_sq_raise_in -= dt * (1.0 if is_moving else 0.4)
+		if _sq_raise_in <= 0.0:
+			_sq_raise_in = randf_range(SQ_RAISE_EVERY.x, SQ_RAISE_EVERY.y)
+			var i := randi() % 2
+			if _sq_raise_t[i] < 0.0:
+				_sq_raise_t[i] = 0.0
+
+## Start camera clip `keys` (SQ_ENTER / SQ_EXIT) from wherever the camera is now, so cutting one short for
+## the other never jumps
+func _sq_cam_play(anim: int, keys: Array) -> void:
+	_sq_cam_anim = anim
+	_sq_cam_t = 0.0
+	_sq_cam_keys = keys.duplicate(true)
+	var first: Array = [0.0]
+	first.append_array(_sq_cam)
+	_sq_cam_keys[0] = first
+
+## The clip at `t`: eased (smoothstep) from key to key
+func _sq_cam_sample(keys: Array, t: float) -> Array:
+	for k in range(1, keys.size()):
+		var b: Array = keys[k]
+		if t <= float(b[0]) or k == keys.size() - 1:
+			var a: Array = keys[k - 1]
+			var u := smoothstep(float(a[0]), float(b[0]), t)
+			var out: Array = []
+			for j in range(1, 7):
+				out.append(lerpf(float(a[j]), float(b[j]), u))
+			return out
+	return _sq_cam
 
 ## Both hands flat on the slit's walls (or, crawling, on the floor), fingers on the way through, while you're in it
 func _set_squeeze_hands() -> void:
@@ -820,11 +923,46 @@ func _set_squeeze_hands() -> void:
 		var right := global_transform.basis.x
 		right.y = 0.0
 		right = right.normalized()
-		var swing := sin(bob * 0.5) * CRAWL_SWING
-		var floor_at := Vector3(global_position.x, global_position.y, global_position.z)
-		torch.set_squeeze(true, floor_at + fwd * (CRAWL_REACH + swing) + right * 0.22, Vector3.UP,
-				floor_at + fwd * (CRAWL_REACH - swing) - right * 0.22, Vector3.UP, fwd)
+		# A crawl gait, a hand per footfall: each hand is planted on the carpet (it stays put in the world while you
+		# move over it), then lifts, reaches forward on an arc and comes down exactly on a footstep (bob = k * PI),
+		# the right on one, the left on the next. Where it lands leads you by how far you'll travel while it's
+		# down, so it ends its stance about as far behind as it started ahead.
+		var dt := get_physics_process_delta_time()
+		var floor_at := global_position
+		var speed := Vector3(velocity.x, 0.0, velocity.z).length()
+		var cycle := TAU / maxf(bob_rate, 0.5)                  # s for both hands (two footfalls)
+		var lead := minf(CRAWL_REACH + speed * cycle * (1.0 - CRAWL_SWING_SHARE) * 0.5, CRAWL_LEAD_MAX)
+		var hands: Array = []
+		for i in 2:                                             # 0 left, 1 right
+			var side := 1.0 if i == 1 else -1.0
+			var rest := floor_at + fwd * CRAWL_REACH + right * (CRAWL_WIDTH * side)
+			var target := floor_at + fwd * lead + right * (CRAWL_WIDTH * side)
+			if not _cr_on:
+				_cr_plant[i] = rest
+				_cr_from[i] = rest
+			# the right lands on even footfalls, the left on odd ones
+			var ph := fposmod(bob / TAU + CRAWL_SWING_SHARE - (0.0 if i == 1 else 0.5), 1.0)
+			var at: Vector3
+			if ph < CRAWL_SWING_SHARE:
+				if not _cr_swinging[i]:
+					_cr_swinging[i] = true
+					_cr_from[i] = _cr_plant[i]
+				var u := smoothstep(0.0, CRAWL_SWING_SHARE, ph)
+				at = (_cr_from[i] as Vector3).lerp(target, u) + Vector3.UP * (CRAWL_LIFT * sin(PI * ph / CRAWL_SWING_SHARE))
+				_cr_plant[i] = target
+			else:
+				_cr_swinging[i] = false
+				# stopped (or turned on the spot): a planted hand left far off creeps back under you
+				var p: Vector3 = _cr_plant[i]
+				var off := p - rest
+				if speed < 0.2 or off.length() > CRAWL_REACH * 1.4:
+					_cr_plant[i] = p.lerp(rest, minf(1.0, dt * 2.5))
+				at = _cr_plant[i]
+			hands.append(at)
+		_cr_on = true
+		torch.set_squeeze(true, hands[1], Vector3.UP, hands[0], Vector3.UP, fwd)
 		return
+	_cr_on = false
 	if tight_k < 0.5 or _sq.is_empty():
 		torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
 		return
@@ -834,13 +972,22 @@ func _set_squeeze_hands() -> void:
 	if along == 0.0:
 		along = 1.0
 	var half: float = Game.level.CELL * 0.5 - 0.1
-	var lx := clampf((_sq.local as Vector3).x + along * 0.4, -half, half)
+	var here: float = (_sq.local as Vector3).x
+	# The hands ride along the walls with you, a little ahead (the right a touch further than the left), drifting
+	# slowly up and down and fore and aft so they never sit dead still; every so often one comes up off the wall
+	# and is put back a bit higher or lower (_sq_raise, timed in _update_squeeze).
 	var ly := global_position.y - xf.origin.y + eye - 0.2
 	var hands := {}
 	for z: float in [-1.0, 1.0]:
-		var p: Vector3 = xf * Vector3(lx, ly, z * gap * 0.5)
+		var p0: Vector3 = xf * Vector3(0.0, 0.0, z * gap * 0.5)
+		var side := 1 if (p0 - global_position).dot(global_transform.basis.x) > 0.0 else 0
+		var ph := _sq_clock * (0.8 if side == 1 else 0.67) + side * 2.1
+		var lx := clampf(here + along * (SQ_AHEAD[side] + sin(ph) * SQ_WANDER.x), -half, half)
+		var lift := sin(PI * clampf(_sq_raise_t[side] / SQ_RAISE_TIME, 0.0, 1.0)) if _sq_raise_t[side] >= 0.0 else 0.0
+		var y := ly + sin(ph * 1.3 + 0.8) * SQ_WANDER.y + _sq_raise_dy[side] + SQ_LIFT_UP * lift
 		var n: Vector3 = -xf.basis.z.normalized() * z
-		hands[1 if (p - global_position).dot(global_transform.basis.x) > 0.0 else 0] = [p, n]
+		var p: Vector3 = xf * Vector3(lx, y, z * gap * 0.5) + n * (SQ_LIFT_OUT * lift)
+		hands[side] = [p, n]
 	if not (hands.has(0) and hands.has(1)):
 		return
 	torch.set_squeeze(true, hands[1][0], hands[1][1], hands[0][0], hands[0][1], xf.basis.x.normalized() * along)
@@ -1015,7 +1162,7 @@ func _update_sanity(dt: float) -> void:
 		_update_mind(dt)
 		return
 	var ambient := ambient_light()
-	var torch_lit := flash_on and battery > 0.0 and not swap_dark
+	var torch_lit := (flash_on and battery > 0.0 and not swap_dark) or _head_k > 0.5
 	light_level = lerpf(light_level, ambient, minf(1.0, dt * 3.0))
 	unnerved = maxf(0.0, unnerved - dt)
 	if sanity_lock >= 0.0:

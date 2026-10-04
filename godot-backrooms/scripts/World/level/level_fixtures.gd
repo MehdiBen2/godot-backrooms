@@ -806,8 +806,24 @@ void fragment() {
 	float e = energy * nd * nd * pow(d, -decay) * max(dot(wn, l / d), 0.0);
 	// the spot's cone: the top of the wall, beside the lamp, is on its dark side
 	e *= 1.0 - pow(clamp((1.0 - l.y / d) / (1.0 - cone_cos), 0.0001, 1.0), cone_soft);
+	// no two tubes are alike: each lamp has its own strength and spread (hashed from where it hangs)
+	float lh = fract(sin(dot(lamp.xz, vec2(12.9898, 78.233))) * 43758.5453);
+	float lh2 = fract(sin(dot(lamp.xz, vec2(39.346, 11.135))) * 24634.6345);
+	e *= mix(0.72, 1.12, lh);
 	// it dies away along the wall as the pool does across the floor: no lit rectangle with a hard end
-	e *= 1.0 - smoothstep(cell * 0.75, cell * 1.45, length(l.xz));
+	// (a soft tail, and each lamp's pool a little wider or narrower than its neighbour's)
+	float fall = 1.0 - smoothstep(cell * 0.35, cell * 1.45, length(l.xz) * mix(1.0, 1.35, lh2));   // never wider than the faces
+	e *= fall * fall;
+	// a slow patchiness across the wall (dust, an uneven wash) so the pools are not stamped copies
+	vec2 np = vec2(wp.x + wp.z, wp.y) * vec2(0.9, 0.7) + lamp.xz * 3.1;
+	vec2 ni = floor(np);
+	vec2 nf = fract(np);
+	nf = nf * nf * (3.0 - 2.0 * nf);
+	float n00 = fract(sin(dot(ni, vec2(127.1, 311.7))) * 43758.5453);
+	float n10 = fract(sin(dot(ni + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453);
+	float n01 = fract(sin(dot(ni + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+	float n11 = fract(sin(dot(ni + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+	e *= mix(0.85, 1.12, mix(mix(n00, n10, nf.x), mix(n01, n11, nf.x), nf.y));
 	float h = COLOR.a * 16.0;
 	float along = abs(wn.x) > 0.5 ? wp.z : wp.x;
 	vec2 uv = vec2(along * wall_scale.x, wall_flip > 0.5 ? 1.0 - wp.y / h : wp.y * wall_scale.y);

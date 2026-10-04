@@ -94,6 +94,20 @@ var shaft_mix := 0.0               # 0..1: standing by a shaft through the floor
 const SHAFT_AIR_CELLS := 5         # how near
 const SHAFT_FOG := 0.2             # share of the fog left there
 var _lim := 0.0                    # liminal_mix while the power is on (a power cut is dark in any look)
+## A crawl space's tubes hang 0.7 m up pointing at the floor, so its walls get almost none of their light: while
+## you are in one the ambient is lifted by up to this much (eased in and out), the walls read as walls
+const CRAWL_AMBIENT := 1.6
+var _crawl_mix := 0.0
+
+## 1 in a crawl cell, falling to 0 three cells out from the nearest one (its walls are in view from there too)
+func _crawl_near(c: Vector2i) -> float:
+	if crawl.is_empty(): return 0.0
+	var best := 0.0
+	for dx in range(-3, 4):
+		for dz in range(-3, 4):
+			if crawl.has(c + Vector2i(dx, dz)):
+				best = maxf(best, 1.0 - Vector2(dx, dz).length() / 3.5)
+	return best
 var exposure_gain := 1.0           # what the eye / camera adds on top of the look's exposure
 var _ae := 1.0
 var _ae_v := 0.0
@@ -210,6 +224,7 @@ func _update_atmosphere(delta: float) -> void:
 	classic_mix += ((1.0 if classic.has(c) else 0.0) - classic_mix) * minf(1.0, delta * 1.5)
 	bright_mix += ((1.0 if bright.has(c) else 0.0) - bright_mix) * minf(1.0, delta * 1.5)
 	liminal_mix += ((1.0 if liminal.has(c) else 0.0) - liminal_mix) * minf(1.0, delta * 1.5)
+	_crawl_mix += (_crawl_near(c) - _crawl_mix) * minf(1.0, delta * 2.5)
 	# how much of the building's power is on (a power cut kills the tubes): drives the fill lights and the cleared air
 	var power := 1.0
 	if not lit.is_empty():
@@ -321,7 +336,7 @@ func _blend_env(a: Dictionary) -> void:
 		var l: Dictionary = ATMOSPHERES.liminal
 		for k in _env_base:
 			b[k] = lerp(_env_base[k], l[k], _lim) if l.has(k) else _env_base[k]
-	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix)
+	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix) * (1.0 + CRAWL_AMBIENT * _crawl_mix * (1.0 - grid_glow))
 	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
 	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * exposure_gain
 	env.tonemap_white = lerpf(b.tonemap_white, a.tonemap_white, cam_mix)

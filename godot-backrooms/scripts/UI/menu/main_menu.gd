@@ -833,7 +833,43 @@ func _level_name() -> String:
 func _finish_loading() -> void:
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
 	Game.respawned = true              # straight into the run: the title screen is this scene
-	get_tree().change_scene_to_packed(packed)
+	var tree := get_tree()
+	var cover := _cover_from_screen()
+	tree.change_scene_to_packed(packed)
+	_fade_cover(tree, cover)
+
+## The loading screen's last frame, pinned over the root window: it outlives this scene, so the level does
+## not pop in under a hard cut.
+func _cover_from_screen() -> CanvasLayer:
+	var img := get_viewport().get_texture().get_image()
+	if img == null or img.is_empty():
+		return null
+	var layer := CanvasLayer.new()
+	layer.layer = 128
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	var pic := TextureRect.new()
+	pic.texture = ImageTexture.create_from_image(img)
+	pic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_SCALE
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(pic)
+	get_tree().root.add_child(layer)
+	return layer
+
+## Static: this scene is freed by the time it runs. Waits out the frames the level takes to build and draw its
+## first picture (a long frame must not eat the fade), then dissolves the cover.
+static func _fade_cover(tree: SceneTree, layer: CanvasLayer) -> void:
+	if layer == null:
+		return
+	for i in 4:
+		await tree.process_frame
+	if not is_instance_valid(layer):
+		return
+	var tw := layer.create_tween()
+	tw.tween_interval(0.15)
+	tw.tween_property(layer.get_child(0), "modulate:a", 0.0, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(layer.queue_free)
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:

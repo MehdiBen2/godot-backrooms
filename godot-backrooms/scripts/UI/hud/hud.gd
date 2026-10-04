@@ -238,13 +238,15 @@ func _build_hud() -> void:
 	osd_root.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
 	osd_root.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
 
-	# Crosshair: a 3 px dot
-	var dot := ColorRect.new()
-	dot.color = Color(0.92, 0.882, 0.686, 0.6)
-	dot.size = Vector2(3, 3)
+	# Crosshair: a small solid round dot in the HUD cream
+	var dot := Control.new()
+	dot.size = Vector2(8, 8)
 	dot.set_anchors_preset(Control.PRESET_CENTER)
-	dot.position = Vector2(-1.5, -1.5)
+	dot.position = Vector2(-4, -4)
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dot.draw.connect(func():
+		dot.draw_circle(dot.size * 0.5, 2.0, Color(0.92, 0.882, 0.686, 1.0))
+	)
 	hud.add_child(dot)
 
 	# --- top-left: REC + objective ---

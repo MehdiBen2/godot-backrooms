@@ -21,7 +21,6 @@ const ITEM_DESC := "A camera speedlight with one charge left in its capacitor. P
 static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread (battery_pickup.gd)
 
 var used := false
-var light: OmniLight3D
 
 func _ready() -> void:
 	if model_scene == null:
@@ -36,13 +35,6 @@ func _ready() -> void:
 		model.scale = Vector3.ONE * k
 		var c := box.get_center()
 		model.position = Vector3(-c.x * k, -box.position.y * k, -c.z * k)
-	light = OmniLight3D.new()           # the ready lamp's faint red glow, so it can be found in the dark
-	light.light_color = Color(1.0, 0.25, 0.15)
-	light.omni_range = 1.1
-	light.light_energy = 0.35
-	light.shadow_enabled = false
-	light.position = Vector3(0, 0.2, 0)
-	add_child(light)
 	_apply_vis_range(model)
 
 func _apply_vis_range(n: Node) -> void:
@@ -54,7 +46,6 @@ func _apply_vis_range(n: Node) -> void:
 		_apply_vis_range(c)
 
 func _process(_delta: float) -> void:
-	light.light_energy = 0.25 + 0.2 * absf(sin(Game.time * 1.7 + position.z))
 	if used or Game.dead or not Game.playing:
 		return
 	var player: Node3D = get_parent().player

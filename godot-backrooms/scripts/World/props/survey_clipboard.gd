@@ -74,9 +74,6 @@ func _build_mesh() -> void:
 	glow_indicator.position = Vector3(0.1, 0.016, 0.16)
 	var g_mat := StandardMaterial3D.new()
 	g_mat.albedo_color = Color(0.95, 0.65, 0.15)
-	g_mat.emission_enabled = true
-	g_mat.emission = Color(0.95, 0.65, 0.15)
-	g_mat.emission_energy_multiplier = 0.8
 	glow_indicator.material_override = g_mat
 	glow_indicator.visibility_range_end = 45.0
 	glow_indicator.visibility_range_end_margin = 8.0
@@ -107,4 +104,3 @@ func on_scanned() -> void:
 		if is_instance_valid(glow_indicator) and glow_indicator.material_override:
 			var mat: StandardMaterial3D = glow_indicator.material_override
 			mat.albedo_color = Color(0.2, 0.9, 0.4)
-			mat.emission = Color(0.2, 0.9, 0.4)

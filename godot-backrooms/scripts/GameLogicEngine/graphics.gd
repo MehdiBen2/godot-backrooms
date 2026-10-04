@@ -98,7 +98,7 @@ func _process(dt: float) -> void:
 		return
 	if OS.get_name() == "macOS":
 		return                               # MoltenVK: every render-scale change reallocates all screen buffers, and doing it
-		                                     # over a session ends in an allocation failure (SIGABRT) -- the scale stays put
+											 # over a session ends in an allocation failure (SIGABRT) -- the scale stays put
 	if not DisplayServer.window_is_focused():
 		# a backgrounded window is throttled by the OS: its slow frames say nothing about the GPU, and
 		# every scale change reallocates the 3D render buffers (TAA / SSAO / SSR history) for nothing
