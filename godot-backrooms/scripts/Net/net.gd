@@ -18,7 +18,7 @@ const MAX_PLAYERS := 8
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 6
+const PROTOCOL := 7
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -31,8 +31,8 @@ const WS_MAX_QUEUED := 8192
 ## a Grabber that is off, a still Mannequin), only this often so a guest that just joined still gets them
 const KEEPALIVE := 0.5
 const MQ_VIEW_KEEPALIVE := 0.25  # a guest repeats "I'm (not) looking at the mannequin" this often (the host forgets after 0.6 s)
-enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC }
-const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic"]
+enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC, BURNT }
+const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic", "Burnt"]
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const TUNNEL_DOMAIN := "trycloudflare.com"
 const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "code -> link" for a while; swap for your own Worker any time
@@ -694,6 +694,34 @@ func _grabber_result_rpc(escaped: bool) -> void:
 	var g := _scene_node("Grabber")
 	if g != null and g.has_method("net_drag_result"):
 		g.net_drag_result(multiplayer.get_remote_sender_id(), escaped)
+
+# ---- THE BURNT: the host runs it; whoever it takes plays the sequence on their own machine --------
+func send_burnt(m: Array) -> void:
+	_queue_ent(Ent.BURNT, m)
+
+## Host: it has taken `peer_id`'s survivor
+func send_burnt_take(peer_id: int) -> void:
+	if _has_peers() and _is_peer(peer_id):
+		_burnt_take_rpc.rpc_id(peer_id)
+
+@rpc("authority", "call_remote", "reliable")
+func _burnt_take_rpc() -> void:
+	var b := _scene_node("Burnt")
+	if b != null and b.has_method("net_taken"):
+		b.net_taken()
+
+## Guest: the sequence is over (they died, or something else ended it)
+func send_burnt_result() -> void:
+	if _to_host_ready():
+		_burnt_result_rpc.rpc_id(1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _burnt_result_rpc() -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
+	var b := _scene_node("Burnt")
+	if b != null and b.has_method("net_result"):
+		b.net_result(multiplayer.get_remote_sender_id())
 
 # ---- THE MANNEQUIN: the host rolls the room and runs the real one ---------------------------------
 var mq_seed := 0

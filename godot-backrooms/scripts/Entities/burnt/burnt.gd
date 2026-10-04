@@ -12,6 +12,9 @@ extends "res://scripts/Entities/model_entity.gd"
 ## reaching out are all posed here, bone by bone. `spawn burnt` in the debug console stands it in front of you.
 
 const BurntError := preload("res://scripts/Entities/burnt/burnt_error.gd")
+const BurntNet := preload("res://scripts/Entities/burnt/burnt_net.gd")
+const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug"]
+const HELD_MAX := 40.0              # co-op host: seconds it waits on the victim's machine before it lets go
 const CELL := 4.5
 const RADIUS := 0.6
 const STALK_SPEED := 1.4            # m/s, and only while nobody is looking
@@ -45,7 +48,7 @@ const CORRUPT_TIME := 2.4
 const CHARGE_PREP := 0.9            # seconds it drops into a crouch and breathes in before it goes
 const CHARGE_RUN := 5.5             # seconds it will run before it gives up
 
-var state := "off"                  # off, stalk, windup, charge, grab, lift, stare, corrupt
+var state := "off"                  # off, stalk, windup, charge, grab, lift, stare, corrupt (+ held: co-op, a guest is being taken)
 var t := 0.0
 var yaw := 0.0
 var _walk := 0.0                    # 0..1 how much it is walking (eased)
@@ -75,6 +78,13 @@ var _black: ColorRect               # the black the hug ends in
 var flow := PackedInt32Array()
 var _flow_key := -1
 var _flow_timer := 0.0
+var net: BurntNet
+var puppet := false                 # co-op guest: it follows the host's snapshots instead of thinking
+var _tid := -1                      # co-op: the survivor it hunts (Net.survivors() id)
+var _victim_id := -1                # host: the guest it has handed over to
+var _held_t := 0.0
+var _net_taken := false             # guest: the host's Burnt took this machine's player, the sequence runs here
+var _snub := 0.0                    # guest: ignore the host's snapshots for a moment after our sequence (it despawns it)
 var scares                          # (untyped: the Scares node's own methods)
 var _pl                             # the player, untyped (player.gd's own fields: cam, dead, frozen...)
 var _lv                             # the level, untyped (its fixture methods)
@@ -92,6 +102,7 @@ func _ready() -> void:
 	super._ready()
 	process_priority = 100              # after the player: its camera is ours to hold during the sequence
 	scares = get_parent().get_node_or_null("Scares")
+	net = BurntNet.new(self)
 	_pl = player
 	_lv = level
 
@@ -115,9 +126,18 @@ func _build() -> bool:
 
 # ---------------------------------------------------------------- stalking
 func _physics_process(delta: float) -> void:
+	puppet = Net.is_online() and not Net.hosting
+	if puppet:
+		_physics_puppet(delta)
+		return
+	if Net.is_online(): net.send(delta)
 	if not present or player == null: return
 	_burn_lamps(delta)
 	if Game.freeze_ai: return
+	if state == "held":                  # a guest is being taken: their machine plays it out
+		_held_t += delta
+		if _held_t > HELD_MAX: _despawn_quietly()
+		return
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	if state == "windup":
 		_windup(delta)
@@ -126,10 +146,12 @@ func _physics_process(delta: float) -> void:
 		_charge(delta)
 		return
 	if state != "stalk": return
-	var pp := player.global_position
+	var tgt := _target()
+	if tgt.is_empty(): return
+	var pp: Vector3 = tgt.pos
 	var p := global_position
 	var d := Vector2(pp.x - p.x, pp.z - p.z).length()
-	if d < GRAB_DIST and _can_take():
+	if d < GRAB_DIST and _can_take(tgt):
 		state = "windup"
 		t = 0.0
 		return
@@ -137,7 +159,7 @@ func _physics_process(delta: float) -> void:
 		_walk = move_toward(_walk, 0.0, delta * 8.0)      # caught moving: it stops dead
 		# ...but hold its eye long enough, from far enough off, and it stops waiting: it runs
 		_watch_t += delta
-		if _watch_t >= charge_watch and _charge_cd <= 0.0 and d >= charge_min and d <= charge_max and _can_take():
+		if _watch_t >= charge_watch and _charge_cd <= 0.0 and d >= charge_min and d <= charge_max and _can_take(tgt):
 			_begin_charge()
 			return
 	else:
@@ -168,11 +190,12 @@ func _begin_charge() -> void:
 ## dying as it comes. It runs out of breath if you are far enough, and ends in the grab if you are not.
 func _charge(delta: float) -> void:
 	t += delta
-	var pp := player.global_position
-	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
-	if not _can_take():
+	var tgt := _target()
+	if tgt.is_empty() or not _can_take(tgt):
 		state = "stalk"
 		return
+	var pp: Vector3 = tgt.pos
+	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
 	if t < CHARGE_PREP:
 		_walk = move_toward(_walk, 0.0, delta * 8.0)
 		yaw = lerp_angle(yaw, _yaw_to(pp), minf(1.0, delta * TURN_RATE * 2.0))
@@ -181,7 +204,7 @@ func _charge(delta: float) -> void:
 	# the start of the run: air drawn in sharply
 	_once("go", true, func(): scares.spawn3d(scares.synth("stinger"), global_position + Vector3.UP * 2.0, 0.6, "Scares", 8.0, 0.7))
 	if d < GRAB_DIST:
-		_start_grab()
+		_start_grab(tgt)
 		return
 	if t > CHARGE_PREP + CHARGE_RUN:
 		state = "stalk"
@@ -198,27 +221,48 @@ func _charge(delta: float) -> void:
 func _windup(delta: float) -> void:
 	t += delta
 	_walk = move_toward(_walk, 0.0, delta * 8.0)
-	yaw = lerp_angle(yaw, _yaw_to(player.global_position), minf(1.0, delta * TURN_RATE * 2.0))
+	var tgt := _target()
+	if tgt.is_empty():
+		state = "stalk"
+		return
+	var pp: Vector3 = tgt.pos
+	yaw = lerp_angle(yaw, _yaw_to(pp), minf(1.0, delta * TURN_RATE * 2.0))
 	rotation.y = yaw
 	if t < WINDUP_TIME: return
-	var pp := player.global_position
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
-	if d < GRAB_DIST + 1.2 and _can_take():
-		_start_grab()
+	if d < GRAB_DIST + 1.2 and _can_take(tgt):
+		_start_grab(tgt)
 	else:
 		state = "stalk"
 
-## Seen: within the player's view cone, with a clear line from their eyes to it
+## Seen: by any survivor, within their view cone, with a clear line from their eyes to it
 func _seen() -> bool:
-	var cam: Camera3D = _pl.cam
-	var eye := cam.global_position
+	for s: Dictionary in Net.survivors():
+		if _seen_by(s): return true
+	return false
+
+func _seen_by(s: Dictionary) -> bool:
+	var eye: Vector3 = s.pos + Vector3.UP * 1.6
+	var look: Vector3 = s.fwd
+	if s.local:
+		var cam: Camera3D = _pl.cam
+		eye = cam.global_position
+		look = -cam.global_transform.basis.z
 	var mid := global_position + Vector3.UP * height * 0.55
 	var to := mid - eye
 	if to.length() > 60.0: return false
-	if (-cam.global_transform.basis.z).dot(to.normalized()) < SEE_COS: return false
+	var dir := to.normalized() if s.local else Vector3(to.x, 0.0, to.z).normalized()
+	if look.dot(dir) < SEE_COS: return false
 	return nav.clear_line(eye.x, eye.z, mid.x, mid.z)
 
-func _can_take() -> bool:
+## The survivor it hunts: the nearest, and the one it already has keeps a small edge
+func _target() -> Dictionary:
+	var best := Net.nearest_survivor(global_position, _tid)
+	_tid = best.get("id", -1)
+	return best
+
+func _can_take(tgt: Dictionary) -> bool:
+	if not tgt.local: return true
 	return not _pl.dead and not _pl.frozen and _pl.spawn_grace <= 0.0 and not Game.god_mode
 
 ## Every tube near it dies, and stays dead while it stays near (the cut is topped up, never left to run out)
@@ -322,7 +366,7 @@ func _process(delta: float) -> void:
 	elif charging: stride_to = 1.0 if t > CHARGE_PREP else 0.0
 	_stride = lerpf(_stride, stride_to, 1.0 - exp(-2.5 * delta))
 	_pose(delta)
-	if state in ["hug", "grab", "lift", "stare", "corrupt"]:
+	if state in ["hug", "grab", "lift", "stare", "corrupt"] and (not puppet or _net_taken):
 		_sequence(delta)
 
 ## Turn bone `name` by `angle` about a world axis, from its rest pose
@@ -488,7 +532,18 @@ func _aim(bone: String, child: String, target: Vector3, amount: float) -> void:
 ## It has you. Come at unseen (how it hunts), it takes you from behind: its arms come round you first (hug),
 ## then the world goes black and you come to facing it, held. Walked into while you were looking at it, it
 ## just takes you, face on.
-func _start_grab() -> void:
+func _start_grab(tgt: Dictionary) -> void:
+	if not tgt.local:
+		# a guest's survivor: their machine plays the sequence, we hold still until it is over
+		_victim_id = tgt.id
+		_held_t = 0.0
+		_walk = 0.0
+		state = "held"
+		Net.send_burnt_take(_victim_id)
+		return
+	_begin_sequence()
+
+func _begin_sequence() -> void:
 	t = 0.0
 	_walk = 0.0
 	_pl.frozen = true
@@ -767,6 +822,11 @@ func _die() -> void:
 
 ## Off, without touching the player (their death owns the camera from here)
 func _despawn_quietly() -> void:
+	if _net_taken:                        # our sequence is over: tell the host, and ignore its stale snapshots a moment
+		_net_taken = false
+		_snub = 2.0
+		Net.send_burnt_result()
+	_victim_id = -1
 	state = "off"
 	present = false
 	visible = false
@@ -786,6 +846,9 @@ func _finish() -> void:
 
 # ---------------------------------------------------------------- debug console
 func debug_spawn() -> bool:
+	if puppet:
+		last_error = "only the host can spawn it in co-op"
+		return false
 	if not super.debug_spawn(): return false
 	yaw = rotation.y
 	state = "stalk"
@@ -801,3 +864,34 @@ func debug_despawn() -> void:
 		if au != null: au.set_muffled(false)
 	_despawn_quietly()
 	super.debug_despawn()
+
+# ---------------------------------------------------------------- co-op
+## Guest: follow the host's Burnt (or, while it has us, play the sequence here)
+func _physics_puppet(delta: float) -> void:
+	_snub = maxf(0.0, _snub - delta)
+	if not _net_taken and _snub <= 0.0: net.step(delta)
+	if not present or body == null: return
+	_burn_lamps(delta)
+	if _net_taken: return
+	_step_t -= delta * _walk
+	if _step_t <= 0.0 and state == "stalk":
+		_step_t = 1.3
+		if scares != null:
+			scares.spawn3d(scares.synth("thump"), global_position, 0.32, "Scares", 3.0, randf_range(0.9, 1.0))
+
+func net_apply(t_: float, m: Array) -> void:
+	net.apply(t_, m)
+
+## Net (guest): the host's Burnt has this machine's player
+func net_taken() -> void:
+	if _pl.dead or _net_taken or (body == null and not _build()):
+		Net.send_burnt_result()
+		return
+	_net_taken = true
+	present = true
+	visible = true
+	_begin_sequence()
+
+## Net (host): the guest it took is done (dead, or the sequence was cut short)
+func net_result(peer_id: int) -> void:
+	if peer_id == _victim_id: _despawn_quietly()
