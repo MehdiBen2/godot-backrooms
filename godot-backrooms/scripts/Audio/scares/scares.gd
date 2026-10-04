@@ -195,8 +195,14 @@ func breath_behind(pos: Vector3, volume := 1.0) -> float:
 	_last_breath = kind
 	var pitch := rng.randf_range(0.9, 1.03)
 	var s := synth("breath_close", kind)
-	var p := spawn3d(s, pos, volume, "Scares", 1.2, pitch, false)
-	p.max_distance = 12.0
+	# Subtle: it sits half a metre from your ear, and an inverse-distance falloff with a 1 m reference makes
+	# anything that close LOUDER than its set volume. A small reference (0.5 m) keeps it at its own level, and
+	# that level is low: you notice it because the room went quiet, not because it is loud. A gentle top cut
+	# takes the hiss off it, so it reads as breath on your neck rather than noise in the speakers.
+	var p := spawn3d(s, pos, volume * 0.28, "Scares", 0.5, pitch * 0.97, false)
+	p.max_distance = 6.0
+	p.attenuation_filter_cutoff_hz = 3800.0
+	p.attenuation_filter_db = -8.0
 	return s.get_length() / pitch
 
 # The grid dying somewhere far off. Like web scares.js: ref 12, volume 2, not occluded (a reverberant

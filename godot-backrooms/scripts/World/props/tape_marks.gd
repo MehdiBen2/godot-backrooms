@@ -37,17 +37,7 @@ var order: Array = []                # ids, oldest first
 
 func _ready() -> void:
 	live = self
-	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
-	var lv := MarkStore.key()
-	if not _loaded.has(lv):
-		_loaded[lv] = true
-		if not placed.has(lv):
-			placed[lv] = []
-		for d in MarkStore.read(level_id).get("tape", []):
-			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
-				"n": MarkStore.v3(d.n), "t": float(d.t), "by": RESEARCHER, "fixed": not MarkStore.active()})
-	for s in placed.get(MarkStore.key(), []):
-		_spawn(s)
+	_load()
 
 func reload_floor() -> void:
 	for m in meshes.values():
@@ -55,17 +45,55 @@ func reload_floor() -> void:
 			m.queue_free()
 	meshes.clear()
 	order.clear()
+	_load()
+
+## Read this floor's saved strips into `placed` (once a run), moved by however far the level editor has
+## shifted the cells since they were saved (mark_store.gd), draw them, and put any whose wall has moved or
+## gone back on the nearest wall
+func _load() -> void:
+	MarkStore.use_level(get_parent())
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
 	if not _loaded.has(lv):
 		_loaded[lv] = true
 		if not placed.has(lv):
 			placed[lv] = []
-		for d in MarkStore.read(level_id).get("tape", []):
-			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a), "b": MarkStore.v3(d.b),
+		var file := MarkStore.read(level_id)
+		var off := MarkStore.moved(file, "tape")
+		for d in file.get("tape", []):
+			placed[lv].append({"id": str(d.id), "a": MarkStore.v3(d.a) + off, "b": MarkStore.v3(d.b) + off,
 				"n": MarkStore.v3(d.n), "t": float(d.t), "by": RESEARCHER, "fixed": not MarkStore.active()})
-	for s in placed.get(MarkStore.key(), []):
+	for s in placed.get(lv, []):
 		_spawn(s)
+	_settle_all(lv)
+
+## Once the level's colliders exist: every strip off its surface goes onto the nearest wall (one with no
+## wall anywhere near is left where it is, so it isn't lost). Saved if any moved.
+func _settle_all(lv: int) -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if not is_inside_tree() or lv != MarkStore.key():
+		return
+	var space := get_world_3d().direct_space_state
+	var changed := false
+	for s in placed.get(lv, []):
+		var a: Vector3 = s.a
+		var b: Vector3 = s.b
+		var probe: Array = []
+		for i in 9:
+			probe.append(a.lerp(b, i / 8.0))
+		var at := MarkStore.settle(space, probe, s.n)
+		if at.is_empty() or not at.moved:
+			continue
+		s.a = at.pts[0]
+		s.b = at.pts[-1]
+		s.n = at.n
+		changed = true
+		var mi: MeshInstance3D = meshes.get(s.id)
+		if mi != null:
+			strip_mesh((s.a as Vector3) - global_position, (s.b as Vector3) - global_position, s.n, mi.get_meta("lift"), mi.mesh as ArrayMesh)
+	if changed:
+		save()
 
 func _exit_tree() -> void:
 	if live == self:

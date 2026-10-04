@@ -19,7 +19,7 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
 	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
-	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff")}
+	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -34,9 +34,11 @@ var current := -1
 var grid_size := 46
 var grid: Array = []                 # grid[z] is an Array of one-char strings
 var zones := {}                      # zone -> {Vector2i: true}
+var noclip_to := ""                  # this floor's Noclip zone: the id (levels.json) of the level you wake up in
 var paint := {"wall": {}, "floor": {}, "ceiling": {}}   # slot -> {Vector2i: pbr name}: per-cell material overrides
 var paint_mat := ""                  # the material the paint tools lay down
 var markers := {}                    # marker -> Vector2i or null
+var mark_shift := Vector2i.ZERO      # how far every cell has moved since the level was made (growing up / left, TRIM): the game moves the tape and sketches saved before by the difference (mark_store.gd)
 var spawn_rot := 270.0               # the way the player looks at spawn: degrees clockwise on the map, 0 = right, 270 = up
 var tool := "base:" + WALL
 var brush := 1
@@ -1041,6 +1043,7 @@ func _canvas_input(ev: InputEvent) -> void:
 ## the box, a right click or Esc drops it.
 var area := Rect2i()                 # the selected cells (no size: nothing selected)
 var area_from := Vector2i(-1, -1)    # the cell the box being dragged out started on
+var edge_cut := false                # DELETE EDGE AREA is armed: the next box dragged out is cut off the map's edge
 var clip := {}                       # what was copied: {size, grid (rows of cells, or null for objects only), zones, paint, objects}
 
 func _area_press(mb: InputEventMouseButton) -> void:
@@ -1049,6 +1052,7 @@ func _area_press(mb: InputEventMouseButton) -> void:
 		if mb.pressed:
 			area = Rect2i()
 			area_from = Vector2i(-1, -1)
+			edge_cut = false
 			_area_status()
 		canvas.queue_redraw()
 		return
@@ -1058,7 +1062,29 @@ func _area_press(mb: InputEventMouseButton) -> void:
 		area = Rect2i(area_from.min(c), (area_from - c).abs() + Vector2i.ONE) if c != area_from else Rect2i()
 		area_from = Vector2i(-1, -1)
 		_area_status()
+		if edge_cut and area.has_area(): _area_cut_edge()
 	canvas.queue_redraw()
+
+## DELETE EDGE AREA: the box dragged out has to touch the map's edge. The strip it points at is cut out of
+## every floor, right across the map (see _area_cut_strip): the left or right columns, or the top or bottom rows.
+## A box in a corner cuts along whichever side it covers more of.
+func _area_cut_edge() -> void:
+	edge_cut = false
+	var n := grid_size
+	var cols := -1.0
+	var rows := -1.0
+	if area.position.x <= 0 or area.end.x >= n: cols = area.size.y
+	if area.position.y <= 0 or area.end.y >= n: rows = area.size.x
+	if cols < 0 and rows < 0:
+		area = Rect2i()
+		_status("That box doesn't touch the map's edge: drag it from an edge (DELETE EDGE AREA again to retry)")
+		return
+	if cols >= rows:
+		area = Rect2i(0, 0, area.end.x, n) if area.position.x <= 0 else Rect2i(area.position.x, 0, n - area.position.x, n)
+		_area_cut_strip(true)
+	else:
+		area = Rect2i(0, 0, n, area.end.y) if area.position.y <= 0 else Rect2i(0, area.position.y, n, n - area.position.y)
+		_area_cut_strip(false)
 
 func _area_status() -> void:
 	if not area.has_area():
@@ -1543,7 +1569,7 @@ func _set_paint_mat(id: String) -> void:
 # ---------------------------------------------------------------- undo
 # ---------------------------------------------------------------- floors
 func _live_floor() -> Dictionary:
-	return {"grid": grid, "zones": zones, "paint": paint, "markers": markers, "objects": objects}
+	return {"grid": grid, "zones": zones, "paint": paint, "markers": markers, "objects": objects, "noclip_to": noclip_to}
 
 func _load_floor(fd: Dictionary) -> void:
 	grid = fd.grid
@@ -1551,13 +1577,15 @@ func _load_floor(fd: Dictionary) -> void:
 	paint = fd.paint
 	markers = fd.markers
 	objects = fd.objects
+	noclip_to = str(fd.get("noclip_to", ""))
 
 func _copy_floor(fd: Dictionary) -> Dictionary:
 	var z := {}
 	for k in fd.zones: z[k] = fd.zones[k].duplicate()
 	var pt := {}
 	for k in fd.paint: pt[k] = fd.paint[k].duplicate()
-	return {"grid": fd.grid.duplicate(true), "zones": z, "paint": pt, "markers": fd.markers.duplicate(), "objects": fd.objects.duplicate(true)}
+	return {"grid": fd.grid.duplicate(true), "zones": z, "paint": pt, "markers": fd.markers.duplicate(), "objects": fd.objects.duplicate(true),
+		"noclip_to": str(fd.get("noclip_to", ""))}
 
 ## A new floor: solid everywhere (draw its rooms in), no zones, paint, markers or objects
 func _new_floor() -> Dictionary:
@@ -1571,7 +1599,7 @@ func _new_floor() -> Dictionary:
 	for z in ZONES: zd[z] = {}
 	var mk := {}
 	for m in MARKERS: mk[m] = null
-	return {"grid": g, "zones": zd, "paint": {"wall": {}, "floor": {}, "ceiling": {}}, "markers": mk, "objects": []}
+	return {"grid": g, "zones": zd, "paint": {"wall": {}, "floor": {}, "ceiling": {}}, "markers": mk, "objects": [], "noclip_to": ""}
 
 ## Every floor, the live one included: int -> its fields
 func _all_floors() -> Dictionary:
@@ -1648,6 +1676,7 @@ func _reframe(n: int, off: Vector2i) -> void:
 			if o.pos_x >= 0 and o.pos_y >= 0 and o.pos_x <= n - 1 and o.pos_y <= n - 1: kept.append(o)
 		fd.objects = kept
 	grid_size = n
+	mark_shift += off
 	for f in all:
 		if f == floor_idx: _load_floor(all[f])
 		else: floor_store[f] = all[f]
@@ -1712,7 +1741,7 @@ func _snapshot() -> Dictionary:
 	var fl := {}
 	var all := _all_floors()
 	for f in all: fl[f] = _copy_floor(all[f])
-	return {"floors": fl, "floor": floor_idx, "size": grid_size, "selected": selected}
+	return {"floors": fl, "floor": floor_idx, "size": grid_size, "selected": selected, "mark_shift": mark_shift}
 
 func _restore(s: Dictionary) -> void:
 	floor_store = s.floors
@@ -1720,6 +1749,7 @@ func _restore(s: Dictionary) -> void:
 	_load_floor(floor_store[floor_idx])
 	floor_store.erase(floor_idx)
 	grid_size = s.size
+	mark_shift = s.get("mark_shift", mark_shift)
 	selected = s.selected if s.selected < objects.size() else -1
 	drag = ""
 	_floors_changed()

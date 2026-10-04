@@ -72,6 +72,7 @@ const AE_HZ := 0.45                 # spring frequency: a full swing takes about
 const AE_DAMP := 0.42               # < 1: overshoots (the pumping)
 # Camcorder auto white balance: a slow wander, and a late, partial correction of tinted light
 const WB_DRIFT := 0.035
+var tint_wb := true                  # false: the camera leaves the events' tint alone (a red alert stays red)
 const WB_CORRECT := 0.5             # how much of a light's colour cast the camera takes back out
 const WB_SPEED := 0.25              # 1/s
 
@@ -380,7 +381,7 @@ func _update_camcorder(delta: float, seen: float) -> void:
 	var green := _wb_noise.get_noise_1d(_wb_t * 5.0 + 500.0) * WB_DRIFT * 0.3   # a green cast reads as sickly, keep it small
 	var lum := (tint.r + tint.g + tint.b) / 3.0
 	var corr := Vector3.ONE
-	if lum > 0.02:
+	if lum > 0.02 and tint_wb:
 		corr = Vector3(clampf(lum / maxf(tint.r, 0.05), 0.6, 1.6), clampf(lum / maxf(tint.g, 0.05), 0.6, 1.6),
 			clampf(lum / maxf(tint.b, 0.05), 0.6, 1.6))
 	_wb_corr = _wb_corr.lerp(Vector3.ONE.lerp(corr, WB_CORRECT), minf(1.0, delta * WB_SPEED))

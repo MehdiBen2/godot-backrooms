@@ -82,6 +82,9 @@ var loop := {}        # a corridor that never ends: walk on down it and you are 
 var edge_wrap := false
 var wrap_ring := {}   # Vector2i -> true: the border cells, the other side's stand-ins (no entity walks them)
 var endless_ceiling := {}      # no ceiling and a shaft up that never ends: the Endless zone (endless_shaft.gd)
+var noclip := {}      # pits painted Noclip: an abyss whose fall ends in another level (pit_fall.gd, noclip_wake.gd)
+var noclip_floor := {}  # Noclip Floor: plain floor you fall straight through (noclip_slip.gd), to the same destination
+var noclip_to := ""   # ...which one: a levels.json id ("noclip_to" on the floor, set in the level editor)
 var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
 ## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
 ## treats them as pits, holes_below). On the top floor there is only the dark above.
@@ -315,6 +318,7 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
 	# a pit painted Abyss has no bottom, whatever is under it (pit_fall.gd): the floor below keeps its ceiling
 	for c: Vector2i in zone_cells(d, f, "abyss"): out.erase(c)
+	for c: Vector2i in zone_cells(d, f, "noclip"): out.erase(c)
 	if out.is_empty(): return out
 	# a stairwell on either floor has those cells to itself (older files have a pit under their stairs down)
 	for g: int in [f, f - 1]:
@@ -370,6 +374,9 @@ func load_floor(f: int, raw := {}) -> void:
 		open_above[c] = true
 	# the bottomless pits: the ones painted so, and on a floor with nothing under it every pit (it used to
 	# fall through a black floor and put you back at the spawn point)
+	for c: Vector2i in noclip.keys():                            # a Noclip pit is bottomless too
+		if pits.has(c): abyss[c] = true
+		else: noclip.erase(c)
 	for c: Vector2i in abyss.keys():
 		if not pits.has(c): abyss.erase(c)
 	if not in_stack(level_raw, f - 1):
@@ -491,13 +498,18 @@ func _parse(d: Dictionary) -> void:
 			arch_cells[c] = true
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
+	noclip_to = str(d.get("noclip_to", ""))
 	var zones: Dictionary = d.get("zones", {})
 	for zone in ["tall", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
-			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss", "endless_ceiling"]:
+			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
+	# Noclip: the floor opens wherever it is painted (a pit of its own: you fall through reality, not into the
+	# floor below), so it works on plain floor as well as on pits
+	for c: Vector2i in noclip.keys():
+		pits[c] = true
 	# A level-wide atmosphere ("atmosphere" in the .lvl, picked in the level editor). "classic" is the
 	# Classic zone painted over every open cell, except where a Dark / Dim zone says the tubes are dead.
 	# "liminal" is the same for the Liminal zone.

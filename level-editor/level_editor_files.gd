@@ -50,6 +50,8 @@ func _open(i: int) -> void:
 	current = clampi(i, 0, index.size() - 1)
 	data = JSON.parse_string(FileAccess.get_file_as_string(GAME.path_join("levels/" + str(index[current].file))))
 	grid_size = int(data.get("size", data.grid.size()))
+	var ms = data.get("mark_shift", [0, 0])
+	mark_shift = Vector2i(int(ms[0]), int(ms[1])) if ms is Array and ms.size() >= 2 else Vector2i.ZERO
 	floor_idx = 0
 	floor_store = {}
 	_load_floor(_parse_floor(data))
@@ -90,6 +92,7 @@ func _parse_floor(d: Dictionary) -> Dictionary:
 		var row: String = rows[z]
 		for x in mini(grid_size, row.length()):
 			fd.grid[z][x] = row[x]
+	fd["noclip_to"] = str(d.get("noclip_to", ""))
 	var zd = d.get("zones")
 	if zd is Dictionary:
 		for z in ZONES:
@@ -140,6 +143,8 @@ func _serialize_floor(fd: Dictionary) -> Dictionary:
 		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
 		zd[z] = list
 	out["zones"] = zd
+	if str(fd.get("noclip_to", "")) != "" and not ((fd.zones.get("noclip", {}) as Dictionary).is_empty() and (fd.zones.get("noclip_floor", {}) as Dictionary).is_empty()):
+		out["noclip_to"] = str(fd.noclip_to)
 	var pd := {}
 	for slot in PAINT_SLOTS:
 		var by_mat := {}
@@ -350,6 +355,8 @@ func _current_payload() -> Dictionary:
 	var out := data.duplicate()
 	out["version"] = 2                   # v2: doors / arches / thin walls live in "objects", not the grid
 	out["size"] = grid_size
+	if mark_shift == Vector2i.ZERO: out.erase("mark_shift")
+	else: out["mark_shift"] = [mark_shift.x, mark_shift.y]
 	out.erase("paint")
 	var all := _all_floors()
 	var ground := _serialize_floor(all[0])

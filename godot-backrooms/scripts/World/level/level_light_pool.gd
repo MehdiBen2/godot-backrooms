@@ -357,7 +357,7 @@ func _update_pool(delta: float) -> void:
 		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * SPOT_GAIN * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
 		l.visible = energy > 0.002
 		# its own lamp's white (written only when it changes: a slot taking a new tube, the zone's white moving)
-		var col: Color = tube_color * (f.get("warm", Color.WHITE) as Color)
+		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)      # (events' tint: every light, not just the tubes' faces)
 		if not l.light_color.is_equal_approx(col):
 			l.light_color = col
 			lb.light_color = col
@@ -441,7 +441,7 @@ func _update_far(k: float) -> void:
 		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * lamp_out(f) * far_weight[i] * far_fade
 		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
-		var col: Color = tube_color * (f.get("warm", Color.WHITE) as Color)
+		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)
 		if not fl.light_color.is_equal_approx(col): fl.light_color = col
 		_move(fl, f.light_pos + _img(f))
 		_energy(fl, energy)

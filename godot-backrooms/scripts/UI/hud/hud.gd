@@ -353,6 +353,9 @@ func _build_scanner() -> void:
 	hud_root.add_child(toast)
 	Archive.entity_discovered.connect(_on_entity_logged)
 	Clearance.yield_filed.connect(_on_yield_filed)
+	Net.survivor_joined.connect(_on_survivor_joined)
+	Net.survivor_left.connect(_on_survivor_left)
+	Net.survivor_died.connect(_on_survivor_died)
 
 ## Every run starts with one roll of hazard tape. Its HUD (tape_readout.gd) is only up while T is
 ## held and for a moment after.
@@ -508,6 +511,43 @@ func _promotion(report: Dictionary) -> void:
 	lines.append({"kind": "rule"})
 	lines.append({"kind": "pair", "left": "SCANNER CALIBRATION", "right": "READING TIME -%d%%" % roundi(5.0 * to)})
 	toast.push("CLEARANCE ELEVATED", lines)
+
+# ---- the expedition roster ------------------------------------------------------------------
+## Someone came into the co-op game: their callsign big, as a field researcher, and how many are out here now
+func _on_survivor_joined(id: int, callsign: String, already: bool) -> void:
+	toast.push("EXPEDITION ROSTER", [
+		{"kind": "head", "code": "FIELD RESEARCHER  #%02d" % (id % 100), "name": callsign, "size": 22,
+			"tag": "ON SITE" if already else "LINK ESTABLISHED", "tag_color": Term.GREEN},
+		{"kind": "text", "text": "IS ON THE EXPEDITION" if already else "HAS JOINED THE EXPEDITION", "size": 15, "color": Term.TEXT_DIM},
+		{"kind": "rule"},
+		{"kind": "pair", "left": "SURVIVORS IN THE FIELD", "right": "%d" % (multiplayer.get_peers().size() + 1)},
+	])
+
+func _on_survivor_left(id: int, callsign: String) -> void:
+	var left := multiplayer.get_peers().size() + 1
+	if multiplayer.get_peers().has(id):
+		left -= 1                                    # (still listed while it is being dropped)
+	toast.push("EXPEDITION ROSTER", [
+		{"kind": "head", "code": "FIELD RESEARCHER  #%02d" % (id % 100), "name": callsign, "size": 22,
+			"tag": "SIGNAL LOST", "tag_color": Term.RED},
+		{"kind": "text", "text": "HAS LEFT THE EXPEDITION", "size": 15, "color": Term.TEXT_DIM},
+		{"kind": "rule"},
+		{"kind": "pair", "left": "SURVIVORS IN THE FIELD", "right": "%d" % left, "color": Term.RED},
+	])
+
+## A teammate flatlined: their name, the flatline in red, and what did it
+func _on_survivor_died(id: int, callsign: String, cause: String) -> void:
+	var alive := 0 if player.dead else 1
+	for r in Net.remotes.values():
+		if is_instance_valid(r) and not r.dead:
+			alive += 1
+	toast.push("VITALS ALERT", [
+		{"kind": "head", "code": "FIELD RESEARCHER  #%02d" % (id % 100), "name": callsign, "size": 22,
+			"tag": "VITALS FLATLINED", "tag_color": Term.RED},
+		{"kind": "rule"},
+		{"kind": "pair", "left": "CAUSE OF DEATH", "right": cause, "color": Term.RED, "strong": true},
+		{"kind": "pair", "left": "SURVIVORS STILL BREATHING", "right": "%d" % alive},
+	])
 
 # ---- carried items ------------------------------------------------------------------------
 ## Floor pickups (World/props) hand themselves in here; false when there's no room, so the

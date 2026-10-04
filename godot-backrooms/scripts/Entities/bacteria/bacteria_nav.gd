@@ -21,6 +21,16 @@ func _setup_nav() -> void:
 	flow.resize(n * n)
 	reach.resize(n * n)
 
+## The level changed size under us (a new floor): pick up its size and size the fields to match
+func _sync_nav() -> void:
+	if n == nav.n:
+		return
+	n = nav.n
+	flow.resize(n * n)
+	reach.resize(n * n)
+	goal_key = -1
+	visited.clear()
+
 func blocked(cx: int, cz: int) -> bool:
 	return nav.blocked(cx, cz)
 
@@ -48,6 +58,7 @@ func at_goal(within := 0.9) -> bool:
 # Direction to walk: straight at the goal when it's in view, otherwise the farthest visible cell
 # a few steps down the flow field (smooth corners)
 func steer(delta: float) -> Vector3:
+	_sync_nav()
 	var p := global_position
 	var gx := GridNav.cell(goal.x)
 	var gz := GridNav.cell(goal.z)
@@ -120,6 +131,7 @@ func note_interest(x: float, z: float) -> void:
 # there, whether it's a junction, and how close it is to what interests it. `who`: where the one it
 # hunts is (after a long quiet it drifts toward them).
 func roam_spot(who := Vector3.INF) -> bool:
+	_sync_nav()
 	var p := global_position
 	if not nav.bfs(GridNav.cell(p.x), GridNav.cell(p.z), reach):
 		return false
@@ -163,6 +175,7 @@ func roam_spot(who := Vector3.INF) -> bool:
 
 # A random reachable floor spot between min_cells and max_cells of path away, optionally close to `near`
 func pick_spot(min_cells: int, max_cells: int, near = null, near_cells := 0.0) -> bool:
+	_sync_nav()
 	var p := global_position
 	if not nav.bfs(GridNav.cell(p.x), GridNav.cell(p.z), reach):
 		return false

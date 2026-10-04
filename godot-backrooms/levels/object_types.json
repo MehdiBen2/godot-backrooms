@@ -218,6 +218,18 @@
       "breathBehind": "Director event: something breathing on your neck",
       "preacherWhisper": "Director event: a preacher's voice down a corridor",
       "powerCut": "Director event: the whole floor's power fails for a minute",
+      "redAlert": "Director event: every light drops to slow pulsing emergency red; something walks the halls",
+      "emergencyPulse": "Director event: every light beats red like a heart, quickens, skips and fails",
+      "lightsOut": "Director event: the grid fails in stages, then something walks up to you in the dark",
+      "oneLamp": "Director event: everything dark but the tube over you; something breathes under the next one",
+      "deadAir": "Director event: you are deafened; ringing, a warped picture, two knocks behind you",
+      "machineVoice": "Director event: an old crushed text-to-speech voice reads a disturbing line",
+      "ghostRoster": "Director event: a researcher who isn't anyone joins the expedition (sometimes it's you)",
+      "humRises": "Director event: the fluorescent hum climbs until it hurts, then every sound stops",
+      "partyWall": "Director event: a party behind the drywall; go to it and it stops dead, then one knock",
+      "phoneRing": "Director event: a phone rings down the halls; it stops before you reach it, then rings behind you",
+      "houndPacing": "Director event: footsteps far off behind the walls keep pace with you; stop and they stop, then one step nearer",
+      "run": "Director event: black, then red lights rush down the hall toward you with something running under them",
       "custom": "Custom event (type custom event name)"
     },
     "category": "events"

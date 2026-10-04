@@ -37,6 +37,7 @@ const PAGE_SCRIPTS := {
 	"ENTRIES": preload("res://scripts/UI/inventory/pages/page_entries.gd"),
 	"PAPERS": preload("res://scripts/UI/inventory/pages/page_papers.gd"),
 	"CLEARANCE": preload("res://scripts/UI/inventory/pages/page_clearance.gd"),
+	"CREW": preload("res://scripts/UI/inventory/pages/page_crew.gd"),
 }
 
 # the palette lives in terminal_kit.gd; the HUD's CRT pieces read it from here (Term.AMBER etc.)
@@ -88,12 +89,13 @@ const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of i
 const RAIL_GAP := 26.0
 const RAIL_END := 70.0           # arrow + key label at each end of the rail
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
-const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE"]
+const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE", "CREW"]
 # short, so four fit on the sheet; the dossier page carries its full title
 # five across the 830 px sheet: bare "F1" keys, and _style_tab keeps the tabs behind small
 const TAB_TITLES := {"ITEMS": "F1 ITEMS", "DOSSIER": "F2 DOSSIER", "ENTRIES": "F3 ENTRIES", "PAPERS": "F4 PAPERS",
-	"CLEARANCE": "F5 CLEARANCE"}
-const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS", KEY_F5: "CLEARANCE"}
+	"CLEARANCE": "F5 CLEARANCE", "CREW": "F6 CREW"}
+const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS", KEY_F5: "CLEARANCE", KEY_F6: "CREW"}
+const CREW_REFRESH := 1.0            # s between rebuilds of [F6] CREW while it is open (distances, signal)
 
 var player: Node                     # set by hud.gd; the vitals read live stats off it
 var shown := false
@@ -137,6 +139,7 @@ var cursor: ColorRect
 var readout: Control
 var tabs_row: HBoxContainer
 var tab_buttons := {}                # tab -> Button
+var _crew_t := 0.0                   # [F6] CREW: time to its next rebuild
 var pages := {}                      # tab -> its page (terminal_page.gd), built by _build_readout()
 var page_scrolls := {}               # tab -> its ScrollContainer (PgUp / PgDn)
 var active_page := "DOSSIER"
@@ -394,7 +397,7 @@ func _build_footer() -> Control:
 	agency.clip_text = true
 	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	h.add_child(agency)
-	for hint in ["UP/DN/WHEEL SELECT", "F1-F5 PAGE", "PGUP/PGDN SCROLL"]:
+	for hint in ["UP/DN/WHEEL SELECT", "F1-F6 PAGE", "PGUP/PGDN SCROLL"]:
 		h.add_child(Kit.label(hint, 17, MUTED, 2))
 		h.add_child(Kit.label("•", 17, MUTED))
 	var close := Button.new()
@@ -834,13 +837,13 @@ func _style_tab(tab: String) -> void:
 	var on := tab == active_page
 	b.text = TAB_TITLES[tab]
 	var sb := StyleBoxEmpty.new()
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14 + TAB_SLANT
+	sb.content_margin_left = 10                 # (six tabs across the sheet: tighter than the five were)
+	sb.content_margin_right = 10 + TAB_SLANT
 	sb.content_margin_top = 0.0 if on else 8.0
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, sb)
 	b.add_theme_font_override("font", Kit.font(2 if on else 1))
-	b.add_theme_font_size_override("font_size", 20 if on else 15)
+	b.add_theme_font_size_override("font_size", 18 if on else 13)
 	for s in ["font_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(s, TEXT if on else TEXT_DIM)
 	b.add_theme_color_override("font_hover_color", TEXT)
@@ -859,6 +862,9 @@ func select_tab(tab: String, force := false, focus_new := true) -> void:
 	if tab == "CLEARANCE":
 		clearance_new = false
 		_refresh_page("CLEARANCE")            # the re-read cooldowns tick while it is closed
+	if tab == "CREW":
+		_crew_t = CREW_REFRESH
+		_refresh_page("CREW")
 	if force:
 		return
 	play_sfx("tab")
@@ -1022,6 +1028,7 @@ func set_shown(on: bool) -> void:
 		_refresh_page("DOSSIER")
 		_refresh_page("ENTRIES")
 		_refresh_page("CLEARANCE")
+		_refresh_page("CREW")
 		play_sfx("on")
 		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
@@ -1076,7 +1083,7 @@ func _input(e: InputEvent) -> void:
 				_move_selection(step)
 		KEY_LEFT: _cycle_tab(-1)
 		KEY_RIGHT: _cycle_tab(1)
-		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5: select_tab(TAB_KEYS[k.physical_keycode])
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6: select_tab(TAB_KEYS[k.physical_keycode])
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return
@@ -1086,6 +1093,11 @@ func _process(dt: float) -> void:
 	if not is_visible_in_tree():
 		return
 	t += dt
+	if active_page == "CREW":
+		_crew_t -= dt
+		if _crew_t <= 0.0:
+			_crew_t = CREW_REFRESH
+			_refresh_page("CREW")
 	_update_vitals(dt)
 	_update_battery_line()
 	cursor.self_modulate.a = 1.0 if fmod(t, 1.06) < 0.53 else 0.0

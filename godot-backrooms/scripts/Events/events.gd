@@ -8,6 +8,7 @@ extends Node
 ## F9 stop all events.
 
 const GridNav := preload("res://scripts/World/grid_nav.gd")
+const MachineVoice := preload("res://scripts/Audio/machine_voice_lines.gd")
 
 const FIRST_MIN := 40.0
 const FIRST_MAX := 90.0
@@ -25,6 +26,8 @@ var nav
 var mimic: Node                       # optional: charges at you during a power cut
 
 var events: Array[Dictionary] = []
+var clock := 0.0                      # the events' own time: in co-op it keeps running while you sit in the pause
+                                      # menu, so a scare ends here when it ends for everyone (Game.time stops)
 var queue: Array = []                 # {at, fn}
 var watchers: Array = []              # {fn, t}
 var restorers: Array = []
@@ -76,54 +79,51 @@ func _define_events() -> void:
 	define({"name": "breathBehind", "weight": 1.0, "cooldown": 420.0, "duration": 6.0, "intensity": 0.6,
 		"when": func(c): return c.still > 2.0 and c.dark and c.sanity < 80.0,
 		"run": _event_breath_behind})
-	define({"name": "redAlert", "weight": 1.8, "cooldown": 420.0, "duration": 19.0, "intensity": 0.8,
+	define({"name": "redAlert", "weight": 1.8, "cooldown": 420.0, "duration": 28.0, "intensity": 0.8,
 		"when": func(c): return level.lit.size() > 0 and c.since_last > 45.0,
 		"score": func(c): return 1.0 + 0.4 * c.tension,
 		"run": _event_red_alert})
-	define({"name": "emergencyPulse", "weight": 1.4, "cooldown": 360.0, "duration": 22.0, "intensity": 0.7,
+	define({"name": "emergencyPulse", "weight": 1.4, "cooldown": 360.0, "duration": 29.0, "intensity": 0.7,
 		"when": func(c): return level.lit.size() > 0 and c.since_last > 45.0,
 		"score": func(c): return (1.3 if c.still > 3.0 else 1.0) * (1.2 if c.sanity < 70.0 else 1.0),
 		"run": _event_emergency_pulse})
-	define({"name": "lightsOut", "weight": 1.5, "cooldown": 300.0, "duration": 14.0, "intensity": 0.75,
+	define({"name": "lightsOut", "weight": 1.5, "cooldown": 300.0, "duration": 22.0, "intensity": 0.75,
 		"when": func(c): return level.lit.size() > 0,
 		"score": func(c): return (1.3 if c.dark else 1.0),
 		"run": _event_lights_out})
-	define({"name": "tubeChase", "weight": 1.5, "cooldown": 330.0, "duration": 16.0, "intensity": 0.7,
-		"when": func(c): return level.lit.size() > 6,
-		"score": func(c): return (1.3 if c.still > 3.0 else 1.0),
-		"run": _event_tube_chase})
-	define({"name": "wrongColor", "weight": 1.2, "cooldown": 420.0, "duration": 24.0, "intensity": 0.5,
-		"when": func(c): return level.lit.size() > 0 and c.since_last > 30.0,
-		"score": func(c): return 1.0 + (0.5 if c.sanity < 70.0 else 0.0),
-		"run": _event_wrong_color})
 	define({"name": "oneLamp", "weight": 1.4, "cooldown": 400.0, "duration": 22.0, "intensity": 0.85,
 		"when": func(c): return level.lit.size() > 6 and c.since_last > 45.0,
 		"score": func(c): return (1.3 if c.dark else 1.0) * (1.2 if c.still > 3.0 else 1.0),
 		"run": _event_one_lamp})
-	define({"name": "phantomSteps", "weight": 1.5, "cooldown": 360.0, "duration": 24.0, "intensity": 0.8,
-		"when": func(c): return c.since_last > 40.0,
-		"score": func(c): return (1.3 if c.dark else 1.0) * (1.2 if c.sanity < 75.0 else 1.0),
-		"run": _event_phantom_steps})
-	define({"name": "crawlingCeiling", "weight": 1.3, "cooldown": 420.0, "duration": 16.0, "intensity": 0.8,
-		"when": func(c): return c.since_last > 40.0,
-		"score": func(c): return (1.4 if c.still > 3.0 else 1.0),
-		"run": _event_crawling_ceiling})
-	define({"name": "tapeRot", "weight": 1.2, "cooldown": 400.0, "duration": 14.0, "intensity": 0.6,
-		"when": func(c): return c.since_last > 30.0,
-		"score": func(c): return 1.0 + (0.5 if c.sanity < 60.0 else 0.0),
-		"run": _event_tape_rot})
-	define({"name": "flatline", "weight": 1.0, "cooldown": 540.0, "duration": 16.0, "intensity": 0.9,
-		"when": func(c): return c.since_last > 60.0 and c.sanity < 85.0,
-		"score": func(c): return 1.0 + (100.0 - c.sanity) / 100.0,
-		"run": _event_flatline})
 	define({"name": "deadAir", "weight": 1.3, "cooldown": 420.0, "duration": 13.0, "intensity": 0.85,
 		"when": func(c): return c.since_last > 40.0,
 		"score": func(c): return (1.4 if c.still > 4.0 else 1.0),
 		"run": _event_dead_air})
+	define({"name": "machineVoice", "weight": 1.4, "cooldown": 240.0, "duration": 12.0, "intensity": 0.5,
+		"when": func(c): return c.since_last > 30.0,
+		"run": _event_machine_voice})
+	define({"name": "ghostRoster", "weight": 0.9, "cooldown": 600.0, "duration": 8.0, "intensity": 0.4,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_ghost_roster})
+	define({"name": "humRises", "weight": 1.1, "cooldown": 420.0, "duration": 24.0, "intensity": 0.6,
+		"when": func(c): return level.lit.size() > 0 and c.since_last > 40.0,
+		"run": _event_hum_rises})
+	define({"name": "partyWall", "weight": 1.0, "cooldown": 600.0, "duration": 62.0, "intensity": 0.5,
+		"when": func(c): return c.since_last > 45.0,
+		"run": _event_party_wall})
+	define({"name": "phoneRing", "weight": 1.1, "cooldown": 540.0, "duration": 40.0, "intensity": 0.5,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_phone_ring})
+	define({"name": "houndPacing", "weight": 1.1, "cooldown": 480.0, "duration": 60.0, "intensity": 0.6,
+		"when": func(c): return c.since_last > 40.0,
+		"run": _event_hound_pacing})
+	define({"name": "run", "weight": 0.8, "cooldown": 720.0, "duration": 28.0, "intensity": 1.0,
+		"when": func(c): return level.lit.size() > 10 and c.since_last > 60.0,
+		"run": _event_run})
 
 # ---------------------------------------------------------------- tools for events
 func later(seconds: float, fn: Callable) -> void:
-	queue.append({"at": Game.time + seconds, "fn": fn})
+	queue.append({"at": clock + seconds, "fn": fn})
 
 # Per-frame logic: fn(delta, t) returns false when it's done
 func watch(fn: Callable) -> void:
@@ -215,7 +215,11 @@ func stop_all() -> void:
 	tension = 0.0
 	threshold = rng.randf_range(GAP_MIN, GAP_MAX)
 	scares.stop_all()
+	scares.stop_flatline()
 	level.restore_power()
+	level.set("tint_wb", true)
+	level.set_tint(Color.WHITE)
+	Game.fx_reset()
 
 func clear_events() -> void:
 	queue.clear()
@@ -260,10 +264,13 @@ func director_calm() -> bool:
 	return not player.dead and Game.terror == 0.0 and Game.time >= busy_until and watchers.is_empty()
 
 func _process(dt: float) -> void:
-	if not Game.playing or Game.dead:
+	# solo: a pause holds the scare where it is. Co-op: the others are still in it, so it runs on (dead too:
+	# whatever it switched off still has to come back)
+	if not Net.is_online() and (not Game.playing or Game.dead):
 		return
+	clock += dt
 	for i in range(queue.size() - 1, -1, -1):
-		if Game.time < queue[i].at:
+		if clock < queue[i].at:
 			continue
 		var q: Dictionary = queue[i]
 		queue.remove_at(i)
@@ -273,6 +280,8 @@ func _process(dt: float) -> void:
 		w.t += dt
 		if not w.fn.call(dt, w.t):
 			watchers.remove_at(i)
+	if not Game.playing or Game.dead:
+		return                        # (the director only runs while you are actually in the run)
 	track_stillness(dt)
 	if Net.is_online() and not Net.hosting:
 		return                        # co-op: the host decides when something happens; we only play what it sends
@@ -349,6 +358,8 @@ func run_event(name: String) -> bool:
 func _unhandled_input(e: InputEvent) -> void:
 	if not Game.dev_keys or not (e is InputEventKey and e.pressed and not e.echo):
 		return
+	if Net.is_online() and not Net.hosting:
+		return                        # co-op: the event keys are the host's only
 	match e.physical_keycode:
 		KEY_F1: if e.shift_pressed: print("event: ", trigger_random(true))
 		KEY_F6: debug_spawn_hunters()
@@ -524,7 +535,7 @@ func _wall_face_behind(min_d: float, max_d: float) -> Vector3:
 func _event_breath_behind() -> void:
 	var dur: float = scares.breath_behind(_behind_neck(0.7))
 	if rng.randf() < 0.35:
-		later(dur + rng.randf_range(0.5, 1.2), func(): scares.breath_behind(_behind_neck(0.45), 1.2))
+		later(dur + rng.randf_range(0.5, 1.2), func(): scares.breath_behind(_behind_neck(0.45), 1.0))
 	later(1.2, func():
 		haunt(0.8)
 		Game.add_glitch(0.25)
@@ -535,160 +546,221 @@ func _event_breath_behind() -> void:
 func _behind_neck(dist: float) -> Vector3:
 	return player.global_position + Vector3(0.0, 1.55, 0.0) + player.global_transform.basis.z * dist
 
-# ---------------------------------------------------------------- red alert
-# The grid throws a containment alarm: every tube slams red and cuts out again in time with a siren thud, an
-# emergency banner over it, the picture tearing on each flash. Then it dies and the white light comes back wrong.
-const ALERT_RED := Color(1.0, 0.04, 0.03)
-const ALERT_OFF := Color(0.03, 0.0, 0.0)
+# ---------------------------------------------------------------- shared by the newer events
+# The tint now reaches every light in the level, not only the tubes' faces (level_light_pool.gd multiplies its
+# real lights by it). A red event turns the camera's white balance off (`tint_wb`), so the red stays red instead
+# of being corrected halfway back to white.
+const EMERGENCY := Color(0.62, 0.025, 0.015)      # the deep red of emergency lighting
+const NEAR_BLACK := Color(0.015, 0.0, 0.0)
 
 func _banner_red(text: String) -> void:
-	banner.add_theme_color_override("font_color", Color("ff2a1a"))
+	banner.add_theme_color_override("font_color", Color("b3170c"))
 	show_banner(text)
-	on_clear(func(): banner.add_theme_color_override("font_color", Color("ffc107")))
+	on_clear(func():
+		banner.modulate.a = 1.0
+		banner.add_theme_color_override("font_color", Color("ffc107")))
 
+## Recolour every light, but only when it has visibly changed (a full recolour touches every tube)
+func _tint(c: Color) -> void:
+	var cur: Color = level.tint
+	if absf(cur.r - c.r) + absf(cur.g - c.g) + absf(cur.b - c.b) > 0.012:
+		level.set_tint(c)
+
+func _red_mode(on: bool) -> void:
+	level.set("tint_wb", not on)
+
+func _hush(seconds: float, to := 0.0) -> void:
+	var amb: Node = get_parent().get_node_or_null("Audio/Ambience")
+	if amb != null:
+		amb.hush_for(to, seconds)
+
+## A deep thud carried through the structure: a bulkhead, a door closing somewhere far below
+func _boom(volume := 0.6, pitch := 0.4) -> void:
+	scares.spawn_flat(scares.synth("thump"), volume, "Scares", pitch)
+
+## A soft footfall from somewhere; the tubes near it shiver
+func _step_at(pos: Vector3, volume: float, shiver := 0.5) -> void:
+	scares.play_scare("footThump", pos, volume)
+	if shiver > 0.0:
+		level.disturb(pos, 5.0, shiver)
+
+# ---------------------------------------------------------------- red alert
+# No siren, no strobe. The lights stutter and die, a deep thud goes through the building, and when they come back
+# every light in the level is emergency red and barely on, swelling and fading slowly, like a pulse. Nobody says
+# anything. Somewhere in it something walks the halls, closer each time the red swells. Then the red goes out
+# entirely for three seconds, and when it comes back for an instant something is breathing right beside you.
 func _event_red_alert() -> void:
-	on_clear(func(): level.set_tint(Color.WHITE))
-	_banner_red("EMERGENCY // CONTAINMENT BREACH")
-	later(15.0, hide_banner)
-	haunt(0.6)
-	later(0.0, func(): level.disturb(player.global_position, 30.0, 1.0))
-	# the siren: 0.55 s on, 0.55 s off, ~14 flashes, each one a low thud through the floor and a tear in the picture
-	for i in 14:
-		var at := 0.8 + i * 1.1
-		later(at, func():
-			level.set_tint(ALERT_RED)
-			scares.spawn_flat(scares.synth("thump"), 0.55, "Scares", 0.5)
-			Game.add_glitch(0.12 + 0.03 * i)
-			if i % 4 == 3: haunt(0.5))
-		later(at + 0.55, func(): level.set_tint(ALERT_OFF))
-	# in the last seconds something is moving in the dark between the flashes
-	later(9.0, func(): scares.play_scare("footThump", sound_spot(9.0), 0.8))
-	later(12.5, func(): scares.play_scare("footThump", sound_spot(5.0), 1.0))
-	later(16.5, func():
+	on_clear(func():
+		_red_mode(false)
 		level.set_tint(Color.WHITE)
-		scares.grid_on()
-		Game.add_glitch(0.6)
-		haunt(0.7))
-
-# The alarm held low: the tubes breathe red, slowly, in time with a heart that is not yours, and every so often
-# one beat drops out and the whole hall goes black for it.
-func _event_emergency_pulse() -> void:
-	on_clear(func(): level.set_tint(Color.WHITE))
-	_banner_red("// ALERT // ALL STAFF TO SHELTER //")
-	later(5.0, hide_banner)
-	haunt(0.5)
-	var beat := [0.0]
+		Game.fx_reset())
+	haunt(0.6)
+	level.disturb(player.global_position, 40.0, 1.0)              # every tube near you stutters
+	later(1.4, func():
+		_red_mode(true)
+		level.set_tint(NEAR_BLACK)
+		_boom(0.85, 0.32)
+		Game.fx_shock = 0.5
+		Game.add_glitch(0.3))
+	later(2.6, func():
+		_banner_red("CONTAINMENT FAILURE // REMAIN WHERE YOU ARE")
+		scares.spawn_flat(scares.synth("drone", 22.0), 0.4))
+	later(9.0, hide_banner)
+	var st := {"last": -1}
+	# 2.8 .. 17: the slow red swell (3.4 s a breath), the picture losing its colour in the troughs
 	watch(func(dt: float, t: float) -> bool:
-		if t > 18.0:
-			level.set_tint(Color.WHITE)
+		if t < 2.8:
+			return true
+		if t > 17.0:
 			return false
-		var k := 0.5 + 0.5 * sin(t * TAU / 1.6)                  # one slow breath of red every 1.6 s
-		level.set_tint(ALERT_OFF.lerp(ALERT_RED, k * k))
-		if k > 0.97 and Game.time - beat[0] > 1.2:
-			beat[0] = Game.time
-			scares.heartbeat(0.8)
-			if rng.randf() < 0.25: level.disturb(player.global_position, 22.0, 0.7)
+		var ph := (t - 2.8) / 3.4
+		var k := 0.5 - 0.5 * cos(TAU * ph)
+		var rise := smoothstep(2.8, 5.0, t)
+		_tint(NEAR_BLACK.lerp(EMERGENCY, rise * (0.18 + 0.82 * k * k)))
+		Game.fx_contrast = 1.0 + 0.15 * rise
+		banner.modulate.a = 0.25 + 0.75 * k
+		var n := int(ph)
+		if n != st.last:                                         # a far, muffled bulkhead at each swell
+			st.last = n
+			_boom(0.22, 0.38)
 		return true)
-	later(18.2, func(): scares.grid_on())
+	# something walking the halls, nearer each time
+	for k in 4:
+		later(6.5 + k * 2.7, func(): _step_at(sound_spot(17.0 - 3.5 * k), 0.35 + 0.15 * k, 0.6))
+	later(9.5, func(): scares.spawn3d(scares.synth("creak"), sound_spot(14.0, rng.randf() * TAU, 3.0), 0.5, "Scares", 6.0, 0.45))
+	# 17: the red goes out. Silence
+	later(17.0, func():
+		_tint(NEAR_BLACK)
+		_hush(6.0)
+		scares.spawn_flat(scares.synth("tinnitus", 4.0), 0.12))
+	later(18.4, func(): scares.heartbeat(0.7))
+	later(19.4, func(): scares.heartbeat(0.8))
+	# 20: it slams back on for an instant, and something is right beside you
+	later(20.2, func():
+		level.set_tint(EMERGENCY * 1.4)
+		scares.breath_behind(_behind_neck(0.5), 0.6)
+		Game.fx_shock = 0.9
+		haunt(1.0))
+	later(20.6, func(): level.set_tint(NEAR_BLACK))
+	# then back, slowly, wrong, to white
+	watch(func(dt: float, t: float) -> bool:
+		if t < 22.0:
+			return true
+		var k := smoothstep(22.0, 26.0, t)
+		_tint(NEAR_BLACK.lerp(Color.WHITE, k * k))
+		if t >= 26.0:
+			_red_mode(false)
+			level.set_tint(Color.WHITE)
+			Game.fx_reset()
+			return false
+		return true)
+	later(22.0, func(): scares.grid_on())
 
-# The whole grid blinks: dark, light, dark, a long dark with a footstep in it, then everything strikes at once.
+# ---------------------------------------------------------------- emergency pulse
+# Every light in the level drops to red and beats like a heart: lub-dub, each beat lighting the halls for an
+# instant. The heart speeds up. It skips, and in the dark of the skipped beat something breathes. Then it fails:
+# a long dim red hold and a flatline tone, before the white comes back.
+func _event_emergency_pulse() -> void:
+	on_clear(func():
+		_red_mode(false)
+		level.set_tint(Color.WHITE)
+		scares.stop_flatline()
+		Game.fx_reset())
+	_red_mode(true)
+	haunt(0.6)
+	level.disturb(player.global_position, 30.0, 0.8)
+	var st := {"prev": 0.0, "skip_until": -1.0}
+	for at in [11.0, 16.0]:
+		later(at, func():
+			st.skip_until = clock + 1.9
+			scares.breath_behind(_behind_neck(0.8), 0.45))
+	watch(func(dt: float, t: float) -> bool:
+		if t > 21.0:
+			return false
+		var fade_in := smoothstep(0.0, 1.5, t)
+		var period := lerpf(1.3, 0.62, clampf(t / 20.0, 0.0, 1.0))     # it quickens
+		var m := fposmod(t, period)
+		var d := minf(m, period - m)
+		var beat := exp(-pow(d / 0.07, 2.0)) + 0.6 * exp(-pow((m - 0.26) / 0.07, 2.0))
+		var live := 0.0 if clock < st.skip_until else 1.0
+		var lvl := lerpf(1.0, 0.05 + 0.95 * minf(beat, 1.0) * live, fade_in)
+		_tint(Color.WHITE.lerp(EMERGENCY, fade_in) * lvl)
+		if m < st.prev and live > 0.0 and t > 1.5:
+			scares.heartbeat(0.55)
+			Game.fx_shock = 0.2
+		st.prev = m
+		Game.fx_sat = 1.0 - 0.35 * smoothstep(0.0, 20.0, t)
+		return true)
+	# it fails: a low dim hold and the flatline under it
+	later(21.0, func():
+		_tint(EMERGENCY * 0.12)
+		scares.flatline(0.22, 0.4)
+		_hush(5.0))
+	later(24.5, func():
+		scares.stop_flatline()
+		scares.heartbeat(0.9)
+		scares.grid_on())
+	watch(func(dt: float, t: float) -> bool:
+		if t < 24.5:
+			return true
+		var k := smoothstep(24.5, 27.5, t)
+		_tint((EMERGENCY * 0.12).lerp(Color.WHITE, k))
+		if t >= 27.5:
+			_red_mode(false)
+			level.set_tint(Color.WHITE)
+			Game.fx_reset()
+			return false
+		return true)
+
+# ---------------------------------------------------------------- lights out
+# The grid fails in stages: a stutter, a dip, a longer dark each time, the tubes slow to come back. Then it goes,
+# and in the black something walks toward you, step by step, and stops just in front of you. Nothing for a long
+# moment. The lights come back and you are alone.
 func _event_lights_out() -> void:
 	on_clear(func():
 		level.restore_power()
-		level.set_tint(Color.WHITE))
-	haunt(0.6)
+		level.set_tint(Color.WHITE)
+		Game.fx_reset())
+	haunt(0.5)
 	var at := 0.0
-	for i in rng.randi_range(5, 8):
-		at += rng.randf_range(0.25, 0.9)
-		var off_for := rng.randf_range(0.12, 0.5)
+	for i in rng.randi_range(4, 6):
+		at += rng.randf_range(0.6, 1.4)
+		var off_for := rng.randf_range(0.15, 0.4) + 0.12 * i
 		later(at, func():
 			level.cut_power(off_for)
-			Game.add_glitch(0.15))
-		later(at + off_for, func(): level.restore_power())
+			if i > 1: Game.add_glitch(0.1))
+		later(at + off_for, func():
+			level.restore_power()
+			level.set_tint(Color(0.55, 0.5, 0.4)))                     # each time, a little weaker
 		at += off_for
-	later(at + 0.5, func():
-		level.cut_power(4.5)
-		scares.grid_off(sound_spot(10.0, rng.randf() * TAU, 2.4))
-		Game.add_glitch(0.4))
-	later(at + 2.0, func(): scares.play_scare("footThump", sound_spot(4.5), 1.0))
-	later(at + 3.4, func(): haunt(0.8))
-	later(at + 5.2, func():
-		level.restore_power()
-		scares.grid_on())
-
-# ---------------------------------------------------------------- tube chase
-# The tubes die one after another down the corridor, coming toward you: far end first, a pop each, the dark
-# walking up the hall. It stops one tube short of you. Then everything strikes at once.
-func _event_tube_chase() -> void:
-	on_clear(func(): level.restore_power())
-	var p := player.global_position
-	var spot := find_corridor_spot(14.0, 26.0)
-	var dir := Vector3(spot.pos.x - p.x, 0.0, spot.pos.z - p.z).normalized()
-	var line: Array = []
-	for f: Dictionary in level.fixtures_near(p, 30.0):
-		var d := Vector3(f.pos.x - p.x, 0.0, f.pos.z - p.z)
-		var along := d.dot(dir)
-		if along > 4.5 and (d - dir * along).length() < 3.5:
-			line.append([along, f])
-	if line.size() < 3:                       # no straight hall: a ring closing in instead
-		line.clear()
-		for f: Dictionary in level.fixtures_near(p, 26.0):
-			var d := Vector2(f.pos.x - p.x, f.pos.z - p.z).length()
-			if d > 4.5: line.append([d, f])
-	line.sort_custom(func(x, y): return x[0] > y[0])
-	haunt(0.5)
-	var step := clampf(7.0 / maxf(line.size(), 1.0), 0.12, 0.4)
-	for i in line.size():
-		var f: Dictionary = line[i][1]
-		later(1.0 + i * step, func():
-			if f.black <= 0.0:
-				level.cut_fixture(f, 30.0)
-				level.fixture_event.emit(f, false))
-	var end := 1.0 + line.size() * step
-	later(end, func(): scares.spawn3d(scares.synth("thump"), p + dir * 6.0 + Vector3.UP, 0.7, "Scares", 4.0, 0.6))
-	later(end + 0.4, func(): haunt(0.7))
-	later(end + 3.0, func():
+	later(at + 0.6, func():
+		level.cut_power(9.0)
+		level.set_tint(Color.WHITE)
+		scares.grid_off(sound_spot(12.0, rng.randf() * TAU, 2.4))
+		_hush(9.0, 0.1))
+	for k in 4:
+		later(at + 2.0 + k * 1.4, func(): scares.play_scare("footThump", sound_spot(9.0 - 2.0 * k), 0.4 + 0.12 * k))
+	later(at + 8.0, func(): scares.heartbeat(0.8))
+	later(at + 9.8, func():
 		level.restore_power()
 		scares.grid_on()
 		Game.add_glitch(0.3))
 
-# ---------------------------------------------------------------- wrong colour
-# The light goes slowly sick: green, then violet, a single white flash, and back. Nothing else happens.
-func _event_wrong_color() -> void:
-	on_clear(func(): level.set_tint(Color.WHITE))
-	haunt(0.3)
-	var sick := Color(0.55, 1.0, 0.4)
-	var violet := Color(0.75, 0.35, 1.0)
-	later(1.0, func(): scares.spawn_flat(scares.synth("drone", 14.0), 0.35))
-	watch(func(dt: float, t: float) -> bool:
-		if t > 20.0:
-			level.set_tint(Color.WHITE)
-			return false
-		var c := Color.WHITE
-		if t < 6.0: c = Color.WHITE.lerp(sick, smoothstep(0.0, 6.0, t))
-		elif t < 12.0: c = sick.lerp(violet, smoothstep(6.0, 12.0, t))
-		elif t < 15.0: c = violet.lerp(Color(0.4, 0.15, 0.6), smoothstep(12.0, 15.0, t))
-		elif t < 15.2: c = Color(1.0, 1.0, 1.0)                 # the flash
-		elif t < 15.6: c = Color(0.1, 0.0, 0.12)
-		else: c = Color(0.1, 0.0, 0.12).lerp(Color.WHITE, smoothstep(15.6, 20.0, t))
-		level.set_tint(c)
-		return true)
-
 # ---------------------------------------------------------------- one lamp
 # Everything goes dark but the single tube over you, and it flickers. Something stands under the next tube along,
-# close enough to hear breathe. Then your lamp dies too.
+# breathing. It comes a little nearer at every step, stopping at the edge of your light. Then your lamp dies too.
 func _event_one_lamp() -> void:
 	on_clear(func():
 		level.restore_power()
 		level.set_tint(Color.WHITE))
 	var p := player.global_position
-	var near := level.fixtures_near(p, 16.0)
+	var near: Array = level.fixtures_near(p, 16.0)
 	near.sort_custom(func(x, y): return Vector2(x.pos.x - p.x, x.pos.z - p.z).length() < Vector2(y.pos.x - p.x, y.pos.z - p.z).length())
 	if near.size() < 2:
 		return
 	var mine: Dictionary = near[0]
 	var other: Dictionary = near[1]
-	for f: Dictionary in near:                  # the next tube along: not under you, and not right on top of yours
+	for f: Dictionary in near:
 		if Vector2(f.pos.x - mine.pos.x, f.pos.z - mine.pos.z).length() >= 4.0:
 			other = f
 			break
@@ -699,134 +771,21 @@ func _event_one_lamp() -> void:
 			if f != mine: level.cut_fixture(f, 40.0)
 		level.flicker_fixtures(mine.pos, 1.0, 16.0)
 		scares.grid_off(sound_spot(14.0, rng.randf() * TAU, 2.4))
-		Game.add_glitch(0.3))
-	later(4.0, func(): scares.spawn3d(scares.synth("breath_close", 0.0), other_at, 0.9, "Scares", 2.5, 0.6))
-	later(8.0, func(): scares.spawn3d(scares.synth("creak"), other_at, 0.7, "Scares", 2.5, 0.65))
+		_hush(18.0, 0.15))
+	later(4.0, func(): scares.spawn3d(scares.synth("breath_close", 0.0), other_at, 0.22, "Scares", 1.5, 0.6))
+	for k in 4:
+		later(6.0 + k * 2.3, func(): scares.play_scare("footThump", other_at.lerp(mine.pos - Vector3.UP * 1.5, 0.15 + 0.17 * k), 0.4 + 0.12 * k))
 	later(11.0, func():
-		scares.heartbeat(0.9)
+		scares.heartbeat(0.8)
 		haunt(0.8))
-	later(13.5, func(): scares.spawn3d(scares.synth("breath_close", 0.0), other_at, 1.0, "Scares", 2.0, 0.55))
+	later(13.5, func(): scares.spawn3d(scares.synth("breath_close", 0.0), other_at.lerp(mine.pos, 0.5), 0.26, "Scares", 1.5, 0.55))
 	later(16.5, func():
 		level.cut_fixture(mine, 6.0)
 		level.fixture_event.emit(mine, false)
-		scares.spawn3d(scares.synth("thump"), other_at, 0.9, "Scares", 3.0, 0.55)
-		Game.add_glitch(0.5))
+		Game.add_glitch(0.3))
 	later(20.0, func():
 		level.restore_power()
 		scares.grid_on())
-
-# ---------------------------------------------------------------- phantom steps
-# Something walks where you walked: a second set of footsteps a beat behind yours, step for step. Stop, and it
-# stops. Stay stopped, and one last step lands right behind you.
-func _event_phantom_steps() -> void:
-	var trail: Array = []                       # [time, position] of where you have been
-	var st := {"walked": 0.0, "since": 0.0, "steps": 0, "still": 0.0, "last": player.global_position}
-	haunt(0.4)
-	watch(func(dt: float, t: float) -> bool:
-		var p := player.global_position
-		trail.append([Game.time, p])
-		while trail.size() > 2 and Game.time - trail[1][0] > 1.6:
-			trail.pop_front()
-		var moved := Vector2(p.x - st.last.x, p.z - st.last.z).length()
-		st.last = p
-		if moved > 0.01:
-			st.still = 0.0
-			st.walked += moved
-			if st.walked >= 0.85 and t > 3.0:
-				st.walked = 0.0
-				st.steps += 1
-				var at: Vector3 = trail[0][1]                       # where you were 1.5 s ago
-				scares.play_scare("footThump", Vector3(at.x, p.y + 0.1, at.z), 0.45 + 0.02 * minf(st.steps, 12))
-				if st.steps == 6: haunt(0.5)
-		else:
-			st.still += dt
-			if st.steps >= 6 and st.still > 1.8:
-				scares.play_scare("footThump", _behind_neck(1.1) - Vector3.UP * 1.4, 1.0)
-				scares.heartbeat(1.0)
-				haunt(0.9)
-				Game.add_glitch(0.3)
-				return false
-		return t < 22.0)
-
-# ---------------------------------------------------------------- crawling in the ceiling
-# Scratching and a heavy, wrong gait in the ceiling above, crossing the room toward you. It stops right over your
-# head. A long silence. Then something comes down behind you.
-func _event_crawling_ceiling() -> void:
-	var p := player.global_position
-	var start: Vector3 = find_corridor_spot(12.0, 22.0).pos
-	var at := 0.5
-	haunt(0.4)
-	for i in 12:
-		var k := i / 11.0
-		var pos := start.lerp(p + Vector3(0.6, 0.0, 0.0), k * k * 0.5 + k * 0.5)
-		pos.y = p.y + 3.3
-		var gap := rng.randf_range(0.55, 0.9) * lerpf(1.0, 0.6, k)
-		later(at, func():
-			if i % 3 == 2: scares.wall_scratch(pos, 0.6 + 0.4 * k)
-			else: scares.play_scare("footThump", pos, 0.35 + 0.5 * k))
-		at += gap
-	later(at, func(): haunt(0.8))
-	later(at + 0.2, func(): scares.heartbeat(0.9))
-	# it holds over you; a long, listening silence, and one slow scrape
-	later(at + 3.2, func(): scares.wall_scratch(p + Vector3(0.0, 3.2, 0.0), 1.2))
-	later(at + 5.5, func():
-		scares.play_scare("footThump", _behind_neck(2.2) - Vector3.UP * 1.3, 1.0)
-		scares.spawn3d(scares.synth("bone_crack"), _behind_neck(2.0), 0.8, "Scares", 3.0, 0.7)
-		Game.add_glitch(0.5)
-		haunt(1.0))
-
-# ---------------------------------------------------------------- tape rot
-# The recording itself is failing: blocks tear out of the picture, the colours slide, static crawls up from the
-# edges. Nothing is in the room. It heals, mostly.
-func _event_tape_rot() -> void:
-	on_clear(func(): Game.fx_reset())
-	haunt(0.5)
-	var next_hit := [0.0]
-	watch(func(dt: float, t: float) -> bool:
-		if t > 11.0:
-			Game.fx_reset()
-			return false
-		var k := sin(clampf(t / 11.0, 0.0, 1.0) * PI)               # builds, peaks mid-way, heals
-		Game.fx_static = maxf(Game.fx_static, 0.1 + 0.4 * k)
-		Game.fx_warp = maxf(Game.fx_warp, 0.002 + 0.012 * k)
-		Game.fx_hue = sin(t * 0.9) * 0.18 * k
-		if rng.randf() < dt * (0.6 + 2.5 * k):
-			Game.fx_corrupt = maxf(Game.fx_corrupt, 0.2 + 0.5 * k)
-		if Game.time > next_hit[0] and k > 0.4:
-			next_hit[0] = Game.time + rng.randf_range(0.8, 2.2)
-			scares.play_scare("staticHit", 0.4 + 0.6 * k)
-			Game.add_glitch(0.2)
-		return true)
-
-# ---------------------------------------------------------------- flatline
-# Your own heart speeds up, faster and faster, and stops. The colour drains out of the picture and the one clean
-# tone of a flatline holds in the silence. Then one beat. Then you're still here.
-func _event_flatline() -> void:
-	on_clear(func():
-		Game.fx_reset()
-		scares.stop_flatline())
-	var at := 0.5
-	var gap := 0.95
-	for i in 12:
-		later(at, func():
-			scares.heartbeat(0.6 + 0.05 * i)
-			Game.fear = maxf(Game.fear, 0.4 + 0.04 * i)
-			Game.fx_sat = 1.0 - 0.025 * i)
-		at += gap
-		gap = maxf(0.36, gap * 0.88)
-	later(at + 0.3, func():
-		var amb: Node = get_parent().get_node_or_null("Audio/Ambience")
-		if amb != null: amb.hush_for(0.0, 6.0)
-		Game.fx_sat = 0.15
-		Game.fx_contrast = 1.25
-		scares.flatline(0.45, 0.2)
-		haunt(1.0))
-	later(at + 5.2, func():
-		scares.stop_flatline()
-		Game.fx_sat = 1.0
-		Game.fx_contrast = 1.0
-		scares.heartbeat(1.0)
-		Game.add_glitch(0.4))
 
 # ---------------------------------------------------------------- dead air
 # Every sound drops out at once, even your own steps: you are deafened. Just ringing, swelling, and a pressure in
@@ -867,3 +826,363 @@ func _event_dead_air() -> void:
 	later(10.5, func():
 		if au != null: au.set_muffled(false)
 		scares.heartbeat(1.0))
+
+# ---------------------------------------------------------------- the machine voice
+# An old text-to-speech voice, flat and crushed, reads out one line (tools/gen_machine_voice.py renders them into
+# audio/tts/), and the words type themselves across the screen in red as it says them. Sometimes it comes out of
+# your own camera; sometimes from a speaker somewhere inside the wall behind you. Everything else goes quiet for
+# it. Never the same line twice in a row (the last twelve are held back).
+var _voice_recent: Array = []
+
+func _event_machine_voice() -> void:
+	var pool: Array = []
+	for i in MachineVoice.LINES.size():
+		if not _voice_recent.has(i):
+			pool.append(i)
+	if pool.is_empty():
+		return
+	var pick: int = pool[rng.randi() % pool.size()]
+	_voice_recent.append(pick)
+	if _voice_recent.size() > 12:
+		_voice_recent.pop_front()
+	var line: Array = MachineVoice.LINES[pick]
+	var stream: AudioStream = load(line[0]) if ResourceLoader.exists(line[0]) else null
+	if stream == null:
+		return                                   # (not imported yet: open the project in the editor once)
+	var dur := stream.get_length()
+	on_clear(func():
+		banner.visible_ratio = 1.0
+		Game.fx_static = 0.0)
+	_hush(dur + 2.0, 0.1)
+	haunt(0.5)
+	Game.add_glitch(0.35)
+	var wall := _wall_face_behind(4.0, 9.0)
+	if rng.randf() < 0.4 and wall.is_finite():
+		scares.spawn3d(stream, wall, 0.9, "Scares", 5.0)          # a speaker somewhere in the wall
+	else:
+		scares.spawn_flat(stream, 0.5)                             # out of your own camera
+	_banner_red(str(line[1]))
+	banner.visible_ratio = 0.0
+	watch(func(dt: float, t: float) -> bool:
+		if t > dur + 1.0:
+			hide_banner()
+			banner.visible_ratio = 1.0
+			Game.fx_static = 0.0
+			return false
+		banner.visible_ratio = clampf((t - 0.25) / maxf(dur * 0.8, 0.1), 0.0, 1.0)
+		banner.modulate.a = 0.55 if rng.randf() < 0.06 else 1.0     # the text stutters
+		Game.fx_static = 0.1 + 0.06 * sin(t * 11.0)
+		return true)
+
+# ---------------------------------------------------------------- shared by the events below
+## A looping player (the imported wav doesn't loop, so it restarts itself), flat or at `pos`
+func _loop_player(path: String, pos := Vector3.INF) -> Node:
+	if not ResourceLoader.exists(path):
+		return null
+	var stream: AudioStream = load(path)
+	var p: Node
+	if pos.is_finite():
+		var p3 := AudioStreamPlayer3D.new()
+		p3.stream = stream
+		p3.bus = "Scares"
+		p3.unit_size = 4.0
+		p3.max_distance = 45.0
+		p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		p3.volume_db = -60.0
+		add_child(p3)
+		p3.global_position = pos
+		if scares.audio != null:
+			scares.audio.occlude(p3, true)                          # through the wall: muffled
+		p3.finished.connect(p3.play)
+		p3.play()
+		p = p3
+	else:
+		var p2 := AudioStreamPlayer.new()
+		p2.stream = stream
+		p2.bus = "Scares"
+		p2.volume_db = -60.0
+		add_child(p2)
+		p2.finished.connect(p2.play)
+		p2.play()
+		p = p2
+	return p
+
+func _free(n) -> void:
+	if n != null and is_instance_valid(n):
+		n.queue_free()
+
+## The wall face nearest you within `max_d` (the side of a wall cell that looks into an open one)
+func _wall_face_nearest(max_d: float) -> Vector3:
+	var p := player.global_position
+	var cell := GridNav.CELL
+	var cx := GridNav.cell(p.x)
+	var cz := GridNav.cell(p.z)
+	var r := ceili(max_d / cell) + 1
+	var best := Vector3.INF
+	var best_d := INF
+	for x in range(cx - r, cx + r + 1):
+		for z in range(cz - r, cz + r + 1):
+			if not nav.is_wall(x, z):
+				continue
+			for o in GridNav.NEIGHBOURS:
+				if nav.blocked(x + o.x, z + o.y):
+					continue
+				var face := Vector3(x * cell + o.x * cell * 0.5, p.y + 0.6, z * cell + o.y * cell * 0.5)
+				var d := Vector2(face.x - p.x, face.z - p.z).length()
+				if d < best_d and d <= max_d:
+					best_d = d
+					best = face
+	return best
+
+# ---------------------------------------------------------------- someone joined
+# A terminal card: a field researcher has joined the expedition. Nobody joined. Sometimes it is a name nobody has,
+# sometimes it is one of your teammates, who is standing next to you, and sometimes it is you. The [F6] CREW page
+# lists them: alive, 0 m away, on your floor. A while later their signal is lost.
+const GHOST_NAMES := ["HALVERSON", "R. OKAFOR", "DELACROIX", "M. VOSS", "J. ABERNATHY", "SURVIVOR 00", "NOBODY",
+	"E. LINDQVIST", "THE OTHER ONE", "K. MARSH"]
+
+func _event_ghost_roster() -> void:
+	var callsign: String = GHOST_NAMES[rng.randi() % GHOST_NAMES.size()]
+	var roll := rng.randf()
+	if roll < 0.3:
+		var me: String = Net.my_name()
+		callsign = me if me != "" else "YOU"
+	elif roll < 0.5 and not Net.remotes.is_empty():
+		var ids: Array = Net.remotes.keys()
+		callsign = Net.label_for(int(ids[rng.randi() % ids.size()]))
+	var id := 9000 + rng.randi() % 900
+	# somewhere out in the halls, wandering: a distance that drifts, so the roster reads like a real one
+	Net.phantoms[id] = {"name": callsign, "dist": rng.randf_range(18.0, 150.0), "drift": rng.randf_range(-2.5, 2.5)}
+	on_clear(func(): Net.phantoms.erase(id))
+	Net.survivor_joined.emit(id, callsign, false)
+	haunt(0.4)
+	later(rng.randf_range(40.0, 70.0), func():
+		if Net.phantoms.has(id):
+			Net.phantoms.erase(id)
+			Net.survivor_left.emit(id, callsign))
+
+# ---------------------------------------------------------------- the hum rises
+# The fluorescent buzz you stopped hearing hours ago starts to climb. (The level's own hum fades out under it, so
+# there is only the one.) Louder, harsher, a little higher, until it hurts: your eyes water and won't stay open,
+# blinking harder and more often, squinting, the picture swimming. Then it stops, and so does every other sound:
+# nothing at all, for long enough to make you wonder whether you can still hear. Then the hum comes back.
+func _event_hum_rises() -> void:
+	var au: Node = get_parent().get_node_or_null("Audio")
+	var hum = _loop_player("res://audio/events/hum_loop.wav")
+	var lids = player.get("blink")                             # player/blink.gd: the player's own blink
+	if au != null: au.hum_event_target = 0.0
+	on_clear(func():
+		_free(hum)
+		Game.fx_reset()
+		if au != null:
+			au.set_muffled(false)
+			au.hum_event_target = 1.0)
+	haunt(0.3)
+	var st := {"next": 3.0}
+	watch(func(dt: float, t: float) -> bool:
+		if t >= 15.0:
+			return false
+		var k := pow(t / 15.0, 2.2)
+		if hum != null and is_instance_valid(hum):
+			hum.volume_db = linear_to_db(0.015 + 0.55 * k)
+			hum.pitch_scale = 1.0 + 0.06 * k
+		Game.fx_blur = 0.38 * k
+		Game.fx_shock = maxf(Game.fx_shock, 0.15 * k * (0.5 + 0.5 * sin(t * 37.0)))
+		# the eyes: blinks coming harder and closer together, and a squint between them
+		st.next -= dt
+		if lids != null and t > 2.0:
+			if st.next <= 0.0:
+				st.next = lerpf(3.2, 0.6, k) + rng.randf() * 0.5
+				lids.blink(lerpf(1.0, 1.9, k))                       # slower, heavier as it hurts
+			elif not lids.blinking():
+				Game.fx_blink = 0.32 * k * k                         # squinting against it
+		if k > 0.45 and rng.randf() < dt * 2.0:
+			level.disturb(player.global_position, 12.0, 0.6)
+		return true)
+	later(15.0, func():
+		_free(hum)
+		Game.fx_reset()
+		if au != null: au.set_muffled(true)
+		_hush(8.0))
+	later(16.5, func(): scares.spawn_flat(scares.synth("tinnitus", 4.0), 0.06))
+	later(22.0, func():
+		if au != null:
+			au.set_muffled(false)
+			au.hum_event_target = 1.0                          # the level's hum fades back in
+		scares.play_scare("restrike"))
+
+# ---------------------------------------------------------------- the party
+# Through the drywall beside you: music, a thumping bass, a crowd talking and laughing, someone shrieking with
+# laughter. A party, somewhere in here. Follow it and it stays just the other side of the wall. Put your ear to
+# it and it stops dead, all of it at once, the way a room goes quiet when someone walks in. Then a single knock.
+func _event_party_wall() -> void:
+	var wall := _wall_face_behind(5.0, 13.0)
+	if not wall.is_finite():
+		wall = _wall_face_nearest(12.0)
+	if not wall.is_finite():
+		return
+	var party = _loop_player("res://audio/events/party_muffled.wav", wall)
+	if party == null:
+		return
+	on_clear(func(): _free(party))
+	haunt(0.3)
+	var life := rng.randf_range(30.0, 60.0)                      # how long the party goes on, if you leave it be
+	const FADE := 5.0
+	watch(func(dt: float, t: float) -> bool:
+		if party == null or not is_instance_valid(party):
+			return false
+		var p := player.global_position
+		if Vector2(wall.x - p.x, wall.z - p.z).length() < 3.0 and t > 2.0:
+			_free(party)                                         # it heard you
+			_hush(5.0)
+			later(2.6, func(): scares.knock(wall, 1.1, scares.KNOCK_KNUCKLE))
+			later(3.0, func(): haunt(0.9))
+			return false
+		# in over 4 s, on for `life`, then winding down over FADE s, as if the party were drifting off elsewhere
+		var level_k := smoothstep(0.0, 4.0, t) * (1.0 - smoothstep(life - FADE, life, t))
+		party.volume_db = linear_to_db(maxf(0.75 * level_k, 0.0001))
+		if t >= life:
+			_free(party)
+			return false
+		return true)
+
+# ---------------------------------------------------------------- the phone
+# Somewhere down the halls an old desk phone is ringing. It keeps ringing. Go to it and it stops mid-ring before
+# you get there. A moment of quiet. Then it rings once more, very close, behind you, and is cut off.
+func _event_phone_ring() -> void:
+	var spot: Vector3 = find_corridor_spot(14.0, 26.0).pos
+	if not ResourceLoader.exists("res://audio/events/phone_ring.wav"):
+		return
+	var ring: AudioStream = load("res://audio/events/phone_ring.wav")
+	var st := {"next": 0.6, "count": 0, "now": null}
+	on_clear(func(): _free(st.now))
+	watch(func(dt: float, t: float) -> bool:
+		var p := player.global_position
+		if Vector2(spot.x - p.x, spot.z - p.z).length() < 5.0:
+			_free(st.now)                                        # it stops before you reach it
+			_hush(5.0, 0.2)
+			later(3.4, func():
+				var close: AudioStreamPlayer3D = scares.spawn3d(ring, _behind_neck(1.6), 0.45, "Scares", 1.5, 1.0, false)
+				get_tree().create_timer(0.55).timeout.connect(func(): _free(close))
+				haunt(1.0))
+			return false
+		st.next -= dt
+		if st.next <= 0.0:
+			if st.count >= 9:
+				return false
+			st.count += 1
+			st.next = 6.0
+			st.now = scares.spawn3d(ring, spot, 0.8, "Scares", 7.0, 1.0)
+		return true)
+
+# ---------------------------------------------------------------- the pacer
+# Footsteps, real ones, on carpet, somewhere off to one side of you: far, muffled through the walls, keeping pace.
+# Walk and they walk, a beat behind your own; stop and they stop. Over the minute it goes on they come a little
+# nearer, from the next corridor over to the one beside yours. Stand still long enough and they stop too, and
+# then there is one more step. Closer.
+var _carpet_steps: Array = []
+
+func _carpet_step(pos: Vector3, volume: float) -> void:
+	if _carpet_steps.is_empty():
+		for i in range(1, 5):
+			var path := "res://audio/carpet_walk_%d.wav" % i
+			if ResourceLoader.exists(path):
+				_carpet_steps.append(load(path))
+	if _carpet_steps.is_empty():
+		return
+	var s: AudioStream = _carpet_steps[rng.randi() % _carpet_steps.size()]
+	scares.spawn3d(s, pos, volume, "Scares", 4.0, rng.randf_range(0.84, 0.94))     # (walls between muffle it)
+
+func _event_hound_pacing() -> void:
+	var side_sign := 1.0 if rng.randf() < 0.5 else -1.0
+	var st := {"last": player.global_position, "moved": 0.0, "still": 0.0, "n": 0}
+	haunt(0.4)
+	watch(func(dt: float, t: float) -> bool:
+		var p := player.global_position
+		var b := player.global_transform.basis
+		var fwd := Vector3(-b.z.x, 0.0, -b.z.z).normalized()
+		var side := Vector3(-fwd.z, 0.0, fwd.x) * side_sign
+		var away := lerpf(17.0, 8.0, clampf(t / 45.0, 0.0, 1.0))          # the next corridor over, then nearer
+		var at := p + side * away - fwd * 1.5 + Vector3.UP * 0.1
+		var mv := Vector2(p.x - st.last.x, p.z - st.last.z).length()
+		st.last = p
+		if mv > 0.01:
+			st.still = 0.0
+			st.moved += mv
+			if st.moved >= 0.85:                                      # one of theirs for each of yours
+				st.moved = 0.0
+				st.n += 1
+				later(rng.randf_range(0.12, 0.3), func(): _carpet_step(at, 0.75))
+		else:
+			st.still += dt
+			if st.n >= 6 and st.still > 3.0:
+				# they wait with you. Then one more step, nearer
+				later(1.6, func(): _carpet_step(p + side * 4.5 - fwd * 1.0, 0.85))
+				later(2.2, func(): haunt(0.8))
+				return false
+		return t < 60.0)
+
+# ---------------------------------------------------------------- run
+# Every light dies. Two seconds of black and your own heartbeat. Then, far down the hall, the lights come back on
+# in red, one after another, coming toward you, fast, with something heavy running under them. It does not stop.
+# It goes straight through where you are standing, and on past you, and the red keeps lighting up behind you.
+func _event_run() -> void:
+	var p0 := player.global_position
+	var spot := find_corridor_spot(16.0, 30.0)
+	var dir := Vector3(spot.pos.x - p0.x, 0.0, spot.pos.z - p0.z).normalized()
+	var line: Array = []
+	for f: Dictionary in level.fixtures_near(p0, 46.0):
+		var d := Vector3(f.pos.x - p0.x, 0.0, f.pos.z - p0.z)
+		var along := d.dot(dir)
+		if along > -26.0 and (d - dir * along).length() < 3.5:
+			line.append([along, f])
+	if line.size() < 4:
+		return
+	line.sort_custom(func(x, y): return x[0] > y[0])
+	var start: float = line[0][0] + 2.0
+	on_clear(func():
+		_red_mode(false)
+		level.set_tint(Color.WHITE)
+		level.restore_power()
+		Game.fx_reset())
+	_red_mode(true)
+	level.cut_power(40.0)
+	level.set_tint(EMERGENCY * 1.7)
+	scares.grid_off(sound_spot(10.0, rng.randf() * TAU, 2.4))
+	_hush(30.0, 0.1)
+	haunt(0.6)
+	later(0.9, func(): scares.heartbeat(0.9))
+	later(1.8, func(): scares.heartbeat(1.0))
+	const SPEED := 8.5
+	var st := {"idx": 0, "step": 0.0, "passed": false, "done": -1.0}
+	watch(func(dt: float, t: float) -> bool:
+		if t < 2.4:
+			return true
+		var front := start - SPEED * (t - 2.4)
+		while st.idx < line.size() and line[st.idx][0] >= front:
+			var f: Dictionary = line[st.idx][1]
+			level.cut_fixture(f, 0.02)                            # strikes back on, red
+			st.idx += 1
+		var mine := (player.global_position - p0).dot(dir)
+		st.step -= dt
+		if st.step <= 0.0 and st.done < 0.0:
+			st.step = 0.26
+			var near := 1.0 - clampf(absf(front - mine) / 30.0, 0.0, 1.0)
+			scares.spawn3d(scares.synth("thump"), p0 + dir * front + Vector3.UP * 0.2, 0.35 + 0.65 * near, "Scares", 6.0, 0.55)
+		if not st.passed and front < mine + 0.5:
+			st.passed = true                                      # through you
+			Game.fx_shock = 1.0
+			Game.fx_flash = 0.35
+			Game.add_glitch(0.7)
+			scares.spawn_flat(scares.synth("thump"), 0.9, "Scares", 0.38)
+			haunt(1.0)
+		if st.idx >= line.size() and st.done < 0.0:
+			st.done = t
+		if (st.done >= 0.0 and t - st.done > 2.5) or t > 26.0:
+			level.set_tint(Color.WHITE)
+			level.restore_power()
+			_red_mode(false)
+			scares.grid_on()
+			Game.fx_reset()
+			return false
+		return true)

@@ -365,6 +365,7 @@ func _update_settle() -> void:
 func step_target(pos: Vector3, tgt: Vector3) -> Vector3:
 	if nav.clear_line(pos.x, pos.z, tgt.x, tgt.z, 0.6):
 		return tgt
+	n = nav.n                          # (a new floor can be a different size; bfs sizes the field to it)
 	var cx := GridNav.cell(pos.x)
 	var cz := GridNav.cell(pos.z)
 	if not nav.bfs(GridNav.cell(tgt.x), GridNav.cell(tgt.z), flow):

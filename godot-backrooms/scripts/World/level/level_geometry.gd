@@ -15,6 +15,7 @@ const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
 const PitFall := preload("res://scripts/World/level/pit_fall.gd")
+const NoclipSlip := preload("res://scripts/World/level/noclip_slip.gd")
 const EndlessShaft := preload("res://scripts/World/level/endless_shaft.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
@@ -1337,6 +1338,12 @@ func _build_pit_shafts() -> void:
 		rise.append(end)
 		_pit_shaft(shaft_up, rise, true, true, _shaft_paper())
 		_shaft_haze(shaft_up, top, end)
+	# Noclip Floor: plain floor you fall straight through (noclip_slip.gd); only on the floor you walk on
+	if not shell and not noclip_floor.is_empty():
+		var ns := NoclipSlip.new()
+		ns.name = "NoclipSlip"
+		add_child(ns)
+		ns.setup(self)
 	if pits.is_empty(): return
 	# the bottomless ones (level_data.gd `abyss`) are pit_fall.gd's to build, on the floor you walk on; a
 	# look-only floor (level_shell.gd) shows them as ordinary deep pits, dark at the bottom

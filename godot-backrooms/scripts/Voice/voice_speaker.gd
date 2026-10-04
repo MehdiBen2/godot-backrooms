@@ -99,7 +99,11 @@ func feed(block: PackedByteArray) -> void:
 	if samples.is_empty():
 		return
 	if spatial and _take.size() < int(TAKE_MAX * RATE):
-		_take.append_array(samples)
+		_take.append_array(samples)              # (kept clean: the mimic repeats them as they said it)
+	if spatial:
+		var s := Net.signal_of(id)
+		if s < 0.8:
+			samples = _degrade(samples, (0.8 - s) / 0.8)
 	var frame := PackedVector2Array()
 	frame.resize(samples.size())
 	for i in samples.size():
@@ -108,6 +112,16 @@ func feed(block: PackedByteArray) -> void:
 	_last_rx = Time.get_ticks_msec() / 1000.0
 	if queue.size() > MAX_QUEUE:
 		queue = queue.slice(queue.size() - PREBUFFER - 2)        # a late burst: skip ahead rather than lag behind
+
+## A weak signal: the voice crushed to a few levels, hiss under it, and whole packets lost (bad 0..1)
+func _degrade(x: PackedFloat32Array, bad: float) -> PackedFloat32Array:
+	var levels := lerpf(64.0, 5.0, bad)
+	var hiss := 0.08 * bad
+	var drop := randf() < bad * 0.35
+	for i in x.size():
+		var v := 0.0 if drop else roundf(x[i] * levels) / levels
+		x[i] = clampf(v + randf_range(-hiss, hiss), -1.0, 1.0)
+	return x
 
 func speaking() -> bool:
 	return Time.get_ticks_msec() / 1000.0 - _last_rx < 0.35

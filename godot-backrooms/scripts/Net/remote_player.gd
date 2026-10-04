@@ -24,6 +24,12 @@ var seen := false
 var here := true                 # on our level AND floor (an invisible spectator is still `here`)
 var peer_id := 0
 var playing := true              # false while they sit in the menu: the monsters leave them alone
+var level_i := -1                # the level and floor they are on ([F6] CREW)
+var floor_i := 0
+const GARBLE := "#%&@$?!/"
+var _name := ""                  # their callsign as it should read; the tag breaks it up with the signal
+var _tag_t := 0.0
+var _tag_alpha := 1.0
 
 var body: Node3D                # box figure + torch; the torch stays when the model replaces the box
 var figure: Node3D              # the box figure only
@@ -94,6 +100,7 @@ func _ready() -> void:
 	_load_model()
 
 func set_label(text: String) -> void:
+	_name = text
 	if tag:
 		tag.text = text
 	else:
@@ -162,7 +169,9 @@ func _process(dt: float) -> void:
 	# a survivor still loading another level (level change, respawn), or up or down the stairs on another
 	# floor of it, isn't in our world: hidden, out of earshot, and out of net.survivors() (no monster here
 	# hunts them through the floor). An invisible spectator, flag 16, is hidden the same way.
-	here = int(st.level) == Game.level_index and int(st.get("floor", 0)) == Game.level_floor
+	level_i = int(st.level)
+	floor_i = int(st.get("floor", 0))
+	here = level_i == Game.level_index and floor_i == Game.level_floor
 	visible = here and flags & 16 == 0
 	global_position = st.pos
 	rotation.y = st.yaw
@@ -176,6 +185,11 @@ func _process(dt: float) -> void:
 	speed = _speed
 	# a green name tag while they talk on voice chat
 	tag.modulate = Color(0.55, 1.0, 0.6) if Voice.is_speaking(peer_id) else Color(0.94, 0.91, 0.75)
+	_tag_t -= dt
+	if _tag_t <= 0.0:
+		_tag_t = 0.09
+		_tag_signal()
+	tag.modulate.a = _tag_alpha
 	var k := minf(1.0, dt * SMOOTH)
 	light.rotation.x = target_pitch
 	light.visible = torch_on and not dead and visible
@@ -202,6 +216,22 @@ func _process(dt: float) -> void:
 	body.scale.y = lerpf(body.scale.y, 0.62 if crouching else 1.0, k)
 	head.rotation.x = target_pitch * 0.6
 	tag.position.y = (2.1 * body.scale.y) if not dead else 0.8
+
+## Far off, their name tag breaks up like the signal does: letters swapped for noise, the tag dimming and
+## dropping out for a frame
+func _tag_signal() -> void:
+	var s: float = Net.signal_of(peer_id) if here else 1.0
+	if s >= 0.75 or _name == "":
+		if tag.text != _name:
+			tag.text = _name
+		_tag_alpha = 1.0
+		return
+	var bad := (0.75 - s) / 0.75
+	var out := ""
+	for ch in _name:
+		out += GARBLE[randi() % GARBLE.length()] if randf() < bad * 0.6 else ch
+	tag.text = out
+	_tag_alpha = clampf(1.0 - bad * 0.7, 0.25, 1.0) * (0.3 if randf() < bad * 0.3 else 1.0)
 
 func _box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
 	var m := MeshInstance3D.new()

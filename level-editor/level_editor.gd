@@ -35,6 +35,10 @@ const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling
 	"echo": "Echo: a long, wet echo on footsteps and everything you hear, whatever the size of the room",
 	"loop": "Loop: a corridor that never ends. Paint it along a straight, plain corridor at least 6 cells long (12 or more hides it best):\nwalk on down it and you are back near its start, with nothing to show it. Turning back takes you out.\nIts tubes are all lit and steady, and nothing is scattered in it",
 	"abyss": "Abyss: paint it on pits. A pit with no bottom: storey after storey of this level's wall and buzzing tubes,\nfading into haze. Whoever falls in falls for 5 seconds (\"abyss_secs\" in the .lvl, 0: for ever), then the screen goes black and the recording ends: they die falling into the void.\nOver a room on the floor below it still has no bottom (that floor keeps its ceiling). Pits on the lowest floor are abysses anyway",
+	"noclip": "Noclip: paint it anywhere: the floor opens there (on pits too). Whoever falls in drops through the floor of reality: the same bottomless fall as an Abyss,\nthe sound of hitting the ground in the black, then they slowly come to, lying on the floor, in another level.\nChoosing this tool asks which level (one per floor of this level)",
+	"noclip_floor": "Noclip floor: looks like any floor. Stand on it a moment and it gives: you sink through the carpet and the slab,
+the picture tearing, fall through the nothing under the level, and wake up on the floor of another level.
+The Kane Pixels opening. Uses the same destination as this floor's Noclip zone (choosing this tool asks)",
 	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
@@ -52,6 +56,8 @@ var swatch_buttons := {}             # pbr name -> its swatch in PAINT MATERIALS
 var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
 var trigger_dialog: ConfirmationDialog
+var noclip_dialog: ConfirmationDialog
+var noclip_pick: OptionButton
 var trigger_dialog_target_idx := -1
 var td_events_container: VBoxContainer
 var td_event_rows: Array = []
@@ -395,6 +401,15 @@ func _build_ui() -> void:
 	var sel := _section(side, "SELECT AREA")
 	sel.add_child(_tool_button("area", "Select area  (S)", SEL,
 		"Drag a box on the map to select everything in it: rooms, zones, paint, objects.\nDel empties it, Shift+Del walls it in, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste it (on any floor or level),\nCtrl+Shift+V pastes on the same cells, Ctrl+A takes the whole floor, Esc or a right click drops the box"))
+	var edge_btn := _button("DELETE EDGE AREA", func():
+		_select_tool("area")
+		area = Rect2i()
+		edge_cut = true
+		_status("Delete edge area: drag a box from the map's edge over what to cut off (right click / Esc cancels). It goes on every floor"))
+	edge_btn.tooltip_text = "Click this, then drag a box that touches the map's edge: those columns or rows are cut off the whole level,
+and everything beyond them closes up. Ctrl+Z brings them back"
+	edge_btn.add_theme_font_size_override("font_size", 13)
+	sel.add_child(edge_btn)
 	var selgrid := GridContainer.new()
 	selgrid.columns = 2
 	sel.add_child(selgrid)
@@ -626,14 +641,34 @@ func _build_ui() -> void:
 	align_check.toggled.connect(func(on): align = on)
 	obj.add_child(align_check)
 
+	# zones by what they do to the place, each group under its own small heading; any zone not listed here
+	# (a new one) lands in OTHER, so nothing goes missing
 	var zn := _section(side, "ZONES")
-	var zgrid := GridContainer.new()
-	zgrid.columns = 2
-	zn.add_child(zgrid)
-	for z in ZONES:
-		var zb := _tool_button("zone:" + z, z.capitalize(), ZONES[z], ZONE_HELP[z])
-		zb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		zgrid.add_child(zb)
+	var zone_groups := [
+		["CEILING & HEIGHT", ["tall", "low", "crawl", "open_ceiling", "endless_ceiling"]],
+		["LIGHT", ["bright", "dark", "dim", "flicker"]],
+		["LOOK & SURFACE", ["classic", "liminal", "tiles", "grime"]],
+		["PITS & FALLS", ["abyss", "noclip", "noclip_floor"]],
+		["SPACE & SOUND", ["loop", "echo"]],
+		["GAMEPLAY", ["safe", "drain", "loot", "mannequin"]],
+	]
+	var placed := {}
+	for g in zone_groups:
+		for z in g[1]: placed[z] = true
+	var rest: Array = ZONES.keys().filter(func(z): return not placed.has(z))
+	if not rest.is_empty(): zone_groups.append(["OTHER", rest])
+	for g in zone_groups:
+		var names: Array = (g[1] as Array).filter(func(z): return ZONES.has(z))
+		if names.is_empty(): continue
+		var head := _label(str(g[0]), 12, DIM)
+		zn.add_child(head)
+		var zgrid := GridContainer.new()
+		zgrid.columns = 2
+		zn.add_child(zgrid)
+		for z in names:
+			var zb := _tool_button("zone:" + z, str(z).capitalize(), ZONES[z], ZONE_HELP.get(z, ""))
+			zb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			zgrid.add_child(zb)
 
 	var mk := _section(side, "MARKERS")
 	var mgrid := GridContainer.new()
@@ -663,6 +698,7 @@ func _build_ui() -> void:
 
 func _build_dialogs() -> void:
 	_build_trigger_dialog()
+	_build_noclip_dialog()
 	name_dialog = ConfirmationDialog.new()
 	name_dialog.confirmed.connect(_on_name_confirmed)
 	var v := VBoxContainer.new()
@@ -686,6 +722,40 @@ func _build_dialogs() -> void:
 	godot_dialog.title = "Locate the Godot executable"
 	godot_dialog.file_selected.connect(func(p): _save_godot_path(p); _test_level())
 	add_child(godot_dialog)
+
+## The Noclip zone's "where do they wake up?" question: a level from levels.json, kept on this floor
+func _build_noclip_dialog() -> void:
+	noclip_dialog = ConfirmationDialog.new()
+	noclip_dialog.title = "Noclip: where do they wake up?"
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	v.add_child(_label("A player who falls into this floor's Noclip pits comes to, lying on the floor, at the spawn point of:", 13, DIM))
+	noclip_pick = OptionButton.new()
+	noclip_pick.custom_minimum_size = Vector2(380, 0)
+	v.add_child(noclip_pick)
+	v.add_child(_label("Paint the Noclip zone where the floor should open. One destination per floor; pick this tool again to change it.", 12, DIM))
+	noclip_dialog.add_child(v)
+	noclip_dialog.confirmed.connect(func():
+		var i := noclip_pick.selected
+		if i < 0 or i >= index.size(): return
+		noclip_to = str(index[i].get("id", ""))
+		_mark_dirty()
+		_status("Noclip on this floor leads to: %s" % str(index[i].get("name", noclip_to))))
+	add_child(noclip_dialog)
+
+func _open_noclip_dialog() -> void:
+	noclip_pick.clear()
+	var sel := 0
+	for i in index.size():
+		var e: Dictionary = index[i]
+		noclip_pick.add_item("%s   (%s)" % [str(e.get("name", e.get("id", "?"))), str(e.get("file", ""))])
+		if str(e.get("id", "")) == noclip_to:
+			sel = i
+		elif noclip_to == "" and i == (current + 1) % maxi(index.size(), 1):
+			sel = i                                 # (by default: the next level along)
+	if index.size() > 0:
+		noclip_pick.select(sel)
+	noclip_dialog.popup_centered(Vector2(520, 180))
 
 func _build_trigger_dialog() -> void:
 	trigger_dialog = ConfirmationDialog.new()
@@ -1172,8 +1242,10 @@ func _select_tool(id: String) -> void:
 	if id == "paint:ceiling": _set_view(true)
 	elif id.begins_with("paint:") or id.begins_with("base:"): _set_view(false)
 	rect_from = Vector2i(-1, -1)
+	edge_cut = false
 	if id == "area": _area_status()
 	else: area = Rect2i()
+	if id == "zone:noclip" or id == "zone:noclip_floor": _open_noclip_dialog()
 	canvas.queue_redraw()
 	for k in tool_buttons:
 		tool_buttons[k].button_pressed = (k == id)
@@ -1197,7 +1269,7 @@ func _input(ev: InputEvent) -> void:
 	var k := ev as InputEventKey
 	if k == null: return
 	var focus := get_viewport().gui_get_focus_owner()
-	var typing := focus is LineEdit or focus is TextEdit or name_dialog.visible or trigger_dialog.visible or delete_dialog.visible or godot_dialog.visible
+	var typing := focus is LineEdit or focus is TextEdit or name_dialog.visible or trigger_dialog.visible or noclip_dialog.visible or delete_dialog.visible or godot_dialog.visible
 	if k.keycode == KEY_SPACE:
 		# Space is the pan key (Space + drag, level_editor_canvas.gd _space_held). It must not also press
 		# whichever button was clicked last, which is what Space does to a button with the keyboard focus.
@@ -1261,6 +1333,7 @@ func _input(ev: InputEvent) -> void:
 			# the way out of anything: whatever is following the mouse stops, then the selection goes
 			var busy := panning or painting or drag != "" or rect_from.x >= 0 or area_from.x >= 0
 			_cancel_all()
+			edge_cut = false
 			if not busy:
 				_select(-1)
 				area = Rect2i()

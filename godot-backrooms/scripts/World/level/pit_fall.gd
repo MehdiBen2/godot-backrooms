@@ -24,6 +24,8 @@ extends Node3D
 ##     most and add nothing here (volumetric fog, SSAO, SSIL, SSR) are off.
 
 const ShaftShader := preload("res://shaders/pit_shaft.gdshader")
+const NoclipWake := preload("res://scripts/World/level/noclip_wake.gd")
+const NOCLIP_SECS := 3.4           # a Noclip pit's fall: shorter than the abyss's, then the black, the thud, another level
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 const ROW_PERIOD := 12             # storeys before the pattern of dead and failing tubes comes round again
@@ -75,6 +77,7 @@ var _dome: MeshInstance3D          # a haze-coloured sphere round the camera, ju
 var _cap_mat: StandardMaterial3D   # the fog sheet over the shaft you are falling down
 var _rows := PackedFloat32Array()  # pit_shaft.gdshader `rows`: 0 dead, 1 steady, 2 failing
 var _secs := FALL_SECS
+var _noclip := false               # this fall is through a Noclip pit (level_data.gd `noclip`)
 
 var active := -1                   # the shaft being fallen down
 var depth := 0.0                   # m fallen since the rim, loops and all
@@ -477,14 +480,17 @@ func _physics_process(dt: float) -> void:
 	if p.global_position.y < wrap_bottom:
 		_shift(p, wrap_h)
 		_wraps += 1
-	if _secs > 0.0 and not _ending:
+	var secs := NOCLIP_SECS if _noclip else _secs
+	if secs > 0.0 and not _ending:
 		var fall_t: float = _saved.get("t", 0.0) + dt
 		_saved.t = fall_t
-		if fall_t > _secs: _ending = true
+		if fall_t > secs: _ending = true
 	if _ending:
 		_fade = minf(1.0, _fade + dt / FADE_OUT)
 		if Gfx.post_mat: Gfx.post_mat.set_shader_parameter("fall_fade", _fade)
-		if _fade >= 1.0: _end(false, true)
+		if _fade >= 1.0:
+			if _noclip: _noclip_out()
+			else: _end(false, true)
 
 ## The loop: everything that follows the player goes up with them, and the storeys round them too, so the
 ## next frame is the same picture a storey-pattern higher
@@ -497,6 +503,7 @@ func _shift(p: CharacterBody3D, dy: float) -> void:
 
 func _begin(i: int) -> void:
 	active = i
+	_noclip = level.noclip.has(level.cell_of((level.player as Node3D).global_position))
 	depth = 0.0
 	_wraps = 0
 	_fade = 0.0
@@ -551,7 +558,27 @@ func _begin(i: int) -> void:
 
 ## `wake`: the fall is over, the player comes to at the spawn point (behind the black, which then lifts)
 ## `die`: the fall is over and so are you: the black stays and the recording-ended screen comes up over it
-func _end(wake: bool, die := false) -> void:
+## The Noclip pit's end: in the black you hit the ground (the thud, the jolt), and the level you fall into is
+## built behind it; noclip_wake.gd then has you come to on its floor
+func _noclip_out() -> void:
+	var to := str(level.get("noclip_to"))
+	_end(false, false, true)
+	var sc: Node = level.get_parent().get_node_or_null("Scares") if level.get_parent() != null else null
+	if sc != null and sc.has_method("body_fall"):
+		sc.body_fall(0.0, false)
+	Game.fx_shock = 1.0
+	var idx := Game.level_index + 1
+	var levels: Array = level.read_index()
+	for i in levels.size():
+		if str((levels[i] as Dictionary).get("id", "")) == to:
+			idx = i
+			break
+	if Game.main != null and is_instance_valid(Game.main):
+		Game.main.add_child(NoclipWake.new())
+	Game.change_level(idx)                                     # (last: rebuilding the level tears this floor down, this node with it)
+
+## `hold`: keep the screen black (a Noclip fall: noclip_wake.gd lifts it)
+func _end(wake: bool, die := false, hold := false) -> void:
 	var p: CharacterBody3D = level.player
 	var env: Environment = level.env
 	if env != null and _saved.has("env"):
@@ -591,7 +618,7 @@ func _end(wake: bool, die := false) -> void:
 		(s.cap as Node3D).visible = false
 	if wake:
 		_waking = 1.0
-	elif Gfx.post_mat and not die:
+	elif Gfx.post_mat and not die and not hold:
 		Gfx.post_mat.set_shader_parameter("fall_fade", 0.0)
 	if die: Game.kill_player("FALLING INTO THE VOID")
 

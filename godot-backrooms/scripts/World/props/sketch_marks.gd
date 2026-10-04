@@ -2,14 +2,17 @@ extends Node3D
 ## Every freehand sketch line drawn on this floor's walls and floors (sketch_tool.gd draws them). A
 ## stroke is a dictionary {id, pts, n, col, w, wob, style}: the points along the surface, its normal, the
 ## colour (with opacity), the width in metres, how much the hand wobbles (0..1) and "solid" / "dashed" /
-## "dotted". It is a thin ribbon a few millimetres off the surface, so it reads as marker drawn by hand.
+## "dotted". It is a thin ribbon a few millimetres off the surface; shaders/sketch_marker.gdshader makes it
+## felt-tip ink (round ends, a ragged bled edge, the surface's grain showing through, lit like the wall).
 ## Kept per floor in a static list (like tape_marks.gd) and on disk (mark_store.gd). Built by level_builder.gd.
 
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
+const SHADER := preload("res://shaders/sketch_marker.gdshader")
 
 const WIDTH := 0.03                  # m: the default marker line
 const LIFT := 0.006                  # m off the surface (above the tape at 0.004)
 const LIFT_STEP := 0.0004
+const PAD := 1.4                     # the ribbon is this much wider than the ink (shaders/sketch_marker.gdshader)
 const ERASE_RADIUS := 0.1            # m around a line that still counts as pointing at it
 const MAX_PER_LEVEL := 800
 const MAX_TRASH := 2000
@@ -21,7 +24,7 @@ const STYLES := ["solid", "dashed", "dotted"]
 static var placed := {}              # MarkStore.key() -> Array of strokes
 static var live = null
 static var _loaded := {}
-static var _mat: StandardMaterial3D
+static var _mat: ShaderMaterial
 
 var level_id := ""
 var meshes := {}
@@ -30,20 +33,19 @@ var _redo: Array = []
 
 func _ready() -> void:
 	live = self
+	_load()
+
+## Read this floor's saved strokes into `placed` (once a run), moved by however far the level editor has
+## shifted the cells since they were saved (mark_store.gd), then draw them
+func _load() -> void:
+	MarkStore.use_level(get_parent())
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
 	var lv := MarkStore.key()
 	if not _loaded.has(lv):
 		_loaded[lv] = true
 		var list: Array = placed.get(lv, [])
-		for d in MarkStore.read(level_id).get("sketch", []):
-			var pts: Array = []
-			for p in d.pts:
-				pts.append(MarkStore.v3(p))
-			var col: Color = COLORS[clampi(int(d.get("c", 0)), 0, COLORS.size() - 1)]
-			if d.has("col"):
-				col = Color.html(str(d.col))
-			list.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
-				"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
+		var file := MarkStore.read(level_id)
+		list.append_array(_shifted(_unpack(file.get("sketch", [])), MarkStore.moved(file, "sketch")))
 		placed[lv] = list
 	_spawn_all(lv)
 
@@ -65,22 +67,7 @@ func reload_floor() -> void:
 	meshes.clear()
 	_undo.clear()
 	_redo.clear()
-	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
-	var lv := MarkStore.key()
-	if not _loaded.has(lv):
-		_loaded[lv] = true
-		var list: Array = placed.get(lv, [])
-		for d in MarkStore.read(level_id).get("sketch", []):
-			var pts: Array = []
-			for p in d.pts:
-				pts.append(MarkStore.v3(p))
-			var col: Color = COLORS[clampi(int(d.get("c", 0)), 0, COLORS.size() - 1)]
-			if d.has("col"):
-				col = Color.html(str(d.col))
-			list.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
-				"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
-		placed[lv] = list
-	_spawn_all(lv)
+	_load()
 
 func _exit_tree() -> void:
 	if live == self:
@@ -234,7 +221,10 @@ func _unpack(data: Array) -> Array:
 		var pts: Array = []
 		for p in d.pts:
 			pts.append(MarkStore.v3(p))
-		out.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": Color.html(str(d.get("col", "d92b2bff"))),
+		var col: Color = COLORS[clampi(int(d.get("c", 0)), 0, COLORS.size() - 1)]
+		if d.has("col"):
+			col = Color.html(str(d.col))
+		out.append({"id": str(d.id), "pts": pts, "n": MarkStore.v3(d.n), "col": col,
 			"w": float(d.get("w", WIDTH)), "wob": float(d.get("wob", 1.0)), "style": str(d.get("style", "solid"))})
 	return out
 
@@ -242,7 +232,8 @@ func _unpack(data: Array) -> Array:
 ## even after the game was closed
 func _bin(lines: Array) -> void:
 	level_id = MarkStore.file_id(str(get_parent().level_meta.get("id", "")))
-	var all: Array = _unpack(MarkStore.read(level_id).get("sketch_trash", []))
+	var file := MarkStore.read(level_id)
+	var all: Array = _shifted(_unpack(file.get("sketch_trash", [])), MarkStore.moved(file, "sketch_trash"))
 	var have := {}
 	for s in all:
 		have[s.id] = true
@@ -275,8 +266,15 @@ func recover() -> int:
 	for s in placed[key]:
 		have[s.id] = true
 	var made: Array = []
-	for s in _unpack(MarkStore.read(level_id).get("sketch_trash", [])):
+	var file := MarkStore.read(level_id)
+	var space := get_world_3d().direct_space_state
+	for s in _shifted(_unpack(file.get("sketch_trash", [])), MarkStore.moved(file, "sketch_trash")):
 		if not have.has(s.id):
+			var at := MarkStore.settle(space, s.pts, s.n)
+			if at.is_empty():
+				continue
+			s.pts = at.pts
+			s.n = at.n
 			placed[key].append(s)
 			_spawn(s)
 			made.append(s)
@@ -285,13 +283,32 @@ func recover() -> int:
 	_done({"op": "addmany", "list": made})
 	return made.size()
 
-## Delete the parts of every line that no longer have a surface under them (a wall was removed): a
-## stroke is cut down to the stretches still on a surface, or dropped if none is left. Saved if changed.
+func _shifted(list: Array, off: Vector3) -> Array:
+	if off != Vector3.ZERO:
+		for s in list:
+			for i in s.pts.size():
+				s.pts[i] += off
+	return list
+
+## Put every line back on a surface: one whose wall moved or went (the level was edited) is snapped onto
+## the nearest wall (MarkStore.settle), then cut down to the stretches with a surface under them; one with
+## no wall anywhere near goes in the bin (RECOVER brings it back). Saved if changed.
 func _prune(lv: int) -> void:
 	var list: Array = placed.get(lv, [])
 	var out: Array = []
+	var lost: Array = []
 	var changed := false
+	var space := get_world_3d().direct_space_state
 	for s in list:
+		var at := MarkStore.settle(space, s.pts, s.n)
+		if at.is_empty():
+			lost.append(s)
+			changed = true
+			continue
+		if at.moved:
+			s.pts = at.pts
+			s.n = at.n
+			changed = true
 		var runs := _supported_runs(s)
 		if runs.size() == 1 and runs[0].size() == s.pts.size():
 			out.append(s)
@@ -304,6 +321,8 @@ func _prune(lv: int) -> void:
 			out.append(piece)
 	if changed:
 		placed[lv] = out
+		if not lost.is_empty():
+			_bin(lost)
 		save()
 
 func _spawn(s: Dictionary) -> void:
@@ -320,8 +339,8 @@ func _supported_runs(s: Dictionary) -> Array:
 	var runs: Array = []
 	var cur: Array = []
 	for p in s.pts:
-		var q := PhysicsRayQueryParameters3D.create(p + n * 0.1, p - n * 0.1, 1)
-		if space.intersect_ray(q).is_empty():
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(p + n * 0.1, p - n * 0.1, 1))
+		if hit.is_empty() or (hit.normal as Vector3).dot(n) < 0.9:
 			if cur.size() >= 2:
 				runs.append(cur)
 			cur = []
@@ -331,18 +350,18 @@ func _supported_runs(s: Dictionary) -> Array:
 		runs.append(cur)
 	return runs
 
-static func material() -> StandardMaterial3D:
+## The shared marker material: felt-tip ink with ragged round-capped edges that takes the light and the
+## grain of the surface (shaders/sketch_marker.gdshader)
+static func material() -> ShaderMaterial:
 	if _mat == null:
-		_mat = StandardMaterial3D.new()
-		_mat.vertex_color_use_as_albedo = true
-		_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_mat.roughness = 0.9
-		_mat.metallic_specular = 0.1         # so black is black, not a grey sheen
+		_mat = ShaderMaterial.new()
+		_mat.shader = SHADER
 	return _mat
 
 ## A ribbon along `pts` on a surface facing `n`, drawn with `st` ({col, w, wob, style}). Into `mesh` if given
-## (the live stroke). The wobble is pen pressure (the line swells and thins) and a drift off the true path.
+## (the live stroke). The wobble is pen pressure (the line swells and thins) and a drift off the true path;
+## the hand's jitter is smoothed out first. The strip is PAD times wider than the ink and runs on past both
+## ends: the shader cuts the round caps, the dashes and the ragged edge out of it.
 static func ribbon(pts: Array, n: Vector3, st: Dictionary, lift: float, origin := Vector3.ZERO, mesh: ArrayMesh = null) -> ArrayMesh:
 	if mesh == null:
 		mesh = ArrayMesh.new()
@@ -351,41 +370,56 @@ static func ribbon(pts: Array, n: Vector3, st: Dictionary, lift: float, origin :
 		return mesh
 	var width: float = st.w
 	var wob: float = st.wob
-	var style: String = st.style
+	var line := _smooth(pts)
+	var count := line.size()
+	var dist: Array[float] = [0.0]
+	for i in range(1, count):
+		dist.append(dist[i - 1] + (line[i] as Vector3).distance_to(line[i - 1]))
+	var cap := width * 0.5 * PAD
+	var length := dist[count - 1] + cap * 2.0
+	# one seed a stroke (from where it starts) so every line's streaks and edge are its own
+	var p0: Vector3 = line[0]
+	var grain := fposmod(p0.x * 12.9898 + p0.y * 78.233 + p0.z * 37.719, 97.0)
+	var style := float(maxi(0, STYLES.find(st.style)))
 	var tool := SurfaceTool.new()
-	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	tool.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	tool.set_custom_format(0, SurfaceTool.CUSTOM_RGBA_FLOAT)
 	tool.set_color(st.col)
+	tool.set_custom(0, Color(style, grain, width, 0.0))
+	tool.set_normal(n)
 	var up := n * lift
-	var run := 0.0
-	var prev_l := Vector3.ZERO
-	var prev_r := Vector3.ZERO
-	for i in pts.size():
-		var p: Vector3 = pts[i]
-		var t: Vector3 = (pts[mini(i + 1, pts.size() - 1)] as Vector3) - (pts[maxi(i - 1, 0)] as Vector3)
-		var seg := 0.0
-		if i > 0:
-			seg = p.distance_to(pts[i - 1])
-			run += seg
-		var side := n.cross(t.normalized()).normalized()
-		var w := width * (1.0 - 0.25 * wob + wob * (0.25 * sin(run * 23.0) + 0.12 * sin(run * 61.0 + 1.3)))
-		var drift := side * width * 0.25 * wob * sin(run * 9.0 + 0.7)
-		var l := p - origin + up + drift - side * w * 0.5
-		var r := p - origin + up + drift + side * w * 0.5
-		if i > 0 and _ink(style, run - seg * 0.5, width):
-			for v in [prev_l, prev_r, r, prev_l, r, l]:
-				tool.set_normal(n)
-				tool.add_vertex(v)
-		prev_l = l
-		prev_r = r
+	# the strip's rungs: a cap's length before the first point, every point, a cap's length past the last
+	var rungs: Array = []
+	var t0: Vector3 = ((line[1] as Vector3) - p0).normalized()
+	var t1: Vector3 = ((line[count - 1] as Vector3) - (line[count - 2] as Vector3)).normalized()
+	rungs.append([p0 - t0 * cap, t0, 0.0, 0.0])
+	for i in count:
+		var t: Vector3 = (line[mini(i + 1, count - 1)] as Vector3) - (line[maxi(i - 1, 0)] as Vector3)
+		rungs.append([line[i], t.normalized(), dist[i], dist[i] + cap])
+	rungs.append([(line[count - 1] as Vector3) + t1 * cap, t1, dist[count - 1], length])
+	for g in rungs:
+		var p: Vector3 = g[0]
+		var run: float = g[2]
+		var side := n.cross(g[1]).normalized()
+		var w := width * (1.0 - 0.25 * wob + wob * (0.25 * sin(run * 23.0 + grain) + 0.12 * sin(run * 61.0 + 1.3 + grain)))
+		var drift := side * width * 0.25 * wob * sin(run * 9.0 + 0.7 + grain)
+		var half := side * w * 0.5 * PAD
+		tool.set_tangent(Plane(side, 1.0))
+		tool.set_uv2(Vector2(w, length))
+		tool.set_uv(Vector2(0.0, g[3]))
+		tool.add_vertex(p - origin + up + drift - half)
+		tool.set_uv(Vector2(1.0, g[3]))
+		tool.add_vertex(p - origin + up + drift + half)
 	tool.commit(mesh)
 	return mesh
 
-## Is there ink `at` metres along the line: always for solid, in dashes or dots otherwise
-static func _ink(style: String, at: float, width: float) -> bool:
-	match style:
-		"dashed":
-			return fmod(at, 0.16) < 0.10
-		"dotted":
-			var period := maxf(0.06, width * 2.6)
-			return fmod(at, period) < period * 0.45
-	return true
+## The points with the hand's jitter taken out: two passes of a light average, the ends kept where they are
+static func _smooth(pts: Array) -> Array:
+	var out := pts.duplicate()
+	if out.size() < 4:
+		return out
+	for pass_ in 2:
+		var prev := out.duplicate()
+		for i in range(1, out.size() - 1):
+			out[i] = (prev[i - 1] as Vector3) * 0.25 + (prev[i] as Vector3) * 0.5 + (prev[i + 1] as Vector3) * 0.25
+	return out

@@ -9,6 +9,15 @@ extends Node
 
 signal status_changed(text: String)
 signal share_link_changed(text: String)
+## A survivor came into the game (their callsign is known now) / dropped out of it. `already`: they were
+## there before we arrived (we just joined), not arriving now. hud.gd shows each as a terminal toast.
+signal survivor_joined(id: int, callsign: String, already: bool)
+signal survivor_left(id: int, callsign: String)
+## A survivor's vitals flatlined, and what did it ("UNDETERMINED" from a build that doesn't report it)
+signal survivor_died(id: int, callsign: String, cause: String)
+## Signal strength between survivors (signal_of): full this close, gone this far (or on another floor)
+const SIGNAL_FULL := 14.0
+const SIGNAL_LOST := 42.0
 
 const DEFAULT_PORT := 8910
 const SEND_INTERVAL := 1.0 / 20.0
@@ -73,6 +82,9 @@ var _survivors_frame := -1
 var _cf_pid := -1
 var _cf_thread: Thread
 var _quit := false
+var phantoms := {}               # id -> {name, dist, drift}: survivors on the roster who aren't anyone (the ghostRoster event)
+var _deaths := {}                # peer id -> {at, said}: a death seen on their snapshot, and whether it was announced
+var _online_since := -INF        # when this guest connected (survivors already there are "on site", not "joined")
 var _room_token := 0            # bumped on host()/leave(): a slow lookup/publish from an old lobby is ignored
 
 func _ready() -> void:
@@ -81,6 +93,7 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	Game.player_died.connect(_on_local_death)
 	build_tag = _read_build_tag()
 	# The launcher passes --join=<host or tunnel link> and --player-name=<name>
 	var join_to := ""
@@ -320,16 +333,20 @@ func _on_peer_connected(id: int) -> void:
 	_update_count()
 
 func _on_peer_disconnected(id: int) -> void:
+	if str(names.get(id, "")) != "":                 # (never said hello: a refused version, not a survivor)
+		survivor_left.emit(id, label_for(id))
 	var r: Node = remotes.get(id)
 	if r:
 		r.queue_free()
 	remotes.erase(id)
 	names.erase(id)
+	_deaths.erase(id)
 	_mq_view.erase(id)
 	_survivors_frame = -1
 	_update_count()
 
 func _on_connected() -> void:
+	_online_since = Time.get_ticks_msec() / 1000.0
 	_hello_wait = HELLO_TIMEOUT
 	_set_status("CONNECTED // %d SURVIVOR(S)" % (multiplayer.get_peers().size() + 1))
 
@@ -360,7 +377,10 @@ func _hello(callsign: String, protocol: int, their_build: String) -> void:
 		elif id == 1:
 			_drop.call_deferred("VERSION MISMATCH // HOST: %s  YOU: %s // BOTH OF YOU: UPDATE IN THE LAUNCHER" % [theirs, build_tag])
 		return
+	var first := str(names.get(id, "")) == ""
 	names[id] = clean_name(callsign)
+	if first:
+		survivor_joined.emit(id, label_for(id), not hosting and Time.get_ticks_msec() / 1000.0 - _online_since < 5.0)
 	if id == 1:
 		_hello_wait = -1.0
 	var r: Node = remotes.get(id)
@@ -1003,3 +1023,60 @@ func _physics_process(dt: float) -> void:
 	if not is_online():
 		return
 	_send_state(dt)
+	_watch_deaths()
+
+# ---- the expedition: signal and deaths ------------------------------------------------------------
+## 0..1, how clear another survivor's signal is from here: full within SIGNAL_FULL m, gone by SIGNAL_LOST,
+## and gone on another level or floor. Their voice (voice_speaker.gd), name tag (remote_player.gd) and the
+## [F6] CREW page break up with it.
+func signal_of(id: int) -> float:
+	var r: Node3D = remotes.get(id)
+	var p: Node = Game.player
+	if r == null or not is_instance_valid(r) or not r.seen or not r.here or p == null or not is_instance_valid(p):
+		return 0.0
+	return 1.0 - smoothstep(SIGNAL_FULL, SIGNAL_LOST, r.global_position.distance_to((p as Node3D).global_position))
+
+static func clean_cause(raw: String) -> String:
+	var out := ""
+	for c in raw.strip_edges().to_upper():
+		var u := c.unicode_at(0)
+		if u >= 32 and u < 127 and c != "[" and c != "]":
+			out += c
+	out = out.left(32)
+	return out if out != "" else "UNDETERMINED"
+
+## This machine's player died: everyone else is told what did it
+func _on_local_death(reason: String) -> void:
+	if is_online():
+		report_death.rpc(clean_cause(reason))
+
+## A survivor's snapshot says dead but no cause came (a build without report_death): announce it anyway.
+## Someone already dead when we joined is not news.
+func _watch_deaths() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	for id in remotes:
+		var r: Node3D = remotes[id]
+		if not is_instance_valid(r) or not r.seen:
+			continue
+		var d: Dictionary = _deaths.get(id, {})
+		if r.dead:
+			if d.is_empty():
+				_deaths[id] = {"at": now, "said": not hosting and now - _online_since < 5.0}
+			elif not d.said and now - float(d.at) > 1.5:
+				d.said = true
+				survivor_died.emit(id, label_for(id), "UNDETERMINED")
+		elif not d.is_empty() and now - float(d.at) > 4.0:
+			_deaths.erase(id)                  # back on their feet
+
+## Named and placed so it is the LAST RPC of this node (every other one starts with "_"): an older build
+## keeps the same numbering for all the rest, and only drops this one.
+@rpc("any_peer", "call_remote", "reliable")
+func report_death(cause: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not _is_peer(id):
+		return
+	var d: Dictionary = _deaths.get(id, {})
+	if not d.is_empty() and d.said:
+		return
+	_deaths[id] = {"at": Time.get_ticks_msec() / 1000.0, "said": true}
+	survivor_died.emit(id, label_for(id), clean_cause(cause))

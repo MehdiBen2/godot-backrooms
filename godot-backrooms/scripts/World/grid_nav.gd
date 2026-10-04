@@ -8,12 +8,12 @@ const CELL := 4.5
 const NEIGHBOURS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 var level: Node
-var n := 0
+var n: int:                           # always the level's current size (a floor change can resize it under a cached nav)
+	get: return level.size
 var _queue := PackedInt32Array()     # reused by bfs(): no n*n allocation per call
 
 func _init(l: Node) -> void:
 	level = l
-	n = l.size
 
 static func cell(v: float) -> int:
 	return roundi(v / CELL)
@@ -47,6 +47,8 @@ func clear_line(ax: float, az: float, bx: float, bz: float, step := 0.25) -> boo
 
 # Path distance from (sx, sz) to every cell; -1 = unreachable. `out` is n*n, index x * n + z.
 func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
+	if out.size() != n * n:
+		out.resize(n * n)          # sized for another floor (a level change resizes the grid under a monster's arrays)
 	out.fill(-1)
 	if sx < 0 or sz < 0 or sx >= n or sz >= n or blocked(sx, sz):
 		return false

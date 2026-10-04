@@ -78,6 +78,8 @@ var hum_attention := 1.0
 var hum_mix := 0.0
 var hum_user := 1.0
 var hum_user_target := 1.0
+var hum_event_target := 1.0      # 0 while an event plays a hum of its own (events.gd humRises): the level's fades out
+var hum_event := 1.0
 
 # --- your breathing (breathing.gd)
 var breathing := Breathing.new()
@@ -265,7 +267,8 @@ func _update_hum(dt: float) -> void:
 	var target := maxf(0.0, hum_attention * masking * dread * menu)
 	hum_mix += (target - hum_mix) * (1.0 - exp(-dt / 0.35))
 	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
-	var mix: float = hum_mix * HUM_VOLUME * hum_user * vol.hum * (1.0 - outdoor_mix)     # no fluorescent hum under the sky
+	hum_event += (hum_event_target - hum_event) * (1.0 - exp(-dt / 0.8))
+	var mix: float = hum_mix * HUM_VOLUME * hum_user * hum_event * vol.hum * (1.0 - outdoor_mix)     # no fluorescent hum under the sky
 	var comp := 1.0 / float(scales["hum_voice.wav"])
 	for i in voices.size():
 		var lvl: float = level.slot_level(i)

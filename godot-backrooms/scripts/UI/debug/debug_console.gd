@@ -32,6 +32,25 @@ const ENTITIES := {
 	"skinstealer": "SkinStealer",
 	"burnt": "Burnt",
 }
+## Scare events the console can fire (`event <id>`, or the buttons on WORLD & EVENTS): id -> what it does
+const EVENTS := {
+	"preacherwhisper": ["preacherWhisper", "a preacher's voice from down a corridor"],
+	"wallknock": ["wallKnock", "knocking in the walls, ending nearer"],
+	"breathbehind": ["breathBehind", "a breath on the back of your neck"],
+	"powercut": ["powerCut", "the grid dies for a minute, something circles in the dark"],
+	"redalert": ["redAlert", "every light drops to slow pulsing emergency red; something walks; a breath beside you"],
+	"emergencypulse": ["emergencyPulse", "every light beats red like a heart, quickens, skips, fails"],
+	"lightsout": ["lightsOut", "the grid fails in stages, then something walks up to you in the dark"],
+	"onelamp": ["oneLamp", "everything dark but the tube over you; something breathes at the next"],
+	"deadair": ["deadAir", "deafened: ringing, warped picture, two knocks behind you"],
+	"machinevoice": ["machineVoice", "an old crushed TTS voice reads a disturbing line; a different one each time"],
+	"ghostroster": ["ghostRoster", "a researcher who isn't anyone joins the expedition (sometimes it's you)"],
+	"humrises": ["humRises", "the fluorescent hum climbs until it hurts, then every sound stops"],
+	"partywall": ["partyWall", "a party behind the drywall; go to it and it stops dead, then one knock"],
+	"phonering": ["phoneRing", "a phone ringing down the halls; it stops before you reach it, then rings behind you"],
+	"houndpacing": ["houndPacing", "real footsteps far off behind the walls keeping pace with you; stop and they stop, then one step nearer"],
+	"run": ["run", "black, then red lights rush down the hall toward you with something heavy running under them"],
+}
 const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt"]
 # other things you might type for a name
 const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt"}
@@ -125,7 +144,173 @@ func _ready() -> void:
 	_sync_hud_state()
 	_print("[color=gray]T.S.R.A. Diagnostic Matrix online. Press [b]F1[/b] or [b]~[/b] for visual menu, [b]help[/b] for commands.[/color]")
 
+# ---------------------------------------------------------------- the event director panel (WORLD & EVENTS)
+## Every event, by what it does to you. Button label, events.gd name.
+const EVENT_GROUPS := [
+	["LIGHTS & POWER", Color("e0a63c"), [["BLACKOUT", "powerCut"], ["RED ALERT", "redAlert"], ["EMERGENCY PULSE", "emergencyPulse"],
+		["LIGHTS OUT", "lightsOut"], ["ONE LAMP", "oneLamp"], ["RUN", "run"]]],
+	["VOICES & SOUND", Color("5fc9b8"), [["MACHINE VOICE", "machineVoice"], ["PREACHER WHISPER", "preacherWhisper"],
+		["DEAD AIR", "deadAir"], ["HUM RISES", "humRises"]]],
+	["SOMETHING NEARBY", Color("d0574a"), [["WALL KNOCK", "wallKnock"], ["HOUND PACING", "houndPacing"],
+		["PARTY WALL", "partyWall"], ["PHONE RING", "phoneRing"]]],
+	["SIGNAL & ROSTER", Color("7fc77a"), [["GHOST ROSTER", "ghostRoster"]]],
+]
+var _ev_status: Label
+var _ev_buttons := {}            # event name -> [Button, group colour, label, description]
+var _ev_groups: Array = []       # [header row, flow] per group, for the filter
+var _ev_last := ""
+
+func _events_node() -> Node:
+	return root.get_node_or_null("Events") if root != null else null
+
+func _event_desc(ev_name: String) -> String:
+	var e = EVENTS.get(ev_name.to_lower())
+	return str(e[1]) if e is Array else ""
+
+func _fire_event(ev_name: String) -> void:
+	var ev := _events_node()
+	if ev == null:
+		_print("[color=orange]no event director in this scene[/color]")
+		return
+	if ev.run_event(ev_name):
+		_ev_last = ev_name
+		_print("[color=#5fc9b8]event[/color] %s  [color=gray]%s[/color]" % [ev_name, _event_desc(ev_name)])
+	else:
+		_print("[color=orange]event %s didn't start[/color]" % ev_name)
+
+func _ev_style(b: Button, col: Color, on: bool) -> void:
+	b.add_theme_stylebox_override("normal", _make_box(Color(col, 0.16) if on else Color(0.06, 0.09, 0.11, 0.9), Color(col, 1.0 if on else 0.45), 2 if on else 1, 3, 7))
+	b.add_theme_stylebox_override("hover", _make_box(Color(col, 0.12), Color(col, 0.95), 1, 3, 7))
+	b.add_theme_stylebox_override("pressed", _make_box(Color(col, 0.25), col, 2, 3, 7))
+	b.add_theme_color_override("font_color", col.lightened(0.25) if on else Color(0.82, 0.86, 0.84))
+	b.add_theme_color_override("font_hover_color", col.lightened(0.3))
+
+func _build_event_panel() -> Control:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _make_box(Color(0.02, 0.04, 0.05, 0.75), Color(0.25, 0.45, 0.45, 0.45), 1, 4, 12))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	panel.add_child(v)
+	# status, and what you reach for most
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 8)
+	v.add_child(bar)
+	_ev_status = _label("IDLE", 12, Color(0.55, 0.75, 0.7))
+	_ev_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ev_status.clip_text = true
+	bar.add_child(_ev_status)
+	var rnd := _action_btn("RANDOM EVENT", func():
+		var ev := _events_node()
+		if ev:
+			var picked: String = ev.trigger_random(true)
+			if picked != "":
+				_ev_last = picked
+				_print("[color=#5fc9b8]event[/color] %s (random)" % picked))
+	rnd.tooltip_text = "Fire a random event (any of them, cooldowns ignored)"
+	bar.add_child(rnd)
+	var again := _action_btn("REPEAT LAST", func():
+		if _ev_last != "": _fire_event(_ev_last)
+		else: _print("[color=gray]nothing fired yet[/color]"))
+	again.tooltip_text = "Fire the last event again"
+	bar.add_child(again)
+	var stop := _action_btn("STOP ALL EVENTS", func():
+		var ev := _events_node()
+		if ev: ev.stop_all()
+		_print("all events stopped"))
+	stop.tooltip_text = "End every running event: lights, tint, sounds and screen effects back to normal"
+	stop.add_theme_stylebox_override("normal", _make_box(Color(0.25, 0.05, 0.05, 0.85), Color(0.9, 0.3, 0.25, 0.8), 1, 3, 7))
+	stop.add_theme_stylebox_override("hover", _make_box(Color(0.4, 0.07, 0.06, 0.95), Color(1.0, 0.4, 0.35), 1, 3, 7))
+	stop.add_theme_color_override("font_color", Color(1.0, 0.7, 0.65))
+	bar.add_child(stop)
+	# filter
+	var find := LineEdit.new()
+	find.placeholder_text = "filter events... (name or what it does)"
+	find.clear_button_enabled = true
+	if font: find.add_theme_font_override("font", font)
+	find.add_theme_font_size_override("font_size", 11)
+	find.add_theme_stylebox_override("normal", _make_box(Color(0.03, 0.05, 0.06, 0.9), Color(0.25, 0.45, 0.45, 0.4), 1, 3, 6))
+	find.text_changed.connect(_filter_events)
+	v.add_child(find)
+	# the groups
+	_ev_buttons.clear()
+	_ev_groups.clear()
+	for g in EVENT_GROUPS:
+		var col: Color = g[1]
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 8)
+		var swatch := ColorRect.new()
+		swatch.color = col
+		swatch.custom_minimum_size = Vector2(3, 14)
+		head.add_child(swatch)
+		head.add_child(_label(str(g[0]), 12, col))
+		head.add_child(_label("%d" % (g[2] as Array).size(), 10, Color(col, 0.5)))
+		v.add_child(head)
+		var flow := HFlowContainer.new()
+		flow.add_theme_constant_override("h_separation", 6)
+		flow.add_theme_constant_override("v_separation", 6)
+		v.add_child(flow)
+		for pair in g[2]:
+			var ev_name: String = pair[1]
+			var b := _action_btn(str(pair[0]), func(): _fire_event(ev_name))
+			b.tooltip_text = _event_desc(ev_name)
+			_ev_style(b, col, false)
+			flow.add_child(b)
+			_ev_buttons[ev_name] = [b, col, str(pair[0]), _event_desc(ev_name)]
+		if g[0] == "LIGHTS & POWER":
+			var restore := _action_btn("RESTORE GRID", func(): _restore_grid())
+			restore.tooltip_text = "Every tube back on, white, right now (doesn't stop the event that cut them)"
+			flow.add_child(restore)
+		_ev_groups.append([head, flow])
+	v.add_child(_label("Hover a button for what it does. In co-op, the host's events play for everyone; each one is logged on the CONSOLE tab.", 10, Color(0.5, 0.6, 0.58)))
+	return panel
+
+func _filter_events(q: String) -> void:
+	q = q.strip_edges().to_lower()
+	for k in _ev_buttons:
+		var e: Array = _ev_buttons[k]
+		(e[0] as Button).visible = q == "" or str(e[2]).to_lower().contains(q) or str(e[3]).to_lower().contains(q) or str(k).to_lower().contains(q)
+	for gr in _ev_groups:
+		var any := false
+		for c in (gr[1] as Control).get_children():
+			if (c as Control).visible and _ev_buttons.values().any(func(e): return e[0] == c):
+				any = true
+		(gr[0] as Control).visible = any or q == ""
+		(gr[1] as Control).visible = any or q == ""
+
+## What the director is doing, under the buttons' row: the running event and how long it has run, or idle and
+## how close the next one is; the running event's button lit in its colour
+func _update_event_status() -> void:
+	var ev := _events_node()
+	if ev == null or _ev_status == null:
+		return
+	var running: bool = not (ev.watchers as Array).is_empty() or not (ev.queue as Array).is_empty()
+	var cur: String = str(ev.last)
+	if running and cur != "":
+		var label: String = (_ev_buttons[cur][2] if _ev_buttons.has(cur) else cur)
+		_ev_status.text = "RUNNING   %s   //   %ds" % [label, int(Game.time - float(ev.last_at))]
+		_ev_status.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	else:
+		var th: float = float(ev.threshold)
+		var k := clampf(float(ev.tension) / th, 0.0, 1.0) if th > 0.0 else 0.0
+		var tail := ("   //   LAST: %s" % (_ev_buttons[cur][2] if _ev_buttons.has(cur) else cur)) if cur != "" else ""
+		_ev_status.text = "IDLE   //   NEXT EVENT %d%%%s" % [roundi(k * 100.0), tail]
+		_ev_status.add_theme_color_override("font_color", Color(0.55, 0.75, 0.7))
+	for k2 in _ev_buttons:
+		var e: Array = _ev_buttons[k2]
+		var on: bool = running and k2 == cur
+		if (e[0] as Button).get_meta("on", false) != on:
+			(e[0] as Button).set_meta("on", on)
+			_ev_style(e[0], e[1], on)
+
+## In co-op only the host may use the console (a guest's spawns and events would only half-happen, on their own screen)
+func _guest_locked() -> bool:
+	return Net.is_online() and not Net.hosting
+
 func _process(_dt: float) -> void:
+	if _guest_locked() and menu_window.visible:
+		_toggle(false)                          # joined someone's game with it open
+	if menu_window.visible and current_tab == "world":
+		_update_event_status()
 	if Game.show_debug_overlay and not Game.hide_hud:
 		screen_overlay.visible = true
 		_update_overlay_text()
@@ -614,45 +799,8 @@ func _build_world_tab() -> Control:
 		Game.change_level(Game.level_index)
 	))
 
-	v.add_child(_section_header("ELECTRICAL GRID & LIGHTING"))
-	var light_row := HBoxContainer.new()
-	light_row.add_theme_constant_override("separation", 8)
-	v.add_child(light_row)
-
-	light_row.add_child(_action_btn("TRIGGER BLACKOUT (POWER CUT)", func():
-		_trigger_blackout()
-	))
-	light_row.add_child(_action_btn("RESTORE GRID LIGHTS", func():
-		_restore_grid()
-	))
-
-	v.add_child(_section_header("AMBIENT SCARE DIRECTORS"))
-	var scare_row := HFlowContainer.new()
-	scare_row.add_theme_constant_override("h_separation", 8)
-	scare_row.add_theme_constant_override("v_separation", 8)
-	v.add_child(scare_row)
-
-	scare_row.add_child(_action_btn("PREACHER WHISPER", func():
-		var ev = root.get_node_or_null("Events")
-		if ev: ev.run_event("preacherWhisper")
-	))
-	scare_row.add_child(_action_btn("WALL KNOCK", func():
-		var ev = root.get_node_or_null("Events")
-		if ev: ev.run_event("wallKnock")
-	))
-	scare_row.add_child(_action_btn("BREATH BEHIND", func():
-		var ev = root.get_node_or_null("Events")
-		if ev: ev.run_event("breathBehind")
-	))
-	for pair in [["RED ALERT", "redAlert"], ["EMERGENCY PULSE", "emergencyPulse"], ["LIGHTS OUT", "lightsOut"],
-			["TUBE CHASE", "tubeChase"], ["WRONG COLOR", "wrongColor"], ["ONE LAMP", "oneLamp"],
-			["PHANTOM STEPS", "phantomSteps"], ["CRAWLING CEILING", "crawlingCeiling"], ["TAPE ROT", "tapeRot"],
-			["FLATLINE", "flatline"], ["DEAD AIR", "deadAir"]]:
-		var event_name: String = pair[1]
-		scare_row.add_child(_action_btn(pair[0], func():
-			var ev = root.get_node_or_null("Events")
-			if ev: ev.run_event(event_name)
-		))
+	v.add_child(_section_header("EVENT DIRECTOR"))
+	v.add_child(_build_event_panel())
 
 	v.add_child(_section_header("T.S.R.A. PROGRESSION & ARCHIVES"))
 	var prog_row := HBoxContainer.new()
@@ -758,7 +906,7 @@ func _build_console_tab() -> Control:
 	chips_row.add_theme_constant_override("separation", 6)
 	v.add_child(chips_row)
 
-	for cmd in ["help", "list", "hud", "spawn all", "kill all", "screenshot", "stalk", "lightout", "clear"]:
+	for cmd in ["help", "list", "events", "hud", "spawn all", "kill all", "screenshot", "stalk", "lightout", "clear"]:
 		var chip := Button.new()
 		chip.text = cmd
 		if font: chip.add_theme_font_override("font", font)
@@ -1024,6 +1172,18 @@ func _try_unlock(code: String) -> void:
 func _toggle(on: bool) -> void:
 	if on and Game.dead:
 		return
+	if on and _guest_locked():
+		gate.visible = true
+		gate_input.clear()
+		gate_input.editable = false
+		gate_msg.text = "LOCKED // ONLY THE HOST CAN USE THIS IN CO-OP"
+		gate_msg.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		return
+	gate_input.editable = true
+	if on and not unlocked and gate_msg.text.begins_with("LOCKED"):
+		gate_msg.text = "ENTER to confirm, ESC to cancel"
+		gate_msg.add_theme_color_override("font_color", Color(0.65, 0.75, 0.72))
 	if on and not unlocked:
 		gate.visible = true
 		gate_input.clear()
@@ -1091,7 +1251,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if not Game.dev_keys or not unlocked:
+	if not Game.dev_keys or not unlocked or _guest_locked():
 		return
 
 	# Survivor model preview hotkeys
@@ -1173,6 +1333,7 @@ func _submit(line: String) -> void:
 			_print("Cheats: noclip, invisible, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
+			_print("Events: event <name>, event stop (ends them all), events (lists them)")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
 			_print("Sound: amb [status|silence <seconds>|bed]")
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
@@ -1226,6 +1387,20 @@ func _submit(line: String) -> void:
 				_print("ambience: " + amb.status())
 		"grabber":
 			_grabber_state(arg)
+		"events":
+			for k in EVENTS:
+				_print("  %-16s %s" % [EVENTS[k][0], EVENTS[k][1]])
+		"event":
+			var ev = root.get_node_or_null("Events")
+			var key := arg.replace("_", "")
+			if key in ["stop", "clear", "off"] and ev != null:
+				ev.stop_all()                      # ends every running event (and tells the guests, if you host)
+				_print("all events stopped")
+			elif EVENTS.has(key) and ev != null:
+				ev.run_event(EVENTS[key][0])
+				_print("event: %s" % EVENTS[key][0])
+			else:
+				_print("[color=orange]event what? 'events' lists them, 'event stop' ends them all[/color]")
 		"spawn":
 			_each(arg, true)
 		"despawn", "kill":
