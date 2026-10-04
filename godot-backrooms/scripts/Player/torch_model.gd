@@ -38,11 +38,17 @@ const SWAP_WAIT := 1.5            # s it waits for the torch to be up in the rig
 const FIDGET_EVERY := Vector2(6.0, 14.0)   # s from one fidget to the next
 const SMACK_GAP := Vector2(4.0, 8.0)       # s before it will knock the torch again
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
+const HUG_SPREAD := 0.12          # m: each hand's fingertips are this far off the middle of the wall in front
+const HUG_LOWER := 0.12           # m below eye height the hands go
 
 signal swap_started               # the hands begin (audio/battery_swap.wav is cut to the clip)
 signal swap_dark(dark: bool)      # the cap is off, no light / it's back on
 signal swap_done                  # the new cells are in
 signal swap_cut                   # it was cut short (a flinch): the sound has to stop
+const TIP_REACH := 0.72           # m: how far ahead of the camera the torch's front reaches at rest
+const WALL_GAP := 0.04            # m kept between the torch's front and a wall
+const WALL_TUCK := 0.07           # m the torch also drops, and
+const WALL_TILT := 0.45           # rad it noses up, as it's pulled right back
 const CROUCH_DIP := 0.03          # m the torch hand sits lower crouched
 
 const SWAY_W := 15.0              # rad/s: how fast the hands catch up with the view
@@ -69,9 +75,24 @@ var _grips: Array[Node3D] = [null, null]   # left, right
 var _torch_in := 1                # which hand has it (WallHand.LEFT / RIGHT)
 var _on := false
 var _flinching := false
+var _in_reach := false            # the edge is near enough to take hold of (with hysteresis)
+var _sq_on := false               # a hand on each wall of a squeeze gap (set_squeeze)
+var _sq_r: Array = [Vector3.ZERO, Vector3.ZERO]
+var _sq_l: Array = [Vector3.ZERO, Vector3.ZERO]
+var _sq_out := Vector3.ZERO
+var _grab := false                # a hand on a corner being walked past (set_grab)
+var _grab_side := 1
+var _grab_point := Vector3.ZERO
+var _grab_normal := Vector3.ZERO
+var _grab_out := Vector3.ZERO
+var _hug := false                 # both hands on the wall in front (set_hug)
+var _hug_point := Vector3.ZERO
+var _hug_normal := Vector3.ZERO
+var _hug_slow := false
 var _hands: WallHand              # both hands while you peek round a wall edge
 var _arms: Array[Node3D] = [null, null]    # the LeftArm / RightArm meshes
 var _crouch := 0.0
+var _pull := 0.0                  # m a close wall has drawn the torch back
 var _crouch_goal := 0.0
 var _fidgets: Array[String] = []  # the FIDGETS this model has
 var _fidget_in := 8.0             # s to the next one
@@ -231,7 +252,29 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		POS.x + step * 0.01 - lower * 0.03,
 		POS.y + absf(step) * 0.008 + breathe - down * 0.3 - lower * 0.03 - _crouch * CROUCH_DIP,
 		POS.z) + _lag * sway_amount
-	rotation = Vector3(ROT.x - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02) + _lag_rot * sway_amount
+	# a wall closer than the torch is long: draw it back (and tuck it down and up) so it never goes into it
+	_pull = lerpf(_pull, _wall_pull(), minf(1.0, dt * 12.0))
+	var tuck := clampf(_pull / 0.25, 0.0, 1.0)
+	position += Vector3(0.0, -WALL_TUCK * tuck, _pull)
+	rotation = Vector3(ROT.x - WALL_TILT * tuck - lower * 0.35 + step * 0.01, ROT.y + lower * 0.25, ROT.z + step * 0.02) + _lag_rot * sway_amount
+
+## How far back the torch has to come for its front to clear the wall straight ahead of the camera
+func _wall_pull() -> float:
+	var cam := get_parent() as Node3D
+	if cam == null or not cam.is_inside_tree():
+		return 0.0
+	var space := cam.get_world_3d().direct_space_state
+	if space == null:
+		return 0.0
+	var from := cam.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_transform.basis.z * TIP_REACH)
+	var body := cam.get_parent() as CollisionObject3D
+	if body != null:
+		q.exclude = [body.get_rid()]
+	var hit := space.intersect_ray(q)
+	if hit.is_empty() or not hit.collider is StaticBody3D:
+		return 0.0
+	return maxf(0.0, TIP_REACH + WALL_GAP - from.distance_to(hit.position))
 
 ## The hands are held, not bolted to the camera: they trail behind a turn of the view and behind the
 ## bounce of a step, then catch up with a slight overshoot (a damped spring). The camera's own motion
@@ -285,18 +328,30 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		_hands.set_mode(left, WallHand.Mode.ANIM)
 		return
 	var busy := _anim.current_animation == PICKUP and _anim.is_playing()
+	if _sq_on and not leaning and not busy and _swap == 0:
+		_hands.aim(right, _sq_r[0], _sq_r[1], _sq_out, true, crouching)
+		_hands.aim(left, _sq_l[0], _sq_l[1], _sq_out, true, crouching)
+		_hands.set_mode(right, WallHand.Mode.WALL)
+		_hands.set_mode(left, WallHand.Mode.WALL)
+		return
+	if _grab and not _hug and not leaning and not busy and _swap == 0:
+		var wall := right if _grab_side > 0 else left
+		_take_wall(wall, 1 - wall, _grab_point, _grab_normal, _grab_out, true, crouching)
+		return
+	if _hug and not leaning and not busy and _swap == 0:
+		var across := (-_hug_normal).cross(Vector3.UP).normalized()          # your right, along the wall
+		var at := _hug_point + Vector3.DOWN * HUG_LOWER
+		_hands.aim(right, at + across * HUG_SPREAD, _hug_normal, -across, _hug_slow, crouching)
+		_hands.aim(left, at - across * HUG_SPREAD, _hug_normal, across, _hug_slow, crouching)
+		_hands.set_mode(right, WallHand.Mode.WALL)
+		_hands.set_mode(left, WallHand.Mode.WALL)
+		return
 	if leaning and side != 0 and not busy and _swap == 0:
 		var wall := right if side < 0 else left
 		var free := 1 - wall
-		_hands.aim(wall, edge, normal, out, slow and dist <= WallHand.REACH, crouching)
-		if _on and _torch_in == wall:
-			_hands.set_mode(wall, WallHand.Mode.HIDE)
-			_hands.set_mode(free, WallHand.Mode.HIDE)
-			if _hands.hidden(wall) and _hands.hidden(free):
-				_hand_torch(free)
-		else:
-			_hands.set_mode(wall, WallHand.Mode.WALL)
-			_hands.set_mode(free, WallHand.Mode.CARRY)
+		# in reach with some give either way, so a hand at the limit doesn't take hold and let go by turns
+		_in_reach = dist <= WallHand.REACH + (0.1 if _in_reach else 0.0)
+		_take_wall(wall, free, edge, normal, out, slow and _in_reach, crouching)
 	elif _torch_in != right:
 		_hands.set_mode(left, WallHand.Mode.HIDE)
 		_hands.set_mode(right, WallHand.Mode.HIDE)
@@ -305,6 +360,50 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 	else:
 		_hands.set_mode(left, WallHand.Mode.HIDE)
 		_hands.set_mode(right, WallHand.Mode.ANIM)
+
+## Up against a wall with both hands free to go on it (peek.gd's hug): palms flat either side of where you
+## face, fingers angled in. Taken up by set_peek when you're not leaning round an edge.
+func set_hug(on: bool, point: Vector3, normal: Vector3, slow: bool) -> void:
+	_hug = on
+	_hug_point = point
+	_hug_normal = normal
+	_hug_slow = slow
+
+## Both hands are on the wall (hugging it): the torch is out of hand, so the beam goes off
+func hugging() -> bool:
+	return _hug and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.WALL and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.WALL
+
+## Squeezed through a slit: a hand flat on each wall (the right hand's wall and the left's), fingers on the
+## way through. The torch is held low out of sight.
+func set_squeeze(on: bool, r_point: Vector3, r_normal: Vector3, l_point: Vector3, l_normal: Vector3, out: Vector3) -> void:
+	_sq_on = on
+	_sq_r = [r_point, r_normal]
+	_sq_l = [l_point, l_normal]
+	_sq_out = out
+
+func squeezing() -> bool:
+	return _sq_on and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.WALL and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.WALL
+
+## Walking past a wall's corner (corner_grab.gd): the hand on that side takes hold of the edge as you go by
+func set_grab(on: bool, side: int, point: Vector3, normal: Vector3, out: Vector3) -> void:
+	_grab = on
+	_grab_side = side
+	_grab_point = point
+	_grab_normal = normal
+	_grab_out = out
+
+## `wall` hand on the edge, the other low; with the torch up in the wall's hand it's passed over first,
+## both hands out of view
+func _take_wall(wall: int, free: int, edge: Vector3, normal: Vector3, out: Vector3, holding: bool, crouching: bool) -> void:
+	_hands.aim(wall, edge, normal, out, holding, crouching)
+	if _on and _torch_in == wall:
+		_hands.set_mode(wall, WallHand.Mode.HIDE)
+		_hands.set_mode(free, WallHand.Mode.HIDE)
+		if _hands.hidden(wall) and _hands.hidden(free):
+			_hand_torch(free)
+	else:
+		_hands.set_mode(wall, WallHand.Mode.WALL)
+		_hands.set_mode(free, WallHand.Mode.CARRY)
 
 ## Put the torch in hand `i` (WallHand.LEFT / RIGHT): it keeps the same place on either grip
 func _hand_torch(i: int) -> void:
@@ -334,7 +433,7 @@ func _show_arms() -> void:
 		_arms[0].visible = left_seen
 	if _arms[1] != null:
 		_arms[1].visible = right_seen
-	_torch.visible = not away
+	_torch.visible = not away and not ((_hug or _sq_on) and _hands != null and _hands.mode_of(WallHand.RIGHT) == WallHand.Mode.WALL)
 	visible = right_seen or left_seen
 
 ## Just holding the torch up: on, in the right hand, that hand left to the animation and not flinching

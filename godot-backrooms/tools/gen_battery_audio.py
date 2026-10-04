@@ -30,7 +30,7 @@ CAP_ON = 4.52
 SCREW = ((4.62, 4.90), (5.22, 5.50))
 HANDLING = (1.00, 5.75)           # the hands are on the torch from, to
 LENGTH = 6.8
-PEAK = 0.15                       # flash_click_on.wav peaks at 0.17
+PEAK = 0.20                       # flash_click_on.wav peaks at 0.17
 PICKUP_PEAK = 0.11
 
 
@@ -106,23 +106,21 @@ def thud(level):
 
 
 def scrape(dur, level, hz):
-    """One turn of the cap: fine dry thread dragging, in the uneven little grabs of fingers turning
-    something (grains a few ms long, no two alike, never a steady buzz), over the rub of the hand on it"""
+    """One turn of the cap: the thread passing over its pawl as a run of small distinct ticks (a few ms of
+    plastic and metal each, no two alike, slowing as the cap goes tight), over a faint rub of the fingers"""
     n = int(dur * SR)
-    src = noise(dur)
-    grit = bandpass(src, hz, 1.1)
-    rub = lowpass(highpass(src, 220), 800)
-    grab = [0.0] * n
-    i = 0
-    while i < n:
-        g = int(random.uniform(0.004, 0.012) * SR)
-        a = random.uniform(0.2, 1.0) ** 1.5
-        for k in range(min(g, n - i)):
-            grab[i + k] = a * math.exp(-k / (g * 0.45))
-        i += g + int(random.uniform(0.0, 0.005) * SR)
-    grab = lowpass(grab, 350)
-    return [level * (grit[i] * grab[i] + 1.4 * rub[i] * (0.35 + 0.65 * grab[i])) * math.sin(math.pi * i / n) ** 0.5
-            for i in range(n)]
+    out = [0.0] * n
+    rub = lowpass(highpass(noise(dur), 300), 1100)
+    swell_ = swell(n, 6)
+    for i in range(n):
+        out[i] = 0.18 * rub[i] * swell_[i] * math.sin(math.pi * i / n)
+    t = random.uniform(0.0, 0.012)
+    gap = 0.026
+    while t < dur - 0.01:
+        fade = math.sin(math.pi * min(1.0, t / dur)) ** 0.6
+        put(out, t, tap(level * fade * random.uniform(0.55, 1.0), hz * random.uniform(0.8, 1.25), 0.9, 0.0025))
+        t += gap * random.uniform(0.85, 1.2) * (1.0 + 0.7 * t / dur)
+    return out
 
 
 def rattle(dur, level, body, count):
@@ -151,8 +149,9 @@ def put(track, at, xs, gain=1.0):
 
 
 def finish(xs, peak):
-    """Off the top (it's heard through the same ears as the torch's dull click), the rumble out, to `peak`"""
-    xs = highpass(lowpass(lowpass(xs, 3400), 3400), 90)
+    """Off the very top and the rumble out, to `peak`: the hits keep their edge, so the cells and the thread
+    read as metal and plastic, not as thuds"""
+    xs = highpass(lowpass(xs, 7500), 110)
     top = max(abs(x) for x in xs) or 1.0
     xs = [x / top * peak for x in xs]
     fade = int(0.01 * SR)
@@ -174,9 +173,9 @@ def write(name, xs):
 def swap():
     track = [0.0] * int(LENGTH * SR)
     # the hands on the torch the whole time: skin and sleeve, barely there, so the rest isn't cut out of silence
-    put(track, HANDLING[0], cloth(HANDLING[1] - HANDLING[0], 0.07, 900.0))
+    put(track, HANDLING[0], cloth(HANDLING[1] - HANDLING[0], 0.025, 900.0))
     for start, end in ARM:
-        put(track, start, cloth(end - start, 0.09, 1100.0))
+        put(track, start, cloth(end - start, 0.06, 1100.0))
     # the hand closing on the cap
     put(track, LAND - 0.04, cloth(0.10, 0.35))
     put(track, LAND, tap(0.22, 520))
@@ -187,6 +186,7 @@ def swap():
     # off: the cap leaves the last thread and knocks the tube's rim
     put(track, CAP_OFF, tap(0.42, 760, 0.35))
     put(track, CAP_OFF + 0.035, tap(0.16, 980, 0.2, 0.004))
+    put(track, CAP_OFF + 0.01, tap(0.18, 2600, 1.0, 0.002))                 # the rim, bright
     # the old cells run out, knocking each other, and land one after the other
     put(track, SLIDE_OUT[0], rattle(SLIDE_OUT[1] - SLIDE_OUT[0], 0.34, 900, 4))
     put(track, DROPS[0], thud(0.22))
@@ -198,13 +198,15 @@ def swap():
     # in they go: a short run down the tube, then home
     for k, at in enumerate(PUSH):
         put(track, at - 0.06, rattle(0.06, 0.16, 950, 1))
-        put(track, at, knock(1.0 if k else 0.8, 560 + 60 * k, 0.4))
+        put(track, at, knock(1.0 if k else 0.8, 560 + 60 * k, 0.7))
+        put(track, at + 0.002, tap(0.34, 3100 + 400 * k, 1.0, 0.0022))      # the contact: metal on metal
     # the cap back on, then down the threads: stiffer each turn
     put(track, CAP_ON, tap(0.40, 720, 0.3))
     for k, (start, end) in enumerate(SCREW):
         put(track, start, scrape(end - start, 0.42 + 0.06 * k, 1350 - 150 * k))
     put(track, SCREW[0][1] - 0.01, tap(0.10, 700, 0.2, 0.003))
     put(track, SCREW[1][1] - 0.005, tap(0.5, 600, 0.3))     # seated
+    put(track, SCREW[1][1] - 0.004, tap(0.22, 2400, 1.0, 0.002))
     return finish(track, PEAK)
 
 

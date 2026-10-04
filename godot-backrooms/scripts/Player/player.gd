@@ -11,6 +11,7 @@ const Blink := preload("res://scripts/Player/blink.gd")
 const PlayerShadow := preload("res://scripts/Player/player_shadow.gd")
 const Handheld := preload("res://scripts/Player/handheld.gd")
 const Peek := preload("res://scripts/Player/peek.gd")
+const CornerGrab := preload("res://scripts/Player/corner_grab.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -162,7 +163,49 @@ const PEEK_DIP := 0.035           # m
 const PEEK_FWD := 0.03            # m
 const PEEK_ROLL := 0.13           # rad at full head bob (half of it with head bob off)
 const PEEK_YAW := 0.035           # rad, towards the opening
-const PEEK_HOLD_SPEED := 1.0      # m/s: slower than this a hand in reach takes hold of the edge
+var _peek_slow := false
+var _hug_dim := 1.0               # 1 beam on .. 0 off while both hands are on a wall
+# Corner swing: walking past a wall's edge, steering round it, the near hand grabs the edge and pulls you round
+const SWING_MIN_SPEED := 0.9      # m/s: walking at least this fast...
+const SWING_SIDE_SPEED := 0.3     # m/s: ...and already going this fast out round the edge
+const SWING_KICK := 1.1           # m/s: the pull, along the way round
+const SWING_BOOST := 0.22         # share of walking speed added after it, fading
+const SWING_FADE := 1.3           # s the boost takes to fade
+const SWING_COOLDOWN := 1.1       # s before the next grab
+# Corner grab: walking along a wall that ends just ahead, the near hand takes hold of the corner and you swing round it
+const CORNER_SPEED_MIN := 1.3     # m/s: walking at least this fast, on the way ahead
+const CORNER_TIME := 1.0          # s the hand stays on the corner
+const CORNER_COOLDOWN := 2.0      # s before the next grab
+const CORNER_STEER := 0.55        # how far (0..1) your heading is pulled round towards the corner at the most
+const CORNER_BOOST := 0.35        # share of walking speed added by the pull, fading
+const CORNER_FADE := 1.5          # s the boost takes to fade
+var corner := CornerGrab.new()
+# Squeeze gap (levels' "squeeze_gap" objects): a slit in a wall you turn sideways to pass
+const SQUEEZE_RADIUS := 0.15      # m: the body's width while at a slit (normal: the capsule's own)
+const SQUEEZE_SPEED := 0.3        # share of walking speed through it
+const SQUEEZE_BEAM := 0.12        # the torch's share of its beam in the slit: a dim glow, not darkness
+const SQUEEZE_GLANCE := 0.55      # rad: how far the view turns to one side as you go in, before coming back
+const SQUEEZE_GLANCE_TIME := 1.8  # s the glance takes
+# Crawl space (the editor's CRAWL zone): a ceiling you have to get right down under
+const CRAWL_EYE := 0.62           # m: eye height crawling
+const CRAWL_SPEED := 0.7          # share of crouch speed
+const CRAWL_REACH := 0.5          # m: how far ahead of you each hand goes on the floor
+const CRAWL_SWING := 0.2          # m: how far a hand moves back and forth as you crawl
+var crawl_k := 0.0                # 0..1 eased: in a crawl space
+var tight_k := 0.0                # 0..1 eased: how far into a squeeze (the breathing and the head bob read it)
+var _sq := {}                     # the squeeze gap here (level_geometry.gd squeeze_at), {} when none
+var _sq_radius := 0.0             # the capsule's normal radius
+var _sq_glance_t := -1.0          # s into the glance, -1 none
+var _sq_side := 1.0
+var _sq_look := 0.0               # rad: the glance right now (added to the camera's yaw)
+var _corner_on := false
+var _corner_t := 0.0
+var _corner_cd := 0.0
+var _corner_boost := 0.0
+var _swing_cd := 0.0
+var _swing_boost := 0.0
+var _swinging := false
+const PEEK_HOLD_SPEED := 1.8      # m/s: slower than this a hand in reach takes hold of the edge
 var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
 var turn_roll := 0.0
@@ -291,7 +334,11 @@ func _physics_process(dt: float) -> void:
 		if not is_on_floor(): velocity.y -= GRAVITY * dt
 		move_and_slide()
 		peek.update(dt, self, eye, false)
-		if torch: torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
+		if torch:
+			torch.set_hug(false, Vector3.ZERO, Vector3.ZERO, false)
+			torch.set_grab(false, 1, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+			torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+			torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
 		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
 		if dead:
 			if torch:
@@ -313,6 +360,11 @@ func _physics_process(dt: float) -> void:
 		_was_flying = false
 		shape.disabled = false         # the draw tools panel closed: solid again
 	var crouch := Input.is_action_pressed("crouch")
+	_update_squeeze(dt)
+	var crawling: bool = Game.level != null and "crawl" in Game.level and (Game.level.crawl as Dictionary).has(Vector2i(roundi(global_position.x / Game.level.CELL), roundi(global_position.z / Game.level.CELL))) and not dead
+	crawl_k = lerpf(crawl_k, 1.0 if crawling else 0.0, minf(1.0, dt * 4.0))
+	if crawling:
+		crouch = true                  # no standing up under a ceiling like that
 	var dir := Vector2.ZERO
 	if Input.is_action_pressed("move_forward"): dir.y -= 1
 	if Input.is_action_pressed("move_backward"): dir.y += 1
@@ -320,20 +372,27 @@ func _physics_process(dt: float) -> void:
 	if Input.is_action_pressed("move_right"): dir.x += 1
 	var moving := dir != Vector2.ZERO
 	var rush := adrenaline > 0.5 and adr_active     # sprint is free during a burst
-	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0))
+	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0)) and tight_k < 0.25
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
 	_update_stamina(dt, sprint, rush)
 
-	eye = lerpf(eye, CROUCH_H if crouch else STAND_H, minf(1.0, dt * 10.0))
+	eye = lerpf(eye, CRAWL_EYE if crawling else (CROUCH_H if crouch else STAND_H), minf(1.0, dt * (6.0 if crawling else 10.0)))
 	(shape.shape as CapsuleShape3D).height = eye + 0.1
 	shape.position.y = (eye + 0.1) / 2.0
 
 	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT if crouch else 1.0))
 	speed *= 1.0 + ADR_BOOST * adrenaline
+	speed *= 1.0 + SWING_BOOST * _swing_boost
+	speed *= 1.0 + CORNER_BOOST * _corner_boost
+	speed *= lerpf(1.0, SQUEEZE_SPEED, tight_k) * lerpf(1.0, CRAWL_SPEED, crawl_k)
 	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
+	if _corner_on and wish.length_squared() > 0.0001:
+		# the hand on the corner draws you round it
+		var pull := sin(PI * clampf(_corner_t / CORNER_TIME, 0.0, 1.0)) * CORNER_STEER
+		wish = wish.normalized().lerp(corner.dir, pull).normalized() * speed
 	var rate := ACCEL_AIR
 	if is_on_floor():
 		rate = ACCEL_GROUND if moving else DECEL_GROUND
@@ -368,8 +427,15 @@ func _physics_process(dt: float) -> void:
 		was_airborne = true
 		air_time += dt
 	peek.update(dt, self, eye, is_on_floor() and not sprint)
+	_update_swing(dt, crouch)
+	_update_corner(dt, sprint, crouch)
 	if torch:
-		var slow := Vector2(velocity.x, velocity.z).length() < PEEK_HOLD_SPEED
+		var flat_speed := Vector2(velocity.x, velocity.z).length()
+		_peek_slow = flat_speed < PEEK_HOLD_SPEED * (1.5 if _peek_slow else 0.8)   # hysteresis: hovering at the limit doesn't flicker the grip
+		var slow := _peek_slow or _swinging      # swinging round, the hand holds on though you're moving
+		_set_squeeze_hands()
+		torch.set_grab(_corner_on, corner.side, corner.point, corner.normal, corner.out)
+		torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
 		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
 		if lens_up > 0.02:
@@ -454,7 +520,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		var base := SPEED * maxf(Game.speed_mult, 0.01) * (CROUCH_MULT if crouch else 1.0)
 		var gait_k := horiz / base
 		var before := floori(bob / PI)
-		bob_rate = (4.1 if crouch else 5.3) * pow(clampf(gait_k, 0.3, 2.0), 0.78)
+		bob_rate = (4.1 if crouch else 5.3) * pow(clampf(gait_k, 0.3, 2.0), 0.78) * lerpf(1.0, 0.6, tight_k)
 		bob += dt * bob_rate
 		bob_amp = lerpf(bob_amp, handheld.step_amp, minf(1.0, dt * 8.0))    # no two steps the same height
 		if floori(bob / PI) != before:
@@ -476,6 +542,10 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var side := sin(bob * 0.5)
 	var bob_side := side * (0.035 if sprint else (0.014 if crouch else 0.022)) * gait
 	var bob_roll := side * (0.012 if sprint else (0.004 if crouch else 0.006)) * gait
+	# squeezed through a slit: short, slow, heavy steps, the shoulders working side to side more than the head lifts
+	vert *= lerpf(1.0, 0.45, tight_k) * lerpf(1.0, 0.7, crawl_k)
+	bob_side *= lerpf(1.0, 2.2, tight_k) * lerpf(1.0, 1.6, crawl_k)       # crawling the body rocks over each hand in turn
+	bob_roll *= lerpf(1.0, 2.6, tight_k) * lerpf(1.0, 1.8, crawl_k)
 	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait
 	y += (rise - 0.64) * vert * bob_amp * gait
 	# Stairs: the flight's walking surface is a smooth slope, but legs take it a tread at a time. Climbing,
@@ -521,7 +591,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		torch.sway_amount = maxf(head_bob, cam_shake)    # the hands trail the view unless both are off
 	cam.position += handheld.offset
 	cam.position += global_transform.basis.inverse() * peek.shift + Vector3(0.0, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
-	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount
+	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_look
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
 	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
@@ -681,7 +751,12 @@ func ambient_light() -> float:
 
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
-	if flash_on and not swap_dark:
+	# both hands on a wall: the torch is put down, so the beam fades out (and the battery rests); squeezed
+	# through a slit it's held low, a dim glow left
+	var hugging: bool = torch != null and torch.hugging()
+	var beam_goal := 0.0 if hugging else (SQUEEZE_BEAM if tight_k > 0.4 or crawl_k > 0.5 else 1.0)
+	_hug_dim = move_toward(_hug_dim, beam_goal, dt * (8.0 if beam_goal < _hug_dim else 5.0))
+	if flash_on and not swap_dark and _hug_dim > 0.5:
 		if Game.infinite_battery:
 			battery = 100.0
 		else:
@@ -700,13 +775,120 @@ func _update_flashlight(dt: float) -> void:
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := ambient_light()
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
-	var lit := flash_on and not dead and not swap_dark
+	k *= _hug_dim
+	var lit := flash_on and not dead and not swap_dark and _hug_dim > 0.01
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if lit else 0.0
 	flash.visible = lit
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if lit else 0.0
 		flash_spill.visible = lit
 	_update_flashlight_aim(dt)
+
+## At a squeeze gap (a slit through a wall): the body goes slim in its funnel so it fits, and inside the slit
+## you're squeezed: slow, breathing hard, the view glancing aside and back as you go in
+func _update_squeeze(dt: float) -> void:
+	_sq = Game.level.squeeze_at(global_position) if Game.level != null and Game.level.has_method("squeeze_at") and not dead else {}
+	var cap := shape.shape as CapsuleShape3D
+	if _sq_radius <= 0.0:
+		_sq_radius = cap.radius
+	cap.radius = move_toward(cap.radius, SQUEEZE_RADIUS if not _sq.is_empty() else _sq_radius, dt * (3.0 if not _sq.is_empty() else 0.8))
+	var inside: bool = not _sq.is_empty() and absf((_sq.local as Vector3).x) <= Game.level.CELL * 0.5 + 0.1
+	var was := tight_k
+	tight_k = lerpf(tight_k, 1.0 if inside else 0.0, minf(1.0, dt * 3.0))
+	if was < 0.3 and tight_k >= 0.3 and _sq_glance_t < 0.0:
+		_sq_glance_t = 0.0
+		_sq_side = 1.0 if randf() < 0.5 else -1.0
+	if _sq_glance_t >= 0.0:
+		_sq_glance_t += dt
+		var p := _sq_glance_t / SQUEEZE_GLANCE_TIME
+		_sq_look = _sq_side * SQUEEZE_GLANCE * sin(PI * clampf(p, 0.0, 1.0))
+		if p >= 1.0:
+			_sq_glance_t = -1.0
+			_sq_look = 0.0
+	if tight_k < 0.05 and _sq_glance_t < 0.0:
+		_sq_look = 0.0
+
+## Both hands flat on the slit's walls (or, crawling, on the floor), fingers on the way through, while you're in it
+func _set_squeeze_hands() -> void:
+	if torch == null:
+		return
+	if crawl_k > 0.5 and tight_k < 0.5:
+		# crawling: a hand flat on the floor each side, going forward and back in turn with the stride
+		var fwd := -global_transform.basis.z
+		fwd.y = 0.0
+		fwd = fwd.normalized()
+		var right := global_transform.basis.x
+		right.y = 0.0
+		right = right.normalized()
+		var swing := sin(bob * 0.5) * CRAWL_SWING
+		var floor_at := Vector3(global_position.x, global_position.y, global_position.z)
+		torch.set_squeeze(true, floor_at + fwd * (CRAWL_REACH + swing) + right * 0.22, Vector3.UP,
+				floor_at + fwd * (CRAWL_REACH - swing) - right * 0.22, Vector3.UP, fwd)
+		return
+	if tight_k < 0.5 or _sq.is_empty():
+		torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+		return
+	var xf: Transform3D = Game.level.object_transform(_sq.o)
+	var gap: float = _sq.gap
+	var along := signf((-global_transform.basis.z).dot(xf.basis.x))
+	if along == 0.0:
+		along = 1.0
+	var half: float = Game.level.CELL * 0.5 - 0.1
+	var lx := clampf((_sq.local as Vector3).x + along * 0.4, -half, half)
+	var ly := global_position.y - xf.origin.y + eye - 0.2
+	var hands := {}
+	for z: float in [-1.0, 1.0]:
+		var p: Vector3 = xf * Vector3(lx, ly, z * gap * 0.5)
+		var n: Vector3 = -xf.basis.z.normalized() * z
+		hands[1 if (p - global_position).dot(global_transform.basis.x) > 0.0 else 0] = [p, n]
+	if not (hands.has(0) and hands.has(1)):
+		return
+	torch.set_squeeze(true, hands[1][0], hands[1][1], hands[0][0], hands[0][1], xf.basis.x.normalized() * along)
+
+## Walking forward along a wall that ends just ahead: the hand on that side reaches out, takes hold of the
+## corner, and the grip draws you round it with a burst of speed. Every corner, with a cooldown.
+func _update_corner(dt: float, sprint: bool, crouch: bool) -> void:
+	_corner_cd = maxf(0.0, _corner_cd - dt)
+	_corner_boost = maxf(0.0, _corner_boost - dt / CORNER_FADE)
+	var fwd := -global_transform.basis.z
+	fwd.y = 0.0
+	if fwd.length_squared() < 0.0001:
+		_corner_on = false
+		return
+	fwd = fwd.normalized()
+	var free := is_on_floor() and not crouch and not dead and peek.side == 0 and not peek.hug
+	if _corner_on:
+		_corner_t += dt
+		var eye_at := global_position + Vector3.UP * eye
+		var passed := (corner.point - eye_at).dot(fwd) < 0.15            # the corner is beside you: let go
+		if _corner_t >= CORNER_TIME or passed or not free:
+			_corner_on = false
+		return
+	var v := Vector3(velocity.x, 0.0, velocity.z)
+	if _corner_cd > 0.0 or sprint or not free or _swinging or v.length() < CORNER_SPEED_MIN or v.normalized().dot(fwd) < 0.8:
+		return
+	if corner.scan(self, eye, fwd):
+		_corner_on = true
+		_corner_t = 0.0
+		_corner_cd = CORNER_COOLDOWN
+		_corner_boost = 1.0
+		land_dip = maxf(land_dip, 0.025)       # a little dip as the weight goes onto the hand
+
+## Walking, an edge in reach and you're already heading out round it: the hand takes hold, and the grab
+## pulls you round it with a push and a short burst of speed. Once per corner (cooldown).
+func _update_swing(dt: float, crouch: bool) -> void:
+	_swing_cd = maxf(0.0, _swing_cd - dt)
+	_swing_boost = maxf(0.0, _swing_boost - dt / SWING_FADE)
+	var v := Vector3(velocity.x, 0.0, velocity.z)
+	var ok := peek.leaning and peek.side != 0 and peek.amount > 0.5 and is_on_floor() and not crouch \
+		and peek.dist <= 1.15 and v.length() >= SWING_MIN_SPEED and v.dot(peek.out) >= SWING_SIDE_SPEED
+	if ok and not _swinging and _swing_cd <= 0.0:
+		_swinging = true
+		_swing_cd = SWING_COOLDOWN
+		_swing_boost = 1.0
+		velocity += peek.out * SWING_KICK + v.normalized() * (SWING_KICK * 0.4)
+	elif _swinging and (not ok or _swing_cd < SWING_COOLDOWN - 0.5):
+		_swinging = false           # the hand keeps hold for half a second, then lets go
 
 ## Immediate partial alignment during rapid mouse motion to prevent TAA flashlight ghosting
 func _sync_flashlight_aim(factor: float) -> void:

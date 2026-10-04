@@ -15,7 +15,7 @@ const PIT := "O"
 const THIN := "T"                    # v1 tiles, converted into objects when a level opens (_migrate_legacy)
 const ARCH := "A"
 const DOOR := "D"
-const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
+const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color("c4281c"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
 	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
@@ -2476,6 +2476,15 @@ func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 			for s: float in [-d, d]:
 				canvas.draw_dashed_line(xf * (Vector2(s, -half + p) * zoom), xf * (Vector2(s, half - p) * zoom),
 					Color(col, alpha * 0.8), 1.5, maxf(zoom * 0.12, 3.0))
+		"squeeze_gap":
+			# the wall either side of a very narrow slit, the slit dashed
+			var sg := float(_param(o, "gap", 0.55)) / 4.5
+			var sd := t * 0.5
+			_fill(_local_rect(xf, -sd, -half, sd, -sg * 0.5), col)
+			_fill(_local_rect(xf, -sd, sg * 0.5, sd, half), col)
+			for s: float in [-sg * 0.5, sg * 0.5]:
+				canvas.draw_dashed_line(xf * (Vector2(-sd, s) * zoom), xf * (Vector2(sd, s) * zoom),
+					Color(1, 1, 1, alpha * 0.9), 1.5, maxf(zoom * 0.1, 3.0))
 		"stairs_up", "stairs_down":
 			_draw_stairs(o, xf, col, alpha, own)
 		_:

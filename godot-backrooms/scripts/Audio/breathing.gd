@@ -68,6 +68,7 @@ func update(dt: float) -> void:
 	b_debt = _approach(b_debt, stamina_debt, 1.2, 0.09, dt)
 	var e := clamp01(0.3 * b_drive + 0.8 * b_debt)
 	if moving: e = maxf(e, 0.05)
+	e = maxf(e, 0.55 * maxf(float(audio.player.get("tight_k")), 0.7 * float(audio.player.get("crawl_k"))))   # squeezed through a slit or crawling: short, heavy breaths
 	# adrenaline: stamina is free but the lungs aren't - hard, fast, open-mouthed panting
 	var adr: float = audio.player.adrenaline
 	e = maxf(e, adr * (0.85 if moving else 0.6))

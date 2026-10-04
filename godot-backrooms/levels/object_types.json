@@ -39,6 +39,18 @@
     "blocks_nav": true,
     "category": "openings"
   },
+  "squeeze_gap": {
+    "label": "Squeeze gap",
+    "color": "5a4a3a",
+    "help": "A very tight slit through a wall (the Backrooms 'in between the walls' squeeze). Put it square on a wall cell: the wall closes round it and leaves a gap you turn sideways to pass. Gap = the opening width in metres",
+    "thickness": 4.5,
+    "on_cell": "wall",
+    "blocks_nav": true,
+    "category": "openings",
+    "params": {
+      "gap": 0.55
+    }
+  },
   "stairs_up": {
     "label": "Stairs up",
     "key": "7",

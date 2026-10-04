@@ -18,6 +18,8 @@ const PitFall := preload("res://scripts/World/level/pit_fall.gd")
 const EndlessShaft := preload("res://scripts/World/level/endless_shaft.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
+const SQUEEZE_OPEN_H := 2.3   # height of the slit through a squeeze gap's wall, floor to lintel
+const SQUEEZE_FUNNEL := 0.5   # m: how far out from the slit (each side along the wall, and along the way through) counts as "at" it
 const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell chunk (same chunks as the wall MultiMeshes)
 
 var wall_mat: StandardMaterial3D
@@ -299,20 +301,20 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("height_tex", load("res://textures/l0_carpet_height.png"))
 	sm.set_shader_parameter("albedo_tint", tint)
 	sm.set_shader_parameter("uv_scale", Vector2(0.5, 0.5))
-	sm.set_shader_parameter("normal_scale", 2.4)
+	sm.set_shader_parameter("normal_scale", 1.3)
 	sm.set_shader_parameter("roughness_mult", 0.88)
 	sm.set_shader_parameter("metallic_specular", 0.35)
 	sm.set_shader_parameter("ao_light_affect", 0.75)
-	sm.set_shader_parameter("height_scale", 0.04)
+	sm.set_shader_parameter("height_scale", 0.02)
 	# parallax march length by preset (Gfx `post`: 0 low, 1 medium, 2 high/ultra); 0 layers = no POM at all
 	var q := clampi(int(Gfx.s.get("post", 2)), 0, 2)
-	sm.set_shader_parameter("min_layers", [0, 4, 6][q])
-	sm.set_shader_parameter("max_layers", [0, 8, 14][q])
-	sm.set_shader_parameter("near_distance", 10.0)
-	sm.set_shader_parameter("near_fade_range", 2.5)
+	sm.set_shader_parameter("min_layers", [0, 3, 4][q])
+	sm.set_shader_parameter("max_layers", [0, 6, 8][q])
+	sm.set_shader_parameter("near_distance", 5.0)
+	sm.set_shader_parameter("near_fade_range", 2.0)
 	sm.set_shader_parameter("crevice_ao_strength", 0.6)
-	sm.set_shader_parameter("mid_distance", 30.0)
-	sm.set_shader_parameter("mid_fade_range", 5.0)
+	sm.set_shader_parameter("mid_distance", 16.0)
+	sm.set_shader_parameter("mid_fade_range", 10.0)
 	if _floor_map_tex == null: _floor_map_tex = _floor_map()
 	sm.set_shader_parameter("floor_map", _floor_map_tex)
 	sm.set_shader_parameter("map_cells", float(size))
@@ -737,6 +739,7 @@ func _build_objects() -> void:
 		match o.type:
 			"door": _build_door(o)
 			"arch": arch.append(o)
+			"squeeze_gap": _build_squeeze(o)
 			"stairs_up", "stairs_down": _build_stairs(o)
 			_:
 				var info := object_info(o.type)
@@ -773,6 +776,20 @@ func _object_wall_h(o: Dictionary) -> float:
 		if tall.has(cell): return TALL_H
 		if not low.has(cell): all_low = false
 	return LOW_H if all_low else WALL_H
+
+## The squeeze gap `pos` (world) is at, if any: {"o": the object, "local": pos in its frame (metres, +x the
+## way through, z across), "gap": the slit's width, "inside": between the wall's faces}. The slit's funnel
+## (SQUEEZE_FUNNEL either side) counts as at it, so the player can be made slim before touching the jambs.
+func squeeze_at(pos: Vector3) -> Dictionary:
+	for o: Dictionary in objects:
+		if o.type != "squeeze_gap":
+			continue
+		var gap := clampf(float(o.get("gap", 0.55)), 0.35, 0.9)
+		var local := object_transform(o).affine_inverse() * pos
+		var d := CELL * 0.5
+		if absf(local.x) <= d + SQUEEZE_FUNNEL and absf(local.z) <= gap * 0.5 + SQUEEZE_FUNNEL:
+			return {"o": o, "local": local, "gap": gap, "inside": absf(local.x) <= d}
+	return {}
 
 ## The clear height directly over `pos` (world) if it's under an arch's crown, else INF. The crown's
 ## curve dips well below the room's own ceiling_height() near the springline, so anything tall passing
@@ -1074,6 +1091,39 @@ func _build_arches(list: Array) -> void:
 	shape.backface_collision = true
 	cs.shape = shape
 	body.add_child(cs)
+
+# A squeeze gap: a full CELL-deep wall with a narrow slit through it (SQUEEZE_OPEN_H tall, `gap` wide): a
+# jamb of wall either side and a lintel over the slit. The cell is "carved" (an object's on_cell "wall"):
+# no solid block of its own, so the slit is the only way through, and the monster's nav treats it as wall.
+func _build_squeeze(o: Dictionary) -> void:
+	var xf := object_transform(o)
+	var h := _object_wall_h(o)
+	var gap := clampf(float(o.get("gap", 0.55)), 0.35, 0.9)
+	var jamb := (CELL - gap) * 0.5
+	var top := minf(SQUEEZE_OPEN_H, h - 0.3)
+	var body := StaticBody3D.new()
+	add_child(body)
+	var parts: Array = []                          # [size, local pos]
+	for side: float in [-1.0, 1.0]:
+		parts.append([Vector3(CELL, h, jamb), Vector3(0, h * 0.5, side * (gap * 0.5 + jamb * 0.5))])
+	parts.append([Vector3(CELL, h - top, gap), Vector3(0, top + (h - top) * 0.5, 0)])
+	for part: Array in parts:
+		var size: Vector3 = part[0]
+		var pos: Vector3 = part[1]
+		var mi := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = size
+		mi.mesh = box
+		mi.transform = xf * Transform3D(Basis(), pos)
+		mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
+		add_child(mi)
+		_add_box_collider(body, xf, size, pos)
+		var oi := OccluderInstance3D.new()
+		var bo := BoxOccluder3D.new()
+		bo.size = size
+		oi.occluder = bo
+		oi.transform = xf * Transform3D(Basis(), pos)
+		add_child(oi)
 
 # A door is always set in a thin wall: props/door.gd builds the partition across the object's span with
 # the doorway, frame, casing, leaf and knobs in it.

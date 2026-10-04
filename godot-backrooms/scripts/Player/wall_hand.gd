@@ -50,7 +50,7 @@ const EDGE_OUT := -0.08           # m: from peek.gd's point on the wall (4 cm in
                                   # finger's length short of the edge, so the fingertips reach it
 const RISE := 0.0                 # m above the eye the hand takes the wall
 const RISE_CROUCH := -0.10        # crouched it takes it lower
-const REACH := 0.85               # m: an edge this close can be taken hold of
+const REACH := 1.15               # m: an edge this close can be taken hold of
 const BRACE_BACK := 0.12          # braced, the hand stays this much of the way back towards the shoulder
 const CARRY_DROP := 0.13          # m the carrying hand sits below the usual torch hold
 const CARRY_OUT := 0.03           # m out to its side
@@ -61,6 +61,9 @@ const NEAR := 0.15                # m: the hand never comes nearer the camera th
 const HUG_RANGE := 0.2            # m: how far either side of the hand the wall face is looked for
 const HUG_GAP := 0.012            # m: the palm's rest off the wall holding on
 const HUG_GAP_BRACED := 0.04      # m: braced, it stays a little off
+const AT_SMOOTH := 30.0           # 1/s: the knuckles' target is low-passed, so a probe flicker never shows as the hand jumping
+const CLEAR_SMOOTH := 18.0        # 1/s: how fast the hand follows an obstruction coming or going
+const SNAP_HYST := 0.03           # m: the arm has to be this much within / beyond its reach to go onto / come off the wall face
 const CLEAR := 0.03              # m kept between the fingertips and anything in the way
 
 class Hand:
@@ -96,11 +99,16 @@ class Hand:
 	var regrip := 4.0             # s to the next shift of the grip
 	var shift_t := 0.0
 	var shift := 0.0              # 0..1..0 over a shift
+	var at_s := Vector3.ZERO      # camera space: the smoothed knuckle target
+	var at_ok := false
+	var clear_k := 1.0            # smoothed share of the way out along the line of sight the obstruction allows
+	var on_face := false          # the hand is laid on the wall face (with hysteresis)
 
 var view: Node3D                  # the camera the hands are posed in front of
 var _hands: Array[Hand] = []
 var _hold_fore := Transform3D()   # the right forearm in the torch hold, relative to its parent bone
 var _rng := RandomNumberGenerator.new()
+var _dt := 0.016
 
 ## Find both arms' bones and read the torch hold off `anim`. False if the rig isn't the one expected.
 func setup(cam: Node3D, anim: AnimationPlayer) -> bool:
@@ -164,6 +172,8 @@ func set_mode(i: int, mode: Mode) -> void:
 	if h.mode == mode:
 		return
 	h.mode = mode
+	h.at_ok = false
+	h.clear_k = 1.0
 	h.from_pos = h.cur_pos
 	h.from_rot = h.cur_rot
 	h.from_q = h.cur_q.duplicate()
@@ -226,7 +236,8 @@ func _spring(mode: Mode) -> Vector2:
 static func _mirror(q: Quaternion) -> Quaternion:
 	return Quaternion(q.x, -q.y, -q.z, q.w)
 
-func _process_modification_with_delta(_delta: float) -> void:
+func _process_modification_with_delta(delta: float) -> void:
+	_dt = clampf(delta, 0.001, 0.05)
 	var skel := get_skeleton()
 	if skel == null or view == null or _hands.is_empty():
 		return
@@ -341,11 +352,18 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 	var brace := at.lerp(shoulder, BRACE_BACK) + Vector3(sin(h.t * 7.3), sin(h.t * 9.1 + 1.0), 0.0) * 0.002
 	at = brace.lerp(at, h.grab)
 	at += ((shoulder - at).normalized() * 0.012 - up * 0.008) * h.shift  # re-gripping
-	at = _clear(cam, at, at + fingers * (FINGER * unit), space)
+	at = _clear(h, cam, at, at + fingers * (FINGER * unit), space)
 	# onto the wall face, if the arm is long enough for that; else it stays short of it, on the line of sight
+	# (it takes more to come off than to go on, so a hand at the limit of its reach doesn't flip between the two)
 	var on_wall := _hug(cam, at, h.normal, h.grab, space)
-	if (on_wall - knuckle - shoulder).length() <= slack:
+	var arm := (on_wall - knuckle - shoulder).length()
+	h.on_face = arm <= slack + (SNAP_HYST if h.on_face else -SNAP_HYST)
+	if h.on_face:
 		at = on_wall
+	# whatever the probes did this frame, the hand moves smoothly
+	h.at_s = h.at_s.lerp(at, 1.0 - exp(-_dt * AT_SMOOTH)) if h.at_ok else at
+	h.at_ok = true
+	at = h.at_s
 	var wrist_at := at - knuckle
 	# shoulder, elbow, wrist: whatever moved the hand, the shoulder gives before the arm stretches
 	var span := wrist_at - shoulder
@@ -390,7 +408,7 @@ func _space() -> PhysicsDirectSpaceState3D:
 
 ## `at` (camera space), slid back along the line of sight so nothing lies between the camera and `tip`
 ## (the fingertips, camera space), and never nearer than NEAR: the hand stays where it is on screen
-func _clear(cam: Transform3D, at: Vector3, tip: Vector3, space: PhysicsDirectSpaceState3D) -> Vector3:
+func _clear(h: Hand, cam: Transform3D, at: Vector3, tip: Vector3, space: PhysicsDirectSpaceState3D) -> Vector3:
 	var scale := 1.0
 	if space != null:
 		var q := PhysicsRayQueryParameters3D.create(cam.origin, cam * (tip * 1.1))
@@ -401,4 +419,5 @@ func _clear(cam: Transform3D, at: Vector3, tip: Vector3, space: PhysicsDirectSpa
 		if not hit.is_empty():
 			var d: float = cam.origin.distance_to(hit.position)
 			scale = minf(1.0, (d - CLEAR) / maxf(0.001, tip.length()))
-	return at * clampf(scale, NEAR / maxf(0.001, at.length()), 1.0)
+	h.clear_k = lerpf(h.clear_k, scale, 1.0 - exp(-_dt * CLEAR_SMOOTH))
+	return at * clampf(h.clear_k, NEAR / maxf(0.001, at.length()), 1.0)

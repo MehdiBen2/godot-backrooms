@@ -155,7 +155,7 @@ static func add_lights(to: Node3D, fixtures: Array, holes: Array, layer: int, en
 		l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 		_setup(l, color, lamp * SPOT_GAIN, layer)
 		l.spot_range = LIGHT_REACH
-		l.spot_attenuation = 1.4
+		l.spot_attenuation = 1.15
 		l.spot_angle = SPOT_ANGLE
 		l.spot_angle_attenuation = SPOT_SOFT
 		l.position = f.light_pos
