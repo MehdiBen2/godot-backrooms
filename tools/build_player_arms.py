@@ -103,14 +103,14 @@ TORCH_TAIL = 0.153                # m from the grip back to the torch's tail end
 # the swap, in the camera's space (m; x right, y up, -z ahead)
 SWAP_AIM = (0.92, 0.12, -0.37)    # the way the torch points while it's worked on: level, head to the right
 SWAP_FOREARM = (0.2, 0.6, -0.77)  # the way the right forearm then runs, elbow to wrist: up from below
-SWAP_AT = (0.09, -0.13, -0.36)    # where the grip is then
+SWAP_AT = (0.10, -0.19, -0.36)    # where the grip is then
 SWAP_LEFT_ELBOW = (-0.14, -0.46, -0.10)   # about where the left elbow hangs: under the tail, so the wrist stays straight
 SWAP_AWAY = (-0.10, -0.24, 0.06)  # from the tail to where the left hand waits, below the view
 SWAP_SWING = (-0.05, 0.02, 0.03)  # how far the hand's way there and back bows out from the straight line
 SWAP_RELAX = 0.65                 # how much of the wrist's angle on the cap the hand lets go of, off the torch
 SWAP_DIP = 0.025                  # the torch hand's way to the working pose sags this much in the middle
 SWAP_TWIST = 45.0                 # degrees a turn of the cap
-SWAP_TIP = 28.0                   # degrees the tail dips to let the old cells out
+SWAP_TIP = 48.0                   # degrees the tail dips to let the old cells out
 SWAP_GIVE = 4.0                   # degrees the torch rolls in the right hand with a twist of the cap
 SWAP_LENGTH = 6.8
 
@@ -966,7 +966,7 @@ def main():
     # are keyed on the same.
     UNSCREW = ((1.20, 1.50), (1.84, 2.12))                           # the two twists off, each from, to
     PULL = (2.18, 2.42)                                              # the cap drawn off
-    TIP = (2.38, 2.73, 3.13, 3.53)                                   # the tail going down, down, coming back, level
+    TIP = (2.38, 2.73, 3.30, 3.72)                                   # the tail going down, down, coming back, level
     FETCH = (2.43, 2.88, 3.25, 3.70)                                 # the left hand leaving, gone, coming back, back
     PUSH = (3.86, 4.16)                                              # each new cell home
     CAP_ON = 4.52

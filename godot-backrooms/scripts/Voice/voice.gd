@@ -70,7 +70,13 @@ var _in_rate := 48000.0
 
 func _ready() -> void:
 	_load()
-	_setup_capture()
+	# Level-editor test launches skip the mic: the macOS permission prompt for the editor's process blocks
+	# startup before the first frame (a black window), and a test play has no voice chat to use it for.
+	var editor_test := false
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--test-level="): editor_test = true
+	if not editor_test:
+		_setup_capture()
 	_build_overlay()
 	changed.connect(_save)
 

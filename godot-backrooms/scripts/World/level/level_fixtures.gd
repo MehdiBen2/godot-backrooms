@@ -30,7 +30,7 @@ const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), 
 # the light lands on the walls in soft arcs, where a point light lit a wall brightest right under the ceiling.
 const SPOT_ANGLE := 80.0
 const SPOT_SOFT := 1.6              # SpotLight3D spot_angle_attenuation
-const SPOT_GAIN := 1.15             # the cone gives up the light a point light threw sideways: a little more goes down
+const SPOT_GAIN := 1.35            # the cone gives up the light a point light threw sideways: a little more goes down
 # Each lamp its own (_characterise). Lamps lose output as they age, no two are quite the same white, and a few
 # are on their way out: dim, a little pink, their light never quite settling.
 const DYING_CHANCE := 0.06
@@ -123,7 +123,8 @@ func _place_fixtures() -> void:
 			# no fixture over any wall, placed thin walls and doors included: the wall reaches the ceiling,
 			# so a troffer there sits on top of it and its light bleeds through both faces
 			if walls.has(c) or arch_cells.has(c) or pillar_cells.has(c) or open_above.has(c): continue
-			var y := LOW_H - 0.03 if ceiling_height(c) == LOW_H else WALL_H - 0.03
+			var ch := ceiling_height(c)
+			var y := (ch if ch == LOW_H or ch == CRAWL_H else WALL_H) - 0.03
 			var pos := Vector3(x * CELL, y, z * CELL)
 			var too_close := false
 			for dx in range(-1, 2):
@@ -609,7 +610,7 @@ const GLOW_CELLS := 3               # the pool's quad, in cells: the tube's own 
 const GLOW_RANGE := 20.0
 const GLOW_RANGE_PANEL := 16.0
 const GLOW_ENERGY_PANEL := 1.9
-const GLOW_DECAY := 1.4
+const GLOW_DECAY := 1.15
 const GLOW_CLASSIC := 1.6
 const CONE_TOP := 0.3               # metres: the cone's radius at the tube...
 const CONE_BOTTOM := 1.9            # ...and at the floor

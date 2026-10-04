@@ -13,6 +13,7 @@ const CELL := 4.5
 const WALL_H := 5.4
 const TALL_H := 10.8
 const LOW_H := 2.3
+const CRAWL_H := 1.2         # a crawl space's ceiling: low enough that you have to get right down (player.gd)
 const PIT_DEPTH := 14.0
 const STOREY_H := 9.0     # floor to floor (props/stairs.gd STOREY): the room, and the slab up to the next floor
 const SEE_OVER_H := 1.8  # a wall object lower than this (its "height") is seen over: it blocks feet, not eyes
@@ -59,6 +60,7 @@ var blocked_edges := {}   # Vector4i(a.x, a.y, b.x, b.y), a < b -> true
 var wall_segments: Array = []
 var tall := {}
 var low := {}
+var crawl := {}      # Vector2i -> true: a crawl space (the editor's CRAWL zone): CRAWL_H ceiling, you crawl through it
 var tiles := {}
 var bright := {}
 var dark := {}
@@ -490,7 +492,7 @@ func _parse(d: Dictionary) -> void:
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
+	for zone in ["tall", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
 			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss", "endless_ceiling"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
@@ -571,6 +573,7 @@ static func cell_of(p: Vector3) -> Vector2i:
 	return Vector2i(roundi(p.x / CELL), roundi(p.z / CELL))
 
 func ceiling_height(c: Vector2i) -> float:
+	if crawl.has(c): return CRAWL_H
 	if tall.has(c): return TALL_H
 	if low.has(c): return LOW_H
 	return WALL_H

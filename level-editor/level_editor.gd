@@ -23,7 +23,7 @@ extends "res://level_editor_files.gd"
 const BG := Color("0d0c08")
 const PANEL := Color("16140d")
 const LINE := Color("3a3522")
-const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "tiles": "Tile floor instead of carpet",
+const ZONE_HELP := {"tall": "Huge atrium ceiling", "low": "Crouch-height ceiling", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
 	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Dim: most tubes dead, the halls darker and foggier (your Dim look, pushed further)", "flicker": "Failing tubes", "grime": "Stained carpet",
 	"classic": "Classic: the Kane Pixels found-footage look. Every tube steady and glowing, flat overexposed mono-yellow,\nclear air, milky blacks. Filmed on the camcorder (VHS tape) while you stand in it, with the Camera setting on Auto",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away. Filmed on the bodycam",
@@ -1370,6 +1370,8 @@ func _obj_icon(t: String, col: Color) -> ImageTexture:
 		box.call(8, 4, 10, 14, c)                         # the leaf, swung open
 		disc.call(9, 14, 11, c, 1.2)
 		box.call(0, 0, 0, 0, c)
+	elif t == "squeeze_gap":
+		box.call(2, 6, 12, 22, c); box.call(16, 6, 26, 22, c)   # the wall, and the slit between
 	elif t == "arch":
 		box.call(3, 8, 8, 26, c); box.call(20, 8, 25, 26, c)
 		disc.call(14, 14, 11, c, 4.0)

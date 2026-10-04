@@ -497,6 +497,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	_loop_of.clear()
 	tall.clear()
 	low.clear()
+	crawl.clear()
 	tiles.clear()
 	bright.clear()
 	dark.clear()

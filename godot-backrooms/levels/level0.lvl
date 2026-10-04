@@ -1034,6 +1034,38 @@
       "scale": 4.0,
       "text": "",
       "type": "trigger"
+    },
+    {
+      "gap": 0.55,
+      "pos_x": 4.0,
+      "pos_y": 12.0,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "squeeze_gap"
+    },
+    {
+      "gap": 0.55,
+      "pos_x": 4.0,
+      "pos_y": 15.0,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "squeeze_gap"
+    },
+    {
+      "gap": 0.55,
+      "pos_x": 4.0,
+      "pos_y": 16.0,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "squeeze_gap"
+    },
+    {
+      "gap": 0.55,
+      "pos_x": 4.0,
+      "pos_y": 17.0,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "squeeze_gap"
     }
   ],
   "sdfgi": true,
@@ -1130,6 +1162,24 @@
       ]
     ],
     "classic": [],
+    "crawl": [
+      [
+        5,
+        12
+      ],
+      [
+        6,
+        12
+      ],
+      [
+        7,
+        12
+      ],
+      [
+        8,
+        12
+      ]
+    ],
     "dark": [],
     "dim": [],
     "drain": [],

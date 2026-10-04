@@ -17,12 +17,12 @@ uniform float ao_light_affect : hint_range(0.0, 1.0) = 0.75;
 uniform float height_scale : hint_range(0.0, 0.1) = 0.04;
 uniform int min_layers : hint_range(0, 32) = 6;
 uniform int max_layers : hint_range(0, 64) = 14;    // 0 turns POM off (Low preset)
-uniform float near_distance : hint_range(5.0, 20.0) = 10.0;
-uniform float near_fade_range : hint_range(1.0, 5.0) = 2.5;
+uniform float near_distance : hint_range(2.0, 20.0) = 5.0;
+uniform float near_fade_range : hint_range(1.0, 5.0) = 2.0;
 uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.6;
 
-uniform float mid_distance : hint_range(15.0, 60.0) = 30.0;
-uniform float mid_fade_range : hint_range(2.0, 10.0) = 5.0;
+uniform float mid_distance : hint_range(8.0, 60.0) = 16.0;
+uniform float mid_fade_range : hint_range(2.0, 12.0) = 10.0;
 
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)

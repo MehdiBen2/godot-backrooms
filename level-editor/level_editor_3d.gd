@@ -369,6 +369,7 @@ func _box_xf(centre: Vector3, size: Vector3, yaw_rad := 0.0) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, yaw_rad) * Basis.from_scale(size), centre)
 
 func _wall_height(c: Vector2i) -> float:
+	if ed.zones["crawl"].has(c): return 1.2 * vscale
 	var all_low := true
 	for dz in range(-1, 2):
 		for dx in range(-1, 2):
@@ -471,6 +472,13 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * (r + pillar * 0.5)), Vector3(1, h, pillar), wall_mat])
 			parts.append([Vector3(0, (h + top) * 0.5, 0), Vector3(1, h - top, r * 2.0), wall_mat])
+		"squeeze_gap":
+			var sg := float(o.get("gap", 0.55)) / 4.5
+			var jamb := (span - sg) * 0.5
+
+			for side in [-1.0, 1.0]:
+				parts.append([Vector3(0, h * 0.5, side * (sg * 0.5 + jamb * 0.5)), Vector3(1, h, jamb), wall_mat])
+			parts.append([Vector3(0, (h * 0.43 + h) * 0.5, 0), Vector3(1, h * 0.57, sg), wall_mat])
 		"door":
 			var frame := _flat(Color("6b4a2e"))
 			parts.append([Vector3(0, h * 0.42, 0), Vector3(depth, h * 0.84, span * 0.8), frame])

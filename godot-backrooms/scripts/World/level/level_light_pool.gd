@@ -104,7 +104,7 @@ func _lamp_light() -> SpotLight3D:
 	l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 	l.light_color = LIGHT_COLOR
 	l.spot_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
-	l.spot_attenuation = 1.4
+	l.spot_attenuation = 1.15
 	l.spot_angle = SPOT_ANGLE
 	l.spot_angle_attenuation = SPOT_SOFT
 	l.light_energy = 0.0
