@@ -1,6 +1,8 @@
 extends Node3D
 ## Wires up the player, UI and audio. Esc is native here: no browser cooldown.
 
+const PAUSED_FPS := 10
+
 @onready var level := $Level
 @onready var player := $Player
 @onready var ui := $UI
@@ -58,14 +60,15 @@ func _unhandled_input(e: InputEvent) -> void:
 # it keeps hunting
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		Engine.max_fps = 15              # nobody is looking: stop rendering the full scene flat out
+		Engine.max_fps = PAUSED_FPS      # nobody is looking: stop rendering the full scene flat out
 		if Game.playing and not Game.dead and not ui.menu.shown:
 			set_paused(true)
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		Engine.max_fps = int(Gfx.s.get("fps", 0))
+		Engine.max_fps = PAUSED_FPS if ui.menu.shown else int(Gfx.s.get("fps", 0))
 
 func set_paused(on: bool, start := false) -> void:
 	Game.playing = not on
+	Engine.max_fps = PAUSED_FPS if on else int(Gfx.s.get("fps", 0))      # a frozen scene needs no more than a trickle
 	if on: set_inventory(false)
 	ui.set_paused(on, start)
 	audio.set_paused(on)

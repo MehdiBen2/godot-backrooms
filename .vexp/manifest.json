@@ -1,61 +1,60 @@
 {
   "file_hashes": {
     ".claude/CLAUDE.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
-    ".claude/hooks/vexp-hint.sh": "461414790df4d1659fe33b9a672e7b3d00c3e7567f1c6ec8ad548e55e3a29f83",
-    ".claude/hooks/vexp-restore.sh": "20a50f58b3df5411a3239facebd050ef0b3f06d25dc65e7e00cebb690be36b8b",
+    ".claude/hooks/vexp-hint.sh": "636f8c8342733a4438f9625fc14d1fef397504987e286651f1548b0b4a2452f2",
+    ".claude/hooks/vexp-restore.sh": "1b8ab5c7c2ca342097000be2071e6588c62143a2bf30a42037679633f679a52f",
+    ".claude/skills/claude-animate/SKILL.md": "38fb024141d7d93120eda114030c1cf8ae4e56a84ea14ccf2b98ea154330a32a",
     "AGENTS.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
     "README.md": "dfbda81310eb086cad0da88655f860083ed7be09522d088674146b60076ed41c",
-    "futurtoeditlore.md": "1f2b04ce63c5fb2c5b06291b5b42a4ca653df1879355313549ff2e8160cc2206",
+    "futurtoeditlore.md": "1dcbc0e7fd6d32e8cdc9683e0bf9f4f8d29631999473e17dc4d5d5f9e4a485b3",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
-    "godot-backrooms/tools/gen_audio.py": "896f1c903052b36ae90fac4fe623b53ed37ba230ead2c17c8dccb30b6efbbe56",
-    "godot-backrooms/tools/gen_battery_audio.py": "6ba2964eacf47c54ea97bbd5203306d5bfb64968109ef12e805cdfa9c755e89a",
+    "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
+    "godot-backrooms/tools/gen_battery_audio.py": "352e35667bd8ba97527e9e83ef7fcd10a844b991843014bc1e850fcdd2d3b719",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
     "godot-backrooms/tools/gen_tape_audio.py": "213a8a33e21a7667946aab3890db3e148770bd7a8d50ea2aa4b2bdeb631b0f85",
     "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
     "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
     "godot-backrooms/tools/generate_ceiling_textures.py": "5bb794586049f4f44f29e4f0f0e927d06d01b432896c01105095da3d5b5e49dc",
-    "godot-backrooms/tools/generate_door_textures.py": "681149898270afa962a4157862b98e5fc7ee13691cae4e0a64afa50a6c4e1d6a",
-    "godot-backrooms/tools/generate_exit_textures.py": "370a92e77610c242560b6cd2bbb10717f419529202c841948b5dcb3107840847",
+    "godot-backrooms/tools/generate_door_textures.py": "e9c1c7ea48a0e6df38f59be6f0a54fe643e3b160f4ff742b21025ab35d18f00e",
+    "godot-backrooms/tools/generate_exit_textures.py": "2e7955e432980ec2c82b361b769d53e977e7e281e44fc7b3313dd35b8b97f6ac",
     "godot-backrooms/tools/generate_hud_icons.py": "49399b5897f2fcf4da0476144d60ef9de1c3ee1c2a026bf27bcec8b52820f457",
     "godot-backrooms/tools/generate_lens_dirt.py": "3e354d973b009bf81ad7f0e2d1ad33ffbe68e016bb274a52c3ad2a1089315d7b",
     "godot-backrooms/tools/generate_splash.py": "01fc2af4bc76c411f08dba0826163cb4de37a886066e11a411f2436fd2bd16a1",
     "godot-backrooms/tools/generate_tile_textures.py": "3edc5b9d063922815888fe27d1661d08e09099fd9d1e234f1bd64f0bc057e336",
     "godot-backrooms/tools/make_wind.py": "2fe025afaaf0ee5230a7892c7773c6b7f5661081a1af75863a80152fcc9d47ce",
     "godot-backrooms/tools/measure_audio.py": "b1162f6eb4267ea7139ba1b790a3b3febe1bf2085fab443d8f0319958d9289af",
-    "launcher/README.md": "506ee9543a4f256163974324939920dfa3680af6e21a245f60880551789ce083",
-    "tools/blender/build_grabber.py": "355c15ac519c55722ef201bedca33a7fc8191201453b8aa91e76d6f488cb55ea",
-    "tools/blender/build_player_hazmat.py": "4d542f99e19362f77e8d6b27d0a369f7cc99ce76c2dcabf4585ae898a51a668a",
-    "tools/blender/build_stop_signs.py": "e74f6bd4aee04518c9c319605f8ae9c59316eedfb095696c05e78eb718f91845",
-    "tools/blender/rig_mannequin_variant.py": "ad439292c5443f1739111d49949d1c457e3299825f9948203dd8a47dda9db947",
-    "tools/build_player_arms.py": "0af009b8bc416000d8064918ce91955089d9cf8e783510975dc26e67a11ff2a7",
+    "launcher/README.md": "05035f5a6e603121333959ea639c0ed24ecca785aa014656f442f05b8755bd81",
+    "tools/blender/build_grabber.py": "3227fe745a8f2498bbdf82d9cecf77627239e38e49ce22a1264ad823acab4cef",
+    "tools/blender/build_player_hazmat.py": "45e4d882569443cf5a10abff358273993f2036efa5396bb0fe7852cbb479e8f5",
+    "tools/blender/build_stop_signs.py": "c4f4d973b27d4fb7cdf17e2638e2077a0a0aa604b28ab8a26d0d8830c2485553",
+    "tools/blender/rig_mannequin_variant.py": "dbc8d558df435f53754e5ffda2e5f81507514b5c827a3495dba38f69ef0fb1c0",
+    "tools/build_player_arms.py": "c2364c8cf1a361a6a7004e7e361212be3e7d900081198b6c15d2428ed4c815a6",
     "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
-    "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
+    "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
-  "indexed_at_commit": "aecb5ca862fcb5d1378692ec863054b8fe73b86f",
-  "indexed_at_timestamp": "2026-10-03T21:35:23.175600+00:00",
-  "indexed_at_commit": "1d62324df370e5a3d18a08b24d7584f8adecb845",
-  "indexed_at_timestamp": "2026-10-04T12:21:14.710671+00:00",
+  "indexed_at_commit": "0854a48aa5d2775d68190d92e274fdab4d0bc3d6",
+  "indexed_at_timestamp": "2026-10-04T16:52:05.100004300+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
-      "nodes": 35
+      "nodes": 46
     },
     "powershell": {
       "calls": 0,
       "nodes": 3
     },
     "python": {
-      "calls": 302,
+      "calls": 250,
       "nodes": 200
     }
   },
   "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
-    "total_edges": 345,
-    "total_files": 31,
-    "total_nodes": 238
+    "total_edges": 303,
+    "total_files": 32,
+    "total_nodes": 249
   },
   "vexp_version": "3.2.5"
 }
