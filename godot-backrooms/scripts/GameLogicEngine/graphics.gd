@@ -20,7 +20,11 @@ const ORDER := ["low", "medium", "high", "ultra"]
 const SMOOTH_MAX_HZ := 165
 ## Adaptive resolution: how far below the preset's render scale it may drop, and the frame-time
 ## slack on each side of the target so the scale settles instead of hunting.
-const ADAPT_FLOOR := 0.72       # lower than this and FSR turns the far end of a hall to mush
+## Off for good: every live scale change frees and reallocates every render buffer, and on the AMD D3D12 / Vulkan
+## drivers that reallocation reset the GPU (DEVICE_REMOVED, a driver timeout dialog). The render scale now
+## only changes when the player picks it, never on its own mid-game.
+const ADAPTIVE_RES := false
+const ADAPT_FLOOR := 0.72     # lower than this and FSR turns the far end of a hall to mush
 const ADAPT_SLOW := 1.25
 const ADAPT_FAST := 1.06
 const ADAPT_DOWN := 0.1          # each change reallocates every screen buffer (~130 ms hitch): few, big steps
@@ -49,10 +53,12 @@ const PRESETS := {
 		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
 	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
 		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 4, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
-	"ultra": {"scale": 100, "msaa": 4, "fxaa": true, "taa": true, "shadows": 3, "ssao": 3, "ssr": true, "ssil": true,
-		"glow": true, "vfog": 3, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 8, "far_lights": 32, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
+		"lights": 10, "light_shadows": 3, "far_lights": 18, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
+	# Ultra: the same picture for a lot less. TAA already cleans the edges, so MSAA 4x on top bought nothing;
+	# 4096 shadow maps and the 2nd fog/AO tier are visually the same at this room size.
+	"ultra": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": true,
+		"glow": true, "vfog": 2, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
+		"lights": 12, "light_shadows": 5, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)
@@ -88,7 +94,7 @@ func _ready() -> void:
 func _process(dt: float) -> void:
 	_log_hitch(dt)
 	_guard_physics(dt)
-	if not bool(s.get("adapt", false)) or compat or float(s.get("scale", 100)) <= 0.0:
+	if not ADAPTIVE_RES or not bool(s.get("adapt", false)) or compat or float(s.get("scale", 100)) <= 0.0:
 		return
 	if OS.get_name() == "macOS":
 		return                               # MoltenVK: every render-scale change reallocates all screen buffers, and doing it
@@ -314,7 +320,7 @@ func physics_hz() -> int:
 func _render_scale() -> void:
 	var vp := get_viewport()
 	var live := clampf(float(s.get("scale", 100)) / 100.0, 0.5, 1.0)
-	if bool(s.get("adapt", false)) and not compat:
+	if ADAPTIVE_RES and bool(s.get("adapt", false)) and not compat:
 		live *= adapt_ratio
 	var mode := Viewport.SCALING_3D_MODE_FSR if (live < 1.0 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR
 	if vp.scaling_3d_mode != mode:
@@ -361,7 +367,6 @@ func _auto_preset() -> String:
 		return "low"
 	match RenderingServer.get_video_adapter_type():
 		RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU: return "low"
-		RenderingDevice.DEVICE_TYPE_DISCRETE_GPU: return "high"
 	return "medium"
 
 func _load() -> void:

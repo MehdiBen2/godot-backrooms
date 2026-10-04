@@ -34,7 +34,7 @@
     "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
   },
   "indexed_at_commit": "0854a48aa5d2775d68190d92e274fdab4d0bc3d6",
-  "indexed_at_timestamp": "2026-10-04T16:52:05.100004300+00:00",
+  "indexed_at_timestamp": "2026-10-04T17:06:49.716670500+00:00",
   "languages": {
     "markdown": {
       "calls": 0,
@@ -45,14 +45,14 @@
       "nodes": 3
     },
     "python": {
-      "calls": 250,
+      "calls": 310,
       "nodes": 200
     }
   },
   "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
-    "total_edges": 303,
+    "total_edges": 363,
     "total_files": 32,
     "total_nodes": 249
   },

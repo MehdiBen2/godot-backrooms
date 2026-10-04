@@ -180,7 +180,6 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("VSync", "vsync", off_on))
 	v.add_child(_cycle_row("FPS limit", "fps", [[30, "30"], [60, "60"], [80, "80"], [100, "100"], [120, "120"], [0, "Unlimited"]]))
 	v.add_child(_cycle_row("Smooth motion", "smooth", off_on))
-	v.add_child(_cycle_row("Adaptive resolution", "adapt", off_on))
 
 	v.add_child(_section_title("CAMERA"))
 	v.add_child(_choice_row("Camera", func(): return Gfx.camera, Gfx.CAMERAS, func(x: String): Gfx.set_camera(x),

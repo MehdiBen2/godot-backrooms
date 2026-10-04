@@ -54,13 +54,11 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/godo
 
 [rendering]
 
-rendering_device/driver.windows="d3d12"
-lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3
+rendering_device/driver.windows="vulkan"
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=1
 textures/default_filters/anisotropic_filtering_level=4
-environment/ssao/quality=3
-anti_aliasing/quality/msaa_3d=2
+environment/ssao/quality=1
+anti_aliasing/quality/msaa_3d=1
 anti_aliasing/quality/use_debanding=true
 anti_aliasing/quality/screen_space_aa=1
-anti_aliasing/quality/use_taa=true
 occlusion_culling/use_occlusion_culling=true
-anti_aliasing/quality/use_taa_jitter=true

@@ -770,6 +770,57 @@ func _start_loading() -> void:
 	creep_progress = 0.0
 	load_elapsed = 0.0
 	ResourceLoader.load_threaded_request(MAIN_SCENE)
+	_warm_level_resources()
+
+## Things the level builder load()s one after another (a stall with no loading screen once the scene has
+## switched): requested here on loader threads, so those load() calls find them already in the cache.
+const WARM_SETS := [
+	["l0_carpet_", ["color", "normal", "rough", "ao"], ".webp"], ["l0_ceiling_", ["color", "normal", "rough", "ao"], ".webp"],
+	["l0_wallpaper_", ["color", "normal", "rough", "ao"], ".webp"], ["tiles_", ["color", "normal", "rough", "ao"], ".png"],
+	["grime_dry_", ["0", "1", "2", "3"], ".png"], ["grime_wet_", ["0", "1", "2", "3"], ".png"],
+]
+const WARM_FILES := [
+	"res://textures/l0_carpet_height.png", "res://textures/concrete_color.jpg", "res://textures/concrete_normal.jpg",
+	"res://shaders/drop_ceiling.gdshader", "res://shaders/panel_ceiling.gdshader",
+	"res://models/lights/office_lighting_troffer_light_1x4.glb", "res://models/ceiling/backrooms_blender_kit.glb",
+]
+var _warm: Array[String] = []
+
+func _warm_level_resources() -> void:
+	_warm.clear()
+	var paths: Array[String] = []
+	for set in WARM_SETS:
+		for part in set[1]:
+			paths.append("res://textures/%s%s%s" % [set[0], part, set[2]])
+	paths.append_array(WARM_FILES)
+	for id in ["Wood029", "Metal038"]:      # the door's fallback materials (level_geometry.gd _make_materials)
+		paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
+	paths.append("res://textures/props/door/door_leaf.tres")
+	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
+	if not levels.is_empty():
+		var meta: Dictionary = levels[clampi(Game.level_index, 0, levels.size() - 1)]
+		paths.append("res://levels/baked/%s_gi.res" % str(meta.get("id", "level")))
+		# the level's own material picks: its "materials" slots and every pbr name used by the "paint" brush
+		var d = JSON.parse_string(FileAccess.get_file_as_string("res://levels/" + str(meta.get("file", ""))))
+		if d is Dictionary:
+			var ids := {}
+			for slot in d.get("materials", {}):
+				ids[str(d["materials"][slot])] = true
+			for slot in d.get("paint", {}):
+				for id in d["paint"][slot]:
+					ids[str(id)] = true
+			for id in ids:
+				if not str(id).is_empty():
+					paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
+	for p in paths:
+		if ResourceLoader.exists(p) and ResourceLoader.load_threaded_request(p) == OK:
+			_warm.append(p)
+
+func _warm_pending() -> bool:
+	for p in _warm:
+		if ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			return true
+	return false
 
 ## The playlist entry the run starts on, so the loading screen names the level actually being built
 func _level_name() -> String:
@@ -839,7 +890,7 @@ func _process_loading(dt: float) -> void:
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	var real: float = prog[0] if prog.size() > 0 else 0.0
-	var done := status == ResourceLoader.THREAD_LOAD_LOADED
+	var done := status == ResourceLoader.THREAD_LOAD_LOADED and not _warm_pending()
 	if done:
 		real = 1.0
 	# scenes/main.tscn usually streams in well under MIN_LOAD_TIME, so the bar is driven by

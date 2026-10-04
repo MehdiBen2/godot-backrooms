@@ -660,8 +660,20 @@ func _outer_corners(c: Vector2i) -> int:
 	var m := 0
 	for k in 4:
 		var s: Vector2i = CORNER_SIGNS[k]
-		if not (_block_at(c + Vector2i(s.x, 0)) or _block_at(c + Vector2i(0, s.y)) or _block_at(c + s)): m |= 1 << k
+		if not (_solid_at(c + Vector2i(s.x, 0)) or _solid_at(c + Vector2i(0, s.y)) or _solid_at(c + s)): m |= 1 << k
 	return m
+
+## A wall block, or a squeeze gap's jambs (they fill their cell edge to edge, so a block beside one keeps its
+## corner square and the wall runs on flush)
+func _solid_at(c: Vector2i) -> bool:
+	if _block_at(c): return true
+	if not carved.has(c): return false
+	if _squeeze_cells.is_empty():
+		for o: Dictionary in objects:
+			if o.type == "squeeze_gap": _squeeze_cells[Vector2i(roundi(o.pos_x), roundi(o.pos_y))] = true
+		if _squeeze_cells.is_empty(): _squeeze_cells[Vector2i(-9999, -9999)] = true
+	return _squeeze_cells.has(c)
+var _squeeze_cells := {}
 
 ## A wall block CELL square and `height` tall (centred, like the BoxMesh it replaces) with the vertical edges in
 ## `round_mask` rounded. No bottom (it stands on the floor) and no UVs (the wall materials are world triplanar).
@@ -1092,21 +1104,19 @@ func _build_arches(list: Array) -> void:
 	cs.shape = shape
 	body.add_child(cs)
 
-# A squeeze gap: a full CELL-deep wall with a narrow slit through it (SQUEEZE_OPEN_H tall, `gap` wide): a
-# jamb of wall either side and a lintel over the slit. The cell is "carved" (an object's on_cell "wall"):
+# A squeeze gap: a full CELL-deep wall with a narrow slit through it (`gap` wide, open right up to the ceiling): a
+# jamb of wall either side, flush with the neighbouring wall blocks. The cell is "carved" (an object's on_cell "wall"):
 # no solid block of its own, so the slit is the only way through, and the monster's nav treats it as wall.
 func _build_squeeze(o: Dictionary) -> void:
 	var xf := object_transform(o)
 	var h := _object_wall_h(o)
 	var gap := clampf(float(o.get("gap", 0.55)), 0.35, 0.9)
 	var jamb := (CELL - gap) * 0.5
-	var top := minf(SQUEEZE_OPEN_H, h - 0.3)
 	var body := StaticBody3D.new()
 	add_child(body)
 	var parts: Array = []                          # [size, local pos]
 	for side: float in [-1.0, 1.0]:
 		parts.append([Vector3(CELL, h, jamb), Vector3(0, h * 0.5, side * (gap * 0.5 + jamb * 0.5))])
-	parts.append([Vector3(CELL, h - top, gap), Vector3(0, top + (h - top) * 0.5, 0)])
 	for part: Array in parts:
 		var size: Vector3 = part[0]
 		var pos: Vector3 = part[1]

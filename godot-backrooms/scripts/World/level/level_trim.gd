@@ -192,6 +192,11 @@ func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool) -> 
 ## The plan outlines (object space, metres) a placed wall, pillar or column stands on, as [points, inward]: what
 ## its skirting runs round. Doors, arches and everything else: none (a door's frame meets the floor itself).
 func _object_outlines(o: Dictionary) -> Array:
+	if o.type == "squeeze_gap":              # the two jambs either side of the slit
+		var half := CELL * 0.5
+		var g := clampf(float(o.get("gap", 0.55)), 0.35, 0.9) * 0.5
+		return [[[Vector2(-half, -half), Vector2(half, -half), Vector2(half, -g), Vector2(-half, -g)], false],
+			[[Vector2(-half, g), Vector2(half, g), Vector2(half, half), Vector2(-half, half)], false]]
 	if o.type in ["door", "arch"] or is_stairs(o.type): return []
 	var info := object_info(o.type)
 	if info.has("model"): return []
