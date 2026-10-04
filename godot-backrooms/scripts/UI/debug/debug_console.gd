@@ -627,8 +627,9 @@ func _build_world_tab() -> Control:
 	))
 
 	v.add_child(_section_header("AMBIENT SCARE DIRECTORS"))
-	var scare_row := HBoxContainer.new()
-	scare_row.add_theme_constant_override("separation", 8)
+	var scare_row := HFlowContainer.new()
+	scare_row.add_theme_constant_override("h_separation", 8)
+	scare_row.add_theme_constant_override("v_separation", 8)
 	v.add_child(scare_row)
 
 	scare_row.add_child(_action_btn("PREACHER WHISPER", func():
@@ -643,6 +644,15 @@ func _build_world_tab() -> Control:
 		var ev = root.get_node_or_null("Events")
 		if ev: ev.run_event("breathBehind")
 	))
+	for pair in [["RED ALERT", "redAlert"], ["EMERGENCY PULSE", "emergencyPulse"], ["LIGHTS OUT", "lightsOut"],
+			["TUBE CHASE", "tubeChase"], ["WRONG COLOR", "wrongColor"], ["ONE LAMP", "oneLamp"],
+			["PHANTOM STEPS", "phantomSteps"], ["CRAWLING CEILING", "crawlingCeiling"], ["TAPE ROT", "tapeRot"],
+			["FLATLINE", "flatline"], ["DEAD AIR", "deadAir"]]:
+		var event_name: String = pair[1]
+		scare_row.add_child(_action_btn(pair[0], func():
+			var ev = root.get_node_or_null("Events")
+			if ev: ev.run_event(event_name)
+		))
 
 	v.add_child(_section_header("T.S.R.A. PROGRESSION & ARCHIVES"))
 	var prog_row := HBoxContainer.new()
