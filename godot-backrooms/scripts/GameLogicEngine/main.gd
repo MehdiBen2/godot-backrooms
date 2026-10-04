@@ -57,8 +57,12 @@ func _unhandled_input(e: InputEvent) -> void:
 # Alt-tab or a click on another window mid-run: pause, rather than leave you unable to move while
 # it keeps hunting
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and Game.playing and not Game.dead and not ui.menu.shown:
-		set_paused(true)
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		Engine.max_fps = 15              # nobody is looking: stop rendering the full scene flat out
+		if Game.playing and not Game.dead and not ui.menu.shown:
+			set_paused(true)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		Engine.max_fps = int(Gfx.s.get("fps", 0))
 
 func set_paused(on: bool, start := false) -> void:
 	Game.playing = not on

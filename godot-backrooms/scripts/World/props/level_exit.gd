@@ -145,7 +145,8 @@ func _process(delta: float) -> void:
 		used = true
 		# a taped trail all the way here documents the route (asra_clearance.gd file_route)
 		Clearance.file_route(TapeMarks.mine_on(TapeMarks.MarkStore.key()), global_position)
-		Game.next_level()
+		# the swap frees this very door with the rest of the old level: not from inside its own _process
+		Game.next_level.call_deferred()
 
 func _box(size: Vector3, pos: Vector3, mat: Material, parent: Node3D) -> void:
 	var mi := MeshInstance3D.new()

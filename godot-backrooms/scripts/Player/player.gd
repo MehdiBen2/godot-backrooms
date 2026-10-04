@@ -162,6 +162,18 @@ const PEEK_DIP := 0.035           # m
 const PEEK_FWD := 0.03            # m
 const PEEK_ROLL := 0.13           # rad at full head bob (half of it with head bob off)
 const PEEK_YAW := 0.035           # rad, towards the opening
+var _peek_slow := false
+var _hug_dim := 1.0               # 1 beam on .. 0 off while both hands are on a wall
+# Corner swing: walking past a wall's edge, steering round it, the near hand grabs the edge and pulls you round
+const SWING_MIN_SPEED := 1.6      # m/s: walking at least this fast...
+const SWING_SIDE_SPEED := 0.7     # m/s: ...and already going this fast out round the edge
+const SWING_KICK := 1.1           # m/s: the pull, along the way round
+const SWING_BOOST := 0.22         # share of walking speed added after it, fading
+const SWING_FADE := 1.3           # s the boost takes to fade
+const SWING_COOLDOWN := 1.8       # s before the next grab
+var _swing_cd := 0.0
+var _swing_boost := 0.0
+var _swinging := false
 const PEEK_HOLD_SPEED := 1.0      # m/s: slower than this a hand in reach takes hold of the edge
 var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
@@ -291,7 +303,9 @@ func _physics_process(dt: float) -> void:
 		if not is_on_floor(): velocity.y -= GRAVITY * dt
 		move_and_slide()
 		peek.update(dt, self, eye, false)
-		if torch: torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
+		if torch:
+			torch.set_hug(false, Vector3.ZERO, Vector3.ZERO, false)
+			torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
 		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
 		if dead:
 			if torch:
@@ -332,6 +346,7 @@ func _physics_process(dt: float) -> void:
 
 	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT if crouch else 1.0))
 	speed *= 1.0 + ADR_BOOST * adrenaline
+	speed *= 1.0 + SWING_BOOST * _swing_boost
 	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	var rate := ACCEL_AIR
@@ -368,8 +383,12 @@ func _physics_process(dt: float) -> void:
 		was_airborne = true
 		air_time += dt
 	peek.update(dt, self, eye, is_on_floor() and not sprint)
+	_update_swing(dt, crouch)
 	if torch:
-		var slow := Vector2(velocity.x, velocity.z).length() < PEEK_HOLD_SPEED
+		var flat_speed := Vector2(velocity.x, velocity.z).length()
+		_peek_slow = flat_speed < PEEK_HOLD_SPEED * (1.5 if _peek_slow else 0.8)   # hysteresis: hovering at the limit doesn't flicker the grip
+		var slow := _peek_slow or _swinging      # swinging round, the hand holds on though you're moving
+		torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
 		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
 		torch.update(dt, flash_on and not dead, is_sprinting, is_moving, bob)
 		if lens_up > 0.02:
@@ -681,7 +700,10 @@ func ambient_light() -> float:
 
 # ---- per-frame flashlight: battery drain, low-battery dimming/flicker, aim with slight lag ----
 func _update_flashlight(dt: float) -> void:
-	if flash_on and not swap_dark:
+	# both hands on the wall: the torch is put down, so the beam fades out (and the battery rests)
+	var hugging: bool = torch != null and torch.hugging()
+	_hug_dim = move_toward(_hug_dim, 0.0 if hugging else 1.0, dt * (8.0 if hugging else 5.0))
+	if flash_on and not swap_dark and _hug_dim > 0.5:
 		if Game.infinite_battery:
 			battery = 100.0
 		else:
@@ -700,13 +722,30 @@ func _update_flashlight(dt: float) -> void:
 	# Dark adaptation: in deep darkness your pupils open up and the beam reads brighter and crisper
 	var lvl := ambient_light()
 	var dark_boost := lerpf(1.35, 1.0, clampf(lvl, 0.0, 1.0))
-	var lit := flash_on and not dead and not swap_dark
+	k *= _hug_dim
+	var lit := flash_on and not dead and not swap_dark and _hug_dim > 0.01
 	flash.light_energy = FLASH_ENERGY_HOTSPOT * k * dark_boost if lit else 0.0
 	flash.visible = lit
 	if flash_spill:
 		flash_spill.light_energy = FLASH_ENERGY_SPILL * k * dark_boost if lit else 0.0
 		flash_spill.visible = lit
 	_update_flashlight_aim(dt)
+
+## Walking, an edge in reach and you're already heading out round it: the hand takes hold, and the grab
+## pulls you round it with a push and a short burst of speed. Once per corner (cooldown).
+func _update_swing(dt: float, crouch: bool) -> void:
+	_swing_cd = maxf(0.0, _swing_cd - dt)
+	_swing_boost = maxf(0.0, _swing_boost - dt / SWING_FADE)
+	var v := Vector3(velocity.x, 0.0, velocity.z)
+	var ok := peek.leaning and peek.side != 0 and peek.amount > 0.5 and is_on_floor() and not crouch \
+		and peek.dist <= 0.85 and v.length() >= SWING_MIN_SPEED and v.dot(peek.out) >= SWING_SIDE_SPEED
+	if ok and not _swinging and _swing_cd <= 0.0:
+		_swinging = true
+		_swing_cd = SWING_COOLDOWN
+		_swing_boost = 1.0
+		velocity += peek.out * SWING_KICK + v.normalized() * (SWING_KICK * 0.4)
+	elif _swinging and (not ok or _swing_cd < SWING_COOLDOWN - 0.5):
+		_swinging = false           # the hand keeps hold for half a second, then lets go
 
 ## Immediate partial alignment during rapid mouse motion to prevent TAA flashlight ghosting
 func _sync_flashlight_aim(factor: float) -> void:

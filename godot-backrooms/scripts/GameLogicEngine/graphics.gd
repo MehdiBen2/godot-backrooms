@@ -90,6 +90,15 @@ func _process(dt: float) -> void:
 	_guard_physics(dt)
 	if not bool(s.get("adapt", false)) or compat or float(s.get("scale", 100)) <= 0.0:
 		return
+	if OS.get_name() == "macOS":
+		return                               # MoltenVK: every render-scale change reallocates all screen buffers, and doing it
+		                                     # over a session ends in an allocation failure (SIGABRT) -- the scale stays put
+	if not DisplayServer.window_is_focused():
+		# a backgrounded window is throttled by the OS: its slow frames say nothing about the GPU, and
+		# every scale change reallocates the 3D render buffers (TAA / SSAO / SSR history) for nothing
+		_ft_acc = 0.0
+		_ft_n = 0
+		return
 	_adapt_wait -= dt
 	_ft_acc += dt
 	_ft_n += 1
@@ -307,8 +316,11 @@ func _render_scale() -> void:
 	var live := clampf(float(s.get("scale", 100)) / 100.0, 0.5, 1.0)
 	if bool(s.get("adapt", false)) and not compat:
 		live *= adapt_ratio
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if (live < 1.0 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR
-	vp.scaling_3d_scale = clampf(live, 0.5, 1.0)
+	var mode := Viewport.SCALING_3D_MODE_FSR if (live < 1.0 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR
+	if vp.scaling_3d_mode != mode:
+		vp.scaling_3d_mode = mode
+	if not is_equal_approx(vp.scaling_3d_scale, clampf(live, 0.5, 1.0)):
+		vp.scaling_3d_scale = clampf(live, 0.5, 1.0)
 	vp.fsr_sharpness = 0.1                # 0 = sharpest: FSR's own sharpening puts back what the upscale softens
 
 func _apply_post() -> void:

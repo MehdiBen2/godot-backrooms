@@ -319,6 +319,8 @@ func _process(dt: float) -> void:
 			var frame := _pcm.slice(0, FRAME)
 			_pcm = _pcm.slice(FRAME)
 			_process_frame(frame)
+	if _pcm.size() > RATE * 2:           # a stalled consumer must not let the backlog grow without bound
+		_pcm = _pcm.slice(_pcm.size() - FRAME)
 	_tidy_speakers()
 	_update_overlay()
 
