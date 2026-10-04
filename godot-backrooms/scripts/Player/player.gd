@@ -165,16 +165,16 @@ const PEEK_YAW := 0.035           # rad, towards the opening
 var _peek_slow := false
 var _hug_dim := 1.0               # 1 beam on .. 0 off while both hands are on a wall
 # Corner swing: walking past a wall's edge, steering round it, the near hand grabs the edge and pulls you round
-const SWING_MIN_SPEED := 1.6      # m/s: walking at least this fast...
-const SWING_SIDE_SPEED := 0.7     # m/s: ...and already going this fast out round the edge
+const SWING_MIN_SPEED := 0.9      # m/s: walking at least this fast...
+const SWING_SIDE_SPEED := 0.3     # m/s: ...and already going this fast out round the edge
 const SWING_KICK := 1.1           # m/s: the pull, along the way round
 const SWING_BOOST := 0.22         # share of walking speed added after it, fading
 const SWING_FADE := 1.3           # s the boost takes to fade
-const SWING_COOLDOWN := 1.8       # s before the next grab
+const SWING_COOLDOWN := 1.1       # s before the next grab
 var _swing_cd := 0.0
 var _swing_boost := 0.0
 var _swinging := false
-const PEEK_HOLD_SPEED := 1.0      # m/s: slower than this a hand in reach takes hold of the edge
+const PEEK_HOLD_SPEED := 1.8      # m/s: slower than this a hand in reach takes hold of the edge
 var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
 var turn_roll := 0.0
@@ -738,7 +738,7 @@ func _update_swing(dt: float, crouch: bool) -> void:
 	_swing_boost = maxf(0.0, _swing_boost - dt / SWING_FADE)
 	var v := Vector3(velocity.x, 0.0, velocity.z)
 	var ok := peek.leaning and peek.side != 0 and peek.amount > 0.5 and is_on_floor() and not crouch \
-		and peek.dist <= 0.85 and v.length() >= SWING_MIN_SPEED and v.dot(peek.out) >= SWING_SIDE_SPEED
+		and peek.dist <= 1.15 and v.length() >= SWING_MIN_SPEED and v.dot(peek.out) >= SWING_SIDE_SPEED
 	if ok and not _swinging and _swing_cd <= 0.0:
 		_swinging = true
 		_swing_cd = SWING_COOLDOWN

@@ -157,16 +157,16 @@ func step_at(pos: Vector3, how: String) -> void:
 		return
 	var tile: bool = Game.level.tiles.has(Vector2i(roundi(pos.x / mimic.nav.CELL), roundi(pos.z / mimic.nav.CELL)))
 	var level: float = STEP_LEVEL[how]
-	var list: Array = fs.sprint if how == "sprint" else fs.walk
+	var list = fs.sprint if how == "sprint" else fs.walk      # a Bag of takes (footsteps.gd)
 	var scuff := _source(pos)
 	scuff.unit_size = STEP_UNIT
-	scuff.stream = list.pick_random()
+	scuff.stream = list.next()
 	scuff.volume_linear = level * randf_range(0.85, 1.1) * (0.55 if tile else 1.0)
 	scuff.pitch_scale = (0.92 if how == "crouch" else 1.0) * randf_range(0.96, 1.04) * (1.1 if tile else 1.0)
 	scuff.play()
 	var heel := _source(pos)
 	heel.unit_size = STEP_UNIT
-	heel.stream = fs.heel_tile if tile else fs.heel_carpet
+	heel.stream = fs.heels["tile" if tile else "carpet"].next()
 	heel.volume_linear = level * float(HEEL_WEIGHT[how]) * (1.8 if tile else 1.0) * randf_range(0.8, 1.1)
 	heel.pitch_scale = randf_range(0.9, 1.1)
 	heel.play()

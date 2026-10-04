@@ -50,7 +50,7 @@ const EDGE_OUT := -0.08           # m: from peek.gd's point on the wall (4 cm in
                                   # finger's length short of the edge, so the fingertips reach it
 const RISE := 0.0                 # m above the eye the hand takes the wall
 const RISE_CROUCH := -0.10        # crouched it takes it lower
-const REACH := 0.85               # m: an edge this close can be taken hold of
+const REACH := 1.15               # m: an edge this close can be taken hold of
 const BRACE_BACK := 0.12          # braced, the hand stays this much of the way back towards the shoulder
 const CARRY_DROP := 0.13          # m the carrying hand sits below the usual torch hold
 const CARRY_OUT := 0.03           # m out to its side

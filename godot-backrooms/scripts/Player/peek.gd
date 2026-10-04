@@ -26,7 +26,7 @@ const LEAN_MAX := 0.42            # m: furthest the eye leans out
 const LEAN_MIN := 0.16            # m: less room than this to lean into and there's no peek
 const LEAN_PAST := 0.12           # m: the eye leans this far past the edge
 const INSET := 0.04               # m: the hand takes the wall this far in from its edge
-const ENGAGE := 0.18
+const ENGAGE := 0.1
 const RELEASE := 0.25
 const RELEASE_HELD := 0.6         # s a held peek rides out the edge being lost (a wobble in your strafe, a seam in the wall)
 const HUG_DIST := 0.6             # m: a wall this close, square in front, can be hugged (the body stops ~0.42 m off it)
@@ -52,7 +52,6 @@ var hug := false                  # both hands flat on the wall in front (no edg
 var hug_point := Vector3.ZERO     # world: the wall face straight ahead, at eye height
 var hug_normal := Vector3.ZERO
 
-var _wall_near := false           # a wall squarely in front within HUG_DIST (no new peek starts)
 var _smooth := false              # edge / normal / out / dist hold a smoothed value
 var _near := 0.0                  # s up against a wall
 var _away := 0.0                  # s since not
@@ -70,8 +69,9 @@ var _f_dist := 0.0
 
 ## One physics tick. `eye_h`: eye height above the feet. `can`: on the floor, not sprinting, in control.
 func update(dt: float, body: CharacterBody3D, eye_h: float, can: bool) -> void:
-	# up against a wall (hugging it) there's no peeking: it takes a step back to start one
-	_found = _detect(body, eye_h) if can and not (side == 0 and _wall_near) else 0
+	# both hands on a wall (the hug) there's no peeking round it; at a corner the peek starts first, so the hug
+	# only ever comes on a wall with no edge beside you
+	_found = _detect(body, eye_h) if can and not hug else 0
 	if _found != 0 and (side == 0 or _found == side):
 		_seen += dt
 		_gone = 0.0
@@ -123,7 +123,6 @@ func _update_hug(dt: float, body: CharacterBody3D, eye_h: float, can: bool) -> v
 			hit = _ray(space, body, eye, eye + fwd * HUG_DIST)
 			if not hit.is_empty() and (hit.normal as Vector3).dot(-fwd) < HUG_FACING:
 				hit = {}
-	_wall_near = not hit.is_empty()
 	if hit.is_empty():
 		_away += dt
 		if _away >= HUG_LEAVE:
