@@ -15,6 +15,7 @@ uniform sampler2D wall_tex : source_color, filter_linear_mipmap_anisotropic, rep
 uniform vec3 wall_tint : source_color = vec3(1.0, 0.98, 0.88);
 uniform vec2 wall_scale = vec2(0.4444, 1.0);   // x: repeats per metre along the wall, y: repeats up one wall band
 uniform float wall_flip = 1.0;                 // 1: the texture's top is the band's top (the wallpaper's ceiling shadow)
+uniform sampler2D ceil_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;   // the fake corridors' drop ceiling
 uniform sampler2D slab_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D floor_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;   // the fake corridors' carpet
 uniform vec3 floor_tint : source_color = vec3(1.0, 0.94, 0.75);
@@ -62,26 +63,7 @@ uniform int period = 12;
 varying vec3 wpos;
 varying vec3 wnrm;
 
-float hash11(float n) { return fract(sin(n * 12.9898 + 4.1414) * 43758.5453); }
-float vnoise1(float x) {
-	float i = floor(x);
-	float f = fract(x);
-	return mix(hash11(i), hash11(i + 1.0), f * f * (3.0 - 2.0 * f));
-}
-
-// How lit row `row` is right now
-float row_level(float row, float t) {
-	int k = int(mod(row, float(period)));
-	float kind = rows[k];
-	if (kind < 0.5) return 0.0;
-	if (kind < 1.5) return 0.97 + 0.03 * sin(t * 2.3 + float(k) * 1.7);   // a slow, barely-there drift
-	// failing: on, then off for a beat or a burst of stutter, at its own pace
-	float r = float(k);
-	float beat = floor(t * (5.0 + 7.0 * hash11(r + 3.0)));
-	float n = hash11(beat * 0.731 + r * 17.0);
-	float burst = step(0.55, vnoise1(t * 0.6 + r * 9.0));
-	return n < 0.18 + 0.5 * burst ? 0.06 : 1.0;
-}
+#include "res://shaders/pit_light.gdshaderinc"
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
@@ -99,30 +81,35 @@ void fragment() {
 
 	if (COLOR.a < 0.5) {
 		// a tube: its row's light, a touch hotter along the glass
-		float lv = row_level(row, TIME);
+		vec2 tp = wpos.xz;
+		float lv = tube_level(tp, row, TIME);
 		ALBEDO = vec3(0.85);
 		ROUGHNESS = 0.4;
-		EMISSION = tube_color * tube_glow * lv * (0.75 + 0.25 * COLOR.r) * (1.0 - 0.5 * rot);
+		EMISSION = tube_color * row_color(row) * tube_tint(tp) * tube_glow * lv * (0.75 + 0.25 * COLOR.r) * (1.0 - 0.5 * rot);
 	} else if (COLOR.r < 0.9) {
-		// a fake corridor behind a doorway (pit_fall.gd _corridor): carpet, ceiling tiles, the level's wallpaper, and
-		// a pool of light under every ceiling light, dying away down its length. Some of them are dark.
-		float depth = UV.x;
+		// a room behind the shaft's wall (pit_fall.gd _hall, _corridor): carpet, the drop ceiling with a panel light at the
+		// middle of every cell, the level's wallpaper. A pool of light under every panel, dying away with the way
+		// back from the shaft (COLOR.b). Each room is its own: some dark, some with panels dead or stuttering.
+		float depth = COLOR.b * 32.0;
 		float id = UV.y + row * 3.1;
-		float lv = hash11(id) < 0.22 ? 0.1 : 1.0;
+		vec2 lc = cell * round(wpos.xz / cell);       // the panel light this is under or near
+		vec2 gp = wpos.xz - lc;
+		float lamp = lamp_level(lc, row, TIME);
 		vec3 base;
 		if (n.y > 0.5) {
 			base = texture(floor_tex, wpos.xz * floor_scale).rgb * floor_tint;
 		} else if (n.y < -0.5) {
-			base = vec3(0.62, 0.58, 0.47);
+			base = texture(ceil_tex, wpos.xz * 0.278).rgb * vec3(0.89, 0.85, 0.74);
 		} else {
-			vec2 uv = vec2(depth * wall_scale.x, (wall_flip > 0.5 ? 1.0 - h / band_h : h / band_h) * wall_scale.y);
+			vec2 uv = vec2(UV.x * wall_scale.x, (wall_flip > 0.5 ? 1.0 - h / band_h : h / band_h) * wall_scale.y);
 			base = texture(wall_tex, uv).rgb * wall_tint;
+			base *= row_tone(row);
 		}
-		float pools = 0.25 + 0.75 * pow(0.5 + 0.5 * cos(depth * 6.2832 / cell + 1.2), 3.0);
-		float reach = exp(-depth / 12.0);
+		float pools = 0.12 + 0.88 * exp(-dot(gp, gp) / 5.0);
+		float reach = exp(-depth / 13.0);
 		ALBEDO = base;
 		ROUGHNESS = 0.95;
-		EMISSION = base * tube_color * lv * pools * reach * 2.2 * (1.0 - 0.55 * rot);
+		EMISSION = base * tube_color * row_color(row) * (lamp * pools * 2.6 + 0.03) * reach * (1.0 - 0.55 * rot);
 	} else {
 		vec3 base;
 		float rough;
@@ -139,7 +126,8 @@ void fragment() {
 		float streak = vnoise1(along * 1.9 + k * 7.3) * vnoise1(along * 0.37 + 11.0 + k);
 		float reach = 1.0 + 4.5 * vnoise1(along * 0.8 + k * 3.1);
 		float wet = streak * smoothstep(band_h - reach, band_h, h) * step(h, band_h);
-		base *= 1.0 - min(grime + 0.45 * rot, 0.95) * wet;
+		base *= row_tone(row);
+		base *= 1.0 - min(grime * row_dirt(row) + 0.45 * rot, 0.95) * wet;
 		// rot: big blotches of damp, whole stretches of wall gone dark with it
 		base *= 1.0 - 0.6 * rot * vnoise1(along * 0.31 + k * 4.7) * vnoise1(h * 0.55 + along * 0.13 + k * 1.9);
 		// the joint between wall and slab, and the slab's own seam at the storey line
@@ -148,16 +136,27 @@ void fragment() {
 		// inside corners (UV.x: metres along this run of wall, UV.y: its length)
 		float ao = mix(0.5, 1.0, smoothstep(0.0, 0.9, min(UV.x, UV.y - UV.x)));
 
-		float da = max(abs(off) - tube_half, 0.0);
-		float light = base_light;
+		// the light of the three nearest tubes along this wall in each of the three nearest rows, blended, so it
+		// swells and fades across the wall with no seam where one tube's reach ends and the next begins
+		vec3 light = vec3(base_light);
+		float plane_c = x_wall ? wpos.x : wpos.z;
+		float c0 = round(along / cell);
 		for (int i = -1; i <= 1; i++) {
-			float lv = row_level(row + float(i), TIME);
-			if (lv <= 0.0) continue;
+			float r = row + float(i);
 			float dy = h - (tube_y + float(i) * seg_h);
-			// the tube on this wall throws a scallop up and down it; the ones across the shaft light it evenly
-			float near = near_light / (1.0 + 1.8 * (da * da + dy * dy));
+			vec3 rc = row_color(r);
+			float rl = row_level(r, TIME);
+			// the tubes across the shaft: an even wash of whatever the row is
 			float far = far_light * shaft_w * shaft_w / (shaft_w * shaft_w + dy * dy * 1.6);
-			light += lv * (near + far);
+			light += rc * far * (rl > 0.0 ? rl : 0.12);
+			for (int j = -1; j <= 1; j++) {
+				float cj = cell * (c0 + float(j));
+				vec2 tp = x_wall ? vec2(plane_c, cj) : vec2(cj, plane_c);
+				float tl = tube_level(tp, r, TIME);
+				if (tl <= 0.0) continue;
+				float da = max(abs(along - cj) - tube_half, 0.0);
+				light += rc * tube_tint(tp) * tl * near_light / (1.0 + 0.9 * da * da + 1.8 * dy * dy);
+			}
 		}
 		ALBEDO = base;
 		ROUGHNESS = rough;

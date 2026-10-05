@@ -39,11 +39,12 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 	var runs := _runs(cells)
 	var mat := _material()
 	# storey 0 starts at the ceiling: below it is the room, whose own walls stand there
-	var first := _segment_mesh(runs, wall_h)
-	var rest := _segment_mesh(runs, 0.0)
+	var first := _segment_mesh(runs, wall_h, 0)
+	var rest: Array = []
+	for v in PitFall.VARIANTS: rest.append(_segment_mesh(runs, 0.0, v))
 	for k in STOREYS:
 		var mi := MeshInstance3D.new()
-		mi.mesh = first if k == 0 else rest
+		mi.mesh = first if k == 0 else rest[k % PitFall.VARIANTS]
 		mi.material_override = mat
 		mi.position = Vector3(0.0, k * seg_h, 0.0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -106,7 +107,7 @@ func _runs(cells: Dictionary) -> Array:
 ## One storey of shaft from height `y0` to seg_h: a quad a run of wall (the shader paints wall and slab on it)
 ## and a tube on every cell's width of it (left out where the storey starts above it). UV: metres along
 ## the run, and its length (for the corner shading).
-func _segment_mesh(runs: Array, y0: float) -> ArrayMesh:
+func _segment_mesh(runs: Array, y0: float, salt: int) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var lo_y := Vector3(0.0, y0, 0.0)
@@ -116,14 +117,17 @@ func _segment_mesh(runs: Array, y0: float) -> ArrayMesh:
 		var b: Vector3 = r.to
 		var n: Vector3 = r.n
 		var ln := a.distance_to(b)
+		var plan: Array = []
 		var dir0 := (b - a) / ln
 		if y0 > 0.0:                    # the storey that starts at the ceiling: no doorways, they would be inside the room
 			_quad(st, [a + lo_y, b + lo_y, b + hi_y, a + hi_y], n, Color.WHITE, [Vector2(0, ln), Vector2(ln, ln), Vector2(ln, ln), Vector2(0, ln)])
 		else:                           # doorways onto fake corridors, as in the abyss (pit_fall.gd)
-			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, cells)
+			plan = PitFall._plan(a, dir0, n, int(r.cells), cell, cells, salt)
+			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, plan, wall_h)
 		if PitFall.TUBE_Y - PitFall.TUBE_THICK < y0: continue
 		var dir := (b - a) / ln
 		for i in int(r.cells):
+			if not plan.is_empty() and PitFall._is_open(plan[i]): continue
 			var mid := a + dir * (cell * (i + 0.5)) + Vector3(0.0, PitFall.TUBE_Y, 0.0)
 			var s := dir * PitFall.TUBE_HALF
 			var lo := Vector3(0.0, -PitFall.TUBE_THICK, 0.0)
@@ -184,6 +188,7 @@ func _material() -> ShaderMaterial:
 		m.set_shader_parameter("floor_scale", Vector2(absf(fm.uv1_scale.x), absf(fm.uv1_scale.y)))
 	else:
 		m.set_shader_parameter("floor_tex", load("res://textures/l0_carpet_color.webp"))
+	m.set_shader_parameter("ceil_tex", load("res://textures/l0_ceiling_color.webp"))
 	m.set_shader_parameter("slab_tex", load("res://textures/concrete_color.jpg"))
 	m.set_shader_parameter("seg_h", seg_h)
 	m.set_shader_parameter("band_h", wall_h)

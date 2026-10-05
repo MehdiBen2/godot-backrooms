@@ -201,7 +201,7 @@ func kill_player(reason: String, type := DeathType.NONE) -> void:
 		# it lands as a blow: a shock burst, and the edges slam shut, then open on the body
 		fx_shock = 1.0
 		fx_fade = 0.75
-	death_reason = reason if reason != "" else "THE BACKROOMS"
+	death_reason = reason if reason != "" else "THE BACKROOMS: NO END"
 	_death_t = 0.0
 	glitch = 1.0
 	var scene: Node = main if main != null and is_instance_valid(main) else get_tree().current_scene

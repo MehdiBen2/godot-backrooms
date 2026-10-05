@@ -617,7 +617,7 @@ func _build_ui() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_END
 	margin.add_child(box)
 
-	var title := _label("THE BACKROOMS", 52, TITLE, 6)
+	var title := _label("THE BACKROOMS: NO END", 52, TITLE, 6)
 	title.add_theme_color_override("font_shadow_color", Color(0.627, 0.078, 0.059, 0.55))
 	title.add_theme_constant_override("shadow_offset_x", 2)
 	box.add_child(title)

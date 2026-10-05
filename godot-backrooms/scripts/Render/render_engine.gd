@@ -15,7 +15,7 @@ const PROFILES := {
 	"bodycam": {
 		"fov_boost": 0.0,            # (the lens is the original barrel fish eye: it needs no wider render)
 		"chroma_amt": 0.0032,        # colour fringing toward the edges, a little stronger than a clean lens: old-tape feel
-		"shutter": 1.0 / 120.0,      # a fast shutter: turning the head blurs a little, never smears (see blur_max_px)
+		"shutter": 1.0 / 100.0,      # a fast shutter: turning the head blurs a little, never smears (see blur_max_px)
 		"sharpen": 0.45,
 		"codec": 0.55,
 		"noise_luma": 0.05,

@@ -1016,7 +1016,7 @@ func _leave_idle() -> void:
 	_fade_menu(1.0, 0.9)
 
 # ---- random VHS glitch on the title -------------------------------------------------
-const TITLE_TEXT := "THE BACKROOMS"
+const TITLE_TEXT := "THE BACKROOMS: NO END"
 const WRONG_GLYPHS := {"T": "7", "H": "N", "E": "3", "B": "8", "A": "4", "C": "(", "K": "X",
 		"R": "P", "O": "0", "M": "W", "S": "5"}   # lookalikes; W is the M turned upside down
 var next_wrong := 1.5

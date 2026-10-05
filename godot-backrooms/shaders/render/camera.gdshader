@@ -167,13 +167,16 @@ void fragment() {
 	vec2 mb = cam_spin * shutter;
 	float px_scale = res.y / 1080.0;
 	float mb_px = length(mb * res) / px_scale;            // in 1080p pixels, so it looks the same at any size
-	if (mb_px > 2.5) {
-		mb *= min(mb_px, blur_max_px) / mb_px;
+	// the bodycam's is a little livelier (it starts earlier, blends more, reaches further) than the camcorder's
+	float mb_dead = mix(2.0, 2.5, cam_mode);
+	float mb_cap = mix(blur_max_px + 1.0, blur_max_px, cam_mode);
+	if (mb_px > mb_dead) {
+		mb *= min(mb_px, mb_cap) / mb_px;
 		vec3 macc = vec3(0.0);
 		for (int i = 0; i < 6; i++) {
 			macc += texture(screen_tex, clamp(uvg + mb * (float(i) / 5.0 - 0.5), 0.0, 1.0)).rgb;
 		}
-		col = mix(col, macc / 6.0, clamp((mb_px - 2.5) / 6.0, 0.0, 0.7));
+		col = mix(col, macc / 6.0, clamp((mb_px - mb_dead) / mix(5.0, 6.0, cam_mode), 0.0, mix(0.65, 0.7, cam_mode)));
 	}
 
 	// ---- tape luma bandwidth (camcorder): a soft horizontal smear, luma only
