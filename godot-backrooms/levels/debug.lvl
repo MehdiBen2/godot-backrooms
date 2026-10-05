@@ -1,0 +1,235 @@
+{
+  "drop_hole": null,
+  "entity": null,
+  "exit": null,
+  "format": "backrooms_level",
+  "grid": [
+    "##########################",
+    "##########################",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##......................##",
+    "##########################",
+    "##########################"
+  ],
+  "mark_shift": [
+    1,
+    1
+  ],
+  "name": "debug",
+  "objects": [
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "machineVoice",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "machineVoice"
+        }
+      ],
+      "once": true,
+      "pos_x": 9.0,
+      "pos_y": 3.0,
+      "rotation": 0.0,
+      "scale": 3.0,
+      "text": "",
+      "type": "trigger"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "sayYourName",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "sayYourName"
+        },
+        {
+          "custom_event": "",
+          "event": "message"
+        }
+      ],
+      "once": true,
+      "pos_x": 12.0,
+      "pos_y": 3.0,
+      "rotation": 0.0,
+      "scale": 3.0,
+      "text": "",
+      "type": "trigger"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "itHeardYou",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "itHeardYou"
+        }
+      ],
+      "once": true,
+      "pos_x": 15.5,
+      "pos_y": 3.0,
+      "rotation": 0.0,
+      "scale": 3.0,
+      "text": "",
+      "type": "trigger"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "context_voice",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "context_voice"
+        }
+      ],
+      "once": true,
+      "pos_x": 5.5,
+      "pos_y": 3.0,
+      "rotation": 0.0,
+      "scale": 3.0,
+      "text": "",
+      "type": "trigger"
+    }
+  ],
+  "paint": {
+    "floor": {
+      "Metal046B": [
+        [
+          5,
+          2
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          9,
+          2
+        ],
+        [
+          12,
+          2
+        ],
+        [
+          15,
+          2
+        ],
+        [
+          16,
+          2
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          9,
+          3
+        ],
+        [
+          12,
+          3
+        ],
+        [
+          15,
+          3
+        ],
+        [
+          16,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          9,
+          4
+        ],
+        [
+          12,
+          4
+        ],
+        [
+          15,
+          4
+        ],
+        [
+          16,
+          4
+        ]
+      ]
+    }
+  },
+  "size": 26,
+  "spawn": [
+    3,
+    3
+  ],
+  "spawn_rot": 9.0,
+  "tv": null,
+  "version": 2,
+  "zones": {
+    "abyss": [],
+    "bright": [],
+    "classic": [],
+    "crawl": [],
+    "dark": [],
+    "dim": [],
+    "drain": [],
+    "echo": [],
+    "endless_ceiling": [],
+    "flicker": [],
+    "grime": [],
+    "liminal": [],
+    "loop": [],
+    "loot": [],
+    "low": [],
+    "mannequin": [],
+    "noclip": [],
+    "noclip_floor": [],
+    "open_ceiling": [],
+    "safe": [],
+    "tall": [],
+    "tiles": []
+  }
+}

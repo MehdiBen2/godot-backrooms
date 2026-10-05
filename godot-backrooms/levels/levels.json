@@ -5,8 +5,8 @@
     "name": "Level 1: The Lobby"
   },
   {
-    "file": "level_2_habitable_zone.lvl",
-    "id": "level_2_habitable_zone",
-    "name": "Level 2: Habitable Zone"
+    "file": "debug.lvl",
+    "id": "debug",
+    "name": "debug"
   }
 ]

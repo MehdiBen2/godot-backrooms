@@ -410,7 +410,8 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 		cover.free()
 		cover = null
 	_tear_down(was, well, cover, not fresh and f != was and was in _wanted_shells(f))
-	load_floor(f)
+	# the same level: its file is already in memory, so the swap frame doesn't re-read and re-parse it off the disk
+	load_floor(f, {} if fresh else level_raw)
 	_place_shells()
 	if cover != null: Shell.set_height(cover, 0.0)
 	_step_mask = PackedByteArray()      # the nav table: cached by grid size, and every floor has the same size

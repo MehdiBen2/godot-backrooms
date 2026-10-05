@@ -40,6 +40,7 @@ const TUBE_THICK := 0.045
 const OPEN_HALF := 1.3             # a doorway in the shaft's wall, onto a fake corridor: half its width...
 const OPEN_H := 2.9                # ...and its height, from the storey's floor
 const OPEN_D := 16.0               # how far the corridor runs back
+const OPEN_MIN_D := 3.0            # a doorway with less room behind it than this is a plain wall
 const OPEN_SHARE := 70             # percent of the wall's cells that have one
 
 const FOG_FROM := 4.0              # m fallen before the haze starts to close in
@@ -57,7 +58,8 @@ const HIDE_MARGIN := 6.0
 const CAP_Y := -2.0                # the fog over the pit once you are under it: a sheet this far under the rim...
 const CAP_FROM := 6.0              # ...clear until you have fallen this far past it, then thickening over CAP_RAMP m
 const CAP_RAMP := 14.0
-const HAZE_K := 0.15               # per metre over you: walls up the shaft sink into the haze (pit_shaft.gdshader)
+const DOWN_K := 0.014              # per metre under the rim: the view down a pit dims and hazes with depth (off while falling)
+const HAZE_K := 0.15              # per metre over you: walls up the shaft sink into the haze (pit_shaft.gdshader)
 const CAP_ALPHA := 0.97
 
 ## The haze, by the level's look: a sickly yellow over the dim halls, washed-out grey-green in the liminal look,
@@ -145,7 +147,7 @@ func _exit_tree() -> void:
 # ---------------------------------------------------------------- building
 func _build_shaft(cells: Dictionary) -> Dictionary:
 	var runs := _runs(cells)
-	var mesh := _segment_mesh(runs)
+	var mesh := _segment_mesh(runs, level.abyss)
 	var root := Node3D.new()
 	add_child(root)
 	var pool: Array = []
@@ -234,7 +236,7 @@ func _runs(cells: Dictionary) -> Array:
 
 ## One storey of shaft, y 0 to seg_h: a quad a run of wall (the shader paints wall and slab on it), and a
 ## tube on every cell's width of it. UV: metres along the run, and its length (for the corner shading).
-func _segment_mesh(runs: Array) -> ArrayMesh:
+func _segment_mesh(runs: Array, shaft: Dictionary) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r: Dictionary in runs:
@@ -243,7 +245,7 @@ func _segment_mesh(runs: Array) -> ArrayMesh:
 		var n: Vector3 = r.n
 		var ln := a.distance_to(b)
 		var dir := (b - a) / ln
-		_wall(st, a, dir, ln, n, int(r.cells), cell, seg_h)
+		_wall(st, a, dir, ln, n, int(r.cells), cell, seg_h, shaft)
 		for i in int(r.cells):
 			var mid := a + dir * (cell * (i + 0.5)) + Vector3(0.0, TUBE_Y, 0.0)
 			var s := dir * TUBE_HALF
@@ -263,7 +265,9 @@ func _segment_mesh(runs: Array) -> ArrayMesh:
 
 ## A run of wall, one cell at a time: whole, or with a doorway onto a fake corridor (the same on every storey; which
 ## of them are lit is the shader's). UV: metres along the run and its length, for the corner shading.
-static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vector3, cells: int, cell: float, seg_h: float) -> void:
+## `shaft`: every cell that is open shaft: a corridor stops short of one (it would run through the shaft and show as
+## a beam across it), and a doorway with no room for one is left a plain wall.
+static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vector3, cells: int, cell: float, seg_h: float, shaft: Dictionary) -> void:
 	var piece := func(x0: float, x1: float, y0: float, y1: float) -> void:
 		var lo := Vector3(0.0, y0, 0.0)
 		var hi := Vector3(0.0, y1, 0.0)
@@ -274,23 +278,31 @@ static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vecto
 		var c1 := c0 + cell
 		var m := c0 + cell * 0.5
 		var h := hash(Vector3i(roundi(a.x), roundi(a.z), i))
-		if posmod(h, 100) >= OPEN_SHARE:
+		var depth := OPEN_D
+		if posmod(h, 100) < OPEN_SHARE:
+			var at := a + dir * m
+			for j in int(ceil(OPEN_D / cell)) + 1:
+				var p := at - n * (cell * (j + 0.5))
+				if shaft.has(Vector2i(roundi(p.x / cell), roundi(p.z / cell))):
+					depth = minf(depth, cell * j * 0.5 - 0.3)       # (half: the shaft's other side has doorways too)
+					break
+		if posmod(h, 100) >= OPEN_SHARE or depth < OPEN_MIN_D:
 			piece.call(c0, c1, 0.0, seg_h)
 			continue
 		piece.call(c0, m - OPEN_HALF, 0.0, seg_h)
 		piece.call(m + OPEN_HALF, c1, 0.0, seg_h)
 		piece.call(m - OPEN_HALF, m + OPEN_HALF, OPEN_H, seg_h)
-		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)))
+		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)), depth)
 
 ## The corridor behind a doorway: floor, ceiling, two walls and a far end, marked for the shader by a grey vertex
 ## colour. UV: how far in it is, and which corridor this is.
-static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float) -> void:
-	var out := -n * OPEN_D
+static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float, depth: float) -> void:
+	var out := -n * depth
 	var s := dir * OPEN_HALF
 	var up := Vector3(0.0, OPEN_H, 0.0)
 	var col := Color(0.5, 0.5, 0.5, 1.0)
 	var d0 := Vector2(0.0, id)
-	var d1 := Vector2(OPEN_D, id)
+	var d1 := Vector2(depth, id)
 	_quad(st, [mid - s, mid + s, mid + s + out, mid - s + out], Vector3.UP, col, [d0, d0, d1, d1])
 	_quad(st, [mid - s + up, mid + s + up, mid + s + out + up, mid - s + out + up], Vector3.DOWN, col, [d0, d0, d1, d1])
 	_quad(st, [mid - s, mid - s + out, mid - s + out + up, mid - s + up], dir, col, [d0, d1, d1, d0])
@@ -357,6 +369,8 @@ func _material() -> ShaderMaterial:
 	m.set_shader_parameter("rows", _rows)
 	m.set_shader_parameter("period", ROW_PERIOD)
 	_sick = SICK.get(look, SICK.dim)
+	m.set_shader_parameter("haze_color", _sick)
+	m.set_shader_parameter("down_k", DOWN_K)
 	return m
 
 ## A dull, endless roar of air, made once: low-passed noise, its end faded into its start so it loops
@@ -541,6 +555,7 @@ func _begin(i: int) -> void:
 		(shafts[j].root as Node3D).visible = j == i
 		(shafts[j].cap as Node3D).visible = j == i
 	_cap_mat.albedo_color = Color(0, 0, 0, 0)
+	_mat.set_shader_parameter("down_k", 0.0)
 	if not Gfx.changed.is_connected(_on_gfx): Gfx.changed.connect(_on_gfx)
 	var bus := "Ambience" if AudioServer.get_bus_index("Ambience") >= 0 else "Master"
 	_wind = AudioStreamPlayer.new()
@@ -613,6 +628,8 @@ func _end(wake: bool, die := false, hold := false) -> void:
 	_fade = 0.0
 	Game.freefall = false
 	_mat.set_shader_parameter("haze_k", 0.0)
+	_mat.set_shader_parameter("haze_color", _sick)
+	_mat.set_shader_parameter("down_k", DOWN_K)
 	for s: Dictionary in shafts:
 		s.lo = 1                                    # re-placed for the view from the floor
 		(s.cap as Node3D).visible = false

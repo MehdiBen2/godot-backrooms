@@ -224,6 +224,7 @@
       "oneLamp": "Director event: everything dark but the tube over you; something breathes under the next one",
       "deadAir": "Director event: you are deafened; ringing, a warped picture, two knocks behind you",
       "machineVoice": "Director event: an old crushed text-to-speech voice reads a disturbing line",
+      "context_voice": "Context voice: while the player is in the box, whenever something new happens to them (lights die, torch off or low, something close, a teammate dies, they freeze or run...) the machine voice says a line about it. Duration = seconds between lines; Once = only one line",
       "ghostRoster": "Director event: a researcher who isn't anyone joins the expedition (sometimes it's you)",
       "humRises": "Director event: the fluorescent hum climbs until it hurts, then every sound stops",
       "partyWall": "Director event: a party behind the drywall; go to it and it stops dead, then one knock",

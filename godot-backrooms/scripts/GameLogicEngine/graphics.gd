@@ -249,6 +249,9 @@ func apply_scene(root: Node = null) -> void:
 			e.ssil_enabled = s.ssil and not compat
 			e.ssr_enabled = s.ssr and not compat
 			e.volumetric_fog_enabled = s.vfog > 0 and not compat
+			# the fog's own temporal blend (90% of the last frame by default) drags every moving light and
+			# the torch beam behind it as a trail; the fog filter (vfog >= 2) keeps it smooth without
+			e.volumetric_fog_temporal_reprojection_enabled = false
 	# only lights that cast shadows in the scene file / level builder are switched; the rest stay off.
 	# The tube-light pool manages its own (level_light_pool.gd reads `lights` / `light_shadows`).
 	for l in root.find_children("*", "Light3D", true, false):

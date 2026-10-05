@@ -120,7 +120,7 @@ func _segment_mesh(runs: Array, y0: float) -> ArrayMesh:
 		if y0 > 0.0:                    # the storey that starts at the ceiling: no doorways, they would be inside the room
 			_quad(st, [a + lo_y, b + lo_y, b + hi_y, a + hi_y], n, Color.WHITE, [Vector2(0, ln), Vector2(ln, ln), Vector2(ln, ln), Vector2(0, ln)])
 		else:                           # doorways onto fake corridors, as in the abyss (pit_fall.gd)
-			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h)
+			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, cells)
 		if PitFall.TUBE_Y - PitFall.TUBE_THICK < y0: continue
 		var dir := (b - a) / ln
 		for i in int(r.cells):

@@ -46,6 +46,7 @@ uniform float grime = 0.4;
 uniform vec3 haze_color : source_color = vec3(0.0);
 uniform float haze_k = 0.0;         // per metre over the camera
 uniform float haze_y = 0.0;         // the camera's height
+uniform float down_k = 0.0;         // per metre under y 0: a pit's walls dim and sink into haze_color the deeper they are
 
 // ...and the higher, the more run down: damp spreading over the walls, the tubes weaker. 0 at rot_from, full at rot_to.
 uniform float rot_from = 100000000.0;
@@ -166,6 +167,12 @@ void fragment() {
 	ALBEDO *= lit;
 	SPECULAR = 0.5 * lit;
 	EMISSION *= 1.0 - smoothstep(fade_from, fade_to, wpos.y);
+	// a pit seen from its rim: the deeper a wall, the less of the tubes' light has got down to it, and the more
+	// of the air between it and you (off while falling: the loop must look the same a storey-pattern higher)
+	float sink = 1.0 - exp(-max(-wpos.y, 0.0) * down_k);
+	ALBEDO *= 1.0 - 0.8 * sink;
+	EMISSION *= 1.0 - 0.8 * sink;
+	EMISSION = mix(EMISSION, haze_color * 0.6, sink * 0.55);
 	float hz = 1.0 - exp(-max(wpos.y - haze_y, 0.0) * haze_k);
 	ALBEDO *= 1.0 - hz;
 	SPECULAR *= 1.0 - hz;

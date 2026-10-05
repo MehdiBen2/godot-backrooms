@@ -6,6 +6,10 @@ extends Node3D
 ## (events.gd run_event: power cut, whisper, knocking...; co-op shares those) or a small local happening run
 ## here: a caption, the tubes over the box dying or stuttering, silence, a thump, a drone, static. A trigger
 ## with Text shows it as a caption whatever its event.
+## `context_voice` doesn't fire on the way in: it listens while you are in the box, and when something new
+## becomes true of you there (the lights die, your torch goes off or runs low, something comes close, a teammate
+## dies, you freeze or bolt...) the machine voice says a line about it (events.gd play_context_voice). At most a
+## line every Duration seconds; with Once, only the one.
 
 const REARM := 5.0             # s: an every-time trigger waits at least this long before it can fire again
 const CAPTION_IN := 1.2
@@ -24,6 +28,12 @@ var delay := 0.0
 var duration := 20.0
 var _was_in := false
 var _ready_at := 0.0
+var listen := false            # context_voice: watching what happens to you while you're in the box
+var _ran_once := false         # (Once with context_voice: the other events have run, the voice hasn't spoken)
+var _heard: Array = []         # the voice's context tags at the last look
+var _pending: Array = []       # ones that became true in here and haven't been said yet
+var _look_at := 0.0
+var _next_line := 0.0
 
 func setup(l: Node, o: Dictionary, cell: float) -> void:
 	level = l
@@ -69,6 +79,8 @@ func setup(l: Node, o: Dictionary, cell: float) -> void:
 	delay = maxf(0.0, float(o.get("delay", 0.0)))
 	duration = maxf(1.0, float(o.get("duration", 20.0)))
 	key = "%d|%.3f|%.3f|%s" % [Game.level_floor, o.pos_x, o.pos_y, ",".join(event_list)]
+	listen = event_list.has("context_voice")
+	event_list = event_list.filter(func(e): return e != "context_voice")
 
 func _process(_dt: float) -> void:
 	if not Game.playing or level == null: return
@@ -79,12 +91,50 @@ func _process(_dt: float) -> void:
 	if p == null or not is_instance_valid(p): return
 	var l := global_transform.affine_inverse() * p.global_position
 	var inside := absf(l.x) <= half.x and absf(l.z) <= half.z and l.y > -1.0 and l.y < half.y * 2.0
-	if inside and not _was_in and Game.time >= _ready_at:
+	if inside and not _was_in and Game.time >= _ready_at and not _ran_once:
 		_ready_at = Game.time + maxf(REARM, delay)
-		if once: level.fired_triggers[key] = true
-		if delay > 0.0: get_tree().create_timer(delay, false).timeout.connect(_run)
-		else: _run()
+		if once:
+			if listen: _ran_once = true            # (fired for good once the voice has said its line)
+			else: level.fired_triggers[key] = true
+		if not event_list.is_empty() or text != "":
+			if delay > 0.0: get_tree().create_timer(delay, false).timeout.connect(_run)
+			else: _run()
+	if listen:
+		_listen(inside, not _was_in)
 	_was_in = inside
+
+## context_voice: a few times a second, what is true of you now that wasn't at the last look; the first chance
+## the voice has (not mid-line, Duration since the last one), it says something about it
+func _listen(inside: bool, entered: bool) -> void:
+	var ev := _director()
+	if not inside or ev == null or not ev.has_method("play_context_voice") \
+			or preload("res://scripts/Events/events.gd").DISABLED:
+		_pending.clear()
+		return
+	if Game.time < _look_at and not entered:
+		return
+	_look_at = Game.time + 0.4
+	var now: Array = ev._voice_context()
+	if entered:
+		_heard = now                         # what was already so when you walked in isn't news
+		return
+	for t in now:
+		if not _heard.has(t) and not _pending.has(t):
+			_pending.append(t)
+	_pending = _pending.filter(func(t): return now.has(t))     # over before it was said: drop it
+	_heard = now
+	if _pending.is_empty() or Game.time < _next_line or not ev.play_context_voice(_pending):
+		return
+	_pending.clear()
+	_next_line = Game.time + maxf(duration, 8.0)
+	if once:
+		level.fired_triggers[key] = true
+
+func _director() -> Node:
+	var root: Node = level.get_parent() if level != null else null
+	if root == null and Game.main != null:
+		root = Game.main
+	return root.get_node_or_null("Events") if root != null else null
 
 func _run() -> void:
 	for ev_name in event_list:
@@ -95,7 +145,7 @@ func _run() -> void:
 ## Run by the host in co-op: monsters (a guest's are puppets of the host's) and the director's events
 ## (shared by everyone). Everything else here is what this player alone sees and hears.
 const HOST_EVENTS := ["spawn_bacteria", "spawn_mimic"]
-const LOCAL_EVENTS := ["message", "text", "lights_out", "flicker", "silence", "thump", "drone", "static",
+const LOCAL_EVENTS := ["message", "text", "context_voice", "lights_out", "flicker", "silence", "thump", "drone", "static",
 	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination"]
 
 func _execute_event(ev: String) -> void:
