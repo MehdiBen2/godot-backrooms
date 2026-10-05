@@ -13,6 +13,7 @@ const FIRST_MIN := 40.0
 const FIRST_MAX := 90.0
 const GAP_MIN := 55.0
 const GAP_MAX := 130.0
+const DISABLED := true                # TEMP: no random/triggered events while hunting a crash
 const RETRY := 6.0
 const RECOVERY_BASE := 15.0
 const RECOVERY_PER_INTENSITY := 45.0
@@ -260,7 +261,7 @@ func director_calm() -> bool:
 	return not player.dead and Game.terror == 0.0 and Game.time >= busy_until and watchers.is_empty()
 
 func _process(dt: float) -> void:
-	if not Game.playing or Game.dead:
+	if DISABLED or not Game.playing or Game.dead:
 		return
 	for i in range(queue.size() - 1, -1, -1):
 		if Game.time < queue[i].at:
@@ -331,6 +332,8 @@ func trigger_random(force := false, c := {}) -> String:
 	return pick.name
 
 func run_event(name: String) -> bool:
+	if DISABLED:
+		return false
 	for e in events:
 		if e.name != name:
 			continue

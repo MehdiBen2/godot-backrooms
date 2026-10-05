@@ -22,9 +22,9 @@
    "savedTokens": 0
   },
   "file_skeleton": {
-   "calls": 14,
-   "outputTokens": 16666,
-   "savedTokens": 55795
+   "calls": 15,
+   "outputTokens": 18442,
+   "savedTokens": 62620
   },
   "find_symbol": {
    "calls": 2,
