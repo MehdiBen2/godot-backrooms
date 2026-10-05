@@ -40,25 +40,20 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 	var runs := _runs(cells)
 	var mat := _material()
 	# storey 0 starts at the ceiling: below it is the room, whose own walls stand there
-	var lamp_mats := ShaftLamps.materials(mat.get_shader_parameter("rows"), seg_h, cell, mat.get_shader_parameter("tube_color"))
-	for key: String in ["fade_from", "fade_to", "haze_color", "haze_k", "haze_y"]:
-		for lm: ShaderMaterial in lamp_mats.values(): lm.set_shader_parameter(key, mat.get_shader_parameter(key))
-	var first := _segment_mesh(runs, wall_h, 0, [])
-	var rest: Array = []
-	var rest_lamps: Array = []
-	for v in PitFall.VARIANTS:
-		var spots: Array = []
-		rest.append(_segment_mesh(runs, 0.0, v, spots))
-		rest_lamps.append(ShaftLamps.build(spots))
+	var spots: Array = []
+	var first := _segment_mesh(runs, wall_h, [])
+	var rest := _segment_mesh(runs, 0.0, spots)
+	var lamp_mesh := ShaftLamps.build(spots)
+	var lamp_mats := ShaftLamps.materials(mat)
 	for k in STOREYS:
 		var mi := MeshInstance3D.new()
-		mi.mesh = first if k == 0 else rest[k % PitFall.VARIANTS]
+		mi.mesh = first if k == 0 else rest
 		mi.material_override = mat
 		mi.position = Vector3(0.0, k * seg_h, 0.0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		add_child(mi)
-		if k > 0 and rest_lamps[k % PitFall.VARIANTS] != null: mi.add_child(ShaftLamps.instance(rest_lamps[k % PitFall.VARIANTS], lamp_mats))
+		if k > 0 and lamp_mesh != null: mi.add_child(ShaftLamps.instance(lamp_mesh, lamp_mats))
 	_add_cap(cells)
 
 ## The haze over the top, so the far end is never a hole to the sky
@@ -116,7 +111,7 @@ func _runs(cells: Dictionary) -> Array:
 ## One storey of shaft from height `y0` to seg_h: a quad a run of wall (the shader paints wall and slab on it)
 ## and a tube on every cell's width of it (left out where the storey starts above it). UV: metres along
 ## the run, and its length (for the corner shading).
-func _segment_mesh(runs: Array, y0: float, salt: int, lamps: Array) -> ArrayMesh:
+func _segment_mesh(runs: Array, y0: float, spots: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var lo_y := Vector3(0.0, y0, 0.0)
@@ -126,31 +121,16 @@ func _segment_mesh(runs: Array, y0: float, salt: int, lamps: Array) -> ArrayMesh
 		var b: Vector3 = r.to
 		var n: Vector3 = r.n
 		var ln := a.distance_to(b)
-		var plan: Array = []
 		var dir0 := (b - a) / ln
 		if y0 > 0.0:                    # the storey that starts at the ceiling: no doorways, they would be inside the room
 			_quad(st, [a + lo_y, b + lo_y, b + hi_y, a + hi_y], n, Color.WHITE, [Vector2(0, ln), Vector2(ln, ln), Vector2(ln, ln), Vector2(0, ln)])
 		else:                           # doorways onto fake corridors, as in the abyss (pit_fall.gd)
-			plan = PitFall._plan(a, dir0, n, int(r.cells), cell, cells, salt)
-			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, plan, wall_h, lamps)
+			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, cells)
 		if PitFall.TUBE_Y - PitFall.TUBE_THICK < y0: continue
 		var dir := (b - a) / ln
 		for i in int(r.cells):
-			if not plan.is_empty() and PitFall._is_open(plan[i]): continue
 			var mid := a + dir * (cell * (i + 0.5)) + Vector3(0.0, PitFall.TUBE_Y, 0.0)
-			var s := dir * PitFall.TUBE_HALF
-			var lo := Vector3(0.0, -PitFall.TUBE_THICK, 0.0)
-			var hi := Vector3(0.0, PitFall.TUBE_THICK, 0.0)
-			var back := n * 0.02
-			var front := n * PitFall.TUBE_OUT
-			var glass := Color(1, 1, 1, 0)
-			var housing := Color(0, 0, 0, 0)
-			var none := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]
-			_quad(st, [mid - s + front + lo, mid + s + front + lo, mid + s + front + hi, mid - s + front + hi], n, glass, none)
-			_quad(st, [mid - s + back + lo, mid + s + back + lo, mid + s + front + lo, mid - s + front + lo], Vector3.DOWN, glass, none)
-			_quad(st, [mid - s + back + hi, mid + s + back + hi, mid + s + front + hi, mid - s + front + hi], Vector3.UP, housing, none)
-			_quad(st, [mid - s + back + lo, mid - s + front + lo, mid - s + front + hi, mid - s + back + hi], -dir, housing, none)
-			_quad(st, [mid + s + back + lo, mid + s + front + lo, mid + s + front + hi, mid + s + back + hi], dir, housing, none)
+			spots.append(ShaftLamps.spot(mid, dir, n))
 	return st.commit()
 
 ## A quad facing `n`, wound clockwise seen from that side (Godot's front face)

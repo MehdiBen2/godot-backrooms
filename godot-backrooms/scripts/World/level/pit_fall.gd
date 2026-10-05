@@ -31,25 +31,18 @@ const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 const ROW_PERIOD := 12             # storeys before the pattern of dead and failing tubes comes round again
 const WRAP_SEGS := 24              # the loop, in storeys: a multiple of ROW_PERIOD
-const VARIANTS := 12               # storeys with their own doorways before they come round again (divides POOL)
-const POOL := WRAP_SEGS           # storeys drawn at most (it divides WRAP_SEGS: see above)
+const POOL := WRAP_SEGS            # storeys drawn at most (it divides WRAP_SEGS: see above)
 const WRAP_TOP_SEGS := 12          # the loop's top, in storeys under the floor: well past the far plane (FAR_MAX)
 const ENTER_Y := -0.8              # feet this far under the floor over the pit: you are falling
 const TUBE_Y := 5.05               # pit_shaft.gdshader tube_y
 const TUBE_HALF := 0.6
 const TUBE_OUT := 0.11             # how far the tubes stand off the wall
 const TUBE_THICK := 0.045
-const OPEN_D := 16.0               # the longest a corridor behind a doorway runs back (doorways: _wall)
-const HALL_D := 20.0               # the deepest a hall behind an open wall runs back
-const HALL_MIN_D := 4.0            # a hall with less room behind it than this is a plain wall
-const LOW_H := 1.1                 # a sill left standing at the edge of a hall
-const T_WALL := 0                  # what a cell of shaft wall is (_plan)
-const T_DOOR := 1
-const T_HALL := 2
-const T_PART := 3
-const T_LOW := 4
-const T_NICHE := 5
+const OPEN_HALF := 1.3             # a doorway in the shaft's wall, onto a fake corridor: half its width...
+const OPEN_H := 2.9                # ...and its height, from the storey's floor
 const OPEN_MIN_D := 3.0            # a doorway with less room behind it than this is a plain wall
+const OPEN_D := 16.0               # how far the corridor runs back
+const OPEN_SHARE := 70             # percent of the wall's cells that have one
 
 const FOG_FROM := 4.0              # m fallen before the haze starts to close in
 const FOG_RAMP := 70.0             # m over which it does
@@ -66,8 +59,7 @@ const HIDE_MARGIN := 6.0
 const CAP_Y := -2.0                # the fog over the pit once you are under it: a sheet this far under the rim...
 const CAP_FROM := 6.0              # ...clear until you have fallen this far past it, then thickening over CAP_RAMP m
 const CAP_RAMP := 14.0
-const DOWN_K := 0.014              # per metre under the rim: the view down a pit dims and hazes with depth (off while falling)
-const HAZE_K := 0.15              # per metre over you: walls up the shaft sink into the haze (pit_shaft.gdshader)
+const HAZE_K := 0.15               # per metre over you: walls up the shaft sink into the haze (pit_shaft.gdshader)
 const CAP_ALPHA := 0.97
 
 ## The haze, by the level's look: a sickly yellow over the dim halls, washed-out grey-green in the liminal look,
@@ -83,7 +75,7 @@ var wrap_bottom := 0.0
 var shafts: Array = []             # each {cells, root: Node3D, pool: Array, body: StaticBody3D, box: Rect2}
 var _shaft_of := {}                # Vector2i -> its shaft's place in `shafts`
 var _mat: ShaderMaterial
-var _lamp_mats := {}               # shaft_lamps.gd: the lights' materials, which wear the same haze and rows as _mat
+var _lamp_mats := {}               # shaft_lamps.gd: the tubes' materials, which wear the same haze and rows as _mat
 var _dome: MeshInstance3D          # a haze-coloured sphere round the camera, just inside its far plane: what is behind everything
 var _cap_mat: StandardMaterial3D   # the fog sheet over the shaft you are falling down
 var _rows := PackedFloat32Array()  # pit_shaft.gdshader `rows`: 0 dead, 1 steady, 2 failing
@@ -126,6 +118,7 @@ func setup(lvl: Node3D) -> void:
 		_rows[k] = 0.0 if v < 0.15 else (2.0 if v < 0.3 else 1.0)
 	_rows[0] = 1.0                      # (the first row under the rim is lit: it is what you see of it from above)
 	_mat = _material()
+	_lamp_mats = ShaftLamps.materials(_mat)
 	_cap_mat = StandardMaterial3D.new()
 	_cap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_cap_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -156,24 +149,21 @@ func _exit_tree() -> void:
 # ---------------------------------------------------------------- building
 func _build_shaft(cells: Dictionary) -> Dictionary:
 	var runs := _runs(cells)
-	var meshes: Array = []
-	var lamp_meshes: Array = []
-	for v in VARIANTS:
-		var spots: Array = []
-		meshes.append(_segment_mesh(runs, level.abyss, v, spots))
-		lamp_meshes.append(ShaftLamps.build(spots))
+	var spots: Array = []
+	var mesh := _segment_mesh(runs, level.abyss, spots)
+	var lamp_mesh := ShaftLamps.build(spots)
 	var root := Node3D.new()
 	add_child(root)
 	var pool: Array = []
 	for i in POOL:
 		var mi := MeshInstance3D.new()
-		mi.mesh = meshes[i % VARIANTS]          # (storey k is node k mod POOL, so its variant is k mod VARIANTS)
-		if lamp_meshes[i % VARIANTS] != null: mi.add_child(ShaftLamps.instance(lamp_meshes[i % VARIANTS], _lamp_mats))
+		mi.mesh = mesh
 		mi.material_override = _mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		mi.visible = false
 		root.add_child(mi)
+		if lamp_mesh != null: mi.add_child(ShaftLamps.instance(lamp_mesh, _lamp_mats))
 		pool.append(mi)
 	# the fog above you: looking up out of the pit you see haze, not the lit room you left
 	var cap := MeshInstance3D.new()
@@ -250,8 +240,8 @@ func _runs(cells: Dictionary) -> Array:
 	return out
 
 ## One storey of shaft, y 0 to seg_h: a quad a run of wall (the shader paints wall and slab on it), and a
-## tube on every cell's width of it. UV: metres along the run, and its length (for the corner shading).
-func _segment_mesh(runs: Array, shaft: Dictionary, salt: int, lamps: Array) -> ArrayMesh:
+## tube (shaft_lamps.gd: `spots` is where) on every cell's width of it. UV: metres along the run, and its length (for the corner shading).
+func _segment_mesh(runs: Array, shaft: Dictionary, spots: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for r: Dictionary in runs:
@@ -260,194 +250,57 @@ func _segment_mesh(runs: Array, shaft: Dictionary, salt: int, lamps: Array) -> A
 		var n: Vector3 = r.n
 		var ln := a.distance_to(b)
 		var dir := (b - a) / ln
-		var plan := _plan(a, dir, n, int(r.cells), cell, shaft, salt)
-		_wall(st, a, dir, ln, n, int(r.cells), cell, seg_h, plan, level.WALL_H, lamps)
+		_wall(st, a, dir, ln, n, int(r.cells), cell, seg_h, shaft)
 		for i in int(r.cells):
-			if _is_open(plan[i]): continue            # (no wall to hang a tube on)
 			var mid := a + dir * (cell * (i + 0.5)) + Vector3(0.0, TUBE_Y, 0.0)
-			var s := dir * TUBE_HALF
-			var lo := Vector3(0.0, -TUBE_THICK, 0.0)
-			var hi := Vector3(0.0, TUBE_THICK, 0.0)
-			var back := n * 0.02
-			var front := n * TUBE_OUT
-			var glass := Color(1, 1, 1, 0)
-			var housing := Color(0, 0, 0, 0)
-			var none := [Vector2.ZERO, Vector2.ZERO, Vector2.ZERO, Vector2.ZERO]
-			_quad(st, [mid - s + front + lo, mid + s + front + lo, mid + s + front + hi, mid - s + front + hi], n, glass, none)
-			_quad(st, [mid - s + back + lo, mid + s + back + lo, mid + s + front + lo, mid - s + front + lo], Vector3.DOWN, glass, none)
-			_quad(st, [mid - s + back + hi, mid + s + back + hi, mid + s + front + hi, mid - s + front + hi], Vector3.UP, housing, none)
-			_quad(st, [mid - s + back + lo, mid - s + front + lo, mid - s + front + hi, mid - s + back + hi], -dir, housing, none)
-			_quad(st, [mid + s + back + lo, mid + s + front + lo, mid + s + front + hi, mid + s + back + hi], dir, housing, none)
+			spots.append(ShaftLamps.spot(mid, dir, n))
 	return st.commit()
 
-## What each cell of a run of shaft wall is, and its size, so that the walls, the tubes and the bays can agree.
-## Every storey (`salt`) is its own floor of the same building: solid wall, a door onto a corridor, a niche, or the
-## wall gone altogether, a hall opening off the shaft (with a piece of the wall left standing, or only a low sill).
-## `shaft`: every cell that is open shaft: what lies behind a cell stops short of one (it would run through the
-## shaft and show as a beam across it), and a cell with no room behind it is left a plain wall.
-static func _plan(a: Vector3, dir: Vector3, n: Vector3, cells: int, cell: float, shaft: Dictionary, salt: int) -> Array:
-	var share := 30 + posmod(salt * 37, 55)           # per cent of the cells that are anything but wall
-	var plan: Array = []
-	for i in cells:
-		var h: int = hash(Vector3i(roundi(a.x), roundi(a.z), i + salt * 977))
-		var p := {"h": h, "t": T_WALL, "d": 0.0, "half": 1.0, "height": 2.8, "off": 0.0, "f": 0.5, "left": true}
-		plan.append(p)
-		if posmod(h, 100) >= share: continue
-		var k: float = _rnd(h, 1)
-		var t: int = T_DOOR
-		if k < 0.36: t = T_HALL
-		elif k < 0.48: t = T_PART
-		elif k < 0.56: t = T_LOW
-		elif k > 0.92: t = T_NICHE
-		var half: float = lerpf(0.8, 1.45, _rnd(h, 2))
-		var height: float = lerpf(2.3, 3.4, _rnd(h, 3))
-		if t == T_DOOR and _rnd(h, 6) < 0.3:
-			half = lerpf(1.6, 1.95, _rnd(h, 2))
-			height = lerpf(2.8, 4.6, _rnd(h, 3))
-		var depth: float = lerpf(5.0, OPEN_D, _rnd(h, 4))
-		var hall: bool = t == T_HALL or t == T_PART or t == T_LOW
-		if hall: depth = lerpf(6.0, HALL_D, _rnd(h, 4))
-		if t == T_NICHE: depth = lerpf(0.4, 1.1, _rnd(h, 4))
-		var off: float = 0.0
-		if t == T_DOOR or t == T_NICHE: off = (_rnd(h, 5) * 2.0 - 1.0) * maxf(cell * 0.5 - half - 0.2, 0.0)
-		if t != T_NICHE:
-			var at: Vector3 = a + dir * (cell * (i + 0.5) + off)
-			for j in int(ceil(HALL_D / cell)) + 1:
-				var q: Vector3 = at - n * (cell * (j + 0.5))
-				if shaft.has(Vector2i(roundi(q.x / cell), roundi(q.z / cell))):
-					depth = minf(depth, cell * j * 0.5 - 0.3)       # (half: the shaft's other side has things behind it too)
-					break
-			if depth < (HALL_MIN_D if hall else OPEN_MIN_D): continue
-		p.t = t
-		p.d = depth
-		p.half = half
-		p.height = height
-		p.off = off
-		p.f = lerpf(0.3, 0.7, _rnd(h, 22))
-		p.left = _rnd(h, 23) < 0.5
-	return plan
-
-## True where the wall's cell is open, with nothing hung on it (the tubes are left off it)
-static func _is_open(p: Dictionary) -> bool:
-	var t: int = p.t
-	return t == T_HALL or t == T_PART or t == T_LOW
-
-## A run of wall, one cell at a time, as `plan` has it. UV: metres along the run and its length, for the corner shading.
-static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vector3, cells: int, cell: float, seg_h: float, plan: Array, room_h: float, lamps: Array) -> void:
+## A run of wall, one cell at a time: whole, or with a doorway onto a fake corridor (the same on every storey; which
+## of them are lit is the shader's). UV: metres along the run and its length, for the corner shading.
+## `shaft`: every cell that is open shaft: a corridor stops short of one (it would run through the shaft and show as
+## a beam across it), and a doorway with no room for one is left a plain wall.
+static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vector3, cells: int, cell: float, seg_h: float, shaft: Dictionary) -> void:
 	var piece := func(x0: float, x1: float, y0: float, y1: float) -> void:
 		var lo := Vector3(0.0, y0, 0.0)
 		var hi := Vector3(0.0, y1, 0.0)
 		_quad(st, [a + dir * x0 + lo, a + dir * x1 + lo, a + dir * x1 + hi, a + dir * x0 + hi], n, Color.WHITE,
 				[Vector2(x0, ln), Vector2(x1, ln), Vector2(x1, ln), Vector2(x0, ln)])
 	for i in cells:
-		var p: Dictionary = plan[i]
-		var t: int = p.t
-		var h: int = p.h
 		var c0 := cell * i
 		var c1 := c0 + cell
-		var id := float(posmod(h / 100, 1000))
-		var depth: float = p.d
-		if t == T_WALL:
+		var m := c0 + cell * 0.5
+		var h := hash(Vector3i(roundi(a.x), roundi(a.z), i))
+		var depth := OPEN_D
+		if posmod(h, 100) < OPEN_SHARE:
+			var at := a + dir * m
+			for j in int(ceil(OPEN_D / cell)) + 1:
+				var p := at - n * (cell * (j + 0.5))
+				if shaft.has(Vector2i(roundi(p.x / cell), roundi(p.z / cell))):
+					depth = minf(depth, cell * j * 0.5 - 0.3)       # (half: the shaft's other side has doorways too)
+					break
+		if posmod(h, 100) >= OPEN_SHARE or depth < OPEN_MIN_D:
 			piece.call(c0, c1, 0.0, seg_h)
-		elif t == T_DOOR or t == T_NICHE:
-			var mm: float = c0 + cell * 0.5 + float(p.off)
-			var half: float = p.half
-			var height: float = p.height
-			piece.call(c0, mm - half, 0.0, seg_h)
-			piece.call(mm + half, c1, 0.0, seg_h)
-			piece.call(mm - half, mm + half, height, seg_h)
-			_corridor(st, a, dir, n, mm, id, depth, half, height, lamps)
-		else:
-			piece.call(c0, c1, room_h, seg_h)            # the slab over the hall
-			if t == T_PART:
-				var f: float = p.f
-				if p.left: piece.call(c0, c0 + cell * f, 0.0, room_h)
-				else: piece.call(c1 - cell * f, c1, 0.0, room_h)
-			elif t == T_LOW:
-				piece.call(c0, c1, 0.0, LOW_H)
-			_hall(st, a, dir, n, c0, c1, depth, room_h, id, h, p, i > 0 and _is_open(plan[i - 1]), i < cells - 1 and _is_open(plan[i + 1]), lamps)
-	# where a hall goes on further than its neighbour (a hall or a wall): the side wall of the stretch beyond
-	for j in range(1, cells):
-		var da := 0.0
-		var db := 0.0
-		if _is_open(plan[j - 1]): da = plan[j - 1].d
-		if _is_open(plan[j]): db = plan[j].d
-		if absf(da - db) < 0.01 or da <= 0.0 or db <= 0.0: continue
-		var x := cell * j
-		var d0 := minf(da, db)
-		var d1 := maxf(da, db)
-		_face(st, a, dir, n, [Vector3(x, 0.0, d0), Vector3(x, 0.0, d1), Vector3(x, room_h, d1), Vector3(x, room_h, d0)], dir, [d0, d1, d1, d0], 0.0)
+			continue
+		piece.call(c0, m - OPEN_HALF, 0.0, seg_h)
+		piece.call(m + OPEN_HALF, c1, 0.0, seg_h)
+		piece.call(m - OPEN_HALF, m + OPEN_HALF, OPEN_H, seg_h)
+		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)), depth)
 
-## The hall behind an open cell: carpet, drop ceiling, side walls, a back wall (or none: it goes on into the dark),
-## pillars, and a stretch of wall across it with a gap to walk through
-static func _hall(st: SurfaceTool, a: Vector3, dir: Vector3, n: Vector3, x0: float, x1: float, depth: float, room_h: float, id: float, h: int, p: Dictionary, open_l: bool, open_r: bool, lamps: Array) -> void:
-	var cell := x1 - x0
-	_lamps(lamps, n, dir, a, (x0 + x1) * 0.5, room_h, depth - 0.6, cell)
-	var flat := [0.0, 0.0, 0.0, 0.0]
-	_face(st, a, dir, n, [Vector3(x0, 0.0, 0.0), Vector3(x1, 0.0, 0.0), Vector3(x1, 0.0, depth), Vector3(x0, 0.0, depth)], Vector3.UP, flat, id)
-	_face(st, a, dir, n, [Vector3(x0, room_h, 0.0), Vector3(x1, room_h, 0.0), Vector3(x1, room_h, depth), Vector3(x0, room_h, depth)], Vector3.DOWN, flat, id)
-	if _rnd(h, 30) >= 0.25:                              # (a quarter of them have no back wall: the dark goes on)
-		_face(st, a, dir, n, [Vector3(x0, 0.0, depth), Vector3(x1, 0.0, depth), Vector3(x1, room_h, depth), Vector3(x0, room_h, depth)], n, [x0, x1, x1, x0], id)
-	for side in 2:                                       # (no wall where the next cell is a hall too: _wall closes what sticks out)
-		if (side == 0 and open_l) or (side == 1 and open_r): continue
-		var x := x0 if side == 0 else x1
-		_face(st, a, dir, n, [Vector3(x, 0.0, 0.0), Vector3(x, 0.0, depth), Vector3(x, room_h, depth), Vector3(x, room_h, 0.0)], dir, [0.0, depth, depth, 0.0], id)
-	var pillars := int(_rnd(h, 10) * 3.0)
-	for k in pillars:
-		var px: float = lerpf(x0 + 1.0, x1 - 1.0, _rnd(h, 11 + k))
-		var pd: float = lerpf(1.5, maxf(depth - 1.0, 1.6), _rnd(h, 14 + k))
-		var r := 0.35
-		_face(st, a, dir, n, [Vector3(px - r, 0.0, pd - r), Vector3(px - r, 0.0, pd + r), Vector3(px - r, room_h, pd + r), Vector3(px - r, room_h, pd - r)], dir, [pd - r, pd + r, pd + r, pd - r], id)
-		_face(st, a, dir, n, [Vector3(px + r, 0.0, pd - r), Vector3(px + r, 0.0, pd + r), Vector3(px + r, room_h, pd + r), Vector3(px + r, room_h, pd - r)], dir, [pd - r, pd + r, pd + r, pd - r], id)
-		_face(st, a, dir, n, [Vector3(px - r, 0.0, pd - r), Vector3(px + r, 0.0, pd - r), Vector3(px + r, room_h, pd - r), Vector3(px - r, room_h, pd - r)], n, [px - r, px + r, px + r, px - r], id)
-		_face(st, a, dir, n, [Vector3(px - r, 0.0, pd + r), Vector3(px + r, 0.0, pd + r), Vector3(px + r, room_h, pd + r), Vector3(px - r, room_h, pd + r)], n, [px - r, px + r, px + r, px - r], id)
-	if depth > 7.0 and _rnd(h, 20) < 0.55:
-		var dd: float = lerpf(3.0, depth - 2.5, _rnd(h, 21))
-		var f: float = p.f
-		var wx0: float = x0 if p.left else x1 - cell * f
-		var wx1: float = x0 + cell * f if p.left else x1
-		_face(st, a, dir, n, [Vector3(wx0, 0.0, dd), Vector3(wx1, 0.0, dd), Vector3(wx1, room_h, dd), Vector3(wx0, room_h, dd)], n, [wx0, wx1, wx1, wx0], id)
-
-## The corridor behind a doorway at `mm` along the run: floor, ceiling, two walls and a far end
-static func _corridor(st: SurfaceTool, a: Vector3, dir: Vector3, n: Vector3, mm: float, id: float, depth: float, half: float, height: float, lamps: Array) -> void:
-	var x0 := mm - half
-	if height > 2.6: _lamps(lamps, n, dir, a, mm, height, depth - 0.6, 4.5)
-	var x1 := mm + half
-	var flat := [0.0, 0.0, 0.0, 0.0]
-	_face(st, a, dir, n, [Vector3(x0, 0.0, 0.0), Vector3(x1, 0.0, 0.0), Vector3(x1, 0.0, depth), Vector3(x0, 0.0, depth)], Vector3.UP, flat, id)
-	_face(st, a, dir, n, [Vector3(x0, height, 0.0), Vector3(x1, height, 0.0), Vector3(x1, height, depth), Vector3(x0, height, depth)], Vector3.DOWN, flat, id)
-	_face(st, a, dir, n, [Vector3(x0, 0.0, 0.0), Vector3(x0, 0.0, depth), Vector3(x0, height, depth), Vector3(x0, height, 0.0)], dir, [0.0, depth, depth, 0.0], id)
-	_face(st, a, dir, n, [Vector3(x1, 0.0, 0.0), Vector3(x1, 0.0, depth), Vector3(x1, height, depth), Vector3(x1, height, 0.0)], -dir, [0.0, depth, depth, 0.0], id)
-	_face(st, a, dir, n, [Vector3(x0, 0.0, depth), Vector3(x1, 0.0, depth), Vector3(x1, height, depth), Vector3(x0, height, depth)], n, [x0, x1, x1, x0], id)
-
-## The ceiling lights down a hall or corridor, one at the middle of each cell of it (where the shader lights it from),
-## each lying along the way back from the shaft. `spots`: where the top of each housing is.
-static func _lamps(spots: Array, n: Vector3, dir: Vector3, a: Vector3, x: float, y: float, reach: float, cell: float) -> void:
-	var yaw := 0.0 if absf(n.x) > 0.5 else PI * 0.5
-	var d := cell * 0.5
-	while d < reach:
-		spots.append(Transform3D(Basis(Vector3.UP, yaw), a + dir * x + Vector3(0.0, y + 0.03, 0.0) - n * d))
-		d += cell
-
-static func _rnd(h: int, k: int) -> float:
-	return float(posmod(hash(Vector2i(h, k)), 10000)) / 10000.0
-
-## A face behind the shaft's wall, in the run's own terms: (x along the run, y up, d back from the wall). Marked for the
-## shader by a grey vertex colour whose blue is how far back it is; `u`: the wallpaper's way along it.
-static func _face(st: SurfaceTool, a: Vector3, dir: Vector3, n: Vector3, c: Array, normal: Vector3, u: Array, id: float) -> void:
-	var v: Array = []
-	for q: Vector3 in c: v.append(a + dir * q.x + Vector3(0.0, q.y, 0.0) - n * q.z)
-	var v0: Vector3 = v[0]
-	var v1: Vector3 = v[1]
-	var v2: Vector3 = v[2]
-	var order := [0, 1, 2, 0, 2, 3]
-	if (v1 - v0).cross(v2 - v0).dot(normal) > 0.0: order = [0, 2, 1, 0, 3, 2]
-	for k: int in order:
-		var q: Vector3 = c[k]
-		st.set_normal(normal)
-		st.set_color(Color(0.5, 0.5, clampf(q.z / 32.0, 0.0, 1.0), 1.0))
-		st.set_uv(Vector2(u[k], id))
-		st.add_vertex(v[k])
+## The corridor behind a doorway: floor, ceiling, two walls and a far end, marked for the shader by a grey vertex
+## colour. UV: how far in it is, and which corridor this is.
+static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float, depth: float) -> void:
+	var out := -n * depth
+	var s := dir * OPEN_HALF
+	var up := Vector3(0.0, OPEN_H, 0.0)
+	var col := Color(0.5, 0.5, 0.5, 1.0)
+	var d0 := Vector2(0.0, id)
+	var d1 := Vector2(depth, id)
+	_quad(st, [mid - s, mid + s, mid + s + out, mid - s + out], Vector3.UP, col, [d0, d0, d1, d1])
+	_quad(st, [mid - s + up, mid + s + up, mid + s + out + up, mid - s + out + up], Vector3.DOWN, col, [d0, d0, d1, d1])
+	_quad(st, [mid - s, mid - s + out, mid - s + out + up, mid - s + up], dir, col, [d0, d1, d1, d0])
+	_quad(st, [mid + s, mid + s + out, mid + s + out + up, mid + s + up], -dir, col, [d0, d1, d1, d0])
+	_quad(st, [mid - s + out, mid + s + out, mid + s + out + up, mid - s + out + up], n, col, [d1, d1, d1, d1])
 
 ## A quad facing `n`, wound clockwise seen from that side (Godot's front face)
 static func _quad(st: SurfaceTool, v: Array, n: Vector3, col: Color, uv: Array) -> void:
@@ -510,14 +363,9 @@ func _material() -> ShaderMaterial:
 	m.set_shader_parameter("rows", _rows)
 	m.set_shader_parameter("period", ROW_PERIOD)
 	_sick = SICK.get(look, SICK.dim)
-	m.set_shader_parameter("haze_color", _sick)
-	m.set_shader_parameter("down_k", DOWN_K)
-	_lamp_mats = ShaftLamps.materials(_rows, seg_h, cell, tube)
-	for k: String in ["haze_color", "down_k"]:
-		for lm: ShaderMaterial in _lamp_mats.values(): lm.set_shader_parameter(k, m.get_shader_parameter(k))
 	return m
 
-## One setting of the shader on the shaft's walls and on its lights
+## One setting of the shader on the shaft's walls and on its tubes
 func _param(key: String, value: Variant) -> void:
 	_mat.set_shader_parameter(key, value)
 	for lm: ShaderMaterial in _lamp_mats.values(): lm.set_shader_parameter(key, value)
@@ -704,7 +552,6 @@ func _begin(i: int) -> void:
 		(shafts[j].root as Node3D).visible = j == i
 		(shafts[j].cap as Node3D).visible = j == i
 	_cap_mat.albedo_color = Color(0, 0, 0, 0)
-	_param("down_k", 0.0)
 	if not Gfx.changed.is_connected(_on_gfx): Gfx.changed.connect(_on_gfx)
 	var bus := "Ambience" if AudioServer.get_bus_index("Ambience") >= 0 else "Master"
 	_wind = AudioStreamPlayer.new()
@@ -777,8 +624,6 @@ func _end(wake: bool, die := false, hold := false) -> void:
 	_fade = 0.0
 	Game.freefall = false
 	_param("haze_k", 0.0)
-	_param("haze_color", _sick)
-	_param("down_k", DOWN_K)
 	for s: Dictionary in shafts:
 		s.lo = 1                                    # re-placed for the view from the floor
 		(s.cap as Node3D).visible = false
