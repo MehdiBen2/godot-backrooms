@@ -682,7 +682,7 @@ func _event_one_lamp() -> void:
 		level.restore_power()
 		level.set_tint(Color.WHITE))
 	var p := player.global_position
-	var near := level.fixtures_near(p, 16.0)
+	var near: Array = level.fixtures_near(p, 16.0)
 	near.sort_custom(func(x, y): return Vector2(x.pos.x - p.x, x.pos.z - p.z).length() < Vector2(y.pos.x - p.x, y.pos.z - p.z).length())
 	if near.size() < 2:
 		return
