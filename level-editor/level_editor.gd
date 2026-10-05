@@ -1393,14 +1393,17 @@ func _grip_icon() -> ImageTexture:
 
 func _load_ui_scale() -> float:
 	var cf := ConfigFile.new()
-	if cf.load(UI_CFG) == OK and cf.has_section_key("ui", "scale"):
-		return float(cf.get_value("ui", "scale"))
+	if cf.load(UI_CFG) == OK and cf.has_section_key("ui", "scale2"):
+		return float(cf.get_value("ui", "scale2"))
 	return _auto_ui_scale()
 
 func _auto_ui_scale() -> float:
 	# Retina / hi-DPI screens report a scale (2 on a Mac); a tall screen gets a little more on top
 	var scr := DisplayServer.window_get_current_screen()
 	var dpi := DisplayServer.screen_get_scale(scr)
+	# macOS already sizes windows in points (a Retina 2x is handled by the OS), so don't scale up again
+	if OS.get_name() == "macOS":
+		return 1.0
 	var tall := DisplayServer.screen_get_size(scr).y / dpi / 1000.0
 	return clampf(snappedf(dpi * 0.75 * maxf(1.0, tall), 0.05), 1.0, 2.5)
 
@@ -1412,7 +1415,7 @@ func _step_ui_scale(d: float) -> void:
 	_apply_ui_scale(_auto_ui_scale() if d == 0.0 else ui_scale + d)
 	var cf := ConfigFile.new()
 	cf.load(UI_CFG)
-	cf.set_value("ui", "scale", ui_scale)
+	cf.set_value("ui", "scale2", ui_scale)
 	cf.save(UI_CFG)
 	_status("UI scale %d%%  (Ctrl + / Ctrl - / Ctrl 0 = fit the screen)" % roundi(ui_scale * 100.0))
 

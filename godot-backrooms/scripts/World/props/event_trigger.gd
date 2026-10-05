@@ -99,6 +99,8 @@ const LOCAL_EVENTS := ["message", "text", "lights_out", "flicker", "silence", "t
 	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination"]
 
 func _execute_event(ev: String) -> void:
+	if preload("res://scripts/Events/events.gd").DISABLED:
+		return                        # TEMP: all events off while hunting a crash
 	var root: Node = level.get_parent() if level != null else null
 	if root == null and Game.main != null:
 		root = Game.main
