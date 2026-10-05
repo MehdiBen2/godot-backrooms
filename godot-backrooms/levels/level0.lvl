@@ -1040,6 +1040,62 @@
       "scale": 1.5,
       "thick": 0.3,
       "type": "thin_wall"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 24.674,
+      "pos_y": 8.351,
+      "rotation": 249.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 27.0,
+      "pos_y": 6.0,
+      "rotation": 249.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 25.883,
+      "pos_y": 18.52,
+      "rotation": 113.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 31.5,
+      "pos_y": 20.5,
+      "rotation": 113.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 35.0,
+      "pos_y": 28.0,
+      "rotation": 263.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 22.0,
+      "pos_y": 35.5,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 15.0,
+      "pos_y": 10.0,
+      "rotation": 63.0,
+      "scale": 1.0,
+      "type": "prop_work_light2"
     }
   ],
   "sdfgi": true,
@@ -2636,6 +2692,10 @@
         35
       ],
       [
+        36,
+        35
+      ],
+      [
         16,
         36
       ],
@@ -2697,6 +2757,10 @@
       ],
       [
         35,
+        36
+      ],
+      [
+        36,
         36
       ],
       [
