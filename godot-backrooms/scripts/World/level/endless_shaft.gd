@@ -12,6 +12,7 @@ extends Node3D
 ## from FADE_FROM metres over the ceiling, and the tubes' own light after it, to nothing at FADE_TO.
 
 const PitFall := preload("res://scripts/World/level/pit_fall.gd")
+const ShaftLamps := preload("res://scripts/World/level/shaft_lamps.gd")
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 const STOREYS := 12                # drawn: past FADE_TO nothing shows, so the top of the last is never seen
@@ -39,9 +40,16 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 	var runs := _runs(cells)
 	var mat := _material()
 	# storey 0 starts at the ceiling: below it is the room, whose own walls stand there
-	var first := _segment_mesh(runs, wall_h, 0)
+	var lamp_mats := ShaftLamps.materials(mat.get_shader_parameter("rows"), seg_h, cell, mat.get_shader_parameter("tube_color"))
+	for key: String in ["fade_from", "fade_to", "haze_color", "haze_k", "haze_y"]:
+		for lm: ShaderMaterial in lamp_mats.values(): lm.set_shader_parameter(key, mat.get_shader_parameter(key))
+	var first := _segment_mesh(runs, wall_h, 0, [])
 	var rest: Array = []
-	for v in PitFall.VARIANTS: rest.append(_segment_mesh(runs, 0.0, v))
+	var rest_lamps: Array = []
+	for v in PitFall.VARIANTS:
+		var spots: Array = []
+		rest.append(_segment_mesh(runs, 0.0, v, spots))
+		rest_lamps.append(ShaftLamps.build(spots))
 	for k in STOREYS:
 		var mi := MeshInstance3D.new()
 		mi.mesh = first if k == 0 else rest[k % PitFall.VARIANTS]
@@ -50,6 +58,7 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		add_child(mi)
+		if k > 0 and rest_lamps[k % PitFall.VARIANTS] != null: mi.add_child(ShaftLamps.instance(rest_lamps[k % PitFall.VARIANTS], lamp_mats))
 	_add_cap(cells)
 
 ## The haze over the top, so the far end is never a hole to the sky
@@ -107,7 +116,7 @@ func _runs(cells: Dictionary) -> Array:
 ## One storey of shaft from height `y0` to seg_h: a quad a run of wall (the shader paints wall and slab on it)
 ## and a tube on every cell's width of it (left out where the storey starts above it). UV: metres along
 ## the run, and its length (for the corner shading).
-func _segment_mesh(runs: Array, y0: float, salt: int) -> ArrayMesh:
+func _segment_mesh(runs: Array, y0: float, salt: int, lamps: Array) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var lo_y := Vector3(0.0, y0, 0.0)
@@ -123,7 +132,7 @@ func _segment_mesh(runs: Array, y0: float, salt: int) -> ArrayMesh:
 			_quad(st, [a + lo_y, b + lo_y, b + hi_y, a + hi_y], n, Color.WHITE, [Vector2(0, ln), Vector2(ln, ln), Vector2(ln, ln), Vector2(0, ln)])
 		else:                           # doorways onto fake corridors, as in the abyss (pit_fall.gd)
 			plan = PitFall._plan(a, dir0, n, int(r.cells), cell, cells, salt)
-			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, plan, wall_h)
+			PitFall._wall(st, a, dir0, ln, n, int(r.cells), cell, seg_h, plan, wall_h, lamps)
 		if PitFall.TUBE_Y - PitFall.TUBE_THICK < y0: continue
 		var dir := (b - a) / ln
 		for i in int(r.cells):
