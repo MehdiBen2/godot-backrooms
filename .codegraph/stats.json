@@ -7,8 +7,8 @@
    "savedTokens": 0
   },
   "repo_map": {
-   "calls": 1,
-   "outputTokens": 934,
+   "calls": 2,
+   "outputTokens": 2629,
    "savedTokens": 0
   },
   "read_symbol": {
@@ -29,6 +29,11 @@
   "find_symbol": {
    "calls": 2,
    "outputTokens": 1588,
+   "savedTokens": 0
+  },
+  "semantic_search": {
+   "calls": 2,
+   "outputTokens": 1696,
    "savedTokens": 0
   }
  }
