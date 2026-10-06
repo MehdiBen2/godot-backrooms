@@ -1,0 +1,29 @@
+{
+  "name": "claude-account-switcher",
+  "displayName": "Claude Account Switcher",
+  "description": "Save and switch between multiple Claude Code accounts on a shared PC, with usage and reset times.",
+  "version": "0.3.0",
+  "icon": "media/icon.png",
+  "publisher": "local",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "claudeSwitcher", "title": "Claude Accounts", "icon": "media/icon.svg" }
+      ]
+    },
+    "views": {
+      "claudeSwitcher": [
+        { "type": "webview", "id": "claudeSwitcher.panel", "name": "Accounts" }
+      ]
+    },
+    "commands": [
+      { "command": "claudeSwitcher.switch", "title": "Claude: Switch Account" },
+      { "command": "claudeSwitcher.saveCurrent", "title": "Claude: Save Current Account as Profile" },
+      { "command": "claudeSwitcher.logoutAndAdd", "title": "Claude: Add New Account (sign out current)" },
+      { "command": "claudeSwitcher.delete", "title": "Claude: Delete Saved Profile" }
+    ]
+  }
+}
