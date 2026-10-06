@@ -197,6 +197,12 @@ func _build_ui() -> void:
 	tb.add_child(_button("UNDO", _undo))
 	tb.add_child(_button("REDO", _redo))
 	tb.add_child(_button("FIT", _fit))
+	var zoom_out_b := _button(" - ", func(): _zoom_at(canvas.size * 0.5, 1.0 / 1.25, true))
+	zoom_out_b.tooltip_text = "Zoom out (- / wheel down)"
+	tb.add_child(zoom_out_b)
+	var zoom_in_b := _button(" + ", func(): _zoom_at(canvas.size * 0.5, 1.25, true))
+	zoom_in_b.tooltip_text = "Zoom in (+ / wheel up)"
+	tb.add_child(zoom_in_b)
 	for b in tb.get_children():
 		if b is Button: b.add_theme_font_size_override("font_size", 14)
 	var save_b := _button("SAVE  Ctrl+S", save)
@@ -1189,6 +1195,7 @@ func _gen_ui_sync() -> void:
 func _set_view(ceiling: bool) -> void:
 	view_ceiling = ceiling
 	if view_buttons.size() == 2: view_buttons[1 if ceiling else 0].button_pressed = true
+	_invalidate_map_cache()
 	canvas.queue_redraw()
 
 func _set_paint_mat(id: String) -> void:
@@ -1345,6 +1352,10 @@ func _input(ev: InputEvent) -> void:
 		KEY_BRACKETLEFT: _set_brush(brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(brush + 1)
 		KEY_F: _fit()
+		KEY_EQUAL, KEY_PLUS, KEY_KP_ADD:
+			_zoom_at(canvas.size * 0.5, 1.25, true)
+		KEY_MINUS, KEY_KP_SUBTRACT:
+			_zoom_at(canvas.size * 0.5, 1.0 / 1.25, true)
 		KEY_PAGEUP: _step_floor(1)
 		KEY_PAGEDOWN: _step_floor(-1)
 		KEY_B: _set_mode("brush")
