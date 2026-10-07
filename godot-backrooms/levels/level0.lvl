@@ -503,20 +503,6 @@
       "type": "thin_wall"
     },
     {
-      "pos_x": 87.0,
-      "pos_y": 16.5,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 89.5,
-      "pos_y": 18.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
       "pos_x": 93.0,
       "pos_y": 9.0,
       "rotation": 0.0,
@@ -527,76 +513,6 @@
       "pos_x": 95.0,
       "pos_y": 7.5,
       "rotation": 90.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 92.5,
-      "pos_y": 18.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 93.0,
-      "pos_y": 18.5,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 89.0,
-      "pos_y": 18.0,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 88.0,
-      "pos_y": 19.5,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 96.0,
-      "pos_y": 18.0,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 99.0,
-      "pos_y": 18.0,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 97.0,
-      "pos_y": 19.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 95.0,
-      "pos_y": 19.5,
-      "rotation": 90.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 91.5,
-      "pos_y": 20.5,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 91.0,
-      "pos_y": 20.0,
-      "rotation": 270.0,
       "scale": 1.0,
       "type": "thin_wall"
     },
@@ -685,57 +601,8 @@
       "type": "thin_wall"
     },
     {
-      "pos_x": 88.5,
-      "pos_y": 22.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
       "pos_x": 97.5,
       "pos_y": 22.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 98.0,
-      "pos_y": 20.5,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 95.0,
-      "pos_y": 21.5,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 92.0,
-      "pos_y": 20.5,
-      "rotation": 90.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 89.0,
-      "pos_y": 22.0,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 87.0,
-      "pos_y": 21.0,
-      "rotation": 270.0,
-      "scale": 1.0,
-      "type": "thin_wall"
-    },
-    {
-      "pos_x": 87.0,
-      "pos_y": 17.0,
       "rotation": 0.0,
       "scale": 1.0,
       "type": "thin_wall"
@@ -1015,33 +882,6 @@
       "type": "prop_work_light2"
     },
     {
-      "height": 0.0,
-      "pos_x": 96.75,
-      "pos_y": 16.5,
-      "rotation": 90.0,
-      "scale": 1.5,
-      "thick": 0.3,
-      "type": "thin_wall"
-    },
-    {
-      "height": 0.0,
-      "pos_x": 87.5,
-      "pos_y": 19.5,
-      "rotation": 0.0,
-      "scale": 1.5,
-      "thick": 0.3,
-      "type": "thin_wall"
-    },
-    {
-      "height": 0.0,
-      "pos_x": 99.0,
-      "pos_y": 16.5,
-      "rotation": 90.0,
-      "scale": 1.5,
-      "thick": 0.3,
-      "type": "thin_wall"
-    },
-    {
       "elev": 0.0,
       "pos_x": 24.674,
       "pos_y": 8.351,
@@ -1096,6 +936,150 @@
       "rotation": 63.0,
       "scale": 1.0,
       "type": "prop_work_light2"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 89.75,
+      "pos_y": 17.0,
+      "rotation": 270.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 95.0,
+      "pos_y": 17.0,
+      "rotation": 90.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 91.5,
+      "pos_y": 19.5,
+      "rotation": 0.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 95.0,
+      "pos_y": 21.5,
+      "rotation": 90.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 93.0,
+      "pos_y": 18.5,
+      "rotation": 90.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 89.0,
+      "pos_y": 19.0,
+      "rotation": 0.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 89.5,
+      "pos_y": 19.0,
+      "rotation": 270.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 97.5,
+      "pos_y": 17.0,
+      "rotation": 180.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 98.0,
+      "pos_y": 17.0,
+      "rotation": 270.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 89.5,
+      "pos_y": 22.0,
+      "rotation": 0.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 87.0,
+      "pos_y": 20.0,
+      "rotation": 270.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 87.0,
+      "pos_y": 17.5,
+      "rotation": 270.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 87.0,
+      "pos_y": 16.0,
+      "rotation": 90.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 95.0,
+      "pos_y": 16.5,
+      "rotation": 180.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 89.5,
+      "pos_y": 16.5,
+      "rotation": 180.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 92.5,
+      "pos_y": 17.0,
+      "rotation": 0.0,
+      "scale": 1.5,
+      "thick": 0.3,
+      "type": "thin_wall"
     }
   ],
   "sdfgi": true,

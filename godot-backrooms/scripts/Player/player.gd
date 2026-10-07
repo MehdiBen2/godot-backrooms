@@ -162,6 +162,7 @@ var _ds_k := -1.0                 # s into the scene the hand turned the knob / 
 var _ds_kside := 1.0              # +1 the knob was to your right as it began
 var _ds_swing := 1.0
 var _ds_pushed := false
+var _ds_ghost: Object = null       # the leaf you're let through while walking past it (one collision exception, taken off at the end)
 var _door_cam_pos := Vector3.ZERO
 var _door_cam_rot := Vector3.ZERO
 var space_prev := false
@@ -420,6 +421,9 @@ func _physics_process(dt: float) -> void:
 				flash_spill.visible = false
 				flash_spill.light_energy = 0.0
 		return
+	if _door_anim_active:            # (it plays out even with the mouse let go: the door waits on it)
+		_door_scene(dt)
+		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not Game.draw_mode:
 		return
 	if Game.noclip or Game.draw_mode:
@@ -429,9 +433,6 @@ func _physics_process(dt: float) -> void:
 	if _was_flying:
 		_was_flying = false
 		shape.disabled = false         # the draw tools panel closed: solid again
-	if _door_anim_active:
-		_door_scene(dt)
-		return
 	var crouch := Input.is_action_pressed("crouch")
 	_update_squeeze(dt)
 	var crawling: bool = Game.level != null and "crawl" in Game.level and (Game.level.crawl as Dictionary).has(Vector2i(roundi(global_position.x / Game.level.CELL), roundi(global_position.z / Game.level.CELL))) and not dead
@@ -991,8 +992,9 @@ func trigger_door_camera_animation(door: Node3D, opening: bool, swing_dir: float
 	_swinging = false
 
 func _end_door_scene() -> void:
-	if _ds != null and is_instance_valid(_ds) and _ds.get("leaf_body") != null:
-		remove_collision_exception_with(_ds.leaf_body)
+	if _ds_ghost != null and is_instance_valid(_ds_ghost):
+		remove_collision_exception_with(_ds_ghost)
+	_ds_ghost = null
 	_door_anim_active = false
 	_ds = null
 	if torch != null:
@@ -1038,8 +1040,9 @@ func _door_scene(dt: float) -> void:
 			var along: Vector3 = d.global_basis.x.normalized() * -s
 			var across: Vector3 = d.global_basis.z.normalized()
 			walk = along * DS_WALK + across * clampf(-lp.z * 4.0, -0.5, 0.5)
-			if d.get("leaf_body") != null:
-				add_collision_exception_with(d.leaf_body)
+			if _ds_ghost == null and d.get("leaf_body") != null:
+				_ds_ghost = d.leaf_body
+				add_collision_exception_with(_ds_ghost)
 		# a glance down to the knob (not a stare), then through the gap, then the room ahead
 		if t < r:
 			look = knob.lerp(d.to_global(Vector3(s * 0.2, 1.5, 0.15)), 0.45)
@@ -1124,10 +1127,15 @@ func _door_scene(dt: float) -> void:
 	_update_stamina(dt, false, false)
 	peek.update(dt, self, eye, false)
 	if torch:
-		var face: Vector3 = d.face_normal(s)
+		# the hand's frame is set from where you stand, not from the leaf: the leaf turns through 120 degrees as
+		# it swings and a palm laid on its face would wring the wrist round with it. Palm toward the knob from
+		# your side, fingers across to your right.
+		var face := Vector3(cam.global_position.x - knob.x, 0.0, cam.global_position.z - knob.z)
+		face = face.normalized() if face.length() > 0.05 else -global_basis.z
+		var across: Vector3 = Vector3.UP.cross(face).normalized()
 		torch.set_hug(false, Vector3.ZERO, Vector3.ZERO, false)
 		torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
-		torch.set_grab(hand, -1, knob + face * 0.02, face, d.latch_dir())
+		torch.set_grab(hand, -1, knob + face * 0.03, face, across)
 		torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
 		torch.update(dt, flash_on and not dead, false, moving, bob)
 	if shadow_body:
