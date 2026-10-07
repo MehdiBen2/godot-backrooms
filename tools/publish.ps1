@@ -44,10 +44,14 @@ New-Item -ItemType Directory $game | Out-Null
 
 Stage "export"
 $exportLog = Join-Path $build "export.log"
-$ErrorActionPreference = "Continue"   # PS 5.1 turns Godot's stderr into errors
-& $godot --headless --path (Join-Path $root "godot-backrooms") --export-release "Windows Desktop" (Join-Path $game "backrooms.exe") *> $exportLog
-$exportCode = $LASTEXITCODE
-$ErrorActionPreference = "Stop"
+# The editor exe is a windowed program: PowerShell doesn't wait for one on its own, so the export is started
+# as a process and waited on (its output goes to the log, and its exit code is the process's)
+$exportErr = Join-Path $build "export.err.log"
+$godotArgs = "--headless --path `"$(Join-Path $root "godot-backrooms")`" --export-release `"Windows Desktop`" `"$(Join-Path $game "backrooms.exe")`""
+$exportProc = Start-Process -FilePath $godot -ArgumentList $godotArgs -Wait -PassThru -NoNewWindow `
+    -RedirectStandardOutput $exportLog -RedirectStandardError $exportErr
+$exportCode = $exportProc.ExitCode
+Get-Content $exportErr -ErrorAction SilentlyContinue | Add-Content $exportLog
 if ($exportCode -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) {
     # what Godot said about it (the export log is kept in build\export.log)
     Get-Content $exportLog -ErrorAction SilentlyContinue | Where-Object { $_ -match "ERROR|export|template|preset|Aucun|failed" } |
