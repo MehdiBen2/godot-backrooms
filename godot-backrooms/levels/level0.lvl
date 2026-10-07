@@ -1080,6 +1080,21 @@
       "scale": 1.5,
       "thick": 0.3,
       "type": "thin_wall"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "message",
+      "events_list": [],
+      "once": true,
+      "pos_x": 23.0,
+      "pos_y": 10.25,
+      "rotation": 0.0,
+      "scale": 2.0,
+      "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
+      "type": "trigger"
     }
   ],
   "sdfgi": true,
