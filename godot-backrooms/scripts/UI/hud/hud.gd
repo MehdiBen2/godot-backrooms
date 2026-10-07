@@ -18,6 +18,7 @@ const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const DrawUI := preload("res://scripts/UI/hud/draw_ui.gd")
 const SketchTool := preload("res://scripts/Player/sketch_tool.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
+const CableTool := preload("res://scripts/Player/cable_tool.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const ZoomTool := preload("res://scripts/Player/zoom_tool.gd")
@@ -26,6 +27,7 @@ const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
+const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 
 const SCALE := 1.15                       # --hud-scale in the web CSS
 const CREAM := Color("d6cfb2")            # camera OSD off-white, a little dirty: never paper white
@@ -389,12 +391,22 @@ func _build_tape() -> void:
 	var sketch := SketchTool.new()
 	sketch.player = player
 	add_child(sketch)
+	var cable_tool := CableTool.new()
+	cable_tool.player = player
+	add_child(cable_tool)
 	if Game.test_level != "" or Game.dev_keys:      # the mouse-driven draw tools panel (Y)
+		inventory.add_item("cable_spool", "Equipment Cable Spool",
+			"Heavy-duty industrial equipment cables for field machinery, relays, and portable equipment. " \
+			+ "Hold U looking at floors or walls to unspool and place permanent 3D cables, or press Y to open the Draw Tools panel. " \
+			+ "Cables roll, stack in 3D piles, and remain permanent on the level.", 1, "CBL", 1,
+			"res://scripts/World/props/cable_roll.gd")
 		var draw := DrawUI.new()
 		draw.player = player
 		draw.tape = tape
 		draw.sketch = sketch
+		draw.cable = cable_tool
 		sketch.ui = draw
+		cable_tool.ui = draw
 		add_child(draw)
 
 ## Every run starts with START camera flashes, one charge each: a way to break a chase, not to win it
@@ -538,6 +550,12 @@ func _on_survivor_joined(id: int, callsign: String, already: bool) -> void:
 		{"kind": "rule"},
 		{"kind": "pair", "left": "SURVIVORS IN THE FIELD", "right": "%d" % (multiplayer.get_peers().size() + 1)},
 	])
+	var alert_text: String
+	if already:
+		alert_text = "[ T.S.R.A. ON SITE ] // %s CONFIRMED IN FIELD" % callsign.to_upper()
+	else:
+		alert_text = "[ T.S.R.A. LINK ESTABLISHED ] // %s JOINED THE EXPEDITION" % callsign.to_upper()
+	EventTrigger.show_alert_bar(get_tree(), alert_text, 5.0)
 
 func _on_survivor_left(id: int, callsign: String) -> void:
 	var left := multiplayer.get_peers().size() + 1
@@ -550,6 +568,8 @@ func _on_survivor_left(id: int, callsign: String) -> void:
 		{"kind": "rule"},
 		{"kind": "pair", "left": "SURVIVORS IN THE FIELD", "right": "%d" % left, "color": Term.RED},
 	])
+	var alert_text := "[ T.S.R.A. SIGNAL LOST ] // %s HAS LEFT THE EXPEDITION" % callsign.to_upper()
+	EventTrigger.show_alert_bar(get_tree(), alert_text, 5.0)
 
 ## A teammate flatlined: their name, the flatline in red, and what did it
 func _on_survivor_died(id: int, callsign: String, cause: String) -> void:
@@ -564,6 +584,8 @@ func _on_survivor_died(id: int, callsign: String, cause: String) -> void:
 		{"kind": "pair", "left": "CAUSE OF DEATH", "right": cause, "color": Term.RED, "strong": true},
 		{"kind": "pair", "left": "SURVIVORS STILL BREATHING", "right": "%d" % alive},
 	])
+	var alert_text := "[ T.S.R.A. VITALS FLATLINE ] // %s LOST (%s)" % [callsign.to_upper(), cause.to_upper()]
+	EventTrigger.show_alert_bar(get_tree(), alert_text, 5.0)
 
 # ---- carried items ------------------------------------------------------------------------
 ## Floor pickups (World/props) hand themselves in here; false when there's no room, so the

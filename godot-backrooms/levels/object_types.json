@@ -200,8 +200,9 @@
       "duration": 20.0
     },
     "events": {
-      "message": "Show the Text as a caption",
-      "text": "Show the Text as a caption",
+      "message": "Camcorder TV message with black box at top of screen",
+      "text": "Camcorder TV message with black box at top of screen",
+      "alert": "T.S.R.A. terminal alert card with CRT glow, typewriter text, chime, and 5s life bar",
       "lights_out": "The tubes over the box die for Duration seconds, then re-strike",
       "flicker": "The tubes over the box stutter",
       "silence": "The ambience drains away for Duration seconds; only the hum is left",

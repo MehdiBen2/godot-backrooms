@@ -1090,14 +1090,34 @@
       "events_list": [],
       "once": false,
       "pos_x": 23.5,
-      "pos_y": 10.5,
+      "pos_y": 11.0,
       "rotation": 0.0,
       "scale": 1.5,
       "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
       "type": "trigger"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 5.0,
+      "duration": 20.0,
+      "event": "alert",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "once": true,
+      "pos_x": 36.0,
+      "pos_y": 13.0,
+      "rotation": 0.0,
+      "scale": 21.5,
+      "text": "END OF MAPPED ARCHITECTURE. PROCEED AT OWN RISK.",
+      "type": "trigger"
     }
   ],
-  "sdfgi": true,
+  "sdfgi": false,
   "size": 101,
   "spawn": [
     25,

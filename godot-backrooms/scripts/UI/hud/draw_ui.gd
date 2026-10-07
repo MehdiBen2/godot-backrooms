@@ -12,6 +12,7 @@ extends CanvasLayer
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
+const CableMarks := preload("res://scripts/World/props/cable_marks.gd")
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
 const Stamps := preload("res://scripts/World/props/scary_stamps.gd")
 
@@ -22,6 +23,7 @@ const PANEL_W := 262.0
 var player: Node
 var tape: Node                   # tape_tool.gd
 var sketch: Node                 # sketch_tool.gd
+var cable: Node                  # cable_tool.gd
 
 var open := false
 var cursor_mode := false         # the mouse is a free cursor (not captured, not looking around)
@@ -33,6 +35,10 @@ var _tool_btns := {}
 var _marker_box: VBoxContainer
 var _stamp_box: VBoxContainer
 var _shape_box: VBoxContainer
+var _cable_box: VBoxContainer
+var _cable_type_btns := {}
+var _cable_shape_btns := {}
+var _cable_sliders := {}
 var _stamp_btns := {}
 var _tip: Label
 var _status: Label
@@ -42,6 +48,8 @@ var _style_btns := {}
 var _shape_btns := {}
 var _clear_btn: Button
 var _clear_armed := false
+var _clear_cables_btn: Button
+var _clear_cables_armed := false
 var _rmb_look := false
 var _lmb_prev := false
 var _lmb_ui := false
@@ -77,7 +85,7 @@ func _build() -> void:
 	row.add_theme_constant_override("separation", 4)
 	v.add_child(row)
 	var group := ButtonGroup.new()
-	for t in ["tape", "marker", "eraser", "stamp"]:
+	for t in ["tape", "marker", "cable", "eraser", "stamp"]:
 		var b := _button(t.to_upper(), func(): _set_tool(t))
 		b.toggle_mode = true
 		b.button_group = group
@@ -167,6 +175,54 @@ func _build() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		hrow.add_child(b)
 		_shape_btns[sh] = b
+
+	_cable_box = VBoxContainer.new()
+	_cable_box.add_theme_constant_override("separation", 6)
+	v.add_child(_cable_box)
+	_cable_box.add_child(_label("CABLE TYPE", 12, INK))
+	var cgrid := GridContainer.new()
+	cgrid.columns = 3
+	cgrid.add_theme_constant_override("h_separation", 3)
+	cgrid.add_theme_constant_override("v_separation", 3)
+	_cable_box.add_child(cgrid)
+	var cgroup := ButtonGroup.new()
+	var type_labels := {
+		"random": "RANDOM",
+		"heavy_black": "BLACK",
+		"yellow_ext": "YELLOW",
+		"hi_volt_orange": "ORANGE",
+		"data_snake": "DATA BLUE",
+		"ribbed_conduit": "CONDUIT",
+		"hazard_striped": "STRIPED"
+	}
+	for tk in ["random", "heavy_black", "yellow_ext", "hi_volt_orange", "data_snake", "ribbed_conduit", "hazard_striped"]:
+		var b := _button(type_labels[tk], func():
+			if cable != null: cable.cable_type = tk)
+		b.add_theme_font_size_override("font_size", 10)
+		b.toggle_mode = true
+		b.button_group = cgroup
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		cgrid.add_child(b)
+		_cable_type_btns[tk] = b
+	_add_cable_slider("GAUGE", "radius", 1.5, 10.0, 0.5, 100.0, " cm", _cable_box)
+	_add_cable_slider("ROLL & COIL", "roll_slack", 0.0, 1.0, 0.05, 1.0, "", _cable_box)
+	_add_cable_slider("STACK ELEV", "stack_mult", 0.5, 2.5, 0.1, 1.0, "x", _cable_box)
+	_cable_box.add_child(_label("SHAPE", 12, INK))
+	var chrow := HBoxContainer.new()
+	chrow.add_theme_constant_override("separation", 4)
+	_cable_box.add_child(chrow)
+	var chgroup := ButtonGroup.new()
+	for sh in ["freehand", "line"]:
+		var b := _button(sh.to_upper(), func():
+			if cable != null: cable.shape = sh)
+		b.toggle_mode = true
+		b.button_group = chgroup
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		chrow.add_child(b)
+		_cable_shape_btns[sh] = b
+	_clear_cables_btn = _button("CLEAR CABLES", _clear_cables)
+	_clear_cables_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cable_box.add_child(_clear_cables_btn)
 
 	v.add_child(HSeparator.new())
 	var arow := HBoxContainer.new()
@@ -258,6 +314,40 @@ func sync_from_tool() -> void:
 	_shape_btns[sketch.shape].button_pressed = true
 	if _stamp_btns.has(sketch.stamp):
 		_stamp_btns[sketch.stamp].button_pressed = true
+	if cable != null:
+		if _cable_type_btns.has(cable.cable_type):
+			_cable_type_btns[cable.cable_type].button_pressed = true
+		if _cable_shape_btns.has(cable.shape):
+			_cable_shape_btns[cable.shape].button_pressed = true
+		for prop in _cable_sliders:
+			var d: Dictionary = _cable_sliders[prop]
+			var x: float = float(cable.get(prop)) * float(d.scale)
+			(d.slider as HSlider).set_value_no_signal(x)
+			(d.label as Label).text = (("%.1f" if d.scale == 100.0 else "%.2f") % x) + str(d.unit)
+
+func _add_cable_slider(title: String, prop: String, lo: float, hi: float, step: float, scale: float, unit: String, box: Control) -> void:
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var name_l := _label(title, 12, INK)
+	name_l.custom_minimum_size = Vector2(62, 0)
+	row.add_child(name_l)
+	var s := HSlider.new()
+	s.min_value = lo
+	s.max_value = hi
+	s.step = step
+	s.focus_mode = Control.FOCUS_NONE
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.custom_minimum_size = Vector2(90, 0)
+	row.add_child(s)
+	var val := _label("", 12, INK)
+	val.custom_minimum_size = Vector2(46, 0)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(val)
+	s.value_changed.connect(func(x: float):
+		if cable != null:
+			cable.set(prop, x / scale)
+		val.text = ("%.1f" if scale == 100.0 else "%.2f") % x + unit)
+	_cable_sliders[prop] = {"slider": s, "label": val, "scale": scale, "unit": unit}
 
 func _set_tool(t: String) -> void:
 	tool = t
@@ -265,23 +355,60 @@ func _set_tool(t: String) -> void:
 		_marker_box.visible = t == "marker" or t == "stamp"
 		_shape_box.visible = t == "marker"
 		_stamp_box.visible = t == "stamp"
+	if _cable_box != null:
+		_cable_box.visible = t == "cable"
 	if _tip != null:
 		_tip.text = {
 			"stamp": "Pick a design, then click a wall, floor or ceiling to press it on. Colour, width and wobble come from the pen.",
 			"tape": "Hold the left mouse on a wall or floor and drag to pull tape out; let go to stick it. Click a strip to peel it off.",
 			"marker": "Hold the left mouse and drag to draw on a wall, floor or ceiling.",
-			"eraser": "Hold the left mouse over a sketch line to rub it out."}[t]
+			"cable": "Hold left mouse on a floor or wall and drag to lay 3D equipment cables. They roll and stack in 3D piles the more you draw.",
+			"eraser": "Hold the left mouse over a sketch line or equipment cable to rub it out."}[t]
 	if _panel != null:
 		_panel.reset_size()
 
 # ---------------------------------------------------------------- actions
 func _undo() -> void:
-	var m = SketchMarks.live
-	_say("Undone" if m != null and m.undo() else "Nothing to undo")
+	if tool == "cable":
+		if CableMarks.live != null and CableMarks.live.undo():
+			_say("Undone cable")
+			return
+	if SketchMarks.live != null and SketchMarks.live.undo():
+		_say("Undone line")
+		return
+	if CableMarks.live != null and CableMarks.live.undo():
+		_say("Undone cable")
+		return
+	_say("Nothing to undo")
 
 func _redo() -> void:
-	var m = SketchMarks.live
-	_say("Redone" if m != null and m.redo() else "Nothing to redo")
+	if tool == "cable":
+		if CableMarks.live != null and CableMarks.live.redo():
+			_say("Redone cable")
+			return
+	if SketchMarks.live != null and SketchMarks.live.redo():
+		_say("Redone line")
+		return
+	if CableMarks.live != null and CableMarks.live.redo():
+		_say("Redone cable")
+		return
+	_say("Nothing to redo")
+
+func _clear_cables() -> void:
+	var m = CableMarks.live
+	if m == null:
+		return
+	if not _clear_cables_armed:
+		_clear_cables_armed = true
+		_clear_cables_btn.text = "SURE?"
+		get_tree().create_timer(2.0).timeout.connect(func():
+			_clear_cables_armed = false
+			_clear_cables_btn.text = "CLEAR CABLES")
+		return
+	_clear_cables_armed = false
+	_clear_cables_btn.text = "CLEAR CABLES"
+	m.clear_all()
+	_say("Cleared every equipment cable on this floor")
 
 func _clear() -> void:
 	var m = SketchMarks.live
@@ -310,6 +437,7 @@ func _save() -> void:
 	var ok := true
 	var strips := 0
 	var lines := 0
+	var cables_n := 0
 	var file := ""
 	if TapeMarks.live != null:
 		ok = TapeMarks.live.save() and ok
@@ -319,8 +447,12 @@ func _save() -> void:
 		ok = SketchMarks.live.save() and ok
 		lines = SketchMarks.live.count()
 		file = SketchMarks.live.level_id
+	if CableMarks.live != null:
+		ok = CableMarks.live.save() and ok
+		cables_n = CableMarks.live.count()
+		file = CableMarks.live.level_id
 	if ok:
-		_say("SAVED  %d tape strips, %d lines  (%s.json)" % [strips, lines, file])
+		_say("SAVED  %d tape, %d lines, %d cables  (%s.json)" % [strips, lines, cables_n, file])
 	else:
 		_say("SAVE FAILED: could not write the marks file")
 
@@ -393,3 +525,10 @@ func _process(_dt: float) -> void:
 	if tape != null:
 		tape.cursor_aim = cursor_mode
 		tape.ui_down = world_lmb and tool == "tape"
+	if cable != null:
+		cable.ui_down = world_lmb and tool == "cable"
+	if tool == "eraser" and world_lmb:
+		if CableMarks.live != null and sketch != null:
+			var hit: Dictionary = sketch._aim()
+			if not hit.is_empty():
+				CableMarks.live.remove_near(hit.position, 0.35)
