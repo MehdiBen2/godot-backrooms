@@ -5,12 +5,19 @@
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Notes = "",
-    [string]$NotesFile = ""
+    [string]$NotesFile = "",
+    [string]$StatusFile = ""      # publish_gui.ps1: each stage's name is appended here as it starts (check, export, zip, upload, done)
 )
 $ErrorActionPreference = "Stop"
 $repo = "MehdiBen2/godot-backrooms"
 $root = Split-Path $PSScriptRoot -Parent
 
+function Stage([string]$name) {
+    Write-Output ">> $name"
+    if ($StatusFile) { Add-Content -Path $StatusFile -Value $name -Encoding ascii }
+}
+
+Stage "check"
 if ($Version -notmatch '^v\d+\.\d+\.\d+$') { throw "Version must look like v0.1.1 (got '$Version')" }
 
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw "GitHub CLI (gh) not found. Install: winget install GitHub.cli" }
@@ -35,11 +42,20 @@ $zip = Join-Path $build "backrooms-windows.zip"
 if (Test-Path $build) { Remove-Item $build -Recurse -Force }
 New-Item -ItemType Directory $game | Out-Null
 
+Stage "export"
+$exportLog = Join-Path $build "export.log"
 $ErrorActionPreference = "Continue"   # PS 5.1 turns Godot's stderr into errors
-& $godot --headless --path (Join-Path $root "godot-backrooms") --export-release "Windows Desktop" (Join-Path $game "backrooms.exe") 2>&1 | Out-Null
+& $godot --headless --path (Join-Path $root "godot-backrooms") --export-release "Windows Desktop" (Join-Path $game "backrooms.exe") *> $exportLog
+$exportCode = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) { throw "Godot export failed" }
+if ($exportCode -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) {
+    # what Godot said about it (the export log is kept in build\export.log)
+    Get-Content $exportLog -ErrorAction SilentlyContinue | Where-Object { $_ -match "ERROR|export|template|preset|Aucun|failed" } |
+        Select-Object -Last 12 | ForEach-Object { Write-Output "   $_" }
+    throw "Godot export failed (full log: $exportLog)"
+}
 
+Stage "zip"
 Compress-Archive -Path (Join-Path $game "*") -DestinationPath $zip
 
 # Notes always go through a file: a native exe (gh.exe) silently drops an empty-string
@@ -52,7 +68,9 @@ if ($NotesFile -and (Test-Path $NotesFile)) {
     Set-Content -Path $notesPath -Value $(if ([string]::IsNullOrWhiteSpace($Notes)) { "Automated release $Version." } else { $Notes }) -Encoding utf8
 }
 
+Stage "upload"
 gh release create $Version $zip --repo $repo --title $Version --notes-file $notesPath
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)" }
 
-Write-Host "Published $Version. Launchers will offer the update on next start."
+Stage "done"
+Write-Output "Published $Version. Launchers will offer the update on next start."
