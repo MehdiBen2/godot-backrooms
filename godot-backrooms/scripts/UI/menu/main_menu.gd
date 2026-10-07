@@ -777,7 +777,7 @@ func _start_loading() -> void:
 const WARM_SETS := [
 	["l0_carpet_", ["color", "normal", "rough", "ao"], ".webp"], ["l0_ceiling_", ["color", "normal", "rough", "ao"], ".webp"],
 	["l0_wallpaper_", ["color", "normal", "rough", "ao"], ".webp"], ["tiles_", ["color", "normal", "rough", "ao"], ".png"],
-	["grime_dry_", ["0", "1", "2", "3"], ".png"], ["grime_wet_", ["0", "1", "2", "3"], ".png"],
+	["grime_dry_", ["0", "1", "2", "3", "4"], ".png"], ["grime_wet_", ["0", "1", "2", "3", "4"], ".png"],
 ]
 const WARM_FILES := [
 	"res://textures/l0_carpet_height.png", "res://textures/concrete_color.jpg", "res://textures/concrete_normal.jpg",

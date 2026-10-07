@@ -1,63 +1,76 @@
 {
   "file_hashes": {
     ".claude/CLAUDE.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
+    ".claude/claude-account-switcher/README.md": "64f1fe200e96838e91c85664d79490559a746d2ba53f3a0636a54c22a983982d",
+    ".claude/claude-account-switcher/build-vsix.ps1": "5367794a19a4d035ea9ae4f7286d4a8b4d89ddabe4f4972081dc3f2055da7985",
+    ".claude/claude-account-switcher/extension.js": "b0c40a66c16ccc35a8925a455295f5167738b873a9f0ca244892aea4da6fd25e",
+    ".claude/claude-account-switcher/media/panel.css": "604b354456949e0ebb63bf97785efa63e0c4281c0b7a7de1e697ec05dbe97ab8",
+    ".claude/claude-account-switcher/media/panel.js": "91bf85c0780e7b436f84026493d2a826289bcb908a77becf67f1becf07bfa553",
     ".claude/hooks/vexp-hint.sh": "044d6df9e57eb121c61d48aae7a328f6fe5db6d2e96f6a3f44d1176301ea74fc",
     ".claude/hooks/vexp-restore.sh": "bcdf8e0d380cefbb750d1a9b690ee3be2792923ec92e2afbac0e45b05da64bf4",
-    ".claude/skills/claude-animate/SKILL.md": "38fb024141d7d93120eda114030c1cf8ae4e56a84ea14ccf2b98ea154330a32a",
+    ".claude/skills/claude-animate/SKILL.md": "ead73776d8e7e6605c025af8661565cdf4a054179e44b5e2bb9db907085fa4cb",
     "AGENTS.md": "a1bedc7b036af28aa3989441133c6d333d707b9873d74f50d45ea21a9ba8fd54",
     "README.md": "f55e505da77a2f28a7a3c5f76f0d7a3d3307e0f9ba5cabe9b6c9294d44442443",
-    "futurtoeditlore.md": "1dcbc0e7fd6d32e8cdc9683e0bf9f4f8d29631999473e17dc4d5d5f9e4a485b3",
+    "futurtoeditlore.md": "1f2b04ce63c5fb2c5b06291b5b42a4ca653df1879355313549ff2e8160cc2206",
     "godot-backrooms/addons/godot_ai/README.md": "76c18ee8bf69d0887b30fd090df792b7edcddde26e83e29ae7b6bb47480be39f",
-    "godot-backrooms/tools/gen_audio.py": "f50d507e9d5df1a317bfa53e614f2ab49497833f6bdef1e23305b21e9c136987",
+    "godot-backrooms/tools/gen_audio.py": "896f1c903052b36ae90fac4fe623b53ed37ba230ead2c17c8dccb30b6efbbe56",
     "godot-backrooms/tools/gen_battery_audio.py": "352e35667bd8ba97527e9e83ef7fcd10a844b991843014bc1e850fcdd2d3b719",
-    "godot-backrooms/tools/gen_event_audio.py": "2b552a84ee9624ee7f6c81ceb027b88339474d49779c41e98c4cd440db5fc171",
+    "godot-backrooms/tools/gen_event_audio.py": "fe2b4c783cee85ea11583c82c6e4e790da848a63571db8b0e98dff96b808a9ba",
     "godot-backrooms/tools/gen_flash_audio.py": "b1b7a81dd6982017226d37684a3dfb768d3c2c53ca420395427fb951988f66a3",
-    "godot-backrooms/tools/gen_machine_voice.py": "95777c0a792449aa71d6e373e272e127ecfdebea9eacb0bde6c83c150d572cdc",
+    "godot-backrooms/tools/gen_machine_voice.py": "d2eb0e1dd5f046e20c45ea6ecfdbc35f4eadac6cedd6b512e56920bca13dbc82",
     "godot-backrooms/tools/gen_tape_audio.py": "213a8a33e21a7667946aab3890db3e148770bd7a8d50ea2aa4b2bdeb631b0f85",
     "godot-backrooms/tools/gen_terminal_audio.py": "e4ac65a4878f2e926ef091af89576c928dce25c11396d44b36e918ef2e0f89ec",
     "godot-backrooms/tools/generate_bacteria_textures.py": "f0b97926880a1be298d8fb0cac1106ac0f87aa9fd74f6b9a99a24adef54212a0",
     "godot-backrooms/tools/generate_ceiling_textures.py": "5bb794586049f4f44f29e4f0f0e927d06d01b432896c01105095da3d5b5e49dc",
-    "godot-backrooms/tools/generate_door_textures.py": "e9c1c7ea48a0e6df38f59be6f0a54fe643e3b160f4ff742b21025ab35d18f00e",
-    "godot-backrooms/tools/generate_exit_textures.py": "2e7955e432980ec2c82b361b769d53e977e7e281e44fc7b3313dd35b8b97f6ac",
+    "godot-backrooms/tools/generate_door_textures.py": "681149898270afa962a4157862b98e5fc7ee13691cae4e0a64afa50a6c4e1d6a",
+    "godot-backrooms/tools/generate_exit_textures.py": "370a92e77610c242560b6cd2bbb10717f419529202c841948b5dcb3107840847",
     "godot-backrooms/tools/generate_hud_icons.py": "49399b5897f2fcf4da0476144d60ef9de1c3ee1c2a026bf27bcec8b52820f457",
     "godot-backrooms/tools/generate_lens_dirt.py": "3e354d973b009bf81ad7f0e2d1ad33ffbe68e016bb274a52c3ad2a1089315d7b",
     "godot-backrooms/tools/generate_splash.py": "01fc2af4bc76c411f08dba0826163cb4de37a886066e11a411f2436fd2bd16a1",
     "godot-backrooms/tools/generate_tile_textures.py": "3edc5b9d063922815888fe27d1661d08e09099fd9d1e234f1bd64f0bc057e336",
     "godot-backrooms/tools/make_wind.py": "2fe025afaaf0ee5230a7892c7773c6b7f5661081a1af75863a80152fcc9d47ce",
     "godot-backrooms/tools/measure_audio.py": "b1162f6eb4267ea7139ba1b790a3b3febe1bf2085fab443d8f0319958d9289af",
-    "launcher/README.md": "05035f5a6e603121333959ea639c0ed24ecca785aa014656f442f05b8755bd81",
-    "toeditandfix.md": "481a78cd8bff6fb58b5513a63dc488a4ab668f0033e84163ed6f614a63752216",
-    "tools/blender/build_grabber.py": "3227fe745a8f2498bbdf82d9cecf77627239e38e49ce22a1264ad823acab4cef",
-    "tools/blender/build_player_hazmat.py": "45e4d882569443cf5a10abff358273993f2036efa5396bb0fe7852cbb479e8f5",
-    "tools/blender/build_stop_signs.py": "c4f4d973b27d4fb7cdf17e2638e2077a0a0aa604b28ab8a26d0d8830c2485553",
-    "tools/blender/rig_mannequin_variant.py": "dbc8d558df435f53754e5ffda2e5f81507514b5c827a3495dba38f69ef0fb1c0",
-    "tools/build_player_arms.py": "c2364c8cf1a361a6a7004e7e361212be3e7d900081198b6c15d2428ed4c815a6",
+    "launcher/README.md": "506ee9543a4f256163974324939920dfa3680af6e21a245f60880551789ce083",
+    "toeditandfix.md": "136ee861f10747d85570871db1cbcbf0cb0131f32f32fe812658e6d2474d5c2a",
+    "tools/blender/build_grabber.py": "355c15ac519c55722ef201bedca33a7fc8191201453b8aa91e76d6f488cb55ea",
+    "tools/blender/build_player_hazmat.py": "4d542f99e19362f77e8d6b27d0a369f7cc99ce76c2dcabf4585ae898a51a668a",
+    "tools/blender/build_stop_signs.py": "e74f6bd4aee04518c9c319605f8ae9c59316eedfb095696c05e78eb718f91845",
+    "tools/blender/rig_mannequin_variant.py": "ad439292c5443f1739111d49949d1c457e3299825f9948203dd8a47dda9db947",
+    "tools/build_player_arms.py": "7cf530c9d7897b8178d6b52824d7456016cd37f8e60aa39f1d39bd6489832c58",
     "tools/pack.ps1": "8fa05dee7095348af98ff9383cc11b0570d04eada922038db9c302e6911344da",
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
-    "tools/publish_gui.ps1": "f517180cb2788a8bba59ca2d4ef6ff13ef89e5620ee53884fb31737bf892bb06"
+    "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
   },
-  "indexed_at_commit": "8ec6e7f7fb2d478929eb2c69d43b8629a49bdbd8",
-  "indexed_at_timestamp": "2026-10-05T20:31:30.453874+00:00",
+  "indexed_at_commit": "9f4278488e84a45345b896f0c628427da4ecfb33",
+  "indexed_at_timestamp": "2026-10-07T10:12:57.924265+00:00",
   "languages": {
+    "css": {
+      "calls": 0,
+      "nodes": 56
+    },
+    "javascript": {
+      "calls": 92,
+      "nodes": 46
+    },
     "markdown": {
       "calls": 0,
-      "nodes": 47
+      "nodes": 51
     },
     "powershell": {
       "calls": 0,
-      "nodes": 3
+      "nodes": 4
     },
     "python": {
-      "calls": 364,
+      "calls": 355,
       "nodes": 224
     }
   },
   "parser_version": "3.3.2",
   "schema_version": 3,
   "stats": {
-    "total_edges": 417,
-    "total_files": 35,
-    "total_nodes": 274
+    "total_edges": 508,
+    "total_files": 40,
+    "total_nodes": 381
   },
   "vexp_version": "3.3.2"
 }
