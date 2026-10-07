@@ -1499,6 +1499,8 @@ static func _pit_materials() -> Array:
 		_pit_mats = [m, black, haze]
 	return _pit_mats
 
+static var _grime_mats := {}
+
 # Grime clusters: the painted 'grime' zone plus ~6% scattered stains, kept off the spawn room
 func _build_dirt() -> void:
 	var dirty: Array[Vector2i] = []
@@ -1549,19 +1551,22 @@ func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 			st.set_uv(uvs[k])
 			st.add_vertex(Vector3(x0 + (s.x * ca - s.y * sa) * r, y, z0 + (s.x * sa + s.y * ca) * r))
 	for i in 4:
-		var m := StandardMaterial3D.new()
-		m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-		m.render_priority = 1
-		if wet:
-			m.albedo_color = Color("3a3320")
-			m.roughness = 0.08
-			m.metallic = 0.2
-		else:
-			m.roughness = 1.0
+		var key := "%s_%d" % ["wet" if wet else "dry", i]
+		if not _grime_mats.has(key):
+			var m := StandardMaterial3D.new()
+			m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+			m.render_priority = 1
+			if wet:
+				m.albedo_color = Color("3a3320")
+				m.roughness = 0.08
+				m.metallic = 0.2
+			else:
+				m.roughness = 1.0
+			_grime_mats[key] = m
 		var mi := MeshInstance3D.new()
 		mi.mesh = (variants[i] as SurfaceTool).commit()
-		mi.material_override = m
+		mi.material_override = _grime_mats[key]
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)

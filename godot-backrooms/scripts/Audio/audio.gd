@@ -20,11 +20,11 @@ extends Node
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const Breathing := preload("res://scripts/Audio/breathing.gd")
 
-const HUM_VOLUME := 0.1              # AUDIO.humVolume
-const HUM_HABITUATED := 0.45         # AUDIO.humHabituatedLevel
-const HUM_HABIT_TIME := 14.0         # AUDIO.humHabituationTime
-const DRONE_BASE := 0.2
-const SLOT_GAIN := 0.3               # per-fixture hum voice gain
+const HUM_VOLUME := 0.065            # AUDIO.humVolume: gentle ballast buzz
+const HUM_HABITUATED := 0.35        # AUDIO.humHabituatedLevel
+const HUM_HABIT_TIME := 14.0        # AUDIO.humHabituationTime
+const DRONE_BASE := 0.15
+const SLOT_GAIN := 0.22             # per-fixture hum voice gain
 const POP_UNSEEN := 8.0              # metres: a tube out of sight only clicks this close (level_light_pool.gd `seen`)
 const ONE_SHOTS := 8
 
@@ -86,6 +86,7 @@ var breathing := Breathing.new()
 var one_shots: Array[AudioStreamPlayer] = []
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")
 	ui = get_parent().get_node("UI")

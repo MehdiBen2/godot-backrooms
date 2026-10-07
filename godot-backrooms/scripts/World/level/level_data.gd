@@ -106,12 +106,21 @@ var rng := RandomNumberGenerator.new()
 # levels/levels.json is the playlist ([{id, name, file}]) and each file is a .lvl (JSON: size, spawn,
 # exit, entity, tv, grid, zones). The level editor (level-editor/level_editor_files.gd, a separate
 # Godot app) reads and saves them in place: this folder, or the one BACKROOMS_GAME_DIR points at.
+static var _index_cache: Array = []
+
+static func clear_cache() -> void:
+	_index_cache.clear()
+	_level_cache.clear()
+
 static func read_index() -> Array:
+	if not _index_cache.is_empty():
+		return _index_cache
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string("res://levels/levels.json"))
 	var out: Array = parsed if parsed is Array else []
 	if out.is_empty():
 		push_error("levels/levels.json is missing or empty")
 		out = [{"id": "level0", "name": "Level 0", "file": "level0.lvl"}]
+	_index_cache = out
 	return out
 
 ## "LEVEL 0", "LEVEL 1", ... for whichever playlist entry Game.level_index points at right now,
@@ -244,14 +253,19 @@ static func floor_data(d: Dictionary, f: int) -> Dictionary:
 	if out["objects"] == null: out["objects"] = []
 	return out
 
+static var _level_cache := {}
+
 static func read_level(meta: Dictionary) -> Dictionary:
 	if meta.has("data"):                              # old baked format
 		return meta["data"]
 	var path := "res://levels/" + str(meta.get("file", ""))
+	if _level_cache.has(path):
+		return _level_cache[path]
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if not (parsed is Dictionary) or not parsed.has("grid"):
 		push_error("cannot read level file " + path)
 		return {"size": 8, "spawn": [2, 2], "grid": ["########", "#......#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"]}
+	_level_cache[path] = parsed
 	return parsed
 
 ## Load the playlist entry Game.level_index points at

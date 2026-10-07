@@ -73,8 +73,7 @@ const TIPS := [
 	"Minimize sudden movements.",
 	"Await further instructions.",
 ]
-const MIN_LOAD_TIME := 3.0       # floor on the loading screen so the bar and phrases are actually seen,
-								  # even when scenes/main.tscn itself streams in well under that
+const MIN_LOAD_TIME := 0.2       # fast load: minimal pause, immediate launch once resources are in memory
 const DIM := Color(0.9, 0.882, 0.804, 0.6)
 const SLIDE := 30.0               # how far a menu entry steps right when it is selected
 const ROW_H := 50.0
@@ -136,6 +135,7 @@ var crt_bottom: ColorRect
 var crt_line: ColorRect
 
 func _ready() -> void:
+	Engine.max_fps = 60
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	multiplayer.connected_to_server.connect(_on_multiplayer_connected)
@@ -749,23 +749,21 @@ func _on_play(now := false) -> void:
 	settings_menu.close_panel()
 	if corner_tw: corner_tw.kill()           # closing the panel would bring the corners back
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(menu_box, "modulate:a", 0.0, 0.35).set_delay(0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(menu_box, "modulate:a", 0.0, 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	for c in [counter, credits]:
-		tw.tween_property(c, "modulate:a", 0.0, 0.3).set_delay(0.2)
+		tw.tween_property(c, "modulate:a", 0.0, 0.15)
 	tw.chain().tween_callback(_start_loading)
 
 func _start_loading() -> void:
 	loading = true
 	loading_root.visible = true
-	loading_root.modulate.a = 0.0
+	loading_root.modulate.a = 1.0
 	load_title.text = "LOADING // %s" % _level_name().to_upper()
+	load_title.visible_characters = -1
 	load_tip.text = TIPS[randi() % TIPS.size()]
+	load_tip.visible_characters = -1
 	load_bar.size.x = 0.0
 	load_pct.text = "0%"
-	var tw := create_tween().set_parallel(true)
-	tw.tween_property(loading_root, "modulate:a", 1.0, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	W._type_in(tw, load_title, 0.15, 0.5)
-	W._type_in(tw, load_tip, 0.6, 1.2)
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
@@ -833,6 +831,7 @@ func _level_name() -> String:
 func _finish_loading() -> void:
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
 	Game.respawned = true              # straight into the run: the title screen is this scene
+	Engine.max_fps = int(Gfx.s.get("fps", 0))
 	var tree := get_tree()
 	var cover := _cover_from_screen()
 	tree.change_scene_to_packed(packed)
@@ -862,13 +861,12 @@ func _cover_from_screen() -> CanvasLayer:
 static func _fade_cover(tree: SceneTree, layer: CanvasLayer) -> void:
 	if layer == null:
 		return
-	for i in 4:
+	for i in 2:
 		await tree.process_frame
 	if not is_instance_valid(layer):
 		return
 	var tw := layer.create_tween()
-	tw.tween_interval(0.15)
-	tw.tween_property(layer.get_child(0), "modulate:a", 0.0, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(layer.get_child(0), "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(layer.queue_free)
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
@@ -925,38 +923,55 @@ func _process_loading(dt: float) -> void:
 	load_elapsed += dt
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
-	var real: float = prog[0] if prog.size() > 0 else 0.0
-	var done := status == ResourceLoader.THREAD_LOAD_LOADED and not _warm_pending()
-	if done:
-		real = 1.0
-	# scenes/main.tscn usually streams in well under MIN_LOAD_TIME, so the bar is driven by
-	# elapsed time (a steady fill you can actually watch) rather than the loader's own figure,
-	# which is real but arrives in a handful of lumpy jumps. It never claims 100% until the
-	# scene is truly loaded AND the floor has passed; if the real load runs long, a slow creep
-	# keeps it inching forward past the floor instead of sitting dead at the cap.
-	var time_frac: float = clamp(load_elapsed / MIN_LOAD_TIME, 0.0, 1.0)
-	var target: float
-	if done and load_elapsed >= MIN_LOAD_TIME:
-		target = 1.0
-	elif time_frac >= 1.0:
-		creep_progress = min(creep_progress + dt * 0.06, 0.995)
-		target = creep_progress
-	else:
-		target = max(time_frac, real * 0.6)
-	shown_progress += (target - shown_progress) * (1.0 - exp(-dt * 6.0))
-	load_bar.size.x = 700.0 * shown_progress
-	load_pct.text = "%d%%" % int(shown_progress * 100.0)
-	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 		load_pct.text = "LOAD FAILED"
 		loading = false
 		busy = false                  # Enter tries again
 		return
-	if done and load_elapsed >= MIN_LOAD_TIME:
-		set_process(false)
-		load_bar.size.x = 700.0
-		load_pct.text = "100%"
-		_finish_loading()
+
+	var scene_progress: float = 0.0
+	if status == ResourceLoader.THREAD_LOAD_LOADED:
+		scene_progress = 1.0
+	elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		scene_progress = prog[0] if not prog.is_empty() else 0.05
+
+	# Calculate true percentage across all pre-warmed level assets (textures, meshes, shaders)
+	var warm_total: float = 0.0
+	var warm_pending := false
+	var warm_count: int = _warm.size()
+	for p in _warm:
+		var wp := []
+		var ws := ResourceLoader.load_threaded_get_status(p, wp)
+		if ws == ResourceLoader.THREAD_LOAD_LOADED:
+			warm_total += 1.0
+		elif ws == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			warm_pending = true
+			warm_total += wp[0] if not wp.is_empty() else 0.0
+		else:
+			warm_total += 1.0
+
+	var warm_progress: float = (warm_total / float(warm_count)) if warm_count > 0 else 1.0
+	var done := (status == ResourceLoader.THREAD_LOAD_LOADED) and not warm_pending
+
+	# Real blended progress from actual file loaders
+	var real_progress: float = 1.0 if done else (scene_progress * 0.4 + warm_progress * 0.6)
+
+	shown_progress = clampf(maxf(shown_progress, move_toward(shown_progress, real_progress, dt * 3.5)), 0.0, 1.0)
+	load_bar.size.x = 700.0 * shown_progress
+	load_pct.text = "%d%%" % int(shown_progress * 100.0)
+	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
+
+	if done:
+		if shown_progress < 1.0:
+			shown_progress = move_toward(shown_progress, 1.0, dt * 6.0)
+			load_bar.size.x = 700.0 * shown_progress
+			load_pct.text = "%d%%" % int(shown_progress * 100.0)
+		if shown_progress >= 0.999:
+			set_process(false)
+			load_bar.size.x = 700.0
+			load_pct.text = "100%"
+			await get_tree().create_timer(0.25).timeout
+			_finish_loading()
 
 # ---- AFK screen: the column fades away, the logo sits in the middle, a click brings the menu back ----
 const IDLE_AFTER := 15.0

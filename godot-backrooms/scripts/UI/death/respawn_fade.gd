@@ -5,9 +5,9 @@ extends Node
 ## the Master bus the whole way. Also used for a level change and for falling down a pit.
 ## Child of the Death autoload (Death.respawn_transition / Death.respawn_busy).
 
-const FADE_IN := 0.7
-const HOLD := 0.35
-const FADE_OUT := 1.4
+const FADE_IN := 0.3
+const HOLD := 0.08
+const FADE_OUT := 0.45
 const DUCK_DB := -40.0
 const SHADER := """
 shader_type canvas_item;
@@ -81,7 +81,7 @@ func run(swap: Callable) -> void:
 	swap.call()
 	# The reload is a heavy frame. Wait until the new level is up and has rendered a few frames, hold,
 	# and only then fade in, so the fade is actually seen instead of being swallowed by the hitch.
-	for i in 8:
+	for i in 3:
 		await get_tree().process_frame
 	await get_tree().create_timer(HOLD).timeout
 	var tw2 := create_tween().set_parallel(true)

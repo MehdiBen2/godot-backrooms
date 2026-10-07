@@ -1,7 +1,7 @@
 extends Node3D
 ## Wires up the player, UI and audio. Esc is native here: no browser cooldown.
 
-const PAUSED_FPS := 10
+const PAUSED_FPS := 60
 
 @onready var level := $Level
 @onready var player := $Player
@@ -9,6 +9,7 @@ const PAUSED_FPS := 10
 @onready var audio := $Audio
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	player.global_position = level.spawn_pos
 	if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
 	level.player = player
@@ -68,7 +69,11 @@ func _notification(what: int) -> void:
 
 func set_paused(on: bool, start := false) -> void:
 	Game.playing = not on
-	Engine.max_fps = PAUSED_FPS if on else int(Gfx.s.get("fps", 0))      # a frozen scene needs no more than a trickle
+	if not Net.is_online():
+		get_tree().paused = on
+	else:
+		get_tree().paused = false
+	Engine.max_fps = PAUSED_FPS if on else int(Gfx.s.get("fps", 0))      # reduces GPU usage when paused
 	if on: set_inventory(false)
 	ui.set_paused(on, start)
 	audio.set_paused(on)

@@ -307,6 +307,7 @@ func next_level() -> void:
 ## screen, the death camera and its blood, and every screen effect and clock, so none of it follows
 ## you into the title or the next run
 func end_run() -> void:
+	get_tree().paused = false
 	boot_played = true               # back to the title from a run: straight to the menu, no boot sequence
 	playing = false
 	dead = false
@@ -324,6 +325,7 @@ func end_run() -> void:
 	Death.stop()
 
 func restart() -> void:
+	get_tree().paused = false
 	respawned = true
 	dead = false
 	death_type = DeathType.NONE

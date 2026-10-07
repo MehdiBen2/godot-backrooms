@@ -65,6 +65,7 @@ var door_prompt: Label
 
 func _ready() -> void:
 	layer = 5
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	player = get_parent().get_node("Player")
 	level = get_parent().get_node("Level")
 

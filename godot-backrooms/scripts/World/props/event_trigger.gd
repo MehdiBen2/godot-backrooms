@@ -269,6 +269,34 @@ func _caption(t: String) -> void:
 	# a camcorder recording of the words: red and cyan fringes split either side (added over the text),
 	# then the text itself with scanlines, grain, tracking jitter and the odd tape tear
 	root_ctrl.modulate.a = 0.0
+
+	# A translucent dark backing so the caption is readable against bright walls/lighting
+	var font_res: Font = load("res://fonts/vcr.ttf") if ResourceLoader.exists("res://fonts/vcr.ttf") else null
+	var font_size := 28
+	var max_w := 1600.0
+	var text_sz := Vector2(800.0, 36.0)
+	if font_res != null:
+		text_sz = font_res.get_multiline_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, max_w, font_size)
+	else:
+		text_sz = Vector2(minf(t.length() * 18.0, max_w), 36.0)
+	var pad_x := 36.0
+	var pad_y := 14.0
+	var bg_w := clampf(text_sz.x + pad_x * 2.0, 240.0, 1720.0)
+	var bg_h := maxf(text_sz.y + pad_y * 2.0, 52.0)
+
+	var bg := Panel.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.0, 0.0, 0.0, 0.65)
+	style.set_corner_radius_all(0)
+	bg.add_theme_stylebox_override("panel", style)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	bg.offset_left = -bg_w * 0.5
+	bg.offset_right = bg_w * 0.5
+	bg.offset_top = -155.0 - bg_h * 0.5
+	bg.offset_bottom = -155.0 + bg_h * 0.5
+	root_ctrl.add_child(bg)
+
 	root_ctrl.add_child(_caption_label(t, Color(1.0, 0.12, 0.08, 0.75), -2.5, true))
 	root_ctrl.add_child(_caption_label(t, Color(0.1, 0.85, 1.0, 0.75), 2.5, true))
 	root_ctrl.add_child(_caption_label(t, Color.WHITE, 0.0, false))

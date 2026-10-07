@@ -151,9 +151,13 @@ var voxel_gi: VoxelGI
 func gi_path() -> String:
 	return "res://levels/baked/%s_gi.res" % str(level_meta.get("id", "level"))
 
+static var _hash_cache := {}
 ## Changes whenever the level file (or BAKE_VERSION) does: a stale bake is never used
 func bake_hash() -> String:
-	return (FileAccess.get_file_as_string("res://levels/" + str(level_meta.get("file", ""))) + BAKE_VERSION).md5_text()
+	var file_name := str(level_meta.get("file", ""))
+	if not _hash_cache.has(file_name):
+		_hash_cache[file_name] = (FileAccess.get_file_as_string("res://levels/" + file_name) + BAKE_VERSION).md5_text()
+	return _hash_cache[file_name]
 
 ## The box the VoxelGI covers: the whole grid, floor to the highest ceiling, a little margin all round
 func gi_bounds() -> Dictionary:

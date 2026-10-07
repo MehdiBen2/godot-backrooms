@@ -1088,11 +1088,11 @@
       "duration": 20.0,
       "event": "message",
       "events_list": [],
-      "once": true,
-      "pos_x": 23.0,
-      "pos_y": 10.25,
+      "once": false,
+      "pos_x": 23.5,
+      "pos_y": 10.5,
       "rotation": 0.0,
-      "scale": 2.0,
+      "scale": 1.5,
       "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
       "type": "trigger"
     }
