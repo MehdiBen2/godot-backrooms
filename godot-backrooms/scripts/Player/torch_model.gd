@@ -312,6 +312,16 @@ func _follow_camera(dt: float) -> void:
 	_lag = _lag.clampf(-0.06, 0.06)
 	_lag_rot = _lag_rot.clampf(-0.25, 0.25)
 
+func nudge_door(opening: bool, swing_dir: float) -> void:
+	if opening:
+		# Pushing door: physical impulse forward-left with pitch & yaw kick
+		_lag_v += Vector3(-0.025, -0.018, 0.035)
+		_lag_rot_v += Vector3(0.08, -0.06 * swing_dir, 0.04)
+	else:
+		# Pulling door: physical recoil backward-right
+		_lag_v += Vector3(0.020, -0.012, -0.025)
+		_lag_rot_v += Vector3(-0.05, 0.04 * swing_dir, -0.03)
+
 ## The peek this tick (peek.gd): which side you lean to (-1 left, +1 right, 0 none), whether you're
 ## leaning in, the edge (world point at eye height, wall normal, the way it lies, how far from the eye),
 ## whether you're slow enough to take hold of it, crouched. The hand on the wall's side goes on the edge

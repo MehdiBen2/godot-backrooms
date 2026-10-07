@@ -38,6 +38,13 @@
   "name": "debug",
   "objects": [
     {
+      "pos_x": 13.0,
+      "pos_y": 4.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "door"
+    },
+    {
       "custom_event": "",
       "delay": 0.0,
       "depth": 2.0,

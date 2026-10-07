@@ -150,6 +150,17 @@ var breath := 0.0
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/on.mp3")
 var click_off: AudioStream = load("res://audio/off.mp3")
+
+# --- Door interaction & camera animation ---
+var focused_door: Node = null
+var _door_anim_time := 0.0
+var _door_ref: Node3D = null
+var _door_slow := 0.0         # 1 while your hands are on a door: you walk slower
+var _door_anim_active := false
+var _door_anim_opening := true
+var _door_side := 1.0
+var _door_cam_pos := Vector3.ZERO
+var _door_cam_rot := Vector3.ZERO
 var space_prev := false
 var jump_buffer := 0.0
 var coyote := 0.0
@@ -361,10 +372,19 @@ func _unhandled_input(e: InputEvent) -> void:
 		flash_on = not flash_on
 		click_player.stream = click_on if flash_on else click_off
 		click_player.play()
+	elif (e.is_action_pressed("interact") or (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E)) \
+			and lens_up <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if focused_door != null and focused_door.has_method("interact"):
+			focused_door.interact(self)
+			_sync_flashlight_aim(0.35)
+			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	if not dead and not frozen:
 		_update_flashlight_aim(delta)
+		focused_door = _find_interactable_door()
+	else:
+		focused_door = null
 	_update_fall_fx(delta)
 
 func _physics_process(dt: float) -> void:
@@ -435,6 +455,7 @@ func _physics_process(dt: float) -> void:
 	speed *= 1.0 + SWING_BOOST * _swing_boost
 	speed *= 1.0 + CORNER_BOOST * _corner_boost
 	speed *= lerpf(1.0, SQUEEZE_SPEED, tight_k) * lerpf(1.0, CRAWL_SPEED, crawl_k)
+	speed *= lerpf(1.0, DOOR_SPEED, _door_slow)
 	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	if _corner_on and wish.length_squared() > 0.0001:
@@ -474,17 +495,35 @@ func _physics_process(dt: float) -> void:
 	else:
 		was_airborne = true
 		air_time += dt
-	peek.update(dt, self, eye, is_on_floor() and not sprint and tight_k < 0.3)    # no peeking from inside a slit
-	_update_swing(dt, crouch)
-	_update_corner(dt, sprint, crouch)
+	var near_door := _near_door()
+	if near_door:
+		peek.reset()
+		_corner_on = false
+		_swinging = false
+		_corner_cd = maxf(_corner_cd, 1.0)
+		_swing_cd = maxf(_swing_cd, 1.0)
+
+	peek.update(dt, self, eye, is_on_floor() and not sprint and tight_k < 0.3 and not near_door)    # no peeking from inside a slit or near doors
+	if not near_door:
+		_update_swing(dt, crouch)
+		_update_corner(dt, sprint, crouch)
+	else:
+		_corner_on = false
+		_swinging = false
+
 	if torch:
 		var flat_speed := Vector2(velocity.x, velocity.z).length()
 		_peek_slow = flat_speed < PEEK_HOLD_SPEED * (1.5 if _peek_slow else 0.8)   # hysteresis: hovering at the limit doesn't flicker the grip
 		var slow := _peek_slow or _swinging      # swinging round, the hand holds on though you're moving
 		_set_squeeze_hands()
-		torch.set_grab(_corner_on, corner.side, corner.point, corner.normal, corner.out)
-		torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
-		torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
+		if near_door:
+			torch.set_grab(false, 0, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+			torch.set_hug(false, Vector3.ZERO, Vector3.ZERO, false)
+			torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, crouch)
+		else:
+			torch.set_grab(_corner_on, corner.side, corner.point, corner.normal, corner.out)
+			torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
+			torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
 		torch.update(dt, flash_on and not dead and not _tight_spot(), is_sprinting, is_moving, bob)
 		if lens_up > 0.02:
 			torch.visible = false        # the camcorder is at your eye: both hands are on it
@@ -637,12 +676,14 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	handheld.update(dt, motion, shake, cam_shake)
 	if torch != null:
 		torch.sway_amount = maxf(head_bob, cam_shake)    # the hands trail the view unless both are off
+	_update_door_camera(dt)
 	cam.position += handheld.offset
 	cam.position += global_transform.basis.inverse() * peek.shift + Vector3(0.0, -PEEK_DIP * peek.amount, -PEEK_FWD * peek.amount)
 	# the squeeze gap's way in / out (_update_squeeze): shoulder turn, duck, pop free
 	var sq_hb := maxf(head_bob, 0.3)
 	cam.position += Vector3(0.0, _sq_cam[3], _sq_cam[4]) * sq_hb
-	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_side * _sq_cam[0] * sq_hb
+	cam.position += _door_cam_pos
+	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_side * _sq_cam[0] * sq_hb + _door_cam_rot.y
 	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
 	# idle: after a moment of standing still the view drifts in a slow breathing sway
 	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
@@ -655,7 +696,8 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll + bob_roll \
 			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob) \
 			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet \
-			+ _sq_side * _sq_cam[1] * sq_hb
+			+ _sq_side * _sq_cam[1] * sq_hb \
+			+ _door_cam_rot.z
 	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
 	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
 	var fwd := -velocity.dot(global_transform.basis.z)
@@ -664,7 +706,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	var pitch_total: float = pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb
+	var pitch_total: float = pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb + _door_cam_rot.x
 	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
@@ -910,6 +952,147 @@ func _sq_cam_sample(keys: Array, t: float) -> Array:
 				out.append(lerpf(float(a[j]), float(b[j]), u))
 			return out
 	return _sq_cam
+
+# ---------------------------------------------------------------- door interaction & camera animation
+## Keys for the head through a door: [time s, pos x, y, z, pitch, yaw, roll]. x, yaw and roll are toward the
+## handle's side. Played through as one smooth curve (_door_sample).
+## Opening (door.gd OPEN_TIME 1.6 s): look down at the handle and reach, turn it, then push through as the
+## door swings away and the eyes come back up.
+const DOOR_OPEN_KEYS := [
+	[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+	[0.25, 0.01, -0.02, -0.05, -0.07, 0.03, 0.02],     # reach, eyes on the handle
+	[0.4, 0.01, -0.025, -0.06, -0.08, 0.03, 0.025],    # turn it
+	[0.75, 0.0, -0.015, -0.09, -0.02, 0.0, 0.01],      # push: lean in, eyes up into the room
+	[1.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+]
+## Shutting (CLOSE_TIME 1.1 s): reach and take hold, pull it to you, let go.
+const DOOR_CLOSE_KEYS := [
+	[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+	[0.25, 0.01, -0.02, -0.04, -0.06, 0.03, 0.02],
+	[0.6, 0.0, -0.01, 0.03, -0.02, 0.02, 0.01],
+	[0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+]
+const DOOR_SPEED := 0.7                       # share of walking speed while your hands are on a door
+
+func trigger_door_camera_animation(door: Node3D, opening: bool, swing_dir: float) -> void:
+	_door_anim_active = true
+	_door_anim_time = 0.0
+	_door_anim_opening = opening
+	_door_ref = door
+	var hx: float = (cam.global_transform.basis.inverse() * (door.get_handle_global_pos() - cam.global_position)).x \
+			if door.has_method("get_handle_global_pos") else 0.0
+	_door_side = 1.0 if hx >= 0.0 else -1.0
+	peek.reset()
+	_corner_on = false
+	_swinging = false
+	if torch != null and torch.has_method("nudge_door"):
+		torch.nudge_door(opening, swing_dir)
+
+## The head through a door (DOOR_OPEN_KEYS / DOOR_CLOSE_KEYS) into _door_cam_pos / _door_cam_rot. Movement is held back while you're working the door (_door_slow).
+func _update_door_camera(dt: float) -> void:
+	if not _door_anim_active:
+		_door_cam_pos = _door_cam_pos.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
+		_door_cam_rot = _door_cam_rot.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
+		_door_slow = move_toward(_door_slow, 0.0, dt * 2.0)
+		return
+	_door_anim_time += dt
+	var keys: Array = DOOR_OPEN_KEYS if _door_anim_opening else DOOR_CLOSE_KEYS
+	var t := _door_anim_time
+	var k := _door_sample(keys, t)
+	var sd := _door_side          # +1 handle to the right: x right, but yaw and roll turn the other way round
+	_door_cam_pos = Vector3(k[0] * sd, k[1], k[2])
+	_door_cam_rot = Vector3(k[3], -k[4] * sd, -k[5] * sd)
+	_door_slow = 1.0 - smoothstep(float(keys[keys.size() - 2][0]), float(keys[keys.size() - 1][0]), t)
+	if t >= float(keys[keys.size() - 1][0]):
+		_door_anim_active = false
+
+## The keys at time t as one smooth curve (Catmull-Rom through them, so the head doesn't stop at each key).
+func _door_sample(keys: Array, t: float) -> Array:
+	var n := keys.size()
+	var i := 1
+	while i < n - 1 and t > float(keys[i][0]):
+		i += 1
+	var a: Array = keys[i - 1]
+	var b: Array = keys[i]
+	var ta := float(a[0])
+	var tb := float(b[0])
+	var h := tb - ta
+	var u := clampf((t - ta) / h, 0.0, 1.0)
+	var u2 := u * u
+	var u3 := u2 * u
+	var out: Array = []
+	for j in range(1, 7):
+		var pa := float(a[j])
+		var pb := float(b[j])
+		# slopes from the neighbours (flat at the ends), scaled to this span
+		var ma := 0.0 if i - 1 == 0 else (pb - float(keys[i - 2][j])) / (tb - float(keys[i - 2][0])) * h
+		var mb := 0.0 if i == n - 1 else (float(keys[i + 1][j]) - pa) / (float(keys[i + 1][0]) - ta) * h
+		out.append((2.0 * u3 - 3.0 * u2 + 1.0) * pa + (u3 - 2.0 * u2 + u) * ma + (-2.0 * u3 + 3.0 * u2) * pb + (u3 - u2) * mb)
+	return out
+
+func _near_door() -> bool:
+	if focused_door != null:
+		return true
+	var cp := global_position
+	var doors := get_tree().get_nodes_in_group("doors")
+	for d in doors:
+		if is_instance_valid(d) and d is Node3D:
+			var d_pos: Vector3 = (d as Node3D).global_position
+			var dist := Vector2(cp.x - d_pos.x, cp.z - d_pos.z).length()
+			if dist < 3.2 and absf(cp.y - d_pos.y) < 2.5:
+				return true
+	return false
+
+func _find_interactable_door() -> Node:
+	if dead or frozen or Game.draw_mode or Game.noclip:
+		return null
+	var cam_pos := cam.global_position
+	var cam_fwd := -cam.global_transform.basis.z
+	
+	# 1. Direct raycast through reticle
+	var space := get_world_3d().direct_space_state
+	if space != null:
+		var ray_end := cam_pos + cam_fwd * 2.8
+		var query := PhysicsRayQueryParameters3D.create(cam_pos, ray_end, 1 | 2)
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty():
+			var collider: Object = hit.collider
+			var d := _get_door_from_node(collider)
+			if d != null and d.has_method("can_interact") and d.can_interact(cam_pos):
+				return d
+				
+	# 2. View-cone / proximity query for nearby doors within reach (handles open doorways and side angles)
+	var best_door: Node = null
+	var best_dot := 0.62
+	var doors := get_tree().get_nodes_in_group("doors")
+	for n in doors:
+		if n.has_method("can_interact") and n.can_interact(cam_pos):
+			var target_pos: Vector3 = n.get_handle_global_pos() if n.has_method("get_handle_global_pos") else n.global_position
+			var to_door := (target_pos - cam_pos).normalized()
+			var dot := cam_fwd.dot(to_door)
+			var dist := cam_pos.distance_to(target_pos)
+			if dist < 2.6 and dot > best_dot:
+				best_dot = dot
+				best_door = n
+	return best_door
+
+func _get_door_from_node(node: Object) -> Node:
+	if node == null:
+		return null
+	if node.has_method("interact"):
+		return node as Node
+	if node.has_meta("door"):
+		return node.get_meta("door") as Node
+	if node is Node:
+		var p := (node as Node).get_parent()
+		if p != null:
+			if p.has_method("interact"): return p
+			if p.has_meta("door"): return p.get_meta("door") as Node
+			var pp := p.get_parent()
+			if pp != null:
+				if pp.has_method("interact"): return pp
+				if pp.has_meta("door"): return pp.get_meta("door") as Node
+	return null
 
 ## Both hands flat on the slit's walls (or, crawling, on the floor), fingers on the way through, while you're in it
 func _set_squeeze_hands() -> void:

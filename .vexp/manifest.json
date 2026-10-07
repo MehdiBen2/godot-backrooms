@@ -41,8 +41,8 @@
     "tools/publish.ps1": "1229080c22bc271376969ede695e211dc33d48f4e0c2d5d9be32c8569965b567",
     "tools/publish_gui.ps1": "88c28e81a341de15bbf256c42c61d66de5822d9c2ce842787d6add2385680209"
   },
-  "indexed_at_commit": "9f4278488e84a45345b896f0c628427da4ecfb33",
-  "indexed_at_timestamp": "2026-10-07T10:12:57.924265+00:00",
+  "indexed_at_commit": "841ad3868b6ba1b41774e1112866824ffe660dc3",
+  "indexed_at_timestamp": "2026-10-07T12:20:02.756037+00:00",
   "languages": {
     "css": {
       "calls": 0,

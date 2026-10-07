@@ -67,6 +67,21 @@ var _f_normal := Vector3.ZERO
 var _f_out := Vector3.ZERO
 var _f_dist := 0.0
 
+func reset() -> void:
+	side = 0
+	amount = 0.0
+	leaning = false
+	offset = 0.0
+	shift = Vector3.ZERO
+	hug = false
+	_seen = 0.0
+	_gone = 0.0
+	_near = 0.0
+	_away = 0.0
+	_vel = 0.0
+	_rolled = false
+	_smooth = false
+
 ## One physics tick. `eye_h`: eye height above the feet. `can`: on the floor, not sprinting, in control.
 func update(dt: float, body: CharacterBody3D, eye_h: float, can: bool) -> void:
 	# both hands on a wall (the hug) there's no peeking round it; at a corner the peek starts first, so the hug

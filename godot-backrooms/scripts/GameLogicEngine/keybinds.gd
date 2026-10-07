@@ -128,6 +128,14 @@ const ACTIONS: Array[Dictionary] = [
 		"default_azerty": KEY_A,
 		"alt_keys": []
 	},
+	{
+		"id": "interact",
+		"name": "Interact / Open Door",
+		"desc": "Open or close doors, interact with objects",
+		"default_qwerty": KEY_E,
+		"default_azerty": KEY_E,
+		"alt_keys": []
+	},
 ]
 
 var binds: Dictionary = {}

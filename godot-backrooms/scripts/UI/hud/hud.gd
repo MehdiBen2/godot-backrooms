@@ -61,6 +61,7 @@ var level: Node
 var corners: Array[Control] = []
 var shake_seed := randf() * 1000.0
 var battery_hint_shown := false   # the "[R] to load it" toast, once per run
+var door_prompt: Label
 
 func _ready() -> void:
 	layer = 5
@@ -248,6 +249,20 @@ func _build_hud() -> void:
 		dot.draw_circle(dot.size * 0.5, 2.0, Color(0.92, 0.882, 0.686, 1.0))
 	)
 	hud.add_child(dot)
+
+	# Door interaction prompt: subtle retro HUD prompt below the crosshair
+	door_prompt = Label.new()
+	door_prompt.text = "[E] OPEN"
+	door_prompt.add_theme_font_override("font", _font(2.0))
+	door_prompt.add_theme_font_size_override("font_size", 14)
+	door_prompt.add_theme_color_override("font_color", CREAM)
+	door_prompt.set_anchors_preset(Control.PRESET_CENTER)
+	door_prompt.position = Vector2(-75, 18)
+	door_prompt.custom_minimum_size = Vector2(150, 24)
+	door_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	door_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	door_prompt.modulate.a = 0.0
+	hud.add_child(door_prompt)
 
 	# --- top-left: REC + objective ---
 	var tl := _vbox(5)
@@ -688,3 +703,12 @@ func _process(dt: float) -> void:
 		c.offset_right = ox + BRACKET_LEN; c.offset_bottom = oy + BRACKET_LEN
 	var s := int(t)
 	time_label.text = "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+
+	if door_prompt != null:
+		var show_door := false
+		if player != null and "focused_door" in player and player.focused_door != null:
+			var d = player.focused_door
+			if is_instance_valid(d) and d.has_method("get_interact_prompt"):
+				door_prompt.text = d.get_interact_prompt()
+				show_door = true
+		door_prompt.modulate.a = move_toward(door_prompt.modulate.a, 1.0 if show_door else 0.0, dt * 8.0)
