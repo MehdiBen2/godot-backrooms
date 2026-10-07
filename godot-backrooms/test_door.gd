@@ -58,8 +58,8 @@ func _init() -> void:
 		return
 	print("CHECK 4 PASSED: Realistic player camera animation activated!")
 	
-	# Simulate physics: the opening takes OPEN_TIME
-	for i in range(60):
+	# Simulate physics: the opening takes REACH_OPEN + OPEN_TIME
+	for i in range(90):
 		door._physics_process(0.05)
 	
 	# The leaf stays solid open too
@@ -74,7 +74,7 @@ func _init() -> void:
 	
 	# Interact to close
 	door.interact(player)
-	for i in range(30):
+	for i in range(45):
 		door._physics_process(0.05)
 		
 	if door.open_amount != 0.0 or door.leaf_collision.disabled:

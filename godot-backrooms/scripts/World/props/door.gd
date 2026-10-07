@@ -15,10 +15,23 @@ const CASING_D := 0.025
 const LEAF_T := 0.045
 const KNOB_H := 0.95
 const OPEN_ANGLE := deg_to_rad(120.0)
-const OPEN_TIME := 1.6       # latch, a short creak ajar, then the push
-const CLOSE_TIME := 1.1
-const CRACK := 0.06          # fractions of OPEN_ANGLE: where the latch lets it fall ajar...
-const CREEP := 0.13          # ...and how far it creaks on its own before the push
+# The timing follows the two sounds. audio/door_open.mp3 (1.63 s): the knob rattles (0-0.15 s), the latch
+# gives (~0.25 s), then the creak of the swing dies away by ~1.35 s. audio/door_close.mp3 (0.58 s): the leaf
+# meets the frame ~0.15 s in. The player's scripted scene (player.gd _door_scene) says when the hand turns the
+# knob (turn_knob) or starts the pull (pull); with no scene, REACH_* stand in for it.
+const OPEN_SOUND := "res://audio/door_open.mp3"
+const CLOSE_SOUND := "res://audio/door_close.mp3"
+const LATCH_AFTER := 0.25    # s into the open sound the latch gives and the leaf moves
+const CLOSE_HIT := 0.15      # s into the close sound the leaf meets the frame
+const REACH_OPEN := 0.55     # s from [E] to the knob turning, with no scene to say so
+const REACH_CLOSE := 0.4     # s from [E] to the pull, likewise
+const OPEN_TIME := 1.3       # s the swing takes from the latch, with the creak (gone by ~1.35 s into the sound)
+const CLOSE_TIME := 0.9
+const CRACK_END := 0.1       # fractions of OPEN_TIME: the latch lets it fall ajar...
+const CREEP_END := 0.18      # ...it hangs there a moment, then the push
+const CRACK := 0.06          # fractions of OPEN_ANGLE: how far ajar it falls...
+const CREEP := 0.1           # ...and how far it is when the push comes
+const WAIT := 1e9            # _delay: waiting on the scene's turn_knob / pull
 const LEAF_MODEL := "res://models/props/door/wood_door.glb"
 
 var pivot: Node3D
@@ -33,49 +46,41 @@ var blocked := false
 var _from := 0.0
 var _t := 0.0
 var _opening := false
+var _delay := 0.0            # reach / knob-turn time left before the leaf starts to move (WAIT: the scene says when)
+var _knob_in := -1.0         # s until the knob turns and the open sound starts (no scene), -1 none
+var _hit_played := false     # the close sound has gone for this shut
+var audio_open: AudioStreamPlayer3D
+var audio_close: AudioStreamPlayer3D
 var _moving := false
 var swing_dir := 1.0
 var is_open := false
-
-var audio_latch: AudioStreamPlayer3D
-var audio_open: AudioStreamPlayer3D
-var audio_close: AudioStreamPlayer3D
 
 func _ready() -> void:
 	add_to_group("doors")
 	_setup_audio()
 
 func _setup_audio() -> void:
-	if audio_latch != null: return
-	audio_latch = AudioStreamPlayer3D.new()
-	if ResourceLoader.exists("res://audio/door_latch.wav"):
-		audio_latch.stream = load("res://audio/door_latch.wav")
-	audio_latch.bus = "World"
-	audio_latch.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	audio_latch.unit_size = 2.0
-	audio_latch.max_distance = 35.0
-	audio_latch.position = Vector3(0, KNOB_H, DOOR_W * 0.5)
-	add_child(audio_latch)
+	if audio_open != null:
+		return
+	audio_open = _sound(OPEN_SOUND, 2.2, 40.0)
+	audio_close = _sound(CLOSE_SOUND, 2.5, 45.0)
 
-	audio_open = AudioStreamPlayer3D.new()
-	if ResourceLoader.exists("res://audio/door_open.wav"):
-		audio_open.stream = load("res://audio/door_open.wav")
-	audio_open.bus = "World"
-	audio_open.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	audio_open.unit_size = 2.2
-	audio_open.max_distance = 40.0
-	audio_open.position = Vector3(0, KNOB_H, DOOR_W * 0.5)
-	add_child(audio_open)
+func _sound(path: String, unit: float, far: float) -> AudioStreamPlayer3D:
+	var a := AudioStreamPlayer3D.new()
+	if ResourceLoader.exists(path):
+		a.stream = load(path)
+	a.bus = "World"
+	a.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+	a.unit_size = unit
+	a.max_distance = far
+	a.position = Vector3(0, KNOB_H, DOOR_W * 0.5)
+	add_child(a)
+	return a
 
-	audio_close = AudioStreamPlayer3D.new()
-	if ResourceLoader.exists("res://audio/door_close.wav"):
-		audio_close.stream = load("res://audio/door_close.wav")
-	audio_close.bus = "World"
-	audio_close.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	audio_close.unit_size = 2.5
-	audio_close.max_distance = 45.0
-	audio_close.position = Vector3(0, KNOB_H, DOOR_W * 0.5)
-	add_child(audio_close)
+func _play(a: AudioStreamPlayer3D, pitch: float) -> void:
+	if a != null and a.stream != null and is_inside_tree():
+		a.pitch_scale = pitch
+		a.play()
 
 func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_mat: Material, leaf_mat: Material, hw_mat: Material) -> void:
 	add_to_group("doors")
@@ -302,7 +307,15 @@ static func _build_leaf_mesh(size: Vector3) -> ArrayMesh:
 func _physics_process(delta: float) -> void:
 	if pivot == null or not _moving:
 		return
-	var t := minf(1.0, _t + delta / (OPEN_TIME if _opening else CLOSE_TIME))
+	if _knob_in >= 0.0:
+		_knob_in -= delta
+		if _knob_in < 0.0:
+			turn_knob()
+	if _delay > 0.0:
+		_delay -= delta
+		if _delay > 0.0:
+			return
+	var t := minf(1.0, _t + delta / _move_time())
 	var a := _curve(t)
 	# the leaf is solid the whole way. Shutting, it stops against anyone standing in the doorway and waits;
 	# opening it swings away from you, so nothing holds it back
@@ -312,29 +325,78 @@ func _physics_process(delta: float) -> void:
 	blocked = false
 	_t = t
 	angle = a
+	# the close sound goes early enough that its knock lands as the leaf meets the frame
+	if not _opening and not _hit_played and (1.0 - t) * CLOSE_TIME <= CLOSE_HIT:
+		_hit_played = true
+		_play(audio_close, randf_range(0.96, 1.04))
 	open_amount = angle / OPEN_ANGLE
 	pivot.rotation.y = angle * swing_dir
 	if _t >= 1.0:
 		_moving = false
-		if not _opening:
-			_on_shut()
 
 ## The leaf's angle at progress t of the current move. Opening from shut: the latch gives and it cracks ajar,
 ## creaks a little further on its own while you hesitate, then your push swings it wide and the hinges slow
 ## it. Closing: it gathers speed into the frame.
 func _curve(t: float) -> float:
 	if not _opening:
-		return lerpf(_from, 0.0, t * t)
-	if _from > CRACK * OPEN_ANGLE:
+		# pulled in gently, gathering speed, and it knocks into the frame (still moving: the sound's thud)
+		var f := t * t * (2.0 - t)
+		return lerpf(_from, 0.0, clampf(f, 0.0, 1.0))
+	if not _from_shut():
 		return lerpf(_from, OPEN_ANGLE, smoothstep(0.0, 1.0, t))
 	var f: float
-	if t < 0.1:
-		f = CRACK * (1.0 - pow(1.0 - t / 0.1, 3.0))
-	elif t < 0.32:
-		f = lerpf(CRACK, CREEP, smoothstep(0.1, 0.32, t))
+	if t < CRACK_END:
+		f = CRACK * (1.0 - pow(1.0 - t / CRACK_END, 3.0))
+	elif t < CREEP_END:
+		f = lerpf(CRACK, CREEP, smoothstep(CRACK_END, CREEP_END, t))
 	else:
-		f = lerpf(CREEP, 1.0, smoothstep(0.32, 1.0, t))
+		# the push: quick off the hand, then the hinges take the speed off it
+		var u := (t - CREEP_END) / (1.0 - CREEP_END)
+		f = lerpf(CREEP, 1.0, 1.0 - pow(1.0 - u, 2.4))
 	return lerpf(_from, OPEN_ANGLE, f)
+
+func _from_shut() -> bool:
+	return _from <= CRACK * OPEN_ANGLE
+
+## Seconds the current swing takes once it's moving (a door already ajar skips the crack and the creak)
+func _move_time() -> float:
+	if not _opening:
+		return CLOSE_TIME
+	return OPEN_TIME if _from_shut() else OPEN_TIME * (1.0 - CREEP_END)
+
+## Seconds after the knob turns that the push comes (the swing proper): what the scene times its walk through by
+func push_after() -> float:
+	return LATCH_AFTER + (OPEN_TIME * CREEP_END if _from_shut() else 0.0)
+
+## The scene's hand has turned the knob: the open sound starts, and the latch gives LATCH_AFTER into it
+func turn_knob() -> void:
+	_knob_in = -1.0
+	if not _moving or not _opening or _delay < WAIT * 0.5:      # only while it waits on the hand
+		return
+	_delay = LATCH_AFTER
+	_play(audio_open, randf_range(0.97, 1.03))
+
+## The scene's hand has hold of it: the pull starts now
+func pull() -> void:
+	if _moving and not _opening and _delay > 0.0:
+		_delay = 0.0
+
+## Which face of the door `p` (world) is on: +1 the door's local +X side, -1 the other
+func side_of(p: Vector3) -> float:
+	return 1.0 if to_local(p).x > 0.0 else -1.0
+
+## The knob on face `side` (world)
+func knob_at(side: float) -> Vector3:
+	if pivot == null:
+		return global_position + Vector3(0, KNOB_H, 0)
+	return pivot.to_global(Vector3(side * LEAF_T * 0.5, KNOB_H, DOOR_W - 0.075))
+
+## The leaf's face `side` looks this way (world), and its latch edge lies this way from the hinge
+func face_normal(side: float) -> Vector3:
+	return (pivot.global_basis.x * side).normalized() if pivot != null else global_basis.x * side
+
+func latch_dir() -> Vector3:
+	return pivot.global_basis.z.normalized() if pivot != null else global_basis.z
 
 func _leaf_hits_body(a: float) -> bool:
 	if not is_inside_tree() or leaf_body == null:
@@ -350,11 +412,6 @@ func _leaf_hits_body(a: float) -> bool:
 			return true
 	return false
 
-func _on_shut() -> void:
-	if audio_close != null and is_inside_tree():
-		audio_close.pitch_scale = randf_range(0.96, 1.04)
-		audio_close.play()
-
 func interact(player: Node3D) -> bool:
 	var local := to_local(player.global_position) if player != null else Vector3.ZERO
 	var will_open := target_open_amount < 0.5
@@ -364,19 +421,14 @@ func interact(player: Node3D) -> bool:
 			swing_dir = -1.0 if local.x > 0.0 else 1.0
 		target_open_amount = 1.0
 		is_open = true
-		if audio_latch != null and is_inside_tree():
-			audio_latch.pitch_scale = randf_range(0.95, 1.05)
-			audio_latch.play()
-		if audio_open != null and is_inside_tree():
-			audio_open.pitch_scale = randf_range(0.94, 1.06)
-			audio_open.play()
 	else:
 		target_open_amount = 0.0
 		is_open = false
-		if audio_open != null and is_inside_tree():
-			audio_open.pitch_scale = randf_range(0.88, 0.98)
-			audio_open.play()
 	_opening = will_open
+	_hit_played = false
+	var scene := player != null and player.has_method("trigger_door_camera_animation")
+	_delay = WAIT if scene or will_open else REACH_CLOSE
+	_knob_in = REACH_OPEN if will_open and not scene else -1.0
 	_from = angle
 	_t = 0.0
 	_moving = true

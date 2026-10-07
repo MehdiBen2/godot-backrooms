@@ -153,12 +153,15 @@ var click_off: AudioStream = load("res://audio/off.mp3")
 
 # --- Door interaction & camera animation ---
 var focused_door: Node = null
-var _door_anim_time := 0.0
-var _door_ref: Node3D = null
-var _door_slow := 0.0         # 1 while your hands are on a door: you walk slower
-var _door_anim_active := false
-var _door_anim_opening := true
-var _door_side := 1.0
+var _door_anim_active := false   # in the scripted scene through a door (_door_scene): it has the body, the eyes and the left hand
+var _ds: Node3D = null            # the door
+var _ds_t := 0.0                  # s into the scene
+var _ds_open := true
+var _ds_side := 1.0               # the door's face you work it from (door.gd side_of)
+var _ds_k := -1.0                 # s into the scene the hand turned the knob / started the pull (-1 not yet)
+var _ds_kside := 1.0              # +1 the knob was to your right as it began
+var _ds_swing := 1.0
+var _ds_pushed := false
 var _door_cam_pos := Vector3.ZERO
 var _door_cam_rot := Vector3.ZERO
 var space_prev := false
@@ -348,7 +351,7 @@ func _key(code: Key) -> bool:
 	return Input.is_physical_key_pressed(code)
 
 func _unhandled_input(e: InputEvent) -> void:
-	if dead or frozen: return
+	if dead or frozen or _door_anim_active: return     # the door scene has the view and the hands
 	if e is InputEventMouseMotion and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		look_from = -1
 	elif e is InputEventMouseMotion:
@@ -382,9 +385,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if not dead and not frozen:
 		_update_flashlight_aim(delta)
-		focused_door = _find_interactable_door()
-	else:
-		focused_door = null
+	focused_door = _find_interactable_door() if not dead and not frozen and not _door_anim_active else null
 	_update_fall_fx(delta)
 
 func _physics_process(dt: float) -> void:
@@ -394,6 +395,7 @@ func _physics_process(dt: float) -> void:
 	if adr_idle > 0.5 and (adr_active or adrenaline > 0.0):
 		_tick_adrenaline(dt, false)
 	if dead or frozen:
+		if _door_anim_active: _end_door_scene()        # grabbed, or worse, with a hand on the door
 		if adrenaline > 0.0 or adr_active: end_adrenaline()
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -427,6 +429,9 @@ func _physics_process(dt: float) -> void:
 	if _was_flying:
 		_was_flying = false
 		shape.disabled = false         # the draw tools panel closed: solid again
+	if _door_anim_active:
+		_door_scene(dt)
+		return
 	var crouch := Input.is_action_pressed("crouch")
 	_update_squeeze(dt)
 	var crawling: bool = Game.level != null and "crawl" in Game.level and (Game.level.crawl as Dictionary).has(Vector2i(roundi(global_position.x / Game.level.CELL), roundi(global_position.z / Game.level.CELL))) and not dead
@@ -455,7 +460,6 @@ func _physics_process(dt: float) -> void:
 	speed *= 1.0 + SWING_BOOST * _swing_boost
 	speed *= 1.0 + CORNER_BOOST * _corner_boost
 	speed *= lerpf(1.0, SQUEEZE_SPEED, tight_k) * lerpf(1.0, CRAWL_SPEED, crawl_k)
-	speed *= lerpf(1.0, DOOR_SPEED, _door_slow)
 	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	if _corner_on and wish.length_squared() > 0.0001:
@@ -953,82 +957,193 @@ func _sq_cam_sample(keys: Array, t: float) -> Array:
 			return out
 	return _sq_cam
 
-# ---------------------------------------------------------------- door interaction & camera animation
-## Keys for the head through a door: [time s, pos x, y, z, pitch, yaw, roll]. x, yaw and roll are toward the
-## handle's side. Played through as one smooth curve (_door_sample).
-## Opening (door.gd OPEN_TIME 1.6 s): look down at the handle and reach, turn it, then push through as the
-## door swings away and the eyes come back up.
-const DOOR_OPEN_KEYS := [
-	[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-	[0.25, 0.01, -0.02, -0.05, -0.07, 0.03, 0.02],     # reach, eyes on the handle
-	[0.4, 0.01, -0.025, -0.06, -0.08, 0.03, 0.025],    # turn it
-	[0.75, 0.0, -0.015, -0.09, -0.02, 0.0, 0.01],      # push: lean in, eyes up into the room
-	[1.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-]
-## Shutting (CLOSE_TIME 1.1 s): reach and take hold, pull it to you, let go.
-const DOOR_CLOSE_KEYS := [
-	[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-	[0.25, 0.01, -0.02, -0.04, -0.06, 0.03, 0.02],
-	[0.6, 0.0, -0.01, 0.03, -0.02, 0.02, 0.01],
-	[0.9, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-]
-const DOOR_SPEED := 0.7                       # share of walking speed while your hands are on a door
+# ---------------------------------------------------------------- door interaction: the scripted scene
+## [E] on a door plays a short scene with the player's body, eyes and left hand (the torch stays in the
+## right). Opening, from shut: step up to it, eyes down to the knob, reach and turn it; the latch gives and
+## the leaf falls ajar and you look through the gap, then the push, and you follow it through the doorway.
+## Shutting: turn to it, take the knob, pull it to you (backing off if it comes your way) until it knocks shut.
+## The scene tells the door when the knob turns (turn_knob: the open sound starts) and when the pull starts
+## (pull); door.gd times the leaf and the sounds from there. Mouse look and walking come back at the end.
+const DS_STAND := 0.7                   # m out from the door, square to the middle of it: where you open it
+const DS_THROUGH := 1.4                 # m past it on the far side: where the walk through ends
+const DS_STEP := 1.2                    # m/s stepping up to it
+const DS_WALK := 1.05                   # m/s through: slow, careful
+const DS_TURN := 2.0                    # rad/s the most the body turns
+const DS_PULL_AT := 0.62                # m: shutting, you keep this far from the knob
+const DS_PULL_REACH := 1.05             # m: further than this from the knob, you step to it
 
 func trigger_door_camera_animation(door: Node3D, opening: bool, swing_dir: float) -> void:
 	_door_anim_active = true
-	_door_anim_time = 0.0
-	_door_anim_opening = opening
-	_door_ref = door
-	var hx: float = (cam.global_transform.basis.inverse() * (door.get_handle_global_pos() - cam.global_position)).x \
-			if door.has_method("get_handle_global_pos") else 0.0
-	_door_side = 1.0 if hx >= 0.0 else -1.0
+	_ds = door
+	_ds_t = 0.0
+	_ds_open = opening
+	_ds_swing = swing_dir
+	_ds_pushed = false
+	_ds_side = door.side_of(global_position) if door.has_method("side_of") else 1.0
+	if not opening and door.has_method("face_normal"):
+		# shutting, the knob on the face that looks your way (the leaf may be swung either side of you)
+		_ds_side = 1.0 if door.face_normal(1.0).dot(global_position - door.knob_at(1.0)) > 0.0 else -1.0
+	_ds_k = -1.0
+	var knob: Vector3 = door.knob_at(_ds_side) if door.has_method("knob_at") else door.global_position
+	_ds_kside = 1.0 if (cam.global_transform.basis.inverse() * (knob - cam.global_position)).x >= 0.0 else -1.0
 	peek.reset()
 	_corner_on = false
 	_swinging = false
-	if torch != null and torch.has_method("nudge_door"):
-		torch.nudge_door(opening, swing_dir)
 
-## The head through a door (DOOR_OPEN_KEYS / DOOR_CLOSE_KEYS) into _door_cam_pos / _door_cam_rot. Movement is held back while you're working the door (_door_slow).
-func _update_door_camera(dt: float) -> void:
-	if not _door_anim_active:
-		_door_cam_pos = _door_cam_pos.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
-		_door_cam_rot = _door_cam_rot.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
-		_door_slow = move_toward(_door_slow, 0.0, dt * 2.0)
+func _end_door_scene() -> void:
+	if _ds != null and is_instance_valid(_ds) and _ds.get("leaf_body") != null:
+		remove_collision_exception_with(_ds.leaf_body)
+	_door_anim_active = false
+	_ds = null
+	if torch != null:
+		torch.set_grab(false, -1, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+
+## One tick of the scene: where the body goes, where the eyes go, whether the hand is on the door, and the
+## head's own motion on top (_door_cam_pos / _door_cam_rot, camera space). Stands in for the walking update.
+func _door_scene(dt: float) -> void:
+	var d = _ds                        # (untyped: the door script's own members)
+	if d == null or not is_instance_valid(d) or not d.has_method("knob_at"):
+		_end_door_scene()
 		return
-	_door_anim_time += dt
-	var keys: Array = DOOR_OPEN_KEYS if _door_anim_opening else DOOR_CLOSE_KEYS
-	var t := _door_anim_time
-	var k := _door_sample(keys, t)
-	var sd := _door_side          # +1 handle to the right: x right, but yaw and roll turn the other way round
-	_door_cam_pos = Vector3(k[0] * sd, k[1], k[2])
-	_door_cam_rot = Vector3(k[3], -k[4] * sd, -k[5] * sd)
-	_door_slow = 1.0 - smoothstep(float(keys[keys.size() - 2][0]), float(keys[keys.size() - 1][0]), t)
-	if t >= float(keys[keys.size() - 1][0]):
-		_door_anim_active = false
+	_ds_t += dt
+	var t := _ds_t
+	var s := _ds_side
+	var knob: Vector3 = d.knob_at(s)
+	var goal := global_position
+	var spd := DS_STEP
+	var look := knob
+	var look_rate := 5.0
+	var hand := false
+	var walk_through := false
+	var walk := Vector3.ZERO
+	var pos := Vector3.ZERO
+	var rot := Vector3.ZERO           # pitch, yaw, roll
+	var ks := _ds_kside
+	var done := false
+	var k := _ds_k if _ds_k >= 0.0 else 1e6      # (not yet: every later beat stays in the future)
+	if _ds_open:
+		var lp: Vector3 = d.to_local(global_position)
+		# step up square to the middle of the door; after the push, straight through along its middle line
+		goal = d.to_global(Vector3(s * DS_STAND, 0.0, 0.0))
+		spd = DS_STEP
+		# there and the hand on it: turn the knob (the open sound starts; the latch gives LATCH_AFTER into it)
+		if _ds_k < 0.0 and ((t > 0.45 and Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.12) or t > 1.6):
+			_ds_k = t
+			k = t
+			d.turn_knob()
+		var r: float = k + float(d.LATCH_AFTER)       # the latch gives, the leaf falls ajar
+		var p: float = k + float(d.push_after())      # the push
+		if t > p + 0.15:
+			walk_through = true
+			var along: Vector3 = d.global_basis.x.normalized() * -s
+			var across: Vector3 = d.global_basis.z.normalized()
+			walk = along * DS_WALK + across * clampf(-lp.z * 4.0, -0.5, 0.5)
+			if d.get("leaf_body") != null:
+				add_collision_exception_with(d.leaf_body)
+		# a glance down to the knob (not a stare), then through the gap, then the room ahead
+		if t < r:
+			look = knob.lerp(d.to_global(Vector3(s * 0.2, 1.5, 0.15)), 0.45)
+			look_rate = 4.0
+		elif t < p + 0.25:
+			look = d.to_global(Vector3(-s * 2.5, 1.55, 0.45))
+			look_rate = 3.0
+		else:
+			look = d.to_global(Vector3(-s * 5.0, 1.6, 0.0))
+			look_rate = 2.5
+		hand = t > 0.25 and t < p + 0.3
+		# reaching for the knob: a small dip; turning it (the rattle, the sound's first 0.15 s): a twitch of the head
+		var wr := smoothstep(0.2, 0.45, t) * (1.0 - smoothstep(r, r + 0.35, t))
+		pos += Vector3(0.0, -0.02, -0.02) * wr
+		var wk := smoothstep(k, k + 0.06, t) * (1.0 - smoothstep(k + 0.1, k + 0.2, t))
+		rot.z += ks * 0.012 * wk
+		# the look through the gap: the head goes a little in toward it
+		var wp := smoothstep(r, r + 0.2, t) * (1.0 - smoothstep(p + 0.05, p + 0.35, t))
+		pos += Vector3(ks * 0.03, -0.01, -0.05) * wp
+		rot.z += -ks * 0.02 * wp
+		# the push: weight forward behind the hand
+		var wu := smoothstep(p - 0.05, p + 0.2, t) * (1.0 - smoothstep(p + 0.4, p + 0.9, t))
+		pos += Vector3(0.0, -0.01, -0.04) * wu
+		if t >= p and not _ds_pushed:
+			_ds_pushed = true
+			if torch != null: torch.nudge_door(true, _ds_swing)
+		done = s * lp.x < -DS_THROUGH or t > p + 4.0
+	else:
+		var flat := Vector3(global_position.x - knob.x, 0.0, global_position.z - knob.z)
+		# keep at arm's length from the knob: step to it if it's far, back off as it comes to you
+		if flat.length() > DS_PULL_REACH or t > k:
+			goal = Vector3(knob.x, global_position.y, knob.z) + flat.normalized() * DS_PULL_AT
+		# in reach with the hand on it: pull (the door times its knock into the frame to the close sound)
+		if _ds_k < 0.0 and ((t > 0.35 and flat.length() <= DS_PULL_REACH + 0.05) or t > 1.5):
+			_ds_k = t
+			k = t
+			d.pull()
+		var shut: float = k + float(d.CLOSE_TIME)    # it meets the frame
+		look = knob if t < k + 0.3 else d.to_global(Vector3(s * 0.2, 1.4, 0.0))
+		look_rate = 4.0 if t < k + 0.3 else 2.0
+		hand = t > 0.15 and t < shut
+		var wr := smoothstep(0.1, 0.35, t) * (1.0 - smoothstep(k, k + 0.3, t))
+		pos += Vector3(0.0, -0.03, -0.04) * wr
+		rot.z += -ks * 0.02 * wr
+		# the pull: weight back, head up a touch
+		var wl := smoothstep(k - 0.05, k + 0.25, t) * (1.0 - smoothstep(shut - 0.1, shut + 0.3, t))
+		pos += Vector3(0.0, 0.0, 0.04) * wl
+		rot += Vector3(0.02, -ks * 0.025, -ks * 0.02) * wl
+		# the knock: a small flinch of the head as it shuts
+		var wh := smoothstep(shut, shut + 0.04, t) * (1.0 - smoothstep(shut + 0.06, shut + 0.25, t))
+		pos += Vector3(0.0, 0.0, 0.012) * wh
+		rot.x += 0.01 * wh
+		done = (t > shut + 0.35 and not d.blocked) or t > 6.0
+	# the body: walk to the goal
+	var to := Vector3(goal.x - global_position.x, 0.0, goal.z - global_position.z)
+	var wish := to.normalized() * minf(spd, to.length() * 3.5) if to.length() > 0.02 else Vector3.ZERO
+	if walk_through:
+		wish = walk
+	velocity.x = move_toward(velocity.x, wish.x, ACCEL_GROUND * SPEED * dt)
+	velocity.z = move_toward(velocity.z, wish.z, ACCEL_GROUND * SPEED * dt)
+	if not is_on_floor():
+		velocity.y = maxf(velocity.y - GRAVITY * dt, -fall_speed_max)
+	move_and_slide()
+	# the eyes: the body turns to the look, the head pitches to it
+	var to_look := look - cam.global_position
+	var yaw_goal := atan2(-to_look.x, -to_look.z)
+	var yaw_step := clampf(wrapf(yaw_goal - rotation.y, -PI, PI) * (1.0 - exp(-dt * look_rate)), -DS_TURN * dt, DS_TURN * dt)
+	rotate_y(yaw_step)
+	var pitch_goal := clampf(atan2(to_look.y, Vector2(to_look.x, to_look.z).length()), -1.1, 0.6)
+	var base := cam.rotation.x - pitch_applied
+	cam.rotation.x += (pitch_goal - base) * (1.0 - exp(-dt * look_rate))
+	_door_cam_pos = pos
+	_door_cam_rot = rot
+	# the rest of the body as walking would have it
+	var moving := wish.length() > 0.25
+	is_moving = moving
+	is_sprinting = false
+	is_crouching = false
+	eye = lerpf(eye, STAND_H, minf(1.0, dt * 10.0))
+	(shape.shape as CapsuleShape3D).height = eye + 0.1
+	shape.position.y = (eye + 0.1) / 2.0
+	_update_stamina(dt, false, false)
+	peek.update(dt, self, eye, false)
+	if torch:
+		var face: Vector3 = d.face_normal(s)
+		torch.set_hug(false, Vector3.ZERO, Vector3.ZERO, false)
+		torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
+		torch.set_grab(hand, -1, knob + face * 0.02, face, d.latch_dir())
+		torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
+		torch.update(dt, flash_on and not dead, false, moving, bob)
+	if shadow_body:
+		shadow_body.update(moving, false, false, dead, Vector2(velocity.x, velocity.z).length())
+	_update_flashlight(dt)
+	_update_sanity(dt)
+	_update_head(dt, Vector2(0.0, -1.0) if moving else Vector2.ZERO, false, false, moving)
+	if done:
+		_end_door_scene()
 
-## The keys at time t as one smooth curve (Catmull-Rom through them, so the head doesn't stop at each key).
-func _door_sample(keys: Array, t: float) -> Array:
-	var n := keys.size()
-	var i := 1
-	while i < n - 1 and t > float(keys[i][0]):
-		i += 1
-	var a: Array = keys[i - 1]
-	var b: Array = keys[i]
-	var ta := float(a[0])
-	var tb := float(b[0])
-	var h := tb - ta
-	var u := clampf((t - ta) / h, 0.0, 1.0)
-	var u2 := u * u
-	var u3 := u2 * u
-	var out: Array = []
-	for j in range(1, 7):
-		var pa := float(a[j])
-		var pb := float(b[j])
-		# slopes from the neighbours (flat at the ends), scaled to this span
-		var ma := 0.0 if i - 1 == 0 else (pb - float(keys[i - 2][j])) / (tb - float(keys[i - 2][0])) * h
-		var mb := 0.0 if i == n - 1 else (float(keys[i + 1][j]) - pa) / (float(keys[i + 1][0]) - ta) * h
-		out.append((2.0 * u3 - 3.0 * u2 + 1.0) * pa + (u3 - 2.0 * u2 + u) * ma + (-2.0 * u3 + 3.0 * u2) * pb + (u3 - u2) * mb)
-	return out
+## Outside the scene the head's door motion eases back out
+func _update_door_camera(dt: float) -> void:
+	if _door_anim_active:
+		return
+	_door_cam_pos = _door_cam_pos.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
+	_door_cam_rot = _door_cam_rot.lerp(Vector3.ZERO, minf(1.0, dt * 8.0))
 
 func _near_door() -> bool:
 	if focused_door != null:
