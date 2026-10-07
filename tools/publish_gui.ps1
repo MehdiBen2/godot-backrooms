@@ -126,7 +126,7 @@ function Text([string]$t, [int]$x, [int]$y, $font, [Drawing.Color]$color) {
 
 # ---- title bar: drag it to move the window; REC on the left, minimise / close on the right -------
 $bar = New-Object PubCanvas
-$bar.Location = New-Object Drawing.Point(0, 0); $bar.Size = New-Object Drawing.Size($W - 80, 48)
+$bar.Location = New-Object Drawing.Point(0, 0); $bar.Size = New-Object Drawing.Size(($W - 80), 48)
 $bar.BackColor = [Drawing.Color]::Transparent
 $bar.Add_MouseDown({ if ($_.Button -eq "Left") { [PubWin]::Drag($form.Handle) } })
 $script:blink = 0
@@ -351,7 +351,7 @@ function Run-Checks {
     if (-not $godot) {
         $script:checks[1] = @{ name = "GODOT"; text = "not found"; color = $REC }
     } else {
-        $v = if ([IO.Path]::GetFileName($godot) -match 'v(\d+\.\d+(\.\d+)?)-(\w+)') { "$($Matches[1]).$($Matches[3])" } else { "" }
+        $v = if ([IO.Path]::GetFileName($godot) -match 'v(\d+\.\d+(\.\d+)?)-([a-z]+)') { "$($Matches[1]).$($Matches[3])" } else { "" }
         $tpl = if ($v) { Test-Path (Join-Path $env:APPDATA "Godot\export_templates\$v\windows_release_x86_64.exe") } else { $true }
         $script:checks[1] = if ($tpl) { @{ name = "GODOT"; text = $(if ($v) { $v -replace '\.stable$', '' } else { "found" }); color = $GREEN } } else { @{ name = "GODOT"; text = "no export templates"; color = $REC } }
     }
