@@ -21,8 +21,8 @@ config/windows_native_icon="res://icon.ico"
 [audio]
 
 general/text_to_speech=true
-driver/enable_input=true
 driver/output_latency=60
+driver/enable_input=true
 
 [autoload]
 

@@ -1121,11 +1121,11 @@
       "delay": 0.0,
       "depth": 2.0,
       "duration": 20.0,
-      "event": "static",
+      "event": "machineVoice",
       "events_list": [
         {
           "custom_event": "",
-          "event": "static"
+          "event": "machineVoice"
         }
       ],
       "once": true,

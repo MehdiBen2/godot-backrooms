@@ -41,7 +41,7 @@ func _bake(meta: Dictionary) -> void:
 	# per-instance colours that switch a lit one off): every tube, dead or alive, would go on lighting its
 	# ceiling in-game. The tube / diffuser meshes stay out of the bake, and the panel ceiling bakes as plain
 	# tiles; the live tubes supply every light.
-	var glowing: Array = [lvl.tubes_mm, lvl.lens_mm, lvl.burnt_tubes_mm, lvl.burnt_lens_mm]
+	var glowing: Array = [lvl.tubes_mm, lvl.lens_mm]
 	for mmi: MultiMeshInstance3D in lvl.find_children("*", "MultiMeshInstance3D", true, false):
 		if mmi.multimesh == null: continue
 		if mmi.multimesh in glowing or mmi == lvl.reflect_mmi:

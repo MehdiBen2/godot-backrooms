@@ -85,7 +85,6 @@ var _my_take := PackedFloat32Array()
 var _my_peak := 0.0
 
 func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
 	_load()
 	# Level-editor test launches skip the mic: the macOS permission prompt for the editor's process blocks
 	# startup before the first frame (a black window), and a test play has no voice chat to use it for.
@@ -96,17 +95,6 @@ func _ready() -> void:
 		_setup_capture()
 	_build_overlay()
 	changed.connect(_save)
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		if _mic != null and _mic.playing:
-			_mic.stop()
-		if _capture != null:
-			_capture.clear_buffer()
-		transmitting = false
-		_hang = 0.0
-	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		_apply_mic_active()
 
 # ---- settings -----------------------------------------------------------------------------------
 func gate_db() -> float:
@@ -391,26 +379,18 @@ func _save() -> void:
 	cf.save(PATH)
 
 # ---- capture ---------------------------------------------------------------------------------------
-var _mic_check_timer := 0.5
-
 func _setup_capture() -> void:
 	var idx := AudioServer.get_bus_index(CAPTURE_BUS)
 	if idx < 0:
 		AudioServer.add_bus()
 		idx = AudioServer.bus_count - 1
 		AudioServer.set_bus_name(idx, CAPTURE_BUS)
-	if AudioServer.get_bus_effect_count(idx) == 0:
 		_capture = AudioEffectCapture.new()
 		_capture.buffer_length = 0.5
 		AudioServer.add_bus_effect(idx, _capture)
+		AudioServer.set_bus_mute(idx, true)              # the capture effect still hears it; you never do
 	else:
-		_capture = AudioServer.get_bus_effect(idx, 0) as AudioEffectCapture
-		if _capture == null:
-			_capture = AudioEffectCapture.new()
-			_capture.buffer_length = 0.5
-			AudioServer.add_bus_effect(idx, _capture)
-	AudioServer.set_bus_mute(idx, true)              # the capture effect still hears it; you never do
-	AudioServer.set_bus_volume_db(idx, -80.0)        # extra safety: never leak to Master
+		_capture = AudioServer.get_bus_effect(idx, 0)
 	if device != "Default" and device_list().has(device):
 		AudioServer.input_device = device
 	_mic = AudioStreamPlayer.new()
@@ -426,27 +406,20 @@ func _setup_capture() -> void:
 	if _in_rate <= 0.0:
 		_in_rate = 44100.0
 
-## The mic device only needs to be open while voice chat or an event can actually use it: leaving it capturing
-## for the whole session (menus, singleplayer, mode Off, or alt-tabbed) keeps hardware input units running for no
-## reason, which causes buffer overflows, underruns, and static noise glitches on Windows WASAPI and macOS.
+## The mic device only needs to be open while voice chat can actually use it: leaving it capturing
+## for the whole session (menus, singleplayer, mode Off) keeps a CoreAudio input unit running for no
+## reason, and on macOS that shares hardware with the output unit closely enough that a hiccup on the
+## input side (AudioUnitRender failures on device/session changes) can show up as clicks on output too.
 func _apply_mic_active() -> void:
 	if _mic == null:
 		return
-	var focused := DisplayServer.window_is_focused()
-	var needed := mode != Mode.OFF and focused and (Net.is_online() or loopback or you_spoke.get_connections().size() > 0)
-	if needed:
+	if mode != Mode.OFF:
 		if not _mic.playing:
 			_mic.play()
 	elif _mic.playing:
 		_mic.stop()
-		if _capture != null:
-			_capture.clear_buffer()
 
 func _process(dt: float) -> void:
-	_mic_check_timer -= dt
-	if _mic_check_timer <= 0.0:
-		_mic_check_timer = 0.5
-		_apply_mic_active()
 	if _capture != null:
 		var avail := _capture.get_frames_available()
 		if avail > 0:
