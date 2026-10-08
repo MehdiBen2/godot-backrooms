@@ -1,5 +1,5 @@
 {
-  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Their 'elev' param is how far (metres) the model's lowest point is lifted off the floor. A model with no 'textures' keeps the materials in its own file (a .glb); 'glow' then sets how bright its emissive parts are. 'model_scale' is the size the model is built at (1 = as the file has it), so one file can be several types of different sizes; an object's 'scale' multiplies it. 'mount': 'wall' is a prop that hangs on a wall, back at its origin and front along the arrow: the level editor's 3D view puts it on the wall face you point at. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on). 'stairs': true is a stairwell (props/stairs.gd): it stands square on two cells, the one it is on and the next along its arrow, and joins this floor to the next one up / down wherever that floor has a stairwell on the same cells. 'choices' lists the values a text param may take (value -> what it does); the inspector shows them as a drop-down.",
+  "_about": "The free-placed level objects, shared by the game (level_data.gd, level_geometry.gd, grid_nav.gd) and the level editor. Sizes are metres. on_cell: what an object sitting square on a cell does to it ('wall' = counts as a wall for nav / lighting but no solid block is built; 'open' = punches a walkable opening through a wall). blocks_nav: when placed off-centre, the monster can't path across its span. A new structural type needs a builder in level_geometry.gd _build_objects(); the editor draws unknown types as a plain slab. A type with a 'model' key is instead a decorative clutter prop: level_geometry.gd's generic _build_props() instances that FBX/GLB and builds a PBR material from 'textures' (albedo/normal/roughness/metallic/emissive), no per-type builder needed. 'scatter': true marks it eligible for the level editor's random SCATTER PROPS tool. 'scale' on these objects (0.5-4.0, same field as thin_wall/arch width) is reused as a uniform size multiplier. Their 'elev' param is how far (metres) the model's lowest point is lifted off the floor. A model with no 'textures' keeps the materials in its own file (a .glb); 'glow' then sets how bright its emissive parts are. 'model_scale' is the size the model is built at (1 = as the file has it), so one file can be several types of different sizes; an object's 'scale' multiplies it. 'mount': 'wall' is a prop that hangs on a wall, back at its origin and front along the arrow: the level editor's 3D view puts it on the wall face you point at. Walls come in plan shapes ('shape': 'slab' straight, 'corner' an L, 'arc' a curve round the object's origin, 'pillar' / 'column' free-standing), built by level_geometry.gd _build_shaped_walls() / _build_column() from the same centre line level_data.gd shape_path() gives the nav. 'params' lists the per-object fields a type has beyond position / rotation / scale, with their defaults; the level editor's inspector shows exactly those (thick: metres, height: metres with 0 = up to the ceiling and anything under 1.8 m seen over, arc: degrees, depth: cells, event / text / once / delay / duration: a trigger's). 'max_scale' raises the 4-cell cap on scale, 'align': false stops the editor turning a piece to fit the wall it lands on. A 'zone' shape is an event trigger (props/event_trigger.gd), its 'events' the choices of what it runs. 'category' (walls, openings, events, props) is the level editor panel the type is listed in. 'draw_line': true lets the editor draw the piece as a line (click, drag to its end; Shift chains the next one on). 'stairs': true is a stairwell (props/stairs.gd): it stands square on two cells, the one it is on and the next along its arrow, and joins this floor to the next one up / down wherever that floor has a stairwell on the same cells. 'choices' lists the values a text param may take (value -> what it does); the inspector shows them as a drop-down. 'ranges' gives a numeric param its inspector row ([min, max, step, suffix, tip]) when no other type has one for that key. 'default_scale' is the width a type's first piece is placed at. More shapes: 'spline' (a wall along its 'points', object-space cells, smoothed through them; 'draw_spline': true lets the editor draw it point by point), 'platform' (a raised floor slab: 'depth' cells along the arrow by 'scale' across, its top 'elev' metres up), 'flight' (straight stairs climbing 'rise' metres along the arrow over 'depth' cells from 'elev'), 'spiral' (stairs wound round a column, 'scale' cells across), 'window' (a wall-mounted window onto a fake sky that throws sunlight in; props/window.gd) and 'water' (a water surface 'level' metres over the floor over a 'depth' by 'scale' box; props/water_body.gd). Platforms, flights and spirals are built by props/vertical_pieces.gd.",
   "thin_wall": {
     "label": "Thin wall",
     "key": "4",
@@ -180,6 +180,193 @@
       "height": 0.0
     },
     "category": "walls"
+  },
+  "wall_spline": {
+    "label": "Spline wall",
+    "color": "c9a86a",
+    "help": "A wall laid along any curve you draw: click to drop its points, then Enter, a double click or a right click to finish it (Backspace takes the last point back, Esc drops it). Smooth bends it round through the points, Closed joins its ends into a loop (a round or bean-shaped room). Select it and drag its squares to move the points. Its tiles follow the curve without stretching",
+    "thickness": 0.3,
+    "shape": "spline",
+    "align": false,
+    "blocks_nav": true,
+    "draw_spline": true,
+    "max_scale": 1.0,
+    "params": {
+      "thick": 0.3,
+      "height": 0.0,
+      "smooth": true,
+      "closed": false,
+      "points": []
+    },
+    "category": "walls"
+  },
+  "platform": {
+    "label": "Raised floor",
+    "color": "8fb8c8",
+    "help": "A floor slab held up off the ground: a mezzanine, a balcony, a landing, a walkway over the water. Width across the arrow and Depth along it (cells); Off floor is the height of its top (m). Edge: what runs round it (chrome pool rails, a tiled parapet, or nothing); a gap is left wherever a stair arrives at its height. Posts holds it up on square legs. Reach it with Stairs (straight) or Spiral stairs whose top is at the same height",
+    "thickness": 0.3,
+    "shape": "platform",
+    "align": false,
+    "max_scale": 40.0,
+    "default_scale": 2.0,
+    "params": {
+      "depth": 2.0,
+      "elev": 2.7,
+      "slab": 0.35,
+      "edge": "chrome",
+      "posts": true,
+      "surface": "tile"
+    },
+    "choices": {
+      "edge": {
+        "chrome": "Chrome pool rails along every open edge",
+        "parapet": "A waist-high tiled parapet along every open edge",
+        "none": "Bare edges: nothing stops a fall"
+      },
+      "surface": {
+        "tile": "The level's tiled wall material (the pool rooms' white tiles)",
+        "floor": "The level's floor material",
+        "concrete": "Bare painted concrete"
+      }
+    },
+    "ranges": {
+      "slab": [0.1, 1.5, 0.05, " m", "how thick the slab is, top to underside"]
+    },
+    "category": "vertical"
+  },
+  "stair_flight": {
+    "label": "Stairs (straight)",
+    "color": "e8e4d8",
+    "help": "A straight flight of solid steps climbing the way the arrow points: Width across it, Depth = how far it runs (cells), Off floor = where its foot stands (m: 0 on the floor, or the top of a raised floor), Rise = how high it climbs (m). It must stay walkable: no steeper than about 40 degrees (the status line warns). Railing: chrome pool rails on both sides, one side, or none",
+    "thickness": 4.5,
+    "shape": "flight",
+    "align": false,
+    "max_scale": 8.0,
+    "default_scale": 0.75,
+    "params": {
+      "depth": 1.0,
+      "elev": 0.0,
+      "rise": 2.7,
+      "railing": "both",
+      "surface": "tile"
+    },
+    "choices": {
+      "railing": {
+        "both": "A chrome rail on each side",
+        "left": "Only on the left, climbing",
+        "right": "Only on the right, climbing",
+        "none": "No rails"
+      },
+      "surface": {
+        "tile": "The level's tiled wall material (the pool rooms' white tiles)",
+        "floor": "The level's floor material",
+        "concrete": "Bare painted concrete"
+      }
+    },
+    "ranges": {
+      "rise": [0.2, 16.2, 0.05, " m", "how high it climbs from its foot"]
+    },
+    "category": "vertical"
+  },
+  "stair_spiral": {
+    "label": "Spiral stairs",
+    "color": "f0ece0",
+    "help": "A spiral stair wound round a tiled column: Width = its diameter (cells), Off floor = where it starts (m), Rise = how high it climbs (m), Sweep = how far round it goes (360 = one full turn), Core = the column's width (m). Turn: which way it climbs. The first step is at the arrow. Put a Raised floor at its top height for a landing (or a hole in the floor above). Rail: a chrome rail round its open side",
+    "thickness": 0.3,
+    "shape": "spiral",
+    "align": false,
+    "max_scale": 4.0,
+    "default_scale": 1.0,
+    "params": {
+      "elev": 0.0,
+      "rise": 5.4,
+      "sweep": 360.0,
+      "core": 0.7,
+      "turn": "left",
+      "rail": true,
+      "surface": "tile"
+    },
+    "choices": {
+      "turn": {
+        "left": "Climbs anticlockwise, seen from above",
+        "right": "Climbs clockwise, seen from above"
+      },
+      "surface": {
+        "tile": "The level's tiled wall material (the pool rooms' white tiles)",
+        "floor": "The level's floor material",
+        "concrete": "Bare painted concrete"
+      }
+    },
+    "ranges": {
+      "sweep": [90.0, 1080.0, 15.0, "°", "how far round it climbs: 360 is one full turn"],
+      "core": [0.2, 2.0, 0.05, " m", "the central column's width"]
+    },
+    "category": "vertical"
+  },
+  "window": {
+    "label": "Window",
+    "color": "bfe8ff",
+    "help": "A window onto a bright outside that isn't there: the sky and the sun through the glass, and real sunlight thrown into the room through its panes (their shadows land on the floor). Put it on a wall face, its arrow pointing into the room. Width along the wall (cells), Height and Off floor (the sill, m), Frame (panes, a round porthole, an arched top, a floor-to-ceiling panorama), Panes (glazing bars), Sun (how much light it throws), Sun angle (how high the sun stands), Sky (the light's colour)",
+    "thickness": 0.25,
+    "shape": "window",
+    "mount": "wall",
+    "max_scale": 8.0,
+    "default_scale": 0.5,
+    "params": {
+      "elev": 0.9,
+      "height": 2.2,
+      "frame": "pane",
+      "panes": 3.0,
+      "sun": 8.0,
+      "sun_angle": 35.0,
+      "sky": "noon",
+      "shadows": true
+    },
+    "choices": {
+      "frame": {
+        "pane": "A square-cut window with glazing bars",
+        "porthole": "A round porthole (Width is its diameter)",
+        "arched": "Glazing bars under a round arched top",
+        "panorama": "A wall of glass from the sill nearly to the ceiling"
+      },
+      "sky": {
+        "noon": "A white midday sun in a pale blue sky",
+        "golden": "A low, warm, late-afternoon sun",
+        "overcast": "A bright, flat, shadowless white sky"
+      }
+    },
+    "ranges": {
+      "panes": [1.0, 12.0, 1.0, "", "how many lights across (the glazing bars between them)"],
+      "sun": [0.0, 30.0, 0.5, "", "how strong the sunlight it throws into the room is"],
+      "sun_angle": [5.0, 85.0, 1.0, "°", "how high the sun stands: low throws a long patch across the floor"]
+    },
+    "category": "light"
+  },
+  "water": {
+    "label": "Water",
+    "color": "3fb8c8",
+    "help": "Standing water: Width across the arrow, Depth along it (cells), Level = how high its surface stands over the floor (m), from ankle deep to over your head. It reflects the room, throws rippling light (caustics) on the walls and ceiling round it and the floor under it, tints and fogs with depth, slows you as you wade, splashes underfoot and closes over your head. Lay it wall to wall; it is only a surface, so where it ends in the open its edge is a sheer glassy side",
+    "shape": "water",
+    "align": false,
+    "max_scale": 60.0,
+    "default_scale": 3.0,
+    "params": {
+      "depth": 3.0,
+      "level": 0.4,
+      "tint": "teal",
+      "caustics": true
+    },
+    "choices": {
+      "tint": {
+        "teal": "Pool water: clear, going teal-green with depth",
+        "clear": "Very clear, barely blue",
+        "murky": "Old green water you can't see far into"
+      }
+    },
+    "ranges": {
+      "level": [0.05, 4.0, 0.05, " m", "how high the surface stands over the floor (1.6 m and up closes over your head)"]
+    },
+    "category": "water"
   },
   "trigger": {
     "label": "Event trigger",

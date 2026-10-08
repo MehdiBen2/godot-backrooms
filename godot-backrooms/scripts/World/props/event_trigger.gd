@@ -143,6 +143,9 @@ func _director() -> Node:
 func _run() -> void:
 	for ev_name in event_list:
 		_execute_event(ev_name)
+	_show_text()
+
+func _show_text() -> void:
 	if text.strip_edges() != "":
 		# "alert": the new prominent upper-center T.S.R.A. terminal CRT alert bar (chime, typewriter, 5s draining life bar)
 		# "message" / "text" (and default): TV camcorder message with black box at top of screen
@@ -164,7 +167,7 @@ func _execute_event(ev: String) -> void:
 	if root == null and Game.main != null:
 		root = Game.main
 	var p := Game.player as Node3D
-	if Net.is_online() and not Net.hosting and (ev in HOST_EVENTS or ev not in LOCAL_EVENTS):
+	if Net.is_online() and not Net.hosting and ev in HOST_EVENTS:
 		Net.send_trigger(ev, p.global_position if p != null else global_position)
 		return
 	match ev:
@@ -253,7 +256,7 @@ func _execute_event(ev: String) -> void:
 					heart.feed("hallucination", 0.5)
 		_:
 			var director_ev := root.get_node_or_null("Events")
-			if director_ev == null or not director_ev.run_event(ev):
+			if director_ev == null or not director_ev.run_event(ev, false):      # (only for the player who walked in: no spoilers)
 				push_warning("event trigger: no event called '%s'" % ev)
 
 ## A tube (world position) over the box, give or take REACH

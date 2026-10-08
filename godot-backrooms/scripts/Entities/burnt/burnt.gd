@@ -42,11 +42,14 @@ const CORRUPT_TIME := 2.4
 @export var charge_watch := 4.0     # seconds of being stared at, from afar, before it stops waiting and runs at you
 @export var charge_min := 9.0       # metres: nearer than this it simply stalks
 @export var charge_max := 42.0
-@export var charge_speed := 6.5     # m/s at a full run
+@export var charge_speed := 11.0    # m/s at a full run: faster than you can sprint, until the adrenaline kicks in
 @export var charge_cooldown := 25.0 # seconds before it will charge again
 
 const CHARGE_PREP := 0.9            # seconds it drops into a crouch and breathes in before it goes
-const CHARGE_RUN := 5.5             # seconds it will run before it gives up
+const CHARGE_RUN := 6.0             # seconds it will run before it gives up
+const BRAKE_STOP := 3.0             # metres it skids over, from a full run to a standstill
+const STOP_GAP := 1.6               # metres beyond its reach that it stops: room to turn, break its line and hide
+const BRAKE_HOLD := 2.2             # seconds it stands there, heaving, before it goes back to stalking
 
 var state := "off"                  # off, stalk, windup, charge, grab, lift, stare, corrupt (+ held: co-op, a guest is being taken)
 var t := 0.0
@@ -57,6 +60,13 @@ var _watch_t := 0.0                 # how long it has been stared at, from afar 
 var _charge_cd := 0.0
 var _run := 0.0                     # 0..1 how far into a run it is (eased)
 var _crouch := 0.0                  # 0..1 the crouch it drops into before it runs
+var _sp := 0.0                      # 0..1 its speed as a fraction of a full run (what _run and the cadence follow)
+var _braking := false               # the charge has seen you in front of it and is skidding to a halt short of you
+var _brake_t := 0.0                 # seconds spent standing at the end of the skid
+var _skid := 0.0                    # 0..1 how far it is thrown back on its heels
+var _rush := 0.0                    # 0..1 the high the player is on while it runs at them (and for a while after)
+var _rush_sat := 0.0                # what the rush has added to Game.fx_sat / fx_contrast, to take back out again
+var _rush_con := 0.0
 var _head_yaw := 0.0                # radians the head is turned off the body to keep its eyes on you
 var _hitch_t := 0.0                 # a dropped-frame stutter in the run: the gait holds for a beat
 var _hitch_next := 0.6
@@ -130,6 +140,7 @@ func _physics_process(delta: float) -> void:
 	if puppet:
 		_physics_puppet(delta)
 		return
+	_rush_fx(delta)
 	if Net.is_online(): net.send(delta)
 	if not present or player == null: return
 	_burn_lamps(delta)
@@ -183,16 +194,21 @@ func _begin_charge() -> void:
 	_watch_t = 0.0
 	_charge_cd = charge_cooldown
 	_tw_next = 0.0
+	_sp = 0.0
+	_braking = false
+	_brake_t = 0.0
 	if scares != null:
 		scares.spawn3d(scares.synth("breath_close", 0.0), _face(), 0.9, "Scares", 8.0, 0.55)
 
-## The run: nothing like its walk. Fast, lurching and uneven (_process), straight at you, every tube round it
-## dying as it comes. It runs out of breath if you are far enough, and ends in the grab if you are not.
+## The run: nothing like its walk. Very fast, lurching and uneven (_process), straight at you, every tube round it
+## dying as it comes. It never catches you on its own: as it closes it throws itself into a skid and stops short of
+## its reach (the near miss, and the room to turn a corner and hide), stands heaving, then goes back to stalking.
+## Only a player who runs at it, or is walked into, ends in the grab.
 func _charge(delta: float) -> void:
 	t += delta
 	var tgt := _target()
 	if tgt.is_empty() or not _can_take(tgt):
-		state = "stalk"
+		_end_charge()
 		return
 	var pp: Vector3 = tgt.pos
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
@@ -206,15 +222,66 @@ func _charge(delta: float) -> void:
 	if d < GRAB_DIST:
 		_start_grab(tgt)
 		return
-	if t > CHARGE_PREP + CHARGE_RUN:
-		state = "stalk"
-		return
-	_walk = 1.0
-	var ramp := smoothstep(CHARGE_PREP, CHARGE_PREP + 0.7, t)          # it gets up to speed, it does not start there
-	_move_toward(pp, charge_speed * ramp * (0.0 if _hitch_t > 0.0 else 1.0), delta)
-	rotation.y = yaw
+	if tgt.local: _pl.update_adrenaline(delta, d < _pl.ADR_RANGE)     # the player's own rush, as in the Bacteria's chase
 	Game.fear = maxf(Game.fear, 0.85)
-	_cue(delta, 0.5, func(): scares.heartbeat(0.9))
+	if not _braking:
+		if t > CHARGE_PREP + CHARGE_RUN:
+			_end_charge()
+			return
+		_sp = smoothstep(CHARGE_PREP, CHARGE_PREP + 0.6, t)             # it gets up to speed, it does not start there
+		_walk = maxf(_sp, 0.4)
+		# the skid takes BRAKE_STOP metres from a full run (less from slower): start it that far plus the gap short of you
+		if _sp > 0.3 and d <= GRAB_DIST + STOP_GAP + BRAKE_STOP * _sp * _sp:
+			_begin_brake()
+		_cue(delta, 0.5, func(): scares.heartbeat(0.9))
+	else:
+		_sp = move_toward(_sp, 0.0, delta * charge_speed / (2.0 * BRAKE_STOP))
+		_walk = _sp
+		if _sp <= 0.0:
+			_brake_t += delta                                           # stood there, facing you, the chest heaving
+			yaw = lerp_angle(yaw, _yaw_to(pp), minf(1.0, delta * TURN_RATE))
+			if _brake_t >= BRAKE_HOLD: _end_charge()
+	_move_toward(pp, charge_speed * _sp * (0.0 if _hitch_t > 0.0 else 1.0), delta)
+	rotation.y = yaw
+
+## Close enough: it throws its weight back and skids, the ground shuddering, a breath dragged in
+func _begin_brake() -> void:
+	_braking = true
+	_brake_t = 0.0
+	_tw_next = 0.0
+	Game.fx_shock = maxf(Game.fx_shock, 0.9)         # the picture punches in on the near miss
+	if scares != null:
+		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 1.5, 0.8, "Scares", 6.0, 0.6)
+		scares.spawn3d(scares.synth("breath_close", 0.0), _face(), 1.0, "Scares", 8.0, 0.6)
+		scares.heartbeat(1.3)
+	if _pl != null: _pl.quake(0.6)
+
+func _end_charge() -> void:
+	state = "stalk"
+	_braking = false
+	_sp = 0.0
+	_walk = 0.0
+	_watch_t = 0.0
+
+## The high: while it runs at the player the world gets sharper and richer (on top of the player's adrenaline, which
+## brings the speed and the tunnel), and it fades over a couple of seconds once it has stopped, so the escape feels
+## like something won. Added to Game.fx_sat / fx_contrast as a delta, so it never fights anything else that sets them.
+func _rush_fx(delta: float) -> void:
+	var on: bool = state == "charge" and t > CHARGE_PREP and not _pl.dead and not _pl.frozen
+	_rush = move_toward(_rush, 1.0 if on else 0.0, delta * (4.0 if on else 0.5))
+	var sat := 0.3 * _rush
+	var con := 0.14 * _rush
+	Game.fx_sat += sat - _rush_sat
+	Game.fx_contrast += con - _rush_con
+	_rush_sat = sat
+	_rush_con = con
+
+func _rush_clear() -> void:
+	Game.fx_sat -= _rush_sat
+	Game.fx_contrast -= _rush_con
+	_rush = 0.0
+	_rush_sat = 0.0
+	_rush_con = 0.0
 
 ## The tell: it stops dead and turns to you, draws back, then folds forward over you (_pose). Out of reach by the
 ## end of it and it lets the grab go and stalks on.
@@ -339,11 +406,14 @@ func _process(delta: float) -> void:
 	# the gait: a slow, heavy sway as it walks, leaning into it
 	_gait += delta * 3.2 * _walk
 	var charging := state == "charge"
-	_run = lerpf(_run, 1.0 if charging and t > CHARGE_PREP else 0.0, 1.0 - exp(-6.0 * delta))
+	if puppet:                          # (the guest is told how fast it goes by _walk, and that it is skidding by its drop)
+		_sp = _walk
+	_run = lerpf(_run, _sp if charging and t > CHARGE_PREP else 0.0, 1.0 - exp(-10.0 * delta))
 	_crouch = lerpf(_crouch, 1.0 if charging and t < CHARGE_PREP else 0.0, 1.0 - exp(-9.0 * delta))
+	_skid = lerpf(_skid, minf(1.0, _sp * 2.5) if charging and _braking and _sp > 0.02 else 0.0, 1.0 - exp(-14.0 * delta))
 	# the run is uneven: the cadence wanders, and every second or so the gait drops a beat and catches up
 	# walking: slow and lurching, it lingers at each footfall then snaps through the step
-	var cadence := lerpf(2.4 * (1.0 + 0.6 * sin(2.0 * _gait + 1.0)), 7.0, _run) * (1.0 + _run * (0.3 * sin(Game.time * 4.7) + 0.15 * sin(Game.time * 11.3)))
+	var cadence := lerpf(2.4 * (1.0 + 0.6 * sin(2.0 * _gait + 1.0)), 12.0, _run) * (1.0 + _run * (0.1 * sin(Game.time * 4.7) + 0.05 * sin(Game.time * 11.3)))
 	_hitch_t = maxf(0.0, _hitch_t - delta)
 	if charging and _run > 0.5:
 		_hitch_next -= delta
@@ -356,14 +426,19 @@ func _process(delta: float) -> void:
 	var step := int(floorf(_gait / PI))
 	if step != _last_step:
 		_last_step = step
-		if charging and _run > 0.5 and scares != null:
-			scares.spawn3d(scares.synth("thump"), global_position, 0.6, "Scares", 7.0, randf_range(0.72, 0.9))
-	# highest as the legs pass, lowest as a foot comes down: the weight lands on each step
-	body.position = Vector3(0.0, (1.0 - absf(sin(_gait))) * lerpf(0.03, 0.1, _run) * _walk - 0.2 * _crouch, 0.0)
-	body.rotation = Vector3(0.04 * _walk + _lean + 0.3 * _run, deg_to_rad(yaw_offset), sin(_gait) * lerpf(0.015, 0.06, _run) * _walk)
+		if charging and _run > 0.5:
+			if scares != null: scares.spawn3d(scares.synth("thump"), global_position, 0.6, "Scares", 7.0, randf_range(0.72, 0.9))
+			# each stride lands in the player's own view: the floor shudders, the picture punches in with the beat
+			var near := clampf(1.0 - global_position.distance_to(_pl.global_position) / 22.0, 0.0, 1.0)
+			_pl.jolt(0.9 * near)
+			Game.fx_shock = maxf(Game.fx_shock, 0.12 * near)
+	# highest as the legs pass, lowest as a foot comes down: the weight lands on each step. In the run it is
+	# nearly airborne between strides, thrown forward off the toes
+	body.position = Vector3(0.0, (1.0 - absf(sin(_gait))) * lerpf(0.03, 0.18, _run) * _walk - 0.2 * _crouch, 0.0)
+	body.rotation = Vector3(0.04 * _walk + _lean + 0.45 * _run - 0.4 * _skid, deg_to_rad(yaw_offset), sin(_gait) * lerpf(0.015, 0.08, _run) * _walk)
 	var stride_to := 0.0
 	if state == "stalk": stride_to = 1.0 if _walk > 0.3 else 0.5   # caught mid-step it holds, then sinks into a wide stance
-	elif charging: stride_to = 1.0 if t > CHARGE_PREP else 0.0
+	elif charging: stride_to = 1.0 if (t > CHARGE_PREP and _sp > 0.05) else (0.0 if t <= CHARGE_PREP else 0.3)
 	_stride = lerpf(_stride, stride_to, 1.0 - exp(-2.5 * delta))
 	_pose(delta)
 	if state in ["hug", "grab", "lift", "stare", "corrupt"] and (not puppet or _net_taken):
@@ -450,20 +525,23 @@ func _pose(delta: float) -> void:
 	var wild := 1.0
 	var held := 1.0 - clampf(reach, 0.0, 1.0)
 	var sway := 0.04 * sin(Game.time * 0.8)
+	# (in the run they pump hard against the legs, and swing back wide as it skids)
+	var pump := 0.85 * _run * _stride
 	var goal := [
-		-arm_swing * wild * _stride * sin(_gait + PI * 1.08) + 0.3 * _run + 0.04 * _crouch + sway - 0.06,
-		-arm_swing * wild * _stride * sin(_gait) + 0.3 * _run + 0.04 * _crouch - sway - 0.06,
+		-(arm_swing + pump) * wild * _stride * sin(_gait + PI * 1.08) + 0.3 * _run + 0.04 * _crouch + sway - 0.06 + 0.7 * _skid,
+		-(arm_swing + pump) * wild * _stride * sin(_gait) + 0.3 * _run + 0.04 * _crouch - sway - 0.06 + 0.7 * _skid,
 	]
+	var stiff := lerpf(45.0, 170.0, _run)       # a stiffer spring in the run, so the arms keep up with the legs
 	for i in 2:
-		_arm_v[i] += ((goal[i] - _arm[i]) * 45.0 - _arm_v[i] * 4.0) * delta
+		_arm_v[i] += ((goal[i] - _arm[i]) * stiff - _arm_v[i] * lerpf(4.0, 12.0, _run)) * delta
 		_arm[i] = clampf(_arm[i] + _arm_v[i] * delta, -1.1, 1.1)
 	for s in ["R_Forearm", "L_Forearm", "R_Hand", "L_Hand"]:
 		if _bone.has(s): skel.set_bone_pose_rotation(_bone[s], _rest[_bone[s]])
 	_turn("R_Upperarm", side, -1.2 * reach + draw + _arm[0] * held)
 	_turn("L_Upperarm", side, -1.2 * reach + draw + _arm[1] * held)
 	# the elbows give as an arm swings forward, and pump in the run (after the upper arms: _turn reads the parent)
-	_turn("R_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[0]) - 0.2 * _run) * held)
-	_turn("L_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[1]) - 0.2 * _run) * held)
+	_turn("R_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[0]) - 0.7 * _run) * held)
+	_turn("L_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[1]) - 0.7 * _run) * held)
 
 ## Legs, hips and spine: a heavy lurching walk off the gait phase. Forward is negative about `side` for a limb
 ## hanging down, and positive for the spine standing up. Parents first (_turn reads the parent's current pose).
@@ -478,8 +556,9 @@ func _pose_gait(side: Vector3, coil: float) -> void:
 	for leg in legs:
 		var ph: float = leg[1]
 		var amp: float = leg[2] * a
-		var thigh := -leg_swing * (1.0 + 0.3 * _run) * amp * sin(ph) - 0.45 * _crouch
-		var knee := knee_bend * (1.0 + 0.2 * _run) * amp * maxf(0.0, cos(ph)) + 0.8 * _crouch   # folds as the leg swings through
+		# the sprint: long reaching strides and high knees; the skid throws the feet out in front of it
+		var thigh := -leg_swing * (1.0 + 1.1 * _run) * amp * sin(ph) - 0.45 * _crouch - 0.7 * _skid
+		var knee := knee_bend * (1.0 + 1.2 * _run) * amp * maxf(0.0, cos(ph)) + 0.8 * _crouch + 0.35 * _skid   # folds as the leg swings through
 		_turn(leg[0] + "_Thigh", side, thigh)
 		_turn(leg[0] + "_Calf", side, knee)
 		_turn(leg[0] + "_Foot", side, -(thigh + knee) * 0.8)                # the foot stays near flat
@@ -554,6 +633,9 @@ func _begin_sequence() -> void:
 	_cue_t = 0.0
 	_sounded = {}
 	_from_hug = false
+	_braking = false
+	_sp = 0.0
+	_rush_clear()
 	Game.fx_reset()
 	if _seen():
 		_face_on()
@@ -836,6 +918,10 @@ func _despawn_quietly() -> void:
 	_crouch = 0.0
 	_watch_t = 0.0
 	_hitch_t = 0.0
+	_braking = false
+	_sp = 0.0
+	_skid = 0.0
+	_rush_clear()
 	if _black != null: _set_black(0.0)
 	if skel != null:
 		for i: int in _rest: skel.set_bone_pose_rotation(i, _rest[i])

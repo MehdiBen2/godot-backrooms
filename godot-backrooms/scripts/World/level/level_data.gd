@@ -12,6 +12,7 @@ extends Node3D
 const CELL := 4.5
 const WALL_H := 5.4
 const TALL_H := 10.8
+const GRAND_H := 16.2        # a grand hall (the editor's GRAND zone): three storeys of open air over you
 const LOW_H := 2.3
 const CRAWL_H := 1.2         # a crawl space's ceiling: low enough that you have to get right down (player.gd)
 const PIT_DEPTH := 14.0
@@ -35,6 +36,7 @@ var size := 0
 var walls := {}       # Vector2i -> true
 var pits := {}
 var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
+var waters: Array = []    # the "water" objects among them (water_depth_at)
 var carved := {}      # Vector2i -> true: a wall cell an object stands in, so no solid block is built there
 var arch_cells := {}  # Vector2i -> true: a cell with an arch square in it (walkable, but full of arch mass)
 ## Vector2i -> true: a cell a stairwell stands in (props/stairs.gd builds everything in it, floor to ceiling).
@@ -59,6 +61,7 @@ var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in i
 var blocked_edges := {}   # Vector4i(a.x, a.y, b.x, b.y), a < b -> true
 var wall_segments: Array = []
 var tall := {}
+var grand := {}      # Vector2i -> true: a grand hall's GRAND_H ceiling (beats tall)
 var low := {}
 var crawl := {}      # Vector2i -> true: a crawl space (the editor's CRAWL zone): CRAWL_H ceiling, you crawl through it
 var tiles := {}
@@ -73,6 +76,9 @@ var safe := {}        # no entity sets foot here: solid to their paths and their
 var drain := {}       # sanity runs out while you stand here, whatever the light (player.gd)
 var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
+## Reverb zones painted in the level editor, over the sound the room's shape gives on its own (acoustics.gd):
+var hall_reverb := {} # a vast hard hall: a long, bright tail that rings on (a tiled rotunda, a pool hall)
+var muffled := {}     # a dead, tight space: short, dark and dull, the highs gone (a crawlway, a padded corridor)
 var loop := {}        # a corridor that never ends: walk on down it and you are back near its start (level_builder.gd)
 ## Endless halls (the .lvl's "wrap", the editor's ENDLESS HALLS): the map's opposite edges are joined. The border
 ## cells stop being a wall: each mirrors the interior cell across the map from it (so the grid, the colliders and
@@ -184,7 +190,55 @@ static func shape_path(o: Dictionary) -> PackedVector2Array:
 			for i in n + 1:
 				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * s * 0.5)
 			return pts
+		"spline":
+			return spline_path(o)
 	return PackedVector2Array()
+
+## A spline wall's centre line: its "points" (object space, cells) joined straight, or with "smooth" a curve
+## through them about every SPLINE_STEP cells. "closed" carries it on from the last point round to the first (the
+## path then ends on its first point again, as a 360 degree arc does). The level editor draws it the same way.
+const SPLINE_STEP := 0.12
+static func spline_path(o: Dictionary) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var raw = o.get("points", [])
+	if raw is Array:
+		for q in raw:
+			if not (q is Array and q.size() >= 2): continue
+			var v := Vector2(float(q[0]), float(q[1]))
+			if pts.is_empty() or pts[pts.size() - 1].distance_to(v) > 0.01: pts.append(v)
+	var closed := bool(o.get("closed", false)) and pts.size() >= 3
+	if closed and pts[0].distance_to(pts[pts.size() - 1]) < 0.01: pts.remove_at(pts.size() - 1)
+	var n := pts.size()
+	if n < 2: return PackedVector2Array()
+	if not bool(o.get("smooth", true)):
+		if closed: pts.append(pts[0])
+		return pts
+	var out := PackedVector2Array()
+	for i in (n if closed else n - 1):
+		var p1 := pts[i]
+		var p2 := pts[(i + 1) % n]
+		# past an open end the curve runs on straight (a mirrored point), so it leaves its end square, not hooked
+		var p0 := pts[(i - 1 + n) % n] if (closed or i > 0) else p1 * 2.0 - p2
+		var p3 := pts[(i + 2) % n] if (closed or i + 2 < n) else p2 * 2.0 - p1
+		var steps := maxi(2, ceili(p1.distance_to(p2) / SPLINE_STEP))
+		for k in steps:
+			out.append(_catmull(p0, p1, p2, p3, float(k) / steps))
+	out.append(pts[0] if closed else pts[n - 1])
+	return out
+
+## A centripetal Catmull-Rom curve from p1 (t = 0) to p2 (t = 1): it can't loop or overshoot between points
+## drawn close together, as the plain kind does
+static func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
+	var t1 := sqrt(maxf(p0.distance_to(p1), 0.0001))
+	var t2 := t1 + sqrt(maxf(p1.distance_to(p2), 0.0001))
+	var t3 := t2 + sqrt(maxf(p2.distance_to(p3), 0.0001))
+	var u := lerpf(t1, t2, t)
+	var a1 := p0.lerp(p1, u / t1)
+	var a2 := p1.lerp(p2, (u - t1) / (t2 - t1))
+	var a3 := p2.lerp(p3, (u - t2) / (t3 - t2))
+	var b1 := a1.lerp(a2, u / t2)
+	var b2 := a2.lerp(a3, (u - t1) / (t3 - t1))
+	return b1.lerp(b2, (u - t1) / (t2 - t1))
 
 ## Stairs ("stairs_up" / "stairs_down", the same stairwell either way: the type only says which floor the
 ## level editor made its other end on). A stairwell stands square on the grid: STAIR_CELLS cells from its own
@@ -512,10 +566,12 @@ func _parse(d: Dictionary) -> void:
 			arch_cells[c] = true
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
+	for o: Dictionary in objects:
+		if o.type == "water": waters.append(o)
 	noclip_to = str(d.get("noclip_to", ""))
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
-			"safe", "drain", "loot", "echo", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor"]:
+	for zone in ["tall", "grand", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
+			"safe", "drain", "loot", "echo", "hall_reverb", "muffled", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
@@ -600,6 +656,7 @@ static func cell_of(p: Vector3) -> Vector2i:
 
 func ceiling_height(c: Vector2i) -> float:
 	if crawl.has(c): return CRAWL_H
+	if grand.has(c): return GRAND_H
 	if tall.has(c): return TALL_H
 	if low.has(c): return LOW_H
 	return WALL_H
@@ -670,6 +727,17 @@ func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 		if s[3]: continue
 		if Geometry2D.segment_intersects_segment(a, b, s[0], s[1]) != null: return true
 	return false
+
+## How deep the water stands over world point `p`: metres from it up to the surface, 0 out of the water. A Water
+## object (props/water_body.gd) is a level surface `level` m over the floor, over a box `depth` cells along its
+## arrow by `scale` across. The player wades by it, the footsteps splash by it, the camera and the ears go under by it.
+func water_depth_at(p: Vector3) -> float:
+	var best := 0.0
+	for o: Dictionary in waters:
+		var l := object_transform(o).affine_inverse() * p
+		if absf(l.x) <= float(o.depth) * CELL * 0.5 and absf(l.z) <= float(o.scale) * CELL * 0.5:
+			best = maxf(best, float(o.level) - p.y)
+	return best
 
 ## An object's placement in the world: origin on the floor, rotated so its local +X faces `rotation`
 func object_transform(o: Dictionary) -> Transform3D:

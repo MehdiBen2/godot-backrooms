@@ -10,6 +10,10 @@ extends "res://scripts/World/level/level_data.gd"
 ## own position, rotation and width, and the walls their own thickness and height.
 
 const Door := preload("res://scripts/World/props/door.gd")
+const VerticalPieces := preload("res://scripts/World/props/vertical_pieces.gd")
+const WindowPiece := preload("res://scripts/World/props/window.gd")
+const WaterBody := preload("res://scripts/World/props/water_body.gd")
+const WaterView := preload("res://scripts/World/props/water_view.gd")
 const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
@@ -25,6 +29,7 @@ const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell 
 
 var wall_mat: StandardMaterial3D
 var tall_wall_mat: StandardMaterial3D
+var grand_wall_mat: StandardMaterial3D
 var door_leaf_mat: StandardMaterial3D
 var door_hw_mat: StandardMaterial3D
 var door_frame_mat: StandardMaterial3D
@@ -51,8 +56,11 @@ func _make_materials() -> void:
 	_pit_materials()
 	_shaft_mat = null
 	panel_ceiling = _panel_ceiling_material()
+	_uv_wall.clear()
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
+	# (the tall wallpaper, its baked skirting and ceiling shadow stretched on up to a grand hall's ceiling)
+	grand_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", GRAND_H, true)
 	if ResourceLoader.exists("res://textures/props/door/door_leaf.tres"):
 		door_leaf_mat = (load("res://textures/props/door/door_leaf.tres") as StandardMaterial3D).duplicate()
 	else:
@@ -167,6 +175,39 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 ## right under a lamp and in the torch beam, a painted-on shadow that never moved. The real contact
 ## darkening now comes from the shadows, the bounce light and SSAO.
 const AO_DIRECT := 0.2
+
+## The wall material for a mesh that carries its own UVs, in metres: u along the wall's face, v up it. A world
+## (triplanar) projection is only true on faces square to the axes; round a curve it blends two projections and
+## the tiles go double and smeared at every 45 degrees. A curved or spline wall and a round column are unrolled
+## instead (_sweep_wall, _uv_cylinder), so their tiles run round them unbroken, square and the same size as on
+## the walls. `h`: the wall's height, for the wallpaper (stretched to its room's height, as on the blocks).
+var _uv_wall := {}
+func _wall_uv_mat(h: float) -> StandardMaterial3D:
+	var key := GRAND_H if h > TALL_H + 0.01 else (TALL_H if h > WALL_H + 0.01 else WALL_H)
+	if _uv_wall.has(key): return _uv_wall[key]
+	var m: StandardMaterial3D
+	if _has_pbr("wall"):
+		m = _pbr_or("wall")
+		m.uv1_triplanar = false
+		m.uv1_world_triplanar = false
+		m.uv1_scale = Vector3(PBR_PER_M, -PBR_PER_M, 1.0)
+	else:
+		m = _wall_material("wall" if key <= WALL_H else "wall_tall", key, false)
+		m.uv1_scale = Vector3(1.0 / 2.25, -1.0 / key, 1.0)
+		m.uv1_offset = Vector3(0.0, 1.0, 0.0)
+	_uv_wall[key] = m
+	return m
+
+const PBR_PER_M := 0.45          # textures/pbr repeats a metre (_pbr_by_id's world scale)
+
+## The world-projected wall material for a wall `h` metres tall (the wallpaper is drawn to its room's height)
+func _wall_mat_for(h: float) -> StandardMaterial3D:
+	if h > TALL_H + 0.01: return grand_wall_mat
+	return tall_wall_mat if h > WALL_H else wall_mat
+
+## How far along a wall one repeat of its material runs, metres (a closed loop is fitted to a whole number of them)
+func _wall_repeat() -> float:
+	return 1.0 / PBR_PER_M if _has_pbr("wall") else 2.25
 
 ## Ceiling materials whose bounce-light fill level_lighting.gd drives (found-footage look)
 var ceil_mats: Array[Material] = []
@@ -602,17 +643,18 @@ func _block_at(c: Vector2i) -> bool:
 	return walls.has(c) and not carved.has(c) and not stair_cells.has(c)
 
 func _build_walls() -> void:
-	var groups := {WALL_H: [], TALL_H: []}
+	var groups := {WALL_H: [], TALL_H: [], GRAND_H: []}
 	for c: Vector2i in walls.keys():
 		if not _block_at(c): continue     # a door / thin wall object or a stairwell stands here instead of a solid block
 		var exposed := false
-		var near_tall := false
+		var reach := WALL_H               # as high as the tallest room it faces
 		for n: Vector2i in DIRS:
 			# a door / thin wall only fills a sliver of its cell, so the block beside it still shows
 			if not _block_at(c + n): exposed = true
-			if tall.has(c + n): near_tall = true
+			if grand.has(c + n): reach = GRAND_H
+			elif tall.has(c + n): reach = maxf(reach, TALL_H)
 		if exposed:
-			groups[TALL_H if near_tall else WALL_H].append(c)
+			groups[reach].append(c)
 	if not shell: _build_wall_collision(groups)
 	# endless halls: the border's blocks only stop you (the copy of the level beyond the seam draws them)
 	if edge_wrap:
@@ -628,7 +670,7 @@ func _build_walls() -> void:
 				if pw.has(c): groups.get_or_add("%s|%s" % [height, pw[c]], []).append(c)
 				else: keep.append(c)
 			groups[height] = keep
-	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat}
+	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat, GRAND_H: grand_wall_mat}
 	for key in groups.keys():
 		var list: Array = groups[key]
 		if list.is_empty(): continue
@@ -760,6 +802,8 @@ func _build_objects() -> void:
 	var shaped: Array = []
 	var arch: Array = []
 	var props: Array = []
+	var vertical: Array = []
+	var water: Array = []
 	for o: Dictionary in objects:
 		match o.type:
 			"door": _build_door(o)
@@ -772,13 +816,119 @@ func _build_objects() -> void:
 					props.append(o)
 					continue
 				match str(info.get("shape", "")):
-					"slab", "corner", "arc": shaped.append(o)
+					"slab", "corner", "arc", "spline": shaped.append(o)
 					"pillar", "column": _build_column(o)
+					"platform", "flight", "spiral": vertical.append(o)
+					"window": _build_window(o)
+					"water": water.append(o)
 					"zone":
 						if not shell: _build_trigger(o)
 	_build_shaped_walls(shaped)
 	_build_arches(arch)
 	_build_props(props)
+	_build_vertical(vertical)
+	_build_water(water)
+
+# ---------------------------------------------------------------- raised floors, stairs, windows, water
+## The surfaces the raised floors and straight / spiral stairs are made of (object_types.json "surface"), and
+## their rails: built once a floor, shared by every piece
+func _piece_mats() -> Dictionary:
+	var tile: StandardMaterial3D = _pbr_or("wall") if _has_pbr("wall") else (_pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material())
+	var floor_m: Material = _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75))
+	var chrome := StandardMaterial3D.new()          # the pool rooms' rails: polished stainless tube
+	chrome.albedo_color = Color(0.86, 0.87, 0.88)
+	chrome.metallic = 1.0
+	chrome.roughness = 0.14
+	return {"tile": tile, "floor": floor_m, "concrete": _plaster_mat(), "under": _plaster_mat(), "chrome": chrome,
+		"column": _wall_uv_mat(WALL_H) if _has_pbr("wall") else null, "repeat": _wall_repeat()}
+
+## Raised floors (a slab `elev` m up), straight flights and spiral stairs: all within this floor, walked up with no
+## floor swap. A raised floor leaves its rail open wherever a flight's or a spiral's top arrives at its height.
+func _build_vertical(list: Array) -> void:
+	if list.is_empty(): return
+	var mats := _piece_mats()
+	var tops: Array = []                        # [world point at the top of a stair, half its width, its height]
+	for o: Dictionary in list:
+		if str(object_info(o.type).get("shape", "")) in ["flight", "spiral"]:
+			tops.append(VerticalPieces.top_exit(o, object_transform(o)))
+	var solid := func(p: Vector3) -> bool: return _block_at(cell_of(p))
+	for o: Dictionary in list:
+		var vp := VerticalPieces.new()
+		vp.transform = object_transform(o)
+		add_child(vp)
+		vp.build(o, str(object_info(o.type).get("shape", "")), mats, tops, solid, ceiling_height(Vector2i(roundi(o.pos_x), roundi(o.pos_y))), shell)
+		if not shell:
+			for l in vp.find_children("*", "Light3D", true, false): (l as Light3D).light_cull_mask &= ~SHELL_LAYERS
+
+## A window on a wall: a sky through its glass and sunlight thrown in through it (props/window.gd)
+func _build_window(o: Dictionary) -> void:
+	var w := WindowPiece.new()
+	w.transform = object_transform(o)
+	add_child(w)
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var into := c
+	var ahead := cell_of(w.transform * Vector3(CELL * 0.5, 0.0, 0.0))   # the cell it looks into, if it sits on an edge
+	if not walls.has(ahead): into = ahead
+	w.build(o, ceiling_height(into), shell)
+	for l in w.find_children("*", "Light3D", true, false):
+		(l as Light3D).light_cull_mask &= ~SHELL_LAYERS
+
+## Standing water (props/water_body.gd), and on the floor you walk on the eye that notices when it is under it
+func _build_water(list: Array) -> void:
+	if list.is_empty(): return
+	for o: Dictionary in list:
+		var wb := WaterBody.new()
+		wb.transform = object_transform(o)
+		add_child(wb)
+		wb.build(self, o, shell)
+	if not shell:
+		var view := WaterView.new()
+		view.name = "WaterView"
+		add_child(view)
+		view.setup(self)
+
+## The wall faces that stand round and in a water body, for the ripples of light it throws on them: the grid's
+## wall blocks, and the walls, pillars and columns placed as objects. [a, b, outward normal] per face (world, on
+## the floor; a and b along the face). `inside`: whether a world point (on the floor) is over the water.
+func wall_faces_near(inside: Callable, box: Rect2) -> Array:
+	var out: Array = []
+	var h := CELL * 0.5
+	for x in range(floori(box.position.x / CELL) - 1, ceili(box.end.x / CELL) + 2):
+		for z in range(floori(box.position.y / CELL) - 1, ceili(box.end.y / CELL) + 2):
+			var c := Vector2i(x, z)
+			if _block_at(c) or walls.has(c): continue
+			for n: Vector2i in DIRS:
+				if not _block_at(c + n): continue
+				var mid := Vector3(c.x * CELL + n.x * h, 0.0, c.y * CELL + n.y * h)
+				var along := Vector3(n.y, 0.0, n.x) * h
+				out.append([mid - along, mid + along, Vector3(-n.x, 0.0, -n.y)])
+	for o: Dictionary in objects:
+		var shape := str(object_info(o.type).get("shape", ""))
+		var xf := object_transform(o)
+		if shape in ["slab", "corner", "arc", "spline"]:
+			if not inside.call(xf.origin) and not box.grow(CELL * float(o.scale)).has_point(Vector2(xf.origin.x, xf.origin.z)): continue
+			var path := shape_path(o)
+			var t := object_thick(o) * 0.5
+			for i in path.size() - 1:
+				var a := xf * (Vector3(path[i].x, 0.0, path[i].y) * CELL)
+				var b := xf * (Vector3(path[i + 1].x, 0.0, path[i + 1].y) * CELL)
+				if a.distance_to(b) < 0.001: continue
+				var side := (b - a).normalized().cross(Vector3.UP)
+				for s: float in [1.0, -1.0]:
+					out.append([a + side * t * s, b + side * t * s, side * s])
+		elif shape in ["pillar", "column"]:
+			if not inside.call(xf.origin): continue
+			var r := object_thick(o) * 0.5
+			var k := 24 if shape == "column" else 4
+			for i in k:
+				var a0 := TAU * (i + (0.5 if shape == "pillar" else 0.0)) / k
+				var a1 := TAU * (i + 1 + (0.5 if shape == "pillar" else 0.0)) / k
+				var rr := r * (sqrt(2.0) if shape == "pillar" else 1.0)
+				var a := xf * Vector3(cos(a0) * rr, 0.0, sin(a0) * rr)
+				var b := xf * Vector3(cos(a1) * rr, 0.0, sin(a1) * rr)
+				var mid := (a + b) * 0.5
+				out.append([a, b, (mid - xf.origin).normalized()])
+	return out
 
 # Decorative clutter (levels/object_types.json entries with a "model" key): one imported mesh each, no
 # effect on the grid, nav or walls. See props/industrial_prop.gd for how the material is put together.
@@ -796,10 +946,13 @@ func _build_props(list: Array) -> void:
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
 	var all_low := true
+	var top := 0.0
 	for n: Vector2i in DIRS + [Vector2i.ZERO]:
 		var cell: Vector2i = c + n
-		if tall.has(cell): return TALL_H
+		if grand.has(cell): top = GRAND_H
+		elif tall.has(cell): top = maxf(top, TALL_H)
 		if not low.has(cell): all_low = false
+	if top > 0.0: return top
 	return LOW_H if all_low else WALL_H
 
 ## The squeeze gap `pos` (world) is at, if any: {"o": the object, "local": pos in its frame (metres, +x the
@@ -867,7 +1020,7 @@ func _build_shaped_walls(list: Array) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = _sweep_wall(path, t, h)
 		mi.transform = xf
-		mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
+		mi.material_override = _wall_mat_for(h)
 		add_child(mi)
 		var n := path.size()
 		var closed := n > 2 and path[0].distance_to(path[n - 1]) < 0.001
@@ -976,7 +1129,7 @@ func _build_column(o: Dictionary) -> void:
 		var box := BoxMesh.new()
 		box.size = Vector3(w, h, w)
 		mi.mesh = box
-		mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
+		mi.material_override = _wall_mat_for(h)
 		var shape := BoxShape3D.new()
 		shape.size = Vector3(w, h, w)
 		cs.shape = shape
@@ -1040,7 +1193,7 @@ func _build_arches(list: Array) -> void:
 			box.size = size
 			mi.mesh = box
 			mi.transform = xf * Transform3D(Basis(), pos)
-			mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
+			mi.material_override = _wall_mat_for(h)
 			add_child(mi)
 			_add_box_collider(body, xf, size, pos)
 			var oi := OccluderInstance3D.new()
@@ -1138,7 +1291,7 @@ func _build_squeeze(o: Dictionary) -> void:
 		box.size = size
 		mi.mesh = box
 		mi.transform = xf * Transform3D(Basis(), pos)
-		mi.material_override = tall_wall_mat if h > WALL_H else wall_mat
+		mi.material_override = _wall_mat_for(h)
 		add_child(mi)
 		_add_box_collider(body, xf, size, pos)
 		var oi := OccluderInstance3D.new()
@@ -1155,7 +1308,7 @@ func _build_door(o: Dictionary) -> void:
 	var d := Door.new()
 	d.transform = object_transform(o)
 	add_child(d)
-	d.build(CELL * o.scale, float(object_info("door").get("thickness", 0.3)), h, tall_wall_mat if h > WALL_H else wall_mat, door_frame_mat, door_leaf_mat, door_hw_mat)
+	d.build(CELL * o.scale, float(object_info("door").get("thickness", 0.3)), h, _wall_mat_for(h), door_frame_mat, door_leaf_mat, door_hw_mat)
 
 # A stairwell (props/stairs.gd builds and runs it): a boxed-in switchback stair standing on its cells, with a
 # flight up to the next floor wherever that floor has a stairwell on the same cells, and a flight down likewise.
@@ -1184,7 +1337,7 @@ func _build_stairs(o: Dictionary) -> void:
 		paper.normal_scale = 0.95
 		paper.metallic_specular = 0.28
 	s.build(self, ends, f, room_h, {
-		"wall": paper, "room_wall": tall_wall_mat if room_h > WALL_H else wall_mat,
+		"wall": paper, "room_wall": _wall_mat_for(room_h),
 		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
 		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
 	stairwells.append(s)
@@ -1206,7 +1359,7 @@ func stair_skin(o: Dictionary) -> Node3D:
 	var room_h := _stair_room_h(o)
 	var s := Stairs.new()
 	s.transform = _stair_xf(o)
-	s.build_outside(room_h, {"room_wall": tall_wall_mat if room_h > WALL_H else wall_mat, "trim": door_frame_mat, "metal": door_hw_mat})
+	s.build_outside(room_h, {"room_wall": _wall_mat_for(room_h), "trim": door_frame_mat, "metal": door_hw_mat})
 	return s
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap

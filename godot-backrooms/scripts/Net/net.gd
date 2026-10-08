@@ -633,9 +633,22 @@ func send_stop_events() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _event(event_name: String) -> void:
+	if event_name == "machineVoice":
+		return                            # the host picks the voice and line: it arrives through _voice
 	var ev := _scene_node("Events")
 	if ev != null:
 		ev.run_event(event_name)
+
+## Host: the machine voice said this line in this voice, so everyone hears the same one
+func send_voice(voice: String, idx: int) -> void:
+	if hosting and is_online() and not multiplayer.get_peers().is_empty():
+		_voice.rpc(voice, idx)
+
+@rpc("authority", "call_remote", "reliable")
+func _voice(voice: String, idx: int) -> void:
+	var ev := _scene_node("Events")
+	if ev != null and voice.length() <= 16:
+		ev.play_machine_voice(voice, idx, false)
 
 @rpc("authority", "call_remote", "reliable")
 func _stop_events() -> void:
@@ -852,7 +865,7 @@ func _trigger_rpc(ev: String, at: Vector3) -> void:
 		_:
 			var evs := root.get_node_or_null("Events")
 			if evs != null and evs.has_method("run_event"):
-				evs.run_event(ev)              # broadcasts itself to everyone (events.gd run_event)
+				evs.run_event(ev, false)       # (a zone's event is for the walker only: guests run theirs locally)
 
 # ---- hazard tape: every strip anyone sticks up or peels off, everyone sees (tape_marks.gd) -----
 ## strips: TapeMarks.pack()ed, [[level, a, b, n, id, t, by], ...]

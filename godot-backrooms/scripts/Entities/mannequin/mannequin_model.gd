@@ -15,14 +15,21 @@ const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL",
 # them stand alike. Each bone's +Y runs down its limb. mannequinvar3.glb carries its own unrelated humanoid
 # rig (Pelvis/Spine01/L_Upperarm/...) from a different auto-rig tool, so it is posed through RIG_PROFILES
 # below instead of the hardcoded bone names: same pose Dictionary, mapped to whichever names that rig uses.
-const VARIANT_MODELS := ["res://models/entities/mannequin_variant.glb", "res://models/entities/mannequinvar3.glb"]
+const VARIANT_MODELS := ["res://models/entities/mannequin_variant.glb", "res://models/entities/mannequinvar3.glb", "res://models/entities/mannequinvar4.glb"]
 # role -> bone name for each entry in VARIANT_MODELS, so pose_variant() works on either rig. "spine" is the
 # single bone twist/lean turns (mannequin_variant.glb only has one torso bone; mannequinvar3.glb's nearest
 # equivalent is the waist, just below its two spine bones).
 const RIG_PROFILES := [
 	{"spine": "Spine", "head": "Head", "armL": "ArmL", "armR": "ArmR", "forearmL": "ForearmL", "forearmR": "ForearmR", "legL": "LegL", "legR": "LegR"},
 	{"spine": "Waist", "head": "Head", "armL": "L_Upperarm", "armR": "R_Upperarm", "forearmL": "L_Forearm", "forearmR": "R_Forearm", "legL": "L_Thigh", "legR": "R_Thigh"},
+	# mannequinvar4.glb is a Mixamo skeleton (Godot's importer turns "mixamorig:Hips" into "mixamorig_Hips"; _load_one_variant
+	# aliases both spellings) modelled in a T-pose, so "arm_plant" first drops each arm from out-sideways to hanging.
+	{"spine": "mixamorig_Spine1", "head": "mixamorig_Head", "armL": "mixamorig_LeftArm", "armR": "mixamorig_RightArm",
+		"forearmL": "mixamorig_LeftForeArm", "forearmR": "mixamorig_RightForeArm", "legL": "mixamorig_LeftUpLeg", "legR": "mixamorig_RightUpLeg"},
 ]
+# Rigs whose arms rest out sideways (T-pose) rather than hanging: how far (0..1) to turn each arm bone down before the
+# pose's swing/splay is applied, by RIG_PROFILES index. Without it the swing would only roll the arm about its own axis.
+const ARM_PLANT := {2: 1.0}
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
@@ -282,6 +289,9 @@ func _load_one_variant(host: Node, idx: int) -> Dictionary:
 		var sm := mi.mesh.surface_get_material(sf) as StandardMaterial3D
 		if sm != null:
 			sm.vertex_color_use_as_albedo = false
+	if rigged and ARM_PLANT.has(idx):
+		profile = profile.duplicate()
+		profile["arm_plant"] = ARM_PLANT[idx]
 	return {"scene": packed, "root_xf": norm, "xf": norm * xf, "mesh": mi.mesh, "rigged": rigged,
 		"profile": profile, "vbones": vbones, "arm_l_pivot": arm_l_pivot}
 
@@ -495,8 +505,10 @@ func pose_variant(sk: Skeleton3D, pose: Dictionary, vbones: Dictionary, profile:
 	for side in ["L", "R"]:
 		var sg := 1.0 if side == "L" else -1.0
 		var swing := float(pose["arm" + side])
-		var arm := Basis(Vector3.BACK, float(pose["splay" + side]) * sg) * Basis(Vector3.RIGHT, -swing)
 		var arm_bone: String = profile["arm" + side]
+		var arm := Basis(Vector3.BACK, float(pose["splay" + side]) * sg) * Basis(Vector3.RIGHT, -swing)
+		if profile.get("arm_plant", 0.0) > 0.0:
+			arm *= _vplant(sk, vbones, arm_bone, float(profile.arm_plant))
 		var forearm_bone: String = profile["forearm" + side]
 		_vturn(sk, vbones, arm_bone, arm, arm_l_pivot if side == "L" else Vector3.INF)
 		# a raised arm reaches straight: the elbow opens until the forearm lines up with the upper arm

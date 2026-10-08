@@ -1137,7 +1137,7 @@
       "type": "trigger"
     }
   ],
-  "sdfgi": false,
+  "sdfgi": true,
   "size": 101,
   "spawn": [
     74,

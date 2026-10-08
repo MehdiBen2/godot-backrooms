@@ -412,7 +412,7 @@ func _build_voice_picker() -> void:
 		lb.pressed.connect(func(): _play_line(idx))
 		list.add_child(lb)
 		_mv_rows.append([lb, str(line.text), tag])
-	v.add_child(_label("Plays on your machine only. Lines in red have a tag: the director prefers them when that is true of you.", 10, Color(0.5, 0.6, 0.58)))
+	v.add_child(_label("In co-op the host's line plays for everyone. Lines in red have a tag: the director prefers them when that is true of you.", 10, Color(0.5, 0.6, 0.58)))
 
 func _pick_voice(vid: String) -> void:
 	_mv_voice = vid

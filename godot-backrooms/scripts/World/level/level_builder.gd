@@ -320,7 +320,7 @@ func _build_exit() -> void:
 	if mount.is_empty():
 		# no wall in reach: the door stands at the exit cell in a slab of wall of its own
 		door.position = Vector3(c.x * CELL, 0.0, c.y * CELL)
-		door.backing = tall_wall_mat if tall.has(c) else wall_mat
+		door.backing = grand_wall_mat if grand.has(c) else (tall_wall_mat if tall.has(c) else wall_mat)
 		door.backing_h = ceiling_height(c)
 	else:
 		# on the wall's face, between the open cell and the wall cell, turned so its +X is out into the room

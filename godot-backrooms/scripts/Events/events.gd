@@ -322,9 +322,16 @@ func _process(dt: float) -> void:
 	tension += dt * tension_rate(c)
 	if tension < threshold:
 		return
-	if trigger_random(false, c) == "":
-		# nothing fits right now; keep the tension and look again shortly
+	# the only event that ever starts by itself is the grid failure; every other one comes from the host's
+	# debug panel or a level editor trigger zone
+	var grid: Dictionary = {}
+	for e in events:
+		if e.name == "powerCut":
+			grid = e
+	if grid.is_empty() or not eligible(grid, c, false) or score_of(grid, c) <= 0.0:
 		tension = threshold - RETRY
+	else:
+		run_event("powerCut")
 
 func eligible(e: Dictionary, c: Dictionary, force: bool) -> bool:
 	if force:
@@ -367,7 +374,7 @@ func trigger_random(force := false, c := {}) -> String:
 	run_event(pick.name)
 	return pick.name
 
-func run_event(name: String) -> bool:
+func run_event(name: String, share := true) -> bool:
 	if DISABLED:
 		return false
 	for e in events:
@@ -375,13 +382,16 @@ func run_event(name: String) -> bool:
 			continue
 		last = name
 		last_at = Game.time
-		Net.send_event(name)          # co-op host: everyone gets it
+		_share_voice = share
+		if share:
+			Net.send_event(name)      # co-op host: everyone gets it
 		history[name] = Game.time
 		busy_until = Game.time + e.duration
 		recovery = RECOVERY_BASE + RECOVERY_PER_INTENSITY * e.intensity
 		tension = 0.0
 		threshold = rng.randf_range(GAP_MIN, GAP_MAX)
 		e.run.call()
+		_share_voice = true
 		return true
 	return false
 
@@ -866,6 +876,7 @@ func _event_dead_air() -> void:
 # Never one of the last twelve lines again.
 const VOICE_WEIGHTS := {"sam": 3.0, "broadcast": 2.0, "alternate": 2.0, "whisper": 1.5, "deep": 1.5, "tape": 2.0}
 var _voice_recent: Array = []
+var _share_voice := true         # false while a zone's own event runs: its voice line is for the walker only
 
 ## What it can see of you right now: the tags of machine_voice_lines.gd
 func _voice_context() -> Array:
@@ -920,7 +931,7 @@ func play_context_voice(tags: Array) -> bool:
 			pool.append(i)
 	if pool.is_empty():
 		return false
-	return play_machine_voice(_pick_voice(), int(pool[rng.randi() % pool.size()]))
+	return play_machine_voice(_pick_voice(), int(pool[rng.randi() % pool.size()]), false)    # zone: only for you
 
 func _event_machine_voice() -> void:
 	var voice := _pick_voice()
@@ -939,13 +950,15 @@ func _event_machine_voice() -> void:
 	play_machine_voice(voice, int(pool[rng.randi() % pool.size()]))
 
 ## One line in one voice (the debug console's MACHINE VOICE picker calls this directly). False if not imported yet.
-func play_machine_voice(voice: String, idx: int) -> bool:
+func play_machine_voice(voice: String, idx: int, share := true) -> bool:
 	if idx < 0 or idx >= MachineVoice.LINES.size():
 		return false
 	var line: Dictionary = MachineVoice.LINES[idx]
 	var path := MachineVoice.path(voice, str(line.id))
 	if not ResourceLoader.exists(path):
 		return false                                   # (not imported yet: open the project in the editor once)
+	if share and _share_voice:
+		Net.send_voice(voice, idx)                     # co-op host: everyone hears this same line
 	var stream: AudioStream = load(path)
 	_voice_recent.append(idx)
 	if _voice_recent.size() > 12:

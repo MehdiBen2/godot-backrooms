@@ -54,3 +54,5 @@ func step(delta: float) -> void:
 	e.state = "grab" if s == "hug" else s             # (the hug's arms are aimed at the victim's own camera)
 	e.t = float(m[5])
 	e._walk = float(m[6])
+	# (the skid isn't sent: a charge whose _walk has fallen off a full run past the crouch is braking)
+	e._braking = s == "charge" and e.t > e.CHARGE_PREP and e._walk < 0.97
