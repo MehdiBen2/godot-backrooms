@@ -71,10 +71,20 @@ func _physics_process(_delta: float) -> void:
 	if edge_wrap: _wrap_player()          # (noclip too: flying off the edge of an endless level comes back round)
 	if Game.noclip: return
 	if not _loops.is_empty(): _walk_loops()
-	if through.is_empty(): return
 	var p := player.global_position
-	if player is CharacterBody3D and (player as CharacterBody3D).is_on_floor(): _fallen = 0
+	var standing: bool = player is CharacterBody3D and (player as CharacterBody3D).is_on_floor()
+	# up a flight or spiral that runs on through the ceiling (level_data.gd climb_cells): the floor above takes over
+	# as you come up level with it, and you walk on out onto it
+	if standing and not climb_up.is_empty() and p.y > STOREY_H - CLIMB_SWAP and climb_up.has(cell_of(p)):
+		Game.change_floor(built_floor + 1, Vector2(p.x, p.z) / CELL, "climb", -STOREY_H)
+		return
+	if through.is_empty(): return
+	if standing: _fallen = 0
 	if not fell_through(p): return
+	if standing and climb_down.has(cell_of(p)):
+		# walking back down those stairs: the floor below takes over at once, under your feet
+		Game.change_floor(built_floor - 1, Vector2(p.x, p.z) / CELL, "descend", STOREY_H)
+		return
 	_fallen += 1
 	if _fallen > FALL_LIMIT:
 		# an endless level's shaft has no bottom: after this many storeys you find yourself standing beside it
@@ -85,6 +95,7 @@ func _physics_process(_delta: float) -> void:
 	Game.change_floor(built_floor - 1, Vector2(p.x, p.z) / CELL, "fall", STOREY_H)
 
 const FALL_LIMIT := 24
+const CLIMB_SWAP := 1.2            # m under the floor above at which, climbing stairs up to it, it takes over
 var _fallen := 0                   # storeys fallen through since the player last stood on a floor
 
 # ---------------------------------------------------------------- corridors that never end
@@ -354,7 +365,7 @@ func _exit_mount(c: Vector2i) -> Array:
 	return best
 
 func _exit_floor(c: Vector2i) -> bool:
-	return not (walls.has(c) or pits.has(c) or arch_cells.has(c) or pillar_cells.has(c))
+	return not (walls.has(c) or pits.has(c) or arch_cells.has(c) or pillar_cells.has(c) or pool_cells.has(c))
 
 # ---------------------------------------------------------------- battery packs
 # Scattered at random open floor cells each load (own RNG: the level's rng is fixed-seeded).
@@ -430,6 +441,8 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	for stage: Callable in _build_stages(null): stage.call()
 	if falling:
 		p.global_position += lift       # down a hole before its floor could be shown: built at once, and on you fall
+	elif here and kind in ["climb", "descend"]:
+		p.global_position += lift       # up or down the stairs between the floors: where you were, in its terms
 	elif here:
 		p.global_position = spawn_pos
 		if has_spawn_yaw:
@@ -496,11 +509,15 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
-	for zone: Dictionary in [safe, drain, loot, echo, loop, open_ceiling, abyss, endless_ceiling, noclip, noclip_floor]: zone.clear()
+	for zone: Dictionary in [safe, drain, loot, echo, hall_reverb, muffled, loop, open_ceiling, abyss, endless_ceiling, noclip, noclip_floor, climb_up, climb_down, pool_cells]: zone.clear()
+	waters.clear()
+	underwater = 0.0
+	acoustics = null
 	pit_fall = null
 	_loops.clear()
 	_loop_of.clear()
 	tall.clear()
+	grand.clear()
 	low.clear()
 	crawl.clear()
 	tiles.clear()
@@ -741,7 +758,7 @@ func _scatter(make: Callable, per_cells: int, lo: int, hi: int) -> void:
 	for z in size:
 		for x in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c) or loop.has(c): continue      # (nothing lying about in a corridor that repeats)
+			if walls.has(c) or pits.has(c) or loop.has(c) or pool_cells.has(c): continue      # (nothing lying about in a corridor that repeats, or afloat over a pool)
 			if absi(c.x - spawn_c.x) + absi(c.y - spawn_c.y) < BATTERY_MIN_SPAWN_DIST: continue
 			open.append(c)
 			if loot.has(c):                              # a Loot zone: each of its cells counts LOOT_WEIGHT times

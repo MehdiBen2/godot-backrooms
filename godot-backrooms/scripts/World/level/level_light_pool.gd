@@ -109,7 +109,7 @@ func _lamp_light() -> SpotLight3D:
 	l.spot_angle_attenuation = SPOT_SOFT
 	l.light_energy = 0.0
 	l.shadow_enabled = false
-	l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)     # the ceiling gets its glow from ceil_glow instead (no hotspot)
+	l.light_cull_mask &= 4294702079       # the ceiling gets its glow from ceil_glow instead (no hotspot)
 	l.visible = false
 	l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 	return l

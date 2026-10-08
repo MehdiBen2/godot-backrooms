@@ -21,7 +21,7 @@
     "label": "Arch",
     "key": "5",
     "color": "7a5f36",
-    "help": "A round-topped opening through a full wall. Put it square on a wall cell to punch through it",
+    "help": "A round-topped opening. Square on a wall cell it punches through the wall; anywhere else it is a wall of its own with the arch in it, its sides reaching out to meet the walls beside it (within a cell and a half)",
     "thickness": 4.5,
     "pillar": 0.75,
     "on_cell": "open",
@@ -237,16 +237,16 @@
   "stair_flight": {
     "label": "Stairs (straight)",
     "color": "e8e4d8",
-    "help": "A straight flight of solid steps climbing the way the arrow points: Width across it, Depth = how far it runs (cells), Off floor = where its foot stands (m: 0 on the floor, or the top of a raised floor), Rise = how high it climbs (m). It must stay walkable: no steeper than about 40 degrees (the status line warns). Railing: chrome pool rails on both sides, one side, or none",
+    "help": "A straight flight of solid steps climbing the way the arrow points: Width across it, Depth = how far it runs (cells), Off floor = where its foot stands (m: 0 on the floor, or the top of a raised floor), Rise = how high it climbs (m). Rise 9 m (a storey: the default) takes it up through the ceiling onto the floor above: the ceiling opens over it and the floor above gets a hole for it to come up through (the floor above must have open floor there). Less goes onto a raised floor. No steeper than about 40 degrees (the status line warns). Railing: chrome pool rails on both sides, one side, or none",
     "thickness": 4.5,
     "shape": "flight",
     "align": false,
     "max_scale": 8.0,
     "default_scale": 0.75,
     "params": {
-      "depth": 1.0,
+      "depth": 3.0,
       "elev": 0.0,
-      "rise": 2.7,
+      "rise": 9.0,
       "railing": "both",
       "surface": "tile"
     },
@@ -264,14 +264,14 @@
       }
     },
     "ranges": {
-      "rise": [0.2, 16.2, 0.05, " m", "how high it climbs from its foot"]
+      "rise": [0.2, 18.0, 0.05, " m", "how high it climbs from its foot. 9 m (a storey) takes it up through the ceiling onto the floor above"]
     },
     "category": "vertical"
   },
   "stair_spiral": {
     "label": "Spiral stairs",
     "color": "f0ece0",
-    "help": "A spiral stair wound round a tiled column: Width = its diameter (cells), Off floor = where it starts (m), Rise = how high it climbs (m), Sweep = how far round it goes (360 = one full turn), Core = the column's width (m). Turn: which way it climbs. The first step is at the arrow. Put a Raised floor at its top height for a landing (or a hole in the floor above). Rail: a chrome rail round its open side",
+    "help": "A spiral stair wound round a tiled column: Width = its diameter (cells), Off floor = where it starts (m), Rise = how high it climbs (m), Sweep = how far round it goes (360 = one full turn), Core = the column's width (m). Turn: which way it climbs. The first step is at the arrow. Rise 9 m (the default) takes it up through the ceiling to the floor above, which gets a hole for it; less: put a Raised floor at its top for a landing. Rail: a chrome rail round its open side",
     "thickness": 0.3,
     "shape": "spiral",
     "align": false,
@@ -279,8 +279,8 @@
     "default_scale": 1.0,
     "params": {
       "elev": 0.0,
-      "rise": 5.4,
-      "sweep": 360.0,
+      "rise": 9.0,
+      "sweep": 540.0,
       "core": 0.7,
       "turn": "left",
       "rail": true,
@@ -302,6 +302,37 @@
       "core": [0.2, 2.0, 0.05, " m", "the central column's width"]
     },
     "category": "vertical"
+  },
+  "pool": {
+    "label": "Pool",
+    "color": "2fa6c8",
+    "help": "A pool sunk into the floor, any shape: click its corners round (Enter, a double click or a right click closes it; a click with no shape drawn drops a 3 x 2 cell one). Shallow and Deep are the depths at the end the arrow comes from and the end it points to (the floor slopes between), Lip how far under the rim the water lies. A tiled basin, a rounded coping, steps down into the shallow end and a chrome ladder at the deep end. You swim in it (Space up, crouch to dive, push into the side to climb out). Reshape it: drag its squares, Shift+click its edge to add a corner, Ctrl+click a corner to take it out",
+    "shape": "pool",
+    "align": false,
+    "draw_spline": true,
+    "max_scale": 1.0,
+    "params": {
+      "points": [],
+      "shallow": 1.1,
+      "deep": 3.0,
+      "lip": 0.15,
+      "tint": "clear",
+      "steps": true,
+      "ladder": true
+    },
+    "choices": {
+      "tint": {
+        "clear": "Very clear, barely blue",
+        "teal": "Pool water: clear, going teal-green with depth",
+        "murky": "Old green water you can't see far into"
+      }
+    },
+    "ranges": {
+      "shallow": [0.3, 8.0, 0.05, " m", "how deep it is at the end the arrow comes from"],
+      "deep": [0.3, 10.0, 0.05, " m", "how deep it is at the end the arrow points to"],
+      "lip": [0.0, 1.5, 0.01, " m", "how far under the rim the water lies"]
+    },
+    "category": "water"
   },
   "window": {
     "label": "Window",

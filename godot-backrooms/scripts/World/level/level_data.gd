@@ -36,7 +36,9 @@ var size := 0
 var walls := {}       # Vector2i -> true
 var pits := {}
 var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
-var waters: Array = []    # the "water" objects among them (water_depth_at)
+var waters: Array = []    # the "water" and "pool" objects among them (water_depth_at)
+var pool_cells := {}      # Vector2i -> true: cells a pool takes (nothing paths into it)
+const PoolPiece := preload("res://scripts/World/props/pool.gd")
 var carved := {}      # Vector2i -> true: a wall cell an object stands in, so no solid block is built there
 var arch_cells := {}  # Vector2i -> true: a cell with an arch square in it (walkable, but full of arch mass)
 ## Vector2i -> true: a cell a stairwell stands in (props/stairs.gd builds everything in it, floor to ceiling).
@@ -52,6 +54,8 @@ var through := {}         # Vector2i -> true: this floor's pits that open into t
 var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
 var crop := {}            # Vector2i -> true: a shell builds only these cells (empty: all of them)
 var hole_box := Rect2i()  # the cells round all of this floor's holes, up and down (no size: it has none)
+var climb_up := {}        # Vector2i -> true: holes over this floor's stairs that climb on up to the floor above
+var climb_down := {}      # Vector2i -> true: holes in this floor that the floor below's stairs come up through
 var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
@@ -381,6 +385,9 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 		var low: String = under[z]
 		for x in range(1, mini(n - 1, mini(row.length(), low.length()))):
 			if row[x] == "O" and low[x] != "#": out[Vector2i(x, z)] = true
+	# so is a flight or spiral from the floor below that climbs on up to this one
+	for c: Vector2i in climb_cells(d, f - 1):
+		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
 	# an open ceiling on the floor below is a hole in this floor too, wherever this floor is not wall
 	for c: Vector2i in zone_cells(d, f - 1, "open_ceiling"):
 		if c.y < grid.size() and c.x < (grid[c.y] as String).length() and grid[c.y][c.x] != "#": out[c] = true
@@ -395,6 +402,44 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 		for o in objs:
 			if o is Dictionary and is_stairs(str(o.get("type", ""))):
 				for c in stair_footprint(load_object(o)): out.erase(c)
+	return out
+
+## Straight and spiral stairs (props/vertical_pieces.gd) whose top reaches CLIMB_TOP go on up to the floor above:
+## the cells their footprint covers on floor `f` have no ceiling over them, the floor above has a hole there
+## (through_cells), and you walk up them out onto it (level_builder.gd hands the floor over as you come out)
+const CLIMB_TOP := STOREY_H - 0.6
+static func climb_cells(d: Dictionary, f: int) -> Dictionary:
+	var out := {}
+	if not (in_stack(d, f) and in_stack(d, f + 1)): return out
+	var objs = floor_data(d, floor_src(d, f)).get("objects")
+	if not (objs is Array): return out
+	for raw in objs:
+		if not (raw is Dictionary): continue
+		var shape := str(object_info(str(raw.get("type", ""))).get("shape", ""))
+		if shape != "flight" and shape != "spiral": continue
+		var o := load_object(raw)
+		if float(o.elev) + float(o.rise) < CLIMB_TOP: continue
+		for c: Vector2i in footprint_cells(o, shape): out[c] = true
+	return out
+
+## The cells a flight's or a spiral's plan covers
+static func footprint_cells(o: Dictionary, shape: String) -> Array[Vector2i]:
+	var xf := Transform2D(deg_to_rad(float(o.rotation)), Vector2(o.pos_x, o.pos_y))
+	var hx: float = float(o.scale) * 0.5 if shape == "spiral" else float(o.get("depth", 1.0)) * 0.5
+	var hz: float = float(o.scale) * 0.5
+	var seen := {}
+	var out: Array[Vector2i] = []
+	var x := -hx
+	while x <= hx + 0.001:
+		var z := -hz
+		while z <= hz + 0.001:
+			if shape != "spiral" or Vector2(x, z).length() <= hz + 0.01:
+				var c := Vector2i((xf * Vector2(x, z)).round())
+				if not seen.has(c):
+					seen[c] = true
+					out.append(c)
+			z += 0.2
+		x += 0.2
 	return out
 
 ## Floor `f`'s open-ceiling cells with no room over them to look up into (the cell above is wall, or there
@@ -430,10 +475,17 @@ func load_floor(f: int, raw := {}) -> void:
 	level_data = floor_data(level_raw, floor_src(level_raw, f))
 	floor_no = f
 	holes_below = zone_cells(level_raw, f - 1, "open_ceiling")
+	climb_down = climb_cells(level_raw, f - 1)
+	holes_below.merge(climb_down)
 	_parse(level_data)
 	# a stairwell, or a wall object square on the cell, takes the cell over on this floor
 	through = through_cells(level_raw, f)
 	open_above = through_cells(level_raw, f + 1)
+	climb_up.clear()
+	for c: Vector2i in climb_cells(level_raw, f):
+		if open_above.has(c): climb_up[c] = true
+	for c: Vector2i in climb_down.keys():
+		if not through.has(c): climb_down.erase(c)
 	shaft_up.clear()
 	for c: Vector2i in endless_ceiling.keys():                           # no ceiling here, and no floor above takes it over
 		open_above[c] = true
@@ -568,6 +620,20 @@ func _parse(d: Dictionary) -> void:
 			_block_span(o, half_t, low)
 	for o: Dictionary in objects:
 		if o.type == "water": waters.append(o)
+		elif str(object_info(o.type).get("shape", "")) == "pool":
+			# a pool: its outline (its own frame, metres), its water `lip` m under the floor, and the cells it takes
+			# (nothing walks into it: level_data.gd step_mask)
+			o["_poly"] = PoolPiece.outline(o)
+			if (o._poly as PackedVector2Array).is_empty(): continue
+			o["level"] = -clampf(float(o.get("lip", 0.15)), 0.0, 1.5)
+			waters.append(o)
+			var xf := object_transform(o)
+			var box := Rect2(xf.origin.x, xf.origin.z, 0.0, 0.0)
+			for v: Vector2 in o._poly: box = box.expand(Vector2((xf * Vector3(v.x, 0, v.y)).x, (xf * Vector3(v.x, 0, v.y)).z))
+			for x in range(floori(box.position.x / CELL), ceili(box.end.x / CELL) + 1):
+				for z in range(floori(box.position.y / CELL), ceili(box.end.y / CELL) + 1):
+					var l := xf.affine_inverse() * Vector3(x * CELL, 0.0, z * CELL)
+					if Geometry2D.is_point_in_polygon(Vector2(l.x, l.z), o._poly): pool_cells[Vector2i(x, z)] = true
 	noclip_to = str(d.get("noclip_to", ""))
 	var zones: Dictionary = d.get("zones", {})
 	for zone in ["tall", "grand", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
@@ -611,7 +677,7 @@ func _parse(d: Dictionary) -> void:
 func _arrive_by_stairs() -> void:
 	if Game.floor_link.is_empty(): return
 	var from := Vector2(Game.floor_link.x, Game.floor_link.y)
-	if Game.floor_link.get("kind", "") in ["drop_hole", "fall"]:
+	if Game.floor_link.get("kind", "") in ["drop_hole", "fall", "climb", "descend"]:
 		var ch := _nearest_open(Vector2i(roundi(from.x), roundi(from.y)))
 		spawn_pos = Vector3(ch.x * CELL, 0.1, ch.y * CELL)
 		return
@@ -704,13 +770,13 @@ func step_mask() -> PackedByteArray:
 	for x in size:
 		for z in size:
 			var c := Vector2i(x, z)
-			if walls.has(c) or pits.has(c) or safe.has(c) or wrap_ring.has(c): continue          # (a Safe zone: no entity's path crosses it)
+			if walls.has(c) or pits.has(c) or safe.has(c) or wrap_ring.has(c) or pool_cells.has(c): continue          # (a Safe zone: no entity's path crosses it)
 			var bits := 0
 			for i in 4:
 				var nb: Vector2i = c + dirs[i]
 				if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size: continue
 				# (the border of an endless level is the other side's stand-in: monsters keep to the map)
-				if walls.has(nb) or pits.has(nb) or safe.has(nb) or wrap_ring.has(nb) or edge_blocked(c, nb): continue
+				if walls.has(nb) or pits.has(nb) or safe.has(nb) or wrap_ring.has(nb) or pool_cells.has(nb) or edge_blocked(c, nb): continue
 				bits |= 1 << i
 			m[x * size + z] = bits
 	_step_mask = m
@@ -732,12 +798,30 @@ func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 ## object (props/water_body.gd) is a level surface `level` m over the floor, over a box `depth` cells along its
 ## arrow by `scale` across. The player wades by it, the footsteps splash by it, the camera and the ears go under by it.
 func water_depth_at(p: Vector3) -> float:
-	var best := 0.0
+	var o := water_at(p)
+	return maxf(0.0, float(o.level) - p.y) if not o.is_empty() else 0.0
+
+## The water object over world point `p` (on the plan; the one with the highest surface where two overlap), or {}
+func water_at(p: Vector3) -> Dictionary:
+	var best := {}
 	for o: Dictionary in waters:
 		var l := object_transform(o).affine_inverse() * p
-		if absf(l.x) <= float(o.depth) * CELL * 0.5 and absf(l.z) <= float(o.scale) * CELL * 0.5:
-			best = maxf(best, float(o.level) - p.y)
+		var inside := false
+		if o.has("_poly"): inside = Geometry2D.is_point_in_polygon(Vector2(l.x, l.z), o._poly)
+		else: inside = absf(l.x) <= float(o.depth) * CELL * 0.5 and absf(l.z) <= float(o.scale) * CELL * 0.5
+		if inside and (best.is_empty() or float(o.level) > float(best.level)): best = o
 	return best
+
+## 0 .. 1: how far under the water the camera is (props/water_view.gd eases it): audio.gd muffles the world by it
+var underwater := 0.0
+
+## How the place round level point `p` sounds, from the architecture and the painted reverb zones (acoustics.gd,
+## worked out per cell as it is first stood in): {size, damp, wet, cut, pre}
+const Acoustics := preload("res://scripts/World/level/acoustics.gd")
+var acoustics: RefCounted = null
+func acoustic_profile(p: Vector3) -> Dictionary:
+	if acoustics == null: acoustics = Acoustics.new(self)
+	return acoustics.profile_at(p)
 
 ## An object's placement in the world: origin on the floor, rotated so its local +X faces `rotation`
 func object_transform(o: Dictionary) -> Transform3D:

@@ -113,6 +113,7 @@ func _seed_fixtures() -> void:
 # spacing 1.9 cells, some tubes burnt out, some flickering.
 func _place_fixtures() -> void:
 	_seed_fixtures()
+	if call("lights_mode") != "troffers": return       # troffers only where the level asks for them (level_geometry.gd)
 	var min_sp := CELL * 1.9
 	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
@@ -247,12 +248,27 @@ func drop_ceiling() -> bool:
 func _long_tiles() -> bool:
 	return panel_ceiling != null and bool(panel_ceiling.get_meta("long_tiles", false))
 
+## A tiled ceiling whose light panels are blocks of its own tiles glowing (textures/pbr/Tiles107_Lit:
+## "metadata/tile_panels"; tile_panel_ceiling.gdshader): one square panel in the middle of each lit cell
+func _tile_panels() -> bool:
+	return panel_ceiling != null and bool(panel_ceiling.get_meta("tile_panels", false))
+
+## How wide a tile-panel ceiling's panel is, metres (panel_tiles of its 8 to a 2.25 m repeat)
+func _tile_panel_size() -> float:
+	return float(panel_ceiling.get_meta("panel_tiles", 4)) * 2.25 / 8.0
+
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
 func _build_panel_ceiling() -> void:
 	if fx.is_empty(): return
 	var drop := drop_ceiling()
 	var mat := ShaderMaterial.new()
-	if drop:
+	if _tile_panels():
+		mat.shader = load("res://shaders/tile_panel_ceiling.gdshader")
+		mat.set_shader_parameter("albedo_tex", panel_ceiling.albedo_texture)
+		mat.set_shader_parameter("normal_tex", panel_ceiling.normal_texture)
+		mat.set_shader_parameter("rough_tex", panel_ceiling.roughness_texture)
+		mat.set_shader_parameter("panel_tiles", float(panel_ceiling.get_meta("panel_tiles", 4)))
+	elif drop:
 		mat.shader = load("res://shaders/drop_ceiling.gdshader")
 		mat.set_shader_parameter("tile_albedo", panel_ceiling.albedo_texture)
 		mat.set_shader_parameter("tile_normal", panel_ceiling.normal_texture)
@@ -424,6 +440,7 @@ func _mesh_world(root: Node, node: Node3D) -> Transform3D:
 	return t
 
 func _build_fixture_meshes() -> void:
+	if fx.is_empty(): return
 	var scene: PackedScene = load("res://models/lights/office_lighting_troffer_light_1x4.glb")
 	var root: Node3D = scene.instantiate()
 	var parts := {}
@@ -487,9 +504,8 @@ func _build_fixture_meshes() -> void:
 	root.queue_free()
 
 	# Chains for fixtures hanging under the atrium ceiling
-	var hanging: Array = fx.filter(func(f): return tall.has(cell_of(f.pos)))
+	var hanging: Array = fx.filter(func(f): return ceiling_height(cell_of(f.pos)) > WALL_H)
 	if not hanging.is_empty():
-		var rise := TALL_H - WALL_H
 		var cm := MultiMesh.new()
 		cm.transform_format = MultiMesh.TRANSFORM_3D
 		var cyl := CylinderMesh.new()
@@ -500,6 +516,7 @@ func _build_fixture_meshes() -> void:
 		var cst := MMBuffer.stride(cm)
 		for i in hanging.size():
 			var f: Dictionary = hanging[i]
+			var rise := ceiling_height(cell_of(f.pos)) - WALL_H         # (a grand hall's chains are longer)
 			MMBuffer.put(cbuf, i * cst, Transform3D(Basis.from_scale(Vector3(1, rise, 1)), Vector3(f.pos.x, WALL_H + rise / 2.0, f.pos.z)))
 		cm.buffer = cbuf
 		var chain_mat := StandardMaterial3D.new()
@@ -861,7 +878,7 @@ void fragment() {
 		for o: Vector2i in from:
 			for n: Vector2i in DIRS:
 				if not (walls.has(o + n) and _block_at(o + n)): continue
-				var hgt: float = TALL_H if tall.has(o) else WALL_H
+				var hgt: float = GRAND_H if grand.has(o) else (TALL_H if tall.has(o) else WALL_H)
 				var nrm := Vector3(-n.x, 0.0, -n.y)                      # the face looks back into the open cell
 				var at := Vector3(o.x * CELL, hgt * 0.5, o.y * CELL) - nrm * (CELL * 0.5 - 0.012)
 				var xf := Transform3D(Basis(Vector3.UP.cross(nrm) * CELL, Vector3.UP * hgt, nrm), at)
@@ -954,8 +971,9 @@ func _build_floor_reflections() -> void:
 	mm.transform_format = MultiMesh.TRANSFORM_3D
 	var box := BoxMesh.new()
 	box.size = (Vector3(1.4, 0.02, 0.7) if _long_tiles() else Vector3(0.7, 0.02, 0.7)) if panels_mm else Vector3(1.95, 0.02, 0.82)
+	if _tile_panels(): box.size = Vector3(_tile_panel_size(), 0.02, _tile_panel_size())
 	mm.mesh = box
-	var offs: Array = PANEL_OFFSETS if panels_mm else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
+	var offs: Array = PANEL_OFFSETS if panels_mm and not _tile_panels() else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
 	mm.instance_count = items.size() * offs.size()
 	var cx := 0.0
 	var cz := 0.0

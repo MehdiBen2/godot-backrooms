@@ -12,6 +12,7 @@ extends SubViewportContainer
 
 const WALL_H := 0.6
 const TALL_H := 1.4
+const GRAND_H := 2.1
 const LOW_H := 0.42
 const REBUILD_DELAY := 0.25
 
@@ -374,6 +375,7 @@ func _wall_height(c: Vector2i) -> float:
 	for dz in range(-1, 2):
 		for dx in range(-1, 2):
 			var n := c + Vector2i(dx, dz)
+			if ed.zones["grand"].has(n): return GRAND_H * vscale
 			if ed.zones["tall"].has(n): return TALL_H * vscale
 			if not ed.zones["low"].has(n): all_low = false
 	return (LOW_H if all_low else WALL_H) * vscale
@@ -535,7 +537,7 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 			var ph := h if hm <= 0.0 else minf(h, hm / 9.0 * vscale)        # metres -> this view's squashed heights (5.4 m = 0.6)
 			var t: float = ed._thick_cells(o)
 			match sh:
-				"slab", "corner", "arc":
+				"slab", "corner", "arc", "spline":
 					var path: PackedVector2Array = ed._shape_path(o)
 					for i in path.size() - 1:
 						var run := path[i + 1] - path[i]
@@ -549,6 +551,77 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 					cyl.bottom_radius = 0.5
 					cyl.height = 1.0
 					parts.append([Vector3(0, ph * 0.5, 0), Vector3(t, ph, t), wall_mat, 0.0, cyl])
+				"platform":
+					var dep := float(ed._param(o, "depth", 2.0))
+					var top := _up(float(ed._param(o, "elev", 2.7)))
+					var slab := maxf(_up(float(ed._param(o, "slab", 0.35))), 0.01)
+					parts.append([Vector3(0, top - slab * 0.5, 0), Vector3(dep, slab, span), _flat(col)])
+					if bool(ed._param(o, "posts", true)) and top - slab > 0.02:
+						for cx: float in [-dep * 0.45, dep * 0.45]:
+							for cz: float in [-span * 0.45, span * 0.45]:
+								parts.append([Vector3(cx, (top - slab) * 0.5, cz), Vector3(0.07, top - slab, 0.07), wall_mat])
+					if str(ed._param(o, "edge", "chrome")) != "none":
+						var rail := _flat(Color(0.85, 0.87, 0.9))
+						for cz: float in [-span * 0.5, span * 0.5]: parts.append([Vector3(0, top + _up(0.5), cz), Vector3(dep, _up(1.0), 0.01), rail])
+						for cx: float in [-dep * 0.5, dep * 0.5]: parts.append([Vector3(cx, top + _up(0.5), 0), Vector3(0.01, _up(1.0), span), rail])
+				"flight":
+					var dep := float(ed._param(o, "depth", 1.0))
+					var base := _up(float(ed._param(o, "elev", 0.0)))
+					var rise := _up(float(ed._param(o, "rise", 2.7)))
+					var n := clampi(roundi(float(ed._param(o, "rise", 2.7)) / 0.36), 2, 40)
+					for i in n:
+						var hgt := rise * (i + 1) / n
+						parts.append([Vector3(-dep * 0.5 + dep * (i + 0.5) / n, base + hgt * 0.5, 0), Vector3(dep / n, hgt, span), _flat(col.darkened(0.03 * (i % 2)))])
+				"spiral":
+					var r := span * 0.5
+					var rise := _up(float(ed._param(o, "rise", 5.4)))
+					var base := _up(float(ed._param(o, "elev", 0.0)))
+					var sweep := deg_to_rad(float(ed._param(o, "sweep", 360.0)))
+					var turn := -1.0 if str(ed._param(o, "turn", "left")) == "right" else 1.0
+					var n := clampi(roundi(float(ed._param(o, "rise", 5.4)) / 0.4), 3, 60)
+					var core := float(ed._param(o, "core", 0.7)) / 4.5
+					for i in n:
+						var a := sweep * (i + 0.5) / n
+						var at := Vector3(cos(a), 0, -sin(a) * turn) * (r + core * 0.5) * 0.5
+						parts.append([at + Vector3(0, base + rise * (i + 1) / n, 0), Vector3(r - core * 0.5, 0.02, maxf(0.05, sweep / n * r * 0.7)), _flat(col), atan2(sin(a) * turn, cos(a))])
+					var cyl := CylinderMesh.new()
+					cyl.top_radius = 0.5
+					cyl.bottom_radius = 0.5
+					cyl.height = 1.0
+					parts.append([Vector3(0, (base + rise + _up(2.0)) * 0.5, 0), Vector3(core, base + rise + _up(2.0), core), wall_mat, 0.0, cyl])
+				"window":
+					var hh := _up(float(ed._param(o, "height", 2.2)))
+					var sill := _up(float(ed._param(o, "elev", 0.9)))
+					var glass := _flat(Color(0.75, 0.9, 1.0))
+					glass.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+					parts.append([Vector3(0.012, sill + hh * 0.5, 0), Vector3(0.02, hh, span), glass])
+					parts.append([Vector3(0.02, sill - 0.01, 0), Vector3(0.05, 0.02, span + 0.04), _flat(Color(0.92, 0.92, 0.9))])
+				"water":
+					var lvl := maxf(_up(float(ed._param(o, "level", 0.4))), 0.005)
+					parts.append([Vector3(0, lvl * 0.5, 0), Vector3(float(ed._param(o, "depth", 3.0)), lvl, span), _flat(Color(0.25, 0.72, 0.8, 0.45))])
+				"pool":
+					var poly: PackedVector2Array = ed._shape_path(o)
+					if poly.size() >= 4:
+						var pv := poly.slice(0, poly.size() - 1)
+						var idx := Geometry2D.triangulate_polygon(pv)
+						if not idx.is_empty():
+							var st := SurfaceTool.new()
+							st.begin(Mesh.PRIMITIVE_TRIANGLES)
+							for k in idx:
+								st.set_normal(Vector3.UP)
+								st.add_vertex(Vector3(pv[k].x, 0.004, pv[k].y))
+							var pm := MeshInstance3D.new()
+							pm.mesh = st.commit()
+							var wm := _flat(Color(0.2, 0.62, 0.75))
+							wm.cull_mode = BaseMaterial3D.CULL_DISABLED
+							pm.material_override = wm
+							pm.transform = Transform3D(Basis(Vector3.UP, yaw_rad), pos)
+							parent.add_child(pm)
+						var rim := _flat(Color(0.93, 0.93, 0.9))
+						for i in poly.size() - 1:
+							var run2 := poly[i + 1] - poly[i]
+							var mid2 := (poly[i] + poly[i + 1]) * 0.5
+							parts.append([Vector3(mid2.x, 0.006, mid2.y), Vector3(run2.length() + 0.07, 0.012, 0.07), rim, atan2(-run2.y, run2.x)])
 				"zone":
 					var zc := col
 					zc.a = 0.22
@@ -808,6 +881,15 @@ func _put(o: Dictionary, hit: Dictionary, off := Vector2.ZERO) -> void:
 	var out := Vector2(nrm.x, nrm.z).normalized()          # away from the wall, on the map
 	var on_wall := absf(nrm.y) < 0.5
 	var model := _model(t)
+	if on_wall and str(info.get("mount", "")) == "wall" and model.is_empty():
+		# a window: flat on the face pointed at, facing out of it, its glass centred on the height pointed at
+		p = ed._snap_pos(p + out * 0.001)
+		o.rotation = fposmod(rad_to_deg(out.angle()), 360.0)
+		var sill := maxf(0.0, at.y * 9.0 / vscale - float(ed._param(o, "height", 2.2)) * 0.5)
+		o["elev"] = sill if loose else snappedf(sill, 0.05)
+		o.pos_x = clampf(p.x, 0.0, ed.grid_size - 1)
+		o.pos_y = clampf(p.y, 0.0, ed.grid_size - 1)
+		return
 	if on_wall and str(info.get("mount", "")) == "wall" and not model.is_empty():
 		# flat on the wall: its back (the model's -x side) on the face, facing out, its middle at the height pointed at
 		var b: AABB = model.bounds

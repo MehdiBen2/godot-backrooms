@@ -209,6 +209,14 @@ var _head_k := 0.0                # 0..1 eased: how far the head lamp is on
 # Crawl space (the editor's CRAWL zone): a ceiling you have to get right down under
 const CRAWL_EYE := 0.62           # m: eye height crawling
 const CRAWL_SPEED := 0.7          # share of crouch speed
+const WADE_DEEP := 1.1            # m of water at which wading is at its slowest...
+const WADE_SPEED := 0.45          # ...this share of walking speed
+var wade_k := 0.0                 # 0 dry .. 1 waist deep and over, eased
+const SWIM_FLOAT := 0.28          # m of you over the surface when afloat: eyes and nose out
+const CLIMB_OUT_TIME := 0.8       # s: the most a heave out of the water over its side can take
+const CLIMB_OUT_SPEED := 3.2
+var swimming := false
+var _climb_out := 0.0
 const CRAWL_REACH := 0.3          # m: how far ahead of you each hand goes on the floor (inside arm's reach from a crawling shoulder)
 const CRAWL_LEAD_MAX := 0.42      # m: the furthest ahead a reaching hand lands, however fast you go
 const CRAWL_SWING_SHARE := 0.4    # share of a hand's cycle (two footfalls) spent in the air reaching forward
@@ -267,6 +275,11 @@ const BEAM_TILT_MAX := 0.30   # rad: how far the arm may drop the beam (any more
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# stairs and ramps (props/vertical_pieces.gd, props/stairs.gd): as fast up a slope as on the flat, held down onto
+	# it going down instead of skipping off each tread, and a slope a little past 45 degrees still a floor
+	floor_constant_speed = true
+	floor_snap_length = 0.45
+	floor_max_angle = deg_to_rad(48.0)
 	level = get_parent().get_node_or_null("Level")
 	# The beam leaves from the low hand now, so it skims the floor: at that grazing angle the shadow map
 	# bands across it, which a normal bias lifts. Level lamps set theirs in code too, not in the scene.
@@ -446,7 +459,10 @@ func _physics_process(dt: float) -> void:
 	if Input.is_action_pressed("move_right"): dir.x += 1
 	var moving := dir != Vector2.ZERO
 	var rush := adrenaline > 0.5 and adr_active     # sprint is free during a burst
-	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0)) and tight_k < 0.25
+	# wading (a Water object, level_data.gd water_depth_at): the deeper, the slower; past the waist no running
+	var wade: float = Game.level.water_depth_at(global_position) if Game.level != null and Game.level.has_method("water_depth_at") else 0.0
+	wade_k = lerpf(wade_k, clampf(wade / WADE_DEEP, 0.0, 1.0), minf(1.0, dt * 6.0))
+	var sprint := Input.is_action_pressed("sprint") and not crouch and moving and (rush or (not exhausted and stamina > 0.0)) and tight_k < 0.25 and wade < 0.9
 	is_sprinting = sprint
 	is_moving = moving
 	is_crouching = crouch
@@ -461,6 +477,7 @@ func _physics_process(dt: float) -> void:
 	speed *= 1.0 + SWING_BOOST * _swing_boost
 	speed *= 1.0 + CORNER_BOOST * _corner_boost
 	speed *= lerpf(1.0, SQUEEZE_SPEED, tight_k) * lerpf(1.0, CRAWL_SPEED, crawl_k)
+	speed *= lerpf(1.0, WADE_SPEED, wade_k)
 	speed *= Game.speed_mult
 	var wish := (transform.basis * Vector3(dir.x, 0, dir.y)).normalized() * speed
 	if _corner_on and wish.length_squared() > 0.0001:
@@ -479,7 +496,26 @@ func _physics_process(dt: float) -> void:
 	space_prev = space
 	jump_buffer = maxf(0.0, jump_buffer - dt)
 	coyote = COYOTE_TIME if is_on_floor() else maxf(0.0, coyote - dt)
-	if (space or jump_buffer > 0.0) and coyote > 0.0:
+	# Deep water (a pool, a flood over your chin): you float with your head out of it. Space swims up, crouch
+	# dives, and pushing on into the pool's side heaves you up and out over it.
+	# (afloat, the water stands at eye - SWIM_FLOAT: well clear of where you start and stop, so it never flickers)
+	swimming = wade > eye - SWIM_FLOAT - 0.05 or (swimming and wade > eye - SWIM_FLOAT - 0.5 and not is_on_floor())
+	if swimming and is_on_wall() and moving and dir.y < 0.0 and wade < eye + 0.4 and _climb_out <= 0.0:
+		_climb_out = CLIMB_OUT_TIME                  # hands on the side, heave: carried on until you are over it
+	if _climb_out > 0.0:
+		_climb_out -= dt
+		velocity.y = CLIMB_OUT_SPEED
+		if not is_on_wall() and wade <= 0.05: _climb_out = 0.0      # over the rim: on you go
+		jump_buffer = 0.0
+		coyote = 0.0
+	elif swimming:
+		var want := clampf((wade - (eye - SWIM_FLOAT)) * 2.5, -1.2, 1.4)
+		if crouch: want = -1.5
+		elif space: want = 1.8
+		velocity.y = move_toward(velocity.y, want, dt * 7.0)
+		jump_buffer = 0.0
+		coyote = 0.0
+	elif (space or jump_buffer > 0.0) and coyote > 0.0:
 		velocity.y = JUMP_SPEED * Game.jump_mult
 		jump_buffer = 0.0
 		coyote = 0.0

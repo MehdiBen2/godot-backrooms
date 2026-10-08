@@ -161,7 +161,7 @@ func bake_hash() -> String:
 
 ## The box the VoxelGI covers: the whole grid, floor to the highest ceiling, a little margin all round
 func gi_bounds() -> Dictionary:
-	var top := TALL_H if not tall.is_empty() else WALL_H
+	var top := GRAND_H if not grand.is_empty() else (TALL_H if not tall.is_empty() else WALL_H)
 	var lo := Vector3(-CELL * 0.5, -0.5, -CELL * 0.5)
 	var hi := Vector3((size - 0.5) * CELL, top + 0.5, (size - 0.5) * CELL)
 	return {"center": (lo + hi) * 0.5, "size": hi - lo}

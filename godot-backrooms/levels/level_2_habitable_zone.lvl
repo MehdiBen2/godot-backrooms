@@ -65,7 +65,7 @@
       "rail": true,
       "rise": 5.4,
       "rotation": 0.0,
-      "scale": 1.0,
+      "scale": 4.0,
       "surface": "tile",
       "sweep": 360.0,
       "turn": "left",
@@ -81,6 +81,295 @@
       "scale": 7.0,
       "tint": "teal",
       "type": "water"
+    },
+    {
+      "height": 0.0,
+      "pos_x": 10.5,
+      "pos_y": 14.0,
+      "rotation": 90.0,
+      "scale": 4.0,
+      "thick": 4.5,
+      "type": "pillar"
+    },
+    {
+      "closed": false,
+      "height": 0.0,
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.5,
+          2.5
+        ],
+        [
+          1.0,
+          5.5
+        ],
+        [
+          1.5,
+          7.5
+        ],
+        [
+          1.0,
+          9.5
+        ],
+        [
+          1.5,
+          11.5
+        ],
+        [
+          -0.5,
+          14.0
+        ],
+        [
+          -1.5,
+          15.0
+        ]
+      ],
+      "pos_x": 15.0,
+      "pos_y": 7.5,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "smooth": true,
+      "thick": 0.3,
+      "type": "wall_spline"
+    },
+    {
+      "closed": false,
+      "height": 0.0,
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          3.0
+        ],
+        [
+          0.5,
+          6.5
+        ],
+        [
+          2.5,
+          9.5
+        ],
+        [
+          1.5,
+          11.5
+        ],
+        [
+          -2.0,
+          11.5
+        ],
+        [
+          -7.0,
+          12.0
+        ],
+        [
+          -8.0,
+          12.5
+        ],
+        [
+          -9.0,
+          10.5
+        ],
+        [
+          -7.5,
+          7.5
+        ],
+        [
+          -4.5,
+          5.5
+        ]
+      ],
+      "pos_x": 12.0,
+      "pos_y": 8.5,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "smooth": true,
+      "thick": 0.3,
+      "type": "wall_spline"
+    },
+    {
+      "closed": false,
+      "height": 0.0,
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -4.5,
+          0.0
+        ],
+        [
+          -8.5,
+          0.0
+        ],
+        [
+          -10.5,
+          -1.0
+        ],
+        [
+          -11.0,
+          -3.5
+        ],
+        [
+          -10.5,
+          -7.0
+        ],
+        [
+          -8.5,
+          -9.0
+        ],
+        [
+          -8.0,
+          -10.5
+        ],
+        [
+          -7.5,
+          -13.5
+        ],
+        [
+          -7.5,
+          -15.0
+        ]
+      ],
+      "pos_x": 13.0,
+      "pos_y": 22.5,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "smooth": true,
+      "thick": 0.3,
+      "type": "wall_spline"
+    },
+    {
+      "depth": 12.5,
+      "edge": "chrome",
+      "elev": 2.7,
+      "pos_x": 19.0,
+      "pos_y": 16.25,
+      "posts": true,
+      "rotation": 90.0,
+      "scale": 7.0,
+      "slab": 0.35,
+      "surface": "tile",
+      "type": "platform"
+    },
+    {
+      "pos_x": 10.096,
+      "pos_y": 3.885,
+      "rotation": 295.93,
+      "scale": 0.947,
+      "type": "prop_gas_cylinder"
+    },
+    {
+      "pos_x": 20.775,
+      "pos_y": 15.774,
+      "rotation": 296.63,
+      "scale": 1.198,
+      "type": "prop_gas_cylinder"
+    },
+    {
+      "pos_x": 12.767,
+      "pos_y": 9.809,
+      "rotation": 282.88,
+      "scale": 1.256,
+      "type": "prop_electrical_box2"
+    },
+    {
+      "pos_x": 11.063,
+      "pos_y": 20.101,
+      "rotation": 67.88,
+      "scale": 1.283,
+      "type": "prop_gas_cylinder"
+    },
+    {
+      "pos_x": 13.737,
+      "pos_y": 2.057,
+      "rotation": 107.07,
+      "scale": 0.994,
+      "type": "prop_work_light"
+    },
+    {
+      "pos_x": 11.292,
+      "pos_y": 19.234,
+      "rotation": 247.32,
+      "scale": 1.009,
+      "type": "prop_pallet_truck"
+    },
+    {
+      "pos_x": 20.892,
+      "pos_y": 20.737,
+      "rotation": 264.5,
+      "scale": 1.208,
+      "type": "prop_electrical_box"
+    },
+    {
+      "pos_x": 19.028,
+      "pos_y": 4.99,
+      "rotation": 75.79,
+      "scale": 1.224,
+      "type": "prop_gas_cylinder"
+    },
+    {
+      "pos_x": 20.731,
+      "pos_y": 4.889,
+      "rotation": 193.33,
+      "scale": 1.148,
+      "type": "prop_electrical_box"
+    },
+    {
+      "pos_x": 17.161,
+      "pos_y": 7.873,
+      "rotation": 86.74,
+      "scale": 1.003,
+      "type": "prop_pallet_truck"
+    },
+    {
+      "pos_x": 2.862,
+      "pos_y": 11.709,
+      "rotation": 88.66,
+      "scale": 0.893,
+      "type": "prop_cable_drum"
+    },
+    {
+      "pos_x": 19.709,
+      "pos_y": 11.887,
+      "rotation": 345.19,
+      "scale": 1.054,
+      "type": "prop_platform_trolley"
+    },
+    {
+      "pos_x": 8.109,
+      "pos_y": 14.203,
+      "rotation": 233.1,
+      "scale": 1.144,
+      "type": "prop_explosive_barrel"
+    },
+    {
+      "pos_x": 20.974,
+      "pos_y": 17.935,
+      "rotation": 154.51,
+      "scale": 1.145,
+      "type": "prop_explosive_barrel"
+    },
+    {
+      "pos_x": 22.124,
+      "pos_y": 8.722,
+      "rotation": 124.21,
+      "scale": 1.234,
+      "type": "prop_gas_can"
+    },
+    {
+      "pos_x": 19.843,
+      "pos_y": 13.119,
+      "rotation": 326.74,
+      "scale": 0.9,
+      "type": "prop_gas_can"
     }
   ],
   "sdfgi": true,
@@ -100,12 +389,15 @@
     "echo": [],
     "endless_ceiling": [],
     "flicker": [],
+    "grand": [],
     "grime": [],
+    "hall_reverb": [],
     "liminal": [],
     "loop": [],
     "loot": [],
     "low": [],
     "mannequin": [],
+    "muffled": [],
     "noclip": [],
     "noclip_floor": [],
     "open_ceiling": [],

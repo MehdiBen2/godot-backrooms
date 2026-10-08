@@ -19,7 +19,8 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
 	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
-	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0")}
+	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0"),
+	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -156,7 +157,22 @@ func _max_scale(t: String) -> float:
 
 ## The width the next object of type `t` is placed at: its type's last one, else 1 cell (a trigger: 3)
 func _place_scale(t: String) -> float:
-	return float(place_scales.get(t, 3.0 if _shape(t) == "zone" else 1.0))
+	return float(place_scales.get(t, _info(t).get("default_scale", 3.0 if _shape(t) == "zone" else 1.0)))
+
+## Shapes laid out as a box `depth` cells along the arrow by `scale` across: a trigger, water, a raised floor, a
+## straight flight of stairs
+const BOX_SHAPES := ["zone", "water", "platform", "flight"]
+
+## How far from its origin an object reaches, in cells (for culling and picking)
+func _obj_reach(o: Dictionary) -> float:
+	match _shape(o.type):
+		"spline", "pool":
+			var r := 1.0
+			for q in _shape_path(o): r = maxf(r, q.length())
+			return r
+		"zone", "water", "platform", "flight":
+			return maxf(float(o.scale), float(_param(o, "depth", 2.0))) * 0.75
+	return float(o.scale)
 
 ## The centre line of a wall-shaped object in object space (cells): the game's level_data.gd shape_path()
 func _shape_path(o: Dictionary) -> PackedVector2Array:
@@ -173,7 +189,63 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 			for i in n + 1:
 				pts.append(Vector2.from_angle(-arc * 0.5 + arc * i / n) * sc * 0.5)
 			return pts
+		"spline":
+			return _spline_path(o)
+		"pool":
+			var out := PackedVector2Array()
+			var raw = o.get("points", [])
+			if raw is Array:
+				for q in raw:
+					if q is Array and q.size() >= 2: out.append(Vector2(float(q[0]), float(q[1])))
+			if out.size() >= 3: out.append(out[0])
+			return out
 	return PackedVector2Array()
+
+## Shapes edited point by point (their "points" in object space): spline walls and pools
+func _pointy(t: String) -> bool:
+	return _shape(t) in ["spline", "pool"]
+
+## A spline wall's centre line: the game's level_data.gd spline_path() (its "points", straight or smoothed
+## through them, round to the first again when "closed")
+const SPLINE_STEP := 0.12
+func _spline_path(o: Dictionary) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var raw = o.get("points", [])
+	if raw is Array:
+		for q in raw:
+			if not (q is Array and q.size() >= 2): continue
+			var v := Vector2(float(q[0]), float(q[1]))
+			if pts.is_empty() or pts[pts.size() - 1].distance_to(v) > 0.01: pts.append(v)
+	var closed := bool(_param(o, "closed", false)) and pts.size() >= 3
+	if closed and pts[0].distance_to(pts[pts.size() - 1]) < 0.01: pts.remove_at(pts.size() - 1)
+	var n := pts.size()
+	if n < 2: return pts
+	if not bool(_param(o, "smooth", true)):
+		if closed: pts.append(pts[0])
+		return pts
+	var out := PackedVector2Array()
+	for i in (n if closed else n - 1):
+		var p1 := pts[i]
+		var p2 := pts[(i + 1) % n]
+		var p0 := pts[(i - 1 + n) % n] if (closed or i > 0) else p1 * 2.0 - p2
+		var p3 := pts[(i + 2) % n] if (closed or i + 2 < n) else p2 * 2.0 - p1
+		var steps := maxi(2, ceili(p1.distance_to(p2) / SPLINE_STEP))
+		for k in steps:
+			out.append(_catmull(p0, p1, p2, p3, float(k) / steps))
+	out.append(pts[0] if closed else pts[n - 1])
+	return out
+
+func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> Vector2:
+	var t1 := sqrt(maxf(p0.distance_to(p1), 0.0001))
+	var t2 := t1 + sqrt(maxf(p1.distance_to(p2), 0.0001))
+	var t3 := t2 + sqrt(maxf(p2.distance_to(p3), 0.0001))
+	var u := lerpf(t1, t2, t)
+	var a1 := p0.lerp(p1, u / t1)
+	var a2 := p1.lerp(p2, (u - t1) / (t2 - t1))
+	var a3 := p2.lerp(p3, (u - t2) / (t3 - t2))
+	var b1 := a1.lerp(a2, u / t2)
+	var b2 := a2.lerp(a3, (u - t1) / (t3 - t1))
+	return b1.lerp(b2, (u - t1) / (t2 - t1))
 
 ## A new object of type `t` with every param at its default
 func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
@@ -185,6 +257,8 @@ func _new_object(t: String, at: Vector2, rot: float) -> Dictionary:
 			o[k] = val.duplicate(true)
 		else:
 			o[k] = val
+	# (anything that stands on a floor stands on the active layer: a prop or a flight of stairs on a raised floor)
+	if params.has("elev") and active_elev > 0.0 and _shape(t) in ["", "flight", "spiral"]: o["elev"] = active_elev
 	return o
 
 # ---------------------------------------------------------------- stairwells
@@ -411,6 +485,10 @@ func _unreachable_floors() -> Array:
 			for o: Dictionary in all[f].objects:
 				if joined: break
 				joined = _is_stairs(str(o.type)) and _stair_twin(all[g].objects, o) >= 0
+			# a flight or spiral that climbs a storey goes up through the ceiling to the floor above (and back down)
+			for o: Dictionary in (all[f].objects if d == 1 else all[g].objects):
+				if joined: break
+				joined = _climbs(o)
 			if joined:
 				seen[g] = true
 				todo.append(g)
@@ -455,6 +533,7 @@ func _mark_dirty() -> void:
 		if k < objects.size() and _is_stairs(str(objects[k].type)): _well_follow(objects[k])
 	if preview3d != null and preview3d.visible: preview3d.mark_stale()
 	_update_title()
+	_refresh_layers()
 	canvas.queue_redraw()
 
 func _invalidate_map_cache() -> void:
@@ -595,9 +674,9 @@ func _paint_colour(id: String) -> Color:
 # ---------------------------------------------------------------- material thumbnails
 # How a surface looks when the level sets no material: the game's own Level 0 textures
 const DEFAULT_TEX := {"wall": "textures/wall_color.png", "floor": "textures/l0_carpet_color.webp",
-	"ceiling": "textures/l0_ceiling_color.webp", "tiles": "textures/tiles_color.png"}
+	"ceiling": "textures/pbr/Tiles107/Tiles107_Color.jpg", "tiles": "textures/tiles_color.png"}   # (the ceiling: Tiles107, level_geometry.gd DEFAULT_MATERIALS)
 # ...and the tint the game puts over each (level_geometry.gd _mat / _wall_material)
-const DEFAULT_TINT := {"wall": Color(1.0, 0.98, 0.88), "floor": Color(1.0, 0.94, 0.75), "ceiling": Color(0.89, 0.85, 0.74)}
+const DEFAULT_TINT := {"wall": Color(1.0, 0.98, 0.88), "floor": Color(1.0, 0.94, 0.75)}
 const THUMB := 128
 const DIRS4 := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const WALL_SHADE := Color(0.42, 0.4, 0.36)      # wall tops drawn darker than the floor round them
@@ -626,7 +705,7 @@ func _thumb(key: String) -> Dictionary:
 	if key.begins_with("default:"): path = GAME.path_join(str(DEFAULT_TEX.get(key.get_slice(":", 1), "")))
 	elif key != "": path = _pbr_colour_path(key)
 	if path != "" and FileAccess.file_exists(path):
-		var cache := "user://thumbs/%s_v2.png" % key.replace(":", "_")
+		var cache := "user://thumbs/%s_v3.png" % key.replace(":", "_")
 		var img: Image = null
 		if FileAccess.file_exists(cache) and FileAccess.get_modified_time(cache) >= FileAccess.get_modified_time(path):
 			img = Image.load_from_file(cache)
@@ -769,7 +848,7 @@ func _draw_canvas() -> void:
 	if show_grid: _draw_grid(lo, hi)
 	if show_objects:
 		for o: Dictionary in objects:
-			_draw_object(o, 1.0)
+			_draw_object(o, 0.18 if _layer_hidden(o) else 1.0)
 	_draw_markers()
 	if _object_tool():
 		if not show_objects: pass
@@ -1864,6 +1943,7 @@ func _floor_name(f: int) -> String:
 
 func _switch_floor(f: int) -> void:
 	if f == floor_idx or not floor_store.has(f): return
+	if drag == "spline": _end_spline()
 	floor_store[floor_idx] = _live_floor()
 	_load_floor(floor_store[f])
 	floor_store.erase(f)
@@ -2055,17 +2135,20 @@ func _obj_bounds(o: Dictionary) -> Rect2:
 	if _is_stairs(str(o.type)):
 		return Rect2(-0.5, 0.5 - STAIR_WIDE, STAIR_CELLS, STAIR_WIDE)
 	match _shape(o.type):
-		"corner", "arc":
+		"corner", "arc", "spline", "pool":
 			var pts := _shape_path(o)
+			if pts.is_empty(): return Rect2(-0.5, -0.5, 1.0, 1.0)
 			var r := Rect2(pts[0], Vector2.ZERO)
 			for q in pts: r = r.expand(q)
 			return r.grow(_obj_depth(o) * 0.5)
 		"pillar", "column":
 			var h := maxf(_thick_cells(o) * 0.5, minf(4.0 / zoom, 1.0))
 			return Rect2(-h, -h, h * 2.0, h * 2.0)
-		"zone":
+		"zone", "water", "platform", "flight":
 			var d := float(_param(o, "depth", 2.0))
 			return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
+		"spiral":
+			return Rect2(-o.scale * 0.5, -o.scale * 0.5, o.scale, o.scale)
 	var d := _obj_depth(o)
 	return Rect2(-d * 0.5, -o.scale * 0.5, d, o.scale)
 
@@ -2074,7 +2157,10 @@ func _obj_bounds(o: Dictionary) -> Rect2:
 func _obj_hit(o: Dictionary, p: Vector2) -> bool:
 	var l := (_obj_xf(o).affine_inverse() * p) / zoom
 	var slack := minf(6.0 / zoom, 1.5)
-	if _shape(o.type) in ["corner", "arc"]:
+	if _shape(o.type) == "pool":
+		var poly := _shape_path(o)
+		if poly.size() >= 4 and Geometry2D.is_point_in_polygon(l, poly): return true
+	if _shape(o.type) in ["corner", "arc", "spline", "pool"]:
 		var pts := _shape_path(o)
 		var reach := maxf(_obj_depth(o) * 0.5, slack)
 		for i in pts.size() - 1:
@@ -2088,8 +2174,9 @@ func _obj_at(p: Vector2) -> int:
 	for i in range(objects.size() - 1, -1, -1):
 		var o: Dictionary = objects[i]
 		var op := pan + (Vector2(o.pos_x, o.pos_y) + Vector2(0.5, 0.5)) * zoom
-		var max_r := (maxf(float(o.scale), 2.0) + 1.0) * zoom + 16.0
+		var max_r := (maxf(_obj_reach(o), 2.0) + 1.0) * zoom + 16.0
 		if p.distance_squared_to(op) > max_r * max_r: continue
+		if _layer_hidden(o): continue                  # a hidden height layer's pieces can't be picked
 		if _obj_hit(o, p): return i
 	return -1
 
@@ -2133,10 +2220,20 @@ func _grips(o: Dictionary) -> Array:
 			for s: float in [-1.0, 1.0]:
 				var v := Vector2.from_angle(s * arc * 0.5)
 				out.append({"kind": "arc", "at": v * half, "dir": v})
-		"zone":
+		"zone", "water", "platform", "flight":
 			for s: float in [-1.0, 1.0]:
 				out.append({"kind": "width", "at": Vector2(0, s * half), "dir": Vector2(0, s)})
 			out.append({"kind": "depth", "at": Vector2(-float(_param(o, "depth", 2.0)) * 0.5, 0), "dir": Vector2(-1, 0)})
+		"spiral":
+			out.append({"kind": "diameter", "at": Vector2(half, 0), "dir": Vector2(1, 0)})
+		"spline", "pool":
+			# one per point the curve goes through: drag it to bend the wall
+			var raw = o.get("points", [])
+			if raw is Array:
+				for i in raw.size():
+					var q = raw[i]
+					if q is Array and q.size() >= 2:
+						out.append({"kind": "point", "i": i, "at": Vector2(float(q[0]), float(q[1])), "dir": Vector2.ZERO})
 		_:
 			var kind := "size" if _info(t).has("model") else "width"
 			for s: float in [-1.0, 1.0]:
@@ -2203,6 +2300,12 @@ func _resize_drag(p: Vector2) -> void:
 		"arc":
 			var l := (_obj_xf(o).affine_inverse() * p) / zoom
 			o["arc"] = clampf(_stepped(absf(rad_to_deg(l.angle())) * 2.0, 5.0), 5.0, 360.0)
+		"point":
+			var q := _pos_at(p)
+			if snap and not Input.is_key_pressed(KEY_ALT): q = (q / SNAP_STEP).round() * SNAP_STEP
+			var l := (q - Vector2(o.pos_x, o.pos_y)).rotated(-deg_to_rad(float(o.rotation)))
+			var pts: Array = o.points
+			if int(grip.i) < pts.size(): pts[int(grip.i)] = [snappedf(l.x, 0.001), snappedf(l.y, 0.001)]
 	_sync_inspector()
 	_mark_dirty()
 
@@ -2214,6 +2317,7 @@ func _grip_text(o: Dictionary, kind: String) -> String:
 		"arc": return "arc %s°" % _deg(float(_param(o, "arc", 90.0)))
 		"size": return "size x %.2f" % float(o.scale)
 		"diameter": return "%.2f cells across  (%.1f m)" % [float(o.scale), float(o.scale) * CELL_M]
+		"point": return "point %d of %d" % [int(grip.get("i", 0)) + 1, (o.get("points", []) as Array).size()]
 	return "%.2f cells  (%.1f m)" % [float(o.scale), float(o.scale) * CELL_M]
 
 ## Shift + wheel over the map sizes the selected object, Alt + wheel turns it 15 degrees a notch
@@ -2224,6 +2328,7 @@ func _wheel_edit(up: bool, turn: bool) -> void:
 	var s := 1.0 if up else -1.0
 	if turn: _set_prop("rotation", float(o.rotation) + s * 15.0)
 	elif _shape(t) in ["pillar", "column"]: _set_prop("thick", clampf(snappedf(_thick_cells(o) * CELL_M + s * 0.1, 0.05), 0.05, 4.5))
+	elif _pointy(t): return                          # sized by its points
 	else: _set_prop("scale", clampf(float(o.scale) + s * SNAP_STEP, 0.5, _max_scale(t)))
 	_sync_inspector()
 	_status(_describe(o))
@@ -2233,6 +2338,7 @@ func _wheel_edit(up: bool, turn: bool) -> void:
 func _hint_text() -> String:
 	var always := "     Space / middle drag: move the map     wheel: zoom     Esc: cancel"
 	if drag == "chain": return "Click: end this wall     Shift+click: end it and start the next     right click / Esc: stop"
+	if drag == "spline": return "Click: add a point     click the first point again: close the loop     double click / right click / Enter: finish     Backspace: take the last point back"
 	if tool == "area":
 		if area.has_area(): return "Del: empty the box     Shift+Del: wall it in     Ctrl+C copy     Ctrl+X cut     Ctrl+V paste at the mouse     Ctrl+Shift+V paste in place     Esc: drop the box"
 		return "Drag: select a box of the map     Ctrl+A: the whole floor     Ctrl+V: paste what was copied" + always
@@ -2242,6 +2348,8 @@ func _hint_text() -> String:
 		return "Click: select     drag on empty map: box select     Shift+click: add to the selection     Ctrl+A: all" + always
 	if tool.begins_with("obj:"):
 		if bool(_info(tool.get_slice(":", 1)).get("draw_line", false)): return "Drag: draw the wall     let go with Shift: chain the next one     right click: delete" + always
+		if _shape(tool.get_slice(":", 1)) == "pool": return "Click each corner of the pool round, Enter / double click to close it (just a click: a 3 x 2 pool)     right click: delete" + always
+		if bool(_info(tool.get_slice(":", 1)).get("draw_spline", false)): return "Click: start a curved wall, then click each point it bends through     right click: delete" + always
 		return "Click: place     keep the button down and drag: aim it     R: turn the next one     right click: delete" + always
 	if tool == "gen": return "Drag: the area to generate" + always
 	if tool.begins_with("mark:"): return "Click: put the marker     right click: remove it" + always
@@ -2279,6 +2387,12 @@ func _open_cell(c: Vector2i) -> bool:
 	return c.x > 0 and c.y > 0 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL
 
 func _object_press(mb: InputEventMouseButton) -> void:
+	# a spline wall being drawn: each click puts down the point following the mouse, a double or right click ends it
+	if drag == "spline":
+		if not mb.pressed: return
+		if mb.button_index == MOUSE_BUTTON_RIGHT or mb.double_click: _end_spline()
+		else: _spline_add()
+		return
 	# a chained wall is waiting for its end: left click sets it (Shift: and starts the next), right click drops it
 	if drag == "chain" and mb.pressed:
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
@@ -2297,6 +2411,11 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_delete_object(i)
 		return
 	var gi := _grip_at(mb.position)
+	if mb.button_index == MOUSE_BUTTON_LEFT and selected >= 0 and selected < objects.size() and _pointy(str(objects[selected].type)):
+		if mb.ctrl_pressed and gi >= 0 and str(_grips(objects[selected])[gi].kind) == "point":
+			_point_remove(int(_grips(objects[selected])[gi].i))
+			return
+		if mb.shift_pressed and gi < 0 and _point_insert(mb.position): return
 	if gi >= 0:
 		_push_undo()
 		_grab_grip(_grips(objects[selected])[gi], mb.position)
@@ -2342,6 +2461,16 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		_push_undo()
 		var p := _snap_pos(_pos_at(mb.position))
 		var t := tool.get_slice(":", 1)
+		if bool(_info(t).get("draw_spline", false)):
+			# a wall along a curve: its first point here, the next one following the mouse until a click puts it down
+			var sp := _new_object(t, p, 0.0)
+			sp["points"] = [[0.0, 0.0], [0.0, 0.0]]
+			objects.append(sp)
+			_select(objects.size() - 1)
+			drag = "spline"
+			_status("Drawing a spline wall: click each point it bends through, double click / right click / Enter to finish")
+			_mark_dirty()
+			return
 		if bool(_info(t).get("draw_line", false)):
 			# a wall drawn as a line: it runs from here to wherever the button comes up
 			objects.append(_new_object(t, p, 0.0))
@@ -2369,7 +2498,7 @@ func _object_press(mb: InputEventMouseButton) -> void:
 
 ## The button came up on whatever an object tool was dragging (a chained wall is not a drag: it waits for a click)
 func _object_release(at: Vector2, shift := false) -> void:
-	if drag == "chain" or drag == "": return
+	if drag == "chain" or drag == "spline" or drag == "": return
 	if drag == "line":
 		_end_line(shift)
 		return
@@ -2395,13 +2524,14 @@ func _let_go() -> void:
 		rect_from = Vector2i(-1, -1)
 		area_from = Vector2i(-1, -1)
 		canvas.queue_redraw()
-	if drag != "" and drag != "chain": _object_release(mouse_px)
+	if drag != "" and drag != "chain" and drag != "spline": _object_release(mouse_px)
 
 ## Esc, or the window losing focus: nothing is left following the mouse
 func _cancel_all() -> void:
 	panning = false
 	_let_go()
 	if drag == "chain": _delete_selected()
+	if drag == "spline": _end_spline()
 
 func _object_drag(p: Vector2) -> void:
 	if drag == "box":
@@ -2422,6 +2552,14 @@ func _object_drag(p: Vector2) -> void:
 		_resize_drag(p)
 		return
 	var o: Dictionary = objects[selected]
+	if drag == "spline":
+		# the point following the mouse
+		var q := _snap_pos(_pos_at(p))
+		var l := (q - Vector2(o.pos_x, o.pos_y)).rotated(-deg_to_rad(float(o.rotation)))
+		var pts: Array = o.points
+		pts[pts.size() - 1] = [snappedf(l.x, 0.001), snappedf(l.y, 0.001)]
+		_mark_dirty()
+		return
 	if drag == "line" or drag == "chain":
 		var q := _snap_pos(_pos_at(p))
 		if Input.is_key_pressed(KEY_SHIFT) and rot_snap:            # keep chained runs square
@@ -2641,8 +2779,8 @@ func _sync_inspector() -> void:
 	insp_scale.set_value_no_signal(o.scale)
 	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
 	var sh := _shape(o.type)
-	insp_scale_label.text = {"arc": "Diameter", "corner": "Leg length", "zone": "Width"}.get(sh, "Width")
-	insp_scale_label.visible = sh not in ["pillar", "column"] and not _is_stairs(str(o.type))
+	insp_scale_label.text = {"arc": "Diameter", "spiral": "Diameter", "corner": "Leg length"}.get(sh, "Width")
+	insp_scale_label.visible = sh not in ["pillar", "column", "spline", "pool"] and not _is_stairs(str(o.type))
 	insp_scale.visible = insp_scale_label.visible
 	if insp_trigger_btn != null:
 		insp_trigger_btn.visible = (o.type == "trigger")
@@ -2685,7 +2823,15 @@ func _describe(o: Dictionary) -> String:
 	if params.has("thick"): t += "   %.2f m thick" % float(_param(o, "thick"))
 	if params.has("height"): t += "   " + ("to the ceiling" if float(_param(o, "height")) <= 0.0 else "%.2f m high" % float(_param(o, "height")))
 	if params.has("arc"): t += "   arc %s°" % _deg(float(_param(o, "arc")))
-	if params.has("elev") and float(_param(o, "elev")) > 0.0: t += "   %.2f m off the floor" % float(_param(o, "elev"))
+	if params.has("rise"):
+		t += "   climbs %.2f m to %.2f m" % [float(_param(o, "rise")), float(_param(o, "elev", 0.0)) + float(_param(o, "rise"))]
+		if _climbs(o): t += ", up through the ceiling to %s" % _floor_name(floor_idx + 1)
+		var steep := _steepness(o)
+		t += ("   %d° TOO STEEP TO WALK UP (40° at most: more Depth, less Rise)" if steep > 40.0 else "   %d°") % roundi(steep)
+	if params.has("level"): t += "   water %.2f m deep" % float(_param(o, "level"))
+	if _shape(o.type) == "platform": t += "   top %.2f m up" % float(_param(o, "elev", 0.0))
+	if _shape(o.type) == "spline": t += "   %d points%s" % [(o.get("points", []) as Array).size(), "  (closed)" if bool(_param(o, "closed", false)) else ""]
+	if params.has("elev") and float(_param(o, "elev")) > 0.0 and _shape(o.type) != "platform": t += "   %.2f m off the floor" % float(_param(o, "elev"))
 	if _is_stairs(str(o.type)) and objects.has(o):
 		var up := _stair_linked(o, floor_idx, 1)
 		var down := _stair_linked(o, floor_idx, -1)
@@ -2731,7 +2877,7 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 ## `own`: one of this floor's (a stairwell then shows which floors it is joined to)
 func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	var op := pan + (Vector2(o.pos_x, o.pos_y) + Vector2(0.5, 0.5)) * zoom
-	var bound_r := (maxf(float(o.scale), 2.0) + 1.0) * zoom + 32.0
+	var bound_r := (maxf(_obj_reach(o), 2.0) + 1.0) * zoom + 32.0
 	if op.x + bound_r < 0.0 or op.x - bound_r > canvas.size.x or op.y + bound_r < 0.0 or op.y - bound_r > canvas.size.y:
 		return
 	var col: Color = _info(o.type).col
@@ -2835,8 +2981,131 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 					summary += ' "%s"' % preview
 				var lbl := summary + ("" if bool(_param(o, "once", true)) else " [repeat]")
 				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
+		"water":
+			# a see-through blue box with ripples across it, and how deep it stands
+			var d := float(_param(o, "depth", 3.0)) * 0.5
+			var hw: float = o.scale * 0.5
+			var pts := _local_rect(xf, -d, -hw, d, hw)
+			canvas.draw_colored_polygon(pts, Color(col, alpha * 0.3))
+			canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(col, alpha * 0.95), 1.5)
+			if zoom >= 5.0:
+				var rows := clampi(int(d * 2.0), 1, 24)
+				for k in rows:
+					var x := lerpf(-d, d, (k + 0.5) / rows)
+					var wave := PackedVector2Array()
+					for i in 17:
+						var z := lerpf(-hw * 0.9, hw * 0.9, i / 16.0)
+						wave.append(xf * (Vector2(x + sin(z * 7.0 + k) * 0.05, z) * zoom))
+					canvas.draw_polyline(wave, Color(1, 1, 1, alpha * 0.35), 1.0)
+			if zoom >= 8.0: _tag(xf.origin + Vector2(-18, -8), "%.2f m" % float(_param(o, "level", 0.4)), Color(col.lightened(0.4), alpha), 10)
+		"platform":
+			# a raised floor: a hatched slab (you walk under it), its height on it, its rails round the rim
+			var d := float(_param(o, "depth", 2.0)) * 0.5
+			var hw: float = o.scale * 0.5
+			var pts := _local_rect(xf, -d, -hw, d, hw)
+			canvas.draw_colored_polygon(pts, Color(col, alpha * 0.45))
+			if zoom >= 6.0:
+				var span := d + hw
+				var step := maxf(0.25, 10.0 / zoom)
+				var t0 := -span * 2.0
+				while t0 < span * 2.0:
+					var a := Vector2(-d, t0 + d)
+					var b := Vector2(d, t0 - d)
+					# (clipped to the slab across: the hatch runs corner to corner)
+					var q0 := Vector2(clampf(a.x, -d, d), clampf(a.y, -hw, hw))
+					var q1 := Vector2(clampf(b.x, -d, d), clampf(b.y, -hw, hw))
+					if q0.distance_to(q1) > 0.01: canvas.draw_line(xf * (q0 * zoom), xf * (q1 * zoom), Color(0, 0, 0, alpha * 0.25), 1.0)
+					t0 += step
+			var rim := Color(1, 1, 1, alpha * 0.85) if str(_param(o, "edge", "chrome")) != "none" else Color(0, 0, 0, alpha * 0.6)
+			canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), rim, 2.0 if str(_param(o, "edge", "chrome")) == "parapet" else 1.2)
+			if zoom >= 8.0: _tag(xf.origin + Vector2(-20, -8), "+%.1f m" % float(_param(o, "elev", 2.7)), Color(1, 1, 1, alpha), 11)
+		"flight":
+			# straight stairs: their treads across the arrow, an arrow up them, red if they are too steep to walk
+			var d := float(_param(o, "depth", 1.0)) * 0.5
+			var hw: float = o.scale * 0.5
+			var pts := _local_rect(xf, -d, -hw, d, hw)
+			canvas.draw_colored_polygon(pts, Color(col, alpha * 0.75))
+			var n := clampi(roundi(float(_param(o, "rise", 2.7)) / 0.18), 1, 90)
+			if zoom * d * 2.0 / n >= 2.5:
+				for i in range(1, n):
+					var x := lerpf(-d, d, float(i) / n)
+					canvas.draw_line(xf * (Vector2(x, -hw) * zoom), xf * (Vector2(x, hw) * zoom), Color(0, 0, 0, alpha * 0.4), 1.0)
+			var steep := _steepness(o) > 40.0
+			canvas.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(RED, alpha) if steep else Color(0, 0, 0, alpha * 0.8), 2.0 if steep else 1.0)
+			var tail := xf * (Vector2(-d * 0.7, 0) * zoom)
+			var head := xf * (Vector2(d * 0.7, 0) * zoom)
+			canvas.draw_line(tail, head, Color(0, 0, 0, alpha * 0.8), 2.0)
+			var dir := (head - tail).normalized()
+			canvas.draw_colored_polygon(PackedVector2Array([head + dir * 6.0, head - dir * 4.0 + dir.orthogonal() * 5.0, head - dir * 4.0 - dir.orthogonal() * 5.0]), Color(0, 0, 0, alpha * 0.8))
+			if zoom >= 10.0: _tag(xf.origin + Vector2(-24, 8), "UP %.1f m" % float(_param(o, "rise", 2.7)), Color(RED if steep else Color.WHITE, alpha), 10)
+		"spiral":
+			# the stair in plan: its column, its treads fanned round it as far as it turns, an arrow at its foot
+			var r: float = o.scale * 0.5
+			var core := float(_param(o, "core", 0.7)) / CELL_M * 0.5
+			var turn := -1.0 if str(_param(o, "turn", "left")) == "right" else 1.0
+			var sweep := deg_to_rad(clampf(float(_param(o, "sweep", 360.0)), 30.0, 1440.0))
+			var n := clampi(roundi(float(_param(o, "rise", 5.4)) / 0.2), 3, 120)
+			canvas.draw_circle(xf.origin, r * zoom, Color(col, alpha * 0.35))
+			var at := func(a: float, rr: float) -> Vector2: return xf * (Vector2(cos(a), -sin(a) * turn) * rr * zoom)
+			for i in n + 1:
+				var a := sweep * i / n
+				if a > TAU + 0.001: break                 # (a second turn lies over the first)
+				canvas.draw_line(at.call(a, core), at.call(a, r), Color(0, 0, 0, alpha * (0.7 if i == 0 else 0.3)), 2.0 if i == 0 else 1.0)
+			canvas.draw_arc(xf.origin, r * zoom, 0, TAU, 40, Color(col.darkened(0.3), alpha), 1.5)
+			canvas.draw_circle(xf.origin, maxf(core * zoom, 2.0), Color(BASE_COLORS[WALL], alpha))
+			var mid := (r + core) * 0.5
+			var s0: Vector2 = at.call(0.15, mid)
+			var s1: Vector2 = at.call(minf(sweep, PI * 0.6), mid)
+			canvas.draw_line(s0, s1, Color(0, 0, 0, alpha * 0.7), 2.0)
+			if zoom >= 10.0: _tag(xf.origin + Vector2(-24, 10), "UP %.1f m" % float(_param(o, "rise", 5.4)), Color(RED if _steepness(o) > 40.0 else Color.WHITE, alpha), 10)
+		"pool":
+			# the water inside its outline, the coping round it, and which end is deep
+			var poly := _shape_path(o)
+			if poly.size() < 4: return
+			var px := PackedVector2Array()
+			for i in poly.size() - 1: px.append(xf * (poly[i] * zoom))
+			if Geometry2D.triangulate_polygon(px).is_empty(): canvas.draw_polyline(px + PackedVector2Array([px[0]]), Color(RED, alpha), 2.0)
+			else: canvas.draw_colored_polygon(px, Color(col.darkened(0.25), alpha * 0.55))
+			canvas.draw_polyline(px + PackedVector2Array([px[0]]), Color(0.95, 0.95, 0.92, alpha), maxf(2.0, 0.32 / CELL_M * zoom))
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for q in poly:
+				lo = lo.min(q)
+				hi = hi.max(q)
+			if zoom >= 6.0:
+				for k in clampi(int((hi.y - lo.y) * 2.0), 1, 30):
+					var y := lerpf(lo.y, hi.y, (k + 0.5) / clampi(int((hi.y - lo.y) * 2.0), 1, 30))
+					var wave := PackedVector2Array()
+					for i in 13:
+						var x := lerpf(lo.x, hi.x, i / 12.0)
+						if Geometry2D.is_point_in_polygon(Vector2(x, y), poly): wave.append(xf * (Vector2(x, y + sin(x * 7.0 + k) * 0.04) * zoom))
+						elif wave.size() > 1:
+							canvas.draw_polyline(wave, Color(1, 1, 1, alpha * 0.3), 1.0)
+							wave.clear()
+						else: wave.clear()
+					if wave.size() > 1: canvas.draw_polyline(wave, Color(1, 1, 1, alpha * 0.3), 1.0)
+			var midy := (lo.y + hi.y) * 0.5
+			if bool(_param(o, "steps", true)):
+				for k in 3: canvas.draw_line(xf * (Vector2(lo.x + 0.075 * (k + 1), midy - 0.22) * zoom), xf * (Vector2(lo.x + 0.075 * (k + 1), midy + 0.22) * zoom), Color(1, 1, 1, alpha * 0.8), 1.5)
+			if bool(_param(o, "ladder", true)):
+				for s: float in [-0.06, 0.06]: canvas.draw_line(xf * (Vector2(hi.x - 0.08, midy + s) * zoom), xf * (Vector2(hi.x + 0.04, midy + s) * zoom), Color(0.85, 0.87, 0.9, alpha), 2.0)
+			if zoom >= 9.0:
+				_tag(xf * (Vector2(lo.x + 0.3, midy) * zoom) + Vector2(-10, -20), "%.1f m" % float(_param(o, "shallow", 1.1)), Color(1, 1, 1, alpha), 10)
+				_tag(xf * (Vector2(hi.x - 0.5, midy) * zoom) + Vector2(-10, -20), "%.1f m" % float(_param(o, "deep", 3.0)), Color(1, 1, 1, alpha), 10)
+		"window":
+			# glass on the wall face, and the sun's rays slanting into the room from it
+			var hw: float = o.scale * 0.5
+			if str(_param(o, "frame", "pane")) == "porthole": hw = minf(hw, float(_param(o, "height", 2.2)) / CELL_M * 0.5)
+			var tw := maxf(t, 4.0 / zoom)
+			_fill(_local_rect(xf, -tw * 0.5, -hw, tw * 0.5, hw), Color(col, alpha))
+			if zoom >= 6.0 and float(_param(o, "sun", 8.0)) > 0.0:
+				var reach := clampf(1.6 / tan(deg_to_rad(clampf(float(_param(o, "sun_angle", 35.0)), 5.0, 85.0))) / CELL_M, 0.2, 2.5)
+				for k in 3:
+					var z := lerpf(-hw * 0.7, hw * 0.7, k / 2.0)
+					canvas.draw_dashed_line(xf * (Vector2(tw, z) * zoom), xf * (Vector2(tw + reach, z) * zoom), Color(1.0, 0.92, 0.55, alpha * 0.7), 1.5, maxf(zoom * 0.1, 3.0))
 		_:
 			var pts := _shape_path(o)
+			if pts.size() < 2: return                  # (a spline wall's first point, before the next is put down)
 			var line := PackedVector2Array()
 			for q in pts: line.append(xf * (q * zoom))
 			var w := t * zoom
@@ -2951,3 +3220,264 @@ func _draw_gizmo(o: Dictionary) -> void:
 
 func _status(t: String) -> void:
 	if status: status.text = t
+
+# ---------------------------------------------------------------- spline walls
+## A click while drawing a spline wall: the point following the mouse is put down where it is, and a new one
+## follows on. Dropped back on the first point (of three or more), the wall closes into a loop and is done.
+func _spline_add() -> void:
+	var o: Dictionary = objects[selected]
+	var pts: Array = o.points
+	var last := Vector2(float(pts[-1][0]), float(pts[-1][1]))
+	if pts.size() >= 4 and last.distance_to(Vector2(float(pts[0][0]), float(pts[0][1]))) < 0.3:
+		if _shape(o.type) == "pool":
+			drag = "spline"
+			_end_spline()
+			return
+		pts.pop_back()
+		o["closed"] = true
+		drag = ""
+		_status("Closed the spline wall into a loop (%d points)" % pts.size())
+		_sync_inspector()
+		_mark_dirty()
+		return
+	if pts.size() >= 2 and last.distance_to(Vector2(float(pts[-2][0]), float(pts[-2][1]))) < 0.05: return    # (the same spot twice)
+	pts.append(pts[-1].duplicate())
+	_mark_dirty()
+
+## Done drawing a spline wall (Enter, a double click, a right click, Esc): the point following the mouse goes, and
+## a wall of fewer than two points with it
+func _end_spline() -> void:
+	if drag != "spline" or selected < 0 or selected >= objects.size():
+		drag = ""
+		return
+	drag = ""
+	var o: Dictionary = objects[selected]
+	var pts: Array = o.points
+	pts.pop_back()
+	var clean: Array = []
+	for q in pts:
+		if clean.is_empty() or Vector2(float(q[0]), float(q[1])).distance_to(Vector2(float(clean[-1][0]), float(clean[-1][1]))) > 0.05:
+			clean.append(q)
+	if _shape(o.type) == "pool":
+		if clean.size() < 3:
+			# a click and no outline: a ready-made pool, three cells by two, round where it was put
+			clean = [[-1.5, -1.0], [1.5, -1.0], [1.5, 1.0], [-1.5, 1.0]]
+		o["points"] = clean
+		_status("Pool of %d corners. Drag its squares to reshape it, Shift+click an edge to add a corner, Ctrl+click a corner to take it out" % clean.size())
+		_sync_inspector()
+		_mark_dirty()
+		return
+	if clean.size() < 2:
+		_delete_object(selected)
+		_status("A spline wall needs two points at least: dropped")
+		return
+	o["points"] = clean
+	_status("Spline wall of %d points. Select it and drag its squares to move them; Smooth / Closed in the inspector" % clean.size())
+	_sync_inspector()
+	_mark_dirty()
+
+## Backspace while drawing: take the last point put down back (the first one too, which drops the wall)
+func _spline_back() -> void:
+	if drag != "spline" or selected < 0: return
+	var pts: Array = objects[selected].points
+	if pts.size() <= 2:
+		drag = ""
+		_delete_object(selected)
+		_status("Spline wall dropped")
+		return
+	pts.remove_at(pts.size() - 2)
+	_mark_dirty()
+
+## Does `o` (a flight or a spiral) climb a whole storey, up through the ceiling to the floor above
+## (the game's level_data.gd climb_cells: its top within 0.6 m of 9)
+func _climbs(o: Dictionary) -> bool:
+	return _shape(str(o.type)) in ["flight", "spiral"] and float(_param(o, "elev", 0.0)) + float(_param(o, "rise", 0.0)) >= 8.4
+
+## How steep a flight or spiral is where you walk it, degrees (the game's props/vertical_pieces.gd): over 40 the
+## player can't climb it (a character's floor is at most 45 degrees)
+func _steepness(o: Dictionary) -> float:
+	var rise := float(_param(o, "rise", 2.7))
+	if _shape(o.type) == "spiral":
+		var mid := (float(o.scale) * CELL_M * 0.5 + float(_param(o, "core", 0.7)) * 0.5) * 0.5
+		return rad_to_deg(atan2(rise, deg_to_rad(float(_param(o, "sweep", 360.0))) * mid))
+	return rad_to_deg(atan2(rise, float(_param(o, "depth", 1.0)) * CELL_M))
+
+# ---------------------------------------------------------------- height layers
+# Within one floor (a storey), raised floors make layers: the ground at 0 m and the top of each raised floor.
+# The LAYERS panel (level_editor.gd) lists them: a hidden layer's pieces are drawn faint and can't be picked (so
+# the ground can be worked on under a balcony), and new pieces that stand on something stand on the active one.
+var hidden_elevs := {}               # layer height (m, to 0.1) -> true
+var active_elev := 0.0
+
+## The layer an object belongs to: the height it stands on (a raised floor: its own top, the floor it makes; a
+## window's height is its sill's, which is no layer)
+func _obj_elev(o: Dictionary) -> float:
+	var params: Dictionary = _info(o.type).get("params", {})
+	if not params.has("elev") or _shape(o.type) == "window": return 0.0
+	return float(_param(o, "elev", 0.0))
+
+func _layer_hidden(o: Dictionary) -> bool:
+	return not hidden_elevs.is_empty() and hidden_elevs.has(snappedf(_obj_elev(o), 0.1))
+
+## The layers of this floor, low to high: [height, how many pieces are on it, how many raised floors make it]
+func _layers() -> Array:
+	var at := {0.0: [0, 0]}
+	for o: Dictionary in objects:
+		var e := snappedf(_obj_elev(o), 0.1)
+		var row: Array = at.get_or_add(e, [0, 0])
+		row[0] += 1
+		if _shape(o.type) == "platform": row[1] += 1
+	var out: Array = []
+	for e in at: out.append([e, at[e][0], at[e][1]])
+	out.sort_custom(func(a, b): return a[0] < b[0])
+	return out
+
+## Overridden by level_editor.gd: the LAYERS panel follows the map
+func _refresh_layers() -> void:
+	pass
+
+# ---------------------------------------------------------------- acoustics
+## AUTO ACOUSTICS: paint this floor's Hall reverb and Muffled zones from its architecture, by the reckoning the
+## game makes of every place anyway (scripts/World/level/acoustics.gd): lines out across the plan from each open
+## cell, stopped by wall blocks and walls placed as objects, the ceiling's height, how hard the walls, the floor
+## and any water are. A big, tall, hard or round space rings on: Hall reverb. A tight, low one goes dead: Muffled.
+## What it paints is a starting point to touch up by hand (one undo step).
+const AC_RAYS := 16
+const AC_STEP := 0.6 / CELL_M        # cells along a line between looks
+const AC_REACH := 42.0 / CELL_M
+
+func _auto_acoustics() -> void:
+	_push_undo()
+	zones["hall_reverb"].clear()
+	zones["muffled"].clear()
+	# the walls placed as objects (not the ones you see over): their spans in map cells, by the cells they cross
+	var segs := {}
+	for o: Dictionary in objects:
+		var sh := _shape(o.type)
+		var tall := float(_param(o, "height", 0.0))
+		if tall > 0.0 and tall < 1.8: continue
+		var spans: Array = []
+		var rot := deg_to_rad(float(o.rotation))
+		var at := Vector2(o.pos_x, o.pos_y)
+		if sh in ["slab", "corner", "arc", "spline"]:
+			var path := _shape_path(o)
+			for i in path.size() - 1: spans.append([at + path[i].rotated(rot), at + path[i + 1].rotated(rot), 0.0])
+		elif sh in ["pillar", "column"]:
+			spans.append([at, at, _thick_cells(o) * 0.5])
+		for sp: Array in spans:
+			var a: Vector2 = sp[0]
+			var b: Vector2 = sp[1]
+			for x in range(floori(minf(a.x, b.x)) - 1, ceili(maxf(a.x, b.x)) + 2):
+				for z in range(floori(minf(a.y, b.y)) - 1, ceili(maxf(a.y, b.y)) + 2):
+					segs.get_or_add(Vector2i(x, z), []).append(sp)
+	var wall_hard := _ac_hardness(str(materials.get("wall", "")), 0.3)
+	var floor_hard := _ac_hardness(str(materials.get("floor", "")), 0.0) - 0.1
+	var waters: Array = objects.filter(func(o): return _shape(o.type) == "water")
+	var halls := 0
+	var dead := 0
+	for z in range(1, grid_size - 1):
+		for x in range(1, grid_size - 1):
+			var c := Vector2i(x, z)
+			if grid[z][x] == WALL: continue
+			var from := Vector2(c)
+			var total := 0.0
+			var lens: Array[float] = []
+			for i in AC_RAYS:
+				var l := _ac_cast(from, Vector2.from_angle(TAU * (i + 0.5) / AC_RAYS), segs) * CELL_M
+				lens.append(l)
+				total += l
+			var mfp := total / AC_RAYS
+			var spread := 0.0
+			for l in lens: spread += (l - mfp) * (l - mfp)
+			var even := 1.0 - sqrt(spread / AC_RAYS) / maxf(mfp, 0.1)
+			var h := 5.4
+			if zones["crawl"].has(c): h = 1.2
+			elif zones["grand"].has(c): h = 16.2
+			elif zones["tall"].has(c): h = 10.8
+			elif zones["low"].has(c): h = 2.3
+			if zones["open_ceiling"].has(c) or zones["endless_ceiling"].has(c): h = 20.0
+			var hard := wall_hard + (0.15 if zones["tiles"].has(c) else floor_hard * 0.5)
+			for w: Dictionary in waters:
+				var wl := (from - Vector2(w.pos_x, w.pos_y)).rotated(-deg_to_rad(float(w.rotation)))
+				if absf(wl.x) <= float(_param(w, "depth", 3.0)) * 0.5 and absf(wl.y) <= float(w.scale) * 0.5:
+					hard += 0.25
+					break
+			hard = clampf(hard, 0.0, 1.0)
+			var size := clampf(0.12 + mfp / 34.0 + maxf(h - 5.4, 0.0) / 22.0, 0.08, 0.98)
+			if even > 0.75 and mfp > 5.0: size = minf(0.98, size + 0.1 * hard)
+			var tight := clampf((4.2 - mfp) / 2.6, 0.0, 1.0) * (1.0 if h <= 5.41 else 0.4)
+			if h <= 2.31: tight = maxf(tight, 0.55)
+			if h <= 1.21: tight = 1.0
+			if tight >= 0.5:
+				zones["muffled"][c] = true
+				dead += 1
+			elif size >= 0.74 or (even > 0.85 and mfp > 9.0 and hard > 0.6):
+				zones["hall_reverb"][c] = true
+				halls += 1
+	_mark_dirty()
+	_status("Auto acoustics: %d cells ring like a hall, %d are muffled (Ctrl+Z takes it back). Touch them up with the Hall reverb / Muffled zones" % [halls, dead])
+
+static func _ac_hardness(id: String, none: float) -> float:
+	if id == "": return none
+	var l := id.to_lower()
+	for hard in ["tile", "concrete", "metal", "brick", "brc", "road", "ground"]:
+		if l.contains(hard): return 0.8
+	return 0.45
+
+## How far (cells) a line from cell centre `from` runs along `d` before a wall stops it
+func _ac_cast(from: Vector2, d: Vector2, segs: Dictionary) -> float:
+	var t := AC_STEP
+	var last := from
+	while t < AC_REACH:
+		var at := from + d * t
+		var c := Vector2i(roundi(at.x), roundi(at.y))
+		if c.x < 0 or c.y < 0 or c.x >= grid_size or c.y >= grid_size or grid[c.y][c.x] == WALL: return t
+		for sp: Array in segs.get(c, []):
+			var a: Vector2 = sp[0]
+			var b: Vector2 = sp[1]
+			if a.is_equal_approx(b):
+				if at.distance_to(a) < float(sp[2]): return t
+			elif Geometry2D.segment_intersects_segment(last, at, a, b) != null: return t
+		last = at
+		t += AC_STEP
+	return AC_REACH
+
+## Shift+click on an edge of the selected spline wall or pool: a new point there (one undo step). False when the
+## click was on no edge of it
+func _point_insert(px: Vector2) -> bool:
+	var o: Dictionary = objects[selected]
+	var pts: Array = o.get("points", [])
+	if pts.size() < 2: return false
+	var xf := _obj_xf(o)
+	var closed := _shape(o.type) == "pool" or bool(_param(o, "closed", false))
+	var best := -1
+	var best_d := maxf(8.0, _thick_cells(o) * zoom * 0.5)
+	var at := Vector2.ZERO
+	for i in (pts.size() if closed else pts.size() - 1):
+		var a := xf * (Vector2(float(pts[i][0]), float(pts[i][1])) * zoom)
+		var j := (i + 1) % pts.size()
+		var b := xf * (Vector2(float(pts[j][0]), float(pts[j][1])) * zoom)
+		var q := Geometry2D.get_closest_point_to_segment(px, a, b)
+		if q.distance_to(px) < best_d:
+			best_d = q.distance_to(px)
+			best = i
+			at = q
+	if best < 0: return false
+	_push_undo()
+	var l := (_pos_at(at) - Vector2(o.pos_x, o.pos_y)).rotated(-deg_to_rad(float(o.rotation)))
+	pts.insert(best + 1, [snappedf(l.x, 0.001), snappedf(l.y, 0.001)])
+	_status("Added a point (%d now)" % pts.size())
+	_mark_dirty()
+	return true
+
+## Ctrl+click on a point of the selected spline wall or pool: it goes (a wall keeps two, a pool three)
+func _point_remove(i: int) -> void:
+	var o: Dictionary = objects[selected]
+	var pts: Array = o.get("points", [])
+	if pts.size() <= (3 if _shape(o.type) == "pool" else 2) or i >= pts.size():
+		_status("It can't have fewer points than that")
+		return
+	_push_undo()
+	pts.remove_at(i)
+	_status("Took a point out (%d left)" % pts.size())
+	_mark_dirty()

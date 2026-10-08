@@ -5,6 +5,9 @@ extends "res://level_editor_gen.gd"
 
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
+## The ceiling lights ("lights" in the .lvl, level_geometry.gd lights_mode()): the ceiling's own light panels (its
+## tiles lit where it has none), hanging troffers with their ballasts, or none at all. Unset: panels.
+const LIGHTS := [["panels", "Ceiling panels"], ["troffers", "Troffers (ballast tubes)"], ["none", "None"]]
 const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage", "Maintenance", "Threshold", "Pool Rooms", "Stairwell", "Office"]
 const SCATTER_PER_CELLS := 25         # roughly one prop per this many open floor cells
 const SCATTER_KEEPOUT := 2            # cells kept clear round spawn / exit / entity / tv and existing objects
@@ -17,6 +20,7 @@ var gi_pick: OptionButton
 var atmo_pick: OptionButton
 var endless_check: CheckBox          # the .lvl's "endless": the lowest and highest floors repeat for ever (level_data.gd endless())
 var wrap_check: CheckBox             # the .lvl's "wrap": opposite map edges joined, the halls never end (level_data.gd wrap)
+var lights_pick: OptionButton        # the .lvl's "lights" (LIGHTS)
 var slot_picks := {}
 var slot_previews := {}
 var name_dialog: ConfirmationDialog
@@ -74,6 +78,10 @@ func _open(i: int) -> void:
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
 	endless_check.set_pressed_no_signal(bool(data.get("endless", false)))
 	wrap_check.set_pressed_no_signal(bool(data.get("wrap", false)))
+	var lm := str(data.get("lights", "panels"))
+	lights_pick.select(0)
+	for j in LIGHTS.size():
+		if LIGHTS[j][0] == lm: lights_pick.select(j)
 	undo_stack.clear()
 	redo_stack.clear()
 	dirty = false
@@ -378,6 +386,8 @@ func _current_payload() -> Dictionary:
 	else: out.erase("endless")
 	if wrap_check.button_pressed: out["wrap"] = true
 	else: out.erase("wrap")
+	if lights_pick.selected <= 0: out.erase("lights")
+	else: out["lights"] = LIGHTS[lights_pick.selected][0]
 	var mats := {}
 	for slot in SLOTS:
 		if str(materials.get(slot, "")) != "": mats[slot] = materials[slot]

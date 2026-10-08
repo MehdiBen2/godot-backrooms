@@ -13,5 +13,10 @@
     "file": "level_2_habitable_zone.lvl",
     "id": "level_2_habitable_zone",
     "name": "Level 2: Habitable Zone"
+  },
+  {
+    "file": "level_3_poolrooms.lvl",
+    "id": "level_3_poolrooms",
+    "name": "Level 3: The Poolrooms"
   }
 ]

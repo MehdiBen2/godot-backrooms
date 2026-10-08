@@ -53,6 +53,11 @@ var room_timer := 0.0
 var outdoor_mix := 0.0         # 0 = the backrooms .. 1 = the open-air hills level (Game.outdoors), eased
 var room_size := 0.35          # smoothed measurements of the space around the listener
 var room_target := 0.35
+var room_goal := {}            # level_data.gd acoustic_profile() where the listener stands ({}: the old grid measure)
+var room_wet := 0.14           # ...and the rest of it, eased the same way
+var room_damp := 0.75
+var room_cut := 16000.0        # Hz: a tight, dead space takes the highs off the world
+var room_pre := 12.0           # ms
 var echo_mix := 0.0           # 0..1, eased: standing in an Echo zone (level_data.gd `echo`)
 var steps_lp: AudioEffectLowPassFilter
 var steps_rev: AudioEffectReverb      # your footsteps in the room around you (follows the room measure)
@@ -355,7 +360,10 @@ func set_paused(on: bool) -> void:
 
 # Where the world filter should sit right now
 func _world_cutoff_goal() -> float:
-	var open_hz := 750.0 if paused else 16000.0
+	var open_hz := 750.0 if paused else minf(16000.0, room_cut)
+	# under the water: everything far off and dull, as through a wall of it
+	var under: float = clampf(float(level.get("underwater")) if level != null and level.get("underwater") != null else 0.0, 0.0, 1.0)
+	open_hz = lerpf(open_hz, 520.0, under)
 	if muffled:
 		# the master bus muffles everything once you're dead (see _process); the world filter just holds
 		# where it is, so it can't open back up for a moment while the master one is still closing
@@ -455,16 +463,30 @@ func _update_room(dt: float) -> void:
 	room_timer -= dt
 	if room_timer <= 0.0:
 		room_timer = 0.25
-		room_target = 0.15 if Game.outdoors else _measure_room()    # the grid measure means nothing under the open sky
-	room_size += (room_target - room_size) * (1.0 - exp(-dt / 1.5))
+		if Game.outdoors:
+			room_target = 0.15             # the grid measure means nothing under the open sky
+			room_goal = {}
+		elif level.has_method("acoustic_profile"):
+			# the place as its architecture and its painted reverb zones make it sound (acoustics.gd)
+			room_goal = level.acoustic_profile(player.global_position)
+			room_target = float(room_goal.size)
+		else:
+			room_target = _measure_room()
+			room_goal = {}
+	var k := 1.0 - exp(-dt / 1.5)
+	room_size += (room_target - room_size) * k
+	room_wet += (float(room_goal.get("wet", 0.08 + 0.22 * room_target)) - room_wet) * k
+	room_damp += (float(room_goal.get("damp", 0.85 - 0.25 * room_target)) - room_damp) * k
+	room_cut += (float(room_goal.get("cut", 16000.0)) - room_cut) * (1.0 - exp(-dt / 0.8))
+	room_pre += (float(room_goal.get("pre", 12.0)) - room_pre) * k
 	# Outdoors is not an enclosed space: almost no tail at all (short, dark, barely wet), just enough that a
 	# sound is not bone dry. It blends with the indoor measure so crossing over never jumps.
 	var o := outdoor_mix
 	var rs := lerpf(room_size, 0.1, o)
-	var world_wet := lerpf(0.08 + 0.22 * room_size, 0.015, o)
-	var world_damp := lerpf(0.85 - 0.25 * room_size, 0.95, o)
-	var steps_wet := lerpf(0.05 + 0.16 * room_size, 0.01, o)
-	var steps_damp := lerpf(0.88 - 0.25 * room_size, 0.95, o)
+	var world_wet := lerpf(room_wet, 0.015, o)
+	var world_damp := lerpf(room_damp, 0.95, o)
+	var steps_wet := lerpf(room_wet * 0.72, 0.01, o)
+	var steps_damp := lerpf(minf(room_damp + 0.04, 0.97), 0.95, o)
 	# an Echo zone (painted in the level editor): a huge, hard, wet space whatever the room measures
 	var pp: Vector3 = player.global_position
 	var zone = level.get("echo")
@@ -483,6 +505,10 @@ func _update_room(dt: float) -> void:
 		steps_rev.room_size = rs
 		steps_rev.wet = steps_wet
 		steps_rev.damping = steps_damp
+	var pre := lerpf(room_pre, 5.0, o)
+	if absf(world_rev.predelay_msec - pre) > 2.0:
+		world_rev.predelay_msec = pre
+		steps_rev.predelay_msec = maxf(pre * 0.6, 4.0)
 
 # Which foot came down (-1 left, 1 right): a slight pan, like the web game's +-0.06
 func step_foot(side: float) -> void:

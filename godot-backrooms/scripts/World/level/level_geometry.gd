@@ -57,6 +57,7 @@ func _make_materials() -> void:
 	_shaft_mat = null
 	panel_ceiling = _panel_ceiling_material()
 	_uv_wall.clear()
+	_tile_uv = null
 	wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall", WALL_H, true)
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
 	# (the tall wallpaper, its baked skirting and ceiling shadow stretched on up to a grand hall's ceiling)
@@ -77,13 +78,27 @@ func _make_materials() -> void:
 ## The .lvl's optional "materials" ({wall, floor, ceiling, tiles} -> a folder in textures/pbr/, picked in the
 ## level editor). Null when the slot is unset, so the caller falls back to the Level 0 look.
 func _has_pbr(slot: String) -> bool:
-	var id := str(level_data.get("materials", {}).get(slot, ""))
+	var id := _mat_id(slot)
 	return not id.is_empty() and ResourceLoader.exists("res://textures/pbr/%s/%s.tres" % [id, id])
 
 func _pbr_or(slot: String, _world := false) -> StandardMaterial3D:
 	if not _has_pbr(slot):
 		return null
-	return _pbr_by_id(str(level_data.get("materials", {}).get(slot, "")))
+	return _pbr_by_id(_mat_id(slot))
+
+## The textures/pbr folder a surface is made of: the level's pick, else the game's default (the ceiling: the
+## pool rooms' white tiles, Tiles107; the rest: the Level 0 look, "")
+const DEFAULT_MATERIALS := {"ceiling": "Tiles107"}
+func _mat_id(slot: String) -> String:
+	var id := str(level_data.get("materials", {}).get(slot, ""))
+	return id if id != "" else str(DEFAULT_MATERIALS.get(slot, ""))
+
+## The level's ceiling lights ("lights" in the .lvl, picked in the level editor): "panels" (the ceiling's own light
+## panels; a ceiling with none of its own gets squares of its tiles lit, tile_panel_ceiling.gdshader), "troffers"
+## (hanging 1 x 4 fluorescent fixtures, ballasts humming) or "none" (only what the windows and the torch give).
+## Troffers are only ever hung when asked for.
+func lights_mode() -> String:
+	return str(level_data.get("lights", "panels"))
 
 ## The .lvl's "paint" ({wall|floor|ceiling} -> {pbr name -> [[x, z], ...]}, the editor's material brush):
 ## cells that override the level's material for that surface. slot -> {Vector2i: pbr name}
@@ -110,6 +125,16 @@ func _pbr_by_id(id: String) -> StandardMaterial3D:
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if bool(m.get_meta("tile_panels", false)):
+		# a tiled ceiling with light panels (Tiles107_Lit) used anywhere but as the level's ceiling: plain tiles
+		m.emission_enabled = false
+	if id.to_lower().contains("tile"):
+		# Glazed tile: the photo's roughness map is all but a mirror on the glaze, which under screen-space
+		# reflections, bloom and the camera's lens dirt turned every lamp into a blinding pool on the floor and a
+		# hot spot on every wall. A satin glaze instead: the lamps still gleam in it, softly.
+		m.roughness_texture = null
+		m.roughness = 0.46
+		m.metallic_specular = 0.3
 	if bool(m.get_meta("drop_ceiling", false)):
 		# a drop ceiling (YBR_Ceiling*) painted on cells: plain tiles only (its emission map is the light panels'),
 		# the texture's two tiles a 1.5 m repeat, and its grid on the level's tile grid (edges half a tile off the
@@ -122,11 +147,19 @@ func _pbr_by_id(id: String) -> StandardMaterial3D:
 	return m
 
 func _panel_ceiling_material() -> StandardMaterial3D:
-	if not _has_pbr("ceiling"):
+	if not _has_pbr("ceiling") or lights_mode() != "panels":
 		return null
-	var id := str(level_data.get("materials", {}).get("ceiling", ""))
+	var id := _mat_id("ceiling")
 	var m := load("res://textures/pbr/%s/%s.tres" % [id, id]) as StandardMaterial3D
-	return m if m != null and m.emission_enabled and m.emission_texture != null else null
+	if m == null: return null
+	# (a tiled ceiling with "tile_panels" draws its panels itself: tile_panel_ceiling.gdshader)
+	if m.emission_enabled and (m.emission_texture != null or bool(m.get_meta("tile_panels", false))): return m
+	# a ceiling with no light panels of its own: squares of its own tiles lit from behind
+	var lit := m.duplicate() as StandardMaterial3D
+	lit.emission_enabled = true
+	lit.set_meta("tile_panels", true)
+	lit.set_meta("panel_tiles", 4)
+	return lit
 
 func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -199,6 +232,16 @@ func _wall_uv_mat(h: float) -> StandardMaterial3D:
 	return m
 
 const PBR_PER_M := 0.45          # textures/pbr repeats a metre (_pbr_by_id's world scale)
+
+## The tiles zones' tile, for a mesh with its own UVs in metres (a pool's basin in a level not walled in tiles)
+var _tile_uv: StandardMaterial3D
+func _tile_uv_mat() -> StandardMaterial3D:
+	if _tile_uv == null:
+		_tile_uv = (_pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material())
+		_tile_uv.uv1_triplanar = false
+		_tile_uv.uv1_world_triplanar = false
+		_tile_uv.uv1_scale = Vector3(PBR_PER_M, -PBR_PER_M, 1.0)
+	return _tile_uv
 
 ## The world-projected wall material for a wall `h` metres tall (the wallpaper is drawn to its room's height)
 func _wall_mat_for(h: float) -> StandardMaterial3D:
@@ -276,6 +319,11 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	var paint_ceil := {}
 	var pf := painted("floor")
 	var pc := painted("ceiling")
+	# a pool's outline is cut out of the floor of the cells it reaches into (_cut_cell_tris)
+	var polys := _pool_polys()
+	var cut := _pool_cut_cells(polys) if not polys.is_empty() else {}
+	var cut_keys := {}                       # what a cut cell's floor is made of -> those cells
+	var cut_all: Array = []
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
@@ -287,6 +335,11 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			elif classic.has(c): classic_ceil.append(c)
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
+			if cut.has(c):
+				var key := ("paint:" + str(pf[c])) if pf.has(c) else ("classic" if classic.has(c) else ("tiles" if tiles.has(c) else "carpet"))
+				cut_keys.get_or_add(key, []).append(c)
+				cut_all.append(c)
+				continue
 			floor_cells.append(c)
 			if pf.has(c): paint_floor.get_or_add(pf[c], []).append(c)
 			elif classic.has(c): classic_floor.append(c)
@@ -307,7 +360,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
 			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
-		if not shell: _build_ceiling_collision(solid_cells)
+		if not shell: _build_ceiling_collision(solid_cells + cut_all)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
@@ -327,6 +380,16 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		if tm == null:
 			tm = _default_tile_material()
 		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
+
+	if not cut_keys.is_empty():
+		var groups := {}
+		for k: String in cut_keys:
+			var m: Material = carpet
+			if k.begins_with("paint:"): m = _painted_mat(k.substr(6))
+			elif k == "classic": m = _carpet_material(Color(1.2, 1.05, 0.62))
+			elif k == "tiles": m = _pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material()
+			groups.get_or_add(m, []).append_array(cut_keys[k])
+		_build_cut_floors(groups, polys)
 
 	if shell: return
 	_build_floor_collision(solid_cells)
@@ -545,6 +608,7 @@ func _build_hole_collision() -> void:
 	for part: Array in [[through, WALL_H - STOREY_H, 0.0], [open_above, WALL_H, STOREY_H]]:
 		var holes: Dictionary = part[0]
 		for c: Vector2i in holes:
+			if climb_up.has(c) or climb_down.has(c): continue      # stairs run up through it: their rails do this
 			for n: Vector2i in DIRS:
 				if holes.has(c + n): continue
 				var mid := Vector3(c.x * CELL + n.x * half, 0.0, c.y * CELL + n.y * half)
@@ -804,6 +868,7 @@ func _build_objects() -> void:
 	var props: Array = []
 	var vertical: Array = []
 	var water: Array = []
+	var pools: Array = []
 	for o: Dictionary in objects:
 		match o.type:
 			"door": _build_door(o)
@@ -821,13 +886,21 @@ func _build_objects() -> void:
 					"platform", "flight", "spiral": vertical.append(o)
 					"window": _build_window(o)
 					"water": water.append(o)
+					"pool": pools.append(o)
 					"zone":
 						if not shell: _build_trigger(o)
 	_build_shaped_walls(shaped)
 	_build_arches(arch)
 	_build_props(props)
 	_build_vertical(vertical)
+	if not shell: _build_climbers()
 	_build_water(water)
+	_build_pools(pools)
+	if not shell and not waters.is_empty():
+		var view := WaterView.new()
+		view.name = "WaterView"
+		add_child(view)
+		view.setup(self)
 
 # ---------------------------------------------------------------- raised floors, stairs, windows, water
 ## The surfaces the raised floors and straight / spiral stairs are made of (object_types.json "surface"), and
@@ -840,6 +913,7 @@ func _piece_mats() -> Dictionary:
 	chrome.metallic = 1.0
 	chrome.roughness = 0.14
 	return {"tile": tile, "floor": floor_m, "concrete": _plaster_mat(), "under": _plaster_mat(), "chrome": chrome,
+		"tile_uv": _wall_uv_mat(WALL_H) if _has_pbr("wall") else _tile_uv_mat(),
 		"column": _wall_uv_mat(WALL_H) if _has_pbr("wall") else null, "repeat": _wall_repeat()}
 
 ## Raised floors (a slab `elev` m up), straight flights and spiral stairs: all within this floor, walked up with no
@@ -849,8 +923,10 @@ func _build_vertical(list: Array) -> void:
 	var mats := _piece_mats()
 	var tops: Array = []                        # [world point at the top of a stair, half its width, its height]
 	for o: Dictionary in list:
-		if str(object_info(o.type).get("shape", "")) in ["flight", "spiral"]:
-			tops.append(VerticalPieces.top_exit(o, object_transform(o)))
+		var shape := str(object_info(o.type).get("shape", ""))
+		if shape in ["flight", "spiral"]:
+			tops.append(VerticalPieces.top_exit(o, shape, object_transform(o)))
+			_set_landing(o, shape)
 	var solid := func(p: Vector3) -> bool: return _block_at(cell_of(p))
 	for o: Dictionary in list:
 		var vp := VerticalPieces.new()
@@ -859,6 +935,46 @@ func _build_vertical(list: Array) -> void:
 		vp.build(o, str(object_info(o.type).get("shape", "")), mats, tops, solid, ceiling_height(Vector2i(roundi(o.pos_x), roundi(o.pos_y))), shell)
 		if not shell:
 			for l in vp.find_children("*", "Light3D", true, false): (l as Light3D).light_cull_mask &= ~SHELL_LAYERS
+
+## The floor below's stairs that climb up through this floor (level_data.gd climb_cells): built here too, a storey
+## down, as solids only (the look-only copy of that floor draws them), so whoever comes up them keeps their footing
+## when this floor takes over, and can walk back down them
+func _build_climbers() -> void:
+	if climb_down.is_empty(): return
+	var objs = floor_data(level_raw, floor_src(level_raw, floor_no - 1)).get("objects")
+	if not (objs is Array): return
+	var mats := _piece_mats()
+	for raw in objs:
+		if not (raw is Dictionary): continue
+		var shape := str(object_info(str(raw.get("type", ""))).get("shape", ""))
+		if shape != "flight" and shape != "spiral": continue
+		var o := load_object(raw)
+		if float(o.elev) + float(o.rise) < CLIMB_TOP: continue
+		_set_landing(o, shape)
+		var vp := VerticalPieces.new()
+		vp.transform = object_transform(o).translated(Vector3(0, -STOREY_H, 0))
+		vp.solids_only = true
+		add_child(vp)
+		vp.build(o, shape, mats, [], func(_p): return false, STOREY_H * 2.0, false)
+
+## A stair that climbs on up to the floor above comes out in a hole in it that is whole cells: from its top to
+## the edge of that hole there is nothing to step onto. It gets a landing that far ("_landing", metres; 0 for one
+## that stops on this floor), level with the floor above.
+func _set_landing(o: Dictionary, shape: String) -> void:
+	o["_landing"] = 0.0
+	if float(o.get("elev", 0.0)) + float(o.get("rise", 0.0)) < CLIMB_TOP: return
+	var ex: Array = VerticalPieces.top_exit(o, shape, object_transform(o))
+	var p: Vector3 = ex[0]
+	var d: Vector3 = ex[3]
+	var c := cell_of(p - d * 0.05)
+	var t := CELL
+	for axis: int in [0, 2]:
+		var dv := d[axis]
+		if absf(dv) < 0.0001: continue
+		var mid := float(c.x if axis == 0 else c.y) * CELL
+		var bound := mid + signf(dv) * CELL * 0.5
+		t = minf(t, (bound - p[axis]) / dv)
+	o["_landing"] = clampf(t, 0.0, CELL) + 0.05
 
 ## A window on a wall: a sky through its glass and sunlight thrown in through it (props/window.gd)
 func _build_window(o: Dictionary) -> void:
@@ -869,7 +985,7 @@ func _build_window(o: Dictionary) -> void:
 	var into := c
 	var ahead := cell_of(w.transform * Vector3(CELL * 0.5, 0.0, 0.0))   # the cell it looks into, if it sits on an edge
 	if not walls.has(ahead): into = ahead
-	w.build(o, ceiling_height(into), shell)
+	w.build(o, ceiling_height(into), shell, func(p: Vector3) -> bool: return _block_at(cell_of(p)))
 	for l in w.find_children("*", "Light3D", true, false):
 		(l as Light3D).light_cull_mask &= ~SHELL_LAYERS
 
@@ -881,11 +997,120 @@ func _build_water(list: Array) -> void:
 		wb.transform = object_transform(o)
 		add_child(wb)
 		wb.build(self, o, shell)
-	if not shell:
-		var view := WaterView.new()
-		view.name = "WaterView"
-		add_child(view)
-		view.setup(self)
+
+## Pools sunk into the floor (props/pool.gd); _build_surfaces has already cut their outlines out of the floor
+func _build_pools(list: Array) -> void:
+	if list.is_empty(): return
+	var mats := _piece_mats()
+	for o: Dictionary in list:
+		if not o.has("_poly"): continue
+		var pp := PoolPiece.new()
+		pp.transform = object_transform(o)
+		add_child(pp)
+		var wm := ShaderMaterial.new()
+		wm.shader = load("res://shaders/water.gdshader")
+		var tint: Array = WaterBody.TINTS.get(str(o.get("tint", "clear")), WaterBody.TINTS.clear)
+		wm.set_shader_parameter("absorb", tint[0])
+		wm.set_shader_parameter("scatter_color", tint[1])
+		wm.set_shader_parameter("surface_y", float(o.level))
+		pp.build(o, mats, wm, shell)
+
+## Every pool's outline in the level's plan (metres, x / z), for cutting them out of the floor
+func _pool_polys() -> Array:
+	var out: Array = []
+	for o: Dictionary in waters:
+		if not o.has("_poly"): continue
+		var xf := object_transform(o)
+		var world := PackedVector2Array()
+		for v: Vector2 in o._poly:
+			var w := xf * Vector3(v.x, 0.0, v.y)
+			world.append(Vector2(w.x, w.z))
+		var box := Rect2(world[0], Vector2.ZERO)
+		for v in world: box = box.expand(v)
+		out.append([world, box])
+	return out
+
+## The cells a pool's outline cuts into (their floor is _cut_cell_tris), from _pool_polys()
+func _pool_cut_cells(polys: Array) -> Dictionary:
+	var out := {}
+	for pb: Array in polys:
+		var box: Rect2 = pb[1]
+		for x in range(floori(box.position.x / CELL + 0.5) - 1, ceili(box.end.x / CELL + 0.5) + 1):
+			for z in range(floori(box.position.y / CELL + 0.5) - 1, ceili(box.end.y / CELL + 0.5) + 1):
+				var cell_box := Rect2(x * CELL - CELL * 0.5, z * CELL - CELL * 0.5, CELL, CELL)
+				if cell_box.intersects(box): out[Vector2i(x, z)] = true
+	return out
+
+## The floor of cell `c` that is left round the pools: in pieces half a metre square, each kept, dropped or cut
+## to the outlines; flat triangles on the plan (x, z)
+const CUT_PIECES := 9
+func _cut_cell_tris(c: Vector2i, polys: Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	var s := CELL / CUT_PIECES
+	var x0 := c.x * CELL - CELL * 0.5
+	var z0 := c.y * CELL - CELL * 0.5
+	for i in CUT_PIECES:
+		for k in CUT_PIECES:
+			var sq := PackedVector2Array([Vector2(x0 + i * s, z0 + k * s), Vector2(x0 + (i + 1) * s, z0 + k * s),
+				Vector2(x0 + (i + 1) * s, z0 + (k + 1) * s), Vector2(x0 + i * s, z0 + (k + 1) * s)])
+			var sq_box := Rect2(sq[0], Vector2(s, s))
+			var pieces: Array = [sq]
+			for pb: Array in polys:
+				if not (pb[1] as Rect2).intersects(sq_box): continue
+				var poly: PackedVector2Array = pb[0]
+				var inside := 0
+				for q in sq: if Geometry2D.is_point_in_polygon(q, poly): inside += 1
+				if inside == 4:
+					var any_in := false
+					for v in poly: if sq_box.has_point(v): any_in = true
+					if not any_in:
+						pieces = []
+						break
+				var next: Array = []
+				for pc: PackedVector2Array in pieces:
+					var cw := Geometry2D.is_polygon_clockwise(pc)
+					for r: PackedVector2Array in Geometry2D.clip_polygons(pc, poly):
+						if Geometry2D.is_polygon_clockwise(r) == cw: next.append(r)     # (the others are holes)
+				pieces = next
+			for pc: PackedVector2Array in pieces:
+				var idx := Geometry2D.triangulate_polygon(pc)
+				for j in idx: out.append(pc[j])
+	return out
+
+## The floors of the cells a pool cuts into: `groups` material -> [cells], built from _cut_cell_tris, with a
+## solid of their own (they are left out of the merged floor boxes)
+func _build_cut_floors(groups: Dictionary, polys: Array) -> void:
+	var faces := PackedVector3Array()
+	for m: Material in groups:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for c: Vector2i in groups[m]:
+			var tris := _cut_cell_tris(c, polys)
+			for t in range(0, tris.size(), 3):
+				var a := Vector3(tris[t].x, 0.0, tris[t].y)
+				var b := Vector3(tris[t + 1].x, 0.0, tris[t + 1].y)
+				var d := Vector3(tris[t + 2].x, 0.0, tris[t + 2].y)
+				var order := [a, b, d] if (b - a).cross(d - a).y < 0.0 else [a, d, b]
+				for v: Vector3 in order:
+					st.set_normal(Vector3.UP)
+					st.set_uv(Vector2(v.x, v.z))
+					st.add_vertex(v)
+					faces.append(v)
+		st.generate_tangents()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	if shell or faces.is_empty(): return
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	shape.backface_collision = true
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
 
 ## The wall faces that stand round and in a water body, for the ripples of light it throws on them: the grid's
 ## wall blocks, and the walls, pillars and columns placed as objects. [a, b, outward normal] per face (world, on
@@ -974,21 +1199,18 @@ func squeeze_at(pos: Vector3) -> Dictionary:
 ## under it (bacteria_rig.gd) needs this, not just the flat per-cell height.
 func arch_clearance(pos: Vector3) -> float:
 	var best := INF
-	var pillar := float(object_info("arch").get("pillar", 0.75))
 	for o: Dictionary in objects:
 		if o.type != "arch":
 			continue
 		var xf := object_transform(o)
 		var local := xf.affine_inverse() * pos
-		var d := CELL * 0.5
-		if absf(local.x) > d:
+		var fr := _arch_frame(o)
+		if absf(local.x) > float(fr.d):
 			continue
-		var w: float = CELL * o.scale - pillar * 2.0
-		var r := w * 0.5
+		var r: float = fr.r
 		if r <= 0.0 or absf(local.z) > r:
 			continue
-		var h := _object_wall_h(o)
-		var rise := minf(r, h - ARCH_SPRING - 0.3)
+		var rise: float = fr.rise
 		var t := local.z / r
 		var clear := ARCH_SPRING + rise * sqrt(maxf(0.0, 1.0 - t * t))
 		best = minf(best, clear)
@@ -1020,7 +1242,7 @@ func _build_shaped_walls(list: Array) -> void:
 		var mi := MeshInstance3D.new()
 		mi.mesh = _sweep_wall(path, t, h)
 		mi.transform = xf
-		mi.material_override = _wall_mat_for(h)
+		mi.material_override = _wall_uv_mat(full if h >= full - 0.01 else WALL_H)
 		add_child(mi)
 		var n := path.size()
 		var closed := n > 2 and path[0].distance_to(path[n - 1]) < 0.001
@@ -1048,8 +1270,10 @@ func _build_shaped_walls(list: Array) -> void:
 
 ## A wall `t` thick and `h` tall along `path` (object space, cells): both faces offset from the centre line
 ## with mitred joints, a top, and end caps unless the path closes on itself. The faces shade smoothly
-## where the path turns gently (a curve) and keep a hard edge at a sharp turn (a corner). No UVs: the wall
-## materials are world triplanar.
+## where the path turns gently (a curve) and keep a hard edge at a sharp turn (a corner). Each face is unrolled
+## for its UVs (metres: u the distance along that face, v up; _wall_uv_mat), so the tiles follow the bend at
+## their true size: the inside of a curve is shorter than the outside, and each gets its own count of them. A
+## closed loop is fitted to a whole number of the material's repeats, so it has no seam where it meets itself.
 func _sweep_wall(path: PackedVector2Array, t: float, h: float) -> ArrayMesh:
 	var p: Array[Vector2] = []
 	for v in path: p.append(v * CELL)
@@ -1072,6 +1296,16 @@ func _sweep_wall(path: PackedVector2Array, t: float, h: float) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var at := func(q: Vector2, y: float) -> Vector3: return Vector3(q.x, y, q.y)
+	# how far along each face every point is, and for a loop the stretch that makes it a whole number of repeats
+	var run := {1.0: [0.0], -1.0: [0.0]}
+	var fit := {1.0: 1.0, -1.0: 1.0}
+	var rep := _wall_repeat()
+	for sgn: float in [1.0, -1.0]:
+		for i in segs:
+			var j := (i + 1) % n
+			run[sgn].append(run[sgn][i] + (p[j] + off[j] * sgn).distance_to(p[i] + off[i] * sgn))
+		var total: float = run[sgn][segs]
+		if closed and total > 0.01: fit[sgn] = maxf(1.0, roundf(total / rep)) * rep / total
 	for i in segs:
 		var j := (i + 1) % n
 		for sgn: float in [1.0, -1.0]:
@@ -1080,17 +1314,58 @@ func _sweep_wall(path: PackedVector2Array, t: float, h: float) -> ArrayMesh:
 			var nj: Vector2 = off[j].normalized() * sgn if smooth[j] else face
 			var a: Vector3 = at.call(p[i] + off[i] * sgn, 0.0)
 			var b: Vector3 = at.call(p[j] + off[j] * sgn, 0.0)
-			_quad(st, [a, b, b + Vector3(0, h, 0), a + Vector3(0, h, 0)],
-				[at.call(ni, 0.0), at.call(nj, 0.0), at.call(nj, 0.0), at.call(ni, 0.0)], at.call(face, 0.0))
+			# (the far face runs the other way round, so its tiles read the right way out from it too)
+			var ua: float = run[sgn][i] * fit[sgn] * sgn
+			var ub: float = run[sgn][i + 1] * fit[sgn] * sgn
+			_quad_uv(st, [a, b, b + Vector3(0, h, 0), a + Vector3(0, h, 0)],
+				[at.call(ni, 0.0), at.call(nj, 0.0), at.call(nj, 0.0), at.call(ni, 0.0)],
+				[Vector2(ua, 0.0), Vector2(ub, 0.0), Vector2(ub, h), Vector2(ua, h)], at.call(face, 0.0))
 		var top := [at.call(p[i] + off[i], h), at.call(p[j] + off[j], h), at.call(p[j] - off[j], h), at.call(p[i] - off[i], h)]
-		_quad(st, top, [Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP], Vector3.UP)
+		var tuv: Array = top.map(func(v: Vector3) -> Vector2: return Vector2(v.x, v.z))
+		_quad_uv(st, top, [Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP], tuv, Vector3.UP)
 	if not closed:
 		for end: int in [0, n - 1]:
 			var out: Vector2 = (p[0] - p[1]).normalized() if end == 0 else (p[n - 1] - p[n - 2]).normalized()
 			var o3: Vector3 = at.call(out, 0.0)
 			var l: Vector3 = at.call(p[end] + off[end], 0.0)
 			var r: Vector3 = at.call(p[end] - off[end], 0.0)
-			_quad(st, [l, r, r + Vector3(0, h, 0), l + Vector3(0, h, 0)], [o3, o3, o3, o3], o3)
+			var w := l.distance_to(r)
+			_quad_uv(st, [l, r, r + Vector3(0, h, 0), l + Vector3(0, h, 0)], [o3, o3, o3, o3],
+				[Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)], o3)
+	st.generate_tangents()
+	return st.commit()
+
+## _quad with UVs (for the normal map's tangents and the unrolled wall materials)
+func _quad_uv(st: SurfaceTool, v: Array, nrm: Array, uv: Array, facing: Vector3) -> void:
+	var order := [0, 1, 2, 0, 2, 3]
+	if (v[1] - v[0]).cross(v[2] - v[0]).dot(facing) > 0.0:
+		order = [0, 2, 1, 0, 3, 2]
+	for k in order:
+		st.set_normal(nrm[k])
+		st.set_uv(uv[k])
+		st.add_vertex(v[k])
+
+## An upright cylinder `r` round and `h` tall on the floor with its top capped, unrolled for its UVs like a swept
+## wall (metres round and up), and fitted to a whole number of the material's repeats round it (no seam)
+func _uv_cylinder(r: float, h: float, segs := 32) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var rep := _wall_repeat()
+	var circ := TAU * r
+	var k := maxf(1.0, roundf(circ / rep)) * rep / circ
+	for i in segs:
+		var a0 := TAU * i / segs
+		var a1 := TAU * (i + 1) / segs
+		var n0 := Vector3(cos(a0), 0.0, sin(a0))
+		var n1 := Vector3(cos(a1), 0.0, sin(a1))
+		var u0 := circ * i / segs * k
+		var u1 := circ * (i + 1) / segs * k
+		_quad_uv(st, [n0 * r, n1 * r, n1 * r + Vector3(0, h, 0), n0 * r + Vector3(0, h, 0)], [n0, n1, n1, n0],
+			[Vector2(u0, 0), Vector2(u1, 0), Vector2(u1, h), Vector2(u0, h)], (n0 + n1) * 0.5)
+		var top := Vector3(0, h, 0)
+		_quad_uv(st, [top, n0 * r + top, n1 * r + top, top], [Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP],
+			[Vector2.ZERO, Vector2(n0.x, n0.z) * r, Vector2(n1.x, n1.z) * r, Vector2.ZERO], Vector3.UP)
+	st.generate_tangents()
 	return st.commit()
 
 ## Two triangles a-b-c, a-c-d, wound so they face `facing` (Godot's front faces are clockwise)
@@ -1112,7 +1387,15 @@ func _build_column(o: Dictionary) -> void:
 	var round_one := str(object_info(o.type).get("shape", "")) == "column"
 	var mi := MeshInstance3D.new()
 	var cs := CollisionShape3D.new()
-	if round_one:
+	if round_one and _has_pbr("wall"):
+		# a level walled in tiles (the pool rooms): the column is tiled too, unrolled round it so they don't smear
+		mi.mesh = _uv_cylinder(w * 0.5, h, 32)
+		mi.material_override = _wall_uv_mat(WALL_H)
+		var shape := CylinderShape3D.new()
+		shape.radius = w * 0.5
+		shape.height = h
+		cs.shape = shape
+	elif round_one:
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = w * 0.5
 		cyl.bottom_radius = w * 0.5
@@ -1133,10 +1416,12 @@ func _build_column(o: Dictionary) -> void:
 		var shape := BoxShape3D.new()
 		shape.size = Vector3(w, h, w)
 		cs.shape = shape
-	mi.transform = object_transform(o) * Transform3D(Basis(), Vector3(0, h * 0.5, 0))
+	var centre := object_transform(o) * Transform3D(Basis(), Vector3(0, h * 0.5, 0))
+	# (the unrolled cylinder stands on its foot; the stock meshes are centred)
+	mi.transform = object_transform(o) if mi.mesh is ArrayMesh else centre
 	add_child(mi)
 	var body := StaticBody3D.new()
-	body.transform = mi.transform
+	body.transform = centre
 	body.add_child(cs)
 	add_child(body)
 
@@ -1167,27 +1452,58 @@ func _build_trigger(o: Dictionary) -> void:
 	t.setup(self, o, CELL)
 	add_child(t)
 
-# A round-topped opening through a full CELL-deep wall: straight jambs up to ARCH_SPRING, then a
-# semicircular crown (flattened if a wide arch would hit the ceiling), solid wall to either side of the
-# opening and above it. The opening is the span minus a fixed pillar each side, so a 1-cell arch opens
-# 4.5 m less a pillar each side (object_types.json) and a wider one opens up to match.
+# A round-topped opening: straight jambs up to ARCH_SPRING, then a semicircular crown (flattened if a wide arch
+# would hit the ceiling), solid wall to either side of the opening and above it. The opening is the span minus a
+# pillar each side, so a 1-cell arch opens 4.5 m less a pillar each side and a wider one opens up to match.
+# Square on a wall cell it punches through the full CELL-deep wall. Anywhere else it is a wall of its own,
+# FREE_ARCH_D thick, and each pillar reaches on out (up to ARCH_REACH) to the nearest wall beside it, so it joins
+# the room's walls instead of standing about with gaps round it. The underside is unrolled for its UVs like a
+# curved wall (_wall_uv_mat): the tiles or wallpaper carried on up from each jamb, meeting at the crown.
+const FREE_ARCH_D := 0.6
+const ARCH_REACH := 1.5             # cells a free-standing arch's pillar looks along for a wall to meet
+
+## How arch `o` stands: {d: half its depth through, r: half the opening, ext: [how far out each pillar reaches,
+## -z side then +z], h: its height, rise: the crown's}
+func _arch_frame(o: Dictionary) -> Dictionary:
+	var pillar := float(object_info("arch").get("pillar", 0.75))
+	var h := _object_wall_h(o)
+	var r: float = (CELL * o.scale - pillar * 2.0) * 0.5
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var in_wall := arch_cells.has(c) and absf(o.pos_x - c.x) <= 0.26 and absf(o.pos_y - c.y) <= 0.26
+	var ext := [r + pillar, r + pillar]
+	if not in_wall:
+		var xf := object_transform(o)
+		for k in 2:
+			var side := -1.0 if k == 0 else 1.0
+			var z := r + pillar
+			while z < r + pillar + ARCH_REACH * CELL:
+				var at := xf * Vector3(0.0, 0.0, side * (z + 0.05))
+				if _block_at(cell_of(at)):
+					ext[k] = z + 0.1          # into the block's face a hair: no seam where they meet
+					break
+				z += 0.1
+	return {"d": CELL * 0.5 if in_wall else FREE_ARCH_D * 0.5, "r": r, "ext": ext, "h": h, "rise": minf(r, h - ARCH_SPRING - 0.3)}
+
 func _build_arches(list: Array) -> void:
 	if list.is_empty(): return
-	var crown: Array = []                  # world-space triangles, clockwise-front (Godot's convention)
-	var under := {}                        # wall height -> [world pos, uv] for the crown's underside
 	var body := StaticBody3D.new()
 	add_child(body)
-	var d := CELL * 0.5
-	var pillar := float(object_info("arch").get("pillar", 0.75))
+	var crown := SurfaceTool.new()          # the wall over the opening, front and back (world triplanar, like the walls)
+	crown.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var under := {}                         # wall height -> SurfaceTool of the underside (unrolled UVs)
+	var faces := PackedVector3Array()       # every crown triangle again, for the collision shape
 	for o: Dictionary in list:
 		var xf := object_transform(o)
-		var h := _object_wall_h(o)
-		var w: float = CELL * o.scale - pillar * 2.0
-		var r := w * 0.5
-		var rise := minf(r, h - ARCH_SPRING - 0.3)
-		for side: float in [-1.0, 1.0]:
-			var size := Vector3(CELL, h, pillar)
-			var pos := Vector3(0, h * 0.5, side * (r + pillar * 0.5))
+		var fr := _arch_frame(o)
+		var d: float = fr.d
+		var r: float = fr.r
+		var h: float = fr.h
+		var rise: float = fr.rise
+		for k in 2:
+			var side := -1.0 if k == 0 else 1.0
+			var outer: float = fr.ext[k]
+			var size := Vector3(d * 2.0, h, maxf(outer - r, 0.05))
+			var pos := Vector3(0, h * 0.5, side * (r + outer) * 0.5)
 			var mi := MeshInstance3D.new()
 			var box := BoxMesh.new()
 			box.size = size
@@ -1202,70 +1518,51 @@ func _build_arches(list: Array) -> void:
 			oi.occluder = bo
 			oi.transform = xf * Transform3D(Basis(), pos)
 			add_child(oi)
-		# The underside can't use the walls' world-triplanar wallpaper (it's stretched to the wall height, so
-		# on a surface that hardly changes in y it smears into streaks). It gets real UVs instead: the
-		# wallpaper carried on up from each jamb, unrolled height = spring + arc length from the nearer
-		# spring, so the two halves meet at the crown.
-		var arc: Array[Vector2] = []           # (z, y) along the arc, left spring to right spring
+		var arc: Array[Vector2] = []            # (z, y) along the arc, one spring to the other
 		for i in ARCH_SEGS + 1:
 			var t := PI * (1.0 - float(i) / ARCH_SEGS)
 			arc.append(Vector2(r * cos(t), ARCH_SPRING + rise * sin(t)))
 		var run: Array[float] = [0.0]
 		for i in ARCH_SEGS: run.append(run[i] + arc[i].distance_to(arc[i + 1]))
 		var total: float = run[ARCH_SEGS]
-		if not under.has(h): under[h] = []
-		# the crown: wall from the arc up to the top, one slice per segment (z across the opening, x through it)
+		if not under.has(h):
+			under[h] = SurfaceTool.new()
+			(under[h] as SurfaceTool).begin(Mesh.PRIMITIVE_TRIANGLES)
+		var ust: SurfaceTool = under[h]
 		for i in ARCH_SEGS:
 			var a0 := arc[i]
 			var a1 := arc[i + 1]
-			var f0 := Vector3(-d, a0.y, a0.x); var f1 := Vector3(-d, a1.y, a1.x)
-			var b0 := Vector3(d, a0.y, a0.x); var b1 := Vector3(d, a1.y, a1.x)
-			var ft0 := Vector3(-d, h, a0.x); var ft1 := Vector3(-d, h, a1.x)
-			var bt0 := Vector3(d, h, a0.x); var bt1 := Vector3(d, h, a1.x)
-			for v in [f0, ft0, ft1, f0, ft1, f1,        # front face (-X)
-					b0, bt1, bt0, b0, b1, bt1]:             # back face (+X)
-				crown.append(xf * v)
+			for x: float in [-d, d]:
+				var n := Vector3(signf(x), 0, 0)
+				var q := [Vector3(x, a0.y, a0.x), Vector3(x, a1.y, a1.x), Vector3(x, h, a1.x), Vector3(x, h, a0.x)]
+				_quad(crown, [xf * q[0], xf * q[1], xf * q[2], xf * q[3]], [xf.basis * n, xf.basis * n, xf.basis * n, xf.basis * n], xf.basis * n)
+				for v in [q[0], q[1], q[2], q[0], q[2], q[3]]: faces.append(xf * (v as Vector3))
+			# the underside: facing down and in, towards the middle of the opening
+			var mid := (a0 + a1) * 0.5
+			var inward := Vector3(0.0, ARCH_SPRING - mid.y, -mid.x).normalized()
+			if inward.y > 0.0: inward = -inward
 			var u0 := ARCH_SPRING + minf(run[i], total - run[i])
 			var u1 := ARCH_SPRING + minf(run[i + 1], total - run[i + 1])
-			for pv in [[f0, Vector2(-d, u0)], [f1, Vector2(-d, u1)], [b0, Vector2(d, u0)],     # (metres through, metres up)
-					[f1, Vector2(-d, u1)], [b1, Vector2(d, u1)], [b0, Vector2(d, u0)]]:
-				under[h].append([xf * (pv[0] as Vector3), pv[1]])
-	if crown.is_empty(): return
-	var pbr := _has_pbr("wall")
-	var under_faces: Array = []            # the underside's triangles again, for the collision shape
+			var uq := [[Vector3(-d, a0.y, a0.x), Vector2(-d, u0)], [Vector3(d, a0.y, a0.x), Vector2(d, u0)],
+				[Vector3(d, a1.y, a1.x), Vector2(d, u1)], [Vector3(-d, a1.y, a1.x), Vector2(-d, u1)]]
+			var nw := (xf.basis * inward).normalized()
+			_quad_uv(ust, [xf * uq[0][0], xf * uq[1][0], xf * uq[2][0], xf * uq[3][0]], [nw, nw, nw, nw],
+				[uq[0][1], uq[1][1], uq[2][1], uq[3][1]], nw)
+			for v in [uq[0][0], uq[1][0], uq[2][0], uq[0][0], uq[2][0], uq[3][0]]: faces.append(xf * (v as Vector3))
 	for hh: float in under:
-		var ust := SurfaceTool.new()
-		ust.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for e in under[hh]:
-			var uvm: Vector2 = e[1]
-			# as the walls map it: 2.25 m per repeat across, the full wall height per repeat up
-			ust.set_uv(uvm * 0.45 if pbr else Vector2(uvm.x / 2.25, 1.0 - uvm.y / hh))
-			ust.add_vertex(e[0])
-			under_faces.append(e[0])
-		ust.generate_normals()
+		var ust: SurfaceTool = under[hh]
 		ust.generate_tangents()
-		var um: StandardMaterial3D
-		if pbr:
-			um = _pbr_or("wall")
-			um.uv1_triplanar = false
-			um.uv1_scale = Vector3.ONE
-		else:
-			um = _wall_material("wall_tall" if hh > WALL_H else "wall", hh, false)
 		var umi := MeshInstance3D.new()
 		umi.mesh = ust.commit()
-		umi.material_override = um
+		umi.material_override = _wall_uv_mat(hh)
 		add_child(umi)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for v in crown: st.add_vertex(v)
-	st.generate_normals()
 	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
+	mi.mesh = crown.commit()
 	mi.material_override = wall_mat
 	add_child(mi)
 	var cs := CollisionShape3D.new()
 	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(PackedVector3Array(crown + under_faces))
+	shape.set_faces(faces)
 	shape.backface_collision = true
 	cs.shape = shape
 	body.add_child(cs)
@@ -1371,7 +1668,8 @@ const STEP_TRIM_TOP := 0.06         # the strip along the face's top edge, under
 func _build_ceiling_steps() -> void:
 	var batches := [
 		{"height": WALL_H, "st": SurfaceTool.new(), "n": 0},
-		{"height": TALL_H, "st": SurfaceTool.new(), "n": 0}
+		{"height": TALL_H, "st": SurfaceTool.new(), "n": 0},
+		{"height": GRAND_H, "st": SurfaceTool.new(), "n": 0}
 	]
 	for b in batches: (b.st as SurfaceTool).begin(Mesh.PRIMITIVE_TRIANGLES)
 	var trims: Array = []
@@ -1392,7 +1690,7 @@ func _build_ceiling_steps() -> void:
 				if a == b2: continue
 				var lo := minf(a, b2)
 				var hi := maxf(a, b2)
-				var batch: Dictionary = batches[1] if hi > WALL_H else batches[0]
+				var batch: Dictionary = batches[2] if hi > TALL_H else (batches[1] if hi > WALL_H else batches[0])
 				var st: SurfaceTool = batch.st
 				var bx := x * CELL + dv.x * half
 				var bz := z * CELL + dv.y * half
@@ -1672,7 +1970,7 @@ func _build_dirt() -> void:
 	var seen := {}
 	var add := func(x: int, z: int) -> void:
 		var c := Vector2i(x, z)
-		if seen.has(c) or walls.has(c) or pits.has(c) or bright.has(c) or loop.has(c): return
+		if seen.has(c) or walls.has(c) or pits.has(c) or bright.has(c) or loop.has(c) or pool_cells.has(c): return
 		for dx in range(-1, 2):               # a stain is wider than its cell: none hanging over a stairwell's down flight
 			for dz in range(-1, 2):
 				if stair_cells.has(c + Vector2i(dx, dz)): return
