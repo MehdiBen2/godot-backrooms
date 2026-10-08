@@ -41,10 +41,10 @@ const ClipLevels := preload("res://scripts/Audio/clip_levels.gd")
 const DIR := "res://audio/ambients/"
 const BASE := 0.1                      # AmbientSystem.BASE_VOLUME
 const BED_RMS := -20.0                 # every bed is matched to this loudness before BASE and its trim
-const FADE_IN := 10.0                  # eased in from nothing: it is already there before you notice it start
+const FADE_IN := 8.0                   # eased in from nothing: it is already there before you notice it start
 const FADE_IN_URGENT := 3.0            # a silence broken by tension or a threat closing in
-const FADE_OUT := 12.0
-const KILL_FADE := 3.0                 # crossfade when the mood changes mid-track
+const FADE_OUT := 10.0
+const KILL_FADE := 3.5                 # crossfade when the mood changes mid-track
 const SWITCH_GAP := 45.0               # min seconds between mood switches
 const NEAR_RANGE := {"Entity": 38.0, "Mannequin": 22.0, "Mimic": 26.0, "Burnt": 24.0}
 # the threats that stand still while watched and move while you look away: a "Statue" bed is theirs
@@ -84,16 +84,17 @@ const ENTITY_PULL := 2.2
 # a turn over a long session instead of the 2-3 closest in tension hogging the airtime.
 const STARVED_AFTER := 90.0
 const STARVED_BONUS := 2.0
-# A bed plays this long at most (a long file fades out early), then a BREATH or a SILENCE follows
-const BED_MIN_PLAY := 40.0                # a bed plays at least this long (or the whole file if shorter)
+# A bed plays for an atmospheric stretch (looped cleanly), then a BREATH or a SILENCE follows
+const BED_MIN_PLAY := 50.0
+const BED_MAX_PLAY := 85.0
 const BREATH_MIN := 8.0
-const BREATH_MAX := 25.0
-# Liminal dead air: only the fluorescent hum. Only when things are calm - a hunt or a close threat never goes quiet.
-const SILENCE_MIN := 60.0
-const SILENCE_MAX := 240.0
-const OPENING_MIN := 30.0                 # the silence a run opens on
-const OPENING_MAX := 60.0
-const SILENCE_SHARE := 0.5                # the share of (bed + silence) airtime the budget aims for
+const BREATH_MAX := 18.0
+# Liminal dead air: only the fluorescent hum. Kept to a natural length so it breathes without feeling broken
+const SILENCE_MIN := 25.0
+const SILENCE_MAX := 75.0
+const OPENING_MIN := 10.0                 # the silence a run opens on
+const OPENING_MAX := 25.0
+const SILENCE_SHARE := 0.35               # the share of (bed + silence) airtime the budget aims for
 const AIR_MEMORY := 600.0                 # seconds: how far back the budget remembers
 const SILENCE_TENSION_MAX := 0.4          # never silent at or above this tension
 const SILENCE_NEAR_MAX := 0.2             # ...or with a threat this close
@@ -164,7 +165,18 @@ func _target_tension() -> float:
 func _stream(i: int) -> AudioStream:
 	if not streams.has(i):
 		var path: String = DIR + TRACKS[i].file
-		streams[i] = load(path) if ResourceLoader.exists(path) else null    # null until Godot has imported it
+		if ResourceLoader.exists(path):
+			var s: AudioStream = load(path)
+			if s is AudioStreamMP3:
+				s.loop = true
+			elif s is AudioStreamWAV:
+				s = s.duplicate()
+				s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+				s.loop_begin = 0
+				s.loop_end = int(s.get_length() * s.mix_rate)
+			streams[i] = s
+		else:
+			streams[i] = null
 	return streams[i]
 
 # Weighted pick: tracks whose mood matches now, never the one just played, never one already up
@@ -215,8 +227,8 @@ func _start(i: int, fade_in := FADE_IN) -> void:
 			v.dying = true
 			v.dying_t = 0.0
 	var len := s.get_length()
-	# the long beds join part-way through, so the same track never sounds like the same track
-	var from := rng.randf() * len * 0.5 if (len > 60.0 and rng.randf() < 0.75) else 0.0
+	# Start part-way through so the bed doesn't always start on the same transient
+	var from := rng.randf() * minf(len * 0.75, 45.0) if len > 12.0 else 0.0
 	var p := AudioStreamPlayer.new()
 	p.stream = s
 	p.bus = "Ambience"
@@ -224,12 +236,12 @@ func _start(i: int, fade_in := FADE_IN) -> void:
 	add_child(p)
 	p.play(from)
 	var gain: float = TRACKS[i].gain * ClipLevels.gain(DIR + TRACKS[i].file, BED_RMS, -1.0)
-	# no fixed cap: it fades out at a random point somewhere between BED_MIN_PLAY in and the file's own end,
-	# so with the random start each play is a different stretch of the recording
-	var rest := len - from
-	var left := rng.randf_range(minf(BED_MIN_PLAY, rest), rest)
+	# Play duration: because tracks loop cleanly, each bed plays for an atmospheric duration
+	var left := rng.randf_range(BED_MIN_PLAY, BED_MAX_PLAY)
+	var fin := minf(fade_in, left * 0.25)
+	var fout := minf(FADE_OUT, left * 0.25)
 	voices.append({"p": p, "idx": i, "t": 0.0, "left": left, "gain": gain, "dying": false, "dying_t": 0.0,
-		"fade_in": minf(fade_in, left * 0.4), "fade_out": minf(FADE_OUT, left * 0.4),    # a short file still gets its middle
+		"fade_in": fin, "fade_out": fout,
 		"dv": 1.0, "dv_to": 1.0, "dp": 1.0, "dp_to": 1.0, "drift_t": 0.0})
 	recent.append(i)
 	if recent.size() > 2:
@@ -341,14 +353,15 @@ func _update_voices(dt: float) -> void:
 		var p: AudioStreamPlayer = v.p
 		v.t += dt
 		# squared both ways: it creeps in from nothing, and its tail lingers as it goes
-		var fin := minf(1.0, v.t / v.fade_in)
-		var fout := clampf((v.left - v.t) / v.fade_out, 0.0, 1.0)
+		var fin := minf(1.0, v.t / v.fade_in) if v.fade_in > 0.0 else 1.0
+		var fout := clampf((v.left - v.t) / v.fade_out, 0.0, 1.0) if v.fade_out > 0.0 else (0.0 if v.t >= v.left else 1.0)
 		var fade := minf(fin * fin, fout * fout)
 		if v.dying:
 			v.dying_t += dt
 			fade = minf(fade, maxf(0.0, 1.0 - v.dying_t / KILL_FADE))
-		if (fade <= 0.0 and v.t > 0.5) or not p.playing:
-			p.queue_free()
+		if (fade <= 0.0001 and v.t > 0.5) or not is_instance_valid(p):
+			if is_instance_valid(p):
+				p.queue_free()
 			voices.remove_at(i)
 		else:
 			_drift(v, dt)
@@ -490,6 +503,9 @@ func force_bed() -> String:
 	return TRACKS[i].file
 
 func _process(dt: float) -> void:
+	if audio.paused:
+		_update_voices(dt)
+		return
 	_update_near(dt)
 	_update_moods(dt)
 	tension += (_target_tension() - tension) * (1.0 - exp(-dt / 2.5))

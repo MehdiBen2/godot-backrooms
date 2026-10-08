@@ -67,6 +67,14 @@ var master_lp: AudioEffectLowPassFilter   # dead: EVERYTHING goes dull and far a
 var master_cut := 20000.0
 var paused := false
 var pops_enabled := true
+var window_focused := true
+var focus_vol := 1.0
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		window_focused = false
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		window_focused = true
 
 # --- hum
 var voices: Array[AudioStreamPlayer3D] = []
@@ -363,6 +371,13 @@ func _world_cutoff_goal() -> float:
 
 # ---------------------------------------------------------------- frame
 func _process(dt: float) -> void:
+	var target_focus := 1.0 if window_focused else 0.0
+	focus_vol += (target_focus - focus_vol) * (1.0 - exp(-dt / 0.12))
+	if focus_vol < 0.005:
+		AudioServer.set_bus_mute(0, true)
+	else:
+		AudioServer.set_bus_mute(0, false)
+	AudioServer.set_bus_volume_linear(0, vol.master * focus_vol)
 	outdoor_mix += ((1.0 if Game.outdoors else 0.0) - outdoor_mix) * (1.0 - exp(-dt / 1.0))
 	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))

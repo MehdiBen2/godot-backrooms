@@ -689,6 +689,14 @@ func _start_music() -> void:
 	music.play()
 	create_tween().tween_property(music, "volume_db", MUSIC_DB, 4.0)
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if music and is_instance_valid(music):
+			create_tween().tween_property(music, "volume_db", -80.0, 0.2)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		if music and is_instance_valid(music) and not busy:
+			create_tween().tween_property(music, "volume_db", MUSIC_DB, 0.25)
+
 func _click() -> void:
 	click.pitch_scale = randf_range(0.96, 1.04)
 	click.play()
