@@ -37,6 +37,7 @@ var bounce: OmniLight3D
 var _solid: Callable
 
 const SUN_BACK := 16.0             # m behind the glass the sun light stands: far enough that its rays run (nearly) parallel
+const SUN_MAX := 0.75              # the most a window's sun may be (a ceiling lamp's pool is about 1)
 const SUN_SOFT := 0.012            # how far the sun's width spreads a shadow's edge, per metre from what casts it
 
 ## `ceiling`: the ceiling height of the room it looks into (a panorama runs up to just under it). `solid`: is a
@@ -198,12 +199,14 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 		sun.position = mid - d * SUN_BACK
 		sun.basis = Basis.looking_at(d, Vector3.UP)
 		sun.light_color = sky[4]
-		sun.light_energy = power * SUN_GAIN * 0.9
+		# a patch of sun a little brighter than the lamps' pools, never far past it: any more and the camera's bloom
+		# and lens dirt smear it into a glowing blob (the room round it is dim, and the exposure follows the room)
+		sun.light_energy = minf(power * SUN_GAIN * 0.16, SUN_MAX)
 		sun.spot_range = SUN_BACK + reach * 1.8 + 6.0
 		sun.spot_attenuation = 0.0                       # sunlight doesn't fade across a room
 		sun.spot_angle = clampf(rad_to_deg(atan(side * 0.5 / SUN_BACK)), 0.5, 60.0)
 		sun.spot_angle_attenuation = 0.01                # (its edge is the projector's, softened like the sun's)
-		sun.light_specular = 0.15
+		sun.light_specular = 0.08
 		sun.light_volumetric_fog_energy = 1.2
 		sun.shadow_enabled = false                       # (the wall it shines through would stop it)
 		sun.light_projector = _mask(style, w, h, panes, cos(pitch), side, reach, bool(o.get("shadows", true)))
@@ -219,7 +222,7 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 			bounce.name = "Bounce"
 			bounce.position = patch
 			bounce.light_color = (sky[4] as Color).lerp(Color(0.95, 0.95, 0.92), 0.3)
-			bounce.light_energy = power * SUN_GAIN * 0.1 * size_k
+			bounce.light_energy = minf(power * SUN_GAIN * 0.025 * size_k, 0.15)
 			bounce.omni_range = 4.0 + maxf(w, h) * 1.6
 			bounce.omni_attenuation = 1.6
 			bounce.light_specular = 0.0
@@ -235,7 +238,7 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 	fill.position = mid + Vector3(0.05, 0.0, 0.0)
 	fill.basis = Basis.looking_at(Vector3(1.0, -0.35, 0.0).normalized(), Vector3.UP)
 	fill.light_color = (sky[1] as Color).lerp(sky[4], 0.4)
-	fill.light_energy = power * SUN_GAIN * (0.16 if overcast else 0.07) * size_k
+	fill.light_energy = minf(power * SUN_GAIN * (0.08 if overcast else 0.03) * size_k, 0.25)
 	fill.spot_range = 6.0 + maxf(w, h) * 2.0
 	fill.spot_angle = 80.0
 	fill.spot_angle_attenuation = 1.6
@@ -256,7 +259,7 @@ func _mask(style: String, w: float, h: float, panes: int, squash: float, side: f
 	if _masks.has(key): return _masks[key]
 	const N := 160
 	var img := Image.create(N, N, false, Image.FORMAT_L8)
-	var bar := BAR_W * 0.5 + 0.004
+	var bar := BAR_W * 0.5 + 0.025          # (a bar's shadow, with the frame's depth round it, is wider than the bar)
 	for py in N:
 		for px in N:
 			var z := ((float(px) + 0.5) / N - 0.5) * side
@@ -278,8 +281,7 @@ func _mask(style: String, w: float, h: float, panes: int, squash: float, side: f
 				if style == "arched" and absf(y - maxf(h - w * 0.5, 0.0)) < bar: inside = false
 			img.set_pixel(px, py, Color.WHITE if inside else Color.BLACK)
 	# the sun's half degree: an edge spreads by reach * SUN_SOFT on the floor
-	var blur := clampi(roundi(reach * SUN_SOFT / side * N), 1, 10)
-	_box_blur(img, blur)
+	var blur := clampi(roundi(reach * SUN_SOFT / side * N * 0.5), 1, 4)
 	_box_blur(img, blur)
 	img.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(img)
