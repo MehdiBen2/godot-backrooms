@@ -66,15 +66,9 @@ var world_vol := 1.0
 var master_lp: AudioEffectLowPassFilter   # dead: EVERYTHING goes dull and far away, not just the world
 var master_cut := 20000.0
 var paused := false
+var focus_gain := 1.0                     # alt-tab: the master eases out and back instead of cutting (no pops)
+var _focused := true
 var pops_enabled := true
-var window_focused := true
-var focus_vol := 1.0
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		window_focused = false
-	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		window_focused = true
 
 # --- hum
 var voices: Array[AudioStreamPlayer3D] = []
@@ -370,14 +364,18 @@ func _world_cutoff_goal() -> float:
 	return open_hz * pow(2200.0 / 16000.0, world_dread)
 
 # ---------------------------------------------------------------- frame
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_focused = false
+	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
+		_focused = true
+
 func _process(dt: float) -> void:
-	var target_focus := 1.0 if window_focused else 0.0
-	focus_vol += (target_focus - focus_vol) * (1.0 - exp(-dt / 0.12))
-	if focus_vol < 0.005:
-		AudioServer.set_bus_mute(0, true)
-	else:
-		AudioServer.set_bus_mute(0, false)
-	AudioServer.set_bus_volume_linear(0, vol.master * focus_vol)
+	# the window switch stalls the main thread for a moment; the mix is already silent when it does
+	var goal := 1.0 if _focused else 0.0
+	if focus_gain != goal:
+		focus_gain = move_toward(focus_gain, goal, dt / (0.15 if goal < focus_gain else 0.4))
+		AudioServer.set_bus_volume_linear(0, vol.master * focus_gain)
 	outdoor_mix += ((1.0 if Game.outdoors else 0.0) - outdoor_mix) * (1.0 - exp(-dt / 1.0))
 	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
