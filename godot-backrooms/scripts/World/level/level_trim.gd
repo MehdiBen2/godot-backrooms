@@ -102,46 +102,33 @@ func _build_skirting() -> void:
 		var b: Vector2 = SKIRT[mini(i + 1, SKIRT.size() - 1)]
 		var d := (b - a).normalized()
 		_skirt_normals.append(Vector2(-d.y, d.x))      # (out of the wall and up: the profile runs top to toe)
-	var skirt_mat := _skirt_material()
-	var chunks := {}
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var any := false
+	# the maze's walls, a face at a time: its ends cut square where the wall runs straight on, mitred into an
+	# inside corner, and mitred round an outside one (the vertex at depth d moves d along the wall)
 	for f: Dictionary in _faces:
-		var c: Vector2i = f.c
-		var ch := Vector2i(c.x / 8, c.y / 8)
-		chunks.get_or_add(ch, []).append(f)
-
-	for ch in chunks:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for f: Dictionary in chunks[ch]:
-			var fr := _face_frame(f)
-			var mid: Vector3 = fr[0]
-			var out: Vector3 = fr[1]
-			var along: Vector3 = fr[2]
-			var a := mid - along * (CELL * 0.5)
-			var b := mid + along * (CELL * 0.5)
-			var sa: float = MITRE[f.ends[0]]
-			var sb: float = MITRE[f.ends[1]]
-			_skirt_run(st, [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
-		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
-		mi.material_override = skirt_mat
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
-
+		var fr := _face_frame(f)
+		var mid: Vector3 = fr[0]
+		var out: Vector3 = fr[1]
+		var along: Vector3 = fr[2]
+		var a := mid - along * (CELL * 0.5)
+		var b := mid + along * (CELL * 0.5)
+		var sa: float = MITRE[f.ends[0]]
+		var sb: float = MITRE[f.ends[1]]
+		_skirt_run(st, [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
+		any = true
 	# placed walls, pillars and columns: round the outline of each
-	var st_obj := SurfaceTool.new()
-	st_obj.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var any_obj := false
 	for o: Dictionary in objects:
 		for outline: Array in _object_outlines(o):
-			_skirt_loop(st_obj, outline[0], object_transform(o), outline[1])
-			any_obj = true
-	if any_obj:
-		var mi_obj := MeshInstance3D.new()
-		mi_obj.mesh = st_obj.commit()
-		mi_obj.material_override = skirt_mat
-		mi_obj.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi_obj)
+			_skirt_loop(st, outline[0], object_transform(o), outline[1])
+			any = true
+	if not any: return
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _skirt_material()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # (a centimetre proud of the wall)
+	add_child(mi)
 
 ## One strip of skirting along `pts` (world, on the floor at the wall's face). `miter[i]`: where a vertex at
 ## depth d sits, as pts[i] + miter[i] * d. `face_in[i]` / `face_out[i]`: the wall's outward normal at pts[i] for

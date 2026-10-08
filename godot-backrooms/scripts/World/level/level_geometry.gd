@@ -195,48 +195,32 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 		return null
 	var h := CELL / 2.0
 	var n := Vector3.DOWN if flip else Vector3.UP
-
-	# Partition cells into 8x8 spatial chunks (matching wall chunks) so Godot 4 occlusion
-	# culling can discard hidden rooms and corridors instead of submitting the whole map
-	var chunks := {}
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for c in cells:
-		var ci: Vector2i = c if c is Vector2i else Vector2i(c.x, c.y)
-		var ch := Vector2i(ci.x / 8, ci.y / 8)
-		chunks.get_or_add(ch, []).append(ci)
-
-	var root := Node3D.new()
-	root.name = "SurfaceGroup"
-	add_child(root)
-
-	for ch in chunks:
-		var cell_list: Array = chunks[ch]
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for c in cell_list:
-			var cx: float = c.x * CELL
-			var cz: float = c.y * CELL
-			var yy: float = height_fn.call(c)
-			var a := Vector3(cx - h, yy, cz - h)
-			var b := Vector3(cx + h, yy, cz - h)
-			var d := Vector3(cx + h, yy, cz + h)
-			var e := Vector3(cx - h, yy, cz + h)
-			var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
-			for v in quad:
-				st.set_normal(n)
-				st.set_uv(Vector2(v.x, v.z))
-				st.add_vertex(v)
-		st.generate_tangents()
-		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
-		mi.material_override = mat
-		if priority != 0:
-			mi.material_override = mat.duplicate()
-			mi.material_override.render_priority = priority
-		mi.layers = layers
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(mi)
-
-	return root
+		var cx: float = c.x * CELL
+		var cz: float = c.y * CELL
+		var yy: float = height_fn.call(c)
+		var a := Vector3(cx - h, yy, cz - h)
+		var b := Vector3(cx + h, yy, cz - h)
+		var d := Vector3(cx + h, yy, cz + h)
+		var e := Vector3(cx - h, yy, cz + h)
+		var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
+		for v in quad:
+			st.set_normal(n)
+			st.set_uv(Vector2(v.x, v.z))
+			st.add_vertex(v)
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	if priority != 0:
+		mi.material_override = mat.duplicate()
+		mi.material_override.render_priority = priority
+	mi.layers = layers
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	return mi
 
 ## The floors and the ceilings, one mesh per material. `floors` / `ceilings`: build only one of the two (a
 ## floor rebuilt in place does them a frame apart, level_builder.gd).
@@ -1557,54 +1541,43 @@ func _build_dirt() -> void:
 
 func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 	if cells.is_empty(): return
-	var chunks := {}
-	for c in cells:
-		var ci: Vector2i = c if c is Vector2i else Vector2i(c.x, c.y)
-		var ch := Vector2i(ci.x / 8, ci.y / 8)
-		chunks.get_or_add(ch, []).append(ci)
-
+	var variants: Array = []
+	for i in 4:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		variants.append(st)
 	var uvs := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
 	var corners := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
-
-	for ch in chunks:
-		var ch_cells: Array = chunks[ch]
-		var variants: Array = []
-		for i in 4:
-			var st := SurfaceTool.new()
-			st.begin(Mesh.PRIMITIVE_TRIANGLES)
-			variants.append(st)
-		for c in ch_cells:
-			var x0: float = c.x * CELL + (rng.randf() - 0.5) * CELL * 0.5
-			var z0: float = c.y * CELL + (rng.randf() - 0.5) * CELL * 0.5
-			var r := (sz * (0.7 + rng.randf() * 0.6)) / 2.0
-			var a := rng.randf() * TAU
-			var ca := cos(a)
-			var sa := sin(a)
-			var st: SurfaceTool = variants[rng.randi() % 4]
-			for k in [0, 3, 2, 0, 2, 1]:
-				var s: Vector2 = corners[k]
-				st.set_normal(Vector3.UP)
-				st.set_uv(uvs[k])
-				st.add_vertex(Vector3(x0 + (s.x * ca - s.y * sa) * r, y, z0 + (s.x * sa + s.y * ca) * r))
-		for i in 4:
-			var key := "%s_%d" % ["wet" if wet else "dry", i]
-			if not _grime_mats.has(key):
-				var m := StandardMaterial3D.new()
-				m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
-				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-				m.render_priority = 1
-				if wet:
-					m.albedo_color = Color("3a3320")
-					m.roughness = 0.08
-					m.metallic = 0.2
-				else:
-					m.roughness = 1.0
-				_grime_mats[key] = m
-			var committed_mesh := (variants[i] as SurfaceTool).commit()
-			if committed_mesh.get_surface_count() > 0:
-				var mi := MeshInstance3D.new()
-				mi.mesh = committed_mesh
-				mi.material_override = _grime_mats[key]
-				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add_child(mi)
+	for c in cells:
+		var x0: float = c.x * CELL + (rng.randf() - 0.5) * CELL * 0.5
+		var z0: float = c.y * CELL + (rng.randf() - 0.5) * CELL * 0.5
+		var r := (sz * (0.7 + rng.randf() * 0.6)) / 2.0
+		var a := rng.randf() * TAU
+		var ca := cos(a)
+		var sa := sin(a)
+		var st: SurfaceTool = variants[rng.randi() % 4]
+		for k in [0, 3, 2, 0, 2, 1]:
+			var s: Vector2 = corners[k]
+			st.set_normal(Vector3.UP)
+			st.set_uv(uvs[k])
+			st.add_vertex(Vector3(x0 + (s.x * ca - s.y * sa) * r, y, z0 + (s.x * sa + s.y * ca) * r))
+	for i in 4:
+		var key := "%s_%d" % ["wet" if wet else "dry", i]
+		if not _grime_mats.has(key):
+			var m := StandardMaterial3D.new()
+			m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+			m.render_priority = 1
+			if wet:
+				m.albedo_color = Color("3a3320")
+				m.roughness = 0.08
+				m.metallic = 0.2
+			else:
+				m.roughness = 1.0
+			_grime_mats[key] = m
+		var mi := MeshInstance3D.new()
+		mi.mesh = (variants[i] as SurfaceTool).commit()
+		mi.material_override = _grime_mats[key]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
