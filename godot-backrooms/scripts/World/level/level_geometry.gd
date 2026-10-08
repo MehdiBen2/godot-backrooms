@@ -190,36 +190,53 @@ const CEIL_LAYER := 1 << 18
 ## every layer would shine straight through into the storeys under and over it.
 const SHELL_LAYERS := (1 << 10) | (1 << 11)
 
-func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0) -> MeshInstance3D:
-	# One quad per cell in a single mesh (the bulk of the level is just floor/ceiling)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> Node3D:
+	if cells.is_empty():
+		return null
 	var h := CELL / 2.0
 	var n := Vector3.DOWN if flip else Vector3.UP
+
+	# Partition cells into 8x8 spatial chunks (matching wall chunks) so Godot 4 occlusion
+	# culling can discard hidden rooms and corridors instead of submitting the whole map
+	var chunks := {}
 	for c in cells:
-		var cx: float = c.x * CELL
-		var cz: float = c.y * CELL
-		var yy: float = height_fn.call(c)
-		var a := Vector3(cx - h, yy, cz - h)
-		var b := Vector3(cx + h, yy, cz - h)
-		var d := Vector3(cx + h, yy, cz + h)
-		var e := Vector3(cx - h, yy, cz + h)
-		var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
-		for v in quad:
-			st.set_normal(n)
-			st.set_uv(Vector2(v.x, v.z))
-			st.add_vertex(v)
-	st.generate_tangents()
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = mat
-	mi.material_override.render_priority = priority
-	# Floors, ceilings and pit bottoms never shade anything you can see: every tube hangs under its ceiling
-	# and above the floor (the steps between ceiling heights are their own casters). Left on, the whole
-	# level's floor and ceiling were drawn into all six faces of every shadowed light's cube, every frame.
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	return mi
+		var ci: Vector2i = c if c is Vector2i else Vector2i(c.x, c.y)
+		var ch := Vector2i(ci.x / 8, ci.y / 8)
+		chunks.get_or_add(ch, []).append(ci)
+
+	var root := Node3D.new()
+	root.name = "SurfaceGroup"
+	add_child(root)
+
+	for ch in chunks:
+		var cell_list: Array = chunks[ch]
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for c in cell_list:
+			var cx: float = c.x * CELL
+			var cz: float = c.y * CELL
+			var yy: float = height_fn.call(c)
+			var a := Vector3(cx - h, yy, cz - h)
+			var b := Vector3(cx + h, yy, cz - h)
+			var d := Vector3(cx + h, yy, cz + h)
+			var e := Vector3(cx - h, yy, cz + h)
+			var quad := [a, d, b, a, e, d] if flip else [a, b, d, a, d, e]
+			for v in quad:
+				st.set_normal(n)
+				st.set_uv(Vector2(v.x, v.z))
+				st.add_vertex(v)
+		st.generate_tangents()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = mat
+		if priority != 0:
+			mi.material_override = mat.duplicate()
+			mi.material_override.render_priority = priority
+		mi.layers = layers
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+
+	return root
 
 ## The floors and the ceilings, one mesh per material. `floors` / `ceilings`: build only one of the two (a
 ## floor rebuilt in place does them a frame apart, level_builder.gd).
@@ -259,12 +276,12 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			if not walls.has(c): solid_cells.append(c)
 	if ceilings:
 		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
-		_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true).layers = CEIL_LAYER
+		_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
 		for id in paint_ceil:
-			_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true).layers = CEIL_LAYER
+			_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
-			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true).layers = CEIL_LAYER
+			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
 		if not shell: _build_ceiling_collision(solid_cells)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
@@ -302,20 +319,20 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("height_tex", load("res://textures/l0_carpet_height.png"))
 	sm.set_shader_parameter("albedo_tint", tint)
 	sm.set_shader_parameter("uv_scale", Vector2(0.5, 0.5))
-	sm.set_shader_parameter("normal_scale", 1.3)
-	sm.set_shader_parameter("roughness_mult", 0.88)
-	sm.set_shader_parameter("metallic_specular", 0.35)
+	sm.set_shader_parameter("normal_scale", 1.5)
+	sm.set_shader_parameter("roughness_mult", 0.94)
+	sm.set_shader_parameter("metallic_specular", 0.20)
 	sm.set_shader_parameter("ao_light_affect", 0.75)
-	sm.set_shader_parameter("height_scale", 0.02)
+	sm.set_shader_parameter("height_scale", 0.025)
 	# parallax march length by preset (Gfx `post`: 0 low, 1 medium, 2 high/ultra); 0 layers = no POM at all
 	var q := clampi(int(Gfx.s.get("post", 2)), 0, 2)
-	sm.set_shader_parameter("min_layers", [0, 3, 4][q])
-	sm.set_shader_parameter("max_layers", [0, 6, 8][q])
-	sm.set_shader_parameter("near_distance", 5.0)
-	sm.set_shader_parameter("near_fade_range", 2.0)
-	sm.set_shader_parameter("crevice_ao_strength", 0.6)
-	sm.set_shader_parameter("mid_distance", 16.0)
-	sm.set_shader_parameter("mid_fade_range", 10.0)
+	sm.set_shader_parameter("min_layers", [0, 4, 6][q])
+	sm.set_shader_parameter("max_layers", [0, 8, 14][q])
+	sm.set_shader_parameter("near_distance", 8.0)
+	sm.set_shader_parameter("near_fade_range", 3.0)
+	sm.set_shader_parameter("crevice_ao_strength", 0.3)
+	sm.set_shader_parameter("mid_distance", 25.0)
+	sm.set_shader_parameter("mid_fade_range", 8.0)
 	if _floor_map_tex == null: _floor_map_tex = _floor_map()
 	sm.set_shader_parameter("floor_map", _floor_map_tex)
 	sm.set_shader_parameter("map_cells", float(size))
@@ -359,11 +376,22 @@ func _floor_map() -> ImageTexture:
 		for x in n:
 			var c := Vector2i(x, z)
 			var solid := _block_at(c) or stair_cells.has(c)
+			var b := 0.0
 			var g := 0.0
 			if on_floor.call(c):
 				var cnt: float = box_sum.call(satf, x - 1, z - 1, x + 2, z + 2)
 				g = box_sum.call(traffic, x - 1, z - 1, x + 2, z + 2) / maxf(cnt, 1.0)
-			img.set_pixel(x, z, Color(1.0 if solid else 0.0, g, 0.0, 1.0))
+				for dx in range(-1, 2):
+					for dz in range(-1, 2):
+						if dx == 0 and dz == 0: continue
+						var nx: int = x + dx
+						var nz: int = z + dz
+						if nx >= 0 and nx < n and nz >= 0 and nz < n:
+							if _block_at(Vector2i(nx, nz)) or stair_cells.has(Vector2i(nx, nz)):
+								b = 1.0
+								break
+					if b > 0.0: break
+			img.set_pixel(x, z, Color(1.0 if solid else 0.0, g, b, 1.0))
 	return ImageTexture.create_from_image(img)
 
 const AcousticCeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
@@ -1529,44 +1557,54 @@ func _build_dirt() -> void:
 
 func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 	if cells.is_empty(): return
-	# One mesh per texture variant so every stain isn't identical
-	var variants: Array = []
-	for i in 4:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		variants.append(st)
+	var chunks := {}
+	for c in cells:
+		var ci: Vector2i = c if c is Vector2i else Vector2i(c.x, c.y)
+		var ch := Vector2i(ci.x / 8, ci.y / 8)
+		chunks.get_or_add(ch, []).append(ci)
+
 	var uvs := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
 	var corners := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
-	for c in cells:
-		var x0: float = c.x * CELL + (rng.randf() - 0.5) * CELL * 0.5
-		var z0: float = c.y * CELL + (rng.randf() - 0.5) * CELL * 0.5
-		var r := (sz * (0.7 + rng.randf() * 0.6)) / 2.0
-		var a := rng.randf() * TAU
-		var ca := cos(a)
-		var sa := sin(a)
-		var st: SurfaceTool = variants[rng.randi() % 4]
-		for k in [0, 3, 2, 0, 2, 1]:
-			var s: Vector2 = corners[k]
-			st.set_normal(Vector3.UP)
-			st.set_uv(uvs[k])
-			st.add_vertex(Vector3(x0 + (s.x * ca - s.y * sa) * r, y, z0 + (s.x * sa + s.y * ca) * r))
-	for i in 4:
-		var key := "%s_%d" % ["wet" if wet else "dry", i]
-		if not _grime_mats.has(key):
-			var m := StandardMaterial3D.new()
-			m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
-			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-			m.render_priority = 1
-			if wet:
-				m.albedo_color = Color("3a3320")
-				m.roughness = 0.08
-				m.metallic = 0.2
-			else:
-				m.roughness = 1.0
-			_grime_mats[key] = m
-		var mi := MeshInstance3D.new()
-		mi.mesh = (variants[i] as SurfaceTool).commit()
-		mi.material_override = _grime_mats[key]
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
+
+	for ch in chunks:
+		var ch_cells: Array = chunks[ch]
+		var variants: Array = []
+		for i in 4:
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			variants.append(st)
+		for c in ch_cells:
+			var x0: float = c.x * CELL + (rng.randf() - 0.5) * CELL * 0.5
+			var z0: float = c.y * CELL + (rng.randf() - 0.5) * CELL * 0.5
+			var r := (sz * (0.7 + rng.randf() * 0.6)) / 2.0
+			var a := rng.randf() * TAU
+			var ca := cos(a)
+			var sa := sin(a)
+			var st: SurfaceTool = variants[rng.randi() % 4]
+			for k in [0, 3, 2, 0, 2, 1]:
+				var s: Vector2 = corners[k]
+				st.set_normal(Vector3.UP)
+				st.set_uv(uvs[k])
+				st.add_vertex(Vector3(x0 + (s.x * ca - s.y * sa) * r, y, z0 + (s.x * sa + s.y * ca) * r))
+		for i in 4:
+			var key := "%s_%d" % ["wet" if wet else "dry", i]
+			if not _grime_mats.has(key):
+				var m := StandardMaterial3D.new()
+				m.albedo_texture = load("res://textures/grime_%s_%d.png" % ["wet" if wet else "dry", i])
+				m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				m.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+				m.render_priority = 1
+				if wet:
+					m.albedo_color = Color("3a3320")
+					m.roughness = 0.08
+					m.metallic = 0.2
+				else:
+					m.roughness = 1.0
+				_grime_mats[key] = m
+			var committed_mesh := (variants[i] as SurfaceTool).commit()
+			if committed_mesh.get_surface_count() > 0:
+				var mi := MeshInstance3D.new()
+				mi.mesh = committed_mesh
+				mi.material_override = _grime_mats[key]
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				add_child(mi)

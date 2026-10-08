@@ -146,33 +146,43 @@ void fragment() {
 	// a centimetre, so millimetre detail would average away in the filtering / TAA. The cell size doubles in
 	// steps as the footprint grows and the two nearest steps cross-fade, so the grain stays about a pixel
 	// fine at any distance and never pops.
-	// geometric mean of the two axes: at a grazing angle the max stretched each grain into a long soft smear
-	float px = sqrt(length(dFdx(world)) * length(dFdy(world)));
-	float lod = max(log2(px * grain_px / grain_cell), 0.0);
-	float l = floor(lod);
-	float t = lod - l;
-	float cell = grain_cell * exp2(l);
 	float dist_k = 1.0 - smoothstep(glint_far * 0.5, glint_far, length(VERTEX));
 	float tile_face = 1.0 - rail;
 
-	// two octaves per level (the second at half size) so each grain has a crisp edge, not a soft blob
-	vec3 gn = mix(grain_noise(world / cell + l * 17.3) * 0.55 + grain_noise(world * 2.03 / cell + l * 5.1) * 0.6,
-		grain_noise(world / (cell * 2.0) + (l + 1.0) * 17.3) * 0.55 + grain_noise(world * 1.015 / cell + (l + 1.0) * 5.1) * 0.6, t);
-	gn = clamp(gn * 1.4, -1.0, 1.0) * dist_k * tile_face;   // value noise is soft: push it to a speckle
-	float pit = smoothstep(0.2, 0.9, -gn.z);
-	ALBEDO *= (1.0 + gn.z * grain_albedo) * (1.0 - pit * grain_cavity);
+	vec3 gn = vec3(0.0);
+	float pit = 0.0;
+	float gw = 0.0;
+	vec4 f = vec4(0.0);
+	if (dist_k > 0.005 && tile_face > 0.01) {
+		float px = sqrt(length(dFdx(world)) * length(dFdy(world)));
+		float lod = max(log2(px * grain_px / grain_cell), 0.0);
+		float l = floor(lod);
+		float t = lod - l;
+		float cell = grain_cell * exp2(l);
 
-	vec4 fa = flecks(world, cell, glint_density, l);
-	vec4 fb = flecks(world, cell * 2.0, glint_density, l + 1.0);
-	fa.z *= 1.0 - t;
-	fb.z *= t;
-	vec4 f = fa.z >= fb.z ? fa : fb;
-	float gw = f.z * open * dist_k;
+		// two octaves per level (the second at half size) so each grain has a crisp edge, not a soft blob
+		gn = mix(grain_noise(world / cell + l * 17.3) * 0.55 + grain_noise(world * 2.03 / cell + l * 5.1) * 0.6,
+			grain_noise(world / (cell * 2.0) + (l + 1.0) * 17.3) * 0.55 + grain_noise(world * 1.015 / cell + (l + 1.0) * 5.1) * 0.6, t);
+		gn = clamp(gn * 1.4, -1.0, 1.0) * dist_k * tile_face;   // value noise is soft: push it to a speckle
+		pit = smoothstep(0.2, 0.9, -gn.z);
+		ALBEDO *= (1.0 + gn.z * grain_albedo) * (1.0 - pit * grain_cavity);
+
+		vec4 fa = flecks(world, cell, glint_density, l);
+		vec4 fb = flecks(world, cell * 2.0, glint_density, l + 1.0);
+		fa.z *= 1.0 - t;
+		fb.z *= t;
+		f = fa.z >= fb.z ? fa : fb;
+		gw = f.z * open * dist_k;
+	}
 
 	// the grain tilts the texture's own normal (tangent-space slopes add), a fleck replaces it
 	vec3 tn = nm * 2.0 - 1.0;
-	tn = normalize(vec3(tn.xy / max(tn.z, 0.2) + gn.xy * grain_strength, 1.0));
-	NORMAL_MAP = mix(tn * 0.5 + 0.5, normalize(vec3(f.xy, 1.0)) * 0.5 + 0.5, gw);
+	if (gw > 0.001 || length(gn.xy) > 0.001) {
+		tn = normalize(vec3(tn.xy / max(tn.z, 0.2) + gn.xy * grain_strength, 1.0));
+		NORMAL_MAP = mix(tn * 0.5 + 0.5, normalize(vec3(f.xy, 1.0)) * 0.5 + 0.5, gw);
+	} else {
+		NORMAL_MAP = nm;
+	}
 	NORMAL_MAP_DEPTH = normal_depth;
 	ROUGHNESS = mix(mix(rough, rail_roughness, rail), mix(glint_roughness.x, glint_roughness.y, f.w), gw);
 	SPECULAR = mix(mix(specular, rail_specular, rail), glint_specular, gw);

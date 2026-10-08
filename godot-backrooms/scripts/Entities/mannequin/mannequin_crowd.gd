@@ -140,8 +140,18 @@ func update(delta: float) -> void:
 	var dt := tick
 	tick = 0.0
 	var player: Node3D = m.player
-	var cam: Camera3D = player.cam
+	if player == null or not is_instance_valid(player):
+		return
 	var pp := player.global_position
+
+	# Early-out if the player is far from the mannequin room
+	if m.room_box.size != Vector2i.ZERO:
+		var rc := Vector3((m.room_box.position.x + m.room_box.size.x * 0.5) * m.CELL, 0.0, (m.room_box.position.y + m.room_box.size.y * 0.5) * m.CELL)
+		var max_r: float = maxf(m.room_box.size.x, m.room_box.size.y) * m.CELL * 0.5 + SHUFFLE_RANGE + 4.0
+		if pp.distance_squared_to(rc) > max_r * max_r:
+			return
+
+	var cam: Camera3D = player.cam
 	var pool := shufflers.duplicate()
 	pool.sort_custom(func(a, b):
 		var da: Dictionary = decoys[a.i]

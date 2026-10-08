@@ -261,6 +261,7 @@ void fragment() {
 	}
 
 	// ---- the front glass: dust, smudges, halation, glare (kept from post.gdshader)
+	float luma_local = 0.0;
 	if (post_quality >= 1) {
 		vec2 dirt_uv = uv;
 		dirt_uv.x = (dirt_uv.x - 0.5) * (aspect / 1.77778) + 0.5;
@@ -269,7 +270,7 @@ void fragment() {
 		float rim_fade = 1.0 - smoothstep(0.72, 0.98, max(rim.x, rim.y));
 		float dirt_l = max(dot(raw_dirt, LUMA) - 0.22, 0.0) * 1.4 * rim_fade;
 		vec3 local_light = textureLod(screen_tex, uvg, 3.5).rgb;
-		float luma_local = dot(local_light, LUMA);
+		luma_local = dot(local_light, LUMA);
 		vec3 light_tint = mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
 		vec3 dirt_rgb = dirt_l * light_tint;
 		float lens_clean = 1.0 - 0.7 * classic;
@@ -287,29 +288,34 @@ void fragment() {
 		}
 	}
 	if (post_quality >= 2 && glare_amt > 0.01) {
-		vec3 glare_streak = vec3(0.0);
-		vec2 s_dir = vec2(px * 14.0, 0.0);
 		float st = 0.68 - 0.15 * glare;
-		for (int i = -4; i <= 4; i++) {
-			if (i == 0) continue;
-			float fi = float(i);
-			vec3 sc = textureLod(screen_tex, clamp(uvg + s_dir * fi, 0.0, 1.0), 3.0).rgb;
-			float sl = dot(sc, LUMA);
-			if (sl > st) glare_streak += sc * (sl - st) * exp(-abs(fi) * 0.45);
-		}
-		col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt * (1.0 + 1.5 * glare);
-		vec2 ghost_vec = vec2(0.5) - uvg;
-		vec3 ghosts = vec3(0.0);
-		for (int i = 1; i <= 2; i++) {
-			vec2 guv = clamp(uvg + ghost_vec * float(i) * 0.5, 0.0, 1.0);
-			vec3 gc = textureLod(screen_tex, guv, 3.5).rgb;
-			float gl = dot(gc, LUMA);
-			if (gl > 0.78) {
-				vec3 g_tint = mix(vec3(0.75, 0.9, 1.15), vec3(1.15, 0.95, 0.7), float(i) * 0.5);
-				ghosts += gc * (gl - 0.78) * g_tint * (1.0 - smoothstep(0.0, 0.6, length(guv - 0.5)));
+		// Fast threshold gate: only compute horizontal streak when local region has sufficient luminance
+		if (luma_local > st * 0.45) {
+			vec3 glare_streak = vec3(0.0);
+			vec2 s_dir = vec2(px * 14.0, 0.0);
+			for (int i = -4; i <= 4; i++) {
+				if (i == 0) continue;
+				float fi = float(i);
+				vec3 sc = textureLod(screen_tex, clamp(uvg + s_dir * fi, 0.0, 1.0), 3.0).rgb;
+				float sl = dot(sc, LUMA);
+				if (sl > st) glare_streak += sc * (sl - st) * exp(-abs(fi) * 0.45);
 			}
+			col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt * (1.0 + 1.5 * glare);
 		}
-		col += ghosts * 0.04 * glare_amt;
+		if (luma_local > 0.45 || glare > 0.1) {
+			vec2 ghost_vec = vec2(0.5) - uvg;
+			vec3 ghosts = vec3(0.0);
+			for (int i = 1; i <= 2; i++) {
+				vec2 guv = clamp(uvg + ghost_vec * float(i) * 0.5, 0.0, 1.0);
+				vec3 gc = textureLod(screen_tex, guv, 3.5).rgb;
+				float gl = dot(gc, LUMA);
+				if (gl > 0.78) {
+					vec3 g_tint = mix(vec3(0.75, 0.9, 1.15), vec3(1.15, 0.95, 0.7), float(i) * 0.5);
+					ghosts += gc * (gl - 0.78) * g_tint * (1.0 - smoothstep(0.0, 0.6, length(guv - 0.5)));
+				}
+			}
+			col += ghosts * 0.04 * glare_amt;
+		}
 	}
 
 	// ---- Classic zone, the Kane Pixels look: the camcorder's highlights bleed softly round every bright panel,

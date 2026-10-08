@@ -1166,6 +1166,9 @@ func _near_door() -> bool:
 				return true
 	return false
 
+var _cached_doors: Array = []
+var _door_cache_t := 0.0
+
 func _find_interactable_door() -> Node:
 	if dead or frozen or Game.draw_mode or Game.noclip:
 		return null
@@ -1185,12 +1188,19 @@ func _find_interactable_door() -> Node:
 				return d
 				
 	# 2. View-cone / proximity query for nearby doors within reach (handles open doorways and side angles)
+	var now := Time.get_ticks_msec() * 0.001
+	if now - _door_cache_t > 1.0 or _cached_doors.is_empty():
+		_door_cache_t = now
+		_cached_doors = get_tree().get_nodes_in_group("doors")
+
 	var best_door: Node = null
 	var best_dot := 0.62
-	var doors := get_tree().get_nodes_in_group("doors")
-	for n in doors:
+	for n in _cached_doors:
+		if not is_instance_valid(n): continue
+		var dpos: Vector3 = (n as Node3D).global_position
+		if cam_pos.distance_squared_to(dpos) > 16.0: continue
 		if n.has_method("can_interact") and n.can_interact(cam_pos):
-			var target_pos: Vector3 = n.get_handle_global_pos() if n.has_method("get_handle_global_pos") else n.global_position
+			var target_pos: Vector3 = n.get_handle_global_pos() if n.has_method("get_handle_global_pos") else dpos
 			var to_door := (target_pos - cam_pos).normalized()
 			var dot := cam_fwd.dot(to_door)
 			var dist := cam_pos.distance_to(target_pos)

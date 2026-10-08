@@ -1,4 +1,4 @@
-﻿shader_type spatial;
+shader_type spatial;
 render_mode cull_back;
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -9,20 +9,20 @@ uniform sampler2D height_tex : hint_default_white, filter_linear_mipmap_anisotro
 
 uniform vec4 albedo_tint : source_color = vec4(1.0, 0.94, 0.75, 1.0);
 uniform vec2 uv_scale = vec2(0.5, 0.5);
-uniform float normal_scale : hint_range(0.0, 5.0) = 2.4;
-uniform float roughness_mult : hint_range(0.0, 2.0) = 0.88;
-uniform float metallic_specular : hint_range(0.0, 1.0) = 0.35;
+uniform float normal_scale : hint_range(0.0, 5.0) = 1.5;
+uniform float roughness_mult : hint_range(0.0, 2.0) = 0.94;
+uniform float metallic_specular : hint_range(0.0, 1.0) = 0.20;
 uniform float ao_light_affect : hint_range(0.0, 1.0) = 0.75;
 
-uniform float height_scale : hint_range(0.0, 0.1) = 0.04;
+uniform float height_scale : hint_range(0.0, 0.1) = 0.025;
 uniform int min_layers : hint_range(0, 32) = 6;
 uniform int max_layers : hint_range(0, 64) = 14;    // 0 turns POM off (Low preset)
-uniform float near_distance : hint_range(2.0, 20.0) = 5.0;
-uniform float near_fade_range : hint_range(1.0, 5.0) = 2.0;
-uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.6;
+uniform float near_distance : hint_range(2.0, 20.0) = 8.0;
+uniform float near_fade_range : hint_range(1.0, 5.0) = 3.0;
+uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.3;
 
-uniform float mid_distance : hint_range(8.0, 60.0) = 16.0;
-uniform float mid_fade_range : hint_range(2.0, 12.0) = 10.0;
+uniform float mid_distance : hint_range(8.0, 60.0) = 25.0;
+uniform float mid_fade_range : hint_range(2.0, 12.0) = 8.0;
 
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
@@ -105,7 +105,7 @@ void fragment() {
 
 		float num_layers = mix(float(max_layers), float(min_layers), clamp(dot(NORMAL, VIEW), 0.0, 1.0));
 		float layer_step = 1.0 / num_layers;
-		vec2 max_offset = -(v_ts.xy / max(v_ts.z, 0.08)) * (height_scale * pom_weight);
+		vec2 max_offset = -(v_ts.xy / max(v_ts.z, 0.20)) * (height_scale * pom_weight);
 		vec2 delta_uv = max_offset * layer_step;
 
 		vec2 curr_uv = uv;
@@ -141,7 +141,7 @@ void fragment() {
 	float rough = textureGrad(roughness_tex, uv, uv_dx, uv_dy).r * roughness_mult;
 	float base_ao = textureGrad(ao_tex, uv, uv_dx, uv_dy).r;
 
-	float crevice_occ = 1.0 - pow(final_depth, 1.3) * crevice_ao_strength;
+	float crevice_occ = 1.0 - pow(final_depth, 1.4) * crevice_ao_strength;
 	float final_ao = clamp(base_ao * crevice_occ, 0.0, 1.0);
 
 	vec2 fp = v_world_pos.xz;
@@ -149,18 +149,29 @@ void fragment() {
 	alb.rgb *= 1.0 + (macro - 0.5) * 0.12 * macro_vary;
 	alb.b *= 1.0 + (vnoise(fp / 9.0 + 7.0) - 0.5) * 0.06 * macro_vary;
 	if (map_cells > 0.5) {
-		float dw = wall_dist(fp);
-		float wear = texture(floor_map, (fp / map_cell + 0.5) / map_cells).g * smoothstep(0.3, 1.4, dw);
-		wear = clamp(wear * (0.7 + 0.6 * vnoise(fp * 0.8 + 3.0)) * wear_amount, 0.0, 1.0);
+		vec4 fmap = texture(floor_map, (fp / map_cell + 0.5) / map_cells);
+		float dw = 99.0;
+		// Fast path: if fmap.b is 0, no wall is anywhere in the 3x3 cell neighborhood
+		if (fmap.b > 0.1 && dist < 18.0) {
+			dw = wall_dist(fp);
+		}
+		float wear = fmap.g * (fmap.b > 0.1 ? smoothstep(0.3, 1.4, dw) : 1.0);
+		if (dist < 22.0) {
+			wear = clamp(wear * (0.7 + 0.6 * vnoise(fp * 0.8 + 3.0)) * wear_amount, 0.0, 1.0);
+		} else {
+			wear = clamp(wear * wear_amount, 0.0, 1.0);
+		}
 		float lum = dot(alb.rgb, vec3(0.3333));
 		alb.rgb = mix(alb.rgb, vec3(lum) * vec3(0.98, 0.95, 0.9), wear * 0.25) * (1.0 - 0.16 * wear);
 		active_normal_depth *= 1.0 - 0.45 * wear;
 		rough *= 1.0 - 0.08 * wear;
-		float soil = (1.0 - smoothstep(0.02, 0.1, dw)) * (0.6 + 0.4 * vnoise(fp * 3.0)) * edge_soil;
-		alb.rgb *= 1.0 - 0.4 * soil;
+		if (dw < 0.15 && dist < 12.0) {
+			float soil = (1.0 - smoothstep(0.02, 0.1, dw)) * (0.6 + 0.4 * vnoise(fp * 3.0)) * edge_soil;
+			alb.rgb *= 1.0 - 0.4 * soil;
+		}
 	}
 
-	ALBEDO = alb.rgb * mix(vec3(0.85), vec3(1.0), 1.0 - final_depth * 0.4);
+	ALBEDO = alb.rgb * mix(vec3(0.92), vec3(1.0), 1.0 - final_depth * 0.2);
 	NORMAL_MAP = textureGrad(normal_tex, uv, uv_dx, uv_dy).rgb;
 	NORMAL_MAP_DEPTH = active_normal_depth;
 	ROUGHNESS = rough;
