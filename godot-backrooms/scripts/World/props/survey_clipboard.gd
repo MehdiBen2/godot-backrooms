@@ -37,12 +37,13 @@ func _build_mesh() -> void:
 						var mat = child.get_active_material(i)
 						if mat is StandardMaterial3D:
 							var new_mat = mat.duplicate()
-							new_mat.albedo_color = new_mat.albedo_color.darkened(0.55) # Darken by 55%
-							new_mat.roughness = 0.95 # Less glossy/shiny
+							new_mat.albedo_color = new_mat.albedo_color.darkened(0.85) # Darken significantly to blend with ambient
+							new_mat.roughness = 1.0 # Less glossy/shiny
+							new_mat.specular = 0.1
 							child.set_surface_override_material(i, new_mat)
 		
 		# Adjust scale and shift it down slightly if the model's origin was placing it too high
-		model.scale = Vector3(1.6, 1.6, 1.6)
+		model.scale = Vector3(1.0, 1.0, 1.0)
 		model.position = Vector3(0, -0.02, 0) # Shift down into the floor slightly
 		
 		# Give it a slight casual tilt so it rests more naturally

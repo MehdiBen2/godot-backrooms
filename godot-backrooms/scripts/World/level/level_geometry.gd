@@ -306,6 +306,30 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 	add_child(mi)
 	return mi
 
+# Floors and ceilings are cut into SURF_CHUNK x SURF_CHUNK cell chunks, as the walls are. Each chunk stops being
+# drawn once it is wholly past the horizon fog, so the far floor and ceiling cost nothing. No fade: the drop
+# happens where the fog is opaque, so there is nothing to dither.
+const SURF_CHUNK := 8
+const SURF_RANGE_SLACK := 6.0        # m: a ceiling's height varies from cell to cell
+const FOG_END := 170.0               # level_lighting.gd HORIZON_END (this script sits below it, so it can't read it)
+const WRAP_FOG_END_MAX := 320.0      # the most an endless level's fog reaches (level_builder.gd _apply_wrap_view)
+
+## How far the horizon fog reaches: past this nothing is seen
+func _fog_end() -> float:
+	if edge_wrap and not shell: return clampf(wrap_size() * 0.95, FOG_END, WRAP_FOG_END_MAX)
+	return FOG_END
+
+## _cell_surface, cut into chunks that each carry a visibility range
+func _ranged_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> void:
+	var chunks := {}
+	for c: Vector2i in cells: chunks.get_or_add(Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK), []).append(c)
+	# the chunk's centre has to be this far off before its nearest cell can be past the fog
+	var reach := _fog_end() + SURF_CHUNK * CELL * sqrt(2.0) / 2.0 + SURF_RANGE_SLACK
+	for ch in chunks:
+		var mi := _cell_surface(chunks[ch], height_fn, mat, flip, priority, layers) as MeshInstance3D
+		mi.visibility_range_end = reach
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+
 ## The floors and the ceilings, one mesh per material. `floors` / `ceilings`: build only one of the two (a
 ## floor rebuilt in place does them a frame apart, level_builder.gd).
 func _build_surfaces(floors := true, ceilings := true) -> void:
@@ -354,32 +378,32 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			if not walls.has(c): solid_cells.append(c)
 	if ceilings:
 		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
-		_cell_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
+		_ranged_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
 		for id in paint_ceil:
-			_cell_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
+			_ranged_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
-			_cell_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
+			_ranged_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
 		if not shell: _build_ceiling_collision(solid_cells + cut_all)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
 	if not (through.is_empty() and open_above.is_empty() and holes_below.is_empty()):
-		_cell_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
+		_ranged_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
-	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
+	_ranged_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
-		_cell_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
+		_ranged_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
 	# Classic zone: a clean beige office carpet (the walls carry the yellow)
 	if not classic_floor.is_empty():
-		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
+		_ranged_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
 		var tm: StandardMaterial3D = _pbr_or("tiles")
 		if tm == null:
 			tm = _default_tile_material()
-		_cell_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
+		_ranged_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
 	if not cut_keys.is_empty():
 		var groups := {}

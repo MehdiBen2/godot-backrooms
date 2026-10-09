@@ -244,6 +244,12 @@ func _wrap_copy(n: Node3D, off: Vector3, mats: Dictionary) -> Node3D:
 	g.cast_shadow = s.cast_shadow
 	g.layers = s.layers
 	g.extra_cull_margin = s.extra_cull_margin
+	# the copy drops out with its original's range: it is as far from the camera as the original would be
+	g.visibility_range_begin = s.visibility_range_begin
+	g.visibility_range_begin_margin = s.visibility_range_begin_margin
+	g.visibility_range_end = s.visibility_range_end
+	g.visibility_range_end_margin = s.visibility_range_end_margin
+	g.visibility_range_fade_mode = s.visibility_range_fade_mode
 	g.gi_mode = GeometryInstance3D.GI_MODE_DISABLED     # (the baked GI covers the level itself only)
 	return g
 
@@ -273,15 +279,12 @@ func _wrap_mat(m: Material, off: Vector3, cache: Dictionary) -> Material:
 
 ## How far the view reaches: on an endless level the horizon fog is pushed out to nearly a period (the copies
 ## fill that far in every direction) and the camera's far plane with it; elsewhere both are as they were
-const WRAP_HORIZON_MAX := 320.0
-
 func _apply_wrap_view() -> void:
 	var cam: Camera3D = player.get("cam") if player != null and is_instance_valid(player) else null
 	if cam != null and _view_far < 0.0: _view_far = cam.far
 	var begin := HORIZON_BEGIN
-	var end := HORIZON_END
+	var end := _fog_end()                  # (level_geometry.gd: the same reach the floors and ceilings are ranged to)
 	if edge_wrap and not shell:
-		end = clampf(wrap_size() * 0.95, HORIZON_END, WRAP_HORIZON_MAX)
 		begin = maxf(HORIZON_BEGIN, end * 0.45)
 	if _horizon_mat != null:
 		_horizon_mat.set_shader_parameter("begin", begin)

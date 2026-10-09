@@ -90,52 +90,69 @@ func _finish() -> void:
 	var mi = MeshInstance3D.new()
 	mi.mesh = portal_mesh
 	
-	var mat = StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color(0, 0, 0, 1)
+	var mat = ShaderMaterial.new()
+	var shader = Shader.new()
+	shader.code = """
+	shader_type spatial;
+	render_mode unshaded, cull_disabled;
+	
+	uniform vec3 color1 : source_color = vec3(0.95, 0.85, 0.15); // Bright Yellow
+	uniform vec3 color2 : source_color = vec3(0.5, 0.55, 0.1); // Greenish yellow
+	uniform float time_scale = 0.4;
+	
+	vec2 hash( vec2 p ) {
+		p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );
+		return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+	}
+	float noise( in vec2 p ) {
+		const float K1 = 0.366025404; 
+		const float K2 = 0.211324865; 
+		vec2 i = floor( p + (p.x+p.y)*K1 );
+		vec2 a = p - i + (i.x+i.y)*K2;
+		vec2 o = (a.x>a.y) ? vec2(1.0,0.0) : vec2(0.0,1.0);
+		vec2 b = a - o + K2;
+		vec2 c = a - 1.0 + 2.0*K2;
+		vec3 h = max( 0.5-vec3(dot(a,a), dot(b,b), dot(c,c) ), 0.0 );
+		vec3 n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));
+		return dot( n, vec3(70.0) );
+	}
+	
+	void fragment() {
+		vec2 uv = UV * 3.0;
+		float n = noise(uv + vec2(TIME * time_scale));
+		n += 0.5 * noise(uv * 2.0 - vec2(TIME * time_scale * 1.5));
+		n = n * 0.5 + 0.5;
+		
+		vec3 final_color = mix(color2, color1, smoothstep(0.2, 0.6, n));
+		
+		if (n > 0.75) {
+			final_color += vec3(1.0, 1.0, 0.6) * (n - 0.75) * 4.0; // Glow spots
+		}
+		
+		// Add dark swirling veins
+		if (n < 0.3) {
+			final_color = mix(vec3(0.1, 0.15, 0.05), final_color, smoothstep(0.1, 0.3, n));
+		}
+		
+		ALBEDO = final_color;
+	}
+	"""
+	mat.shader = shader
 	mi.material_override = mat
 	
 	var light = OmniLight3D.new()
-	light.light_color = Color(0.8, 0.2, 1.0) # Neon purple
-	light.light_energy = 5.0
-	light.omni_range = maxf(width, height) * 3.0
-	light.position = Vector3(0, 0, 0.5)
+	light.light_color = Color(0.95, 0.85, 0.15) # Yellow
+	light.light_energy = 4.0
+	light.omni_range = maxf(width, height) * 4.0
+	# Move the light slightly out of the wall so it casts into the room
+	light.position = Vector3(0, 0, 0.5) 
 	mi.add_child(light)
-	
-	var parts = GPUParticles3D.new()
-	parts.amount = 100
-	parts.lifetime = 2.0
-	var prmat = ParticleProcessMaterial.new()
-	prmat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	prmat.emission_box_extents = Vector3(width/2.0, height/2.0, 0.1)
-	prmat.gravity = Vector3(0, 0, 0)
-	prmat.radial_accel_min = -1.5
-	prmat.radial_accel_max = -0.5
-	parts.process_material = prmat
-	var pmat = StandardMaterial3D.new()
-	pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	pmat.albedo_color = Color(0.9, 0.4, 1.0)
-	var quad = QuadMesh.new()
-	quad.size = Vector2(0.04, 0.04)
-	quad.material = pmat
-	parts.draw_pass_1 = quad
-	parts.position = Vector3(0, 0, 0.1)
-	mi.add_child(parts)
-	
-	var border = MeshInstance3D.new()
-	var bmesh = QuadMesh.new()
-	bmesh.size = Vector2(width + 0.15, height + 0.15)
-	var bmat = StandardMaterial3D.new()
-	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bmat.albedo_color = Color(0.8, 0.2, 1.0)
-	border.mesh = bmesh
-	border.material_override = bmat
-	border.position = Vector3(0, 0, -0.01)
-	mi.add_child(border)
 	
 	# Add to the level
 	var level = player.get_parent().get_node_or_null("Level")
 	if level != null:
 		level.add_child(mi)
 		mi.global_position = center
-		mi.look_at(center + n, up)
+		# look_at makes the -Z axis point to the target. QuadMesh faces +Z.
+		# By looking at center - n, -Z points into the wall, so +Z faces out!
+		mi.look_at(center - n, up)
