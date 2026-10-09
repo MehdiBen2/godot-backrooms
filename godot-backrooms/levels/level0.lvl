@@ -1066,9 +1066,9 @@
       "events_list": [],
       "once": false,
       "pos_x": 23.5,
-      "pos_y": 11.0,
+      "pos_y": 12.0,
       "rotation": 0.0,
-      "scale": 1.5,
+      "scale": 5.5,
       "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
       "type": "trigger"
     },
