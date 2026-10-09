@@ -13,6 +13,7 @@ extends CanvasLayer
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const CableMarks := preload("res://scripts/World/props/cable_marks.gd")
+const PortalMarks := preload("res://scripts/World/props/portal_marks.gd")
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
 const Stamps := preload("res://scripts/World/props/scary_stamps.gd")
 
@@ -392,6 +393,10 @@ func _redo() -> void:
 		if CableMarks.live != null and CableMarks.live.redo():
 			_say("Redone cable")
 			return
+	if tool == "portal":
+		if portal != null and portal.has_method("redo") and portal.redo():
+			_say("Redone portal")
+			return
 	if SketchMarks.live != null and SketchMarks.live.redo():
 		_say("Redone line")
 		return
@@ -457,8 +462,13 @@ func _save() -> void:
 		ok = CableMarks.live.save() and ok
 		cables_n = CableMarks.live.count()
 		file = CableMarks.live.level_id
+	var portals_n := 0
+	if PortalMarks.live != null:
+		ok = PortalMarks.live.save() and ok
+		portals_n = PortalMarks.live.count()
+		file = PortalMarks.live.level_id
 	if ok:
-		_say("SAVED  %d tape, %d lines, %d cables  (%s.json)" % [strips, lines, cables_n, file])
+		_say("SAVED  %d tape, %d lines, %d cables, %d portals  (%s.json)" % [strips, lines, cables_n, portals_n, file])
 	else:
 		_say("SAVE FAILED: could not write the marks file")
 

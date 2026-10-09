@@ -76,10 +76,12 @@ func _work_out(c: Vector2i) -> Dictionary:
 	var size := clampf(0.12 + mfp / 34.0 + maxf(h - level.WALL_H, 0.0) / 22.0, 0.08, 0.98)
 	if even > 0.75 and mfp > 5.0: size = minf(0.98, size + 0.1 * hard)
 	var damp := clampf(0.88 - 0.55 * hard - 0.15 * size, 0.08, 0.95)
-	var wet := clampf(0.06 + size * (0.18 + 0.32 * hard), 0.03, 0.6)
+	# Lowered wetness overall so it sounds less muddy/weird
+	var wet := clampf(0.04 + size * (0.12 + 0.2 * hard), 0.02, 0.4)
 	# tight and low: short, dark and dull
 	# When walls are closely surrounding the player (small rooms, corridors), kill the reverb completely
-	var tight := clampf((18.0 - mfp) / 10.0, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.4)
+	# Nerfed significantly: requires huge open spaces (mfp > 30) for full reverb
+	var tight := clampf((30.0 - mfp) / 15.0, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.9)
 	if h <= level.LOW_H + 0.01: tight = maxf(tight, 0.8)
 	if h <= level.CRAWL_H + 0.01: tight = 1.0
 	damp = lerpf(damp, 0.98, tight)

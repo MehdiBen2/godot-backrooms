@@ -27,7 +27,12 @@ static var _loaded := {}
 static var _mat: ShaderMaterial
 
 var level_id := ""
+# The strokes are drawn in batches, one mesh per BATCH x BATCH metres (one per line would be hundreds of nodes):
+# meshes: stroke id -> its batch's key; _batch: key -> that batch's strokes; _batch_mi: key -> its MeshInstance3D
+const BATCH := 36.0
 var meshes := {}
+var _batch := {}
+var _batch_mi := {}
 var _undo: Array = []                # what was done, newest last: {op: add / del / clear, ...}
 var _redo: Array = []
 
@@ -61,10 +66,12 @@ func _spawn_all(lv: int) -> void:
 			_spawn(s)
 
 func reload_floor() -> void:
-	for m in meshes.values():
+	for m in _batch_mi.values():
 		if is_instance_valid(m):
 			m.queue_free()
 	meshes.clear()
+	_batch.clear()
+	_batch_mi.clear()
 	_undo.clear()
 	_redo.clear()
 	_load()
@@ -196,9 +203,16 @@ func _apply(op: Dictionary, back: bool) -> void:
 				list.clear()
 
 func _drop_mesh(id: String) -> void:
-	if meshes.has(id):
-		meshes[id].queue_free()
-		meshes.erase(id)
+	if not meshes.has(id): return
+	var key: Vector2i = meshes[id]
+	meshes.erase(id)
+	_batch[key] = (_batch[key] as Array).filter(func(s: Dictionary) -> bool: return s.id != id)
+	if (_batch[key] as Array).is_empty():
+		if is_instance_valid(_batch_mi[key]): _batch_mi[key].queue_free()
+		_batch_mi.erase(key)
+		_batch.erase(key)
+	else:
+		_rebuild(key)
 
 ## Write this floor's strokes to disk; false if the file could not be written
 func save() -> bool:
@@ -326,12 +340,30 @@ func _prune(lv: int) -> void:
 		save()
 
 func _spawn(s: Dictionary) -> void:
-	var mi := MeshInstance3D.new()
-	mi.mesh = ribbon(s.pts, s.n, s, LIFT + LIFT_STEP * (meshes.size() % 8), global_position)
-	mi.material_override = material()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	meshes[s.id] = mi
+	var p: Vector3 = s.pts[0]
+	var key := Vector2i(floori(p.x / BATCH), floori(p.z / BATCH))
+	if not _batch.has(key):
+		_batch[key] = []
+		var mi := MeshInstance3D.new()
+		mi.material_override = material()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# a batch drops out past the fog like the floor it lies on (level_geometry.gd _chunk_reach)
+		mi.visibility_range_end = get_parent()._chunk_reach()
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		add_child(mi)
+		_batch_mi[key] = mi
+	(_batch[key] as Array).append(s)
+	meshes[s.id] = key
+	_rebuild(key)
+
+## Draw a batch again: every stroke in it, one surface each, lifted a little apart so they don't fight
+func _rebuild(key: Vector2i) -> void:
+	var mesh := ArrayMesh.new()
+	var list: Array = _batch[key]
+	for i in list.size():
+		var s: Dictionary = list[i]
+		ribbon(s.pts, s.n, s, LIFT + LIFT_STEP * (i % 8), global_position, mesh, true)
+	(_batch_mi[key] as MeshInstance3D).mesh = mesh
 
 func _supported_runs(s: Dictionary) -> Array:
 	var space := get_world_3d().direct_space_state
@@ -362,10 +394,10 @@ static func material() -> ShaderMaterial:
 ## (the live stroke). The wobble is pen pressure (the line swells and thins) and a drift off the true path;
 ## the hand's jitter is smoothed out first. The strip is PAD times wider than the ink and runs on past both
 ## ends: the shader cuts the round caps, the dashes and the ragged edge out of it.
-static func ribbon(pts: Array, n: Vector3, st: Dictionary, lift: float, origin := Vector3.ZERO, mesh: ArrayMesh = null) -> ArrayMesh:
+static func ribbon(pts: Array, n: Vector3, st: Dictionary, lift: float, origin := Vector3.ZERO, mesh: ArrayMesh = null, keep := false) -> ArrayMesh:
 	if mesh == null:
 		mesh = ArrayMesh.new()
-	mesh.clear_surfaces()
+	if not keep: mesh.clear_surfaces()          # (keep: add this line as one more surface of the batch)
 	if pts.size() < 2:
 		return mesh
 	var width: float = st.w

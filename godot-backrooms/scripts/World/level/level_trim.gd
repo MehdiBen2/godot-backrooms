@@ -302,7 +302,8 @@ const OUTLET_H := 0.3
 const SWITCH_H := 1.2
 const OUTLET_CHANCE := 0.08         # a wall face (4.5 m) with a socket on it
 const SWITCH_CHANCE := 0.06         # an outside corner with a switch beside it
-const FITTING_SQUARE := 4           # cells a side of a group (one MultiMesh a part a group: they cull by group)
+const FITTING_SQUARE := 8           # cells a side of a group (one MultiMesh a part a group: they cull by group)
+const FITTING_RANGE := 32.0         # m: a fitting's own draw distance (7 cm across: a pixel or two beyond this)
 
 ## Places them; returns where the switches went (world, [position, out of the wall]) for the hand marks
 func _build_fittings() -> Array:
@@ -363,7 +364,7 @@ func _build_fittings() -> Array:
 				var mmi := MultiMeshInstance3D.new()
 				mmi.multimesh = mm
 				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				mmi.visibility_range_end = 32.0                  # (7 cm across: a pixel or two beyond this)
+				mmi.visibility_range_end = FITTING_RANGE + FITTING_SQUARE * CELL * sqrt(2.0) / 2.0     # (the group's centre: its nearest fitting is past FITTING_RANGE)
 				mmi.visibility_range_end_margin = 4.0
 				mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 				add_child(mmi)

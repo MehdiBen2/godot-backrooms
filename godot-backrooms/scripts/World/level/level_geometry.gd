@@ -309,7 +309,7 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 # Floors and ceilings are cut into SURF_CHUNK x SURF_CHUNK cell chunks, as the walls are. Each chunk stops being
 # drawn once it is wholly past the horizon fog, so the far floor and ceiling cost nothing. No fade: the drop
 # happens where the fog is opaque, so there is nothing to dither.
-const SURF_CHUNK := 8
+const SURF_CHUNK := 16
 const SURF_RANGE_SLACK := 6.0        # m: a ceiling's height varies from cell to cell
 const FOG_END := 170.0               # level_lighting.gd HORIZON_END (this script sits below it, so it can't read it)
 const WRAP_FOG_END_MAX := 320.0      # the most an endless level's fog reaches (level_builder.gd _apply_wrap_view)

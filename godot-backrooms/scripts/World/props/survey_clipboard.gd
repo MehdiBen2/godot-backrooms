@@ -25,22 +25,7 @@ func _build_mesh() -> void:
 	var model_scene = load("res://models/props/single_spiral_notepad.glb")
 	if model_scene:
 		var model = model_scene.instantiate()
-		for child in model.find_children("*", "MeshInstance3D", true, false):
-			if child is MeshInstance3D:
-				child.visibility_range_end = 45.0
-				child.visibility_range_end_margin = 8.0
-				child.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-				
-				# Darken the material and make it less shiny so it doesn't look overly bright
-				if child.mesh:
-					for i in child.mesh.get_surface_count():
-						var mat = child.get_active_material(i)
-						if mat is StandardMaterial3D:
-							var new_mat = mat.duplicate()
-							new_mat.albedo_color = new_mat.albedo_color.darkened(0.85) # Darken significantly to blend with ambient
-							new_mat.roughness = 1.0 # Less glossy/shiny
-							new_mat.specular = 0.1
-							child.set_surface_override_material(i, new_mat)
+		_merge_parts(model)
 		
 		# Adjust scale and shift it down slightly if the model's origin was placing it too high
 		model.scale = Vector3(1.0, 1.0, 1.0)
@@ -75,6 +60,46 @@ func _build_mesh() -> void:
 	glow_indicator.visibility_range_end_margin = 8.0
 	glow_indicator.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	mesh_root.add_child(glow_indicator)
+
+## The notebook model is dozens of small meshes, each with its own material and visibility. They are merged here
+## into one mesh per material (SurfaceTool), so a clipboard is a few nodes, not dozens. Each merged mesh is darkened
+## and matted the way the parts were, and fades out past 45 m as they did.
+func _merge_parts(model: Node3D) -> void:
+	var groups := {}                                   # source material (or null) -> SurfaceTool
+	var parts := model.find_children("*", "MeshInstance3D", true, false)
+	for part: MeshInstance3D in parts:
+		if part.mesh == null or part.skin != null: continue
+		var xf := Transform3D()                        # the part's transform in the model's own space
+		var q: Node = part
+		while q != model:
+			xf = (q as Node3D).transform * xf
+			q = q.get_parent()
+		for i in part.mesh.get_surface_count():
+			var mat: Material = part.get_active_material(i)
+			if not groups.has(mat):
+				var st := SurfaceTool.new()
+				st.begin(Mesh.PRIMITIVE_TRIANGLES)
+				groups[mat] = st
+			(groups[mat] as SurfaceTool).append_from(part.mesh, i, xf)
+	for part in parts:
+		if is_instance_valid(part) and part.get_parent() != null and part.skin == null:
+			part.get_parent().remove_child(part)
+			part.free()
+	for mat in groups:
+		var m: Material = mat
+		if mat is StandardMaterial3D:
+			var sm := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+			sm.albedo_color = sm.albedo_color.darkened(0.85)   # darken significantly to blend with ambient
+			sm.roughness = 1.0                                 # less glossy/shiny
+			sm.specular = 0.1
+			m = sm
+		var mi := MeshInstance3D.new()
+		mi.mesh = (groups[mat] as SurfaceTool).commit()
+		mi.material_override = m
+		mi.visibility_range_end = 45.0
+		mi.visibility_range_end_margin = 8.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		model.add_child(mi)
 
 ## Scanner interface for Q (scanner.gd)
 func scan_points() -> Array:

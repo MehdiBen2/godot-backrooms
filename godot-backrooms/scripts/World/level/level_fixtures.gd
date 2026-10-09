@@ -343,10 +343,35 @@ func _tile_panel_size() -> float:
 	return float(panel_ceiling.get_meta("panel_tiles", 4)) * 2.25 / 8.0
 
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
-## The floor chunk (level_geometry.gd SURF_CHUNK) a fixture's panel is drawn in
-func _panel_chunk(f: Dictionary) -> Vector2i:
-	var c := cell_of(f.pos)
+## The chunk (level_geometry.gd SURF_CHUNK x SURF_CHUNK cells) a point is drawn in
+func _chunk_at(p: Vector3) -> Vector2i:
+	var c := cell_of(p)
 	return Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK)
+
+## Split `items` into chunks by `pos_of`, and build one MultiMesh per chunk, each with its own visibility range.
+## `build(list)` gets one chunk's items and returns its MultiMeshInstance3D, configured and filled with instance j
+## as list[j]. With `key`, each item is given its chunk's MultiMesh and its instance there (item[key + "_mm"],
+## item[key + "_i"]), so a colour can be written to it later. `extra` widens the range for pools that draw past
+## their cell. Returns the first MultiMesh (null if there were no items): the level's "is there any" flag.
+func _chunked(items: Array, pos_of: Callable, key: String, build: Callable, extra := 0.0) -> MultiMesh:
+	if items.is_empty(): return null
+	var chunks := {}
+	for it in items: chunks.get_or_add(_chunk_at(pos_of.call(it)), []).append(it)
+	var reach := _chunk_reach() + extra
+	var first: MultiMesh = null
+	for k in chunks:
+		var list: Array = chunks[k]
+		var mmi: MultiMeshInstance3D = build.call(list)
+		mmi.visibility_range_end = reach
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		add_child(mmi)
+		if first == null: first = mmi.multimesh
+		if key == "": continue
+		for j in list.size():
+			var it: Dictionary = list[j]
+			it[key + "_mm"] = mmi.multimesh
+			it[key + "_i"] = j
+	return first
 
 func _build_panel_ceiling() -> void:
 	if fx.is_empty(): return
@@ -382,7 +407,7 @@ func _build_panel_ceiling() -> void:
 	# one MultiMesh per SURF_CHUNK x SURF_CHUNK cells, each with its own visibility range (as the floors are): a
 	# chunk out of reach or out of view costs nothing. panels_mm is kept only as the "there are panels" flag.
 	var chunks := {}
-	for f: Dictionary in fx: chunks.get_or_add(_panel_chunk(f), []).append(f)
+	for f: Dictionary in fx: chunks.get_or_add(_chunk_at(f.pos), []).append(f)
 	var reach := _chunk_reach()
 	for key in chunks:
 		var list: Array = chunks[key]
@@ -573,36 +598,36 @@ func _build_fixture_meshes() -> void:
 
 	var burnt: Array = fx.filter(func(f): return f.burnt)
 	var yoff := Vector3(0, 0.03, 0)
-	var place := func(part: String, items: Array, mat: Material, colored: bool) -> MultiMesh:
-		if items.is_empty(): return null
+	# each part is chunked (_chunked): a troffer part far off or out of view costs nothing
+	var place := func(part: String, items: Array, mat: Material, colored: bool, key := "") -> MultiMesh:
 		var node: MeshInstance3D = parts[part]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.use_colors = colored
-		mm.mesh = node.mesh
-		mm.instance_count = items.size()
 		var mw := _mesh_world(root, node)
-		var buf := MMBuffer.alloc(mm)
-		var st := MMBuffer.stride(mm)
-		for i in items.size():
-			var f: Dictionary = items[i]
-			var t := Transform3D(Basis(Vector3.UP, f.rot), f.pos + yoff) * base_off * mw
-			MMBuffer.put(buf, i * st, t)
-			if colored: MMBuffer.put_color(buf, i * st, LIT_DIFFUSER * (f.warm as Color) * float(f.peak) * (1.0 if part == "Object_5" else 0.45))
-		mm.buffer = buf
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = mat
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mmi.layers = CEIL_LAYER          # flush with the ceiling: lit by its glow, not blown out by the tube under it
-		add_child(mmi)
-		return mm
-	place.call("Object_3", fx, housing_mat, false)
-	place.call("Object_4", fx, tray_mat, false)
-	place.call("Object_5", burnt, burnt_tubes, false)
-	tubes_mm = place.call("Object_5", lit, lit_tubes, true)
-	place.call("Object_2", burnt, burnt_lens, false)
-	lens_mm = place.call("Object_2", lit, lit_lens, true)
+		return _chunked(items, func(f: Dictionary) -> Vector3: return f.pos, key, func(list: Array) -> MultiMeshInstance3D:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = colored
+			mm.mesh = node.mesh
+			mm.instance_count = list.size()
+			var buf := MMBuffer.alloc(mm)
+			var st := MMBuffer.stride(mm)
+			for j in list.size():
+				var f: Dictionary = list[j]
+				var t := Transform3D(Basis(Vector3.UP, f.rot), f.pos + yoff) * base_off * mw
+				MMBuffer.put(buf, j * st, t)
+				if colored: MMBuffer.put_color(buf, j * st, LIT_DIFFUSER * (f.warm as Color) * float(f.peak) * (1.0 if part == "Object_5" else 0.45))
+			mm.buffer = buf
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.layers = CEIL_LAYER          # flush with the ceiling: lit by its glow, not blown out by the tube under it
+			return mmi)
+	place.call("Object_3", fx, housing_mat, false, "")
+	place.call("Object_4", fx, tray_mat, false, "")
+	place.call("Object_5", burnt, burnt_tubes, false, "")
+	tubes_mm = place.call("Object_5", lit, lit_tubes, true, "tube")
+	place.call("Object_2", burnt, burnt_lens, false, "")
+	lens_mm = place.call("Object_2", lit, lit_lens, true, "lens")
 	root.queue_free()
 
 	# Chains for fixtures hanging under the atrium ceiling
@@ -632,8 +657,8 @@ func _build_fixture_meshes() -> void:
 func _set_lit_color(f: Dictionary, lvl: float) -> void:
 	var k: float = lvl * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
 	var w: Color = tint * (f.get("warm", Color.WHITE) as Color)
-	if tubes_mm: tubes_mm.set_instance_color(f.index, LIT_DIFFUSER * w * k)
-	if lens_mm: lens_mm.set_instance_color(f.index, LIT_DIFFUSER * w * (k * 0.45))
+	if f.has("tube_mm"): (f.tube_mm as MultiMesh).set_instance_color(f.tube_i, LIT_DIFFUSER * w * k)
+	if f.has("lens_mm"): (f.lens_mm as MultiMesh).set_instance_color(f.lens_i, LIT_DIFFUSER * w * (k * 0.45))
 	f.glow_lvl = k
 	_write_glow(f)
 	if f.has("panel_mm"): (f.panel_mm as MultiMesh).set_instance_color(f.panel_i, PANEL_GLOW * w * k)
@@ -739,7 +764,6 @@ const CONE_BOTTOM := 1.9            # ...and at the floor
 const GLOW_COLOR := Color(1.0, 0.93, 0.78)   # the tubes' light (level_light_pool.gd LIGHT_COLOR, which is declared below this script)
 var cone_mm: MultiMesh
 var wall_glow_mm: MultiMesh       # the lit wall faces round each tube
-var _wall_glow_h := PackedFloat32Array()   # each face's wall height (it rides in the instance colour's alpha)
 
 func _build_floor_glow() -> void:
 	if lit.is_empty(): return
@@ -816,36 +840,38 @@ void fragment() {
 	mat.set_shader_parameter("decay", GLOW_DECAY)
 	mat.set_shader_parameter("cone_cos", cone_cos)
 	mat.set_shader_parameter("cone_soft", SPOT_SOFT)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.use_custom_data = true
-	var quad := PlaneMesh.new()
-	quad.size = Vector2.ONE * CELL * GLOW_CELLS
-	mm.mesh = quad
-	mm.instance_count = lit.size()
-	var buf := MMBuffer.alloc(mm)
-	var st := MMBuffer.stride(mm)
-	for i in lit.size():
-		var f: Dictionary = lit[i]
-		f.glow_lvl = float(f.get("peak", 1.0))
-		f.glow_share = 1.0
-		var c := cell_of(f.pos)
-		MMBuffer.put_at(buf, i * st, Vector3(f.pos.x, 0.02, f.pos.z))
-		MMBuffer.put_color(buf, i * st, Color.WHITE)
-		buf[i * st + 16] = _glow_mask(c)
-		buf[i * st + 17] = f.rot
-		buf[i * st + 18] = 1.0 if tiles.has(c) else 0.0
-		buf[i * st + 19] = f.light_pos.y
-	mm.buffer = buf
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	mmi.extra_cull_margin = CELL * GLOW_CELLS
-	add_child(mmi)
-	glow_mm = mm
+	# the pool spreads GLOW_CELLS past its own cell, so its chunk's range is widened by that
+	glow_mm = _chunked(lit, func(f: Dictionary) -> Vector3: return f.pos, "glow", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.use_custom_data = true
+		var quad := PlaneMesh.new()
+		quad.size = Vector2.ONE * CELL * GLOW_CELLS
+		mm.mesh = quad
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for j in list.size():
+			var f: Dictionary = list[j]
+			f.glow_lvl = float(f.get("peak", 1.0))
+			f.glow_share = 1.0
+			var c := cell_of(f.pos)
+			MMBuffer.put_at(buf, j * st, Vector3(f.pos.x, 0.02, f.pos.z))
+			MMBuffer.put_color(buf, j * st, Color.WHITE)
+			buf[j * st + 16] = _glow_mask(c)
+			buf[j * st + 17] = f.rot
+			buf[j * st + 18] = 1.0 if tiles.has(c) else 0.0
+			buf[j * st + 19] = f.light_pos.y
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		mmi.extra_cull_margin = CELL * GLOW_CELLS
+		return mmi
+	, CELL * GLOW_CELLS)
 
 	# the cone of lit air: soft at its silhouette, strongest up at the tube, gone by the floor
 	var csh := _coded_shader("""shader_type spatial;
@@ -872,26 +898,26 @@ void fragment() {
 	cone.rings = 1
 	cone.cap_top = false
 	cone.cap_bottom = false
-	var cm := MultiMesh.new()
-	cm.transform_format = MultiMesh.TRANSFORM_3D
-	cm.use_colors = true
-	cm.mesh = cone
-	cm.instance_count = lit.size()
-	var cbuf := MMBuffer.alloc(cm)
-	var cst := MMBuffer.stride(cm)
-	for i in lit.size():
-		var f: Dictionary = lit[i]
-		var h: float = f.light_pos.y
-		MMBuffer.put(cbuf, i * cst, Transform3D(Basis.from_scale(Vector3(1.0, h, 1.0)), Vector3(f.pos.x, h * 0.5, f.pos.z)))
-		MMBuffer.put_color(cbuf, i * cst, Color.WHITE)
-	cm.buffer = cbuf
-	var cmi := MultiMeshInstance3D.new()
-	cmi.multimesh = cm
-	cmi.material_override = cmat
-	cmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	cmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	add_child(cmi)
-	cone_mm = cm
+	cone_mm = _chunked(lit, func(f: Dictionary) -> Vector3: return f.pos, "cone", func(list: Array) -> MultiMeshInstance3D:
+		var cm := MultiMesh.new()
+		cm.transform_format = MultiMesh.TRANSFORM_3D
+		cm.use_colors = true
+		cm.mesh = cone
+		cm.instance_count = list.size()
+		var cbuf := MMBuffer.alloc(cm)
+		var cst := MMBuffer.stride(cm)
+		for j in list.size():
+			var f: Dictionary = list[j]
+			var h: float = f.light_pos.y
+			MMBuffer.put(cbuf, j * cst, Transform3D(Basis.from_scale(Vector3(1.0, h, 1.0)), Vector3(f.pos.x, h * 0.5, f.pos.z)))
+			MMBuffer.put_color(cbuf, j * cst, Color.WHITE)
+		cm.buffer = cbuf
+		var cmi := MultiMeshInstance3D.new()
+		cmi.multimesh = cm
+		cmi.material_override = cmat
+		cmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		return cmi)
 
 	# the walls round each tube: one quad a wall face, over the tube's own cell and the open cells beside it
 	var wsh := _coded_shader("""shader_type spatial;
@@ -971,7 +997,7 @@ void fragment() {
 	wmat.set_shader_parameter("cone_soft", SPOT_SOFT)
 	var faces: Array = []            # [transform, the tube's light, the wall's height]
 	for f: Dictionary in lit:
-		f.glow_faces = PackedInt32Array()
+		f.glow_faces = []                # this tube's wall faces (each a dict, see below)
 		var c := cell_of(f.pos)
 		if stair_cells.has(c): continue
 		# (a cell with no floor still has walls round it: a wall lit up to the edge of a pit and black beside
@@ -987,34 +1013,34 @@ void fragment() {
 				var nrm := Vector3(-n.x, 0.0, -n.y)                      # the face looks back into the open cell
 				var at := Vector3(o.x * CELL, hgt * 0.5, o.y * CELL) - nrm * (CELL * 0.5 - 0.012)
 				var xf := Transform3D(Basis(Vector3.UP.cross(nrm) * CELL, Vector3.UP * hgt, nrm), at)
-				f.glow_faces.append(faces.size())
-				faces.append([xf, f.light_pos, hgt])
-	_wall_glow_h.resize(faces.size())
+				var face := {"xf": xf, "lamp": f.light_pos, "h": hgt / 16.0}     # h: the face's wall height, as its colour's alpha
+				f.glow_faces.append(face)
+				faces.append(face)
 	if not faces.is_empty():
-		var wm := MultiMesh.new()
-		wm.transform_format = MultiMesh.TRANSFORM_3D
-		wm.use_colors = true
-		wm.use_custom_data = true
-		wm.mesh = QuadMesh.new()
-		wm.instance_count = faces.size()
-		var wbuf := MMBuffer.alloc(wm)
-		var wst := MMBuffer.stride(wm)
-		for i in faces.size():
-			var lamp: Vector3 = faces[i][1]
-			_wall_glow_h[i] = float(faces[i][2]) / 16.0
-			MMBuffer.put(wbuf, i * wst, faces[i][0])
-			MMBuffer.put_color(wbuf, i * wst, Color(1, 1, 1, _wall_glow_h[i]))
-			wbuf[i * wst + 16] = lamp.x
-			wbuf[i * wst + 17] = lamp.y
-			wbuf[i * wst + 18] = lamp.z
-		wm.buffer = wbuf
-		var wmi := MultiMeshInstance3D.new()
-		wmi.multimesh = wm
-		wmi.material_override = wmat
-		wmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		wmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		add_child(wmi)
-		wall_glow_mm = wm
+		wall_glow_mm = _chunked(faces, func(face: Dictionary) -> Vector3: return (face.xf as Transform3D).origin, "face", func(list: Array) -> MultiMeshInstance3D:
+			var wm := MultiMesh.new()
+			wm.transform_format = MultiMesh.TRANSFORM_3D
+			wm.use_colors = true
+			wm.use_custom_data = true
+			wm.mesh = QuadMesh.new()
+			wm.instance_count = list.size()
+			var wbuf := MMBuffer.alloc(wm)
+			var wst := MMBuffer.stride(wm)
+			for j in list.size():
+				var face: Dictionary = list[j]
+				var lamp: Vector3 = face.lamp
+				MMBuffer.put(wbuf, j * wst, face.xf)
+				MMBuffer.put_color(wbuf, j * wst, Color(1, 1, 1, face.h))
+				wbuf[j * wst + 16] = lamp.x
+				wbuf[j * wst + 17] = lamp.y
+				wbuf[j * wst + 18] = lamp.z
+			wm.buffer = wbuf
+			var wmi := MultiMeshInstance3D.new()
+			wmi.multimesh = wm
+			wmi.material_override = wmat
+			wmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			wmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			return wmi)
 	for f: Dictionary in lit: _write_glow(f)      # (a classic tube's boost is in its colour)
 
 ## Which of the eight cells round `c` a pool of light under a tube in `c` spreads onto, as bits (the shader's
@@ -1041,16 +1067,15 @@ func _glow_floor(c: Vector2i) -> bool:
 
 ## The fake light of tube `f` as it is now: its level, the events' tint, and the share no real light covers
 func _write_glow(f: Dictionary) -> void:
-	if glow_mm == null or int(f.index) < 0: return
+	if not f.has("glow_mm"): return          # not a tube the glow pool was built for
 	var k: float = float(f.get("glow_lvl", 1.0)) * float(f.get("glow_share", 1.0))
 	var w: Color = f.get("warm", Color.WHITE)
 	var c := Color(tint.r * w.r * k, tint.g * w.g * k, tint.b * w.b * k)
-	if cone_mm: cone_mm.set_instance_color(f.index, c)
+	if f.has("cone_mm"): (f.cone_mm as MultiMesh).set_instance_color(f.cone_i, c)
 	if f.classic: c = Color(c.r * GLOW_CLASSIC, c.g * GLOW_CLASSIC, c.b * GLOW_CLASSIC)
-	glow_mm.set_instance_color(f.index, c)
-	if wall_glow_mm:
-		for i: int in f.get("glow_faces", PackedInt32Array()):
-			wall_glow_mm.set_instance_color(i, Color(c.r, c.g, c.b, _wall_glow_h[i]))
+	(f.glow_mm as MultiMesh).set_instance_color(f.glow_i, c)
+	for face: Dictionary in f.get("glow_faces", []):
+		(face.face_mm as MultiMesh).set_instance_color(face.face_i, Color(c.r, c.g, c.b, face.h))
 
 ## The light pool, every frame for the tubes it holds: a real light is on tube `f` at this strength (0..1) from
 ## this source ("rw_slot": a near light, "rw_far": a far one). The fake fades by as much.

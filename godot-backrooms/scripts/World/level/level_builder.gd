@@ -22,6 +22,7 @@ const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const SketchMarks := preload("res://scripts/World/props/sketch_marks.gd")
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const CableMarks := preload("res://scripts/World/props/cable_marks.gd")
+const PortalMarks := preload("res://scripts/World/props/portal_marks.gd")
 const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
@@ -54,6 +55,9 @@ func _ready() -> void:
 	var cables := CableMarks.new()
 	cables.name = "CableMarks"
 	add_child(cables)
+	var portals := PortalMarks.new()
+	portals.name = "PortalMarks"
+	add_child(portals)
 	_find_loops()
 	_sync_shells()
 	_build_wrap_copies()
@@ -734,6 +738,9 @@ func _floor_ready() -> void:
 	var cables := get_node_or_null("CableMarks")
 	if cables != null and cables.has_method("reload_floor"):
 		cables.reload_floor()
+	var portals := get_node_or_null("PortalMarks")
+	if portals != null and portals.has_method("reload_floor"):
+		portals.reload_floor()
 	var root := get_parent()
 	if root != null:
 		var ent: Node = root.get_node_or_null("Entity")
