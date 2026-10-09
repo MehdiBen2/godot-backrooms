@@ -71,7 +71,16 @@ func _build_settings() -> Control:
 		_save()
 		settings_changed.emit())
 	v.add_child(_gfx_row("Camera shake", shake))
-	v.add_child(_hint("Head bob is the step bounce; camera shake is the handheld camcorder wobble while walking. Turn them off if the camera makes you feel sick."))
+	var vary := _link_button("")
+	vary.custom_minimum_size = Vector2(96, 0)
+	vary.text = "ON" if cam_variation else "OFF"
+	vary.pressed.connect(func():
+		cam_variation = not cam_variation
+		vary.text = "ON" if cam_variation else "OFF"
+		_save()
+		settings_changed.emit())
+	v.add_child(_gfx_row("Camera variation", vary))
+	v.add_child(_hint("Head bob is the step bounce; camera shake is the handheld camcorder wobble while walking; camera variation makes each step and each way of carrying the camera differ, so the walk never repeats. Turn them off if the camera makes you feel sick."))
 	return v
 
 func _build_multiplayer() -> Control:

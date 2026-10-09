@@ -103,7 +103,7 @@ static func get_portal_shader() -> Shader:
 	uniform vec3 col_core : source_color = vec3(1.2, 1.15, 0.95);    // Blinding white/cream hot core
 	uniform vec3 col_radiant : source_color = vec3(1.0, 0.88, 0.32); // Radiant golden-yellow field
 	uniform vec3 col_amber : source_color = vec3(0.82, 0.62, 0.12);   // Amber / mustard fluid structures
-	uniform vec3 col_void : source_color = vec3(0.24, 0.18, 0.04);    // Deep void amber-olive tendrils
+	uniform vec3 col_void : source_color = vec3(0.08, 0.05, 0.01);    // Deep dark void spots
 	
 	vec2 hash( vec2 p ) {
 		p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );
@@ -170,16 +170,25 @@ static func get_portal_shader() -> Shader:
 		col = mix(col, col_radiant, smoothstep(0.42, 0.68, f));
 		col = mix(col, col_core, smoothstep(0.68, 0.92, f));
 		
+		// Distinct deep dark swirling spots and void pockets
+		float dark_pockets = fbm(uv_deep * 2.2 + vec2(-t * 0.35, t * 0.2)) * 0.5 + 0.5;
+		float dark_mask = smoothstep(0.40, 0.18, f) + smoothstep(0.35, 0.12, dark_pockets) * 0.6;
+		dark_mask = clamp(dark_mask, 0.0, 1.0);
+		
+		// Blend into deep abyss dark amber/black spots
+		col = mix(col, col_void * 0.25, dark_mask * 0.92);
+		
 		// Threshold subtle electrical pulse
 		float pulse = 1.0 + sin(t * 4.0) * 0.04 + sin(t * 9.3) * 0.02;
 		
-		// HDR boost for true bloom/glow
-		col *= 1.9 * pulse;
+		// HDR boost for true bloom/glow (only on illuminated areas, keeping dark spots dark!)
+		float light_intensity = mix(0.35, 2.0, smoothstep(0.28, 0.65, f));
+		col *= light_intensity * pulse;
 		
 		// Core blinding over-exposure
-		if (f > 0.60) {
-			float overexposure = smoothstep(0.60, 0.95, f);
-			col += vec3(1.4, 1.35, 1.1) * overexposure * 2.2;
+		if (f > 0.65) {
+			float overexposure = smoothstep(0.65, 0.95, f);
+			col += vec3(1.4, 1.35, 1.1) * overexposure * 2.4;
 		}
 		
 		ALBEDO = col;
@@ -246,15 +255,15 @@ func _spawn(p: Dictionary) -> MeshInstance3D:
 	omni.shadow_enabled = false
 	mi.add_child(omni)
 	
-	# 3) Low-frequency spatial portal hum audio
+	# 3) Low-frequency spatial portal hum audio (volume increased)
 	var drone_stream = load("res://audio/drone.wav")
 	if drone_stream != null:
 		var sfx = AudioStreamPlayer3D.new()
 		sfx.stream = drone_stream
-		sfx.volume_db = -18.0
+		sfx.volume_db = -10.0
 		sfx.pitch_scale = 0.85
-		sfx.unit_size = 4.0
-		sfx.max_distance = 12.0
+		sfx.unit_size = 5.0
+		sfx.max_distance = 15.0
 		sfx.autoplay = true
 		sfx.bus = "World"
 		sfx.finished.connect(sfx.play)

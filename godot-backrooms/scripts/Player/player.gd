@@ -11,6 +11,7 @@ const Blink := preload("res://scripts/Player/blink.gd")
 const PlayerShadow := preload("res://scripts/Player/player_shadow.gd")
 const Handheld := preload("res://scripts/Player/handheld.gd")
 const Peek := preload("res://scripts/Player/peek.gd")
+const CameraGait := preload("res://scripts/Player/camera_gait.gd")
 const CornerGrab := preload("res://scripts/Player/corner_grab.gd")
 
 const SPEED := 2.6
@@ -87,6 +88,7 @@ signal adrenaline_faded
 var sens := 0.0022
 var base_fov := BASE_FOV
 var head_bob := 1.0              # 0 = steady camera, 1 = full bob / lean / landing dip
+var cam_variation := true        # on = the bob's carry style and each step vary (camera_gait.gd); off = the same bob every step
 
 var is_sprinting := false
 var is_moving := false
@@ -103,6 +105,7 @@ var fall_fx := 0.0               # 0..1 eased: how much the fall shows on the vi
 var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
+var gait_cam := CameraGait.new() # the walking bob's carry style and per-step variation (camera_gait.gd)
 var cam_shake := 1.0             # 0 = no handheld camcorder shake while walking / running, 1 = full
 var lens_up := 0.0               # 0..1 the camcorder raised to your eye (zoom_tool.gd, hold X)
 var lens_zoom := 1.0             # magnification it gives at that raise: narrows the field of view, slows the aim
@@ -690,15 +693,17 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		var base := SPEED * maxf(Game.speed_mult, 0.01) * (CROUCH_MULT if crouch else 1.0)
 		var gait_k := horiz / base
 		var before := floori(bob / PI)
-		bob_rate = (4.1 if crouch else 5.3) * pow(clampf(gait_k, 0.3, 2.0), 0.78) * lerpf(1.0, 0.6, tight_k)
+		bob_rate = (4.1 if crouch else 5.3) * pow(clampf(gait_k, 0.3, 2.0), 0.78) * lerpf(1.0, 0.6, tight_k) * gait_cam.mult("pace")
 		bob += dt * bob_rate
 		bob_amp = lerpf(bob_amp, handheld.step_amp, minf(1.0, dt * 8.0))    # no two steps the same height
 		if floori(bob / PI) != before:
 			footsteps.step(sprint, crouch, 1.0, clampf((gait_k - 1.0) / (SPRINT_MULT - 1.0), 0.0, 1.0))
 			handheld.step(0.6 if crouch else 1.0, sprint)
+			gait_cam.step()
 			if stair_vy < -0.3:
 				land_dip += 0.014 * stair_w       # stepping down a flight: each foot drops onto the tread below
 		step_triggered = fposmod(bob, PI) < PI * 0.5
+	gait_cam.update(dt, cam_variation, walking)
 	bob_w = lerpf(bob_w, walk_goal, minf(1.0, dt * (9.0 if walk_goal > 0.0 else 5.0)))
 	breath += dt * 1.5
 	if is_on_floor():
@@ -708,16 +713,18 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# a nod forward as the foot lands.
 	var gait := head_bob * bob_w
 	var rise := absf(sin(bob))                              # 0 at a footfall, 1 mid-stride
-	var vert := 0.075 if sprint else (0.028 if crouch else 0.04)
+	var vert := 0.09 if sprint else (0.034 if crouch else 0.05)
 	var side := sin(bob * 0.5)
-	var bob_side := side * (0.035 if sprint else (0.014 if crouch else 0.022)) * gait
-	var bob_roll := side * (0.012 if sprint else (0.004 if crouch else 0.006)) * gait
+	var bob_side := side * (0.04 if sprint else (0.016 if crouch else 0.026)) * gait * gait_cam.mult("side")
+	var bob_roll := side * (0.014 if sprint else (0.005 if crouch else 0.007)) * gait * gait_cam.mult("roll")
 	# squeezed through a slit: short, slow, heavy steps, the shoulders working side to side more than the head lifts
 	vert *= lerpf(1.0, 0.45, tight_k) * lerpf(1.0, 0.7, crawl_k)
 	bob_side *= lerpf(1.0, 2.2, tight_k) * lerpf(1.0, 1.6, crawl_k)       # crawling the body rocks over each hand in turn
 	bob_roll *= lerpf(1.0, 2.6, tight_k) * lerpf(1.0, 1.8, crawl_k)
-	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait
-	y += (rise - 0.64) * vert * bob_amp * gait
+	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait * gait_cam.mult("nod")
+	# the head also rocks forward a touch as each foot lands, and back as it rises: the way a body moves
+	var bob_fwd := (0.5 - rise) * 0.008 * gait * gait_cam.mult("nod")
+	y += (rise - 0.64) * vert * bob_amp * gait * gait_cam.mult("height")
 	# Stairs: the flight's walking surface is a smooth slope, but legs take it a tread at a time. Climbing,
 	# the head goes up early in each stride as the leg pushes onto the next step, then levels; going down
 	# it hangs, then drops as the foot lands. Nothing at a footfall itself, so it joins the bob seamlessly.
@@ -742,7 +749,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var qk := quake_amt * quake_amt * head_bob
 	var qx := (sin(quake_t * 31.0) + 0.6 * sin(quake_t * 53.0 + 1.7)) * 0.625
 	var qy := (sin(quake_t * 37.0 + 0.4) + 0.6 * sin(quake_t * 61.0 + 2.9)) * 0.625
-	cam.position = Vector3(qx * 0.025 * qk + bob_side, y- land_dip * head_bob + qy * 0.035 * qk, 0.0)
+	cam.position = Vector3(qx * 0.025 * qk + bob_side, y- land_dip * head_bob + qy * 0.035 * qk, bob_fwd)
 	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
 	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
 	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s

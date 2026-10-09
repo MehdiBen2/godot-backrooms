@@ -5,8 +5,10 @@ extends RefCounted
 ## camera ray through the result lands on what is under the cursor. Used by the draw tools (draw_ui.gd).
 
 static func render_pos(vp: Viewport) -> Vector2:
+	return screen_to_render(vp.get_mouse_position(), vp)
+
+static func screen_to_render(mouse: Vector2, vp: Viewport) -> Vector2:
 	var size := vp.get_visible_rect().size
-	var mouse := vp.get_mouse_position()
 	var mat: ShaderMaterial = Gfx.post_mat
 	if mat == null or size.x < 1.0 or size.y < 1.0:
 		return mouse

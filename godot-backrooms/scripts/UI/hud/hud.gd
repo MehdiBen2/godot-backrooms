@@ -672,6 +672,7 @@ func apply_settings() -> void:
 		player.base_fov = float(menu.fov)
 		player.head_bob = 1.0 if menu.head_bob else 0.0
 		player.cam_shake = 1.0 if menu.cam_shake else 0.0
+		player.cam_variation = menu.cam_variation
 
 ## Start screen (first launch) and pause share one menu; only the title block differs
 func set_paused(on: bool, start := false) -> void:
