@@ -8,28 +8,31 @@ extends RefCounted
 ##             _blend_env), so editing it in the editor stays the way to change it. Dark, warm, foggy halls.
 ##   LIMINAL   an empty place in the middle of the night with every light left on (the Liminal zone, or a level
 ##             with "atmosphere": "liminal"): flat, pale, the far end of a hall dissolving into haze.
-##   CLASSIC   the found-footage look (the famous camcorder tape; the Classic zone, or "atmosphere": "classic"):
-##             flat, evenly lit, overexposed mono-yellow, a bright ceiling, clear air, highlights that clip.
+##   CLASSIC   the famous Level 0 look (the Classic zone, or "atmosphere": "classic"): yellow walls, beige carpet, a
+##             drop ceiling with recessed panels, evenly lit, exposed right, clear air, only the panels clip.
 ##
 ## Keys are what _blend_env reads from the environment: ambient_energy / ambient_color (fill light), exposure and
 ## tonemap_white (the camera's metering), glow_* (bloom), ssao_intensity, and haze (what the distance fades to).
 
 const LOOKS := {
-	# The Kane Pixels look (2026-10 pass): everything here leans further toward that footage than before. Strong
-	# even fill so nothing is truly in shadow, a camera that is overexposed and clips early (white tubes, bright
-	# walls), a washed-out mono-yellow, a soft glow round the tubes, and very little contact shadow: the place
-	# looks flat and too bright, which is what makes it uncanny.
+	# The classic Level 0 look: strong even fill so nothing is truly in shadow, yellow walls under neutral-white
+	# panels, clear air with only a little depth falloff, and very little contact shadow: the place looks too clean
+	# and too evenly lit, which is what makes it uncanny.
 	"classic": {
-		# (pulled back a step after the first Kane pass: the ceiling read as one flat glowing sheet, too bright to be real)
-		"ambient_energy": 0.88, "ambient_color": Color(0.45, 0.4, 0.19),    # washed-out yellow fill: shadows stay soft and shallow
-		"exposure": 1.24, "tonemap_white": 2.2,       # overexposed, and the highlights clip sooner: blown-out tubes and walls
-		"glow_threshold": 1.0,                        # the panels and the brightest wall right under them bleed
-		# a soft halo round the tubes, but still no bloom-everything: the far panels bunched up near the horizon
-		# merged into one glowing band across the ceiling when the bloom was high
-		"glow_intensity": 1.2, "glow_bloom": 0.03, "glow_wide": 0.42,
-		"ssao_intensity": 0.8,                        # flat fluorescent light: only a faint darkening in the corners
-		# the distance washes out to a pale yellow wall tone rather than going dark
-		"haze": Color(0.5, 0.45, 0.22),
+		# (2026-10 "clean office" pass, after a reference still: a well-kept office lit evenly by recessed panels, filmed
+		# on a clean digital camera. Exposed right, not blown out: only the panels themselves clip. The yellow is in the
+		# walls, not the light: a near-neutral warm fill, so the ceiling stays a pale grey-beige and the carpet beige.)
+		# the even fill is the base of it: the grid GI (grid_gi.gd) lifts it near the lamps and lets it fall away
+		# between them and down a long hall, so the place isn't one flat level everywhere
+		"ambient_energy": 0.7, "ambient_color": Color(0.42, 0.39, 0.27),
+		"gi": 0.45, "gi_tint": Color(1.0, 0.86, 0.55),  # how much bounce, and its colour: off yellow walls and beige carpet
+		"exposure": 1.02, "tonemap_white": 4.5,       # mid-tones sit in the middle; highlights roll off late and softly
+		"glow_threshold": 1.0,                        # the panels bloom; the walls right under them only just
+		# a real soft halo round every lit panel, as a camera sees an LED panel, without fogging the whole frame
+		"glow_intensity": 1.05, "glow_bloom": 0.04, "glow_wide": 0.38,
+		"ssao_intensity": 1.4,                        # the soft darkening where the walls meet the ceiling and in corners
+		# the far end of a long hall goes a touch darker and flatter, not paler: depth without fog
+		"haze": Color(0.36, 0.33, 0.2),
 	},
 	# It sits under "classic": the base look blends toward it first (liminal_mix), and a Classic / Bright zone
 	# takes over from there.
@@ -41,6 +44,7 @@ const LOOKS := {
 		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow
 		"haze": Color(0.3, 0.29, 0.23),               # the distance fades to this
 		"fog": 0.2,                                   # share of the fog left: you see a long way, but not the end
+		"gi": 0.38, "gi_tint": Color(0.96, 0.93, 0.8),   # paler bounce: the liminal halls are less yellow
 		"light": Color(0.95, 0.98, 0.9),              # cool fluorescent white with a hint of green
 	},
 }

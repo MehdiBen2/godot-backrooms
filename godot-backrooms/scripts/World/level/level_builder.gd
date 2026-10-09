@@ -617,7 +617,8 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 				_build_fixture_meshes()
 			_build_floor_reflections()
 			_build_floor_glow()
-			_apply_gi(),
+			_apply_gi()
+			build_grid_gi(),
 		func() -> void:
 			_build_exit()
 			_spawn_batteries()

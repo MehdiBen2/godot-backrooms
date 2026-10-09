@@ -57,19 +57,19 @@ void fragment() {
 ## (The found-footage camera that meters, pumps and drifts on its own in the classic look: _update_camcorder.)
 const Atmospheres := preload("res://scripts/Render/atmospheres.gd")
 var ATMOSPHERES: Dictionary = Atmospheres.LOOKS
-const FF_FOG := 0.05                # found footage: fog left at this share (clear air, far walls readable)
+const FF_FOG := 0.14                # found footage: fog left at this share (clear air, but a long hall still recedes)
 # found footage: ceiling bounce-light fill (panel_ceiling / drop_ceiling.gdshader). Off: in the classic look it made
 # the ceiling glow on its own, flat and fake; the ceiling is lit by its real lights only, as in every other look
 const FF_CEIL_FILL := 0.0
 const VFOG_EMISSION := Color(0.035, 0.03, 0.015)   # main.tscn's volumetric fog emission (the dim look)
-const FF_BLACK_LIFT := 0.1          # found footage: camcorder black level (camera.gdshader black_lift): milky, never black
+const FF_BLACK_LIFT := 0.025        # found footage: black level (camera.gdshader black_lift): a hint of lift, not a milky tape pedestal
 # Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles
 const AE_KEY := 0.75                # meter reading that gives a gain of 1 (a typical lit hall)
-const AE_MIN := 0.55
-const AE_MAX := 1.7
+const AE_MIN := 0.75
+const AE_MAX := 1.3
 const AE_METER_SPEED := 2.5         # 1/s: how fast the meter itself follows
 const AE_HZ := 0.45                 # spring frequency: a full swing takes about two seconds
-const AE_DAMP := 0.42               # < 1: overshoots (the pumping)
+const AE_DAMP := 0.75               # < 1: overshoots (a little pumping: the clean look holds steady)
 # Camcorder auto white balance: a slow wander, and a late, partial correction of tinted light
 const WB_DRIFT := 0.035
 var tint_wb := true                  # false: the camera leaves the events' tint alone (a red alert stays red)
@@ -77,6 +77,13 @@ const WB_CORRECT := 0.5             # how much of a light's colour cast the came
 const WB_SPEED := 0.25              # 1/s
 
 var _env_base := {}        # the WorldEnvironment's own (dim) values, read once
+
+# ---- bounce light (grid_gi.gd): how much of it each look wants, and its tint. Classic and liminal set theirs in
+# scripts/Render/atmospheres.gd ("gi", "gi_tint"); these are the base (dim) look's.
+const GridGI := preload("res://scripts/World/level/grid_gi.gd")
+const GI_DIM := 0.22
+const GI_TINT_DIM := Color(1.0, 0.84, 0.52)
+var grid_gi: GridGI
 
 # ---- atmosphere
 var env: Environment
@@ -139,6 +146,16 @@ func build_lighting() -> void:
 	Gfx.changed.connect(_read_quality)
 	_apply_gi()
 	Gfx.changed.connect(_apply_gi)
+	build_grid_gi()
+
+## The floor's bounce light (grid_gi.gd), solved for the fixtures just placed and laid over its floors, walls and
+## ceilings. Not on a look-only copy of a floor, nor on the compatibility renderer.
+func build_grid_gi() -> void:
+	grid_gi = null
+	if shell or Gfx.compat: return
+	grid_gi = GridGI.new()
+	grid_gi.build(self, (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) / LIGHT_ENERGY, CLASSIC_BOOST, CELL, WALL_H)
+	grid_gi.attach(self, _pit_materials(), CEIL_LAYER)
 
 ## Bounce light. Best: the level's baked VoxelGI (tools/bake_level.gd, run by the level editor on every save).
 ## Only the geometry is baked, the light bouncing round it is live, so flickering tubes and power cuts bounce
@@ -431,7 +448,18 @@ func update_lighting(delta: float) -> void:
 	_update_fixtures(delta)
 	_update_pool(delta)
 	_update_atmosphere(delta)
+	_update_grid_gi()
 	_update_dust()
+
+## How much bounce light the look you stand in wants, in the colour of its light
+func _update_grid_gi() -> void:
+	if grid_gi == null: return
+	var cl: Dictionary = ATMOSPHERES.classic
+	var li: Dictionary = ATMOSPHERES.liminal
+	var strength := lerpf(lerpf(GI_DIM, float(li.get("gi", GI_DIM)), _lim), float(cl.get("gi", GI_DIM)), open_mix)
+	var col: Color = GI_TINT_DIM.lerp(li.get("gi_tint", GI_TINT_DIM), _lim).lerp(cl.get("gi_tint", GI_TINT_DIM), open_mix)
+	col = col * tube_color * tint
+	grid_gi.update(player.global_position, strength, col, env.fog_density if env else 0.0)
 
 ## The dust hanging in the air round the player (dust_motes.gd), lit by the pool's nearest working tubes.
 ## A floor rebuilt in place frees it with everything else of the old floor: it is made again here.

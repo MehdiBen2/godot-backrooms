@@ -318,14 +318,14 @@ void fragment() {
 		}
 	}
 
-	// ---- Classic zone, the Kane Pixels look: the camcorder's highlights bleed softly round every bright panel,
-	// the colour is washed out (fluorescent light on a cheap CCD), and the blacks sit on an olive tape pedestal
+	// ---- Classic zone, the clean office look: a faint bleed round the bright panels, the colour just a little
+	// washed (fluorescent light), and the blacks barely lifted: a clean digital picture, not a tape
 	if (classic > 0.001) {
 		vec3 b1 = textureLod(screen_tex, uvg, 3.0).rgb;
 		vec3 b2 = textureLod(screen_tex, uvg, 5.0).rgb;
-		col += (b1 * smoothstep(0.5, 0.95, dot(b1, LUMA)) * 0.05 + b2 * smoothstep(0.65, 1.0, dot(b2, LUMA)) * 0.025) * classic * vec3(1.0, 0.96, 0.82);
-		col = mix(col, vec3(dot(col, LUMA)), 0.16 * classic);
-		col = mix(col, col * vec3(1.0, 0.99, 0.88) + vec3(0.035, 0.032, 0.01), classic);
+		col += (b1 * smoothstep(0.6, 0.98, dot(b1, LUMA)) * 0.03 + b2 * smoothstep(0.75, 1.0, dot(b2, LUMA)) * 0.012) * classic * vec3(1.0, 0.97, 0.88);
+		col = mix(col, vec3(dot(col, LUMA)), 0.07 * classic);
+		col = mix(col, col * vec3(1.0, 0.99, 0.93) + vec3(0.01, 0.009, 0.004), classic);
 	}
 
 	// ---- the recording breaking up (the Burnt, Game.fx_corrupt): a digital camera's codec losing the stream. The

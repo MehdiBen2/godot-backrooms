@@ -370,9 +370,9 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	_cell_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
 		_cell_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
-	# Classic zone: glowing mono-yellow carpet
+	# Classic zone: a clean beige office carpet (the walls carry the yellow)
 	if not classic_floor.is_empty():
-		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.2, 1.05, 0.62)), false)
+		_cell_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -386,7 +386,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		for k: String in cut_keys:
 			var m: Material = carpet
 			if k.begins_with("paint:"): m = _painted_mat(k.substr(6))
-			elif k == "classic": m = _carpet_material(Color(1.2, 1.05, 0.62))
+			elif k == "classic": m = _carpet_material(Color(1.02, 0.93, 0.7))
 			elif k == "tiles": m = _pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material()
 			groups.get_or_add(m, []).append_array(cut_keys[k])
 		_build_cut_floors(groups, polys)
@@ -885,6 +885,7 @@ func _build_objects() -> void:
 					"pillar", "column": _build_column(o)
 					"platform", "flight", "spiral": vertical.append(o)
 					"window": _build_window(o)
+					"lamp": _build_lamp(o)
 					"water": water.append(o)
 					"pool": pools.append(o)
 					"zone":
@@ -988,6 +989,18 @@ func _build_window(o: Dictionary) -> void:
 	w.build(o, ceiling_height(into), shell, func(p: Vector3) -> bool: return _block_at(cell_of(p)))
 	for l in w.find_children("*", "Light3D", true, false):
 		(l as Light3D).light_cull_mask &= ~SHELL_LAYERS
+
+## A lamp that is not a ceiling tube (props/lamp_fixture.gd): a standing lamp, a sconce, a chandelier, a candle...
+func _build_lamp(o: Dictionary) -> void:
+	var lamp := LampFixture.new()
+	lamp.transform = object_transform(o)
+	add_child(lamp)
+	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))
+	var into := c
+	if walls.has(c):                                   # a sconce on a wall face: the room it lights is the cell it faces
+		var ahead := cell_of(lamp.transform * Vector3(CELL * 0.5, 0.0, 0.0))
+		if not walls.has(ahead): into = ahead
+	lamp.build(o, ceiling_height(into), shell)
 
 ## Standing water (props/water_body.gd), and on the floor you walk on the eye that notices when it is under it
 func _build_water(list: Array) -> void:

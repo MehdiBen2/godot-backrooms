@@ -4,12 +4,14 @@ extends Node
 ## and how much VHS damage a scare puts on the tape. The lens is the original barrel fish eye for both.
 ## (A true fisheye and a rolling shutter were tried and taken out: both read as a warping picture, not a camera.)
 ##
-## Two cameras, blended (cam_mode 0 .. 1):
+## Three cameras, blended (cam_mode 0 .. 1 is bodycam .. camcorder; clean_mix leans the bodycam to the clean one):
 ##   BODYCAM    a digital camera with a touch of old tape: noisy shadows, sharpening, compression blocks in the
 ##              dark, light tape grain and colour bleed. The default.
-##   CAMCORDER  a late-90s tape camcorder: tape grain and the full VHS chain. Takes over in a Classic zone (the
-##              found-footage look) on "auto".
-## Graphics setting `camera` (Gfx.camera): "bodycam" (the default) or "camcorder" (always that one), or "auto" (as above).
+##   CLEAN      a good digital camera: a fine grain, a little lens fringing and vignette, no tape, no codec. Takes
+##              over from the bodycam in a Classic zone (the clean, evenly lit Level 0 look).
+##   CAMCORDER  a late-90s tape camcorder: tape grain and the full VHS chain.
+## Graphics setting `camera` (Gfx.camera): "bodycam" (the default; clean in a Classic zone), "camcorder" (always
+## that one), or "auto" (the camcorder in a Classic zone: the old found-footage tape look).
 
 const PROFILES := {
 	"bodycam": {
@@ -26,6 +28,19 @@ const PROFILES := {
 		# the tubes light everything warm yellow; a digital camera's white balance takes part of that back out,
 		# so the halls stay yellow but not soaked in it (cooler red / blue balance than the tape grade)
 		"grade": Color(0.96, 1.0, 1.1),
+	},
+	"clean": {
+		"fov_boost": 0.0,
+		"chroma_amt": 0.0024,        # a little fringing toward the edges: a real lens, not a broken one
+		"shutter": 1.0 / 120.0,
+		"sharpen": 0.4,              # a digital camera's in-camera sharpening: the wallpaper's grain and the tile edges read
+		"codec": 0.0,
+		"noise_luma": 0.03,          # a fine sensor grain over the walls
+		"noise_chroma": 0.008,
+		"vignette_amt": 0.72,
+		"vhs": 0.0,
+		"tape": 0.12,
+		"grade": Color(0.98, 1.0, 1.04),   # a lighter white-balance pull: the walls keep their yellow
 	},
 	"camcorder": {
 		"fov_boost": 0.0,
@@ -47,6 +62,7 @@ const SPIN_MAX := 4.0                # screens per second: anything faster is a 
 const BASE_EXPOSURE := 0.95          # main.tscn's tonemap exposure: the sensor gain is measured against it
 
 var mode_mix := 0.0                  # 0 bodycam .. 1 camcorder (eased)
+var clean_mix := 0.0                 # 0 bodycam .. 1 clean, under the camcorder (eased)
 var fov_boost := 0.0                 # player.gd adds this to the field of view (see PROFILES)
 var spin := Vector2.ZERO             # how fast the picture slides right now (screen widths / heights per second)
 var vfov := deg_to_rad(75.0)
@@ -65,12 +81,14 @@ func _process(dt: float) -> void:
 	var mat := Gfx.post_mat
 	# which camera: forced by the setting, or (auto) the camcorder in a Classic zone
 	var want := 0.0
+	var want_clean := 0.0
 	match Gfx.camera:
 		"camcorder": want = 1.0
-		"bodycam": want = 0.0
-		_: want = clampf(Game.fx_classic * 1.3, 0.0, 1.0)
+		"bodycam": want_clean = clampf(Game.fx_classic * 1.3, 0.0, 1.0)   # a Classic zone films clean
+		_: want = clampf(Game.fx_classic * 1.3, 0.0, 1.0)                 # auto: the old tape look in a Classic zone
 	mode_mix = move_toward(mode_mix, want, dt * MODE_SPEED)
-	var a: Dictionary = PROFILES.bodycam
+	clean_mix = move_toward(clean_mix, want_clean, dt * MODE_SPEED)
+	var a: Dictionary = _blend(PROFILES.bodycam, PROFILES.clean, clean_mix)
 	var b: Dictionary = PROFILES.camcorder
 	var m := mode_mix
 	fov_boost = lerpf(a.fov_boost, b.fov_boost, m)
@@ -95,6 +113,14 @@ func _process(dt: float) -> void:
 	# (full strength under any ordinary lamp: the tube light on the player is rarely over a half)
 	var tubes := 0.0 if Game.outdoors else clampf(Game.fx_tubes * 2.5, 0.0, 1.0)
 	mat.set_shader_parameter("banding", tubes if bool(Gfx.s.get("banding", true)) else 0.0)
+
+## Profile `a` leaned `t` of the way to `b` (numbers and colours)
+func _blend(a: Dictionary, b: Dictionary, t: float) -> Dictionary:
+	if t <= 0.0: return a
+	var out := {}
+	for k in a:
+		out[k] = lerp(a[k], b[k], t) if b.has(k) else a[k]
+	return out
 
 ## The camera that is drawing the frame: its field of view, and how fast its view is turning, as the speed the
 ## picture slides across the screen (what the rolling shutter and the motion blur need)

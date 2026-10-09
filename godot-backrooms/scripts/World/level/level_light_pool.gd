@@ -16,7 +16,7 @@ signal slot_assigned(slot: int)                              # a light came into
 
 const LIGHT_RANGE := 20.0
 const LIGHT_COLOR := Color(1.0, 0.93, 0.78)
-const CLASSIC_BOOST := 1.6          # classic-zone tubes are this much brighter
+const CLASSIC_BOOST := 1.3          # classic-zone tubes are this much brighter (soft pools on the walls, not hot spots)
 const POOL_SIZE := 12
 const SELECT_RADIUS := 26.0
 const FADE_START := 18.0

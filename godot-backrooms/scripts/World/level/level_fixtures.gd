@@ -109,6 +109,87 @@ func _seed_fixtures() -> void:
 	if not (through.is_empty() and open_above.is_empty()):
 		rng.seed = 2971 + floor_src(level_raw, floor_no) * 7919
 
+# ---------------------------------------------------------------- rooms: lights that follow the room's shape
+# A room is a run of "roomy" open cells (all eight neighbours open) grown one cell out to take its edge. Its tubes are
+# laid out from the room's own centre, in rows that run along its long side and keep the room's symmetry, instead of
+# on the level's global 3-cell grid, which cut every room differently and put a tube in a corner and none in the
+# middle. A small room gets one tube dead centre; a long narrow one a single line down its middle; a big one a
+# lattice centred on it. Cells that belong to no room (corridors) keep the old rule.
+const ROOM_MIN := 6                 # roomy cells a blob needs to count as a room
+var _room_rect := {}                # Vector2i -> Rect2i: the room (its bounding box) a cell belongs to
+var _rooms_ready := false
+
+func _roomy(c: Vector2i) -> bool:
+	if walls.has(c) or pits.has(c): return false
+	for dx in range(-1, 2):
+		for dz in range(-1, 2):
+			var n := c + Vector2i(dx, dz)
+			if walls.has(n) and not carved.has(n): return false
+	return true
+
+func _find_rooms() -> void:
+	_rooms_ready = true
+	_room_rect.clear()
+	var roomy := {}
+	for x in range(1, size - 1):
+		for z in range(1, size - 1):
+			var c := Vector2i(x, z)
+			if _roomy(c): roomy[c] = true
+	var seen := {}
+	for start: Vector2i in roomy:
+		if seen.has(start): continue
+		var blob: Array[Vector2i] = []
+		var q: Array[Vector2i] = [start]
+		seen[start] = true
+		while not q.is_empty():
+			var c: Vector2i = q.pop_back()
+			blob.append(c)
+			for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = c + d
+				if roomy.has(n) and not seen.has(n):
+					seen[n] = true
+					q.append(n)
+		if blob.size() < ROOM_MIN: continue
+		var r := Rect2i(blob[0], Vector2i.ONE)
+		for c in blob: r = r.expand(c)
+		r = r.grow(1)                           # the ring of cells against the walls belongs to the room too
+		for x in range(r.position.x, r.end.x):
+			for z in range(r.position.y, r.end.y):
+				var c := Vector2i(x, z)
+				if not walls.has(c) and not _room_rect.has(c): _room_rect[c] = r
+
+## Is a tube wanted in cell `c` by the room's own layout? null: `c` is in no room (use the old grid)
+func _room_node(c: Vector2i, step := 3):
+	if not _rooms_ready: _find_rooms()
+	if not _room_rect.has(c): return null
+	var r: Rect2i = _room_rect[c]
+	var w := r.size.x
+	var h := r.size.y
+	var cx := r.position.x + (w - 1) * 0.5
+	var cz := r.position.y + (h - 1) * 0.5
+	var dx := absf(c.x - cx)
+	var dz := absf(c.y - cz)
+	var on_x := _lattice(dx, w, step)
+	var on_z := _lattice(dz, h, step)
+	# a narrow, even-width room has no centre cell: the one just before the middle takes the tube
+	if w < 5 and w % 2 == 0: on_x = c.x == r.position.x + w / 2 - 1
+	if h < 5 and h % 2 == 0: on_z = c.y == r.position.y + h / 2 - 1
+	return on_x and on_z
+
+## Is a cell `d` cells off a room's centre line (in a room `n` cells across) on its tube lattice? A narrow room has
+## one line down its middle; a wide one a row every `step` cells, symmetric about the middle.
+func _lattice(d: float, n: int, step: int) -> bool:
+	if n < 5: return d < 0.51
+	var off := 0.0 if n % 2 == 1 else 1.5
+	var k := fposmod(d - off + step * 0.5, float(step)) - step * 0.5
+	return absf(k) < 0.1 and d <= (n - 1) * 0.5 - 0.5
+
+## The way a room's tube lies: along its long side
+func _room_rot(c: Vector2i) -> float:
+	if not _room_rect.has(c): return 0.0
+	var r: Rect2i = _room_rect[c]
+	return 0.0 if r.size.x >= r.size.y else PI / 2.0
+
 # Same placement rules as the web game's _placeLights: corridor cells and a 3-cell grid, min
 # spacing 1.9 cells, some tubes burnt out, some flickering.
 func _place_fixtures() -> void:
@@ -138,7 +219,9 @@ func _place_fixtures() -> void:
 			var is_bright := bright.has(c)
 			var ns := walls.has(Vector2i(x - 1, z)) and walls.has(Vector2i(x + 1, z))
 			var ew := walls.has(Vector2i(x, z - 1)) and walls.has(Vector2i(x, z + 1))
-			var grid_node := x % 3 == 0 and z % 3 == 0
+			var rn = _room_node(c)
+			var in_room: bool = rn != null
+			var grid_node: bool = bool(rn) if in_room else (x % 3 == 0 and z % 3 == 0)
 			# big lit halls (Bright / Classic) get the plain 3-cell grid only: a sparse, regular ceiling like the
 			# reference photos. The far-light pool and the baked bounce light keep the gaps between tubes lit.
 			if is_bright or is_classic:
@@ -146,6 +229,8 @@ func _place_fixtures() -> void:
 			# liminal: a denser, perfectly regular grid, so light is flat and even everywhere you stand
 			elif liminal.has(c):
 				if not (ns or ew or (x % 2 == 0 and z % 2 == 0)): continue
+			elif in_room:
+				if not grid_node: continue
 			elif not (ns or ew or grid_node): continue
 			var is_liminal := liminal.has(c)
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
@@ -154,7 +239,7 @@ func _place_fixtures() -> void:
 			if loop.has(c):                 # a corridor that repeats: every tube alike, or the repeat would show
 				burnt = false
 				flick = false
-			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": PI / 2.0 if ns else 0.0,
+			fx.append({"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": _room_rot(c) if in_room else (PI / 2.0 if ns else 0.0),
 				"burnt": burnt, "bright": is_bright, "classic": is_classic, "flickers": flick, "level": 1.0,
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
@@ -552,6 +637,8 @@ func cut_fixture(f: Dictionary, duration: float) -> void:
 
 # Every tube dies at once; they return at staggered times after `duration`
 func cut_power(duration: float) -> void:
+	LampFixture.power(false)                     # lamps, sconces and chandeliers go out; the red emergency strips come on
+	get_tree().create_timer(duration + 1.6).timeout.connect(func() -> void: LampFixture.power(true))
 	for f in lit:
 		f.black = duration + rng.randf() * 1.6
 		f.level = 0.03
@@ -559,6 +646,7 @@ func cut_power(duration: float) -> void:
 		_wake(f)
 
 func restore_power() -> void:
+	LampFixture.power(true)
 	for f in lit:
 		if f.black > 0.0 or f.burst > 0 or f.level < 0.5:
 			f.black = 0.0
@@ -628,7 +716,7 @@ const GLOW_RANGE := 20.0
 const GLOW_RANGE_PANEL := 16.0
 const GLOW_ENERGY_PANEL := 1.9
 const GLOW_DECAY := 1.15
-const GLOW_CLASSIC := 1.6
+const GLOW_CLASSIC := 1.3
 const CONE_TOP := 0.3               # metres: the cone's radius at the tube...
 const CONE_BOTTOM := 1.9            # ...and at the floor
 const GLOW_COLOR := Color(1.0, 0.93, 0.78)   # the tubes' light (level_light_pool.gd LIGHT_COLOR, which is declared below this script)

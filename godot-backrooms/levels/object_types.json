@@ -781,5 +781,357 @@
       "elev": 0.0
     },
     "category": "props"
+  },
+  "lamp_floor": {
+    "label": "Standing lamp",
+    "color": "ffb862",
+    "help": "A warm standing lamp with a fabric shade: a small pool of amber light. Width is its size. Sits on the floor",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "warm",
+      "flicker": "none",
+      "energy": 1.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    }
+  },
+  "wall_sconce": {
+    "label": "Wall sconce",
+    "color": "d9a24a",
+    "help": "A brass wall light, up on a wall face (its arrow points out into the room). 'Off floor' is its height",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "hotel",
+      "flicker": "none",
+      "energy": 1.0,
+      "elev": 1.9
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    },
+    "mount": "wall"
+  },
+  "chandelier": {
+    "label": "Chandelier",
+    "color": "ffe0a3",
+    "help": "A hotel chandelier hung from the ceiling on a chain, a ring of candle bulbs and crystal drops. Width scales it",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "hotel",
+      "flicker": "sway",
+      "energy": 1.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    }
+  },
+  "emergency_strip": {
+    "label": "Emergency strip",
+    "color": "ff2a1a",
+    "help": "A red emergency light strip. It glows dimly all the time and blazes when the power is cut. 'Off floor' is its height (0 = just under the ceiling). Width is its length",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "red",
+      "flicker": "pulse",
+      "energy": 1.0,
+      "elev": 0.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    },
+    "mount": "wall"
+  },
+  "candle": {
+    "label": "Candle",
+    "color": "ffa040",
+    "help": "A candle on the floor or a shelf: a small flickering flame. 'Off floor' lifts it onto a table or shelf. Burns through power cuts",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "candle",
+      "flicker": "candle",
+      "energy": 1.0,
+      "elev": 0.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    }
+  },
+  "string_lights": {
+    "label": "String lights",
+    "color": "ffd9a0",
+    "help": "Festoon bulbs on a drooping wire, Width cells long along the arrow. 'Off floor' is the wire's height (0 = just under the ceiling)",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "warm",
+      "flicker": "none",
+      "energy": 1.0,
+      "elev": 0.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    },
+    "max_scale": 12.0
+  },
+  "streetlamp": {
+    "label": "Streetlamp",
+    "color": "ffa733",
+    "help": "A tall street lamp with a sodium lantern, reaching out along its arrow: a cone of light on the ground",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "sodium",
+      "flicker": "buzz",
+      "energy": 1.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    }
+  },
+  "vent_glow": {
+    "label": "Glowing vent",
+    "color": "ff7a2a",
+    "help": "A floor or wall grille with something burning or humming behind it. Tone sets the colour. 'Off floor' lifts it up a wall",
+    "shape": "lamp",
+    "category": "light",
+    "thickness": 0.4,
+    "align": false,
+    "params": {
+      "tone": "sodium",
+      "flicker": "buzz",
+      "energy": 1.0,
+      "elev": 0.0
+    },
+    "choices": {
+      "tone": {
+        "warm": "Warm amber, like a tungsten bulb",
+        "candle": "Candle orange",
+        "hotel": "Soft hotel gold",
+        "cool": "Cool blue-white",
+        "sodium": "Sodium-vapour orange",
+        "red": "Emergency red",
+        "green": "Sickly green",
+        "party": "Hot pink"
+      },
+      "flicker": {
+        "none": "Steady",
+        "candle": "A living flame",
+        "faulty": "Failing: dropouts and stutters",
+        "buzz": "A faint mains buzz",
+        "pulse": "Slow breathing pulse",
+        "sway": "A gentle sway"
+      }
+    },
+    "ranges": {
+      "energy": [
+        0.0,
+        6.0,
+        0.1,
+        "x",
+        "how strong the light is, as a multiple of this lamp's own"
+      ]
+    }
   }
 }
