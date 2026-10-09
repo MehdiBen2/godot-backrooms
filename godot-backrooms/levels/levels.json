@@ -5,6 +5,16 @@
     "name": "Level 0: The Lobby"
   },
   {
+    "file": "level_37_poolrooms.lvl",
+    "id": "level_37_poolrooms",
+    "name": "Level 37: The Poolrooms"
+  },
+  {
+    "file": "level_0_2_renovated_lobby.lvl",
+    "id": "level_0_2_renovated_lobby",
+    "name": "Level 0.2: Renovated Lobby"
+  },
+  {
     "file": "level_1_habitable_zone.lvl",
     "id": "level_1_habitable_zone",
     "name": "Level 1: The Habitable Zone"
@@ -53,5 +63,45 @@
     "file": "level_10_bumper_crops.lvl",
     "id": "level_10_bumper_crops",
     "name": "Level 10: Bumper Crops"
+  },
+  {
+    "file": "level_11_endless_city.lvl",
+    "id": "level_11_endless_city",
+    "name": "Level 11: The Endless City"
+  },
+  {
+    "file": "level_13_infinite_apartments.lvl",
+    "id": "level_13_infinite_apartments",
+    "name": "Level 13: The Infinite Apartments"
+  },
+  {
+    "file": "level_52_school_rooms.lvl",
+    "id": "level_52_school_rooms",
+    "name": "Level 52: School Rooms"
+  },
+  {
+    "file": "level_94_motion.lvl",
+    "id": "level_94_motion",
+    "name": "Level 94: Motion"
+  },
+  {
+    "file": "level_188_courtyard_of_windows.lvl",
+    "id": "level_188_courtyard_of_windows",
+    "name": "Level 188: The Courtyard of Windows"
+  },
+  {
+    "file": "level_fun.lvl",
+    "id": "level_fun",
+    "name": "Level Fun =)"
+  },
+  {
+    "file": "level_run_for_your_life.lvl",
+    "id": "level_run_for_your_life",
+    "name": "Level !: RUN FOR YOUR LIFE"
+  },
+  {
+    "file": "the_hub.lvl",
+    "id": "the_hub",
+    "name": "The Hub"
   }
 ]
