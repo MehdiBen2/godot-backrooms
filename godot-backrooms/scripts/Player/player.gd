@@ -65,6 +65,7 @@ const BATTERY_CRIT := 10.0
 @onready var flash: SpotLight3D = $Camera3D/Flashlight
 @onready var shape: CollisionShape3D = $CollisionShape3D
 var flash_spill: SpotLight3D
+static var _beam_tex: Texture2D
 var footsteps: Footsteps
 var torch: TorchModel
 var blink: Blink
@@ -273,6 +274,42 @@ var beam_tilt := 0.0          # eased sprint/crouch dip: the beam drops with the
 var beam_pos := Vector3.ZERO  # eased light origin: the torch lens, pulled back to the eye inside walls
 const BEAM_TILT_MAX := 0.30   # rad: how far the arm may drop the beam (any more and it only skims the floor)
 
+## A real torch's beam is not a smooth disc: the reflector and lens leave a bright core, a faint ring where the lens
+## edge throws light, a little grain in the glass, and a softer edge. Projected through the spot as a light cookie
+## (light_projector), so it lands on walls and tape with that texture, and it is made once for every torch.
+static func beam_cookie() -> Texture2D:
+	if _beam_tex != null: return _beam_tex
+	const N := 256
+	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	# a little low-frequency mottling in the glass (value noise, 8 by 8 knots)
+	var knots := PackedFloat32Array()
+	for i in 81: knots.append(rng.randf_range(0.9, 1.0))
+	for y in N:
+		for x in N:
+			var u := (x + 0.5) / N * 2.0 - 1.0
+			var v := (y + 0.5) / N * 2.0 - 1.0
+			var r := sqrt(u * u + v * v)
+			if r >= 1.0:
+				img.set_pixel(x, y, Color(0, 0, 0, 1))
+				continue
+			var core := pow(maxf(0.0, 1.0 - r), 1.0)                  # the bright middle, falling off to the rim
+			var ring := 0.22 * exp(-pow((r - 0.62) / 0.07, 2.0))      # the lens edge: a soft bright ring
+			var edge := smoothstep(1.0, 0.82, r)                       # the beam fades out at the rim
+			var fx := (u * 0.5 + 0.5) * 7.0
+			var fy := (v * 0.5 + 0.5) * 7.0
+			var ix := int(floor(fx)); var iy := int(floor(fy))
+			var tx := fx - ix; var ty := fy - iy
+			var a := knots[iy * 9 + ix]; var b := knots[iy * 9 + ix + 1]
+			var c := knots[(iy + 1) * 9 + ix]; var d := knots[(iy + 1) * 9 + ix + 1]
+			var mottle := lerpf(lerpf(a, b, tx), lerpf(c, d, tx), ty)
+			var grain := 0.96 + 0.04 * rng.randf()
+			var val := minf(1.0, (core * 1.5 + ring) * edge * mottle * grain)   # (fuller than the raw falloff: the beam keeps its reach)
+			img.set_pixel(x, y, Color(val, val, val, 1.0))
+	_beam_tex = ImageTexture.create_from_image(img)
+	return _beam_tex
+
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	# stairs and ramps (props/vertical_pieces.gd, props/stairs.gd): as fast up a slope as on the flat, held down onto
@@ -287,6 +324,10 @@ func _ready() -> void:
 	flash.shadow_blur = 1.0
 	flash.spot_angle_attenuation = 1.45
 	flash.spot_attenuation = 1.2
+	flash.light_projector = beam_cookie()          # the lens pattern of a real torch (a texture, not a flat disc)
+	# the beam is not drawn into the fog: there the lens pattern showed as a flat picture in the air
+	# in front of the camera, instead of on the walls
+	flash.light_volumetric_fog_energy = 0.0
 	flash.top_level = true
 	flash.visible = true
 	flash_spill = flash.get_node_or_null("Spill") as SpotLight3D

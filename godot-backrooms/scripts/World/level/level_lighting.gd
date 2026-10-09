@@ -81,7 +81,9 @@ var _env_base := {}        # the WorldEnvironment's own (dim) values, read once
 # ---- bounce light (grid_gi.gd): how much of it each look wants, and its tint. Classic and liminal set theirs in
 # scripts/Render/atmospheres.gd ("gi", "gi_tint"); these are the base (dim) look's.
 const GridGI := preload("res://scripts/World/level/grid_gi.gd")
-const GI_DIM := 0.22
+const GI_DIM := 0.5
+const GI_CEIL_DIM := 0.0           # the ceiling keeps its own colour: no bounce is added to it (it went orange)
+const GI_CEIL_LIMINAL := 0.0
 const GI_TINT_DIM := Color(1.0, 0.84, 0.52)
 var grid_gi: GridGI
 
@@ -459,7 +461,8 @@ func _update_grid_gi() -> void:
 	var strength := lerpf(lerpf(GI_DIM, float(li.get("gi", GI_DIM)), _lim), float(cl.get("gi", GI_DIM)), open_mix)
 	var col: Color = GI_TINT_DIM.lerp(li.get("gi_tint", GI_TINT_DIM), _lim).lerp(cl.get("gi_tint", GI_TINT_DIM), open_mix)
 	col = col * tube_color * tint
-	grid_gi.update(player.global_position, strength, col, env.fog_density if env else 0.0)
+	var ceil_gain := lerpf(lerpf(GI_CEIL_DIM, GI_CEIL_LIMINAL, _lim), float(cl.get("gi_ceil", 0.0)), open_mix)
+	grid_gi.update(player.global_position, strength, col, env.fog_density if env else 0.0, ceil_gain)
 
 ## The dust hanging in the air round the player (dust_motes.gd), lit by the pool's nearest working tubes.
 ## A floor rebuilt in place frees it with everything else of the old floor: it is made again here.

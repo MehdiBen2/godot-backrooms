@@ -237,10 +237,10 @@ func _build_hud() -> void:
 	var osd_root := osd.content
 
 	# Corner brackets (16 px from top/bottom, 18 px from the sides)
-	osd_root.add_child(_corner(Control.PRESET_TOP_LEFT, 18, 16, true, true))
-	osd_root.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - BRACKET_LEN, 16, true, false))
-	osd_root.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
-	osd_root.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
+	# osd_root.add_child(_corner(Control.PRESET_TOP_LEFT, 18, 16, true, true))
+	# osd_root.add_child(_corner(Control.PRESET_TOP_RIGHT, -18 - BRACKET_LEN, 16, true, false))
+	# osd_root.add_child(_corner(Control.PRESET_BOTTOM_LEFT, 18, -16 - BRACKET_LEN, false, true))
+	# osd_root.add_child(_corner(Control.PRESET_BOTTOM_RIGHT, -18 - BRACKET_LEN, -16 - BRACKET_LEN, false, false))
 
 	# Crosshair: a small solid round dot in the HUD cream
 	var dot := Control.new()

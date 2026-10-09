@@ -1326,7 +1326,8 @@ func _toggle(on: bool) -> void:
 	if on and not unlocked and gate_msg.text.begins_with("LOCKED"):
 		gate_msg.text = "ENTER to confirm, ESC to cancel"
 		gate_msg.add_theme_color_override("font_color", Color(0.65, 0.75, 0.72))
-	if on and not unlocked:
+	var requires_code = not unlocked and Net.is_online()
+	if on and requires_code:
 		gate.visible = true
 		gate_input.clear()
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

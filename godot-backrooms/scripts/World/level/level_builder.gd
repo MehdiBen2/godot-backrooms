@@ -382,6 +382,11 @@ func _spawn_flashes() -> void:
 
 # ---------------------------------------------------------------- interactive survey props
 func _spawn_survey_props() -> void:
+	if level_index == 0 and built_floor == 0:
+		var first_notebook := SurveyClipboard.new()
+		first_notebook.position = spawn_pos + Vector3(0.5, 0.0, 0.8)
+		add_child(first_notebook)
+	
 	_scatter(func(): return SurveyClipboard.new(), CLIPBOARD_PER_CELLS, 2, 6)
 	_scatter(func(): return DeadFixture.new(), DEAD_FIXTURE_PER_CELLS, 2, 8)
 

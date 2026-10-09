@@ -172,6 +172,8 @@ func _obj_reach(o: Dictionary) -> float:
 			return r
 		"zone", "water", "platform", "flight":
 			return maxf(float(o.scale), float(_param(o, "depth", 2.0))) * 0.75
+		"lamp":
+			return maxf(float(o.scale), LAMP_REACH_CELLS)
 	return float(o.scale)
 
 ## The centre line of a wall-shaped object in object space (cells): the game's level_data.gd shape_path()
@@ -2875,6 +2877,28 @@ func _fill(pts: PackedVector2Array, col: Color) -> void:
 
 ## Plan view of an object, the way an architect's floor plan draws it
 ## `own`: one of this floor's (a stairwell then shows which floors it is joined to)
+## The light-object markers: a lamp on the map is a coloured bulb with a ring of its reach, so you can see where
+## the light is and what it covers, instead of nothing (the game draws them; the map had no shape for them)
+const LAMP_REACH_CELLS := 2.2
+const LAMP_TONE := {"warm": Color(1.0, 0.72, 0.38), "candle": Color(1.0, 0.58, 0.22), "hotel": Color(1.0, 0.82, 0.55),
+	"cool": Color(0.78, 0.9, 1.0), "sodium": Color(1.0, 0.64, 0.2), "red": Color(1.0, 0.18, 0.12),
+	"green": Color(0.45, 1.0, 0.5), "party": Color(1.0, 0.45, 0.8)}
+func _draw_lamp(o: Dictionary, alpha: float, op: Vector2) -> void:
+	var tone: Color = LAMP_TONE.get(str(_param(o, "tone", "warm")), LAMP_TONE.warm)
+	var kind := str(o.type)
+	var reach := LAMP_REACH_CELLS * zoom * (0.6 + 0.4 * minf(float(o.scale), 2.0))
+	canvas.draw_arc(op, reach, 0.0, TAU, 40, Color(tone.r, tone.g, tone.b, alpha * 0.35), 1.5)
+	canvas.draw_circle(op, reach, Color(tone.r, tone.g, tone.b, alpha * 0.05))
+	if kind == "emergency_strip" or kind == "string_lights" or kind == "vent_glow":
+		var half := maxf(float(o.scale), 1.0) * 0.5 * zoom
+		var d := Vector2.from_angle(deg_to_rad(float(o.rotation)))
+		canvas.draw_line(op - d * half, op + d * half, Color(tone.r, tone.g, tone.b, alpha), maxf(3.0, zoom * 0.12))
+	else:
+		canvas.draw_circle(op, maxf(zoom * 0.22, 4.0), Color(tone.r, tone.g, tone.b, alpha))
+		canvas.draw_arc(op, maxf(zoom * 0.22, 4.0), 0.0, TAU, 16, Color(0, 0, 0, alpha * 0.7), 1.0)
+	if zoom >= 9.0:
+		_tag(op + Vector2(6, -6), kind.replace("_", " "), Color(1, 1, 1, alpha), 10)
+
 func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	var op := pan + (Vector2(o.pos_x, o.pos_y) + Vector2(0.5, 0.5)) * zoom
 	var bound_r := (maxf(_obj_reach(o), 2.0) + 1.0) * zoom + 32.0
@@ -2885,6 +2909,9 @@ func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	if zoom < 3.0:
 		var sz := maxf(zoom * maxf(float(o.scale), 0.8), 2.5)
 		canvas.draw_rect(Rect2(op - Vector2(sz * 0.5, sz * 0.5), Vector2(sz, sz)), col)
+		return
+	if _shape(o.type) == "lamp":
+		_draw_lamp(o, alpha, op)
 		return
 	var xf := _obj_xf(o)
 	var half: float = o.scale * 0.5

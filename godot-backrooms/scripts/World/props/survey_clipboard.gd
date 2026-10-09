@@ -21,57 +21,52 @@ func _build_mesh() -> void:
 	mesh_root = Node3D.new()
 	add_child(mesh_root)
 
-	# 1. Wooden clipboard body
-	var board := MeshInstance3D.new()
-	var b_box := BoxMesh.new()
-	b_box.size = Vector3(0.32, 0.02, 0.44)
-	board.mesh = b_box
-	var b_mat := StandardMaterial3D.new()
-	b_mat.albedo_color = Color(0.36, 0.24, 0.14) # Aged pressed hardboard
-	b_mat.roughness = 0.85
-	board.material_override = b_mat
-	board.visibility_range_end = 45.0
-	board.visibility_range_end_margin = 8.0
-	board.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	mesh_root.add_child(board)
-
-	# 2. Paper sheet on top
-	var paper := MeshInstance3D.new()
-	var p_box := BoxMesh.new()
-	p_box.size = Vector3(0.28, 0.005, 0.38)
-	paper.mesh = p_box
-	paper.position = Vector3(0, 0.012, 0.01)
-	var p_mat := StandardMaterial3D.new()
-	p_mat.albedo_color = Color(0.92, 0.89, 0.78) # Yellowed manila paper
-	p_mat.roughness = 0.95
-	paper.material_override = p_mat
-	paper.visibility_range_end = 45.0
-	paper.visibility_range_end_margin = 8.0
-	paper.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	mesh_root.add_child(paper)
-
-	# 3. Steel clip at top
-	var clip := MeshInstance3D.new()
-	var c_box := BoxMesh.new()
-	c_box.size = Vector3(0.14, 0.025, 0.06)
-	clip.mesh = c_box
-	clip.position = Vector3(0, 0.02, -0.17)
-	var c_mat := StandardMaterial3D.new()
-	c_mat.albedo_color = Color(0.6, 0.62, 0.65)
-	c_mat.metallic = 0.85
-	c_mat.roughness = 0.3
-	clip.material_override = c_mat
-	clip.visibility_range_end = 45.0
-	clip.visibility_range_end_margin = 8.0
-	clip.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	mesh_root.add_child(clip)
+	# 1. Load notebook model
+	var model_scene = load("res://models/props/single_spiral_notepad.glb")
+	if model_scene:
+		var model = model_scene.instantiate()
+		for child in model.find_children("*", "MeshInstance3D", true, false):
+			if child is MeshInstance3D:
+				child.visibility_range_end = 45.0
+				child.visibility_range_end_margin = 8.0
+				child.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+				
+				# Darken the material and make it less shiny so it doesn't look overly bright
+				if child.mesh:
+					for i in child.mesh.get_surface_count():
+						var mat = child.get_active_material(i)
+						if mat is StandardMaterial3D:
+							var new_mat = mat.duplicate()
+							new_mat.albedo_color = new_mat.albedo_color.darkened(0.55) # Darken by 55%
+							new_mat.roughness = 0.95 # Less glossy/shiny
+							child.set_surface_override_material(i, new_mat)
+		
+		# Adjust scale and shift it down slightly if the model's origin was placing it too high
+		model.scale = Vector3(1.6, 1.6, 1.6)
+		model.position = Vector3(0, -0.02, 0) # Shift down into the floor slightly
+		
+		# Give it a slight casual tilt so it rests more naturally
+		model.rotation.x = randf_range(-0.05, 0.05)
+		model.rotation.z = randf_range(-0.05, 0.05)
+		mesh_root.add_child(model)
+		print("DEBUG: Notebook model loaded successfully!")
+	else:
+		print("ERROR: Notebook model failed to load! Is it imported?")
+		var fallback := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.3, 0.1, 0.4)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color.RED
+		fallback.mesh = box
+		fallback.material_override = mat
+		mesh_root.add_child(fallback)
 
 	# 4. Reflective T.S.R.A. survey marker tag
 	glow_indicator = MeshInstance3D.new()
 	var tag_box := BoxMesh.new()
-	tag_box.size = Vector3(0.04, 0.008, 0.04)
+	tag_box.size = Vector3(0.06, 0.008, 0.06) # Slightly bigger tag
 	glow_indicator.mesh = tag_box
-	glow_indicator.position = Vector3(0.1, 0.016, 0.16)
+	glow_indicator.position = Vector3(0.0, 0.03, 0.0) # Centered and slightly lifted so it sits on the cover
 	var g_mat := StandardMaterial3D.new()
 	g_mat.albedo_color = Color(0.95, 0.65, 0.15)
 	glow_indicator.material_override = g_mat

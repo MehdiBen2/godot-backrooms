@@ -25,10 +25,10 @@ const LOOKS := {
 	#   - exposed to keep the walls and carpet in their own colour; only the panels clip to white;
 	#   - the far end of a hall fades into the dim, slightly warm air of the room, not into a yellow haze.
 	"classic": {
-		"ambient_energy": 0.32, "ambient_color": Color(0.4, 0.37, 0.27),   # a low, warm bounce floor: gaps stay dim
-		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7),                        # the bounce's strength and tint (yellow walls, beige carpet)
+		"ambient_energy": 0.38, "ambient_color": Color(0.4, 0.37, 0.27),   # a low, warm bounce floor: gaps stay dim
+		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7), "gi_ceil": 0.0,       # the bounce's strength and tint (yellow walls, beige carpet); a faint lift on the ceiling
 		"exposure": 1.0, "tonemap_white": 2.0,                             # ACES: mid-tones in the middle, highlights roll off
-		"glow_threshold": 1.0,                                             # only the HDR panels bloom
+		"glow_threshold": 1.0,                                             # only the HDR panels bloom (a lit wall, or a torch on one, does not)
 		"glow_intensity": 0.75, "glow_bloom": 0.1, "glow_wide": 0.45,      # a soft halo round each panel, wider with distance
 		"ssao_intensity": 1.2,                                             # contact darkening where walls meet the ceiling and in corners
 		"haze": Color(0.3, 0.28, 0.2),                                     # the far halls fade into dim room air

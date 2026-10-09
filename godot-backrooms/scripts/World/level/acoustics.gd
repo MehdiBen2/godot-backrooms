@@ -78,12 +78,13 @@ func _work_out(c: Vector2i) -> Dictionary:
 	var damp := clampf(0.88 - 0.55 * hard - 0.15 * size, 0.08, 0.95)
 	var wet := clampf(0.06 + size * (0.18 + 0.32 * hard), 0.03, 0.6)
 	# tight and low: short, dark and dull
-	var tight := clampf((4.2 - mfp) / 2.6, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.4)
-	if h <= level.LOW_H + 0.01: tight = maxf(tight, 0.55)
+	# When walls are closely surrounding the player (small rooms, corridors), kill the reverb completely
+	var tight := clampf((6.5 - mfp) / 3.5, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.4)
+	if h <= level.LOW_H + 0.01: tight = maxf(tight, 0.8)
 	if h <= level.CRAWL_H + 0.01: tight = 1.0
-	damp = lerpf(damp, 0.96, tight)
-	wet = lerpf(wet, 0.04, tight)
-	size = lerpf(size, 0.1, tight)
+	damp = lerpf(damp, 0.98, tight)
+	wet = lerpf(wet, 0.0, tight) # completely mute reverb in tight spaces
+	size = lerpf(size, 0.01, tight)
 	return {"size": size, "damp": damp, "wet": wet, "cut": lerpf(16000.0, 3200.0, tight), "pre": clampf(mfp * 1.6, 3.0, 70.0)}
 
 ## How far (m) a line from level point `from` (on the plan, metres) runs along `d` before a wall stops it

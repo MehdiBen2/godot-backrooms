@@ -57,7 +57,6 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/godo
 
 [rendering]
 
-rendering_device/driver.windows="vulkan"
 textures/default_filters/anisotropic_filtering_level=3
 anti_aliasing/quality/use_debanding=true
 anti_aliasing/quality/screen_space_aa=1

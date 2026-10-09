@@ -19,6 +19,7 @@ extends RefCounted
 ## over their own materials), so it lands on them as smooth gradients, not cell-sized steps.
 
 const PassShader := preload("res://shaders/grid_gi.gdshader")
+const CeilShader := preload("res://shaders/grid_gi_ceil.gdshader")
 
 const DECAY_LO := 0.8              # share of its neighbours' light a floor-level cell keeps (higher: reaches further)
 const DECAY_HI := 0.88             # the ceiling's bounce spreads further and evener
@@ -42,6 +43,7 @@ var cell_lamps := {}               # cell index -> the placed lamps in it
 var img: Image
 var tex: ImageTexture
 var passes: Array[ShaderMaterial] = []
+var ceil_passes: Array[ShaderMaterial] = []
 var _scale := 1.0
 var _boost := 1.0
 var _cell := 4.5
@@ -148,7 +150,7 @@ func _relax(x0: int, z0: int, x1: int, z1: int, back := false) -> void:
 # ---------------------------------------------------------------- every frame
 ## `strength`: how much bounce the look wants; `color`: its tint times the lamps' white (and the events' tint);
 ## `fog`: the distance fog's density
-func update(player_pos: Vector3, strength: float, color: Color, fog: float) -> void:
+func update(player_pos: Vector3, strength: float, color: Color, fog: float, ceil_gain: float = 0.0) -> void:
 	if passes.is_empty() or tex == null: return
 	var c: Vector2i = lvl.cell_of(player_pos)
 	var x0 := clampi(c.x - WINDOW, 1, n - 2)
@@ -169,8 +171,16 @@ func update(player_pos: Vector3, strength: float, color: Color, fog: float) -> v
 		img.set_data(n, n, false, Image.FORMAT_RGF, pix.to_byte_array())
 		tex.update(img)
 	_set_all("strength", strength, 0.002)
+	_set_all_ceil("ceil_gain", ceil_gain, 0.001)
 	_set_all("gi_color", color, 0.004)
 	_set_all("fog_density", fog, 0.0005)
+
+func _set_all_ceil(param: String, v: float, eps: float) -> void:
+	var key := "ceil_" + param
+	var was = _last.get(key)
+	if was != null and absf(v - was) < eps: return
+	_last[key] = v
+	for m in ceil_passes: m.set_shader_parameter(param, v)
 
 func _set_all(param: String, v, eps: float) -> void:
 	var was = _last.get(param)
@@ -180,6 +190,7 @@ func _set_all(param: String, v, eps: float) -> void:
 		if v is float and absf(v - was) < eps: return
 	_last[param] = v
 	for m in passes: m.set_shader_parameter(param, v)
+	for m in ceil_passes: m.set_shader_parameter(param, v)
 
 # ---------------------------------------------------------------- the passes
 ## Put the bounce pass on every floor and wall the level built: the meshes it adds straight under itself whose
@@ -190,13 +201,39 @@ func attach(root: Node, skip: Array, ceil_layer: int) -> void:
 	var made := {}                         # base material -> its pass
 	for ch in root.get_children():
 		if not (ch is GeometryInstance3D): continue
-		if (ch as VisualInstance3D).layers & ceil_layer: continue
 		var m: Material = (ch as GeometryInstance3D).material_override
-		if m == null or skip.has(m) or not _eligible(m): continue
-		if made.has(m): continue
+		if m == null or skip.has(m) or made.has(m): continue
+		if (ch as VisualInstance3D).layers & ceil_layer:
+			# the ceiling: an additive lift only (see grid_gi_ceil.gdshader)
+			if not _eligible_ceil(m): continue
+			var cp := ShaderMaterial.new()
+			cp.shader = CeilShader
+			cp.set_meta("grid_gi", true)
+			cp.set_shader_parameter("gi_map", tex)
+			cp.set_shader_parameter("map_cells", float(n))
+			cp.set_shader_parameter("map_cell", _cell)
+			cp.set_shader_parameter("strength", 0.0)
+			cp.set_shader_parameter("ceil_gain", 0.0)
+			ceil_passes.append(cp)
+			made[m] = cp
+			m.next_pass = cp
+			continue
+		if not _eligible(m): continue
 		var p := _pass_for(m)
 		made[m] = p
 		m.next_pass = p
+
+## A ceiling material can take the additive lift: opaque, and not already carrying a pass of ours
+func _eligible_ceil(m: Material) -> bool:
+	if m.next_pass != null and not m.next_pass.has_meta("grid_gi"): return false
+	if m is StandardMaterial3D:
+		return (m as StandardMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED
+	if m is ShaderMaterial:
+		var sh := (m as ShaderMaterial).shader
+		if sh == null: return false
+		var code := sh.code
+		return not ("unshaded" in code or "blend_" in code or "ALPHA" in code or "shader_type spatial" not in code)
+	return false
 
 func _eligible(m: Material) -> bool:
 	if m.next_pass != null and not m.next_pass.has_meta("grid_gi"): return false
