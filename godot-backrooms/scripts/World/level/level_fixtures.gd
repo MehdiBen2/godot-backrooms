@@ -343,6 +343,11 @@ func _tile_panel_size() -> float:
 	return float(panel_ceiling.get_meta("panel_tiles", 4)) * 2.25 / 8.0
 
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
+## The floor chunk (level_geometry.gd SURF_CHUNK) a fixture's panel is drawn in
+func _panel_chunk(f: Dictionary) -> Vector2i:
+	var c := cell_of(f.pos)
+	return Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK)
+
 func _build_panel_ceiling() -> void:
 	if fx.is_empty(): return
 	var drop := drop_ceiling()
@@ -373,32 +378,44 @@ func _build_panel_ceiling() -> void:
 	mat.set_shader_parameter("cell", CELL)
 	var quad := PlaneMesh.new()
 	quad.size = Vector2(CELL, CELL)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.use_custom_data = drop          # the cell's vents and whether it is on the grid of lit cells (drop_ceiling.gdshader)
-	mm.mesh = quad
-	mm.instance_count = fx.size()
 	var down := Basis(Vector3.RIGHT, PI)              # PlaneMesh faces up; flip it to face the floor
-	var buf := MMBuffer.alloc(mm)
-	var st := MMBuffer.stride(mm)
-	for f in fx:
-		var o: int = f.cell * st
-		MMBuffer.put(buf, o, Transform3D(down, f.pos))
-		MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW * (f.warm as Color) * float(f.peak))
-		if drop:
-			var v: Array = f.get("vents", [])
-			buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
-			buf[o + 17] = float(v[1]) if v.size() > 1 else 0.0
-			buf[o + 18] = 1.0 if f.get("casts", false) else 0.0
-	mm.buffer = buf
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mmi.layers = CEIL_LAYER
-	add_child(mmi)
-	panels_mm = mm
+	# one MultiMesh per SURF_CHUNK x SURF_CHUNK cells, each with its own visibility range (as the floors are): a
+	# chunk out of reach or out of view costs nothing. panels_mm is kept only as the "there are panels" flag.
+	var chunks := {}
+	for f: Dictionary in fx: chunks.get_or_add(_panel_chunk(f), []).append(f)
+	var reach := _chunk_reach()
+	for key in chunks:
+		var list: Array = chunks[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.use_custom_data = drop          # the cell's vents and whether it is on the grid of lit cells (drop_ceiling.gdshader)
+		mm.mesh = quad
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for i in list.size():
+			var f: Dictionary = list[i]
+			f.panel_mm = mm                # where this fixture's colour is written (_set_lit_color)
+			f.panel_i = i
+			var o: int = i * st
+			MMBuffer.put(buf, o, Transform3D(down, f.pos))
+			MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW * (f.warm as Color) * float(f.peak))
+			if drop:
+				var v: Array = f.get("vents", [])
+				buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
+				buf[o + 17] = float(v[1]) if v.size() > 1 else 0.0
+				buf[o + 18] = 1.0 if f.get("casts", false) else 0.0
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.layers = CEIL_LAYER
+		mmi.visibility_range_end = reach
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		add_child(mmi)
+		if panels_mm == null: panels_mm = mm
 	ceil_mats.append(mat)          # its ceiling_fill is driven by level_lighting.gd
 	if drop: _build_vents()
 
@@ -619,7 +636,7 @@ func _set_lit_color(f: Dictionary, lvl: float) -> void:
 	if lens_mm: lens_mm.set_instance_color(f.index, LIT_DIFFUSER * w * (k * 0.45))
 	f.glow_lvl = k
 	_write_glow(f)
-	if panels_mm: panels_mm.set_instance_color(f.cell, PANEL_GLOW * w * k)
+	if f.has("panel_mm"): (f.panel_mm as MultiMesh).set_instance_color(f.panel_i, PANEL_GLOW * w * k)
 
 # Recolour every lit tube; Color.WHITE puts the normal warm white back (random events)
 func set_tint(c: Color) -> void:

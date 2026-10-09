@@ -96,14 +96,16 @@ func _finish() -> void:
 	shader_type spatial;
 	render_mode unshaded, cull_disabled;
 	
-	uniform vec3 color1 : source_color = vec3(0.95, 0.85, 0.15); // Bright Yellow
-	uniform vec3 color2 : source_color = vec3(0.5, 0.55, 0.1); // Greenish yellow
-	uniform float time_scale = 0.4;
+	uniform vec3 color1 : source_color = vec3(1.0, 0.9, 0.2); // Core Bright Yellow
+	uniform vec3 color2 : source_color = vec3(0.5, 0.7, 0.1); // Mid Green/Yellow
+	uniform vec3 color3 : source_color = vec3(0.05, 0.1, 0.05); // Deep Void Dark Green
+	uniform float time_scale = 0.3;
 	
 	vec2 hash( vec2 p ) {
 		p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );
 		return -1.0 + 2.0*fract(sin(p)*43758.5453123);
 	}
+	
 	float noise( in vec2 p ) {
 		const float K1 = 0.366025404; 
 		const float K2 = 0.211324865; 
@@ -117,42 +119,113 @@ func _finish() -> void:
 		return dot( n, vec3(70.0) );
 	}
 	
+	float fbm(vec2 p) {
+		float f = 0.0;
+		float w = 0.5;
+		for (int i = 0; i < 4; i++) {
+			f += w * noise(p);
+			p *= 2.0;
+			w *= 0.5;
+		}
+		return f;
+	}
+	
 	void fragment() {
-		vec2 uv = UV * 3.0;
-		float n = noise(uv + vec2(TIME * time_scale));
-		n += 0.5 * noise(uv * 2.0 - vec2(TIME * time_scale * 1.5));
-		n = n * 0.5 + 0.5;
+		vec2 uv = UV * 2.0 - 1.0; 
+		float t = TIME * time_scale;
 		
-		vec3 final_color = mix(color2, color1, smoothstep(0.2, 0.6, n));
+		// Parallax offset (gives the 3D depth effect as the player moves)
+		vec2 view_offset = VIEW.xy * 0.5;
 		
+		// Three layers of depth for true 3D volumetric feel
+		float n1 = fbm(uv * 1.5 + view_offset * 1.0 + vec2(t * 0.4, -t * 0.2));
+		float n2 = fbm(uv * 3.0 + view_offset * 0.5 + vec2(-t * 0.6, t * 0.4));
+		float n3 = fbm(uv * 6.0 + vec2(t * 0.8, t * 0.8));
+		
+		float n = (n1 * 0.5 + n2 * 0.3 + n3 * 0.2) * 0.5 + 0.5;
+		
+		// High frequency grain texture
+		float grain = fbm(uv * 20.0 + t * 5.0);
+		n = mix(n, grain * 0.5 + 0.5, 0.05);
+		
+		// Map colors to the noise density
+		vec3 col = mix(color3, color2, smoothstep(0.2, 0.55, n));
+		col = mix(col, color1, smoothstep(0.55, 0.8, n));
+		
+		// Deep dark swirling pits (giving infinite black depth)
+		if (n < 0.35) {
+			col *= smoothstep(0.1, 0.35, n);
+		}
+		
+		// Burning bright highlights over-exposing the camera
 		if (n > 0.75) {
-			final_color += vec3(1.0, 1.0, 0.6) * (n - 0.75) * 4.0; // Glow spots
+			col += vec3(1.0, 1.0, 0.8) * pow(n - 0.75, 2.0) * 15.0;
 		}
 		
-		// Add dark swirling veins
-		if (n < 0.3) {
-			final_color = mix(vec3(0.1, 0.15, 0.05), final_color, smoothstep(0.1, 0.3, n));
-		}
+		// Edge darkening (Vignette to make it look like a deep tunnel into the wall)
+		float edge = max(abs(uv.x), abs(uv.y)); 
+		float vignette = smoothstep(1.0, 0.6, edge);
+		col *= mix(0.1, 1.0, vignette); // Edges fade to dark inside the frame
 		
-		ALBEDO = final_color;
+		ALBEDO = col;
 	}
 	"""
 	mat.shader = shader
+	mat.render_priority = -1 # Render behind tape and cables
 	mi.material_override = mat
 	
+	# Move the portal surface extremely close to the wall (0.001) so tape (0.003+) draws over it
+	center -= n * 0.049
+	
+	# 3D Frame around the portal
+	var frame_mat = StandardMaterial3D.new()
+	frame_mat.albedo_color = Color(0.1, 0.1, 0.1)
+	frame_mat.roughness = 0.9
+	
+	var frame_thickness = 0.1
+	var frame_depth = 0.2
+	
+	for d in [
+		[Vector3(0, height/2.0 + frame_thickness/2.0, 0), Vector3(width + frame_thickness*2, frame_thickness, frame_depth)], # Top
+		[Vector3(0, -height/2.0 - frame_thickness/2.0, 0), Vector3(width + frame_thickness*2, frame_thickness, frame_depth)], # Bottom
+		[Vector3(width/2.0 + frame_thickness/2.0, 0, 0), Vector3(frame_thickness, height, frame_depth)], # Right
+		[Vector3(-width/2.0 - frame_thickness/2.0, 0, 0), Vector3(frame_thickness, height, frame_depth)] # Left
+	]:
+		var fm = MeshInstance3D.new()
+		var bx = BoxMesh.new()
+		bx.size = d[1]
+		fm.mesh = bx
+		fm.material_override = frame_mat
+		fm.position = d[0] + Vector3(0, 0, -frame_depth/2.0) # Stick out into the room (since -Z points out)
+		mi.add_child(fm)
+	
 	var light = OmniLight3D.new()
-	light.light_color = Color(0.95, 0.85, 0.15) # Yellow
+	light.light_color = Color(0.95, 0.85, 0.15)
 	light.light_energy = 4.0
 	light.omni_range = maxf(width, height) * 4.0
-	# Move the light slightly out of the wall so it casts into the room
-	light.position = Vector3(0, 0, 0.5) 
+	light.position = Vector3(0, 0, -0.5) 
 	mi.add_child(light)
 	
-	# Add to the level
 	var level = player.get_parent().get_node_or_null("Level")
 	if level != null:
 		level.add_child(mi)
 		mi.global_position = center
-		# look_at makes the -Z axis point to the target. QuadMesh faces +Z.
-		# By looking at center - n, -Z points into the wall, so +Z faces out!
 		mi.look_at(center - n, up)
+		active_portals.append(mi)
+
+var active_portals := []
+
+func undo() -> bool:
+	if active_portals.is_empty(): return false
+	var p = active_portals.pop_back()
+	if is_instance_valid(p):
+		p.queue_free()
+	return true
+
+func remove_near(pos: Vector3, radius: float) -> void:
+	for i in range(active_portals.size() - 1, -1, -1):
+		var p = active_portals[i]
+		if is_instance_valid(p):
+			if p.global_position.distance_to(pos) < radius:
+				p.queue_free()
+				active_portals.remove_at(i)

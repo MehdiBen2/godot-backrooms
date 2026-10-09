@@ -375,6 +375,10 @@ func _undo() -> void:
 		if CableMarks.live != null and CableMarks.live.undo():
 			_say("Undone cable")
 			return
+	if tool == "portal":
+		if portal != null and portal.has_method("undo") and portal.undo():
+			_say("Undone portal")
+			return
 	if SketchMarks.live != null and SketchMarks.live.undo():
 		_say("Undone line")
 		return
@@ -532,7 +536,10 @@ func _process(_dt: float) -> void:
 	if portal != null:
 		portal.ui_down = world_lmb and tool == "portal"
 	if tool == "eraser" and world_lmb:
-		if CableMarks.live != null and sketch != null:
+		if sketch != null:
 			var hit: Dictionary = sketch._aim()
 			if not hit.is_empty():
-				CableMarks.live.remove_near(hit.position, 0.35)
+				if CableMarks.live != null:
+					CableMarks.live.remove_near(hit.position, 0.35)
+				if portal != null and portal.has_method("remove_near"):
+					portal.remove_near(hit.position, 0.6)

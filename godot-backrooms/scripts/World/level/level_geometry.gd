@@ -319,12 +319,16 @@ func _fog_end() -> float:
 	if edge_wrap and not shell: return clampf(wrap_size() * 0.95, FOG_END, WRAP_FOG_END_MAX)
 	return FOG_END
 
+## The visibility range of a floor, ceiling or panel chunk: the chunk's centre has to be this far off before its
+## nearest cell can be past the fog
+func _chunk_reach() -> float:
+	return _fog_end() + SURF_CHUNK * CELL * sqrt(2.0) / 2.0 + SURF_RANGE_SLACK
+
 ## _cell_surface, cut into chunks that each carry a visibility range
 func _ranged_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> void:
 	var chunks := {}
 	for c: Vector2i in cells: chunks.get_or_add(Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK), []).append(c)
-	# the chunk's centre has to be this far off before its nearest cell can be past the fog
-	var reach := _fog_end() + SURF_CHUNK * CELL * sqrt(2.0) / 2.0 + SURF_RANGE_SLACK
+	var reach := _chunk_reach()
 	for ch in chunks:
 		var mi := _cell_surface(chunks[ch], height_fn, mat, flip, priority, layers) as MeshInstance3D
 		mi.visibility_range_end = reach
