@@ -20,6 +20,7 @@ const SketchTool := preload("res://scripts/Player/sketch_tool.gd")
 const TapeTool := preload("res://scripts/Player/tape_tool.gd")
 const CableTool := preload("res://scripts/Player/cable_tool.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
+const PortalTool := preload("res://scripts/Player/portal_tool.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const ZoomTool := preload("res://scripts/Player/zoom_tool.gd")
 const ZoomReadout := preload("res://scripts/UI/hud/zoom_readout.gd")
@@ -405,6 +406,13 @@ func _build_tape() -> void:
 		draw.tape = tape
 		draw.sketch = sketch
 		draw.cable = cable_tool
+		
+		var portal_tool = PortalTool.new()
+		portal_tool.player = player
+		add_child(portal_tool)
+		draw.portal = portal_tool
+		portal_tool.ui = draw
+		
 		sketch.ui = draw
 		cable_tool.ui = draw
 		add_child(draw)

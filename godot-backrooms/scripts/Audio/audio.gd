@@ -20,7 +20,7 @@ extends Node
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const Breathing := preload("res://scripts/Audio/breathing.gd")
 
-const HUM_VOLUME := 0.065            # AUDIO.humVolume: gentle ballast buzz
+const HUM_VOLUME := 0.02            # AUDIO.humVolume: gentle ballast buzz
 const HUM_HABITUATED := 0.35        # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0        # AUDIO.humHabituationTime
 const DRONE_BASE := 0.15

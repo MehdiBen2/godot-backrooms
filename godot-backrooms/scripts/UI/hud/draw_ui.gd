@@ -24,6 +24,7 @@ var player: Node
 var tape: Node                   # tape_tool.gd
 var sketch: Node                 # sketch_tool.gd
 var cable: Node                  # cable_tool.gd
+var portal: Node                 # portal_tool.gd
 
 var open := false
 var cursor_mode := false         # the mouse is a free cursor (not captured, not looking around)
@@ -85,7 +86,7 @@ func _build() -> void:
 	row.add_theme_constant_override("separation", 4)
 	v.add_child(row)
 	var group := ButtonGroup.new()
-	for t in ["tape", "marker", "cable", "eraser", "stamp"]:
+	for t in ["tape", "marker", "cable", "eraser", "stamp", "portal"]:
 		var b := _button(t.to_upper(), func(): _set_tool(t))
 		b.toggle_mode = true
 		b.button_group = group
@@ -363,7 +364,8 @@ func _set_tool(t: String) -> void:
 			"tape": "Hold the left mouse on a wall or floor and drag to pull tape out; let go to stick it. Click a strip to peel it off.",
 			"marker": "Hold the left mouse and drag to draw on a wall, floor or ceiling.",
 			"cable": "Hold left mouse on a floor or wall and drag to lay 3D equipment cables. They roll and stack in 3D piles the more you draw.",
-			"eraser": "Hold the left mouse over a sketch line or equipment cable to rub it out."}[t]
+			"eraser": "Hold the left mouse over a sketch line or equipment cable to rub it out.",
+			"portal": "Click and drag to draw a portal onto a wall. Release to tear open a glowing void."}[t]
 	if _panel != null:
 		_panel.reset_size()
 
@@ -527,6 +529,8 @@ func _process(_dt: float) -> void:
 		tape.ui_down = world_lmb and tool == "tape"
 	if cable != null:
 		cable.ui_down = world_lmb and tool == "cable"
+	if portal != null:
+		portal.ui_down = world_lmb and tool == "portal"
 	if tool == "eraser" and world_lmb:
 		if CableMarks.live != null and sketch != null:
 			var hit: Dictionary = sketch._aim()

@@ -402,6 +402,7 @@ func _ready() -> void:
 	fullbright_light.visible = Game.fullbright
 	cam.add_child(fullbright_light)
 
+
 func _key(code: Key) -> bool:
 	return Input.is_physical_key_pressed(code)
 

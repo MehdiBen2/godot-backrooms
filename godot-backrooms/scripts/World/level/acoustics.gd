@@ -79,7 +79,7 @@ func _work_out(c: Vector2i) -> Dictionary:
 	var wet := clampf(0.06 + size * (0.18 + 0.32 * hard), 0.03, 0.6)
 	# tight and low: short, dark and dull
 	# When walls are closely surrounding the player (small rooms, corridors), kill the reverb completely
-	var tight := clampf((6.5 - mfp) / 3.5, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.4)
+	var tight := clampf((18.0 - mfp) / 10.0, 0.0, 1.0) * (1.0 if h <= level.WALL_H + 0.01 else 0.4)
 	if h <= level.LOW_H + 0.01: tight = maxf(tight, 0.8)
 	if h <= level.CRAWL_H + 0.01: tight = 1.0
 	damp = lerpf(damp, 0.98, tight)
