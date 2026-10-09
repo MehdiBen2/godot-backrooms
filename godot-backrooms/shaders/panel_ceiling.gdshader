@@ -1,10 +1,10 @@
 shader_type spatial;
-// Drop ceiling with square light panels baked into its texture (textures/pbr/BRC_A). One quad per level
+// Drop ceiling with square light panels baked into its texture (textures/pbr/Ceiling_Light_Panels). One quad per level
 // cell, drawn from a MultiMesh (level_lighting.gd, _build_panel_ceiling). Each cell's instance colour is
 // that cell's panel glow: level_lighting.gd sets it per fixture, so burnt cells, flicker, power cuts and
 // event tints reach the panels exactly as they reach the real lights under them.
-// A panel that isn't lit is drawn as a plain ceiling tile: BRC_A's colour map bakes the lit-panel squares in,
-// so it borrows the tile one to the right, which in BRC_A's layout is never a panel.
+// A panel that isn't lit is drawn as a plain ceiling tile: Ceiling_Light_Panels's colour map bakes the lit-panel squares in,
+// so it borrows the tile one to the right, which in Ceiling_Light_Panels's layout is never a panel.
 // Every tile gets its own slight shade (a few are yellowed with age) so the ceiling isn't one flat colour.
 //
 // No repeat: the texture is laid once per cell, so its own darker / yellowed tiles came back in the same spots
@@ -21,7 +21,7 @@ uniform sampler2D orm_tex : hint_default_white, filter_linear_mipmap_anisotropic
 // distance the dead-panel test below failed too, so the switched-off panels lit up as well.
 uniform sampler2D emission_tex : source_color, hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 albedo_tint : source_color = vec3(0.96, 0.9, 0.7);   // the reference ceilings are cream-yellow, not grey
-uniform float tile_size = 0.75;         // metres: BRC_A has 6 x 6 tiles per 4.5 m cell
+uniform float tile_size = 0.75;         // metres: Ceiling_Light_Panels has 6 x 6 tiles per 4.5 m cell
 uniform float tile_vary = 0.05;         // how much one tile's shade differs from the next
 uniform float stained = 0.08;           // share of tiles yellowed with age
 uniform float water_stains = 0.55;      // the wide stains across many tiles (0 = none)
@@ -84,7 +84,7 @@ vec2 leak(vec2 w, float aa) {
 	return vec2(body, line) * (0.55 + 0.45 * hash12(reg + 57.0));
 }
 
-// In BRC_A's layout (6 x 6 tiles a cell, tile k centred at UV k / 6) the panels are tiles (1,1) (5,1) (1,5)
+// In Ceiling_Light_Panels's layout (6 x 6 tiles a cell, tile k centred at UV k / 6) the panels are tiles (1,1) (5,1) (1,5)
 // (5,5) and (3,3): the middle and the four diagonals (level_fixtures.gd PANEL_OFFSETS)
 bool is_panel_tile(ivec2 k) {
 	return (k == ivec2(3)) || ((k.x == 1 || k.x == 5) && (k.y == 1 || k.y == 5));
@@ -105,7 +105,7 @@ void fragment() {
 	vec2 flip = vec2(1.0);
 	// a lit panel keeps its own square (its glow is drawn from it); every other tile, a switched-off panel
 	// included, wears a random plain tile: (1..5, 1..5), never a panel ((2, any) never is), mirrored at random
-	// (BRC_A's tiles are all alike apart from their speckle: 20 of them alone still showed as a pattern)
+	// (Ceiling_Light_Panels's tiles are all alike apart from their speckle: 20 of them alone still showed as a pattern)
 	if (!(is_panel_tile(k) && glow > 0.5)) {
 		vec2 src = vec2(1.0) + floor(vec2(hash12(tile + 41.7), hash12(tile + 93.1)) * 4.999);
 		if (is_panel_tile(ivec2(src))) src.x = 2.0;

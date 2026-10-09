@@ -118,6 +118,10 @@ func _define_events() -> void:
 	define({"name": "houndPacing", "weight": 1.1, "cooldown": 480.0, "duration": 60.0, "intensity": 0.6,
 		"when": func(c): return c.since_last > 40.0,
 		"run": _event_hound_pacing})
+	define({"name": "wallFootsteps", "weight": 1.2, "cooldown": 360.0, "duration": 20.0, "intensity": 0.5,
+		"when": func(c): return c.since_last > 35.0,
+		"score": func(c): return (1.3 if c.dark else 1.0) * (1.2 if c.still > 3.0 else 1.0),
+		"run": _event_wall_footsteps})
 	define({"name": "run", "weight": 0.8, "cooldown": 720.0, "duration": 28.0, "intensity": 1.0,
 		"when": func(c): return level.lit.size() > 10 and c.since_last > 60.0,
 		"run": _event_run})
@@ -1240,6 +1244,41 @@ func _event_hound_pacing() -> void:
 				later(2.2, func(): haunt(0.8))
 				return false
 		return t < 60.0)
+
+# ---------------------------------------------------------------- footsteps behind the walls
+# A recording of someone walking, heavy, on the far side of the wall beside you. It walks a line parallel to where
+# you face, a few metres off behind the drywall: from ahead of you to just past you, and fades out down the hall.
+# The walls keep it muffled the whole way (audio.gd occlude, re-checked as it moves).
+const WALKER_PATH := "res://audio/events/footsteps_walls.mp3"
+
+func _event_wall_footsteps() -> void:
+	if not ResourceLoader.exists(WALKER_PATH):
+		return
+	var stream: AudioStream = load(WALKER_PATH)
+	var secs := stream.get_length()
+	if secs <= 0.5:
+		return
+	var b := player.global_transform.basis
+	var fwd := Vector3(-b.z.x, 0.0, -b.z.z).normalized()
+	var side := Vector3(-fwd.z, 0.0, fwd.x) * (1.0 if rng.randf() < 0.5 else -1.0)
+	var lane := rng.randf_range(6.0, 9.0)                       # how far off, through the wall
+	var p0 := player.global_position
+	var walker: AudioStreamPlayer3D = scares.spawn3d(stream, p0 + side * lane + fwd * 12.0 + Vector3.UP * 0.2,
+		0.8, "Scares", 4.0, rng.randf_range(0.92, 1.0))
+	on_clear(func(): _free(walker))
+	haunt(0.3)
+	later(secs * 0.7, func(): haunt(0.5))
+	var st := {"occ": 0.0}
+	watch(func(dt: float, t: float) -> bool:
+		if walker == null or not is_instance_valid(walker):
+			return false
+		var k := clampf(t / secs, 0.0, 1.0)
+		walker.global_position = p0 + side * lane + fwd * lerpf(12.0, -6.0, k) + Vector3.UP * 0.2
+		st.occ -= dt
+		if st.occ <= 0.0 and scares.audio != null:
+			st.occ = 0.25
+			scares.audio.occlude(walker)                        # re-check the walls as it moves
+		return t < secs)
 
 # ---------------------------------------------------------------- run
 # Every light dies. Two seconds of black and your own heartbeat. Then, far down the hall, the lights come back on

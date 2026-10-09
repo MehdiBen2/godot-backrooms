@@ -674,7 +674,7 @@ func _paint_colour(id: String) -> Color:
 # ---------------------------------------------------------------- material thumbnails
 # How a surface looks when the level sets no material: the game's own Level 0 textures
 const DEFAULT_TEX := {"wall": "textures/wall_color.png", "floor": "textures/l0_carpet_color.webp",
-	"ceiling": "textures/pbr/Tiles107/Tiles107_Color.jpg", "tiles": "textures/tiles_color.png"}   # (the ceiling: Tiles107, level_geometry.gd DEFAULT_MATERIALS)
+	"ceiling": "textures/pbr/Tile_White_Grid/Tile_White_Grid_Color.jpg", "tiles": "textures/tiles_color.png"}   # (the ceiling: Tile_White_Grid, level_geometry.gd DEFAULT_MATERIALS)
 # ...and the tint the game puts over each (level_geometry.gd _mat / _wall_material)
 const DEFAULT_TINT := {"wall": Color(1.0, 0.98, 0.88), "floor": Color(1.0, 0.94, 0.75)}
 const THUMB := 128

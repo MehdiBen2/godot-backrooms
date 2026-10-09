@@ -449,6 +449,7 @@
       "partyWall": "Director event: a party behind the drywall; go to it and it stops dead, then one knock",
       "phoneRing": "Director event: a phone rings down the halls; it stops before you reach it, then rings behind you",
       "houndPacing": "Director event: footsteps far off behind the walls keep pace with you; stop and they stop, then one step nearer",
+      "wallFootsteps": "Director event: a heavy walker on the far side of the wall passes you parallel to where you face, muffled, then is gone",
       "run": "Director event: black, then red lights rush down the hall toward you with something running under them",
       "itHeardYou": "Director event: DO NOT SPEAK. It listens to the microphone; say anything and the lights die and something comes",
       "sayYourName": "Director event: the machine voice slowly says the player's callsign, twice",

@@ -85,6 +85,11 @@ func _ready() -> void:
 			clips.append(load("res://audio/footsteps/%s/%s_%d.ogg" % [set_name, set_name, clips.size()]))
 		if not clips.is_empty():
 			recorded[set_name] = Bag.new(clips)
+	var wet := []
+	while ResourceLoader.exists("res://audio/footsteps/water/water_%d.ogg" % wet.size()):
+		wet.append(load("res://audio/footsteps/water/water_%d.ogg" % wet.size()))
+	if not wet.is_empty():
+		splashes = Bag.new(wet)
 
 func _voice() -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
@@ -162,16 +167,11 @@ func _layer(stream: AudioStream, level: float, pitch: float) -> void:
 		get_tree().create_timer(late).timeout.connect(under.play)
 
 ## A step in standing water (a Water object): a slosh and the drip of the foot coming up, instead of the floor's
-## scuff and knock. Deeper water is a heavier, lower wash; ankle deep a brighter slap. Takes are synthesized
-## once, the first time you step in (_splash_take).
+## scuff and knock. Recorded wet takes from audio/footsteps/water/ (cut from a water-footsteps recording, _ready),
+## two laid together at their own pitch. Deeper water is a heavier, lower wash; ankle deep a brighter slap.
 var splashes: Bag
-const SPLASH_TAKES := 8
 
 func _splash_step(depth: float, crouching: bool, intensity: float, pace: float) -> void:
-	if splashes == null:
-		var takes := []
-		for i in SPLASH_TAKES: takes.append(_splash_take(i))
-		splashes = Bag.new(takes)
 	surface = "water"
 	foot = -foot
 	var deep := clampf(depth / 1.0, 0.0, 1.0)
@@ -183,48 +183,6 @@ func _splash_step(depth: float, crouching: bool, intensity: float, pace: float) 
 	_layer(splashes.next(), level * intensity * GAIN, pitch * 0.85)
 	_bus(crouching)
 	scuff.play()
-
-## One splash take, 16-bit mono: a wash of filtered noise (it opens bright as the foot breaks the surface and closes
-## dark as the water falls back) and a few drips and bubble blips after it, shaped differently by `seed`
-static func _splash_take(seed: int) -> AudioStreamWAV:
-	const RATE := 22050
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 7919 + seed * 104729
-	var length := rng.randf_range(0.32, 0.5)
-	var n := int(length * RATE)
-	var data := PackedByteArray()
-	data.resize(n * 2)
-	var lp := 0.0
-	var lp2 := 0.0
-	var hp_prev := 0.0
-	var blips: Array = []
-	for i in rng.randi_range(2, 5):
-		blips.append([rng.randf_range(0.06, length - 0.08), rng.randf_range(500.0, 1500.0), rng.randf_range(0.012, 0.03), rng.randf_range(0.15, 0.4)])
-	var attack := rng.randf_range(0.004, 0.012)
-	var body := rng.randf_range(0.09, 0.16)
-	for i in n:
-		var t := float(i) / RATE
-		var env := minf(t / attack, 1.0) * exp(-maxf(t - attack, 0.0) / body)
-		var cut := lerpf(5200.0, 900.0, clampf(t / (body * 2.5), 0.0, 1.0))
-		var a := 1.0 - exp(-TAU * cut / RATE)
-		var x := rng.randf_range(-1.0, 1.0)
-		lp += (x - lp) * a
-		lp2 += (lp - lp2) * a
-		var s := (lp2 - hp_prev * 0.96) * env * 1.6     # (a gentle high-pass: no thump)
-		hp_prev = lp2
-		for b: Array in blips:
-			var bt := t - float(b[0])
-			if bt >= 0.0 and bt < float(b[2]) * 4.0:
-				var f := float(b[1]) * (1.0 + bt * 18.0)       # a bubble's chirp rises as it pops
-				s += sin(TAU * f * bt) * exp(-bt / float(b[2])) * float(b[3])
-		var v := clampi(int(clampf(s * 0.7, -1.0, 1.0) * 32767.0), -32768, 32767)
-		data.encode_s16(i * 2, v)
-	var w := AudioStreamWAV.new()
-	w.format = AudioStreamWAV.FORMAT_16_BITS
-	w.mix_rate = RATE
-	w.stereo = false
-	w.data = data
-	return w
 
 ## The other side of the step: which foot, for the panning, and the crouch muffle
 func _bus(crouching: bool) -> void:
@@ -250,7 +208,7 @@ func step(sprinting: bool, crouching: bool, intensity: float, pace := -1.0) -> v
 		return
 	var lvl = Game.level
 	var wet: float = lvl.water_depth_at(player.global_position) if lvl != null and is_instance_valid(lvl) and lvl.has_method("water_depth_at") else 0.0
-	if wet > 0.03:
+	if wet > 0.03 and splashes != null:
 		_splash_step(wet, crouching, intensity, pace)
 		return
 	surface = _surface_under()

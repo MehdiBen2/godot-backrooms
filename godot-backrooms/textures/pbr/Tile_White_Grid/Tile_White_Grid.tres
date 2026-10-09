@@ -1,0 +1,18 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_White_Grid/Tile_White_Grid_AmbientOcclusion.jpg" id="1"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_White_Grid/Tile_White_Grid_Color.jpg" id="2"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_White_Grid/Tile_White_Grid_Displacement.jpg" id="3"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_White_Grid/Tile_White_Grid_NormalGL.jpg" id="4"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_White_Grid/Tile_White_Grid_Roughness.jpg" id="5"]
+
+[resource]
+uv1_triplanar = false
+albedo_texture = ExtResource("2")
+ao_enabled = true
+ao_texture = ExtResource("1")
+ao_texture_channel = 4
+roughness_texture = ExtResource("5")
+roughness_texture_channel = 4
+normal_enabled = true
+normal_texture = ExtResource("4")

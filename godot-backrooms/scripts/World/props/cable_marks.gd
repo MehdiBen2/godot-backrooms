@@ -147,13 +147,13 @@ func _settle_all(lv: int) -> void:
 	if changed:
 		save()
 
-const TEX_RUBBER_COLOR := "res://textures/pbr/Road008A/Road008A_Color.jpg"
-const TEX_RUBBER_NORMAL := "res://textures/pbr/Road008A/Road008A_NormalGL.jpg"
-const TEX_RUBBER_ROUGH := "res://textures/pbr/Road008A/Road008A_Roughness.jpg"
-const TEX_RUBBER_AO := "res://textures/pbr/Road008A/Road008A_AmbientOcclusion.jpg"
-const TEX_METAL_COLOR := "res://textures/pbr/Metal046B/Metal046B_Color.jpg"
-const TEX_METAL_NORMAL := "res://textures/pbr/Metal046B/Metal046B_NormalGL.jpg"
-const TEX_METAL_ROUGH := "res://textures/pbr/Metal046B/Metal046B_Roughness.jpg"
+const TEX_RUBBER_COLOR := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_Color.jpg"
+const TEX_RUBBER_NORMAL := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_NormalGL.jpg"
+const TEX_RUBBER_ROUGH := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_Roughness.jpg"
+const TEX_RUBBER_AO := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_AmbientOcclusion.jpg"
+const TEX_METAL_COLOR := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_Color.jpg"
+const TEX_METAL_NORMAL := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_NormalGL.jpg"
+const TEX_METAL_ROUGH := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_Roughness.jpg"
 const TEX_HAZARD := "res://textures/items/hazard_tapes/hazardous_tapes.jpg"
 
 static var _plug_mat: StandardMaterial3D

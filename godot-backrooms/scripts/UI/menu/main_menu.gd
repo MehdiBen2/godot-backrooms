@@ -799,7 +799,7 @@ func _warm_level_resources() -> void:
 		for part in set[1]:
 			paths.append("res://textures/%s%s%s" % [set[0], part, set[2]])
 	paths.append_array(WARM_FILES)
-	for id in ["Wood029", "Metal038"]:      # the door's fallback materials (level_geometry.gd _make_materials)
+	for id in ["Wood_Dark_Knot", "Metal_Grey_Plate"]:      # the door's fallback materials (level_geometry.gd _make_materials)
 		paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
 	paths.append("res://textures/props/door/door_leaf.tres")
 	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
@@ -1039,7 +1039,7 @@ func _leave_idle() -> void:
 	_fade_menu(1.0, 0.9)
 
 # ---- random VHS glitch on the title -------------------------------------------------
-const TITLE_TEXT := "THE BACKROOMS: NO END"
+const TITLE_TEXT := "THE BACKROOMS"
 const WRONG_GLYPHS := {"T": "7", "H": "N", "E": "3", "B": "8", "A": "4", "C": "(", "K": "X",
 		"R": "P", "O": "0", "M": "W", "S": "5"}   # lookalikes; W is the M turned upside down
 var next_wrong := 1.5

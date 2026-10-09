@@ -1,9 +1,10 @@
 Textures and models under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/):
 
-- pbr/YBR_*/ (ceilings, carpet, wallpapers)
+- pbr/Ceiling_Drop_*/, pbr/Carpet_Yellow_Green/, pbr/Wallpaper_Yellow_* (ceilings, carpet, wallpapers; were YBR_*)
       "Yasu's Backrooms Material Pack" v1.0 by @mvyasu, CC BY 4.0.
       Scaled from 4096 to 2048 px and regrouped one material a folder; the ceiling materials pair each tile set
-      with its light panel set (Backrooms_Ceiling_01 + 03 = YBR_CeilingSquare, 02 + 04 = YBR_CeilingLong).
+      with its light panel set (Backrooms_Ceiling_01 + 03 = Ceiling_Drop_Square, 02 + 04 = Ceiling_Drop_Long).
+      The old names of every renamed material are listed in pbr/RENAMES.txt.
 
 - ../models/ceiling/backrooms_blender_kit.glb (the air vents on the drop ceilings)
       "Backrooms Blender Kit" by Huuxloc (https://sketchfab.com/rjh41),

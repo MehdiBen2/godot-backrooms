@@ -49,6 +49,7 @@ const EVENTS := {
 	"partywall": ["partyWall", "a party behind the drywall; go to it and it stops dead, then one knock"],
 	"phonering": ["phoneRing", "a phone ringing down the halls; it stops before you reach it, then rings behind you"],
 	"houndpacing": ["houndPacing", "real footsteps far off behind the walls keeping pace with you; stop and they stop, then one step nearer"],
+	"wallfootsteps": ["wallFootsteps", "a heavy walker on the far side of the wall, passing you parallel to where you face, muffled, then gone"],
 	"run": ["run", "black, then red lights rush down the hall toward you with something heavy running under them"],
 	"itheardyou": ["itHeardYou", "DO NOT SPEAK: it listens to your mic; say anything and the lights die and something comes"],
 	"sayyourname": ["sayYourName", "the machine voice slowly says your actual callsign, twice"],
@@ -162,7 +163,7 @@ const EVENT_GROUPS := [
 	["IT HEARS YOU (MIC)", Color("b98cf0"), [["IT HEARD YOU", "itHeardYou"], ["ANSWER BACK", "answerBack"],
 		["YOUR OWN VOICE", "yourOwnVoice"]]],
 	["SOMETHING NEARBY", Color("d0574a"), [["WALL KNOCK", "wallKnock"], ["HOUND PACING", "houndPacing"],
-		["PARTY WALL", "partyWall"], ["PHONE RING", "phoneRing"]]],
+		["WALL FOOTSTEPS", "wallFootsteps"], ["PARTY WALL", "partyWall"], ["PHONE RING", "phoneRing"]]],
 	["SIGNAL & TERMINAL", Color("7fc77a"), [["GHOST ROSTER", "ghostRoster"], ["LOOK UP", "lookTogether"],
 		["SOUNDS TO AVOID", "soundsToAvoid"], ["COUNTDOWN", "countdown"]]],
 ]

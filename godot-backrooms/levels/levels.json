@@ -2,21 +2,56 @@
   {
     "file": "level0.lvl",
     "id": "level0",
-    "name": "Level 1: The Lobby"
+    "name": "Level 0: The Lobby"
   },
   {
-    "file": "debug.lvl",
-    "id": "debug",
-    "name": "debug"
+    "file": "level_1_habitable_zone.lvl",
+    "id": "level_1_habitable_zone",
+    "name": "Level 1: The Habitable Zone"
   },
   {
-    "file": "level_2_habitable_zone.lvl",
-    "id": "level_2_habitable_zone",
-    "name": "Level 2: Habitable Zone"
+    "file": "level_2_pipe_dreams.lvl",
+    "id": "level_2_pipe_dreams",
+    "name": "Level 2: Pipe Dreams"
   },
   {
-    "file": "level_3_poolrooms.lvl",
-    "id": "level_3_poolrooms",
-    "name": "Level 3: The Poolrooms"
+    "file": "level_3_electrical_station.lvl",
+    "id": "level_3_electrical_station",
+    "name": "Level 3: Electrical Station"
+  },
+  {
+    "file": "level_4_abandoned_office.lvl",
+    "id": "level_4_abandoned_office",
+    "name": "Level 4: Abandoned Office"
+  },
+  {
+    "file": "level_5_terror_hotel.lvl",
+    "id": "level_5_terror_hotel",
+    "name": "Level 5: Terror Hotel"
+  },
+  {
+    "file": "level_6_lights_out.lvl",
+    "id": "level_6_lights_out",
+    "name": "Level 6: Lights Out"
+  },
+  {
+    "file": "level_7_thalassophobia.lvl",
+    "id": "level_7_thalassophobia",
+    "name": "Level 7: Thalassophobia"
+  },
+  {
+    "file": "level_8_cave_system.lvl",
+    "id": "level_8_cave_system",
+    "name": "Level 8: Cave System"
+  },
+  {
+    "file": "level_9_the_suburbs.lvl",
+    "id": "level_9_the_suburbs",
+    "name": "Level 9: The Suburbs"
+  },
+  {
+    "file": "level_10_bumper_crops.lvl",
+    "id": "level_10_bumper_crops",
+    "name": "Level 10: Bumper Crops"
   }
 ]

@@ -345,7 +345,7 @@ func _test_level(here := false) -> void:
 	save()
 	if _test_pid > 0 and OS.is_process_running(_test_pid):
 		OS.kill(_test_pid)
-	var args := ["--rendering-driver", "d3d12", "--path", GAME, "--", "--test-level=" + str(index[current].id)]
+	var args := ["--path", GAME, "--", "--test-level=" + str(index[current].id)]
 	if floor_idx != 0: args.append("--test-floor=%d" % floor_idx)
 	if here: args.append("--noclip")
 	if here and hover.x >= 1 and hover.y >= 1 and hover.x < grid_size - 1 and hover.y < grid_size - 1 and grid[hover.y][hover.x] != WALL:
@@ -412,7 +412,7 @@ func _bake(id: String) -> void:
 	if exe == "": return
 	if _bake_pid > 0 and OS.is_process_running(_bake_pid):
 		OS.kill(_bake_pid)                      # a newer save supersedes the running bake
-	var args := ["--rendering-driver", "d3d12", "--path", GAME, "--resolution", "320x180", "--position", "-4000,-4000",
+	var args := ["--path", GAME, "--resolution", "320x180", "--position", "-4000,-4000",
 		"--script", "res://tools/bake_level.gd", "--", "--bake-level=" + id]
 	_bake_pid = OS.create_process(exe, args)
 	if _bake_pid > 0:

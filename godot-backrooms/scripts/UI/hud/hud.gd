@@ -675,9 +675,9 @@ func set_paused(on: bool, start := false) -> void:
 	if on:
 		var sub := "T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY"
 		if start:
-			menu.set_text("THE BACKROOMS: NO END", sub, "CLICK TO ENTER THE LOBBY")
+			menu.set_text("THE BACKROOMS", sub, "CLICK TO ENTER THE LOBBY")
 		else:
-			menu.set_text("THE BACKROOMS: NO END", sub, "CLICK OR PRESS ESC TO RESUME")
+			menu.set_text("THE BACKROOMS", sub, "CLICK OR PRESS ESC TO RESUME")
 	else:
 		menu.release_focus_all()
 	playing_label.text = "|| PAUSE" if on else "► PLAY"

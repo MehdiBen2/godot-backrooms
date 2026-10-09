@@ -1,4 +1,4 @@
-# The Backrooms: No End
+# The Backrooms
 
 A first-person co-op horror game set in the Backrooms, built with **Godot 4.7** (Forward+, Jolt Physics).
 Walk the yellow halls with a failing torch, listen for what's walking with you, and don't look away from

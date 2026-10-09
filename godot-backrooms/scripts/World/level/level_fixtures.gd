@@ -241,14 +241,14 @@ func lamp_out(f: Dictionary) -> float:
 	return 0.0 if f.black > 0.0 else f.level * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
 
 ## A drop ceiling built tile by tile (drop_ceiling.gdshader) rather than a cell-sized picture with its panels baked
-## in (panel_ceiling.gdshader): a textures/pbr material whose .tres says "metadata/drop_ceiling" (YBR_Ceiling*)
+## in (panel_ceiling.gdshader): a textures/pbr material whose .tres says "metadata/drop_ceiling" (Ceiling_Drop*)
 func drop_ceiling() -> bool:
 	return panel_ceiling != null and bool(panel_ceiling.get_meta("drop_ceiling", false))
 
 func _long_tiles() -> bool:
 	return panel_ceiling != null and bool(panel_ceiling.get_meta("long_tiles", false))
 
-## A tiled ceiling whose light panels are blocks of its own tiles glowing (textures/pbr/Tiles107_Lit:
+## A tiled ceiling whose light panels are blocks of its own tiles glowing (textures/pbr/Tile_White_Grid_Lit:
 ## "metadata/tile_panels"; tile_panel_ceiling.gdshader): one square panel in the middle of each lit cell
 func _tile_panels() -> bool:
 	return panel_ceiling != null and bool(panel_ceiling.get_meta("tile_panels", false))

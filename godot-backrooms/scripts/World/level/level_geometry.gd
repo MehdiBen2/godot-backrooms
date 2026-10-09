@@ -33,7 +33,7 @@ var grand_wall_mat: StandardMaterial3D
 var door_leaf_mat: StandardMaterial3D
 var door_hw_mat: StandardMaterial3D
 var door_frame_mat: StandardMaterial3D
-## The level's ceiling material when it has light panels baked into it (an emission texture, e.g. BRC_A).
+## The level's ceiling material when it has light panels baked into it (an emission texture, e.g. Ceiling_Light_Panels).
 ## Then level_fixtures.gd builds the ceiling itself, one textured quad per cell with a light behind its
 ## panels, instead of the plain ceiling here plus hanging troffers.
 var panel_ceiling: StandardMaterial3D
@@ -65,9 +65,9 @@ func _make_materials() -> void:
 	if ResourceLoader.exists("res://textures/props/door/door_leaf.tres"):
 		door_leaf_mat = (load("res://textures/props/door/door_leaf.tres") as StandardMaterial3D).duplicate()
 	else:
-		door_leaf_mat = (load("res://textures/pbr/Wood029/Wood029.tres") as StandardMaterial3D).duplicate()
+		door_leaf_mat = (load("res://textures/pbr/Wood_Dark_Knot/Wood_Dark_Knot.tres") as StandardMaterial3D).duplicate()
 		door_leaf_mat.roughness = 0.75
-	door_hw_mat = (load("res://textures/pbr/Metal038/Metal038.tres") as StandardMaterial3D).duplicate()
+	door_hw_mat = (load("res://textures/pbr/Metal_Grey_Plate/Metal_Grey_Plate.tres") as StandardMaterial3D).duplicate()
 	door_hw_mat.roughness = 0.35
 	door_frame_mat = StandardMaterial3D.new()          # old painted frame and casing: a dingy warm cream, flat, no sheen
 	door_frame_mat.albedo_color = Color(0.40, 0.37, 0.29)
@@ -87,8 +87,8 @@ func _pbr_or(slot: String, _world := false) -> StandardMaterial3D:
 	return _pbr_by_id(_mat_id(slot))
 
 ## The textures/pbr folder a surface is made of: the level's pick, else the game's default (the ceiling: the
-## pool rooms' white tiles, Tiles107; the rest: the Level 0 look, "")
-const DEFAULT_MATERIALS := {"ceiling": "Tiles107"}
+## pool rooms' white tiles, Tile_White_Grid; the rest: the Level 0 look, "")
+const DEFAULT_MATERIALS := {"ceiling": "Tile_White_Grid"}
 func _mat_id(slot: String) -> String:
 	var id := str(level_data.get("materials", {}).get(slot, ""))
 	return id if id != "" else str(DEFAULT_MATERIALS.get(slot, ""))
@@ -126,7 +126,7 @@ func _pbr_by_id(id: String) -> StandardMaterial3D:
 	m.uv1_scale = Vector3(0.45, 0.45, 0.45)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if bool(m.get_meta("tile_panels", false)):
-		# a tiled ceiling with light panels (Tiles107_Lit) used anywhere but as the level's ceiling: plain tiles
+		# a tiled ceiling with light panels (Tile_White_Grid_Lit) used anywhere but as the level's ceiling: plain tiles
 		m.emission_enabled = false
 	if id.to_lower().contains("tile"):
 		# Glazed tile: the photo's roughness map is all but a mirror on the glaze, which under screen-space
@@ -136,7 +136,7 @@ func _pbr_by_id(id: String) -> StandardMaterial3D:
 		m.roughness = 0.46
 		m.metallic_specular = 0.3
 	if bool(m.get_meta("drop_ceiling", false)):
-		# a drop ceiling (YBR_Ceiling*) painted on cells: plain tiles only (its emission map is the light panels'),
+		# a drop ceiling (Ceiling_Drop*) painted on cells: plain tiles only (its emission map is the light panels'),
 		# the texture's two tiles a 1.5 m repeat, and its grid on the level's tile grid (edges half a tile off the
 		# cell centres, as drop_ceiling.gdshader lays them)
 		m.emission_enabled = false

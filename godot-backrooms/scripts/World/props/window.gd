@@ -37,7 +37,7 @@ var bounce: OmniLight3D
 var _solid: Callable
 
 const SUN_BACK := 16.0             # m behind the glass the sun light stands: far enough that its rays run (nearly) parallel
-const SUN_MAX := 0.75              # the most a window's sun may be (a ceiling lamp's pool is about 1)
+const SUN_MAX := 0.4             # the most a window's sun may be (a ceiling lamp's pool is about 1)
 const SUN_SOFT := 0.012            # how far the sun's width spreads a shadow's edge, per metre from what casts it
 
 ## `ceiling`: the ceiling height of the room it looks into (a panorama runs up to just under it). `solid`: is a
@@ -106,7 +106,7 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 	m.set_shader_parameter("horizon", sky[1])
 	m.set_shader_parameter("ground", sky[2])
 	m.set_shader_parameter("sun_color", sky[3])
-	m.set_shader_parameter("exposure", sky[5])
+	m.set_shader_parameter("exposure", float(sky[5]) * 0.75)
 	m.set_shader_parameter("sun_dir", -_sun_dir_world(o))
 	m.set_shader_parameter("clouds", 0.6 if str(o.get("sky", "noon")) == "overcast" else 0.2)
 	mi.material_override = m
@@ -201,7 +201,7 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 		sun.light_color = sky[4]
 		# a patch of sun a little brighter than the lamps' pools, never far past it: any more and the camera's bloom
 		# and lens dirt smear it into a glowing blob (the room round it is dim, and the exposure follows the room)
-		sun.light_energy = minf(power * SUN_GAIN * 0.16, SUN_MAX)
+		sun.light_energy = minf(power * SUN_GAIN * 0.09, SUN_MAX)
 		sun.spot_range = SUN_BACK + reach * 1.8 + 6.0
 		sun.spot_attenuation = 0.0                       # sunlight doesn't fade across a room
 		sun.spot_angle = clampf(rad_to_deg(atan(side * 0.5 / SUN_BACK)), 0.5, 60.0)
@@ -211,7 +211,9 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 		sun.shadow_enabled = false                       # (the wall it shines through would stop it)
 		sun.light_projector = _mask(style, w, h, panes, cos(pitch), side, reach, bool(o.get("shadows", true)))
 		sun.distance_fade_enabled = true
-		sun.distance_fade_begin = 50.0
+		# (the fade is measured from the camera to the light itself, which stands SUN_BACK behind the glass: the
+		# window's own 50 m, plus that, so the patch on the floor fades out as far from you as the other lights' do)
+		sun.distance_fade_begin = 50.0 + SUN_BACK + reach
 		sun.distance_fade_length = 12.0
 		add_child(sun)
 		# the patch on the floor lights the room back up: a soft glow off it, in the sun's colour, with no glint
@@ -222,7 +224,7 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 			bounce.name = "Bounce"
 			bounce.position = patch
 			bounce.light_color = (sky[4] as Color).lerp(Color(0.95, 0.95, 0.92), 0.3)
-			bounce.light_energy = minf(power * SUN_GAIN * 0.025 * size_k, 0.15)
+			bounce.light_energy = minf(power * SUN_GAIN * 0.012 * size_k, 0.07)
 			bounce.omni_range = 4.0 + maxf(w, h) * 1.6
 			bounce.omni_attenuation = 1.6
 			bounce.light_specular = 0.0
@@ -238,7 +240,7 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 	fill.position = mid + Vector3(0.05, 0.0, 0.0)
 	fill.basis = Basis.looking_at(Vector3(1.0, -0.35, 0.0).normalized(), Vector3.UP)
 	fill.light_color = (sky[1] as Color).lerp(sky[4], 0.4)
-	fill.light_energy = minf(power * SUN_GAIN * (0.08 if overcast else 0.03) * size_k, 0.25)
+	fill.light_energy = minf(power * SUN_GAIN * (0.04 if overcast else 0.015) * size_k, 0.12)
 	fill.spot_range = 6.0 + maxf(w, h) * 2.0
 	fill.spot_angle = 80.0
 	fill.spot_angle_attenuation = 1.6

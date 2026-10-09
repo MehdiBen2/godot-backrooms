@@ -57,7 +57,7 @@ The Kane Pixels opening. Uses the same destination as this floor's Noclip zone (
 	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
-const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (YBR_CeilingSquare, YBR_CeilingLong, BRC_A) swaps the tubes for its panels."
+const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (Ceiling_Drop_Square, Ceiling_Drop_Long, Ceiling_Light_Panels) swaps the tubes for its panels."
 var search: LineEdit
 var tool_buttons := {}
 var brush_label: Label
@@ -649,7 +649,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	g.add_child(_label("Lights", 13, UI_DIM))
 	lights_pick = OptionButton.new()
 	for l: Array in LIGHTS: lights_pick.add_item(l[1])
-	lights_pick.tooltip_text = "The ceiling's lights.\nCeiling panels: the ceiling's own light panels; a plain tiled ceiling (Tiles107, the default) gets squares of its tiles lit from behind.\nTroffers: hanging 1 x 4 fluorescent fixtures with their humming ballasts (the Level 0 look).\nNone: only what windows and the torch give"
+	lights_pick.tooltip_text = "The ceiling's lights.\nCeiling panels: the ceiling's own light panels; a plain tiled ceiling (Tile_White_Grid, the default) gets squares of its tiles lit from behind.\nTroffers: hanging 1 x 4 fluorescent fixtures with their humming ballasts (the Level 0 look).\nNone: only what windows and the torch give"
 	lights_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lights_pick.item_selected.connect(func(_i): _mark_dirty())
 	g.add_child(lights_pick)
@@ -672,7 +672,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	lvl.add_child(wrap_check)
 	lvl.add_child(HSeparator.new())
 	lvl.add_child(_heading("Materials"))
-	lvl.add_child(_note("What every cell you have not painted is made of. The ceiling's default is Tiles107."))
+	lvl.add_child(_note("What every cell you have not painted is made of. The ceiling's default is Tile_White_Grid."))
 	for slot in SLOTS:
 		var row := HBoxContainer.new()
 		lvl.add_child(row)
@@ -688,7 +688,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 		row.add_child(col)
 		col.add_child(_label(slot.capitalize() + ("  (Tiles zones)" if slot == "tiles" else ""), 12, UI_DIM))
 		var ob := OptionButton.new()
-		ob.add_item("Tiles107 (default)" if slot == "ceiling" else "Game default")
+		ob.add_item("Tile_White_Grid (default)" if slot == "ceiling" else "Game default")
 		for n in pbr_names: ob.add_item(n)
 		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ob.fit_to_longest_item = false

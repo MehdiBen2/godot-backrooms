@@ -24,7 +24,7 @@ uniform float wave_height = 0.06;                     // how steep the ripples a
 uniform float wave_scale = 1.0;
 uniform float wave_speed = 0.55;
 uniform float refraction = 0.03;
-uniform float caustic_strength = 0.45;
+uniform float caustic_strength = 0.2;                 // (the crossing threads add up to several times 1: kept well under a lamp's own light)
 uniform float reflect_strength = 1.0;
 uniform vec3 reflect_fallback : source_color = vec3(0.42, 0.45, 0.45);   // a reflection the screen can't give: the dim room
 uniform float surface_y = 0.4;                        // the surface's height in the world (water_body.gd)
@@ -99,8 +99,9 @@ void fragment() {
 	if (FRONT_FACING && side < 0.5) {
 		// added as light, and only as much as the floor already has (capped: a lamp's pool of light on the floor is
 		// not made two or three times as bright where the threads cross it, which bloomed into white blobs)
-		float c = caustics(under_world.xz + n_world.xz * 0.6, TIME);
-		under += min(under, vec3(0.6)) * c * caustic_strength * smoothstep(0.0, 0.12, below) * exp(-below * 0.35);
+		// (c is capped: where two threads cross it peaks well above 1, which is what blew the floor out to white)
+			float c = min(caustics(under_world.xz + n_world.xz * 0.6, TIME), 1.0);
+		under += min(under, vec3(0.35)) * c * caustic_strength * smoothstep(0.0, 0.12, below) * exp(-below * 0.35);
 	}
 	vec3 trans = exp(-absorb * min(path, 60.0));
 	vec3 water = under * trans + scatter_color * scatter_amount * amb * (1.0 - trans);

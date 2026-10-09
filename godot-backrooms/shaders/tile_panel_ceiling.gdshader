@@ -1,6 +1,6 @@
 shader_type spatial;
 // A tiled ceiling with its light panels set in among the tiles: the pool rooms' white tiles (textures/pbr/
-// Tiles107_Lit, a ceiling material with "metadata/tile_panels"). Built like the other panel ceilings by
+// Tile_White_Grid_Lit, a ceiling material with "metadata/tile_panels"). Built like the other panel ceilings by
 // level_fixtures.gd _build_panel_ceiling, one quad a cell from a MultiMesh whose instance colour is that cell's
 // glow (black where the cell isn't one of the lit ones, or its panel is burnt out, or the power is cut), so
 // flicker and power cuts reach the panel exactly as they reach the light hidden behind it.
@@ -15,7 +15,7 @@ uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, r
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rough_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float tile_repeat = 2.25;        // metres one repeat of the texture covers
-uniform float tiles_across = 8.0;        // tiles in one repeat of it (Tiles107: 8 x 8)
+uniform float tiles_across = 8.0;        // tiles in one repeat of it (Tile_White_Grid: 8 x 8)
 uniform float panel_tiles = 4.0;         // a panel is this many tiles square
 uniform float cell = 4.5;                // level_data.gd CELL
 uniform float ao_light_affect = 0.2;

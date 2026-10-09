@@ -28,7 +28,7 @@ const TRIGGER_DEPTH := 0.8   # this far in front of the doorway, and within its 
 const SLAB_T := 0.3
 const SLAB_W := 4.5          # a cell (level_data.gd CELL)
 const TEX := "res://textures/props/exit/"
-const BAR_MAT := "res://textures/pbr/Metal038/Metal038.tres"
+const BAR_MAT := "res://textures/pbr/Metal_Grey_Plate/Metal_Grey_Plate.tres"
 const SIGN_GREEN := Color(0.04, 0.5, 0.22)      # a sign whose texture is missing
 
 var backing: Material        # set before _ready: the wall material of a slab to stand in (null: there is a wall)

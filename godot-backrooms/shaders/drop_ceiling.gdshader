@@ -1,6 +1,6 @@
 shader_type spatial;
 // A real suspended (drop) ceiling, built tile by tile: Yasu's Backrooms Material Pack (CC BY 4.0, @mvyasu), the
-// textures/pbr/YBR_Ceiling* materials. One quad per level cell, drawn from a MultiMesh (level_fixtures.gd,
+// textures/pbr/Ceiling_Drop* materials. One quad per level cell, drawn from a MultiMesh (level_fixtures.gd,
 // _build_panel_ceiling), like panel_ceiling.gdshader, but nothing is baked into a cell-sized picture:
 //   - every tile picks one of the pack's tiles (2 x 2 square ones, or 2 x 4 long ones) at random, mirrored at
 //     random, and ages on its own: a shade of its own, some yellowed, a few newer and whiter (replaced), a few
