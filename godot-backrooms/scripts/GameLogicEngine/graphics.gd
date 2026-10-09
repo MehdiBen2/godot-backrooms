@@ -1,7 +1,8 @@
 extends Node
 ## Graphics settings (autoload: Gfx). Four presets plus per-option overrides, saved to
-## user://graphics.cfg and applied at startup. The first launch picks a preset from the GPU:
-## integrated / unknown -> Low or Medium, discrete -> High. Ultra adds the extras (4x MSAA,
+## user://graphics.cfg and applied at startup. The first launch picks a preset from the GPU (_auto_preset):
+## integrated / software -> Low (tuned further to the screen size), a recent discrete card -> High, any other
+## discrete card -> Medium; stability.gd then lowers it after every crash. Ultra adds the extras (4x MSAA,
 ## global illumination, full-size AO, high-res volumetric fog, 8K shadows, 16x filtering).
 ##
 ## The biggest costs in this game are the tube lights around you (level_light_pool.gd keeps a pool of
@@ -365,17 +366,58 @@ func _matching_preset() -> String:
 			return n
 	return "custom"
 
+## First launch only (no graphics.cfg yet): integrated, software or virtual GPUs get Low; a recent discrete card
+## (NVIDIA RTX 2000+, AMD RX 6000+) gets High; anything else gets Medium. Stability.gd still steps the preset
+## down after a crash, so a wrong guess here costs one restart at most.
 func _auto_preset() -> String:
-	if compat:
+	if _weak_gpu():
 		return "low"
+	return "high" if _is_recent_discrete(RenderingServer.get_video_adapter_name()) else "medium"
+
+## No dedicated graphics card: the OpenGL fallback, an integrated GPU (Intel UHD / Iris, AMD Vega in a Ryzen), a
+## virtual machine or a software renderer.
+func _weak_gpu() -> bool:
+	if compat:
+		return true
 	match RenderingServer.get_video_adapter_type():
-		RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU: return "low"
-	return "medium"
+		RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU, RenderingDevice.DEVICE_TYPE_VIRTUAL_GPU, RenderingDevice.DEVICE_TYPE_CPU:
+			return true
+	return false
+
+## First launch on a weak GPU: Low is not enough by itself, since an integrated GPU shares system memory and its
+## cost grows with the number of pixels. Fewer lit tubes, and a render size that follows the screen (a 1440p / 4K
+## display would otherwise be 3-4x the pixels of a 1080p one at the same 60%).
+func _tune_for_weak_gpu() -> void:
+	if not _weak_gpu():
+		return
+	var size := DisplayServer.screen_get_size()
+	var pixels := size.x * size.y
+	if pixels > 3500000:
+		s["scale"] = 50
+	elif pixels > 2200000:
+		s["scale"] = 55
+	elif pixels < 1300000:
+		s["scale"] = 75               # (1366x768 laptops: already few pixels, and FSR on top of them is mush)
+	s["lights"] = 4
+	s["far_lights"] = 6
+	_save()
+
+## Model-number check on the adapter name ("NVIDIA GeForce RTX 4070", "AMD Radeon RX 7800 XT"). Unknown names fail it.
+static func _is_recent_discrete(gpu_name: String) -> bool:
+	var g := gpu_name.to_upper()
+	var nv := RegEx.create_from_string("RTX\\s*(\\d{4})").search(g)
+	if nv != null:
+		return int(nv.get_string(1)) >= 2000       # RTX 20-series and newer
+	var amd := RegEx.create_from_string("RX\\s*(\\d{4})").search(g)
+	if amd != null:
+		return int(amd.get_string(1)) >= 6000      # RX 6000-series and newer
+	return false
 
 func _load() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(PATH) != OK:
 		set_preset_silent(_auto_preset())
+		_tune_for_weak_gpu()
 		return
 	preset = str(cf.get_value("gfx", "preset", _auto_preset()))
 	s = PRESETS.get(preset, PRESETS["high"]).duplicate()

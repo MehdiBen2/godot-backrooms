@@ -4,8 +4,8 @@ extends Node
 ## hang that was killed, a crash). Two things then happen:
 ##
 ## 1. The game backs off by itself instead of going straight back into what killed it:
-##      1st unclean exit in a row: the Ultra preset drops to High (fewer shadow-casting lights, no live GI)
-##      2nd:                       Medium, and on Direct3D 12 the game restarts itself once on Vulkan
+##      every unclean exit:        the preset drops one step (Ultra -> High -> Medium -> Low)
+##      2nd in a row:              Medium at most, and on Direct3D 12 the game restarts itself once on Vulkan
 ##    A clean exit resets the count. Level-editor test runs are killed by the editor when it relaunches one, so
 ##    a missing clean exit there is only trusted once the run had lasted a while (MIN_RUN).
 ##
@@ -63,14 +63,14 @@ func _last_run_counts() -> bool:
 # ---- back off ----------------------------------------------------------------------------------------
 func _back_off() -> void:
 	push_warning("Stability: the last run did not exit cleanly (%d in a row), backing off" % crashes)
+	var lower := {"ultra": "high", "high": "medium", "medium": "low"}
+	if lower.has(Gfx.preset):
+		Gfx.set_preset(lower[Gfx.preset])
 	if crashes >= 2:
 		if Gfx.preset != "medium" and Gfx.preset != "low":
 			Gfx.set_preset("medium")
-		safe_mode = "medium"
 		_relaunch_on_vulkan()
-	elif Gfx.preset == "ultra":
-		Gfx.set_preset("high")
-		safe_mode = "high"
+	safe_mode = Gfx.preset
 
 ## Direct3D 12 died twice running: the same game on Vulkan, once (the argument stops a restart loop)
 func _relaunch_on_vulkan() -> void:
