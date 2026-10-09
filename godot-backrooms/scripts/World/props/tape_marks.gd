@@ -34,6 +34,7 @@ var level_id := ""
 
 var meshes := {}                     # id -> MeshInstance3D
 var order: Array = []                # ids, oldest first
+var _check_idx := 0
 
 func _ready() -> void:
 	live = self
@@ -46,6 +47,20 @@ func reload_floor() -> void:
 	meshes.clear()
 	order.clear()
 	_load()
+
+func _physics_process(_dt: float) -> void:
+	var list: Array = placed.get(MarkStore.key(), [])
+	if list.is_empty() or not is_inside_tree():
+		return
+	_check_idx = (_check_idx + 1) % list.size()
+	var s: Dictionary = list[_check_idx]
+	var space := get_world_3d().direct_space_state
+	var a: Vector3 = s.a
+	var b: Vector3 = s.b
+	var n: Vector3 = s.n
+	var pts := [a.lerp(b, 0.2), a.lerp(b, 0.5), a.lerp(b, 0.8)]
+	if MarkStore.on_surface(space, pts, n) <= 0.0:
+		remove(s.id)
 
 ## Read this floor's saved strips into `placed` (once a run), moved by however far the level editor has
 ## shifted the cells since they were saved (mark_store.gd), draw them, and put any whose wall has moved or
@@ -76,6 +91,7 @@ func _settle_all(lv: int) -> void:
 		return
 	var space := get_world_3d().direct_space_state
 	var changed := false
+	var to_delete := []
 	for s in placed.get(lv, []):
 		var a: Vector3 = s.a
 		var b: Vector3 = s.b
@@ -83,7 +99,10 @@ func _settle_all(lv: int) -> void:
 		for i in 9:
 			probe.append(a.lerp(b, i / 8.0))
 		var at := MarkStore.settle(space, probe, s.n)
-		if at.is_empty() or not at.moved:
+		if at.is_empty():
+			to_delete.append(s.id)
+			continue
+		if not at.moved:
 			continue
 		s.a = at.pts[0]
 		s.b = at.pts[-1]
@@ -92,6 +111,9 @@ func _settle_all(lv: int) -> void:
 		var mi: MeshInstance3D = meshes.get(s.id)
 		if mi != null:
 			strip_mesh((s.a as Vector3) - global_position, (s.b as Vector3) - global_position, s.n, mi.get_meta("lift"), mi.mesh as ArrayMesh)
+	for id in to_delete:
+		remove(id)
+		changed = true
 	if changed:
 		save()
 

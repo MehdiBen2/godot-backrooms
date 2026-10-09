@@ -4,7 +4,7 @@ extends RefCounted
 ## relieved. Pre-rendered breath clips are picked by length / mouth / shake and played on "Body".
 ## `loudness` is read back by the hum, which ducks while you are breathing hard.
 
-const BREATH_VOLUME := 0.25          # AUDIO.breathVolume (reduced from 0.75 for less intrusive breathing)
+const BREATH_VOLUME := 0.12          # AUDIO.breathVolume (reduced from 0.25 for less intrusive breathing)
 const CALM_BREATH := 0.0             # AUDIO.calmBreathVolume
 const BREATH_DURS := [0.22, 0.34, 0.5, 0.7, 0.9, 1.3, 1.6]
 const BREATH_MOUTH := [0.0, 0.6, 1.0]

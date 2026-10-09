@@ -10,13 +10,13 @@ extends RefCounted
 
 const VARIANTS := [
 	{"height": 1.0, "side": 1.0, "roll": 1.0, "nod": 1.0, "pace": 1.0},      # steady
-	{"height": 1.3, "side": 0.8, "roll": 0.9, "nod": 1.2, "pace": 1.05},     # chest-high, bouncy
+	{"height": 1.15, "side": 0.8, "roll": 0.9, "nod": 1.2, "pace": 1.05},     # chest-high, bouncy
 	{"height": 0.85, "side": 1.4, "roll": 1.5, "nod": 0.7, "pace": 0.95},    # shoulder-held, rocks side to side
 	{"height": 1.1, "side": 0.9, "roll": 0.6, "nod": 1.4, "pace": 1.1},      # quick, nodding
 	{"height": 0.7, "side": 0.6, "roll": 0.5, "nod": 0.6, "pace": 0.9},      # tired, low and steady
 ]
 const KEYS := ["height", "side", "roll", "nod", "pace"]
-const JITTER := {"height": 0.12, "side": 0.1, "roll": 0.12, "nod": 0.1, "pace": 0.03}   # +- per footfall
+const JITTER := {"height": 0.12, "side": 0.16, "roll": 0.15, "nod": 0.12, "pace": 0.04}   # +- per footfall
 const HOLD_MIN := 14.0            # s a carry style lasts, at least...
 const HOLD_MAX := 40.0            # ...and at most
 const BLEND := 2.5                # s to ease into a new style

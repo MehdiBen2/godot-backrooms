@@ -97,7 +97,7 @@ func _cast(from: Vector2, d: Vector2) -> float:
 	while t < REACH:
 		var at := from + d * t
 		var c := Vector2i(roundi(at.x / cell), roundi(at.y / cell))
-		if level.walls.has(c) and not level.carved.has(c): return t
+		if (level.walls.has(c) or level.crawl.has(c)) and not level.carved.has(c): return t
 		var near: Array = _segs.get(c, [])
 		for s: Array in near:
 			if Geometry2D.segment_intersects_segment(last / cell, at / cell, s[0], s[1]) != null: return t

@@ -683,6 +683,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 			if not step_triggered:
 				footsteps.step(false, crouch, 0.5)   # trailing foot comes down softly
 				handheld.step(0.5, false)
+				land_dip += 0.0015 * head_bob       # and the head settles with it
 		handheld.settle()
 	else:
 		was_stepping = true
@@ -700,6 +701,8 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 			footsteps.step(sprint, crouch, 1.0, clampf((gait_k - 1.0) / (SPRINT_MULT - 1.0), 0.0, 1.0))
 			handheld.step(0.6 if crouch else 1.0, sprint)
 			gait_cam.step()
+			# the heel hits the floor: a quick jolt down through the head, springing back up
+			land_dip += (0.006 if sprint else 0.003) * gait_cam.mult("height") * head_bob
 			if stair_vy < -0.3:
 				land_dip += 0.014 * stair_w       # stepping down a flight: each foot drops onto the tread below
 		step_triggered = fposmod(bob, PI) < PI * 0.5
@@ -713,17 +716,17 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# a nod forward as the foot lands.
 	var gait := head_bob * bob_w
 	var rise := absf(sin(bob))                              # 0 at a footfall, 1 mid-stride
-	var vert := 0.09 if sprint else (0.034 if crouch else 0.05)
+	var vert := 0.06 if sprint else (0.022 if crouch else 0.036)
 	var side := sin(bob * 0.5)
-	var bob_side := side * (0.04 if sprint else (0.016 if crouch else 0.026)) * gait * gait_cam.mult("side")
-	var bob_roll := side * (0.014 if sprint else (0.005 if crouch else 0.007)) * gait * gait_cam.mult("roll")
+	var bob_side := side * (0.04 if sprint else (0.016 if crouch else 0.03)) * gait * gait_cam.mult("side")
+	var bob_roll := side * (0.013 if sprint else (0.005 if crouch else 0.008)) * gait * gait_cam.mult("roll")
 	# squeezed through a slit: short, slow, heavy steps, the shoulders working side to side more than the head lifts
 	vert *= lerpf(1.0, 0.45, tight_k) * lerpf(1.0, 0.7, crawl_k)
 	bob_side *= lerpf(1.0, 2.2, tight_k) * lerpf(1.0, 1.6, crawl_k)       # crawling the body rocks over each hand in turn
 	bob_roll *= lerpf(1.0, 2.6, tight_k) * lerpf(1.0, 1.8, crawl_k)
 	var bob_nod := (rise - 0.5) * (0.016 if sprint else (0.005 if crouch else 0.008)) * gait * gait_cam.mult("nod")
 	# the head also rocks forward a touch as each foot lands, and back as it rises: the way a body moves
-	var bob_fwd := (0.5 - rise) * 0.008 * gait * gait_cam.mult("nod")
+	var bob_fwd := (0.5 - rise) * 0.004 * gait * gait_cam.mult("nod")
 	y += (rise - 0.64) * vert * bob_amp * gait * gait_cam.mult("height")
 	# Stairs: the flight's walking surface is a smooth slope, but legs take it a tread at a time. Climbing,
 	# the head goes up early in each stride as the leg pushes onto the next step, then levels; going down
