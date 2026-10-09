@@ -15,24 +15,23 @@ extends RefCounted
 ## tonemap_white (the camera's metering), glow_* (bloom), ssao_intensity, and haze (what the distance fades to).
 
 const LOOKS := {
-	# The classic Level 0 look: strong even fill so nothing is truly in shadow, yellow walls under neutral-white
-	# panels, clear air with only a little depth falloff, and very little contact shadow: the place looks too clean
-	# and too evenly lit, which is what makes it uncanny.
+	# THE CLASSIC OFFICE, rebuilt from scratch: a real office under recessed fluorescent panels. What makes it read as
+	# a photograph rather than a render:
+	#   - the panels are the only real light sources; they are HDR (well above 1.0), so they bloom: a tight halo
+	#     round each diffuser, wider out, rather than a veil over the room;
+	#   - the room is lit by its own bounce (grid_gi.gd): near the panels the walls and floor are bright, between
+	#     them and down the halls it falls off, so there are pools of light and darker gaps;
+	#   - the ambient fill is low, so shadows stay shadows;
+	#   - exposed to keep the walls and carpet in their own colour; only the panels clip to white;
+	#   - the far end of a hall fades into the dim, slightly warm air of the room, not into a yellow haze.
 	"classic": {
-		# (2026-10 "clean office" pass, after a reference still: a well-kept office lit evenly by recessed panels, filmed
-		# on a clean digital camera. Exposed right, not blown out: only the panels themselves clip. The yellow is in the
-		# walls, not the light: a near-neutral warm fill, so the ceiling stays a pale grey-beige and the carpet beige.)
-		# the even fill is the base of it: the grid GI (grid_gi.gd) lifts it near the lamps and lets it fall away
-		# between them and down a long hall, so the place isn't one flat level everywhere
-		"ambient_energy": 0.7, "ambient_color": Color(0.42, 0.39, 0.27),
-		"gi": 0.45, "gi_tint": Color(1.0, 0.86, 0.55),  # how much bounce, and its colour: off yellow walls and beige carpet
-		"exposure": 1.02, "tonemap_white": 4.5,       # mid-tones sit in the middle; highlights roll off late and softly
-		"glow_threshold": 1.0,                        # the panels bloom; the walls right under them only just
-		# a real soft halo round every lit panel, as a camera sees an LED panel, without fogging the whole frame
-		"glow_intensity": 1.05, "glow_bloom": 0.04, "glow_wide": 0.38,
-		"ssao_intensity": 1.4,                        # the soft darkening where the walls meet the ceiling and in corners
-		# the far end of a long hall goes a touch darker and flatter, not paler: depth without fog
-		"haze": Color(0.36, 0.33, 0.2),
+		"ambient_energy": 0.32, "ambient_color": Color(0.4, 0.37, 0.27),   # a low, warm bounce floor: gaps stay dim
+		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7),                        # the bounce's strength and tint (yellow walls, beige carpet)
+		"exposure": 1.0, "tonemap_white": 2.0,                             # ACES: mid-tones in the middle, highlights roll off
+		"glow_threshold": 1.0,                                             # only the HDR panels bloom
+		"glow_intensity": 0.75, "glow_bloom": 0.1, "glow_wide": 0.45,      # a soft halo round each panel, wider with distance
+		"ssao_intensity": 1.2,                                             # contact darkening where walls meet the ceiling and in corners
+		"haze": Color(0.3, 0.28, 0.2),                                     # the far halls fade into dim room air
 	},
 	# It sits under "classic": the base look blends toward it first (liminal_mix), and a Classic / Bright zone
 	# takes over from there.
