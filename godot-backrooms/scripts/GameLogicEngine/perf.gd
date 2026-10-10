@@ -169,7 +169,8 @@ func _report() -> String:
 	lines.append("entities:")
 	for e in EntityLOD.entities:
 		if is_instance_valid(e):
-			lines.append("  %-10s %-11s %5.0f m" % [e.name, EntityLOD.tier_name(e), EntityLOD.distance_of(e)])
+			var tier := EntityLOD.tier_name(e) if e.is_visible_in_tree() or not EntityLOD.is_spawned(e) else "hidden"
+			lines.append("  %-10s %-11s %5.0f m" % [e.name, tier, EntityLOD.distance_of(e)])
 	return "\n".join(lines)
 
 # ---- benchmark --------------------------------------------------------------------------------------------
@@ -207,6 +208,12 @@ func _bench_step(dt: float) -> void:
 			p.velocity = Vector3.ZERO
 	var was := _bench_t
 	_bench_t += dt
+	if was <= BENCH_SETTLE and _bench_t > BENCH_SETTLE:
+		var tiers: PackedStringArray = []
+		for e in EntityLOD.entities:
+			if is_instance_valid(e):
+				tiers.append("%s=%s@%.0fm" % [e.name, EntityLOD.tier_name(e) if e.is_visible_in_tree() or not EntityLOD.is_spawned(e) else "hidden", EntityLOD.distance_of(e)])
+		print("BENCH_SPOT %d  %s" % [_bench_spot, "  ".join(tiers)])
 	# --bench-shots=<tag>: a picture at each spot as measuring starts (user://bench_<tag>_<spot>.png), to compare looks
 	if was <= BENCH_SETTLE and _bench_t > BENCH_SETTLE:
 		for a in OS.get_cmdline_user_args():

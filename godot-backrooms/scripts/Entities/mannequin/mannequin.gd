@@ -140,6 +140,14 @@ func _ready() -> void:
 	model.load_variant(self, rng)     # optional: crowd looks fine without it, just less varied
 	ready_ok = true
 	reset()
+	EntityLOD.register(self)
+
+## EntityLOD measures it from the real one, not the node (which stays at the room's origin)
+func lod_position() -> Vector3:
+	return real_node.global_position if real_node != null else global_position
+
+func lod_engaged() -> bool:
+	return awake or snap.active
 
 # ================================================================= room
 ## The room's cells: the level's painted Mannequin zone (level editor), else the fixed ROOM rectangle
@@ -579,6 +587,9 @@ func _physics_process_timed(delta: float) -> void:
 		return
 	if snap.active:
 		snap.update(delta)
+		return
+	# far from its room and nothing has woken it (EntityLOD ASLEEP): nothing to do until you come near
+	if not online and not awake and EntityLOD.tier(self) == EntityLOD.ASLEEP:
 		return
 	if puppet:
 		_puppet_step(delta)

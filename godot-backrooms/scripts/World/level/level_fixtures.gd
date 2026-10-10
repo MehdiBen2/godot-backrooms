@@ -502,24 +502,26 @@ func _build_vents() -> void:
 		var k := VENT_SIZE / maxf(box.size.x, box.size.z)
 		var top := box.end.y * k + 0.004
 		var mid := box.get_center() * k
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = mesh
-		mm.instance_count = where.size()
-		var buf := MMBuffer.alloc(mm)
-		var st := MMBuffer.stride(mm)
-		for i in where.size():
-			var p: Vector3 = where[i]
-			var turn := float(posmod(int(p.x * 7.0 + p.z * 13.0), 4)) * PI * 0.5    # grilles face either way
-			var b := Basis(Vector3.UP, turn).scaled(Vector3.ONE * k)
-			MMBuffer.put(buf, i * st, Transform3D(b, p - Vector3(0.0, top, 0.0) - Basis(Vector3.UP, turn) * Vector3(mid.x, 0.0, mid.z)))
-		mm.buffer = buf
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = s[2]
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		mmi.layers = CEIL_LAYER        # lit like the ceiling round it (level_light_pool.gd ceil_glow)
-		add_child(mmi)
+		var vent_mat: Material = s[2]
+		_chunked(where, func(p: Vector3) -> Vector3: return p, "", func(list: Array) -> MultiMeshInstance3D:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = mesh
+			mm.instance_count = list.size()
+			var buf := MMBuffer.alloc(mm)
+			var st := MMBuffer.stride(mm)
+			for i in list.size():
+				var p: Vector3 = list[i]
+				var turn := float(posmod(int(p.x * 7.0 + p.z * 13.0), 4)) * PI * 0.5    # grilles face either way
+				var b := Basis(Vector3.UP, turn).scaled(Vector3.ONE * k)
+				MMBuffer.put(buf, i * st, Transform3D(b, p - Vector3(0.0, top, 0.0) - Basis(Vector3.UP, turn) * Vector3(mid.x, 0.0, mid.z)))
+			mm.buffer = buf
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = vent_mat
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.layers = CEIL_LAYER        # lit like the ceiling round it (level_light_pool.gd ceil_glow)
+			return mmi)
 
 ## A shader written out in code, compiled once: a floor rebuilt in place (level_builder.gd) reuses it
 static var _coded := {}
@@ -614,26 +616,27 @@ func _build_chains() -> void:
 	# Chains for fixtures hanging under the atrium ceiling
 	var hanging: Array = fx.filter(func(f): return ceiling_height(cell_of(f.pos)) > WALL_H)
 	if not hanging.is_empty():
-		var cm := MultiMesh.new()
-		cm.transform_format = MultiMesh.TRANSFORM_3D
 		var cyl := CylinderMesh.new()
 		cyl.top_radius = 0.02; cyl.bottom_radius = 0.02; cyl.height = 1.0; cyl.radial_segments = 5
-		cm.mesh = cyl
-		cm.instance_count = hanging.size()
-		var cbuf := MMBuffer.alloc(cm)
-		var cst := MMBuffer.stride(cm)
-		for i in hanging.size():
-			var f: Dictionary = hanging[i]
-			var rise := ceiling_height(cell_of(f.pos)) - WALL_H         # (a grand hall's chains are longer)
-			MMBuffer.put(cbuf, i * cst, Transform3D(Basis.from_scale(Vector3(1, rise, 1)), Vector3(f.pos.x, WALL_H + rise / 2.0, f.pos.z)))
-		cm.buffer = cbuf
 		var chain_mat := StandardMaterial3D.new()
 		chain_mat.albedo_color = Color("14120c")
 		chain_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		var cmi := MultiMeshInstance3D.new()
-		cmi.multimesh = cm
-		cmi.material_override = chain_mat
-		add_child(cmi)
+		_chunked(hanging, func(f: Dictionary) -> Vector3: return f.pos, "", func(list: Array) -> MultiMeshInstance3D:
+			var cm := MultiMesh.new()
+			cm.transform_format = MultiMesh.TRANSFORM_3D
+			cm.mesh = cyl
+			cm.instance_count = list.size()
+			var cbuf := MMBuffer.alloc(cm)
+			var cst := MMBuffer.stride(cm)
+			for i in list.size():
+				var f: Dictionary = list[i]
+				var rise := ceiling_height(cell_of(f.pos)) - WALL_H         # (a grand hall's chains are longer)
+				MMBuffer.put(cbuf, i * cst, Transform3D(Basis.from_scale(Vector3(1, rise, 1)), Vector3(f.pos.x, WALL_H + rise / 2.0, f.pos.z)))
+			cm.buffer = cbuf
+			var cmi := MultiMeshInstance3D.new()
+			cmi.multimesh = cm
+			cmi.material_override = chain_mat
+			return cmi)
 
 
 ## The "Fluorescent (new model)" fixture: the weathered twin-tube fitting, once per fixture, lying flat with its top on the

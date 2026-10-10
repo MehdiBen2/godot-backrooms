@@ -119,7 +119,23 @@ func _ready() -> void:
 	net = BurntNet.new(self)
 	_pl = player
 	_lv = level
-	_mark_pending = not EntityMarks.of_kind(level, "burnt").is_empty()
+	var marks := EntityMarks.of_kind(level, "burnt")
+	_mark_pending = not marks.is_empty()
+	# placed with a mark: EntityLOD stands it there when you come within MARK_SPAWN_DIST of it, or after MARK_ARRIVE_AFTER s
+	# (it stalks you from wherever it is, slowly: it does not need to start close)
+	EntityLOD.register(self, {} if marks.is_empty() else {"mark": EntityMarks.world_pos(marks[0]), "spawn_dist": MARK_SPAWN_DIST, "arrive_after": MARK_ARRIVE_AFTER})
+
+const MARK_SPAWN_DIST := 60.0
+const MARK_ARRIVE_AFTER := 240.0
+
+func lod_spawned() -> bool:
+	return present
+
+func lod_engaged() -> bool:
+	return state != "stalk" and state != "off"
+
+func lod_spawn(_at_mark: bool) -> void:
+	pass                                 # (_physics_process stands it on its mark once EntityLOD has said so)
 
 ## A Burnt mark in the level editor: it stands there from the start of the level. Placed to roam it stalks you
 ## at once; placed to lurk it stays put, motionless, until you come within LURK_WAKE of it.
@@ -164,7 +180,7 @@ func _physics_process_timed(delta: float) -> void:
 		return
 	_rush_fx(delta)
 	if Net.is_online(): net.send(delta)
-	if _mark_pending and Game.playing and not Game.dead and player != null:
+	if _mark_pending and Game.playing and not Game.dead and player != null and EntityLOD.is_spawned(self):
 		_mark_pending = false
 		_spawn_from_mark()
 	if not present or player == null: return
@@ -436,6 +452,11 @@ func _process(delta: float) -> void:
 
 func _process_timed(delta: float) -> void:
 	if not present or body == null: return
+	# far off and only stalking (EntityLOD ASLEEP): not drawn and not posed; it still walks (_physics_process)
+	var asleep := EntityLOD.tier(self) == EntityLOD.ASLEEP
+	if body.visible == asleep:
+		body.visible = not asleep
+	if asleep: return
 	# the gait: a slow, heavy sway as it walks, leaning into it
 	_gait += delta * 3.2 * _walk
 	var charging := state == "charge"

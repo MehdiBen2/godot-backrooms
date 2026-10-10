@@ -50,6 +50,7 @@ var spawns := 0
 var _mark_pending := false         # the level has an Eyes mark it has yet to open at
 
 func _ready() -> void:
+	EntityLOD.register(self)          # (comes to you by design: listed in the F12 overlay only)
 	rng.randomize()
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")

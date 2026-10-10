@@ -63,6 +63,10 @@ func _ready() -> void:
 	net = BacteriaNet.new(self)
 	set_goal(global_position.x, global_position.z)
 	pick_spot(3, 18)
+	# not out yet: EntityLOD brings it in when you come near its mark, or after a while (lod_spawn)
+	EntityLOD.register(self, {"mark": global_position, "spawn_dist": SPAWN_DIST, "arrive_after": ARRIVE_AFTER})
+	if not EntityLOD.is_spawned(self):
+		visible = false
 
 # ================================================================= model
 # The body and its procedural animation live in bacteria_rig.gd; its footfalls come back here as sound
@@ -434,6 +438,8 @@ func _physics_process_timed(delta: float) -> void:
 	# in co-op it keeps hunting even while this player has the menu open: the others are still in the game
 	if not Game.playing and not online:
 		return
+	if not visible and not online:
+		return                            # not out yet (lod_spawn) or despawned
 	if online and not puppet:
 		net.send(delta)
 	if puppet:
@@ -447,7 +453,7 @@ func _physics_process_timed(delta: float) -> void:
 		relocate()
 		vel = Vector3.ZERO
 	gather_target()
-	if _dormant_step(delta, online):
+	if _lod_step(delta):
 		return
 	if stun_timer > 0.0:
 		stun_timer -= delta
@@ -468,30 +474,68 @@ func _physics_process_timed(delta: float) -> void:
 	enraged = maxf(0.0, enraged - delta)
 	think_timer -= delta
 	if think_timer <= 0.0:
-		var dt := 0.1 - think_timer
-		think_timer = 0.1
+		var every := 0.25 if EntityLOD.tier(self) == EntityLOD.SLOW else 0.1
+		var dt := every - think_timer
+		think_timer = every
 		think(dt)
 	move(delta)
 	rotation.y = yaw
-	rig.animate(delta, speed_now, state)
+	_animate_lod(delta)
 	_present(delta)
 
-# Far from you and only wandering, it goes dormant: the body is hidden and not posed, the voice and the sound
-# occlusion rays stop, and it thinks once a second instead of ten times. It still walks its route, so it is
-# somewhere believable when you get near. Wakes inside WAKE_DIST (SLEEP_DIST out, so it doesn't flicker on the edge).
-const SLEEP_DIST := 70.0
-const WAKE_DIST := 58.0
+# ---------------------------------------------------------------- level of detail (EntityLOD)
+# It isn't out at the start of the level: it arrives when you come within SPAWN_DIST of its mark (and does what
+# the mark says, roam or lurk), or after ARRIVE_AFTER seconds of play somewhere out of your sight (_arrive_unseen).
+# Out, it is simulated by how far you are: FULL close, SLOW in the middle distance (thinks a few times a second,
+# its body posed every other frame), ASLEEP far off while only wandering (body hidden, voice off, thinks once a
+# second, still walks its route so it is somewhere believable when you come near).
+const SPAWN_DIST := 60.0
+const ARRIVE_AFTER := 150.0
+const ARRIVE_NEAR := 45.0             # m from you, out of your sight, when it arrives on its own
+const ARRIVE_FAR := 70.0
 var dormant := false
 var _dormant_think := 0.0
+var _anim_acc := 0.0
+var _anim_odd := false
 
-func _dormant_step(delta: float, online: bool) -> bool:
-	var d := INF if tgt.dead else global_position.distance_to(tgt.pos)
-	var idle := state == "roam" or state == "lurk"
-	var want := not online and idle and stun_timer <= 0.0 and d > (WAKE_DIST if dormant else SLEEP_DIST)
-	if want != dormant:
-		dormant = want
-		rig.visible = not want
-		if want:
+func lod_spawned() -> bool:
+	return visible
+
+func lod_engaged() -> bool:
+	return not (state == "roam" or state == "lurk") or stun_timer > 0.0 or grab.active()
+
+func lod_spawn(at_mark: bool) -> void:
+	visible = true
+	if at_mark or not _arrive_unseen():
+		relocate()                        # onto its mark, with the mark's behavior (roam / lurk)
+
+## Somewhere ARRIVE_NEAR..ARRIVE_FAR from you that you can't see, on open floor; false when there is none
+func _arrive_unseen() -> bool:
+	var pp: Vector3 = player.global_position
+	for i in 48:
+		var a := rng.randf() * TAU
+		var r := rng.randf_range(ARRIVE_NEAR, ARRIVE_FAR)
+		var x := roundf((pp.x + cos(a) * r) / CELL) * CELL
+		var z := roundf((pp.z + sin(a) * r) / CELL) * CELL
+		if not nav.open_at(x, z) or nav.clear_line(pp.x, pp.z, x, z):
+			continue
+		global_position = Vector3(x, 0.0, z)
+		vel = Vector3.ZERO
+		goal_key = -1
+		awareness = 0.0
+		lurk_waiting = false
+		set_state("roam")
+		pick_spot(3, 18)
+		return true
+	return false
+
+## The tier's share of the frame: true when the step is done (asleep), false to run the full one
+func _lod_step(delta: float) -> bool:
+	var asleep := EntityLOD.tier(self) == EntityLOD.ASLEEP
+	if asleep != dormant:
+		dormant = asleep
+		rig.visible = not asleep
+		if asleep:
 			scares.entity_breathe(0.0)
 	if not dormant:
 		return false
@@ -503,6 +547,15 @@ func _dormant_step(delta: float, online: bool) -> bool:
 	rotation.y = yaw
 	update_fear(delta)
 	return true
+
+## The body's pose, every frame up close, every other frame in the middle distance (with both frames' time)
+func _animate_lod(delta: float) -> void:
+	_anim_acc += delta
+	_anim_odd = not _anim_odd
+	if EntityLOD.tier(self) == EntityLOD.SLOW and _anim_odd:
+		return
+	rig.animate(_anim_acc, speed_now, state)
+	_anim_acc = 0.0
 
 # Everything each machine plays for itself: the voice, the breath, the tubes, your fear
 func _present(delta: float) -> void:
@@ -636,6 +689,7 @@ func relocate() -> void:
 	pick_spot(3, 18)
 
 func summon(x: float, z: float, tx: float, tz: float) -> void:
+	visible = true                        # (out now, whether or not EntityLOD had brought it in yet)
 	global_position = Vector3(x, 0.0, z)
 	vel = Vector3.ZERO
 	stun_timer = 0.0
@@ -772,7 +826,7 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:
-	return process_mode != Node.PROCESS_MODE_DISABLED
+	return process_mode != Node.PROCESS_MODE_DISABLED and visible      # (hidden: not out yet, EntityLOD)
 
 func debug_despawn() -> void:
 	process_mode = Node.PROCESS_MODE_DISABLED

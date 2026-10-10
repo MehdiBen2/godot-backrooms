@@ -119,6 +119,7 @@ var _creak := 4.0
 var _disturb := 0.0
 
 func _ready() -> void:
+	EntityLOD.register(self)          # (comes to you by design: listed in the F12 overlay only)
 	rng.randomize()
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")

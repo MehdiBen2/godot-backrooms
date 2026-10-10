@@ -166,6 +166,7 @@ const VIEW_STEP := 0.5               # m between grid samples on the "could anyo
 const ALLY_WATCH := 22.0             # m: a teammate watching it from this close counts, in the dark, as you watching it
 
 func _ready() -> void:
+	EntityLOD.register(self)          # (comes to you by design: listed in the F12 overlay only)
 	rng.randomize()
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")

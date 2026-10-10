@@ -1946,21 +1946,23 @@ func _build_ceiling_steps() -> void:
 		sm.roughness = 1.0
 		sm.metallic_specular = 0.0
 		tm = sm
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = BoxMesh.new()
-	mm.instance_count = trims.size()
-	var buf := MMBuffer.alloc(mm)
-	var st := MMBuffer.stride(mm)
-	for i in trims.size():
-		var t: Dictionary = trims[i]
-		var sc := Vector3(STEP_TRIM_RUN if t.along_x else STEP_TRIM_D, t.h, STEP_TRIM_D if t.along_x else STEP_TRIM_RUN)
-		MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
-	mm.buffer = buf
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = tm
-	add_child(mmi)
+	var box := BoxMesh.new()
+	_chunked(trims, func(t: Dictionary) -> Vector3: return Vector3(t.x, t.y, t.z), "", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = box
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for i in list.size():
+			var t: Dictionary = list[i]
+			var sc := Vector3(STEP_TRIM_RUN if t.along_x else STEP_TRIM_D, t.h, STEP_TRIM_D if t.along_x else STEP_TRIM_RUN)
+			MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = tm
+		return mmi)
 
 # Pit shafts: the cut edge of the floor slab, then raw concrete walls falling away into
 # blackness (vertex colours darken with depth), and a black bottom. A pit that opens into the floor below
