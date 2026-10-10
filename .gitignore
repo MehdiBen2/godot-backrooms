@@ -38,6 +38,3 @@ desktop.ini
 *.import
 *.import
 .vexp/manifest.json
-
-# Launcher download page binary (too large for git; upload the site folder to Netlify)
-site/*.exe

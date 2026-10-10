@@ -764,8 +764,9 @@
         <div class="dl-status" id="dlStatus"><span class="dot"></span><span id="dlText">Checking for the launcher</span></div>
 
         <div class="dl-row">
-          <a class="btn" id="dlBtn" href="launcher.exe" download="Backrooms-Launcher.exe">Download</a>
+          <a class="btn" id="dlBtn" href="https://github.com/MehdiBen2/godot-backrooms/releases/download/launcher/Backrooms-Launcher.exe">Download</a>
           <a class="link" href="#how">How it works</a>
+          <a class="link" href="https://github.com/MehdiBen2/godot-backrooms/releases/latest/download/backrooms-windows.zip">Game only (zip)</a>
         </div>
         <div class="dl-bar" id="dlBar" aria-hidden="true"><i></i></div>
         <div class="dl-foot" id="dlFoot">Backrooms-Launcher.exe &middot; Windows 10 or 11, 64-bit</div>
@@ -1020,19 +1021,31 @@
   const dlBtn = $("#dlBtn");
   const setStatus = (cls, text) => { dlStatus.className = "dl-status " + cls; dlText.textContent = text; };
   const mb = (bytes) => (bytes / 1048576).toFixed(1) + " MB";
-  fetch("launcher.exe", { method: "HEAD", cache: "no-store" })
+  /* the launcher lives on a fixed GitHub release (tools/publish_launcher.ps1); ask GitHub for its size */
+  const RELEASE_API = "https://api.github.com/repos/MehdiBen2/godot-backrooms/releases/tags/launcher";
+  fetch(RELEASE_API, { headers: { Accept: "application/vnd.github+json" } })
     .then((r) => {
-      if (!r.ok) throw new Error(r.status);
-      const size = Number(r.headers.get("content-length")) || 0;
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    })
+    .then((rel) => {
+      const asset = (rel.assets || []).find((a) => a.name === "Backrooms-Launcher.exe");
+      if (!asset) throw new Error("404");
       setStatus("ready", "Launcher is available");
-      dlFoot.textContent = `Backrooms-Launcher.exe${size ? " · " + mb(size) : ""} · Windows 10 or 11, 64-bit`;
+      dlFoot.textContent = `Backrooms-Launcher.exe · ${mb(asset.size)} · Windows 10 or 11, 64-bit`;
+      dlBtn.href = asset.browser_download_url;
       dlBar.classList.add("on");
     })
-    .catch(() => {
-      setStatus("missing", "Not available yet. Check back soon");
-      dlBtn.setAttribute("aria-disabled", "true");
-      dlBtn.style.opacity = "0.5";
-      dlBtn.addEventListener("click", (e) => e.preventDefault());
+    .catch((err) => {
+      if (err.message === "404") {
+        setStatus("missing", "Not available yet. Check back soon");
+        dlBtn.setAttribute("aria-disabled", "true");
+        dlBtn.style.opacity = "0.5";
+        dlBtn.addEventListener("click", (e) => e.preventDefault());
+      } else {
+        // the API could not be reached (offline, rate limit): the download link still works on its own
+        setStatus("", "Download the launcher");
+      }
     });
 
   /* ---------- a line after a long wait ---------- */
