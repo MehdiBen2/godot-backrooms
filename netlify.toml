@@ -1,0 +1,10 @@
+# Netlify: serve the static download page in site/. No build step.
+[build]
+  publish = "site"
+  command = ""
+
+[[headers]]
+  for = "/launcher.exe"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Cache-Control = "public, max-age=300"

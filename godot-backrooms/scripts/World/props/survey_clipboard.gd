@@ -89,9 +89,8 @@ func _merge_parts(model: Node3D) -> void:
 		var m: Material = mat
 		if mat is StandardMaterial3D:
 			var sm := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
-			sm.albedo_color = sm.albedo_color.darkened(0.85)   # darken significantly to blend with ambient
-			sm.roughness = 1.0                                 # less glossy/shiny
-			sm.specular = 0.1
+			sm.roughness = 1.0                                 # paper: matte, no sheen
+			sm.specular = 0.5                                  # keep the model's albedo; a soft highlight, not a shine
 			m = sm
 		var mi := MeshInstance3D.new()
 		mi.mesh = (groups[mat] as SurfaceTool).commit()

@@ -286,15 +286,13 @@ func _wrap_mat(m: Material, off: Vector3, cache: Dictionary) -> Material:
 func _apply_wrap_view() -> void:
 	var cam: Camera3D = player.get("cam") if player != null and is_instance_valid(player) else null
 	if cam != null and _view_far < 0.0: _view_far = cam.far
-	var begin := HORIZON_BEGIN
 	var end := _fog_end()                  # (level_geometry.gd: the same reach the floors and ceilings are ranged to)
-	if edge_wrap and not shell:
-		begin = maxf(HORIZON_BEGIN, end * 0.45)
+	var begin := maxf(HORIZON_BEGIN, end * 0.45)
 	if _horizon_mat != null:
 		_horizon_mat.set_shader_parameter("begin", begin)
 		_horizon_mat.set_shader_parameter("end", end)
 	if cam != null and _view_far > 0.0:
-		cam.far = maxf(_view_far, end + 30.0) if edge_wrap else _view_far
+		cam.far = maxf(_view_far, end + 30.0) if end > FOG_END else _view_far
 
 ## What is underfoot at `p`: "tile" in the polished rooms, "carpet" everywhere else
 func surface_at(p: Vector3) -> String:
@@ -803,4 +801,6 @@ func _unhandled_input(e: InputEvent) -> void:
 	match e.physical_keycode:
 		KEY_PAGEDOWN: Game.change_level(Game.level_index + 1)
 		KEY_PAGEUP: Game.change_level(Game.level_index - 1)
-		KEY_HOME: Game.change_level(Game.level_index)
+		KEY_HOME:
+			_level_cache.clear()
+			Game.change_level(Game.level_index)

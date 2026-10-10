@@ -57,7 +57,11 @@ void fragment() {
 ## (The found-footage camera that meters, pumps and drifts on its own in the classic look: _update_camcorder.)
 const Atmospheres := preload("res://scripts/Render/atmospheres.gd")
 var ATMOSPHERES: Dictionary = Atmospheres.LOOKS
-const FF_FOG := 0.14                # found footage: fog left at this share (clear air, but a long hall still recedes)
+const SIGHT_RANGE := 70.0            # m: how far ahead the view is probed for a wall
+const SIGHT_NEAR := 14.0             # m: a wall this close keeps the depth fog as it is
+const SIGHT_FOG := 0.3               # the share of the depth fog left in a long, clear view
+const SIGHT_EVERY := 0.1             # s between probes
+const FF_FOG := 0.14               # found footage: fog left at this share (clear air, but a long hall still recedes)
 # found footage: ceiling bounce-light fill (panel_ceiling / drop_ceiling.gdshader). Off: in the classic look it made
 # the ceiling glow on its own, flat and fake; the ceiling is lit by its real lights only, as in every other look
 const FF_CEIL_FILL := 0.0
@@ -96,6 +100,9 @@ var cam_mix := 0.0                 # how far the camera settings lean to the cla
 var grid_glow := 0.0
 var zone_amb := 1.0
 var zone_fog := 1.0
+var clear_view := 0.0                # 0..1: how open the way ahead is (smoothed; 1 = a long, empty view)
+var _sight_target := 0.0
+var _sight_t := 0.0
 var bright_mix := 0.0              # same idea for Bright zones (a softer version of the classic look)
 var open_mix := 0.0                # how far the air is cleared and the far distance filled with light
 var classic_mix := 0.0             # 0..1: how much of the classic look the player is standing in
@@ -315,13 +322,28 @@ func _update_atmosphere(delta: float) -> void:
 	if is_instance_valid(_horizon) and _horizon_mat:
 		_horizon_mat.set_shader_parameter("fog_color", env.fog_light_color)
 		_horizon.visible = not Game.fullbright
+	# the depth fog thins where the way ahead is open: a far hall with no wall in between shows, a wall close in
+	# front keeps the fog as it was. One ray down the view every SIGHT_EVERY s (the horizon fog is untouched).
+	_sight_t -= delta
+	if _sight_t <= 0.0:
+		_sight_t = SIGHT_EVERY
+		var sight_cam := get_viewport().get_camera_3d()
+		if sight_cam:
+			var from := sight_cam.global_position
+			var q := PhysicsRayQueryParameters3D.create(from, from - sight_cam.global_transform.basis.z * SIGHT_RANGE)
+			if player is CollisionObject3D: q.exclude = [(player as CollisionObject3D).get_rid()]
+			var hit := get_world_3d().direct_space_state.intersect_ray(q)
+			var dist := SIGHT_RANGE if hit.is_empty() else from.distance_to(hit.position)
+			_sight_target = smoothstep(SIGHT_NEAR, SIGHT_RANGE, dist)
+	clear_view += (_sight_target - clear_view) * minf(1.0, delta * 3.0)
+	var sight := lerpf(1.0, SIGHT_FOG, clear_view)
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
-	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow)
+	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * sight * (1.0 + (0.55 - 1.0) * grid_glow)
 	if env.volumetric_fog_enabled:
 		# lit volumetric fog scatters every tube it passes and piles up with distance (a glowing far band), so
 		# in the found-footage look's clear air it is almost gone
-		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix) * (1.0 - 0.7 * _lim)
+		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * sight * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix) * (1.0 - 0.7 * _lim)
 		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
 		env.volumetric_fog_emission = VFOG_EMISSION * (1.0 - 0.85 * open_mix)   # its own glow piles up with distance too
 
@@ -432,8 +454,9 @@ func _build_horizon_fog() -> void:
 	_horizon_mat = ShaderMaterial.new()
 	_horizon_mat.shader = sh
 	_horizon_mat.render_priority = Material.RENDER_PRIORITY_MAX
-	_horizon_mat.set_shader_parameter("begin", HORIZON_BEGIN)
-	_horizon_mat.set_shader_parameter("end", HORIZON_END)
+	var reach := _fog_end()                # (a classic level's horizon is further out: level_geometry.gd)
+	_horizon_mat.set_shader_parameter("begin", maxf(HORIZON_BEGIN, reach * 0.45))
+	_horizon_mat.set_shader_parameter("end", reach)
 	var q := QuadMesh.new()
 	q.size = Vector2(2.0, 2.0)
 	_horizon = MeshInstance3D.new()

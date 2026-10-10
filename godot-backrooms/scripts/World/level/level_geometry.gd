@@ -312,11 +312,13 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 const SURF_CHUNK := 16
 const SURF_RANGE_SLACK := 6.0        # m: a ceiling's height varies from cell to cell
 const FOG_END := 170.0               # level_lighting.gd HORIZON_END (this script sits below it, so it can't read it)
-const WRAP_FOG_END_MAX := 320.0      # the most an endless level's fog reaches (level_builder.gd _apply_wrap_view)
+const FOG_END_CLASSIC := 260.0       # the found-footage (classic) levels: a long, clear view, so the horizon and the far plane go out
+const WRAP_FOG_END_MAX := 320.0     # the most an endless level's fog reaches (level_builder.gd _apply_wrap_view)
 
 ## How far the horizon fog reaches: past this nothing is seen
 func _fog_end() -> float:
 	if edge_wrap and not shell: return clampf(wrap_size() * 0.95, FOG_END, WRAP_FOG_END_MAX)
+	if atmosphere() == "classic": return FOG_END_CLASSIC
 	return FOG_END
 
 ## The visibility range of a floor, ceiling or panel chunk: the chunk's centre has to be this far off before its
