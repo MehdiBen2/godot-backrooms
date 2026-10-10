@@ -375,6 +375,10 @@ func _on_name_changed(s: String) -> void:
 	_save()
 
 func _process(dt: float) -> void:
+	# watchdog: a closed menu whose fade is gone (killed / never finished) must not stay up as a ghost over the live game
+	if not shown and visible and (fade == null or not fade.is_valid() or not fade.is_running()):
+		modulate.a = 0.0
+		visible = false
 	if not is_visible_in_tree():
 		return
 	t += dt

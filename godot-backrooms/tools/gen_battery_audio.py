@@ -210,12 +210,28 @@ def swap():
     return finish(track, PEAK)
 
 
+def crinkle(dur, level):
+    """Shrink-wrap giving under a grip: a run of tiny bright crackles, thickest at the start"""
+    n = int(dur * SR)
+    out = [0.0] * n
+    t = 0.0
+    while t < dur - 0.01:
+        k = 1.0 - t / dur
+        put(out, t, tap(level * random.uniform(0.3, 1.0) * (0.35 + k), random.uniform(2400, 4200), 1.0, 0.0018))
+        t += random.uniform(0.004, 0.016) * (1.0 + 1.5 * (1.0 - k))
+    return out
+
+
 def pickup():
-    track = [0.0] * int(0.34 * SR)
-    put(track, 0.0, cloth(0.26, 0.7, 1400.0))
-    put(track, 0.04, tap(0.6, 620, 0.2))
-    put(track, 0.12, tap(0.4, 700, 0.15))
-    return finish(track, PICKUP_PEAK)
+    track = [0.0] * int(0.5 * SR)
+    put(track, 0.0, cloth(0.18, 0.45, 1800.0))                     # the hand closing
+    put(track, 0.02, crinkle(0.16, 0.5))                           # the wrap giving
+    put(track, 0.085, tap(0.7, 700, 0.3))                          # lifted: the two cells knock
+    put(track, 0.087, tap(0.55, 3300, 1.0, 0.0022))                # ...bright on the contact
+    put(track, 0.105, tap(0.3, 3900, 1.0, 0.0018))                 # ...and chatter once
+    put(track, 0.19, thud(0.28))                                   # into the pocket
+    put(track, 0.17, cloth(0.2, 0.3, 1200.0))
+    return finish(track, 0.22)
 
 
 if __name__ == '__main__':

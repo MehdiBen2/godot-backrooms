@@ -1289,7 +1289,7 @@ func _find_interactable_door() -> Node:
 	var now := Time.get_ticks_msec() * 0.001
 	if now - _door_cache_t > 1.0 or _cached_doors.is_empty():
 		_door_cache_t = now
-		_cached_doors = get_tree().get_nodes_in_group("doors")
+		_cached_doors = get_tree().get_nodes_in_group("doors") + get_tree().get_nodes_in_group("interactables")
 
 	var best_door: Node = null
 	var best_dot := 0.62
