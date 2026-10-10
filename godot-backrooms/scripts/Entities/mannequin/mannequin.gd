@@ -16,7 +16,9 @@ const MannequinModel := preload("res://scripts/Entities/mannequin/mannequin_mode
 const MannequinCrowd := preload("res://scripts/Entities/mannequin/mannequin_crowd.gd")
 const MannequinSnap := preload("res://scripts/Entities/mannequin/mannequin_snap.gd")
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const CELL := 4.5
+const MARK_RADIUS := 2                       # cells each way round a Mannequin mark that make its room
 const HEIGHT := MannequinModel.HEIGHT
 const POSE_KEYS := MannequinModel.POSE_KEYS
 
@@ -144,8 +146,16 @@ func _ready() -> void:
 func _find_room() -> void:
 	room_cells.clear()
 	room_near.clear()
-	for c: Vector2i in level.mannequin:
-		room_cells.append(c)
+	var marks := EntityMarks.of_kind(level, "mannequin")
+	if not marks.is_empty():
+		# a Mannequin mark in the level editor: the room is the stretch of floor round the first one
+		var mc := EntityMarks.cell(marks[0])
+		for dx in range(-MARK_RADIUS, MARK_RADIUS + 1):
+			for dz in range(-MARK_RADIUS, MARK_RADIUS + 1):
+				room_cells.append(mc + Vector2i(dx, dz))
+	else:
+		for c: Vector2i in level.mannequin:
+			room_cells.append(c)
 	if room_cells.is_empty():
 		for x in range(ROOM.position.x, ROOM.end.x + 1):
 			for z in range(ROOM.position.y, ROOM.end.y + 1):
@@ -220,7 +230,7 @@ func reset() -> void:
 	awake = false
 	moving = false
 	snap.finish()
-	if level.mannequin.is_empty() and not summoned:
+	if level.mannequin.is_empty() and not summoned and EntityMarks.of_kind(level, "mannequin").is_empty():
 		real_node = null                # no zone painted in this level: no mannequins
 		return
 	var slots := room_slots(COUNT)

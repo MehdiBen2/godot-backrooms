@@ -32,6 +32,7 @@ var ui_down := false             # set by draw_ui.gd when world LMB is held on c
 var _pts: Array = []
 var _normals: Array = []
 var _resolved_type := "heavy_black"
+var _drawn_length := 0.0
 var _preview: MeshInstance3D
 var _mesh := ArrayMesh.new()
 var _label: Label
@@ -102,20 +103,15 @@ func _step() -> void:
 
 	if not drawing:
 		drawing = true
+		_drawn_length = 0.0
 		_resolved_type = cable_type
 		if _resolved_type == "random" or not CableMarks.TYPES.has(_resolved_type):
 			_resolved_type = CableMarks.TYPE_KEYS[randi() % CableMarks.TYPE_KEYS.size()]
 
 		# Offset initial point off surface by cable radius with contact clearance
-		var p_start := p + n * (radius * 1.12)
-		var cam: Camera3D = player.cam
-		var stub_dir := -cam.global_transform.basis.z
-		stub_dir = (stub_dir - n * stub_dir.dot(n)).normalized()
-		if stub_dir.length_squared() < 0.01:
-			stub_dir = Vector3.FORWARD
-		var p_second := p_start + stub_dir * 0.02
-		_pts = [p_start, p_second]
-		_normals = [n, n]
+		var p_start := p + n * (radius * 1.05)
+		_pts = [p_start]
+		_normals = [n]
 
 		_preview = MeshInstance3D.new()
 		_preview.mesh = _mesh
@@ -134,103 +130,114 @@ func _step() -> void:
 		_pts = [a]
 		_normals = [_normals[0]]
 		var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
+		var sag_depth := minf(dist * 0.08 * roll_slack, 0.8)
 		for i in range(1, steps + 1):
 			var frac := float(i) / float(steps)
 			var cur_p := a.lerp(p, frac)
-			var cur_n := n
-			# Raycast onto scene floor and objects to drape cleanly over obstacles
-			var q_down := PhysicsRayQueryParameters3D.create(cur_p + n * 0.8, cur_p - n * 1.2, WORLD_MASK)
+			var cur_n := Vector3.UP
+			# Raycast vertically down onto scene floor, obstacles, crates, tables
+			var q_down := PhysicsRayQueryParameters3D.create(cur_p + Vector3.UP * 0.4, cur_p - Vector3.UP * 2.5, WORLD_MASK)
 			q_down.exclude = [player.get_rid()]
 			var r_hit: Dictionary = space.intersect_ray(q_down)
 			if not r_hit.is_empty():
 				cur_p = r_hit.position
 				cur_n = (r_hit.normal as Vector3).normalized()
-			# Evaluate stack elevation
+			else:
+				# Natural physical catenary gravity sag in mid-air
+				var catenary_sag := 4.0 * frac * (1.0 - frac) * sag_depth
+				cur_p.y -= catenary_sag
+
 			var stack_elev := CableMarks.get_stack_elevation(cur_p, cur_n, radius) * stack_mult
-			cur_p += cur_n * (radius * 1.12 + stack_elev)
+			stack_elev = clampf(stack_elev, 0.0, radius * 2.2)
+			cur_p += cur_n * (radius * 1.05 + stack_elev)
 			_pts.append(cur_p)
 			_normals.append(cur_n)
 		_update_preview()
 	else:
 		# Freehand mode: add point when dragged past STEP
 		var last_p: Vector3 = _pts[-1]
+		var last_n: Vector3 = _normals[-1]
 		var dist_to_last := p.distance_to(last_p)
 		if dist_to_last >= STEP and _pts.size() < MAX_POINTS:
-			# Multi-step interpolation when moving fast so we don't cut corners through obstacles
-			var substeps := clampi(int(dist_to_last / STEP), 1, 6)
+			var substeps := clampi(int(dist_to_last / STEP), 1, 10)
 			var space: PhysicsDirectSpaceState3D = player.get_world_3d().direct_space_state
 			for s_idx in range(1, substeps + 1):
 				var frac := float(s_idx) / float(substeps)
-				var mid_contact := last_p.lerp(p, frac)
-				var cur_n := n
+				var target_x := lerpf(last_p.x, p.x, frac)
+				var target_z := lerpf(last_p.z, p.z, frac)
 
-				# Raycast onto surface to hug obstacles, crates, tables, and ledges
-				var q_probe := PhysicsRayQueryParameters3D.create(mid_contact + n * 0.6, mid_contact - n * 0.8, WORLD_MASK)
-				q_probe.exclude = [player.get_rid()]
-				var p_hit: Dictionary = space.intersect_ray(q_probe)
-				if not p_hit.is_empty():
-					mid_contact = p_hit.position
-					cur_n = (p_hit.normal as Vector3).normalized()
+				# Find where the surface / floor is at (target_x, target_z)
+				var check_y := maxf(last_p.y, p.y) + 0.3
+				var q_down := PhysicsRayQueryParameters3D.create(
+					Vector3(target_x, check_y, target_z),
+					Vector3(target_x, check_y - 3.0, target_z),
+					WORLD_MASK
+				)
+				q_down.exclude = [player.get_rid()]
+				var floor_hit: Dictionary = space.intersect_ray(q_down)
 
-				# 1. Check elevation over existing placed cables
-				var stack_elev := CableMarks.get_stack_elevation(mid_contact, cur_n, radius) * stack_mult
+				var cur_p: Vector3
+				var cur_n: Vector3
 
-				# 2. Check self-stacking over earlier segments of THIS active stroke
+				var dist_xz_to_target := Vector2(p.x - target_x, p.z - target_z).length()
+				var is_elevated_target := (p.y - last_p.y) > 0.15 or absf(n.y) < 0.5
+
+				if not floor_hit.is_empty():
+					var f_pos: Vector3 = floor_hit.position
+					var f_norm: Vector3 = (floor_hit.normal as Vector3).normalized()
+					if is_elevated_target and dist_xz_to_target < 0.25:
+						# Within connection distance of elevated prop / socket: rise up smoothly
+						var rise_t := 1.0 - clampf(dist_xz_to_target / 0.25, 0.0, 1.0)
+						rise_t = rise_t * rise_t # Smooth ease-in curve
+						cur_p = Vector3(target_x, lerpf(f_pos.y, p.y, rise_t), target_z)
+						cur_n = f_norm.lerp(n, rise_t).normalized()
+					else:
+						# Hug the floor
+						cur_p = f_pos
+						cur_n = f_norm
+				else:
+					# In air: interpolate smoothly with natural gravity catenary droop
+					var air_p := last_p.lerp(p, frac)
+					var catenary_sag := 4.0 * frac * (1.0 - frac) * minf(dist_to_last * 0.12 * roll_slack, 0.8)
+					air_p.y -= catenary_sag
+					cur_p = air_p
+					cur_n = last_n.lerp(n, frac).normalized()
+
+				# 1. Stack elevation over existing placed cables (strictly clamped)
+				var stack_elev := CableMarks.get_stack_elevation(cur_p, cur_n, radius) * stack_mult
+				stack_elev = clampf(stack_elev, 0.0, radius * 2.2)
+
+				# 2. Self-stacking over earlier segments of active stroke
 				var pt_count := _pts.size()
-				if pt_count > 10:
-					for j in range(0, pt_count - 8):
+				if pt_count > 12:
+					for j in range(0, pt_count - 10):
 						var sa: Vector3 = _pts[j]
 						var sb: Vector3 = _pts[j + 1]
-						var s_seg := sb - sa
-						var sl2 := s_seg.length_squared()
-						if sl2 < 0.00001:
+						var seg := sb - sa
+						var l2 := seg.length_squared()
+						if l2 < 0.0001:
 							continue
-						var st_t := clampf((mid_contact - sa).dot(s_seg) / sl2, 0.0, 1.0)
-						var s_proj := sa + s_seg * st_t
-						var s_diff := s_proj - mid_contact
-						var s_diff_along_n := s_diff.dot(cur_n)
-						var s_perp := (s_diff - cur_n * s_diff_along_n).length()
-						var s_r_crest := (radius * 2.0) * 1.15
-						var s_r_bridge := s_r_crest + 0.20
-						if s_perp < s_r_bridge:
-							var s_other_top := s_diff_along_n + radius
-							var s_req_center := s_other_top + radius + 0.006
-							var s_needed := maxf(0.0, s_req_center - (radius * 1.12))
-							var s_elev := 0.0
-							if s_perp <= s_r_crest:
-								s_elev = s_needed
-							else:
-								var s_ramp := (s_perp - s_r_crest) / (s_r_bridge - s_r_crest)
-								var s_factor := cos(s_ramp * (PI * 0.5))
-								s_factor *= s_factor
-								s_elev = s_needed * s_factor
-							if s_elev > stack_elev:
-								stack_elev = s_elev
+						var t_proj := clampf((cur_p - sa).dot(seg) / l2, 0.0, 1.0)
+						var proj_pt := sa + seg * t_proj
+						var horiz_d := Vector2(cur_p.x - proj_pt.x, cur_p.z - proj_pt.z).length()
+						if horiz_d < (radius * 2.0):
+							var self_stack := clampf(radius * 1.8, 0.0, radius * 2.2)
+							if self_stack > stack_elev:
+								stack_elev = self_stack
 
-				# 3. Smooth catenary back-propagation across preceding points
-				if stack_elev > 0.002 and _pts.size() > 2:
-					var span := mini(10, _pts.size() - 1)
-					for k in range(1, span + 1):
-						var b_idx := _pts.size() - k
-						var b_frac := 1.0 - (float(k) / float(span + 1))
-						var b_ramp := cos((1.0 - b_frac) * (PI * 0.5))
-						b_ramp *= b_ramp
-						var target_lift := stack_elev * b_ramp
-						var cur_prev: Vector3 = _pts[b_idx]
-						var prev_n: Vector3 = _normals[b_idx]
-						var cur_lift := (cur_prev - mid_contact).dot(prev_n)
-						if target_lift > cur_lift:
-							_pts[b_idx] = cur_prev + prev_n * (target_lift - cur_lift)
-
-				# Natural rolling waviness: micro lateral curl
-				var curl_val := sin(_pts.size() * 0.45) * roll_slack * (radius * 0.8)
-				var forward_vec := (p - last_p).normalized()
-				var side_dir := cur_n.cross(forward_vec)
+				# 3. Natural rolling waviness: realistic, gentle low-frequency lateral unspool slack
+				var step_len: float = (cur_p - _pts[-1]).length()
+				_drawn_length += step_len
+				var wave := sin(_drawn_length * 3.6) * roll_slack * (radius * 0.32) + sin(_drawn_length * 1.8 + 0.9) * roll_slack * (radius * 0.16)
+				var forward_vec: Vector3 = (cur_p - _pts[-1]).normalized()
+				if forward_vec.length_squared() < 0.01:
+					forward_vec = Vector3.FORWARD
+				var side_dir := cur_n.cross(forward_vec).normalized()
 				if side_dir.length_squared() < 0.01:
 					side_dir = Vector3.RIGHT
 
-				var elevated_p := mid_contact + cur_n * (radius * 1.12 + stack_elev) + side_dir * curl_val
-				_pts.append(elevated_p)
+				var final_p := cur_p + cur_n * (radius * 1.05 + stack_elev) + side_dir * wave
+				_pts.append(final_p)
 				_normals.append(cur_n)
 
 			_update_preview()

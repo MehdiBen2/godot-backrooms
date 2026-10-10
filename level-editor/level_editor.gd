@@ -35,10 +35,10 @@ const PANEL := UI_PANEL
 const LINE := UI_LINE
 ## Zone names for their buttons (the rest: their key, capitalised)
 const ZONE_NAMES := {"open_ceiling": "Open ceiling", "endless_ceiling": "Endless ceiling", "noclip_floor": "Noclip floor",
-	"hall_reverb": "Hall reverb", "grand": "Grand hall"}
+	"hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor"}
 const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hall: a 16.2 m ceiling, three storeys of open air over you.\nThe tubes hang down on long chains; the walls round it rise to meet it",
 	"hall_reverb": "Hall reverb: every sound rings on in a long, bright, wet tail (a tiled rotunda, a pool hall), whatever the room's shape.\nAUTO ACOUSTICS paints it where the architecture calls for it",
-	"muffled": "Muffled: a dead, tight space. Short, dark and dull, the highs gone (a crawlway, a padded corridor).\nAUTO ACOUSTICS paints it in tight, low places", "low": "Crouch-height ceiling", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
+	"muffled": "Muffled: a dead, tight space. Short, dark and dull, the highs gone (a crawlway, a padded corridor).\nAUTO ACOUSTICS paints it in tight, low places", "low": "Crouch-height ceiling", "hotel": "Hotel corridor: a 4.5 m ceiling, red hotel carpet, and side walls that stand 0.9 m into the cells, so the hall is 2.7 m wide to walk. Paint it on one-cell halls", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
 	"bright": "Always lit, safe room", "dark": "All tubes dead", "dim": "Dim: most tubes dead, the halls darker and foggier (your Dim look, pushed further)", "flicker": "Failing tubes", "grime": "Stained carpet",
 	"classic": "Classic: the Kane Pixels found-footage look. Every tube steady and glowing, flat overexposed mono-yellow,\nclear air, milky blacks. Filmed on the camcorder (VHS tape) while you stand in it, with the Camera setting on Auto",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away. Filmed on the bodycam",
@@ -286,6 +286,7 @@ func _build_ui() -> void:
 	mid.add_child(canvas)
 	preview3d = preload("res://level_editor_3d.gd").new(self)
 	canvas.add_child(preview3d)
+	call_deferred("_fill_prop_thumbs")
 	inner.add_child(_build_right_dock())
 	_restore_splits()
 	root.add_child(_build_statusbar())
@@ -755,20 +756,32 @@ func _build_right_dock() -> Control:
 		"water": "WATER & POOLS", "events": "EVENTS", "props": "PROPS"}
 	var panels := {}
 	var grids := {}
+	var prop_grids := {}
 	for cat in ["walls", "openings", "vertical", "light", "water", "events", "props"]:
 		var used := OBJ_TYPES.any(func(t): return str(OBJ_INFO[t].get("category", "props")) == cat)
 		if not used: continue
 		panels[cat] = _section(side, titles[cat], cat != "props")
-		grids[cat] = _tile_grid(panels[cat])
+		if cat != "props": grids[cat] = _tile_grid(panels[cat])
+	if panels.has("props"): prop_grids = _prop_group_grids(side)     # the props: a section per theme, under the PROPS header
 	for t in OBJ_TYPES:
 		var inf: Dictionary = OBJ_INFO[t]
 		var cat := str(inf.get("category", "props"))
-		if not grids.has(cat):
-			panels[cat] = _section(side, cat.to_upper(), true)
-			grids[cat] = _tile_grid(panels[cat])
+		if cat == "markers": continue          # listed under MARKERS below
+		var grid: GridContainer
+		if cat == "props":
+			grid = prop_grids[_prop_group(t)]
+		else:
+			if not grids.has(cat):
+				panels[cat] = _section(side, cat.to_upper(), true)
+				grids[cat] = _tile_grid(panels[cat])
+			grid = grids[cat]
 		var hotkey := str(inf.get("key", ""))
 		var b := _tile("obj:" + t, str(inf.label), _obj_icon(t, inf.col), str(inf.get("help", "")) + ("\nKey: %s" % hotkey if hotkey != "" else "") + "\nRight click on the map deletes")
-		grids[cat].add_child(b)
+		if inf.has("model"):                  # a model prop: its tile is taller, and gets a picture of the model (_fill_prop_thumbs)
+			prop_tiles[t] = b
+			b.custom_minimum_size = Vector2(78, 92)
+			b.add_theme_constant_override("icon_max_width", 64)
+		grid.add_child(b)
 	if panels.has("props") and OBJ_TYPES.any(func(t): return bool(OBJ_INFO[t].get("scatter", false))):
 		var scatter_b := _action_button("Scatter props", "scatter", GOLD, _scatter_props, "Drop a random spread of clutter props onto open floor, clear of the markers and what is already placed. One undo step")
 		panels["props"].add_child(scatter_b)
@@ -777,6 +790,10 @@ func _build_right_dock() -> Control:
 	for m in MARKERS:
 		mgrid.add_child(_tile("mark:" + m, m.capitalize().replace("Tv", "TV"), Icons.icon(m, MARKERS[m], 24),
 			"Click places, right click removes" + ("\nDrag from the marker to turn where the player looks (Shift snaps to 15°)" if m == "spawn" else "")))
+	# entity marks are objects: as many as you like, each set in the inspector (Kind, Behavior)
+	var ent_info: Dictionary = OBJ_INFO["entity"]
+	mgrid.add_child(_tile("obj:entity", str(ent_info.label), _obj_icon("entity", ent_info.col),
+		str(ent_info.help) + "\nRight click on the map deletes"))
 	# PAINT
 	var pnt := _section(side, "PAINT MATERIALS")
 	pnt.add_child(_note("Pick a material and a surface, drag over cells. Right click puts the level's material back. Alt+click picks up the material under the mouse; Ctrl+click fills an area."))
@@ -893,6 +910,56 @@ func _tile_grid(parent: Control) -> GridContainer:
 	g.add_theme_constant_override("v_separation", 4)
 	parent.add_child(g)
 	return g
+
+## The props, by theme and use: each section of the PROPS tab, in order. A prop in none of them lands in OTHER
+const PROP_GROUPS := [
+	["SEATING", ["prop_wooden_chair", "prop_midcentury_chair", "prop_armchair", "prop_lounge_chair", "prop_stool", "prop_sofa",
+		"prop_loveseat", "prop_corner_sofa", "prop_hall_sofa", "prop_settee", "prop_waiting_sofa"]],
+	["TABLES & STORAGE", ["prop_classic_table", "prop_farm_table", "prop_nightstand", "prop_bookshelf", "prop_hutch", "prop_wardrobe",
+		"prop_display_cabinet", "prop_sideboard", "prop_kitchen_wall", "prop_office_cubicle"]],
+	["HOME", ["prop_carpet", "prop_curtains", "prop_table_lamp", "prop_clock_radio", "prop_rotary_phone", "prop_desk_fan"]],
+	["DESK", ["prop_desk_lamp", "prop_ashtray", "prop_ashtray_glass", "prop_notepad", "prop_pen"]],
+	["OLD TECH", ["prop_crt_tv", "prop_vhs_player", "prop_vhs_tape", "prop_audio_reel", "prop_reel_recorder"]],
+	["SIGNS & LIGHTS", ["prop_exit_sign", "prop_exit_sign_medium", "prop_exit_sign_big", "prop_work_light", "prop_work_light2",
+		"prop_fluorescent_tube"]],
+	["ELECTRICAL", ["prop_electrical_box", "prop_electrical_box2", "prop_switchgear", "prop_switchgear_b", "prop_vent_unit"]],
+	["DRUMS & GAS", ["prop_explosive_barrel", "prop_water_barrel", "prop_gas_can", "prop_gas_cylinder", "prop_oil_drum",
+		"prop_drum_blue", "prop_drum_cut", "prop_cable_drum"]],
+	["WAREHOUSE", ["prop_car_jack", "prop_pallet_truck", "prop_platform_trolley", "prop_tire", "prop_tire_pair", "prop_tire_stack",
+		"prop_container_yellow", "prop_container_red", "prop_container_blue"]],
+	["ROADS & OUTDOORS", ["prop_traffic_cone", "prop_delineator_post", "prop_road_barrier", "prop_water_barrier", "prop_fence_panel",
+		"prop_stop_sign", "prop_stop_sign_worn", "prop_stop_sign_tyro", "prop_parking_booth"]],
+	["STRUCTURE & PIPES", ["prop_pipe_straight", "prop_pipe_elbow", "prop_pipe_tee", "prop_steel_beam", "prop_concrete_footing",
+		"prop_scaffold_frame", "prop_scaffold_tower", "prop_steel_truss", "prop_steel_cage", "prop_concrete_wall", "prop_braced_wall",
+		"prop_concrete_panel", "prop_stairs_l", "prop_grand_staircase"]],
+]
+
+## The PROP_GROUPS title a prop type sits under (OTHER: none of them)
+func _prop_group(t: String) -> String:
+	for g: Array in PROP_GROUPS:
+		if (g[1] as Array).has(t): return str(g[0])
+	return "OTHER"
+
+## One collapsed section per prop theme that has props (OTHER last, only if anything is in it); returns title -> its grid
+func _prop_group_grids(side: VBoxContainer) -> Dictionary:
+	var out := {}
+	for g: Array in PROP_GROUPS + [["OTHER", []]]:
+		var has_any := OBJ_TYPES.any(func(t): return str(OBJ_INFO[t].get("category", "props")) == "props" and _prop_group(t) == g[0])
+		if has_any: out[g[0]] = _tile_grid(_section(side, "PROPS · " + str(g[0]), false))
+	return out
+
+## Model prop tiles by type, so each can get its picture once the 3D view has read the model
+var prop_tiles := {}
+
+## Gives each model prop's tile its picture: res://thumbs/<type>.png, drawn ahead of time by tools/render_prop_thumbs.gd.
+## Nothing is rendered here, so the editor never loads a model to show a tile. A type with no picture keeps its generic icon
+func _fill_prop_thumbs() -> void:
+	for t in prop_tiles:
+		var path := "res://thumbs/%s.png" % t
+		if not FileAccess.file_exists(path): continue
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null and not img.is_empty() and is_instance_valid(prop_tiles[t]):
+			prop_tiles[t].icon = ImageTexture.create_from_image(img)
 
 ## A tool tile: its icon over its name; picks tool `id`
 func _tile(id: String, text: String, icon: Texture2D, tip: String) -> Button:
@@ -1605,7 +1672,7 @@ func _section(side: VBoxContainer, title: String, open := true) -> VBoxContainer
 	side.add_child(sep)
 	side.add_child(head)
 	side.add_child(body)
-	tab_parts.get_or_add(TAB_OF.get(title, "build"), []).append_array([sep, head, body])
+	tab_parts.get_or_add(TAB_OF.get(title, "props" if title.begins_with("PROPS") else "build"), []).append_array([sep, head, body])
 	var relabel := func(): head.text = ("▾  " if body.visible else "▸  ") + title
 	relabel.call()
 	head.pressed.connect(func():
@@ -2006,4 +2073,3 @@ func _search_tools(q: String) -> void:
 				_search_tools(""))
 			search_results.add_child(b)
 	_show_tab(tab_now)
-

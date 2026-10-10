@@ -94,7 +94,7 @@ func build(o: Dictionary, ceil_h: float, shell: bool) -> void:
 		"emergency_strip": _strip(elev if elev > 0.1 else ceil_h - 0.35, s)
 		"candle": _candle(elev, s)
 		"string_lights": _string(elev if elev > 0.1 else minf(ceil_h - 0.6, 3.2), s)
-		"streetlamp": _streetlamp(minf(ceil_h, 6.2))
+		"streetlamp": _streetlamp(clampf(5.5 * s, 5.5, 12.0), s)
 		"vent_glow": _vent(elev, s)
 	if shell: _drop_lights()
 	else:
@@ -288,16 +288,19 @@ func _string(h: float, s: float) -> void:
 		var u := (k + 0.5) / clampi(int(span / 5.0) + 1, 1, 4)
 		_light(Vector3(-span * 0.5 + span * u, h - sag * 4.0 * u * (1.0 - u) - 0.2, 0), "omni", 1.0)
 
-func _streetlamp(top: float) -> void:
+func _streetlamp(top: float, s: float) -> void:
+	# a tall pole standing on the ground, scaled up so it reads as a proper street light under open sky
+	var k := clampf(s, 1.0, 2.5)
 	var iron := _mat(Color(0.1, 0.11, 0.12), 0.55, 0.7)
-	_mesh(_cyl(0.16, 0.2, 0.35), iron, Vector3(0, 0.175, 0))
-	_mesh(_cyl(0.05, 0.08, top - 0.9, 10), iron, Vector3(0, (top - 0.9) * 0.5 + 0.3, 0))
-	_mesh(_box(0.9, 0.06, 0.06), iron, Vector3(0.38, top - 0.55, 0))                   # the arm, reaching out along the arrow
+	var reach := 1.2 * k
+	_mesh(_cyl(0.2 * k, 0.28 * k, 0.5 * k), iron, Vector3(0, 0.25 * k, 0))                 # base plinth
+	_mesh(_cyl(0.07 * k, 0.12 * k, top - 0.5 * k, 10), iron, Vector3(0, 0.5 * k + (top - 0.5 * k) * 0.5, 0))
+	_mesh(_box(reach, 0.09 * k, 0.09 * k), iron, Vector3(reach * 0.5, top, 0))               # the arm, reaching out along the arrow
 	var housing := _mat(Color(0.18, 0.18, 0.18), 0.5, 0.5)
-	_mesh(_box(0.55, 0.08, 0.26), housing, Vector3(0.75, top - 0.5, 0))
-	_mesh(_box(0.48, 0.03, 0.2), _glow_mat(Color(1, 0.82, 0.55), 1.2), Vector3(0.75, top - 0.56, 0))
-	_light(Vector3(0.75, top - 0.6, 0), "spot", 1.0, 62.0)
-	_light(Vector3(0.75, top - 1.0, 0), "omni", 0.3)
+	_mesh(_box(0.8 * k, 0.1 * k, 0.36 * k), housing, Vector3(reach, top + 0.02, 0))
+	_mesh(_box(0.7 * k, 0.04 * k, 0.28 * k), _glow_mat(Color(1, 0.82, 0.55), 1.2), Vector3(reach, top - 0.05 * k, 0))
+	_light(Vector3(reach, top - 0.1, 0), "spot", 1.0, 62.0)
+	_light(Vector3(reach, top - 1.0, 0), "omni", 0.3)
 
 func _vent(h: float, s: float) -> void:
 	var sc := clampf(s, 0.5, 4.0)

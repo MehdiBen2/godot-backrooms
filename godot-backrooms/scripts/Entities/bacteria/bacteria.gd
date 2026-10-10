@@ -569,8 +569,21 @@ func _check_flinch(delta: float, dist: float) -> void:
 func net_apply(t: float, m: Array) -> void:
 	net.apply(t, m)
 
-## The level editor writes "entity": null when no spawn is placed
+## The bacteria's mark on this floor: the first Entity object (object_types.json "entity") whose kind is bacteria,
+## or {} when there is none. Levels saved before entity marks were objects keep their single "entity" cell instead.
+func _mark() -> Dictionary:
+	var objs = level.level_data.get("objects", [])
+	if objs is Array:
+		for o in objs:
+			if o is Dictionary and o.get("type", "") == "entity" and o.get("kind", "bacteria") == "bacteria":
+				return o
+	return {}
+
+## The cell it starts on: its mark, else the old "entity" cell (null when none is placed), else near the far end
 func _spawn_cell() -> Array:
+	var m := _mark()
+	if not m.is_empty():
+		return [roundi(float(m.get("pos_x", 0.0))), roundi(float(m.get("pos_y", 0.0)))]
 	var sp = level.level_data.get("entity")
 	return sp if sp is Array and sp.size() >= 2 else [n - 12, 18]
 
@@ -580,6 +593,10 @@ func relocate() -> void:
 	goal_key = -1
 	awareness = 0.0
 	lurk_waiting = false
+	if str(_mark().get("behavior", "roam")) == "lurk":
+		set_state("lurk")                 # waits where it was placed, silent, until you walk into it
+		lurk_waiting = true
+		return
 	set_state("roam")
 	pick_spot(3, 18)
 

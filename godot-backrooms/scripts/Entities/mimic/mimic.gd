@@ -28,6 +28,7 @@ extends Node3D
 ## deep scan says whose face it wears.
 ## Dev keys: F5 toggles the Mimic.
 
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
 const MimicEcho := preload("res://scripts/Entities/mimic/mimic_echo.gd")
 const MimicSounds := preload("res://scripts/Entities/mimic/mimic_sounds.gd")
@@ -90,6 +91,7 @@ var rng := RandomNumberGenerator.new()
 var session := false
 var spawned := false
 var summoned := false                  # the console started a session; without it only a trigger spawns it
+var _mark_pending := false             # the level has a Mimic mark it has yet to stand at
 var wait := 0.0
 var mode := "echo"
 var speed := 0.0
@@ -173,6 +175,44 @@ func _ready() -> void:
 	sounds = MimicSounds.new()                  # your own sounds, from the next corridor (every machine, its own player)
 	sounds.mimic = self
 	add_child(sounds)
+	_mark_pending = not EntityMarks.of_kind(level, "mimic").is_empty()
+
+## A Mimic mark in the level editor: it stands there from the start of the level, as a survivor would. Placed
+## to roam, it walks off and is gone once nobody sees it; placed to lurk, it stays put until you come close
+## (then it bolts, as it does from anyone who walks up to it).
+func _appear_at_mark() -> bool:
+	var marks := EntityMarks.of_kind(level, "mimic")
+	if marks.is_empty():
+		return false
+	var tg := Net.nearest_survivor(player.global_position, -1)
+	if tg.is_empty():
+		return false
+	t_id = tg.id
+	t_pos = tg.pos
+	t_fwd = tg.fwd
+	var mark: Dictionary = marks[0]
+	var at := EntityMarks.world_pos(mark)
+	body.global_position = Vector3(at.x, t_pos.y, at.z)
+	body_yaw = atan2(t_pos.x - at.x, t_pos.z - at.z)
+	body.rotation.y = body_yaw
+	speed = 0.0
+	_route_mode = ""
+	session = true
+	summoned = true
+	spawned = true
+	body.visible = true
+	disguise_id = _pick_disguise()
+	_next_voice = echo_clock + rng.randf_range(4.0, 10.0)
+	torch_on = true
+	crouch = false
+	pitch = 0.0
+	if EntityMarks.lurks(mark):
+		mode = "wander"
+		wander_start = INF                         # never walks off: it waits to be found
+	else:
+		_start_wander(echo_clock)
+		wander_start = echo_clock + 6.0
+	return true
 
 # ================================================================= peer
 func _build_body() -> void:
@@ -358,6 +398,7 @@ func on_floor_changed() -> void:
 	if level == null or body == null:
 		return                                    # not set up yet: _ready builds it on the floor as it is
 	nav = GridNav.new(level)
+	_mark_pending = not EntityMarks.of_kind(level, "mimic").is_empty()
 	echo.tracks.clear()
 	lure_path = []
 	lure_i = 0
@@ -416,6 +457,10 @@ func update_peer(delta: float) -> void:
 	if not player.grid_down:
 		_dark_done = false                          # the lights are on: the next blackout is a new try                             # every timer here runs on game time, like the route
 	echo.record(delta, echo_clock)
+	if _mark_pending and not puppet and not spawned:
+		_mark_pending = not _appear_at_mark()
+		if spawned:
+			return
 	if not session:
 		if echo.longest_span() < ECHO_START:
 			return

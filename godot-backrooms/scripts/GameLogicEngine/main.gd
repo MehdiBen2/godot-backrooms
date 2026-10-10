@@ -9,6 +9,7 @@ const PAUSED_FPS := 60
 @onready var audio := $Audio
 
 func _ready() -> void:
+	Stability.trace("main: level, player, UI and audio are built; wiring them up")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	player.global_position = level.spawn_pos
 	if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
@@ -20,7 +21,9 @@ func _ready() -> void:
 	Game.dead = false
 	Death.warmup.call_deferred()
 	ui.apply_settings()
+	Stability.trace("main: UI settings applied, applying graphics (preset=%s)" % Gfx.preset)
 	Gfx.apply_scene(self)
+	Stability.trace("main: graphics applied")
 	$Entity.mannequin = $Mannequin
 	$Events.mimic = $Mimic
 	ui.inventory.close_requested.connect(func(): set_inventory(false))
@@ -30,6 +33,7 @@ func _ready() -> void:
 		set_paused(false)
 	else:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
+	Stability.trace("main: ready, the run has started")
 
 func toggle_fullscreen() -> void:
 	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN

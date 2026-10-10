@@ -22,6 +22,7 @@ const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
+const EntityRoster := preload("res://scripts/Entities/entity_roster.gd")
 
 const ENTITIES := {
 	"bacteria": "Entity",
@@ -903,6 +904,19 @@ func _build_entities_tab() -> Control:
 		mdl_box.add_child(_action_btn("SPAWN", func(): _apply(row[1], true)))
 		mdl_box.add_child(_action_btn("DESPAWN", func(): _apply(row[1], false)))
 
+	# the model-only entities and characters (entity_roster.gd): stood in front of you, no AI
+	for grp in [["entity", "MODEL ENTITIES (NO AI)"], ["character", "CHARACTERS (NO AI)"]]:
+		v.add_child(_label(grp[1], 12, Color(0.75, 0.85, 0.95)))
+		for id: String in EntityRoster.ROSTER:
+			var e: Array = EntityRoster.ROSTER[id]
+			if e[3] != grp[0]: continue
+			var r_box := HBoxContainer.new()
+			r_box.add_theme_constant_override("separation", 8)
+			v.add_child(r_box)
+			r_box.add_child(_label(str(e[0]).to_upper() + ":", 12, Color(0.9, 0.8, 0.6), 160))
+			r_box.add_child(_action_btn("SPAWN", func(): _roster_apply(id, true)))
+			r_box.add_child(_action_btn("DESPAWN", func(): _roster_apply(id, false)))
+
 	# Grabber Row: spawn it on the ceiling ahead, or drop it straight into a state
 	var grb_box := HBoxContainer.new()
 	grb_box.add_theme_constant_override("separation", 8)
@@ -1481,6 +1495,7 @@ func _submit(line: String) -> void:
 			_print("Sound: amb [status|silence <seconds>|bed]")
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
+			_print("Models (no AI): " + ", ".join(EntityRoster.ROSTER.keys()))
 		"noclip":
 			Game.noclip = not Game.noclip
 			_sync_quick_buttons()
@@ -1709,10 +1724,28 @@ func _each(arg: String, spawn: bool) -> void:
 			_apply(n, spawn)
 		return
 	arg = ALIASES.get(arg, arg)
+	if EntityRoster.ROSTER.has(arg):
+		_roster_apply(arg, spawn)
+		return
 	if not ORDER.has(arg):
 		_print("[color=orange]unknown entity: " + arg + "[/color]")
 		return
 	_apply(arg, spawn)
+
+## A model-only entity or character from entity_roster.gd: stood in front of you, or taken away
+func _roster_apply(id: String, spawn: bool) -> void:
+	var n := EntityRoster.node_for(root, id)
+	if n == null:
+		_print("[color=orange]unknown entity: " + id + "[/color]")
+		return
+	if spawn:
+		if not n.debug_spawn():
+			var why = n.get("last_error")
+			_print("[color=orange]%s: %s[/color]" % [id, why if why else "no room to spawn here, try another spot"])
+			return
+	else:
+		n.debug_despawn()
+	_print("%s %s" % [id, "spawned" if spawn else "despawned"])
 
 func _node(name: String) -> Node:
 	return root.get_node_or_null(ENTITIES[name])

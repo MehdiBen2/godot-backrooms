@@ -15,6 +15,8 @@ const WindowPiece := preload("res://scripts/World/props/window.gd")
 const WaterBody := preload("res://scripts/World/props/water_body.gd")
 const WaterView := preload("res://scripts/World/props/water_view.gd")
 const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
+const SurveyNote := preload("res://scripts/World/props/survey_clipboard.gd")
+const PipeNetwork := preload("res://scripts/World/props/pipe_network.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
 const MMBuffer := preload("res://scripts/World/mm_buffer.gd")
@@ -95,7 +97,8 @@ func _mat_id(slot: String) -> String:
 
 ## The level's ceiling lights ("lights" in the .lvl, picked in the level editor): "panels" (the ceiling's own light
 ## panels; a ceiling with none of its own gets squares of its tiles lit, tile_panel_ceiling.gdshader), "troffers"
-## (hanging 1 x 4 fluorescent fixtures, ballasts humming) or "none" (only what the windows and the torch give).
+## (hanging 1 x 4 fluorescent fixtures, ballasts humming), "fluorescent" (the same hanging fixtures, the new tube model:
+## level_fixtures.gd _build_fluorescent_fixtures()) or "none" (only what the windows and the torch give).
 ## Troffers are only ever hung when asked for.
 func lights_mode() -> String:
 	return str(level_data.get("lights", "panels"))
@@ -342,6 +345,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	var carpet_cells := []
 	var tile_cells := []
 	var classic_floor := []
+	var hotel_floor := []                    # hotel corridors: the red hotel carpet (the zone's HOTEL_H ceiling comes from ceiling_height)
 	var classic_ceil := []
 	var ceil_cells := []
 	var floor_cells := []
@@ -366,13 +370,14 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
 			if cut.has(c):
-				var key := ("paint:" + str(pf[c])) if pf.has(c) else ("classic" if classic.has(c) else ("tiles" if tiles.has(c) else "carpet"))
+				var key := ("paint:" + str(pf[c])) if pf.has(c) else ("classic" if classic.has(c) else ("hotel" if hotel.has(c) else ("tiles" if tiles.has(c) else "carpet")))
 				cut_keys.get_or_add(key, []).append(c)
 				cut_all.append(c)
 				continue
 			floor_cells.append(c)
 			if pf.has(c): paint_floor.get_or_add(pf[c], []).append(c)
 			elif classic.has(c): classic_floor.append(c)
+			elif hotel.has(c): hotel_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
 	# endless halls: the open border cells are walked on too (the copy beyond the seam draws their floor), so
@@ -403,6 +408,9 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	# Classic zone: a clean beige office carpet (the walls carry the yellow)
 	if not classic_floor.is_empty():
 		_ranged_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
+	# Hotel corridors: the deep red carpet of a hotel hall
+	if not hotel_floor.is_empty():
+		_ranged_surface(hotel_floor, func(_c): return 0.0, _carpet_material(HOTEL_CARPET), false)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
@@ -417,6 +425,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			var m: Material = carpet
 			if k.begins_with("paint:"): m = _painted_mat(k.substr(6))
 			elif k == "classic": m = _carpet_material(Color(1.02, 0.93, 0.7))
+			elif k == "hotel": m = _carpet_material(HOTEL_CARPET)
 			elif k == "tiles": m = _pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material()
 			groups.get_or_add(m, []).append_array(cut_keys[k])
 		_build_cut_floors(groups, polys)
@@ -426,6 +435,8 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	_build_hole_collision()
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
+
+const HOTEL_CARPET := Color(0.7, 0.3, 0.26)     # the hotel corridor's carpet tint: a worn deep red
 
 func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	var sm := ShaderMaterial.new()
@@ -736,7 +747,40 @@ const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 func _block_at(c: Vector2i) -> bool:
 	return walls.has(c) and not carved.has(c) and not stair_cells.has(c)
 
+## Hotel corridors (the HOTEL zone) are narrower than their cells: each face in hotel_faces (level_data.gd: an edge
+## of a hotel cell, or the part of one that no object blocks) gets a slab HOTEL_INSET thick and HOTEL_H high, with its
+## collision. The same spans are in wall_segments, so monsters are pushed out of the slab, not through it.
+func _build_hotel_insets() -> void:
+	if hotel_faces.is_empty(): return
+	var body := StaticBody3D.new()
+	add_child(body)
+	for f: Array in hotel_faces:
+		var c: Vector2i = f[0]
+		var n: Vector2i = f[1]
+		if stair_cells.has(c) or _block_at(c): continue
+		var h := ceiling_height(c)
+		var len: float = (float(f[3]) - float(f[2])) * CELL
+		var sz := Vector3(HOTEL_INSET, h, len) if n.x != 0 else Vector3(len, h, HOTEL_INSET)
+		var along := (float(f[2]) + float(f[3])) * 0.5 * CELL
+		var ctr := Vector3(c.x * CELL + n.x * (CELL - HOTEL_INSET) * 0.5 + n.y * along,
+			h * 0.5, c.y * CELL + n.y * (CELL - HOTEL_INSET) * 0.5 + n.x * along)
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = sz
+		mi.mesh = bm
+		mi.material_override = wall_mat
+		mi.position = ctr
+		add_child(mi)
+		if not shell:
+			var cs := CollisionShape3D.new()
+			var bs := BoxShape3D.new()
+			bs.size = sz
+			cs.shape = bs
+			cs.position = ctr
+			body.add_child(cs)
+
 func _build_walls() -> void:
+	_build_hotel_insets()
 	var groups := {WALL_H: [], TALL_H: [], GRAND_H: []}
 	for c: Vector2i in walls.keys():
 		if not _block_at(c): continue     # a door / thin wall object or a stairwell stands here instead of a solid block
@@ -899,12 +943,16 @@ func _build_objects() -> void:
 	var vertical: Array = []
 	var water: Array = []
 	var pools: Array = []
+	var pipes: Array = []
+	var risers: Array = []
 	for o: Dictionary in objects:
 		match o.type:
 			"door": _build_door(o)
 			"arch": arch.append(o)
 			"squeeze_gap": _build_squeeze(o)
 			"stairs_up", "stairs_down": _build_stairs(o)
+			"survey_note":
+				if not shell: _build_survey_note(o)
 			_:
 				var info := object_info(o.type)
 				if info.has("model"):
@@ -918,11 +966,14 @@ func _build_objects() -> void:
 					"lamp": _build_lamp(o)
 					"water": water.append(o)
 					"pool": pools.append(o)
+					"pipe": pipes.append(o)
+					"riser": risers.append(o)
 					"zone":
 						if not shell: _build_trigger(o)
 	_build_shaped_walls(shaped)
 	_build_arches(arch)
 	_build_props(props)
+	_build_pipes(pipes, risers, props)
 	_build_vertical(vertical)
 	if not shell: _build_climbers()
 	_build_water(water)
@@ -1203,11 +1254,15 @@ func wall_faces_near(inside: Callable, box: Rect2) -> Array:
 func _build_props(list: Array) -> void:
 	for o: Dictionary in list:
 		var info := object_info(o.type)
+		var variants: Array = info.get("variants", [])
+		if not variants.is_empty():                      # one type, several pieces of a pack: the object's "variant" picks
+			info = info.duplicate()
+			info["model_nodes"] = variants[clampi(int(o.get("variant", 1)) - 1, 0, variants.size() - 1)]
 		var p := IndustrialProp.new()
 		p.transform = object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
 		p.position.y += float(o.get("elev", 0.0))       # lifted off the floor: a sign on a wall, a box on a shelf
 		add_child(p)
-		p.build(str(info.model), info.get("textures", {}), {} if shell else info.get("light", {}), float(info.get("model_yaw", 0.0)), float(info.get("glow", 0.0)), float(info.get("model_scale", 1.0)))
+		p.build_info(info, not shell)
 		for l in p.find_children("*", "Light3D", true, false):
 			(l as Light3D).light_cull_mask &= ~SHELL_LAYERS      # a work lamp lights its own floor, not the ones under it
 
@@ -1641,12 +1696,45 @@ func _build_squeeze(o: Dictionary) -> void:
 		oi.transform = xf * Transform3D(Basis(), pos)
 		add_child(oi)
 
+## The floor's pipework, all of it at once so the runs and risers join up (props/pipe_network.gd)
+func _build_pipes(pipes: Array, risers: Array, props: Array) -> void:
+	if pipes.is_empty() and risers.is_empty(): return
+	var net := PipeNetwork.new()
+	net.name = "Pipes"
+	add_child(net)
+	net.build(pipes, risers, object_transform, func(p: Vector3) -> float: return ceiling_height(cell_of(p)), not shell, _pipe_ports(props))
+
+## The openings of the pipe props on the floor (object_types.json "ports": [x, y, z, dx, dy, dz, diameter], metres
+## in the prop's own frame), in the world, for pipe runs to join: {pos, dir (out of it), r}
+func _pipe_ports(props: Array) -> Array:
+	var out: Array = []
+	for o: Dictionary in props:
+		var ports: Array = object_info(o.type).get("ports", [])
+		if ports.is_empty(): continue
+		var xf := object_transform(o) * Transform3D(Basis.from_scale(Vector3.ONE * o.scale), Vector3.ZERO)
+		var lift := Vector3(0.0, float(o.get("elev", 0.0)), 0.0)
+		for p: Array in ports:
+			out.append({"pos": xf * Vector3(float(p[0]), float(p[1]), float(p[2])) + lift,
+				"dir": (xf.basis * Vector3(float(p[3]), float(p[4]), float(p[5]))).normalized(),
+				"r": float(p[6]) * 0.5 * float(o.scale)})
+	return out
+
+## A survey note placed by hand (object_types.json "survey_note"): the same scannable T.S.R.A. log the level
+## scatters (props/survey_clipboard.gd), on the floor or a table ("elev"), as the paper the object asks for
+func _build_survey_note(o: Dictionary) -> void:
+	var n := SurveyNote.new()
+	n.paper = str(o.get("paper", ""))
+	n.transform = object_transform(o)
+	n.position.y += float(o.get("elev", 0.0))
+	add_child(n)
+
 # A door is always set in a thin wall: props/door.gd builds the partition across the object's span with
 # the doorway, frame, casing, leaf and knobs in it.
 func _build_door(o: Dictionary) -> void:
 	var h := _object_wall_h(o)
 	var d := Door.new()
 	d.transform = object_transform(o)
+	d.leaf = str(o.get("leaf", "wood"))          # which leaf model hangs in it (object_types.json door params)
 	add_child(d)
 	d.build(CELL * o.scale, float(object_info("door").get("thickness", 0.3)), h, _wall_mat_for(h), door_frame_mat, door_leaf_mat, door_hw_mat)
 

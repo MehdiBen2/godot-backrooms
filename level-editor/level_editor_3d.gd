@@ -15,6 +15,7 @@ const TALL_H := 1.4
 const GRAND_H := 2.1
 const LOW_H := 0.42
 const REBUILD_DELAY := 0.25
+const THUMB_PX := 128                    # a prop's picture in the tool panel, square
 
 var ed                                   # the level editor (grid, zones, paint, objects, materials, GAME)
 var vp: SubViewport
@@ -33,7 +34,11 @@ var _delay := 0.0
 const EYE := 1.6 / 4.5                   # metres -> cells
 const WALK_SPEED := 1.1                  # cells a second (about 5 m/s); Shift doubles it
 var walking := false
-var vscale := 1.0                        # height multiplier: 2 in walk mode
+var vscale := 2.0                        # height multiplier: 2 = true heights (walk mode, or "True height"), 1 = walls halved to see over
+var true_h := true                       # the overview at true heights (H): props and rooms in their real proportions
+var true_check: CheckBox
+var _grab_stacked := false               # the piece being dragged stood on another prop (dragged off it, it goes back to the floor)
+var _mesh_boxes := {}                    # "mesh id transform" -> the box round the triangles it really draws
 var walk_pos := Vector3.ZERO
 var walk_light: OmniLight3D
 var _tex_cache := {}                     # pbr name -> StandardMaterial3D
@@ -66,10 +71,17 @@ var sun: DirectionalLight3D
 ## the fill light's colour and the sun. Kept bright enough to edit in; the game's real looks are in
 ## scripts/Render/atmospheres.gd and main.tscn (dim). [background, ambient colour, ambient energy, sun colour, sun energy]
 const ATMO_PREVIEW := {
-	"dim": [Color("0d0c08"), Color("8a7a52"), 0.7, Color(1.0, 0.9, 0.7), 0.9],                   # warm, dark, foggy halls
-	"classic": [Color("6b5d2c"), Color("e8d27a"), 1.15, Color(1.0, 0.98, 0.9), 1.25],            # Kane Pixels: bright, flat yellow
-	"liminal": [Color("4a4a3c"), Color("c8ccb8"), 1.0, Color(0.95, 0.98, 0.9), 1.1],             # pale, cool, hazy
+	"dim": [Color("0d0c08"), Color("8a7a52"), 0.4, Color(1.0, 0.9, 0.7), 0.5],                   # warm, dark, foggy halls
+	"classic": [Color("6b5d2c"), Color("e8d27a"), 0.6, Color(1.0, 0.98, 0.9), 0.7],              # Kane Pixels: bright, flat yellow
+	"liminal": [Color("4a4a3c"), Color("c8ccb8"), 0.55, Color(0.95, 0.98, 0.9), 0.6],            # pale, cool, hazy
 }
+## the view's light level: the atmosphere's light times this (- and = in the 3D view). Tonemapping keeps the
+## highlights from clipping to white, which is what made the old preview look blown out
+const LIGHT_STEP := 0.85
+var light_level := 0.8
+const EXPOSURE := 0.9
+const ROT_FINE := 1.0                      # degrees a [ or ] press turns a piece (Shift: 15)
+const ELEV_STEP := 0.05                    # metres a PageUp / PageDown press lifts a piece (Shift: 0.25)
 
 func _init(editor) -> void:
 	ed = editor
@@ -90,6 +102,8 @@ func _init(editor) -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("8a8676")
 	env.ambient_light_energy = 0.8
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES      # rolls the highlights off instead of clipping them to white
+	env.tonemap_exposure = EXPOSURE
 	var we := WorldEnvironment.new()
 	we.environment = env
 	vp.add_child(we)
@@ -97,13 +111,17 @@ func _init(editor) -> void:
 	sun.rotation = Vector3(-0.9, 0.6, 0.0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS   # sharp near the camera, cheap far off
+	sun.directional_shadow_max_distance = 120.0          # cells (1 cell = 4.5 m): the whole map's shadows
+	sun.shadow_blur = 1.5                                # softer edges, less stair-stepping
 	vp.add_child(sun)
 	cam = Camera3D.new()
 	cam.far = 500.0
+	cam.fov = 55.0                                       # a little less wide than the default: less stretch at the edges
 	vp.add_child(cam)
 	walk_light = OmniLight3D.new()              # a lamp you carry, so rooms under the ceiling aren't black
 	walk_light.omni_range = 4.0
-	walk_light.light_energy = 1.2
+	walk_light.light_energy = 0.6
 	walk_light.visible = false
 	cam.add_child(walk_light)
 	hud = Label.new()
@@ -120,6 +138,18 @@ func _init(editor) -> void:
 	ceiling_check.position = Vector2(10, 30)
 	ceiling_check.toggled.connect(func(_on): stale = true)
 	add_child(ceiling_check)
+	true_check = CheckBox.new()
+	true_check.text = "True height"
+	true_check.tooltip_text = "Rooms and props at their real heights (H). Off: walls drawn half height, to see over them"
+	true_check.position = Vector2(10, 52)
+	true_check.button_pressed = true_h
+	true_check.toggled.connect(func(on):
+		true_h = on
+		vscale = 2.0 if walking or true_h else 1.0
+		_aim_stale = true
+		stale = true
+		_delay = 0.0)
+	add_child(true_check)
 	_unit = BoxMesh.new()
 	_unit.size = Vector3.ONE
 	overlay = Node3D.new()
@@ -153,13 +183,13 @@ func _init(editor) -> void:
 		_aim_stale = true)
 	_place_camera()
 
-const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   ZQSD move   E walk"
+const HUD_ORBIT := "3D VIEW   right drag orbit   middle drag pan   wheel zoom   ZQSD move   E walk   [ ] turn 1° (Shift 15°)   PgUp/PgDn height   - / = view light   F frame   Home reset   H true height"
 const HUD_WALK := "WALKING   ZQSD walk   Shift run   right drag / arrows look   E back to overview"
 
 ## Walk mode on / off: start from the spawn marker (else the middle of the view), heights at true scale
 func toggle_walk() -> void:
 	walking = not walking
-	vscale = 2.0 if walking else 1.0
+	vscale = 2.0 if walking or true_h else 1.0
 	walk_light.visible = walking
 	cam.near = 0.01 if walking else 0.05
 	hud.text = HUD_WALK if walking else HUD_ORBIT
@@ -313,9 +343,24 @@ func _gui_input(e: InputEvent) -> void:
 			KEY_ESCAPE:                                  # drop the piece in hand, else the selection
 				if _placing() != "": ed._select_tool("select")
 				else: ed._select(-1)
+			KEY_BRACKETLEFT, KEY_BRACKETRIGHT:          # a fine turn of the piece in hand, else the selected one
+				var turn := ROT_FINE * (15.0 if k.shift_pressed else 1.0)
+				if k.keycode == KEY_BRACKETLEFT: turn = -turn
+				if _placing() != "": ed.place_rot = fposmod(float(ed.place_rot) + turn, 360.0)
+				else: ed._rotate_selected(turn)
+				_aim_stale = true
+			KEY_PAGEUP, KEY_PAGEDOWN:                   # the height of the piece in hand, else the selected one
+				_step_elev((1.0 if k.keycode == KEY_PAGEUP else -1.0) * (5.0 if k.shift_pressed else 1.0))
+			KEY_MINUS, KEY_EQUAL:                       # how bright the view is (lighting only, not the map)
+				light_level = clampf(light_level * (LIGHT_STEP if k.keycode == KEY_MINUS else 1.0 / LIGHT_STEP), 0.15, 2.5)
+				_apply_atmosphere()
+				ed._status("View light %d%%" % roundi(light_level * 100.0))
+			KEY_F: _frame_selected()
+			KEY_HOME: _reset_view()
 			KEY_V: ed._select_tool("select")
 			KEY_E: toggle_walk()
 			KEY_C: ceiling_check.button_pressed = not ceiling_check.button_pressed
+			KEY_H: true_check.button_pressed = not true_check.button_pressed
 
 # ---------------------------------------------------------------- materials
 func _flat(col: Color) -> StandardMaterial3D:
@@ -387,9 +432,9 @@ func _apply_atmosphere() -> void:
 	var p: Array = ATMO_PREVIEW.get(a, ATMO_PREVIEW.dim)
 	env.background_color = p[0]
 	env.ambient_light_color = p[1]
-	env.ambient_light_energy = p[2]
+	env.ambient_light_energy = p[2] * light_level
 	sun.light_color = p[3]
-	sun.light_energy = p[4]
+	sun.light_energy = p[4] * light_level
 
 func _rebuild() -> void:
 	_apply_atmosphere()
@@ -431,6 +476,21 @@ func _rebuild() -> void:
 		var zm := _flat(col)
 		zm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_batch(quad, zm, xfs)
+	# hotel corridors: the side walls standing into their cells, as the game builds them (level_geometry.gd
+	# _build_hotel_insets). The editor's cells are the game's; HOTEL_INSET 0.9 m is 0.2 of a 4.5 m cell
+	var hotel_xfs: Array = []
+	var inset := 0.9 / 4.5
+	for c: Vector2i in ed.zones["hotel"]:
+		for dn: Vector2i in ed.DIRS4:
+			var nb := c + dn
+			var solid: bool = nb.x < 0 or nb.y < 0 or nb.x >= ed.grid_size or nb.y >= ed.grid_size or ed.grid[nb.y][nb.x] == ed.WALL
+			if not solid: continue
+			var hh := (5.0 / 6.0) * WALL_H * vscale      # the hotel ceiling is 4.5 m of the 5.4 m wall, whatever the cell's neighbours
+			var sz := Vector3(inset if dn.x != 0 else 1.0, hh, inset if dn.y != 0 else 1.0)
+			var at := Vector3(c.x + dn.x * (0.5 - inset * 0.5), hh * 0.5, c.y + dn.y * (0.5 - inset * 0.5))
+			hotel_xfs.append(_box_xf(at, sz))
+	if not hotel_xfs.is_empty():
+		_batch(unit, _pbr(ed._surface_key("wall", Vector2i(-1, -1))), hotel_xfs)
 	for m in ed.MARKERS:
 		var mc = ed.markers[m]
 		if mc == null: continue
@@ -467,6 +527,19 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 	var wall_mat := _pbr(ed._surface_key("wall", Vector2i(-1, -1)))
 	var parts: Array = []                              # [local centre, size, material, (yaw), (mesh)]
 	match o.type:
+		"entity":                                      # a spawn mark: a red post with a head, like the other markers
+			var post := CylinderMesh.new()
+			post.top_radius = 0.06
+			post.bottom_radius = 0.12
+			post.height = 0.9
+			var pm := MeshInstance3D.new()
+			pm.mesh = post
+			pm.position = pos + Vector3(0.0, 0.45, 0.0)
+			var pmat := _flat(col)
+			pmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			pm.material_override = pmat
+			parent.add_child(pm)
+			return
 		"arch":
 			var pillar := float(info.get("pillar", 0.75)) / 4.5
 			var r := span * 0.5 - pillar
@@ -522,7 +595,7 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 					else:                                 # going down: steps sinking away under a dark slab
 						parts.append([Vector3(xa + (xb - xa) * (i + 0.5) / steps, 0.02, zc), Vector3((xb - xa) / steps, 0.04, lane), _flat(col.darkened(0.08 * (i + 1)))])
 		_:
-			var model := _model(str(o.type))
+			var model := _model_of(o)
 			if not model.is_empty():                       # a model prop: its real mesh
 				var at := _prop_xf(o)
 				for mp: Array in model.parts:
@@ -622,6 +695,8 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 							var run2 := poly[i + 1] - poly[i]
 							var mid2 := (poly[i] + poly[i + 1]) * 0.5
 							parts.append([Vector3(mid2.x, 0.006, mid2.y), Vector3(run2.length() + 0.07, 0.012, 0.07), rim, atan2(-run2.y, run2.x)])
+				"pipe", "riser":
+					_pipe_preview(o, h, Transform3D(Basis(Vector3.UP, yaw_rad), pos), parent)
 				"zone":
 					var zc := col
 					zc.a = 0.22
@@ -640,6 +715,65 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 		mi.material_override = p[2]
 		parent.add_child(mi)
 
+# ---------------------------------------------------------------- pipes
+## A pipe run or riser as the game's props/pipe_network.gd lays it out (without its fittings): a cylinder per leg of
+## each pipe of the run, a ball at each turn, at its height (under the ceiling `roof`, on stands, or at Off floor)
+func _pipe_preview(o: Dictionary, roof: float, xf: Transform3D, parent: Node3D) -> void:
+	var mat := _flat(ed._pipe_col(str(ed._param(o, "material", "rust"))))
+	var r := float(ed._param(o, "diameter", 0.3)) * 0.5 * M
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.5
+	cyl.bottom_radius = 0.5
+	cyl.height = 1.0
+	cyl.radial_segments = 12
+	var ball := SphereMesh.new()
+	ball.radius = 0.5
+	ball.height = 1.0
+	var put := func(mesh: Mesh, at: Transform3D) -> void:
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.material_override = mat
+		mi.transform = xf * at
+		parent.add_child(mi)
+	var leg := func(a: Vector3, b: Vector3) -> void:
+		var d := b - a
+		if d.length() < 0.001: return
+		var y := d.normalized()
+		var x := (Vector3.UP if absf(y.y) < 0.9 else Vector3.RIGHT).cross(y).normalized()
+		put.call(cyl, Transform3D(Basis(x, y, x.cross(y)) * Basis.from_scale(Vector3(r * 2.0, d.length(), r * 2.0)), (a + b) * 0.5))
+	if ed._shape(o.type) == "riser":
+		var to := float(ed._param(o, "to", 0.0))
+		leg.call(Vector3(0, _up(float(ed._param(o, "from", 0.0))), 0), Vector3(0, roof if to <= 0.0 else _up(to), 0))
+		return
+	var path: PackedVector2Array = ed._shape_path(o)
+	if path.size() < 2: return
+	var r_m := float(ed._param(o, "diameter", 0.3)) * 0.5
+	var hang := str(ed._param(o, "hang", "ceiling"))
+	var y0: float
+	match hang:
+		"floor": y0 = _up(r_m + 0.12)
+		"elev": y0 = _up(float(ed._param(o, "elev", 1.0)) + r_m)
+		_: y0 = roof - _up(maxf(float(ed._param(o, "drop", 0.45)), r_m + 0.05))
+	var n := clampi(int(ed._param(o, "count", 1)), 1, 8)
+	var pitch := (r_m * 2.0 + float(ed._param(o, "gap", 0.08))) * M
+	var up := str(ed._param(o, "stack", "side")) == "up"
+	for k in n:
+		var s := (k - (n - 1) * 0.5) * pitch
+		var dy := 0.0
+		if up: dy = (-k if hang == "ceiling" else k) * pitch
+		var pts: Array = []
+		for i in path.size():
+			var p := path[i]
+			var side := Vector2.ZERO
+			if not up:
+				var d0 := (p - path[i - 1]).normalized() if i > 0 else Vector2.ZERO
+				var d1 := (path[i + 1] - p).normalized() if i < path.size() - 1 else Vector2.ZERO
+				side = (Vector2(-d0.y, d0.x) + Vector2(-d1.y, d1.x)).normalized() * s
+			pts.append(Vector3(p.x + side.x, y0 + dy, p.y + side.y))
+		for i in pts.size() - 1:
+			leg.call(pts[i], pts[i + 1])
+			if i > 0: put.call(ball, Transform3D(Basis.from_scale(Vector3.ONE * r * 2.5), pts[i]))
+
 # ---------------------------------------------------------------- prop models
 ## Metres up -> this view's height (squashed to half in the overview, true in walk mode, like the walls)
 func _up(m: float) -> float:
@@ -649,10 +783,16 @@ func _up(m: float) -> float:
 ## turned by "model_yaw", the lowest point on y = 0), read straight from the game's .glb / .fbx:
 ## {parts: [[Mesh, Transform3D]], mat: its material (null: the file's own), bounds: AABB}.
 ## {} for a type with no model, or one that can't be read: it is drawn as a box.
-func _model(t: String) -> Dictionary:
-	if _models.has(t): return _models[t]
-	_models[t] = {}
+## The model of object `o` as it is: its type's, and for a type with "variants" the piece its "variant" picks
+func _model_of(o: Dictionary) -> Dictionary:
+	return _model(str(o.type), int(ed._param(o, "variant", 1)))
+
+func _model(t: String, variant := 1) -> Dictionary:
 	var info: Dictionary = ed.OBJ_INFO.get(t, {})
+	var variants: Array = info.get("variants", [])
+	var key := t if variants.is_empty() else "%s#%d" % [t, clampi(variant, 1, variants.size())]
+	if _models.has(key): return _models[key]
+	_models[key] = {}
 	if not info.has("model"): return {}
 	var path: String = ed.GAME.path_join(str(info.model).trim_prefix("res://"))
 	var fbx := path.get_extension().to_lower() == "fbx"
@@ -663,16 +803,36 @@ func _model(t: String) -> Dictionary:
 	var root := doc.generate_scene(state)
 	if root == null: return {}
 	var parts: Array = []
-	if root is MeshInstance3D and (root as MeshInstance3D).mesh != null: parts.append([(root as MeshInstance3D).mesh, Transform3D.IDENTITY])
-	_model_parts(root, Transform3D.IDENTITY, parts)
+	var keep: Array = info.get("model_nodes", []) if variants.is_empty() else variants[clampi(variant, 1, variants.size()) - 1]
+	var drop: Array = info.get("model_drop", [])
+	if root is MeshInstance3D and (root as MeshInstance3D).mesh != null and keep.is_empty(): parts.append([(root as MeshInstance3D).mesh, Transform3D.IDENTITY])
+	_model_parts(root, Transform3D.IDENTITY, parts, keep.is_empty(), keep, drop)
 	root.free()
 	if parts.is_empty(): return {}
-	var box := AABB()
+	var raw := AABB()
 	for i in parts.size():
-		var b: AABB = (parts[i][1] as Transform3D) * (parts[i][0] as Mesh).get_aabb()
-		box = b if i == 0 else box.merge(b)
-	var big_by := float(info.get("model_scale", 1.0))        # the size the type is built at
-	var fix := Transform3D(Basis(Vector3.UP, deg_to_rad(float(info.get("model_yaw", 0.0)))) * Basis.from_scale(Vector3.ONE * big_by), Vector3(0, -box.position.y * big_by, 0))
+		var b := _mesh_box(parts[i][0], parts[i][1])
+		raw = b if i == 0 else raw.merge(b)
+	# its size: "fit" (its real size, on the file's own axes) else "model_scale"
+	var big_by := float(info.get("model_scale", 1.0))
+	var fit: Array = info.get("fit", [])
+	if fit.size() == 2:
+		var have := raw.size.y
+		match str(fit[0]):
+			"x": have = raw.size.x
+			"z": have = raw.size.z
+			"len": have = maxf(raw.size.x, raw.size.z)
+		if have > 0.0001: big_by = float(fit[1]) / have
+	var r: Array = info.get("model_rot", [0.0, 0.0, 0.0])
+	var rot := Basis.from_euler(Vector3(deg_to_rad(float(r[0])), deg_to_rad(float(r[1])), deg_to_rad(float(r[2]))))
+	var basis := Basis(Vector3.UP, deg_to_rad(float(info.get("model_yaw", 0.0)))) * rot * Basis.from_scale(Vector3.ONE * big_by)
+	var box: AABB = Transform3D(basis, Vector3.ZERO) * raw
+	var off := Vector3(0.0, -box.position.y, 0.0)
+	if bool(info.get("center", false)):                # a pack's piece: its middle on the object's origin
+		off.x = -box.get_center().x
+		off.z = -box.get_center().z
+	var fix := Transform3D(basis, off)
+	box.position += off
 	for p: Array in parts: p[1] = fix * (p[1] as Transform3D)
 	# a loose-texture pack (the game builds its material from "textures"): its colour map, small; else the file's own
 	var mat: StandardMaterial3D = null
@@ -689,18 +849,91 @@ func _model(t: String) -> Dictionary:
 			mat.albedo_color = Color.WHITE
 			mat.albedo_texture = ImageTexture.create_from_image(img)
 			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	_models[t] = {"parts": parts, "mat": mat, "bounds": fix * box}
-	return _models[t]
+	_models[key] = {"parts": parts, "mat": mat, "bounds": box}
+	return _models[key]
+
+## A picture of a model prop for the tool panel: its real meshes from a three-quarter view, drawn once into a
+## little viewport of its own on a clear background. null for a type with no model (or one that can't be read).
+func prop_thumb(t: String) -> Texture2D:
+	var m := _model(t)
+	if m.is_empty(): return null
+	var tvp := SubViewport.new()
+	tvp.size = Vector2i(THUMB_PX, THUMB_PX)
+	tvp.own_world_3d = true
+	tvp.transparent_bg = true
+	tvp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	ed.add_child(tvp)
+	var root := Node3D.new()
+	tvp.add_child(root)
+	for p: Array in m.parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p[0]
+		mi.transform = p[1]
+		mi.material_override = m.mat
+		root.add_child(mi)
+	var we := WorldEnvironment.new()
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color("8a8676")
+	env.ambient_light_energy = 0.8
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = EXPOSURE
+	we.environment = env
+	tvp.add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.rotation = Vector3(-0.9, 0.6, 0.0)
+	sun.light_energy = 1.1
+	tvp.add_child(sun)
+	var b: AABB = m.bounds
+	var c := b.get_center()
+	var cam := Camera3D.new()
+	cam.fov = 30.0
+	tvp.add_child(cam)
+	cam.look_at_from_position(c + Vector3(1.0, 0.55, 1.0).normalized() * maxf(b.size.length(), 0.3) * 2.0, c)
+	cam.current = true
+	await RenderingServer.frame_post_draw
+	var img := tvp.get_texture().get_image()
+	tvp.queue_free()
+	return ImageTexture.create_from_image(img)
 
 ## Every mesh under `n` with its place in the model (through every node above it)
-func _model_parts(n: Node, xf: Transform3D, out: Array) -> void:
+## (`kept`: under one of the `keep` names, or no names given; nothing under a `drop` name: the type's
+## "model_nodes" / "model_drop", a pack's one piece without the rest)
+func _model_parts(n: Node, xf: Transform3D, out: Array, kept := true, keep: Array = [], drop: Array = []) -> void:
 	for c in n.get_children():
+		if drop.has(String(c.name)): continue
+		var ck := kept or keep.has(String(c.name))
 		var cx: Transform3D = xf * (c as Node3D).transform if c is Node3D else xf
 		var mesh: Mesh = null
 		if c is MeshInstance3D: mesh = (c as MeshInstance3D).mesh
 		elif c is ImporterMeshInstance3D and (c as ImporterMeshInstance3D).mesh != null: mesh = (c as ImporterMeshInstance3D).mesh.get_mesh()
-		if mesh != null: out.append([mesh, cx])
-		_model_parts(c, cx, out)
+		if mesh != null and ck: out.append([mesh, cx])
+		_model_parts(c, cx, out, ck, keep, drop)
+
+## The box round the triangles `mesh` really draws, placed by `xf` (as the game's industrial_prop.gd mesh_box():
+## measured on the triangles, as a box turned by a node grows, and collapsed triangles off the model don't count)
+func _mesh_box(mesh: Mesh, xf: Transform3D) -> AABB:
+	var key := "%d %s" % [mesh.get_instance_id(), xf]
+	if _mesh_boxes.has(key): return _mesh_boxes[key]
+	var box := xf * mesh.get_aabb()
+	var faces := mesh.get_faces()
+	var first := true
+	var tiny := mesh.get_aabb().size.length_squared() * 1e-10
+	for i in range(0, faces.size() - 2, 3):
+		var a := faces[i]
+		var b := faces[i + 1]
+		var c := faces[i + 2]
+		if (b - a).cross(c - a).length_squared() <= tiny: continue
+		a = xf * a
+		b = xf * b
+		c = xf * c
+		if first:
+			box = AABB(a, Vector3.ZERO)
+			first = false
+		box = box.expand(a).expand(b).expand(c)
+	_mesh_boxes[key] = box
+	return box
 
 ## Where a model prop stands: turned its way, "elev" metres off the floor, its metres brought to cells
 func _prop_xf(o: Dictionary) -> Transform3D:
@@ -722,7 +955,7 @@ func _placing() -> String:
 	var tool := str(ed.tool)
 	if not tool.begins_with("obj:"): return ""
 	var t := tool.get_slice(":", 1)
-	return "" if ed._is_stairs(t) else t
+	return "" if ed._is_stairs(t) or bool(ed._info(t).get("draw_spline", false)) else t      # (drawn on the map)
 
 ## Once a frame while the view is open: the ghost, the selection's marks and the line of controls
 func _tick_placing() -> void:
@@ -745,8 +978,9 @@ func _tip_text() -> String:
 	if t != "":
 		var info: Dictionary = ed._info(t)
 		var where := "point at a wall: it hangs there, at that height" if str(info.get("mount", "")) == "wall" else "it goes where the mouse points"
-		return "PLACING %s   %s   click: place   R: turn   Shift+wheel: size   Alt+wheel: turn 15°   Ctrl+wheel: height   Alt: no snap   Esc: stop" % [str(info.label).to_upper(), where]
-	if str(ed.tool).begins_with("obj:"): return "Stairwells are placed on the map (F4)"
+		if info.has("model") and str(info.get("mount", "")) != "wall": where = "point at the floor, or at a table / shelf top to stand it on that"
+		return "PLACING %s   %s   click: place   R: turn 90°   [ ]: turn 1°   Shift+wheel: size   PgUp/PgDn: height   Alt: no snap   Esc: stop" % [str(info.label).to_upper(), where]
+	if str(ed.tool).begins_with("obj:"): return "Stairwells, pipe runs and spline walls are drawn on the map (F4)"
 	if str(ed.tool) == "select":
 		if ed.selected >= 0: return "Drag: move it (a wall prop slides over the walls)   R: turn   Shift+wheel: size   Alt+wheel: turn 15°   Ctrl+wheel: height   Del: delete   Esc: deselect"
 		return "Click an object to select it, drag to move it.   Pick a prop in the tool panel to place it here"
@@ -867,6 +1101,13 @@ func _cast_all(from: Vector3, dir: Vector3, skip := -1) -> Dictionary:
 			if r.is_empty() or absf((r[1] as Vector3).y) > 0.5: continue
 			if hit.is_empty() or float(r[0]) < float(hit.t):
 				hit = {"t": float(r[0]), "pos": from + dir * float(r[0]), "normal": r[1]}
+		# the top of a prop: things are stood on it (a lamp on a table, a TV on a sideboard)
+		var pb := _prop_box(ed.objects[i])
+		if pb.is_empty(): continue
+		var top := _ray_box(from, dir, pb[0], pb[1])
+		if top.is_empty() or (top[1] as Vector3).y < 0.5: continue
+		if hit.is_empty() or float(top[0]) < float(hit.t):
+			hit = {"t": float(top[0]), "pos": from + dir * float(top[0]), "normal": Vector3.UP, "on": i}
 	return hit
 
 ## Put object `o` where the ray landed (`hit`, from _cast_all). `off`: where its origin was from the floor
@@ -880,7 +1121,7 @@ func _put(o: Dictionary, hit: Dictionary, off := Vector2.ZERO) -> void:
 	var p := Vector2(at.x, at.z)
 	var out := Vector2(nrm.x, nrm.z).normalized()          # away from the wall, on the map
 	var on_wall := absf(nrm.y) < 0.5
-	var model := _model(t)
+	var model := _model_of(o)
 	if on_wall and str(info.get("mount", "")) == "wall" and model.is_empty():
 		# a window: flat on the face pointed at, facing out of it, its glass centred on the height pointed at
 		p = ed._snap_pos(p + out * 0.001)
@@ -902,12 +1143,16 @@ func _put(o: Dictionary, hit: Dictionary, off := Vector2.ZERO) -> void:
 		var lift := maxf(0.0, at.y * 9.0 / vscale - (b.position.y + b.size.y * 0.5) * k)
 		o["elev"] = lift if loose else snappedf(lift, 0.05)
 	else:
-		if on_wall and not model.is_empty():               # a floor prop pointed at a wall: at its foot, clear of it
+		if hit.has("on") and not on_wall:                  # on another prop's top: stood on it, right where you point
+			p += off
+			if (info.get("params", {}) as Dictionary).has("elev"):
+				o["elev"] = snappedf(maxf(0.0, at.y * 9.0 / vscale), 0.005)
+		elif on_wall and not model.is_empty():               # a floor prop pointed at a wall: at its foot, clear of it
 			p += out * (float(info.get("thickness", 0.3)) * float(o.scale) * M * 0.5 + 0.001)
 		elif on_wall:                                      # a wall piece: on that face's cell edge
 			p = ed._snap_pos(p + out * 0.001)
 		else:
-			p = ed._snap_pos(p + off)
+			p = ed._snap_pos(p + off, t)
 		if model.is_empty() and is_zero_approx(fposmod(float(o.rotation), 90.0)):     # as on the map: fitted to the walls round it
 			o.rotation = ed._wall_align(p, float(o.rotation), t)
 	var top: float = ed.grid_size - 1
@@ -950,16 +1195,24 @@ func _place() -> void:
 	ed._status("Placed  " + ed._describe(made))
 
 ## How far along the ray object `o` is, -1 if the ray misses it
+## A model prop's box in this view: [Transform3D, size], [] for an object with no model
+func _prop_box(o: Dictionary) -> Array:
+	var model := _model_of(o)
+	if model.is_empty(): return []
+	var base := Transform3D(Basis(Vector3.UP, -deg_to_rad(o.rotation)), Vector3(o.pos_x, 0.0, o.pos_y))
+	var b: AABB = model.bounds
+	var k: float = float(o.scale) * M
+	var s := Vector3(k, k * 0.5 * vscale, k)
+	var mid := b.get_center() * s + Vector3(0, _up(float(ed._param(o, "elev", 0.0))), 0)
+	return [base * Transform3D(Basis.IDENTITY, mid), Vector3(maxf(b.size.x * s.x, 0.02), maxf(b.size.y * s.y, 0.004), maxf(b.size.z * s.z, 0.02))]
+
 func _ray_object(from: Vector3, dir: Vector3, o: Dictionary) -> float:
 	var base := Transform3D(Basis(Vector3.UP, -deg_to_rad(o.rotation)), Vector3(o.pos_x, 0.0, o.pos_y))
 	var boxes: Array = []
-	var model := _model(str(o.type))
-	if not model.is_empty():
-		var b: AABB = model.bounds
-		var k: float = float(o.scale) * M
-		var s := Vector3(k, k * 0.5 * vscale, k)
-		var mid := b.get_center() * s + Vector3(0, _up(float(ed._param(o, "elev", 0.0))), 0)
-		boxes.append([base * Transform3D(Basis.IDENTITY, mid), Vector3(maxf(b.size.x * s.x, 0.08), maxf(b.size.y * s.y, 0.08), maxf(b.size.z * s.z, 0.08))])
+	var pb := _prop_box(o)
+	if not pb.is_empty():
+		var sz: Vector3 = pb[1]
+		boxes.append([pb[0], Vector3(maxf(sz.x, 0.08), maxf(sz.y, 0.08), maxf(sz.z, 0.08))])
 	else:
 		boxes = _solid_boxes(o)
 		if boxes.is_empty():                               # an arch, a stairwell, a trigger (by its floor only, so what stands in it can be picked)
@@ -1004,6 +1257,10 @@ func _grab() -> void:
 	var hit := _cast_all(ray[0], ray[1], i)
 	if not hit.is_empty() and (hit.normal as Vector3).y > 0.5:
 		grab_off = Vector2(o.pos_x, o.pos_y) - Vector2(hit.pos.x, hit.pos.z)
+	# standing on another prop? (straight down from just over its foot)
+	var lift := _up(float(ed._param(o, "elev", 0.0)))
+	var under := _cast_all(Vector3(o.pos_x, lift + 0.01, o.pos_y), Vector3.DOWN, i)
+	_grab_stacked = lift > 0.001 and under.has("on") and absf(float(under.pos.y) - lift) < 0.02
 
 ## The grabbed object follows the mouse (one undo step, pushed when it first moves)
 func _drag_grabbed() -> void:
@@ -1019,6 +1276,11 @@ func _drag_grabbed() -> void:
 	if hit.is_empty(): return
 	var o: Dictionary = ed.objects[grab]
 	_put(o, hit, grab_off)
+	if hit.has("on"):
+		_grab_stacked = true
+	elif _grab_stacked and (hit.normal as Vector3).y > 0.5:   # taken off the table onto the floor: back down to the floor
+		var dp: Dictionary = ed._info(o.type).get("params", {})
+		if dp.has("elev"): o["elev"] = float(dp.elev)
 	_refresh(grab)
 	ed._sync_inspector()
 	ed._mark_dirty()
@@ -1071,13 +1333,51 @@ func _wheel_edit(up: bool, mb: InputEventMouseButton) -> void:
 
 ## The cyan marks of an object in hand or selected: its origin and the way it faces on the floor, a stem up
 ## to it when it is off the floor, and a see-through box round it (a model) or over its footprint
+## Lift the piece in hand (or the selected one, if it has a height) by `s` steps of ELEV_STEP metres
+func _step_elev(s: float) -> void:
+	var step := ELEV_STEP * s
+	var t := _placing()
+	if t != "":
+		var params: Dictionary = ed._info(t).get("params", {})
+		if not params.has("elev"): return
+		place_elev[t] = clampf(snappedf(float(place_elev.get(t, params.elev)) + step, 0.05), 0.0, 10.8)
+		_aim_stale = true
+		ed._status("Height %.2f m" % float(place_elev[t]))
+		return
+	var i: int = ed.selected
+	if i < 0 or i >= ed.objects.size() or ed.multi.size() > 1: return
+	var o: Dictionary = ed.objects[i]
+	if ed._is_stairs(str(o.type)) or not (ed._info(o.type).get("params", {}) as Dictionary).has("elev"): return
+	ed._set_prop("elev", clampf(snappedf(float(ed._param(o, "elev", 0.0)) + step, 0.05), 0.0, 10.8))
+	_refresh(i)
+	ed._sync_inspector()
+	ed._status(ed._describe(o))
+
+## F: move the view onto the selected object, close enough to see its placement
+func _frame_selected() -> void:
+	var i: int = ed.selected
+	if i < 0 or i >= ed.objects.size(): return
+	var o: Dictionary = ed.objects[i]
+	target = Vector3(float(o.pos_x), 0.0, float(o.pos_y))
+	dist = 8.0
+	_place_camera()
+
+## Home: back to the whole map from the same side as before
+func _reset_view() -> void:
+	var n: int = ed.grid_size
+	target = Vector3(n * 0.5, 0.0, n * 0.5)
+	dist = n * 0.9
+	yaw = 0.6
+	pitch = -0.9
+	_place_camera()
+
 func _mark(o: Dictionary, parent: Node3D) -> void:
 	var base := Transform3D(Basis(Vector3.UP, -deg_to_rad(o.rotation)), Vector3(o.pos_x, 0.0, o.pos_y))
 	var up := _up(float(ed._param(o, "elev", 0.0)))
 	var parts: Array = [[Vector3(0.2, 0.012, 0), Vector3(0.4, 0.012, 0.024), _sel_line],
 		[Vector3(0, 0.012, 0), Vector3(0.07, 0.016, 0.07), _sel_line]]
 	if up > 0.02: parts.append([Vector3(0, up * 0.5, 0), Vector3(0.012, up, 0.012), _sel_line])
-	var model := _model(str(o.type))
+	var model := _model_of(o)
 	if model.is_empty():
 		var foot: Rect2 = ed._obj_bounds(o)
 		parts.append([Vector3(foot.get_center().x, 0.01, foot.get_center().y), Vector3(foot.size.x, 0.008, foot.size.y), _sel_fill])

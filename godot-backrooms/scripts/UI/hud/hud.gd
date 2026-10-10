@@ -85,6 +85,7 @@ func _ready() -> void:
 	if ResourceLoader.exists("res://textures/lens_smudge.png"):
 		mat.set_shader_parameter("lens_smudge_tex", load("res://textures/lens_smudge.png"))
 	post.material = mat
+	post.visible = not Gfx.bisect("nopost")
 	post_mat = mat
 	Gfx.register_post(mat)
 	post_layer.add_child(post)

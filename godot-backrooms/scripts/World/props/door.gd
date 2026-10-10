@@ -33,6 +33,16 @@ const CRACK := 0.06          # fractions of OPEN_ANGLE: how far ajar it falls...
 const CREEP := 0.1           # ...and how far it is when the push comes
 const WAIT := 1e9            # _delay: waiting on the scene's turn_knob / pull
 const LEAF_MODEL := "res://models/props/door/wood_door.glb"
+# the leaf models a door can hang ("leaf" in object_types.json's door params); the asset pack's doors have the same
+# layout as wood_door.glb: X wide, Y tall from the floor, Z thick
+# ("nodes": the part of the file that is the leaf: the metal door file holds two frames and two leaves)
+const LEAF_MODELS := {
+	"wood": {"path": "res://models/props/door/wood_door.glb"},
+	"old_wood": {"path": "res://models/props/asset_pack/door_wooden_old-18mb.glb"},
+	"metal": {"path": "res://models/props/asset_pack/door_metal-_20mb.glb", "nodes": ["door_2"]},
+}
+const Prop := preload("res://scripts/World/props/industrial_prop.gd")
+var leaf := "wood"          # set before build(): which of LEAF_MODELS the leaf is made from
 
 var pivot: Node3D
 var leaf_body: AnimatableBody3D
@@ -153,23 +163,24 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 # along +Z from the hinge, and stretched to the leaf's width and height (its thickness follows the height,
 # so the handle keeps its shape). False if the model isn't there (not imported yet).
 func _model_leaf(leaf_size: Vector3, leaf_pos: Vector3) -> bool:
-	if not ResourceLoader.exists(LEAF_MODEL):
+	var spec: Dictionary = LEAF_MODELS.get(leaf, LEAF_MODELS.wood)
+	var path: String = spec.path
+	if not ResourceLoader.exists(path):
 		return false
-	var packed := load(LEAF_MODEL) as PackedScene
+	var packed := load(path) as PackedScene
 	if packed == null:
 		return false
 	var model: Node3D = packed.instantiate()
 	var box := AABB()
 	var first := true
-	for m in model.find_children("*", "MeshInstance3D", true, false):
-		var mi := m as MeshInstance3D
+	for mi in Prop.kept_meshes(model, spec.get("nodes", []), []):
 		var xf := Transform3D.IDENTITY
 		var p: Node = mi
 		while p != null and p != model:
 			if p is Node3D:
 				xf = (p as Node3D).transform * xf
 			p = p.get_parent()
-		var b := xf * mi.get_aabb()
+		var b := Prop.mesh_box(mi.mesh, xf)
 		box = b if first else box.merge(b)
 		first = false
 	if first or box.size.x <= 0.0 or box.size.y <= 0.0:

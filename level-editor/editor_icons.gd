@@ -88,7 +88,7 @@ const BY_SHAPE := {"slab": "thin_wall", "corner": "corner", "arc": "arc", "splin
 	"column": "column", "zone": "trigger", "platform": "platform", "flight": "flight", "spiral": "spiral", "window": "window",
 	"water": "water", "pool": "pool"}
 const BY_TYPE := {"half_wall": "half_wall", "arch": "arch", "door": "door", "squeeze_gap": "squeeze",
-	"stairs_up": "stairs_up", "stairs_down": "stairs_down"}
+	"stairs_up": "stairs_up", "stairs_down": "stairs_down", "entity": "entity"}
 
 static var _cache := {}
 

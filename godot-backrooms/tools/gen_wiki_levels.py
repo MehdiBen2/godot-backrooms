@@ -247,15 +247,18 @@ class F:
             if all(abs(x - g[0]) + abs(y - g[1]) > 6 for g in got):
                 s.lamp("string_lights", x, y, rt, float(ln - 1), tone=tone, elev=ceiling); got.append((x, y))
     def streetlamps(s, n, pred=None, spacing=9.0):
-        cs = [c for c in s.cells(pred) if s.nwalls(*c) == 0 and any(s.wallc(c[0] + dx, c[1] + dy) for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) if (dx, dy) != (0, 0))]
+        # big free-standing poles planted on the open ground, away from walls; the arm swings out at a random angle
+        def clear(c, r):
+            return all(not s.wallc(c[0] + dx, c[1] + dy) for dx in range(-r, r + 1) for dy in range(-r, r + 1))
+        cs = [c for c in s.cells(pred) if s.nwalls(*c) == 0 and c not in s.reserved]
+        open_cs = [c for c in cs if clear(c, 2)]
+        cs = open_cs or cs
         s.r.shuffle(cs)
         got = []
         for (x, y) in cs:
             if len(got) >= n: break
             if all(abs(x - g[0]) + abs(y - g[1]) >= spacing for g in got):
-                near = [(dx, dy) for dx, dy in DIRS if s.wallc(x + 2 * dx, y + 2 * dy) or s.wallc(x + dx, y + dy)]
-                away = (-near[0][0], -near[0][1]) if near else (1, 0)
-                s.lamp("streetlamp", x - away[0] * 0.2, y - away[1] * 0.2, rot_of(*away), 1.0)
+                s.lamp("streetlamp", x, y, s.r.choice((0.0, 90.0, 180.0, 270.0)), 1.6)
                 got.append((x, y))
     def emergency(s, n, pred=None, spacing=5.0, tone="red", flicker="pulse"):
         cs = s.cells(pred)

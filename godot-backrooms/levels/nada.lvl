@@ -1,0 +1,369 @@
+{
+  "drop_hole": null,
+  "entity": [
+    14.0,
+    13.0
+  ],
+  "exit": null,
+  "format": "backrooms_level",
+  "grid": [
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########........########",
+    "########........########",
+    "########........########",
+    "########........########",
+    "########........########",
+    "########........########",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################",
+    "########################"
+  ],
+  "name": "nada",
+  "objects": [
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 21.0,
+      "pos_y": 21.5,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "elev": 3.05,
+      "pos_x": 7.528,
+      "pos_y": 9.5,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.821,
+      "pos_x": 7.528,
+      "pos_y": 9.7,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.754,
+      "pos_x": 7.528,
+      "pos_y": 9.929,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.119,
+      "pos_x": 7.528,
+      "pos_y": 10.004,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.191,
+      "pos_x": 7.528,
+      "pos_y": 10.124,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.023,
+      "pos_x": 7.528,
+      "pos_y": 9.355,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.664,
+      "pos_x": 7.528,
+      "pos_y": 9.195,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.63,
+      "pos_x": 7.528,
+      "pos_y": 9.119,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.021,
+      "pos_x": 7.528,
+      "pos_y": 9.011,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.382,
+      "pos_x": 7.528,
+      "pos_y": 8.875,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.445,
+      "pos_x": 7.528,
+      "pos_y": 8.82,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.71,
+      "pos_x": 7.851,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.523,
+      "pos_x": 8.002,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.787,
+      "pos_x": 8.255,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.034,
+      "pos_x": 8.448,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.708,
+      "pos_x": 8.553,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.08,
+      "pos_x": 8.598,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.479,
+      "pos_x": 8.617,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.34,
+      "pos_x": 8.34,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.601,
+      "pos_x": 7.749,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.351,
+      "pos_x": 7.572,
+      "pos_y": 8.528,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 3.735,
+      "pos_x": 8.397,
+      "pos_y": 14.472,
+      "rotation": 270.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.855,
+      "pos_x": 8.367,
+      "pos_y": 14.472,
+      "rotation": 270.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.06,
+      "pos_x": 8.643,
+      "pos_y": 14.472,
+      "rotation": 270.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.825,
+      "pos_x": 8.684,
+      "pos_y": 14.472,
+      "rotation": 270.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.84,
+      "pos_x": 7.528,
+      "pos_y": 14.303,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 2.956,
+      "pos_x": 7.528,
+      "pos_y": 13.434,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 1.737,
+      "pos_x": 7.528,
+      "pos_y": 12.007,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_wall_lamp"
+    },
+    {
+      "elev": 5.1,
+      "pos_x": 7.64,
+      "pos_y": 12.538,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_fluorescent_fitting"
+    },
+    {
+      "elev": 4.2,
+      "pos_x": 9.556,
+      "pos_y": 10.167,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_hanging_lamp"
+    },
+    {
+      "elev": 4.2,
+      "pos_x": 9.722,
+      "pos_y": 9.611,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_hanging_lamp"
+    },
+    {
+      "elev": 5.36,
+      "pos_x": 8.667,
+      "pos_y": 10.444,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_round_ceiling_lamp"
+    },
+    {
+      "elev": 0.0,
+      "energy": 1.0,
+      "flicker": "buzz",
+      "pos_x": 9.0,
+      "pos_y": 10.0,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "tone": "sodium",
+      "type": "vent_glow"
+    },
+    {
+      "elev": 0.0,
+      "energy": 1.0,
+      "flicker": "candle",
+      "pos_x": 9.5,
+      "pos_y": 9.5,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "tone": "candle",
+      "type": "candle"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 7.579,
+      "pos_y": 10.357,
+      "rotation": 270.0,
+      "scale": 1.0,
+      "type": "prop_street_light"
+    }
+  ],
+  "size": 24,
+  "spawn": [
+    9,
+    12
+  ],
+  "spawn_rot": 195.0,
+  "tv": null,
+  "version": 2,
+  "zones": {
+    "abyss": [],
+    "bright": [],
+    "classic": [],
+    "crawl": [],
+    "dark": [],
+    "dim": [],
+    "drain": [],
+    "echo": [],
+    "endless_ceiling": [],
+    "flicker": [],
+    "grand": [],
+    "grime": [],
+    "hall_reverb": [],
+    "hotel": [],
+    "liminal": [],
+    "loop": [],
+    "loot": [],
+    "low": [],
+    "mannequin": [],
+    "muffled": [],
+    "noclip": [],
+    "noclip_floor": [],
+    "open_ceiling": [],
+    "safe": [],
+    "tall": [],
+    "tiles": []
+  }
+}

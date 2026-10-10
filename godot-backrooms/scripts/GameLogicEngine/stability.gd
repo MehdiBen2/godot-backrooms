@@ -19,6 +19,7 @@ extends Node
 const FLAG := "user://running.flag"
 const STATE := "user://stability.cfg"
 const STATE_FILE := "user://last_state.txt"
+const TRACE_FILE := "user://boot_trace.log"
 const REPORT_DIR := "user://crash_reports/"
 const MIN_RUN := 25.0            # seconds a flagged run must have lasted for a test run to count as a crash
 const RELAUNCH_ARG := "--stability-relaunch"
@@ -34,22 +35,47 @@ const GROWTH := {"script_mb": 150.0, "vram_mb": 400.0, "nodes": 1500.0, "objects
 var crashes := 0
 var safe_mode := ""              # what the back-off did this launch, for the debug console
 var last_report := ""            # absolute path of the report written this launch ("" = none)
+var _inert := false              # a tool run (see _ready): does nothing
 
 var _t := 0.0
 var _ring: Array = []
 var _worst_frame := 0.0          # the longest frame since the last snapshot (seconds)
 
+## Printed to the console and appended to user://boot_trace.log, closed after every line so it survives a hard crash
+func trace(msg: String) -> void:
+	if _inert:
+		return
+	var line := "[boot %.2fs] %s" % [Time.get_ticks_msec() / 1000.0, msg]
+	print(line)
+	var f := FileAccess.open(TRACE_FILE, FileAccess.READ_WRITE if FileAccess.file_exists(TRACE_FILE) else FileAccess.WRITE)
+	if f != null:
+		f.seek_end()
+		f.store_line(line)
+
 func _ready() -> void:
+	# tool runs (--script, --headless: contact sheets, checks) are not the game: they must neither read the last
+	# game run's flag as a crash (and lower its preset) nor clear it on exit
+	if OS.get_cmdline_args().has("--script") or DisplayServer.get_name() == "headless":
+		_inert = true
+		set_process(false)
+		return
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TRACE_FILE))      # one run's trace at a time
+	trace("start: driver=%s pid=%d args=%s editor_test=%s" % [RenderingServer.get_current_rendering_driver_name(), OS.get_process_id(), OS.get_cmdline_args(), Game.editor_test])
 	var cf := ConfigFile.new()
 	cf.load(STATE)
 	crashes = int(cf.get_value("stability", "crashes", 0))
-	if FileAccess.file_exists(FLAG) and _last_run_counts():
+	var flagged := FileAccess.file_exists(FLAG)
+	trace("crash counter=%d, running.flag present=%s (its content = seconds the last run lasted)" % [crashes, flagged])
+	if flagged and _last_run_counts():
 		crashes += 1
 		_write_report()
 		_back_off()
+	elif flagged:
+		trace("flag present but ignored: the last run was an editor test window killed after under %.0fs" % MIN_RUN)
 	_save()
 	_write_flag(0.0)
+	trace("ready: preset=%s safe_mode=%s" % [Gfx.preset, safe_mode if not safe_mode.is_empty() else "off"])
 
 func _last_run_counts() -> bool:
 	var f := FileAccess.open(FLAG, FileAccess.READ)
@@ -63,6 +89,7 @@ func _last_run_counts() -> bool:
 # ---- back off ----------------------------------------------------------------------------------------
 func _back_off() -> void:
 	push_warning("Stability: the last run did not exit cleanly (%d in a row), backing off" % crashes)
+	trace("BACK OFF: %d unclean exit(s) in a row, preset %s -> lower%s" % [crashes, Gfx.preset, ", and may relaunch on Vulkan" if crashes >= 2 else ""])
 	var lower := {"ultra": "high", "high": "medium", "medium": "low"}
 	if lower.has(Gfx.preset):
 		Gfx.set_preset(lower[Gfx.preset])
@@ -76,6 +103,7 @@ func _back_off() -> void:
 func _relaunch_on_vulkan() -> void:
 	var user_args := OS.get_cmdline_user_args()
 	if RenderingServer.get_current_rendering_driver_name() != "d3d12" or user_args.has(RELAUNCH_ARG):
+		trace("relaunch on Vulkan skipped (driver=%s, already relaunched=%s)" % [RenderingServer.get_current_rendering_driver_name(), user_args.has(RELAUNCH_ARG)])
 		return
 	var out: PackedStringArray = ["--rendering-driver", "vulkan"]
 	if not OS.has_feature("template"):          # run from the Godot executable (editor test): it needs the project
@@ -83,6 +111,7 @@ func _relaunch_on_vulkan() -> void:
 	out.append("--")
 	out.append_array(user_args)
 	out.append(RELAUNCH_ARG)
+	trace("RELAUNCHING ON VULKAN: this process quits now. Command: %s %s" % [OS.get_executable_path(), out])
 	if OS.create_process(OS.get_executable_path(), out) > 0:
 		crashes = 0              # (so the new run starts clean)
 		_save()
@@ -100,15 +129,19 @@ func _write_flag(seconds: float) -> void:
 		f.store_string(str(seconds))
 
 func _clean_exit() -> void:
+	if _inert:
+		return
 	crashes = 0
 	_save()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(FLAG))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		trace("window close requested (clean exit)")
 		_clean_exit()
 
 func _exit_tree() -> void:
+	trace("exiting the tree (clean exit)")
 	_clean_exit()
 
 # ---- snapshots ---------------------------------------------------------------------------------------

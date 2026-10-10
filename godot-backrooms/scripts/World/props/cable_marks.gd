@@ -7,8 +7,8 @@ extends Node3D
 const MarkStore := preload("res://scripts/World/props/mark_store.gd")
 const SHADER := preload("res://shaders/cable.gdshader")
 
-const RADIAL_SEGS := 12
-const STEP := 0.05                   # m between path points
+const RADIAL_SEGS := 16
+const STEP := 0.04                   # m between path points
 const ERASE_RADIUS := 0.28           # m radius around cursor to erase a cable
 const MAX_PER_LEVEL := 400
 const MAX_TRASH := 1000
@@ -147,10 +147,10 @@ func _settle_all(lv: int) -> void:
 	if changed:
 		save()
 
-const TEX_RUBBER_COLOR := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_Color.jpg"
-const TEX_RUBBER_NORMAL := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_NormalGL.jpg"
-const TEX_RUBBER_ROUGH := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_Roughness.jpg"
-const TEX_RUBBER_AO := "res://textures/pbr/Road_Asphalt_Yellow_Lines/Road_Asphalt_Yellow_Lines_AmbientOcclusion.jpg"
+const TEX_RUBBER_COLOR := "res://textures/pbr/Asphalt_Dark/Asphalt_Dark_Color.jpg"
+const TEX_RUBBER_NORMAL := "res://textures/pbr/Asphalt_Dark/Asphalt_Dark_NormalGL.jpg"
+const TEX_RUBBER_ROUGH := "res://textures/pbr/Asphalt_Dark/Asphalt_Dark_Roughness.jpg"
+const TEX_RUBBER_AO := "res://textures/pbr/Asphalt_Dark/Asphalt_Dark_AmbientOcclusion.jpg"
 const TEX_METAL_COLOR := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_Color.jpg"
 const TEX_METAL_NORMAL := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_NormalGL.jpg"
 const TEX_METAL_ROUGH := "res://textures/pbr/Metal_Dark_Plate/Metal_Dark_Plate_Roughness.jpg"
@@ -158,60 +158,49 @@ const TEX_HAZARD := "res://textures/items/hazard_tapes/hazardous_tapes.jpg"
 
 static var _plug_mat: StandardMaterial3D
 
-## Returns a shared StandardMaterial3D configured for a cable type with full PBR textures
+## Returns a shared ShaderMaterial configured for a cable type with authentic physical PBR textures
 static func get_material(type_key: String) -> Material:
 	if not TYPES.has(type_key):
 		type_key = "heavy_black"
 	if _materials.has(type_key):
 		return _materials[type_key]
 	var info: Dictionary = TYPES[type_key]
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = info.color
-	mat.roughness = info.roughness
-	mat.metallic = info.metallic
-	mat.cull_mode = BaseMaterial3D.CULL_BACK
-	mat.diffuse_mode = BaseMaterial3D.DIFFUSE_BURLEY
-	mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
+	var mat := ShaderMaterial.new()
+	mat.shader = SHADER
+	mat.set_shader_parameter("cable_color", info.color)
+	mat.set_shader_parameter("roughness", float(info.roughness))
+	mat.set_shader_parameter("metallic", float(info.metallic))
+	mat.set_shader_parameter("cable_style", int(info.style))
+	mat.set_shader_parameter("rib_freq", float(info.get("rib_freq", 0.0)))
+	mat.set_shader_parameter("normal_depth", 1.25)
+	mat.set_shader_parameter("rough_detail_strength", 0.65)
+	mat.set_shader_parameter("color_texture_blend", 0.35)
 
-	if type_key == "hazard_striped" and ResourceLoader.exists(TEX_HAZARD):
-		mat.albedo_texture = load(TEX_HAZARD)
-		mat.uv1_scale = Vector3(1.0, 4.0, 1.0)
-		if ResourceLoader.exists(TEX_RUBBER_NORMAL):
-			mat.normal_enabled = true
-			mat.normal_texture = load(TEX_RUBBER_NORMAL)
-			mat.normal_scale = 0.8
-		if ResourceLoader.exists(TEX_RUBBER_ROUGH):
-			mat.roughness_texture = load(TEX_RUBBER_ROUGH)
-		mat.rim_enabled = true
-		mat.rim = 0.3
-	elif type_key == "ribbed_conduit":
-		if ResourceLoader.exists(TEX_METAL_COLOR):
-			mat.albedo_texture = load(TEX_METAL_COLOR)
+	if ResourceLoader.exists(TEX_RUBBER_COLOR):
+		mat.set_shader_parameter("albedo_tex", load(TEX_RUBBER_COLOR))
+	if ResourceLoader.exists(TEX_RUBBER_NORMAL):
+		mat.set_shader_parameter("normal_tex", load(TEX_RUBBER_NORMAL))
+	if ResourceLoader.exists(TEX_RUBBER_ROUGH):
+		mat.set_shader_parameter("rough_tex", load(TEX_RUBBER_ROUGH))
+	if ResourceLoader.exists(TEX_RUBBER_AO):
+		mat.set_shader_parameter("ao_tex", load(TEX_RUBBER_AO))
+
+	if type_key == "ribbed_conduit":
+		mat.set_shader_parameter("uv_scale", Vector2(1.0, 16.0))
+		mat.set_shader_parameter("metallic", 0.88)
+		mat.set_shader_parameter("roughness", 0.30)
 		if ResourceLoader.exists(TEX_METAL_NORMAL):
-			mat.normal_enabled = true
-			mat.normal_texture = load(TEX_METAL_NORMAL)
-			mat.normal_scale = 1.4
+			mat.set_shader_parameter("normal_tex", load(TEX_METAL_NORMAL))
 		if ResourceLoader.exists(TEX_METAL_ROUGH):
-			mat.roughness_texture = load(TEX_METAL_ROUGH)
-		mat.uv1_scale = Vector3(1.0, 12.0, 1.0)
+			mat.set_shader_parameter("rough_tex", load(TEX_METAL_ROUGH))
+	elif type_key == "data_snake":
+		mat.set_shader_parameter("uv_scale", Vector2(1.0, 8.0))
+		mat.set_shader_parameter("color_texture_blend", 0.45)
+	elif type_key == "hazard_striped":
+		mat.set_shader_parameter("uv_scale", Vector2(1.0, 4.0))
+		mat.set_shader_parameter("color_texture_blend", 0.20)
 	else:
-		# Industrial vulcanized rubber cables (heavy black, site yellow, hi-volt orange, data snake)
-		if ResourceLoader.exists(TEX_RUBBER_COLOR):
-			mat.albedo_texture = load(TEX_RUBBER_COLOR)
-		if ResourceLoader.exists(TEX_RUBBER_NORMAL):
-			mat.normal_enabled = true
-			mat.normal_texture = load(TEX_RUBBER_NORMAL)
-			mat.normal_scale = 1.15
-		if ResourceLoader.exists(TEX_RUBBER_ROUGH):
-			mat.roughness_texture = load(TEX_RUBBER_ROUGH)
-		if ResourceLoader.exists(TEX_RUBBER_AO):
-			mat.ao_enabled = true
-			mat.ao_texture = load(TEX_RUBBER_AO)
-			mat.ao_light_affect = 0.55
-		mat.rim_enabled = true
-		mat.rim = 0.28
-		mat.rim_tint = 0.15
-		mat.uv1_scale = Vector3(1.0, 5.0, 1.0)
+		mat.set_shader_parameter("uv_scale", Vector2(1.0, 5.0))
 
 	_materials[type_key] = mat
 	return mat
@@ -219,13 +208,14 @@ static func get_material(type_key: String) -> Material:
 static func get_plug_material() -> StandardMaterial3D:
 	if _plug_mat == null:
 		_plug_mat = StandardMaterial3D.new()
-		_plug_mat.albedo_color = Color("c2c6cc")
+		_plug_mat.albedo_color = Color("c0c4cc")
 		_plug_mat.metallic = 0.95
 		_plug_mat.roughness = 0.22
+		_plug_mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 		if ResourceLoader.exists(TEX_METAL_NORMAL):
 			_plug_mat.normal_enabled = true
 			_plug_mat.normal_texture = load(TEX_METAL_NORMAL)
-			_plug_mat.normal_scale = 0.65
+			_plug_mat.normal_scale = 0.8
 		if ResourceLoader.exists(TEX_METAL_ROUGH):
 			_plug_mat.roughness_texture = load(TEX_METAL_ROUGH)
 	return _plug_mat
@@ -280,7 +270,7 @@ static func get_stack_elevation(pos: Vector3, norm: Vector3, my_r: float, ignore
 					elev = needed_elev * factor
 				if elev > max_elev:
 					max_elev = elev
-	return max_elev
+	return clampf(max_elev, 0.0, my_r * 2.2)
 
 ## Add a new cable path to the current floor
 func add(pts: Array, n: Vector3, st: Dictionary) -> void:
@@ -325,7 +315,7 @@ func _spawn(c: Dictionary) -> void:
 	# Segment capsule/box colliders for eraser and physics interaction
 	var body := StaticBody3D.new()
 	body.set_meta("cable_id", c.id)
-	body.collision_layer = 1
+	body.collision_layer = 0   # NEVER block layer 1 world raycasts or player footsteps
 	body.collision_mask = 0
 	add_child(body)
 	colliders[c.id] = body
@@ -684,25 +674,17 @@ static func build_cable_mesh(pts: Array, n: Vector3, r: float, type_key: String,
 	mesh.surface_set_material(1, get_plug_material())
 	return mesh
 
-## Smooth path points horizontally while strictly preserving clearance height over floors and obstacles
-static func _smooth(pts: Array, n: Vector3, r: float) -> Array:
+## Smooth path points horizontally while preserving endpoints
+static func _smooth(pts: Array, _n: Vector3, _r: float) -> Array:
 	var out := pts.duplicate()
 	if out.size() < 4:
 		return out
 
-	# Record original height offsets along surface normal
-	var orig_heights: Array[float] = []
-	for p in pts:
-		orig_heights.append((p as Vector3).dot(n))
-
-	for pass_ in 2:
+	for _pass in 2:
 		var prev := out.duplicate()
 		for i in range(1, out.size() - 1):
-			var smoothed_pt: Vector3 = (prev[i - 1] as Vector3) * 0.25 + (prev[i] as Vector3) * 0.5 + (prev[i + 1] as Vector3) * 0.25
-			# Ensure height along normal never drops below original clearance
-			var cur_h := smoothed_pt.dot(n)
-			var target_h := orig_heights[i]
-			if cur_h < target_h:
-				smoothed_pt += n * (target_h - cur_h)
-			out[i] = smoothed_pt
+			var p0: Vector3 = prev[i - 1]
+			var p1: Vector3 = prev[i]
+			var p2: Vector3 = prev[i + 1]
+			out[i] = p0 * 0.24 + p1 * 0.52 + p2 * 0.24
 	return out

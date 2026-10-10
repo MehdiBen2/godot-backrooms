@@ -12,7 +12,9 @@ extends Node3D
 ##  - that patch lights the room back up a little (a soft bounce off it), and daylight spills in round the glass;
 ##  - where the level's air is hazy (volumetric fog), the sunlight shows as shafts in it.
 ## Styles ("frame"): pane (lights in a row, a transom across), porthole (round, Width its diameter), arched
-## (lights under a round head) and panorama (a wall of glass from the sill nearly to the ceiling).
+## (lights under a round head) and panorama (a wall of glass from the sill nearly to the ceiling). The MODEL_FRAMES
+## styles hang a real window model (models/props/asset_pack) round the same sky glass instead of the built frame:
+## the model's own glass is left out (it would hide the sky) and it is stretched to the window's Width and Height.
 
 const CELL := 4.5
 const FRAME_W := 0.1               # m: the frame's face, round the glass
@@ -25,6 +27,16 @@ const SKY := {
 	"noon": [Color(0.30, 0.54, 0.93), Color(0.86, 0.92, 0.98), Color(0.62, 0.70, 0.74), Color(1.0, 0.97, 0.9), Color(1.0, 0.96, 0.9), 2.2],
 	"golden": [Color(0.36, 0.46, 0.76), Color(1.0, 0.83, 0.62), Color(0.62, 0.55, 0.5), Color(1.0, 0.76, 0.46), Color(1.0, 0.8, 0.56), 2.0],
 	"overcast": [Color(0.8, 0.82, 0.85), Color(0.93, 0.94, 0.95), Color(0.7, 0.72, 0.74), Color(0.25, 0.25, 0.25), Color(0.9, 0.93, 0.97), 1.8],
+}
+
+const Prop := preload("res://scripts/World/props/industrial_prop.gd")
+# style -> the model, the part of it that is this window ("nodes", all if none), what to leave out ("drop": its
+# glass) and how many lights its sashes make for the sun's projector
+const MODEL_FRAMES := {
+	"casement": {"model": "res://models/props/asset_pack/window.glb", "nodes": ["Null"], "drop": ["w_2_2_g_0", "w_1_2_g_0"], "panes": 2},
+	"casement_open": {"model": "res://models/props/asset_pack/window.glb", "nodes": ["Null_1"], "drop": ["w_2_g_0", "w_1_g_0"], "panes": 2},
+	"shutters": {"model": "res://models/props/asset_pack/window__wodden_4_mb.glb", "drop": ["Glass"], "panes": 1},
+	"wood_sash": {"model": "res://models/props/asset_pack/window__wooden_4_mb.glb", "drop": ["Base_1"], "panes": 2},
 }
 
 static var _sky_shader: Shader
@@ -59,6 +71,16 @@ func build(o: Dictionary, ceiling: float, shell: bool, solid := Callable()) -> v
 		h = d
 	h = minf(h, maxf(0.3, ceiling - sill - 0.05))
 	var panes := clampi(roundi(float(o.get("panes", 3.0))), 1, 12)
+	if MODEL_FRAMES.has(style):
+		var spec: Dictionary = MODEL_FRAMES[style]
+		panes = int(spec.panes)
+		var rect := _outline("pane", w, h, sill)
+		_build_glass(rect, o)
+		if not _build_model_frame(spec, w, h, sill):
+			_build_frame("pane", rect, w, h, sill, panes)
+		if shell: return
+		_build_light(o, "pane", w, h, sill, panes)
+		return
 	var outline := _outline(style, w, h, sill)
 	_build_glass(outline, o)
 	_build_frame(style, outline, w, h, sill, panes)
@@ -180,6 +202,33 @@ func _build_frame(style: String, outline: PackedVector2Array, w: float, h: float
 	mi.mesh = st.commit()
 	mi.material_override = _frame_mat
 	add_child(mi)
+
+## A window model round the glass: its thin side into the room (+x) from the wall face, its width along the wall,
+## stretched so its outside edge is a frame's width round the w x h opening. False if the model can't be had.
+func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bool:
+	var inst := Prop._instance(str(spec.model))
+	if inst == null:
+		return false
+	add_child(inst)
+	var raw := AABB()
+	var first := true
+	for mi in Prop.kept_meshes(inst, spec.get("nodes", []), spec.get("drop", [])):
+		var b: AABB = Prop.mesh_box(mi.mesh, Prop.in_model(mi, inst))
+		raw = b if first else raw.merge(b)
+		first = false
+	if first or raw.size.y <= 0.0:
+		inst.queue_free()
+		return false
+	# the file's thin side becomes the depth (x)
+	var lay := Basis(Vector3.UP, PI * 0.5) if raw.size.z < raw.size.x else Basis.IDENTITY
+	var box: AABB = Transform3D(lay, Vector3.ZERO) * raw
+	var sy := (h + FRAME_W * 2.0) / box.size.y
+	var sz := (w + FRAME_W * 2.0) / maxf(box.size.z, 0.01)
+	var k := Basis.from_scale(Vector3((sy + sz) * 0.5, sy, sz))
+	box = Transform3D(k * lay, Vector3.ZERO) * raw
+	var c := box.get_center()
+	inst.transform = Transform3D(k * lay, Vector3(-box.position.x, sill + h * 0.5 - c.y, -c.z))
+	return true
 
 func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float, panes: int) -> void:
 	var sky: Array = SKY.get(str(o.get("sky", "noon")), SKY.noon)

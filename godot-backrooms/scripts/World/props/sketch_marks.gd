@@ -30,6 +30,9 @@ var level_id := ""
 # The strokes are drawn in batches, one mesh per BATCH x BATCH metres (one per line would be hundreds of nodes):
 # meshes: stroke id -> its batch's key; _batch: key -> that batch's strokes; _batch_mi: key -> its MeshInstance3D
 const BATCH := 36.0
+# a mesh holds at most 256 surfaces and every stroke is one: a full batch spills into the next page of its cell
+const MAX_STROKES_PER_BATCH := 200
+const PAGE_STEP := 100000              # page keys sit far off the real cells, so they never collide with one
 var meshes := {}
 var _batch := {}
 var _batch_mi := {}
@@ -341,7 +344,12 @@ func _prune(lv: int) -> void:
 
 func _spawn(s: Dictionary) -> void:
 	var p: Vector3 = s.pts[0]
-	var key := Vector2i(floori(p.x / BATCH), floori(p.z / BATCH))
+	var cell := Vector2i(floori(p.x / BATCH), floori(p.z / BATCH))
+	var key := cell
+	var page := 0
+	while _batch.has(key) and (_batch[key] as Array).size() >= MAX_STROKES_PER_BATCH:
+		page += 1
+		key = cell + Vector2i(PAGE_STEP * page, 0)
 	if not _batch.has(key):
 		_batch[key] = []
 		var mi := MeshInstance3D.new()

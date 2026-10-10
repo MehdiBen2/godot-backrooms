@@ -838,11 +838,13 @@ func _level_name() -> String:
 
 func _finish_loading() -> void:
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
+	Stability.trace("play: main scene loaded (%s), switching to it" % ("OK" if packed != null else "FAILED: null"))
 	Game.respawned = true              # straight into the run: the title screen is this scene
 	Engine.max_fps = int(Gfx.s.get("fps", 0))
 	var tree := get_tree()
 	var cover := _cover_from_screen()
 	tree.change_scene_to_packed(packed)
+	Stability.trace("play: change_scene_to_packed returned")
 	_fade_cover(tree, cover)
 
 ## The loading screen's last frame, pinned over the root window: it outlives this scene, so the level does

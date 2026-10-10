@@ -220,8 +220,9 @@ foreach ($box in @($ver, $notes)) { $box.Add_Enter({ $form.Invalidate() }); $box
 # ---- progress: stage steps, the bar, what it's doing ----------------------------------------------
 $STAGES = @(
     @{ id = "check"; name = "CHECK"; w = 0.03 },
-    @{ id = "export"; name = "EXPORT"; w = 0.50 },
-    @{ id = "zip"; name = "ZIP"; w = 0.17 },
+    @{ id = "export"; name = "EXPORT"; w = 0.45 },
+    @{ id = "chunk"; name = "CHUNK"; w = 0.10 },
+    @{ id = "zip"; name = "ZIP"; w = 0.12 },
     @{ id = "upload"; name = "UPLOAD"; w = 0.30 }
 )
 $script:stage = ""             # the stage running now ("" before, "done" after)
@@ -388,6 +389,11 @@ $timer.Add_Tick({
                 $k = [Math]::Min(0.98, $size / $stats.pck)
                 if ($size -le 0) { $k = 0.04 * (1 - [Math]::Exp(-$since / 8)) }      # Godot is still loading the project
                 $script:detail = if ($size -gt 0) { "EXPORTING GAME   $(MB $size) / ~$(MB $stats.pck)" } else { "EXPORTING GAME   STARTING GODOT" }
+            }
+            "chunk" {
+                # hashing and cutting the export: no byte counter to read, so go by the clock
+                $k = [Math]::Min(0.95, $since / 45.0)
+                $script:detail = "CUTTING GAME INTO CHUNKS"
             }
             "zip" {
                 $size = if (Test-Path $zip) { (Get-Item $zip).Length } else { 0 }

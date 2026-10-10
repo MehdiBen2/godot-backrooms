@@ -1,8 +1,8 @@
 {
   "drop_hole": null,
   "entity": [
-    51,
-    46
+    51.0,
+    46.0
   ],
   "exit": [
     50,
@@ -57,7 +57,7 @@
     "#######################################..........................#.#....#.OOOOOOOOO.#....##...#..#.#.#",
     "#######################################...#......................#......#.OOOOOOOOO.#....##.###..#...#",
     "#######################################..........................#########OOOOOOOOO.##...##.#....#.#.#",
-    "#######################################..........................#OOOOOOOOOOOOOOOOO.#....##.#.#..#.#.#",
+    "#######################################.................#........#OOOOOOOOOOOOOOOOO.#....##.#.#..#.#.#",
     "#######################################................#.........#OOOOOOOOOOOOOOOOO.#....##.#.#..#.#.#",
     "#######################################....................#.....#OOOOOOOOOOOOOOOOO.#....##...#....#.#",
     "#######################################..........................#OOOOOOOOOOOOOOOOO.#....###########.#",
@@ -1041,21 +1041,6 @@
     {
       "custom_event": "",
       "delay": 0.0,
-      "depth": 2.0,
-      "duration": 20.0,
-      "event": "message",
-      "events_list": [],
-      "once": false,
-      "pos_x": 24.5,
-      "pos_y": 12.0,
-      "rotation": 0.0,
-      "scale": 5.5,
-      "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
-      "type": "trigger"
-    },
-    {
-      "custom_event": "",
-      "delay": 0.0,
       "depth": 5.0,
       "duration": 20.0,
       "event": "alert",
@@ -1198,26 +1183,10 @@
       "type": "prop_work_light2"
     },
     {
-      "elev": 2.0,
-      "pos_x": 23.0,
-      "pos_y": 19.5,
-      "rotation": 165.0,
-      "scale": 1.0,
-      "type": "prop_exit_sign_big"
-    },
-    {
-      "elev": 2.0,
-      "pos_x": 17.0,
-      "pos_y": 21.0,
-      "rotation": 285.0,
-      "scale": 1.0,
-      "type": "prop_exit_sign_big"
-    },
-    {
       "elev": 0.0,
-      "pos_x": 4.0,
-      "pos_y": 30.5,
-      "rotation": 345.0,
+      "pos_x": 2.5,
+      "pos_y": 28.5,
+      "rotation": 285.0,
       "scale": 1.0,
       "type": "prop_work_light2"
     },
@@ -1252,15 +1221,147 @@
       "rotation": 45.0,
       "scale": 1.0,
       "type": "prop_work_light2"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "behavior": "roam",
+      "kind": "burnt",
+      "pos_x": 85.0,
+      "pos_y": 45.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "message",
+      "events_list": [],
+      "once": false,
+      "pos_x": 2.0,
+      "pos_y": 32.0,
+      "rotation": 0.0,
+      "scale": 5.5,
+      "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
+      "type": "trigger"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.389,
+      "pos_y": 11.611,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_box_b"
+    },
+    {
+      "elev": 0.295,
+      "pos_x": 44.391,
+      "pos_y": 11.595,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_b"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.5,
+      "pos_y": 11.667,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_b2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.389,
+      "pos_y": 11.722,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_box_c"
+    },
+    {
+      "elev": 0.295,
+      "pos_x": 44.447,
+      "pos_y": 11.703,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_c"
+    },
+    {
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "duration": 20.0,
+      "event": "machineVoice",
+      "events_list": [
+        {
+          "custom_event": "",
+          "event": "machineVoice"
+        },
+        {
+          "custom_event": "",
+          "event": "message"
+        }
+      ],
+      "once": true,
+      "pos_x": 22.5,
+      "pos_y": 21.5,
+      "rotation": 180.0,
+      "scale": 3.0,
+      "text": "something is off.",
+      "type": "trigger"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 68.0,
+      "pos_y": 27.444,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_water_cooler"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
     }
   ],
   "sdfgi": true,
   "size": 102,
   "spawn": [
     2,
-    32
+    33
   ],
-  "spawn_rot": 2.0,
+  "spawn_rot": 353.0,
   "tv": null,
   "version": 2,
   "zones": {
@@ -5586,6 +5687,7 @@
         18
       ]
     ],
+    "hotel": [],
     "liminal": [],
     "loop": [],
     "loot": [
@@ -7620,10 +7722,6 @@
         46
       ],
       [
-        83,
-        46
-      ],
-      [
         66,
         47
       ],
@@ -7689,10 +7787,6 @@
       ],
       [
         82,
-        47
-      ],
-      [
-        83,
         47
       ],
       [
@@ -7764,10 +7858,6 @@
         48
       ],
       [
-        83,
-        48
-      ],
-      [
         66,
         49
       ],
@@ -7833,10 +7923,6 @@
       ],
       [
         82,
-        49
-      ],
-      [
-        83,
         49
       ],
       [
@@ -7908,10 +7994,6 @@
         50
       ],
       [
-        83,
-        50
-      ],
-      [
         66,
         51
       ],
@@ -7977,10 +8059,6 @@
       ],
       [
         82,
-        51
-      ],
-      [
-        83,
         51
       ],
       [
@@ -8068,10 +8146,6 @@
         52
       ],
       [
-        83,
-        52
-      ],
-      [
         62,
         53
       ],
@@ -8153,10 +8227,6 @@
       ],
       [
         82,
-        53
-      ],
-      [
-        83,
         53
       ],
       [
@@ -8244,10 +8314,6 @@
         54
       ],
       [
-        83,
-        54
-      ],
-      [
         66,
         55
       ],
@@ -8301,10 +8367,6 @@
       ],
       [
         82,
-        55
-      ],
-      [
-        83,
         55
       ],
       [
@@ -8376,10 +8438,6 @@
         56
       ],
       [
-        83,
-        56
-      ],
-      [
         66,
         57
       ],
@@ -8445,10 +8503,6 @@
       ],
       [
         82,
-        57
-      ],
-      [
-        83,
         57
       ]
     ],

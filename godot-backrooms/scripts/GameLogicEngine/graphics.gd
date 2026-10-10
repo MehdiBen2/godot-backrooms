@@ -52,14 +52,19 @@ const PRESETS := {
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
 		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
-	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": false,
-		"glow": true, "vfog": 2, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 10, "light_shadows": 3, "far_lights": 18, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
+	# High / Ultra: SSR (a full-screen ray march nobody notices on carpet and wallpaper), TAA (history buffers that
+	# were rebuilt on every change), the 2nd fog tier and the extra cube shadows were dropped: they were the
+	# crashes and the static noise (GPU overload / driver reset) for no visible gain.
+	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": false, "shadows": 2, "ssao": 1, "ssr": false, "ssil": false,
+		"glow": true, "vfog": 1, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
+		"lights": 8, "light_shadows": 1, "far_lights": 14, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
 	# Ultra: the same picture for a lot less. TAA already cleans the edges, so MSAA 4x on top bought nothing;
 	# 4096 shadow maps and the 2nd fog/AO tier are visually the same at this room size.
-	"ultra": {"scale": 100, "msaa": 0, "fxaa": true, "taa": true, "shadows": 2, "ssao": 2, "ssr": true, "ssil": true,
-		"glow": true, "vfog": 2, "post": 2, "aniso": 16, "vsync": true, "fps": 0,
-		"lights": 12, "light_shadows": 5, "far_lights": 24, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
+	# SSIL is off and 3 tubes cast shadows (each is 6 shadow renders a frame): with them this froze the PC and crackled the
+	# audio on an RX 5700 XT and ended in a Vulkan device loss.
+	"ultra": {"scale": 100, "msaa": 0, "fxaa": true, "taa": false, "shadows": 2, "ssao": 2, "ssr": false, "ssil": false,
+		"glow": true, "vfog": 1, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
+		"lights": 10, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)
@@ -219,6 +224,10 @@ func set_camera(c: String) -> void:
 
 ## hud.gd hands over the post-process material so quality changes can reach it. The camera shader is built
 ## here once with its cheaper no-mipmap twin, so a quality change is just a swap.
+## Crash bisecting: `-- --bisect-<name>` on the command line switches one suspect off (nopost, nocrt, noocc)
+static func bisect(flag: String) -> bool:
+	return OS.get_cmdline_user_args().has("--bisect-" + flag) or OS.get_cmdline_args().has("--bisect-" + flag)
+
 func register_post(mat: ShaderMaterial) -> void:
 	post_mat = mat
 	if _post_shaders.is_empty():
@@ -267,7 +276,7 @@ func apply_scene(root: Node = null) -> void:
 func apply() -> void:
 	var vp := get_viewport()
 	_render_scale()
-	vp.use_occlusion_culling = true
+	vp.use_occlusion_culling = not bisect("noocc")
 	vp.use_taa = bool(s.get("taa", false)) and not compat
 	vp.use_debanding = true
 	vp.mesh_lod_threshold = [4.0, 3.0, 1.5, 1.0][clampi(s.shadows, 0, 3)]     # coarser meshes sooner on low presets
@@ -421,8 +430,9 @@ func _load() -> void:
 		return
 	preset = str(cf.get_value("gfx", "preset", _auto_preset()))
 	s = PRESETS.get(preset, PRESETS["high"]).duplicate()
+	# a named preset always uses its current values (an old save would keep the heavy ones); only "custom" is restored
 	for k in s:
-		if cf.has_section_key("gfx", k):
+		if preset in ["custom", "low"] and cf.has_section_key("gfx", k):
 			var v = cf.get_value("gfx", k)
 			if typeof(v) == typeof(s[k]):
 				s[k] = v

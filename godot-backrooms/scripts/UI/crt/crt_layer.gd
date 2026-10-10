@@ -77,6 +77,7 @@ func _fit() -> void:
 	mat.set_shader_parameter("aspect", size.x / size.y)
 
 func set_running(on: bool) -> void:
+	on = on and not Gfx.bisect("nocrt")
 	if on == running:
 		return
 	running = on

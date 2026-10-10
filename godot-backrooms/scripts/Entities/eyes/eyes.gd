@@ -8,6 +8,7 @@ extends Node3D
 ##
 ## Debug console:  eyes [count|off|auto|clear]    sanity <0-100|off>    health <0-100>
 
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const TEXTURE := "res://textures/entities/eye.png"
 const ASPECT := 920.0 / 598.0
 const HALO := 1.5                  # quad size / eye size (matches eye.gdshader halo_size)
@@ -46,12 +47,14 @@ var last_sigh := -100.0
 var blinking_away := false
 var fails := {}                    # why spawn attempts were rejected (console: `eyes`)
 var spawns := 0
+var _mark_pending := false         # the level has an Eyes mark it has yet to open at
 
 func _ready() -> void:
 	rng.randomize()
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")
 	cam = player.get_node("Camera3D")
+	_mark_pending = not EntityMarks.of_kind(level, "eyes").is_empty()
 	quad = QuadMesh.new()
 	quad.size = Vector2.ONE
 	mat = ShaderMaterial.new()
@@ -93,7 +96,7 @@ func target_count() -> int:
 func alive_count() -> int:
 	var n := 0
 	for w in watchers:
-		if not w.dying:
+		if not w.dying and not w.get("fixed", false):   # a pair on a level editor mark is not sanity's to count
 			n += 1
 	return n
 
@@ -105,6 +108,9 @@ func _process(dt: float) -> void:
 		blinking_away = false
 	var k := madness() if debug_count < 0 else maxf(madness(), 0.7)
 	if running:
+		if _mark_pending:
+			_mark_pending = false
+			_open_at_mark()
 		_light_check()
 		_spawn_logic(dt)
 	elif Game.dead:
@@ -136,6 +142,8 @@ func _clear_now(calm: float) -> void:
 	if watchers.is_empty():
 		return
 	for w in watchers:
+		if w.get("fixed", false):
+			continue                       # a pair on a mark stays where the level put it
 		w.dying = true
 		w.fade_out = 0.02              # gone the instant the lids meet
 	calm_until = Game.time + calm
@@ -161,7 +169,7 @@ func _spawn_logic(dt: float) -> void:
 		var far = null
 		var far_d := -1.0
 		for w in watchers:
-			if w.dying:
+			if w.dying or w.get("fixed", false):
 				continue
 			var d: float = w.pos.distance_squared_to(cam.global_position)
 			if d > far_d:
@@ -232,6 +240,21 @@ func scan_points() -> Array:
 func scan_behavior(_at: Vector3) -> Dictionary:
 	return {"state": "WATCHING", "detail": "HARMLESS // YOUR SANITY %d%% - LIGHT UP OR STARE IT DOWN" % int(player.sanity), "danger": 0}
 
+## An Eyes mark in the level editor: a pair opens there from the start of the level and stays, watching. Unlike
+## the ones sanity brings, it is not blinked away by light, by staring it down or by walking up to it.
+func _open_at_mark() -> void:
+	var marks := EntityMarks.of_kind(level, "eyes")
+	if marks.is_empty():
+		return
+	var at := EntityMarks.world_pos(marks[0])
+	var ceil_h: float = level.ceiling_height(EntityMarks.cell(marks[0]))
+	_add(Vector3(at.x, player.global_position.y + minf(2.0, ceil_h - 0.6), at.z))
+	var w: Dictionary = watchers[watchers.size() - 1]
+	w.fixed = true
+	w.life = INF
+	w.delay = 0.5
+	spawns += 1
+
 func _add(p: Vector3) -> void:
 	# sized by distance so it always covers the same small angle on screen (about 1 degree per eye):
 	# a fixed 30 cm eye 35 m away would be seven pixels and simply not seen
@@ -271,7 +294,10 @@ func _update(dt: float, k: float) -> void:
 		var dist := to.length()
 		var dir := to / maxf(dist, 0.001)
 		var facing := dir.dot(fwd)
-		if not w.dying:
+		var fixed: bool = w.get("fixed", false)
+		if fixed:
+			w.size = clampf(dist * 0.0165, 0.12, 0.8)    # keeps the same small angle on screen as you walk
+		if not w.dying and not fixed:
 			w.life -= dt
 			if w.life <= 0.0 or dist > SIGHT_CAST + 6.0:
 				w.dying = true
@@ -294,14 +320,14 @@ func _update(dt: float, k: float) -> void:
 		w.squint = move_toward(w.squint, 1.0 if lit else 0.0, dt * (4.0 if lit else 1.2))
 		if lit:
 			w.torch += dt
-			if w.torch > TORCH_KILL:
+			if w.torch > TORCH_KILL and not fixed:
 				vanish = 6.0               # the torch on it: you flinch, blink, and it is gone
 		else:
 			w.torch = maxf(0.0, w.torch - dt * 0.5)
 		var watched: bool = facing > 0.93 and w.lid > 0.6 and not w.dying
 		if watched:
 			w.stare += dt
-			if w.stare > STARE_TIME:
+			if w.stare > STARE_TIME and not fixed:
 				vanish = 5.0               # stared too long: you blink, and it is gone
 		else:
 			w.stare = maxf(0.0, w.stare - dt * 0.4)

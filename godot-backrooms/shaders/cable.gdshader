@@ -97,13 +97,15 @@ void fragment() {
 		}
 	}
 
-	// Physical PBR surface parameters without fake cartoon outline
+	// Physical PBR surface parameters with authentic tangential response
 	ALBEDO = col;
-	NORMAL_MAP = norm_sample;
+	NORMAL_MAP = clamp(n_tangent * 0.5 + 0.5, vec3(0.0), vec3(1.0));
 	NORMAL_MAP_DEPTH = normal_depth;
 	ROUGHNESS = clamp(r_val, 0.05, 0.98);
 	METALLIC = clamp(m_val, 0.0, 1.0);
 	SPECULAR = specular;
+	RIM = 0.28;
+	RIM_TINT = 0.15;
 	AO = clamp(ao_sample, 0.25, 1.0);
 	AO_LIGHT_AFFECT = 0.5;
 }

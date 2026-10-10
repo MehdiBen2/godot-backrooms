@@ -14,6 +14,7 @@ const WALL_H := 5.4
 const TALL_H := 10.8
 const GRAND_H := 16.2        # a grand hall (the editor's GRAND zone): three storeys of open air over you
 const LOW_H := 2.3
+const HOTEL_H := 4.5          # a hotel corridor: a low ceiling, well under the 5.4 m walls, but tall enough to walk under
 const CRAWL_H := 1.2         # a crawl space's ceiling: low enough that you have to get right down (player.gd)
 const PIT_DEPTH := 14.0
 const STOREY_H := 9.0     # floor to floor (props/stairs.gd STOREY): the room, and the slab up to the next floor
@@ -57,6 +58,38 @@ var hole_box := Rect2i()  # the cells round all of this floor's holes, up and do
 var climb_up := {}        # Vector2i -> true: holes over this floor's stairs that climb on up to the floor above
 var climb_down := {}      # Vector2i -> true: holes in this floor that the floor below's stairs come up through
 var pillar_cells := {}  # Vector2i -> true: a pillar / column stands square in it (no tube light over it)
+## How far a hotel corridor's side walls stand out into their cells, in metres: a 4.5 m hall leaves 2.7 m to walk
+const HOTEL_INSET := 0.9
+var hotel_faces: Array = []     # [cell, dir, from, to]: a side wall standing on one edge of a hotel cell, from..to in cells along the edge
+var _hotel_spans: Array = []    # the wall_segments spans the hotel walls added, so a reload takes them out again
+
+## Hotel corridors (the HOTEL zone): a side wall HOTEL_INSET thick stands into each hotel cell along every edge
+## that faces a solid wall. An open edge is the corridor itself and gets none.
+## Built as geometry by level_geometry.gd (_build_hotel_insets) and as spans in wall_segments, so monsters are
+## pushed out of them and sight is blocked by them. The grid (blocked_edges) is only added to where a wall stands.
+func _hotel_faces_load() -> void:
+	for s in _hotel_spans: wall_segments.erase(s)
+	_hotel_spans.clear()
+	hotel_faces.clear()
+	# a face only on an edge a solid wall closes. An open edge is the corridor itself: no wall there, or the hall
+	# is cut into boxes (and the player is shut in)
+	var faces := []
+	for c: Vector2i in hotel.keys():
+		for n: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nb := c + n
+			if nb.x < 0 or nb.y < 0 or nb.x >= size or nb.y >= size or walls.has(nb):
+				faces.append([c, n, -0.5, 0.5])
+	for f: Array in faces:
+		hotel_faces.append(f)
+		# the span's centre line sits where the slab's inner face is: HOTEL_INSET in from the cell edge
+		var c: Vector2i = f[0]
+		var n: Vector2i = f[1]
+		var mid := Vector2(c) + Vector2(n) * (0.5 - HOTEL_INSET / (2.0 * CELL))
+		var perp := Vector2(n.y, n.x)
+		var s := [mid + perp * f[2], mid + perp * f[3], HOTEL_INSET * 0.5, false]
+		_hotel_spans.append(s)
+		_block_segment(s[0], s[1], s[2], false)
+
 ## Off-centre blocking objects (a thin wall or door on a cell edge, or at an angle) don't fill a cell, so
 ## instead they cut the links between cells for the monster's grid nav: blocked_edges holds each pair of
 ## neighbouring cells whose centre-to-centre step crosses one, wall_segments the spans themselves
@@ -69,6 +102,7 @@ var grand := {}      # Vector2i -> true: a grand hall's GRAND_H ceiling (beats t
 var low := {}
 var crawl := {}      # Vector2i -> true: a crawl space (the editor's CRAWL zone): CRAWL_H ceiling, you crawl through it
 var tiles := {}
+var hotel := {}      # a hotel corridor (the editor's HOTEL zone): a HOTEL_H ceiling and the red hotel carpet (level_geometry.gd)
 var bright := {}
 var dark := {}
 var dim := {}
@@ -162,8 +196,10 @@ static func object_info(type: String) -> Dictionary:
 ## params (object_types.json "params") with the file's value, or the default, as the default's type
 static func load_object(o: Dictionary) -> Dictionary:
 	var info := object_info(str(o.get("type", "")))
+	# (a model prop is its real size at 1, and never more than 1.5 times it: level_editor_canvas.gd _max_scale)
+	var top := float(info.get("max_scale", 1.5 if info.has("model") else 4.0))
 	var out := {"type": str(o.get("type", "")), "pos_x": float(o.get("pos_x", 0.0)), "pos_y": float(o.get("pos_y", 0.0)),
-		"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, float(info.get("max_scale", 4.0)))}
+		"rotation": float(o.get("rotation", 0.0)), "scale": clampf(float(o.get("scale", 1.0)), 0.5, top)}
 	var params: Dictionary = info.get("params", {})
 	for k in params:
 		var v = o.get(k, params[k])
@@ -636,12 +672,13 @@ func _parse(d: Dictionary) -> void:
 					if Geometry2D.is_point_in_polygon(Vector2(l.x, l.z), o._poly): pool_cells[Vector2i(x, z)] = true
 	noclip_to = str(d.get("noclip_to", ""))
 	var zones: Dictionary = d.get("zones", {})
-	for zone in ["tall", "grand", "low", "crawl", "tiles", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
+	for zone in ["tall", "grand", "low", "crawl", "tiles", "hotel", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
 			"safe", "drain", "loot", "echo", "hall_reverb", "muffled", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
+	_hotel_faces_load()
 	# Noclip on plain floor: no hole, you clip straight through the floor (noclip_slip.gd); on a pit it is the
 	# bottomless fall (pit_fall.gd). Both end in the floor's Noclip destination.
 	for c: Vector2i in noclip.keys():
@@ -725,6 +762,7 @@ func ceiling_height(c: Vector2i) -> float:
 	if grand.has(c): return GRAND_H
 	if tall.has(c): return TALL_H
 	if low.has(c): return LOW_H
+	if hotel.has(c): return HOTEL_H
 	return WALL_H
 
 ## Record an off-centre blocking object: each span of its shape_path() (the open ends shortened a hair so

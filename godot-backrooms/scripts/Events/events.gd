@@ -444,7 +444,9 @@ func _event_power_cut() -> void:
 	# pre-flicker warning across ~2 s: the tubes round you stutter and pop, the whole grid browns out
 	later(0.2, func(): level.disturb(player.global_position, 28.0, 0.9))
 	var dim := Color(0.25, 0.25, 0.18)
-	for i in range(1, 7):
+	# (the last step is an odd one, white: an even one at 2.1 s landed in the same frame as the cut below, and the
+	# queue runs newest first, so it could leave the dim tint on every real light for the whole cut and after it)
+	for i in range(1, 6):
 		later(i * 0.35, func(): level.set_tint(dim if i % 2 == 0 else Color.WHITE))
 
 	later(2.1, func():
@@ -456,7 +458,9 @@ func _event_power_cut() -> void:
 			mimic.grid_down()
 		if player.battery <= 0.0:
 			player.battery = 40.0
-		later(POWER_CUT_SECONDS, func(): player.grid_down = false)
+		later(POWER_CUT_SECONDS, func():
+			player.grid_down = false
+			level.set_tint(Color.WHITE))
 		# the grid dies somewhere far off (sound carries through the walls)
 		scares.grid_off(sound_spot(18.0 + rng.randf() * 8.0, rng.randf() * TAU, 2.4))
 		Game.add_glitch(0.5)

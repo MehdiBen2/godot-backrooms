@@ -41,6 +41,7 @@ func resize(full: Vector2i, reach: float) -> void:
 
 ## Render only while the owner is on screen
 func set_running(on: bool) -> void:
+	on = on and not Gfx.bisect("nocrt")
 	for vp in vps:
 		(vp as SubViewport).render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
 

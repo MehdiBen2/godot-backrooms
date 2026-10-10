@@ -14,6 +14,7 @@ const FLICKER_CHANCE := 0.24
 const LIMINAL_BURNT_CHANCE := 0.03     # liminal: nearly every tube works, steady, humming - nothing is wrong, and that's what's wrong
 const LIMINAL_FLICKER_CHANCE := 0.04
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
+const FLUOR_MODEL := "res://models/props/asset_pack/weathered_fluorescent_lightlamp_-_4096px2.glb"   # the "Fluorescent (new model)" lights
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
 const PANEL_DROP := 0.35            # metres under the ceiling for the light (so the ceiling itself is lit too)
 const PANEL_GLOW := Color(3.6, 3.25, 2.75)  # HDR emission multiplier over the (pale blue) emission map: a warm white that blooms
@@ -194,7 +195,8 @@ func _room_rot(c: Vector2i) -> float:
 # spacing 1.9 cells, some tubes burnt out, some flickering.
 func _place_fixtures() -> void:
 	_seed_fixtures()
-	if call("lights_mode") != "troffers": return       # troffers only where the level asks for them (level_geometry.gd)
+	var lm := str(call("lights_mode"))
+	if lm != "troffers" and lm != "fluorescent": return       # hung only where the level asks for them (level_geometry.gd)
 	var min_sp := CELL * 1.9
 	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
@@ -568,6 +570,10 @@ func _mesh_world(root: Node, node: Node3D) -> Transform3D:
 
 func _build_fixture_meshes() -> void:
 	if fx.is_empty(): return
+	if str(call("lights_mode")) == "fluorescent":
+		_build_fluorescent_fixtures()
+		_build_chains()
+		return
 	var scene: PackedScene = load("res://models/lights/office_lighting_troffer_light_1x4.glb")
 	var root: Node3D = scene.instantiate()
 	var parts := {}
@@ -630,6 +636,10 @@ func _build_fixture_meshes() -> void:
 	lens_mm = place.call("Object_2", lit, lit_lens, true, "lens")
 	root.queue_free()
 
+	_build_chains()
+
+## Chains for fixtures hanging under the atrium ceiling (both fixture styles)
+func _build_chains() -> void:
 	# Chains for fixtures hanging under the atrium ceiling
 	var hanging: Array = fx.filter(func(f): return ceiling_height(cell_of(f.pos)) > WALL_H)
 	if not hanging.is_empty():
@@ -654,11 +664,87 @@ func _build_fixture_meshes() -> void:
 		cmi.material_override = chain_mat
 		add_child(cmi)
 
+
+## The "Fluorescent (new model)" fixture: the weathered twin-tube fitting, once per fixture, lying flat with its top on the
+## ceiling. It is one mesh (its tubes are not separate), so its underside is what glows: a shader lights every face
+## that points down, in the fixture's own lit colour (the same colour the troffer tubes get, from _set_lit_color).
+func _build_fluorescent_fixtures() -> void:
+	var scene: PackedScene = load(FLUOR_MODEL)
+	if scene == null:
+		push_warning("Fluorescent model missing: " + FLUOR_MODEL)
+		return
+	var root: Node3D = scene.instantiate()
+	var node: MeshInstance3D = null
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		node = n as MeshInstance3D
+		break
+	if node == null or node.mesh == null:
+		root.queue_free()
+		push_warning("Fluorescent model has no mesh")
+		return
+	# whatever way the file stands it: its longest side goes along X and its thinnest up (Y), then it is moved so its top sits at the origin
+	var mw := _mesh_world(root, node)
+	var pre: AABB = mw * node.mesh.get_aabb()
+	var order := [0, 1, 2]
+	order.sort_custom(func(a: int, b: int) -> bool: return pre.size[a] > pre.size[b])
+	var cols := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+	cols[order[0]] = Vector3.RIGHT
+	cols[order[2]] = Vector3.UP
+	cols[order[1]] = Vector3.BACK
+	var lay := Basis(cols[0], cols[1], cols[2])
+	if lay.determinant() < 0.0:
+		cols[order[1]] = Vector3.FORWARD
+		lay = Basis(cols[0], cols[1], cols[2])
+	var box: AABB = Transform3D(lay, Vector3.ZERO) * pre
+	var c := box.get_center()
+	var base := Transform3D(lay, Vector3(-c.x, -box.end.y, -c.z)) * mw
+	var mesh: Mesh = node.mesh
+	var src := mesh.surface_get_material(0) as BaseMaterial3D
+	var albedo: Texture2D = src.albedo_texture if src != null else null
+	root.queue_free()
+	var shader := _coded_shader("""shader_type spatial;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+varying vec4 lit;
+void vertex() { lit = COLOR; }
+void fragment() {
+	ALBEDO = texture(albedo_tex, UV).rgb;
+	ROUGHNESS = 0.6;
+	float down = smoothstep(0.3, 0.9, -(INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
+	EMISSION = lit.rgb * down;
+}
+""")
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	if albedo != null: mat.set_shader_parameter("albedo_tex", albedo)
+	var yoff := Vector3(0, 0.02, 0)
+	_chunked(fx, func(f: Dictionary) -> Vector3: return f.pos, "fluor", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.mesh = mesh
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for j in list.size():
+			var f: Dictionary = list[j]
+			MMBuffer.put(buf, j * st, Transform3D(Basis(Vector3.UP, f.rot), f.pos + yoff) * base)
+			# burnt-out fixtures stay dark; the rest start at their own level (_set_lit_color changes it from here)
+			var col := Color.BLACK if bool(f.get("burnt", false)) else LIT_DIFFUSER * (f.get("warm", Color.WHITE) as Color) * float(f.get("peak", 1.0))
+			MMBuffer.put_color(buf, j * st, col)
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.layers = CEIL_LAYER
+		return mmi)
+
 func _set_lit_color(f: Dictionary, lvl: float) -> void:
 	var k: float = lvl * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
 	var w: Color = tint * (f.get("warm", Color.WHITE) as Color)
 	if f.has("tube_mm"): (f.tube_mm as MultiMesh).set_instance_color(f.tube_i, LIT_DIFFUSER * w * k)
 	if f.has("lens_mm"): (f.lens_mm as MultiMesh).set_instance_color(f.lens_i, LIT_DIFFUSER * w * (k * 0.45))
+	if f.has("fluor_mm"): (f.fluor_mm as MultiMesh).set_instance_color(f.fluor_i, LIT_DIFFUSER * w * k)
 	f.glow_lvl = k
 	_write_glow(f)
 	if f.has("panel_mm"): (f.panel_mm as MultiMesh).set_instance_color(f.panel_i, PANEL_GLOW * w * k)

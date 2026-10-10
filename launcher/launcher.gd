@@ -1,15 +1,16 @@
 extends Control
-## Backrooms launcher: checks GitHub Releases for a newer build, downloads and
-## unpacks it next to the launcher, then starts the game.
+## Backrooms launcher: checks GitHub Releases for a newer build, downloads only what changed
+## since the installed copy, then starts the game.
 ##
-## Layout on disk (release build):
-##   launcher.exe
-##   game/backrooms.exe, backrooms.pck, version.txt
-## Each release must carry a zip asset named ASSET_NAME with the exported game at its root.
+## Layout on disk (release build), per user, under %LOCALAPPDATA%\Programs\The Backrooms:
+##   backrooms.exe, backrooms.pck, version.txt, manifest.json
+## Each release carries manifest.json: every game file as a list of chunks, each named by its sha256.
+## The chunks themselves live in the STORE_TAG release, shared by all versions (see tools/publish.ps1).
 
 const REPO := "MehdiBen2/godot-backrooms"
-const ASSET_NAME := "backrooms-windows.zip"
 const GAME_EXE := "backrooms.exe"
+const MANIFEST := "manifest.json"
+const STORE_TAG := "store"
 const CONFIG_PATH := "user://launcher.cfg"
 
 enum State { CHECKING, READY, UPDATE, DOWNLOADING, INSTALLING, OFFLINE }
@@ -17,7 +18,6 @@ enum State { CHECKING, READY, UPDATE, DOWNLOADING, INSTALLING, OFFLINE }
 var state := State.CHECKING
 var local_version := ""
 var remote_version := ""
-var asset_url := ""
 var notes := ""
 
 var http_check: HTTPRequest
@@ -39,7 +39,9 @@ var notes_panel: PanelContainer
 var notes_title: Label
 var notes_btn: Button
 var pct_label: Label
-var asset_size := 0        # bytes, from the release data (the CDN often omits Content-Length)
+var dl_total := 0          # bytes of the whole new install, from the manifest
+var dl_done := 0           # bytes of it fetched or reused from the installed copy so far
+var _req_in_flight := false  # an HTTP request is running, so its byte count is live
 var _t := 0.0
 var _check_timer := 0.0
 var _silent_check := false   # true while a background poll is in flight (no UI disruption)
@@ -77,7 +79,7 @@ func _ready() -> void:
 	http_notes.request_completed.connect(_on_notes_done)
 	http_dl = HTTPRequest.new()
 	add_child(http_dl)
-	http_dl.request_completed.connect(_on_download_done)
+	http_dl.max_redirects = 8   # GitHub's download links redirect to the file store
 	local_version = _read_local_version()
 	check_for_update()
 
@@ -88,7 +90,12 @@ func install_dir() -> String:
 	# In the editor, install beside the project so the launcher can be tested safely.
 	if OS.has_feature("editor"):
 		return ProjectSettings.globalize_path("res://").path_join("_dev_install")
-	return OS.get_executable_path().get_base_dir().path_join("game")
+	# Per user, like Discord or VS Code: installing and updating needs no admin rights, and AppData
+	# is hidden by default, so the game stays out of the way of the desktop.
+	var base := OS.get_environment("LOCALAPPDATA")
+	if base == "":
+		base = OS.get_user_data_dir()
+	return base.path_join("Programs").path_join("The Backrooms")
 
 
 func game_exe() -> String:
@@ -140,9 +147,7 @@ func _on_check_done(result: int, code: int, headers: PackedStringArray, _body: P
 	if silent and tag == remote_version:
 		return  # nothing changed: don't touch the UI at all
 	remote_version = tag
-	asset_url = "https://github.com/%s/releases/download/%s/%s" % [REPO, tag, ASSET_NAME]
 	notes = ""
-	asset_size = 0
 	notes_box.text = ""
 	notes_btn.visible = false
 	_set_state(State.UPDATE if local_version != remote_version else State.READY)
@@ -158,9 +163,6 @@ func _on_notes_done(result: int, code: int, _h: PackedStringArray, body: PackedB
 	if typeof(data) != TYPE_DICTIONARY or str(data.get("tag_name", "")) != remote_version:
 		return
 	notes = str(data.get("body", ""))
-	for a in data.get("assets", []):
-		if a.get("name", "") == ASSET_NAME:
-			asset_size = int(a.get("size", 0))
 	notes_box.text = notes
 	notes_btn.visible = notes != ""
 	if state == State.UPDATE and notes != "":
@@ -174,65 +176,153 @@ func _go_offline(msg: String) -> void:
 
 # ------------------------------------------------------------------ download + install
 
+#   The release's manifest.json lists each game file as a sequence of chunks, each named by its sha256.
+#   The installed copy's manifest says which chunks are already on disk, so only the missing ones are fetched.
+#   Nothing is replaced until every file has been assembled and checked; then the new files are swapped in.
+
 func start_download() -> void:
 	if _game_running():
 		status.text = "Close the game before updating."
 		return
-	DirAccess.make_dir_recursive_absolute(install_dir())
-	http_dl.download_file = install_dir().path_join("update.zip.part")
-	http_dl.max_redirects = 8
-	var err := http_dl.request(asset_url, PackedStringArray(["User-Agent: backrooms-launcher"]))
-	if err != OK:
-		_go_offline("Could not start the download.")
-		return
 	_set_state(State.DOWNLOADING)
+	dl_total = 0
+	dl_done = 0
+	_install_update()
 
 
-func _on_download_done(result: int, code: int, _h: PackedStringArray, _b: PackedByteArray) -> void:
-	var part := install_dir().path_join("update.zip.part")
-	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
-		DirAccess.remove_absolute(part)
-		_go_offline("Download failed (result %d, HTTP %d)." % [result, code])
+func _install_update() -> void:
+	var raw: PackedByteArray = await _http_get("https://github.com/%s/releases/download/%s/%s" % [REPO, remote_version, MANIFEST])
+	var manifest = JSON.parse_string(raw.get_string_from_utf8()) if not raw.is_empty() else null
+	if typeof(manifest) != TYPE_DICTIONARY or typeof(manifest.get("files")) != TYPE_ARRAY:
+		_go_offline("Download failed: this release has no game manifest.")
 		return
+	var files: Array = manifest["files"]
+	var installed := _installed_files()
+	var have := _local_chunks(installed)
+	for f in files:
+		dl_total += int(f["size"])
+	var ok := true
+	for f in files:
+		var staged: bool = await _stage_file(f, have)
+		if not staged:
+			ok = false
+			break
+	if not ok:
+		for f in files:
+			var tmp := install_dir().path_join(f["path"]) + ".new"
+			if FileAccess.file_exists(tmp):
+				DirAccess.remove_absolute(tmp)
+		_go_offline("Download failed: a file did not arrive intact. Try again.")
+		return
+	# Everything is assembled and checked: swap it in.
 	_set_state(State.INSTALLING)
 	await get_tree().process_frame
-	var zip_path := install_dir().path_join("update.zip")
-	DirAccess.rename_absolute(part, zip_path)
-	var ok := _unpack(zip_path)
-	DirAccess.remove_absolute(zip_path)
-	if not ok:
-		_go_offline("Install failed: the update archive is invalid.")
-		return
-	var f := FileAccess.open(install_dir().path_join("version.txt"), FileAccess.WRITE)
-	f.store_string(remote_version)
-	f.close()
+	var kept := {}
+	for f in files:
+		kept[install_dir().path_join(f["path"])] = true
+	for f in installed:
+		var old := install_dir().path_join(f["path"])
+		if not kept.has(old) and FileAccess.file_exists(old):
+			DirAccess.remove_absolute(old)
+	for f in files:
+		var dest := install_dir().path_join(f["path"])
+		if FileAccess.file_exists(dest):
+			DirAccess.remove_absolute(dest)
+		DirAccess.rename_absolute(dest + ".new", dest)
+	var mf := FileAccess.open(install_dir().path_join(MANIFEST), FileAccess.WRITE)
+	mf.store_string(raw.get_string_from_utf8())
+	mf.close()
+	var vf := FileAccess.open(install_dir().path_join("version.txt"), FileAccess.WRITE)
+	vf.store_string(remote_version)
+	vf.close()
 	local_version = remote_version
 	_set_state(State.READY)
 
 
-func _unpack(zip_path: String) -> bool:
-	var zip := ZIPReader.new()
-	if zip.open(zip_path) != OK:
+# Assembles one game file into <file>.new from chunks: from the installed copy when it has them, otherwise from GitHub.
+func _stage_file(f: Dictionary, have: Dictionary) -> bool:
+	var dest := install_dir().path_join(f["path"])
+	DirAccess.make_dir_recursive_absolute(dest.get_base_dir())
+	var out := FileAccess.open(dest + ".new", FileAccess.WRITE)
+	if out == null:
 		return false
-	var found_exe := false
-	for entry in zip.get_files():
-		if entry.ends_with("/"):
-			continue
-		# Refuse paths that would escape the install folder.
-		if entry.begins_with("/") or ".." in entry.split("/"):
-			continue
-		var dest := install_dir().path_join(entry)
-		DirAccess.make_dir_recursive_absolute(dest.get_base_dir())
-		var f := FileAccess.open(dest, FileAccess.WRITE)
-		if f == null:
-			zip.close()
-			return false
-		f.store_buffer(zip.read_file(entry))
-		f.close()
-		if entry == GAME_EXE:
-			found_exe = true
-	zip.close()
-	return found_exe
+	var whole := HashingContext.new()
+	whole.start(HashingContext.HASH_SHA256)
+	for c in f["chunks"]:
+		var data: PackedByteArray = _read_local_chunk(have, c)
+		if data.is_empty():
+			data = await _fetch_chunk(c["h"], int(c["n"]))
+			if data.is_empty():
+				out.close()
+				return false
+		out.store_buffer(data)
+		whole.update(data)
+		dl_done += data.size()
+		await get_tree().process_frame   # keep the window responsive while big local chunks are copied
+	out.close()
+	return whole.finish().hex_encode() == f["sha256"]
+
+
+func _fetch_chunk(h: String, n: int) -> PackedByteArray:
+	var data: PackedByteArray = await _http_get("https://github.com/%s/releases/download/%s/%s" % [REPO, STORE_TAG, h])
+	return data if data.size() == n and _sha(data) == h else PackedByteArray()
+
+
+# One GET through the shared download request. Returns the body, or an empty array on failure.
+func _http_get(url: String) -> PackedByteArray:
+	_req_in_flight = true
+	var err := http_dl.request(url, PackedStringArray(["User-Agent: backrooms-launcher"]))
+	if err != OK:
+		_req_in_flight = false
+		return PackedByteArray()
+	var r: Array = await http_dl.request_completed
+	_req_in_flight = false
+	if r[0] != HTTPRequest.RESULT_SUCCESS or r[1] != 200:
+		return PackedByteArray()
+	return r[3]
+
+
+# The chunk bytes from the installed copy, if it still has them intact; empty otherwise.
+func _read_local_chunk(have: Dictionary, c: Dictionary) -> PackedByteArray:
+	var h: String = c["h"]
+	if not have.has(h):
+		return PackedByteArray()
+	var src: Dictionary = have[h]
+	var fa := FileAccess.open(install_dir().path_join(src["path"]), FileAccess.READ)
+	if fa == null:
+		return PackedByteArray()
+	fa.seek(int(src["offset"]))
+	var data := fa.get_buffer(int(src["size"]))
+	fa.close()
+	return data if _sha(data) == h else PackedByteArray()
+
+
+# Where each chunk the installed copy holds sits: hash -> {path, offset, size}
+func _local_chunks(installed: Array) -> Dictionary:
+	var have := {}
+	for f in installed:
+		var off := 0
+		for c in f["chunks"]:
+			if not have.has(c["h"]):
+				have[c["h"]] = {"path": f["path"], "offset": off, "size": int(c["n"])}
+			off += int(c["n"])
+	return have
+
+
+func _installed_files() -> Array:
+	var fa := FileAccess.open(install_dir().path_join(MANIFEST), FileAccess.READ)
+	if fa == null:
+		return []
+	var m = JSON.parse_string(fa.get_as_text())
+	fa.close()
+	return m.get("files", []) if typeof(m) == TYPE_DICTIONARY else []
+
+
+func _sha(data: PackedByteArray) -> String:
+	var hc := HashingContext.new()
+	hc.start(HashingContext.HASH_SHA256)
+	hc.update(data)
+	return hc.finish().hex_encode()
 
 
 # ------------------------------------------------------------------ launching
@@ -330,17 +420,15 @@ func _process(dt: float) -> void:
 	_t += dt
 	rec_dot.modulate.a = 1.0 if fmod(_t, 1.1) < 0.55 else 0.0      # REC light blinks like the game's
 	if state == State.DOWNLOADING:
-		var total := http_dl.get_body_size()
-		if total <= 0:
-			total = asset_size
-		var got := http_dl.get_downloaded_bytes()
+		var total := dl_total
+		var got := dl_done + (http_dl.get_downloaded_bytes() if _req_in_flight else 0)
 		var frac := clampf(float(got) / total, 0.0, 1.0) if total > 0 else 0.0
 		bar.value = frac * 100.0
 		pct_label.text = "%d%%" % int(frac * 100.0) if total > 0 else "..."
 		if total > 0:
 			status.text = "Downloading %s   %.1f / %.1f MB" % [remote_version, got / 1048576.0, total / 1048576.0]
 		else:
-			status.text = "Downloading %s   %.1f MB" % [remote_version, got / 1048576.0]
+			status.text = "Downloading %s..." % remote_version
 	elif _game_pid > 0 and not _game_running():
 		_game_pid = -1
 		if state != State.CHECKING:

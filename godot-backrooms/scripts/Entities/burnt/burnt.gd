@@ -11,6 +11,8 @@ extends "res://scripts/Entities/model_entity.gd"
 ## The model has a skeleton but no animations: its stalking gait, the twitch, the head tilt and the arms
 ## reaching out are all posed here, bone by bone. `spawn burnt` in the debug console stands it in front of you.
 
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
+const LURK_WAKE := 14.0             # metres: a Burnt placed to lurk starts to stalk when you come this close
 const BurntError := preload("res://scripts/Entities/burnt/burnt_error.gd")
 const BurntNet := preload("res://scripts/Entities/burnt/burnt_net.gd")
 const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug"]
@@ -51,6 +53,8 @@ const BRAKE_STOP := 3.0             # metres it skids over, from a full run to a
 const STOP_GAP := 1.6               # metres beyond its reach that it stops: room to turn, break its line and hide
 const BRAKE_HOLD := 2.2             # seconds it stands there, heaving, before it goes back to stalking
 
+var _mark_pending := false          # the level has a Burnt mark it has yet to stand at
+var _lurk := false                  # placed to lurk: it waits where it stands until you are close
 var state := "off"                  # off, stalk, windup, charge, grab, lift, stare, corrupt (+ held: co-op, a guest is being taken)
 var t := 0.0
 var yaw := 0.0
@@ -115,6 +119,19 @@ func _ready() -> void:
 	net = BurntNet.new(self)
 	_pl = player
 	_lv = level
+	_mark_pending = not EntityMarks.of_kind(level, "burnt").is_empty()
+
+## A Burnt mark in the level editor: it stands there from the start of the level. Placed to roam it stalks you
+## at once; placed to lurk it stays put, motionless, until you come within LURK_WAKE of it.
+func _spawn_from_mark() -> void:
+	var marks := EntityMarks.of_kind(level, "burnt")
+	if marks.is_empty() or not spawn_at(EntityMarks.world_pos(marks[0])):
+		return
+	yaw = rotation.y
+	state = "stalk"
+	_walk = 0.0
+	_lamp_t = 0.0
+	_lurk = EntityMarks.lurks(marks[0])
 
 func _build() -> bool:
 	if not super._build(): return false
@@ -142,6 +159,9 @@ func _physics_process(delta: float) -> void:
 		return
 	_rush_fx(delta)
 	if Net.is_online(): net.send(delta)
+	if _mark_pending and Game.playing and not Game.dead and player != null:
+		_mark_pending = false
+		_spawn_from_mark()
 	if not present or player == null: return
 	_burn_lamps(delta)
 	if Game.freeze_ai: return
@@ -162,6 +182,9 @@ func _physics_process(delta: float) -> void:
 	var pp: Vector3 = tgt.pos
 	var p := global_position
 	var d := Vector2(pp.x - p.x, pp.z - p.z).length()
+	if _lurk:
+		if d > LURK_WAKE: return
+		_lurk = false
 	if d < GRAB_DIST and _can_take(tgt):
 		state = "windup"
 		t = 0.0

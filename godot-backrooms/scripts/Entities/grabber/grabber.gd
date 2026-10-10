@@ -21,6 +21,7 @@ extends Node3D
 ## follows). Debug console: the GRABBER row (spawn / despawn / hunch / peek / chase / drag).
 
 const GridNav := preload("res://scripts/World/grid_nav.gd")
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const GrabberBody := preload("res://scripts/Entities/grabber/grabber_body.gd")
 const GrabberDrag := preload("res://scripts/Entities/grabber/grabber_drag.gd")
 const GrabberNet := preload("res://scripts/Entities/grabber/grabber_net.gd")
@@ -79,6 +80,9 @@ var drag: GrabberDrag
 var net: GrabberNet
 var puppet := false
 var enabled := false                          # the debug console's despawn turns it off
+var _marks: Array = []                        # the level's Grabber marks (entity_marks.gd)
+var _marks_used := false                      # it has hung over the first one already
+var _lurk_mark := false                       # hanging over a mark placed to lurk: it stays there
 
 var state := "away"
 var state_time := 0.0
@@ -128,6 +132,10 @@ func _ready() -> void:
 	drag = GrabberDrag.new(self)
 	net = GrabberNet.new(self)
 	away_left = rng.randf_range(FIRST_DELAY.x, FIRST_DELAY.y)
+	_marks = EntityMarks.of_kind(level, "grabber")
+	if not _marks.is_empty():                     # a Grabber mark in the level editor: it is in this level, and waits there
+		enabled = true
+		away_left = 1.0
 	_set_state("away")
 
 func _set_state(s: String) -> void:
@@ -241,8 +249,35 @@ func _think_away(delta: float) -> void:
 	away_left -= delta
 	if away_left > 0.0:
 		return
+	if not _marks.is_empty() and not _marks_used:
+		_marks_used = true                        # the mark is where it first hangs; after that it picks its own spots
+		if _hunch_at_mark(_marks[0]):
+			return
 	if not _pick_hunch():
 		away_left = AWAY_RETRY
+
+## Hang from the ceiling over a Grabber mark. Placed to lurk it stays there (it never moves on); placed to roam
+## it relocates as it always does. False when the mark has no floor or no ceiling to hang from.
+func _hunch_at_mark(mark: Dictionary) -> bool:
+	var at := EntityMarks.world_pos(mark)
+	if not nav.open_at(at.x, at.z):
+		return false
+	at.y = _floor_y(at, player.global_position.y)
+	var h := _ceiling_over(at)
+	if not is_finite(h) or h < 2.6:
+		return false
+	global_position = at
+	ceiling = h
+	yaw = _yaw_to(player.global_position)
+	rotation.y = yaw
+	stare = 0.0
+	_lurk_mark = EntityMarks.lurks(mark)
+	body.flip = 1.0
+	body.hang = h
+	body.restart("hunch", 0.0)
+	body.pose_root()
+	_set_state("hunch")
+	return true
 
 ## A dark stretch of ceiling a few cells along the way the one it wants is facing, out of everyone's sight
 func _pick_hunch() -> bool:
@@ -278,6 +313,7 @@ func _pick_hunch() -> bool:
 			best_h = h
 	if not best.is_finite():
 		return false
+	_lurk_mark = false
 	global_position = best
 	ceiling = best_h
 	var to_s := Vector3(sp.x - best.x, 0.0, sp.z - best.z)
@@ -319,7 +355,7 @@ func _think_hunch(delta: float) -> void:
 		_drop()
 		return
 	# nobody came: it moves on (while nobody is looking)
-	if state_time > RELOCATE_AFTER and nearest > 30.0 and not seen_by_anyone(head, 0.3):
+	if state_time > RELOCATE_AFTER and nearest > 30.0 and not _lurk_mark and not seen_by_anyone(head, 0.3):
 		if not _pick_hunch():
 			_go_away(AWAY_RETRY)
 

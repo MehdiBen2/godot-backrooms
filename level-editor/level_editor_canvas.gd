@@ -20,9 +20,10 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
 	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0"),
-	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e")}
+	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e"), "hotel": Color("b8443a")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
-const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "entity": Color("ff3030"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
+const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
+# Entity marks are objects (object_types.json "entity"): any number per floor, each with its own kind and behavior
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
 	THIN: Color("7a7364"), ARCH: Color("8a7a52"), DOOR: Color("6b4a2e")}
 # Free-placed objects, mirrored from the game's level_data.gd. Positions are in cells with a cell's centre
@@ -30,6 +31,7 @@ const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color(
 # width in cells. Locally an object faces +x (you walk through it along x) and spans y.
 const CELL_M := 4.5                  # metres per cell in the game (level_data.gd CELL)
 const SNAP_STEP := 0.5               # snap to cell centres and cell edges
+const PROP_SNAP := 0.25 / 4.5        # a model prop (furniture, clutter) snaps to a 25 cm grid instead
 var index: Array = []
 var current := -1
 var grid_size := 46
@@ -149,14 +151,32 @@ func _param(o: Dictionary, key: String, fallback = null):
 
 ## A wall object's thickness in cells (its own, else its type's)
 func _thick_cells(o: Dictionary) -> float:
+	match _shape(o.type):
+		"pipe":
+			var d := float(_param(o, "diameter", 0.3))
+			var n := 1 if str(_param(o, "stack", "side")) == "up" else clampi(int(_param(o, "count", 1)), 1, 8)
+			return (d * n + float(_param(o, "gap", 0.08)) * (n - 1)) / CELL_M
+		"riser":
+			return float(_param(o, "diameter", 0.3)) / CELL_M
 	return float(_param(o, "thick", _info(o.type).get("thickness", 0.3))) / CELL_M
 
+## A model prop's real footprint in cells at its scale ([along its arrow, across]), Vector2.ZERO for a type with
+## none (object_types.json "footprint": metres at scale 1, measured from the model by the asset tooling)
+func _foot_cells(o: Dictionary) -> Vector2:
+	var fp: Array = _info(o.type).get("footprint", [])
+	if fp.size() != 2: return Vector2.ZERO
+	return Vector2(float(fp[0]), float(fp[1])) * float(o.scale) / CELL_M
+
 ## The widest a type may be made (object_types.json "max_scale", else 4 cells)
+## (a model prop is built at its real size: 1, and at most PROP_MAX_SCALE times that, so a water cooler can't
+## end up twice a man's height; the game clamps it the same way, level_data.gd load_object)
 func _max_scale(t: String) -> float:
-	return float(_info(t).get("max_scale", 4.0))
+	return float(_info(t).get("max_scale", PROP_MAX_SCALE if _info(t).has("model") else 4.0))
+const PROP_MAX_SCALE := 1.5
 
 ## The width the next object of type `t` is placed at: its type's last one, else 1 cell (a trigger: 3)
 func _place_scale(t: String) -> float:
+	if _info(t).has("model"): return 1.0              # a model prop always goes down at its real size
 	return float(place_scales.get(t, _info(t).get("default_scale", 3.0 if _shape(t) == "zone" else 1.0)))
 
 ## Shapes laid out as a box `depth` cells along the arrow by `scale` across: a trigger, water, a raised floor, a
@@ -166,7 +186,7 @@ const BOX_SHAPES := ["zone", "water", "platform", "flight"]
 ## How far from its origin an object reaches, in cells (for culling and picking)
 func _obj_reach(o: Dictionary) -> float:
 	match _shape(o.type):
-		"spline", "pool":
+		"spline", "pool", "pipe":
 			var r := 1.0
 			for q in _shape_path(o): r = maxf(r, q.length())
 			return r
@@ -174,6 +194,8 @@ func _obj_reach(o: Dictionary) -> float:
 			return maxf(float(o.scale), float(_param(o, "depth", 2.0))) * 0.75
 		"lamp":
 			return maxf(float(o.scale), LAMP_REACH_CELLS)
+	var foot := _foot_cells(o)
+	if foot != Vector2.ZERO: return foot.length() * 0.5
 	return float(o.scale)
 
 ## The centre line of a wall-shaped object in object space (cells): the game's level_data.gd shape_path()
@@ -193,6 +215,16 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 			return pts
 		"spline":
 			return _spline_path(o)
+		"pipe":
+			# a pipe run: straight between its points (the game rounds the corners into bends)
+			var line := PackedVector2Array()
+			var rawp = o.get("points", [])
+			if rawp is Array:
+				for q in rawp:
+					if q is Array and q.size() >= 2:
+						var v := Vector2(float(q[0]), float(q[1]))
+						if line.is_empty() or line[line.size() - 1].distance_to(v) > 0.001: line.append(v)
+			return line
 		"pool":
 			var out := PackedVector2Array()
 			var raw = o.get("points", [])
@@ -205,7 +237,7 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 
 ## Shapes edited point by point (their "points" in object space): spline walls and pools
 func _pointy(t: String) -> bool:
-	return _shape(t) in ["spline", "pool"]
+	return _shape(t) in ["spline", "pool", "pipe"]
 
 ## A spline wall's centre line: the game's level_data.gd spline_path() (its "points", straight or smoothed
 ## through them, round to the first again when "closed")
@@ -857,8 +889,8 @@ func _draw_canvas() -> void:
 		elif hover_obj >= 0 and hover_obj != selected and drag == "":
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
-			var p := _snap_pos(_pos_at(mouse_px))           # ghost of what a click would place
 			var t := tool.get_slice(":", 1)
+			var p := _snap_pos(_pos_at(mouse_px), t)        # ghost of what a click would place
 			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
 			if _is_stairs(t):
 				_stair_square(ghost)
@@ -1148,6 +1180,22 @@ func _draw_markers() -> void:
 			if m == "drop_hole":
 				tag_text = "DROP HOLE [TO F%d]" % (floor_idx - 1)
 			_tag(p + Vector2(rad + 4, -8), tag_text, MARKERS[m], 10)
+
+## An entity mark: a red disc like the other markers, lettered E, labelled with its kind and behavior up close
+func _draw_entity(o: Dictionary, alpha: float, op: Vector2) -> void:
+	var col: Color = _info("entity").col
+	col.a = alpha
+	var rad := maxf(zoom * 0.42, 7.0)
+	canvas.draw_circle(op + Vector2(1.5, 2.0), rad, Color(0, 0, 0, 0.5 * alpha))
+	canvas.draw_circle(op, rad, col)
+	canvas.draw_arc(op, rad, 0, TAU, 24, Color(0, 0, 0, alpha), 1.5)
+	var fs := maxi(8, int(rad * 1.2))
+	var ls := font.get_string_size("E", HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	canvas.draw_string(font, op + Vector2(-ls.x * 0.5, fs * 0.36), "E", HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, alpha))
+	if zoom >= 12.0:
+		var kind := str(_param(o, "kind", "bacteria")).replace("_", " ").to_upper()
+		var beh := str(_param(o, "behavior", "roam")).to_upper()
+		_tag(op + Vector2(rad + 4, -8), "%s  %s" % [kind, beh], col, 10)
 
 ## Visual transition indicator for a drop hole / pit descent
 func _draw_drop_hole_indicator(p: Vector2, rad: float) -> void:
@@ -2112,9 +2160,10 @@ func _object_tool() -> bool:
 func _pos_at(p: Vector2) -> Vector2:
 	return (p - pan) / zoom - Vector2(0.5, 0.5)
 
-func _snap_pos(v: Vector2) -> Vector2:
+func _snap_pos(v: Vector2, t := "") -> Vector2:
 	if snap and not Input.is_key_pressed(KEY_ALT):
-		v = (v / SNAP_STEP).round() * SNAP_STEP
+		var step := PROP_SNAP if t != "" and _info(t).has("model") else SNAP_STEP
+		v = (v / step).round() * step
 	return v.clamp(Vector2.ZERO, Vector2(grid_size - 1, grid_size - 1))
 
 ## 90° steps with rotation snap on, otherwise free; Shift steps 15°, Alt ignores snapping
@@ -2136,14 +2185,17 @@ func _obj_depth(o: Dictionary) -> float:
 func _obj_bounds(o: Dictionary) -> Rect2:
 	if _is_stairs(str(o.type)):
 		return Rect2(-0.5, 0.5 - STAIR_WIDE, STAIR_CELLS, STAIR_WIDE)
+	var foot := _foot_cells(o)
+	if foot != Vector2.ZERO:                         # a model prop: as big as it really is, centred on its origin
+		return Rect2(-foot * 0.5, foot).grow(minf(2.0 / zoom, 0.05))
 	match _shape(o.type):
-		"corner", "arc", "spline", "pool":
+		"corner", "arc", "spline", "pool", "pipe":
 			var pts := _shape_path(o)
 			if pts.is_empty(): return Rect2(-0.5, -0.5, 1.0, 1.0)
 			var r := Rect2(pts[0], Vector2.ZERO)
 			for q in pts: r = r.expand(q)
 			return r.grow(_obj_depth(o) * 0.5)
-		"pillar", "column":
+		"pillar", "column", "riser":
 			var h := maxf(_thick_cells(o) * 0.5, minf(4.0 / zoom, 1.0))
 			return Rect2(-h, -h, h * 2.0, h * 2.0)
 		"zone", "water", "platform", "flight":
@@ -2162,7 +2214,7 @@ func _obj_hit(o: Dictionary, p: Vector2) -> bool:
 	if _shape(o.type) == "pool":
 		var poly := _shape_path(o)
 		if poly.size() >= 4 and Geometry2D.is_point_in_polygon(l, poly): return true
-	if _shape(o.type) in ["corner", "arc", "spline", "pool"]:
+	if _shape(o.type) in ["corner", "arc", "spline", "pool", "pipe"]:
 		var pts := _shape_path(o)
 		var reach := maxf(_obj_depth(o) * 0.5, slack)
 		for i in pts.size() - 1:
@@ -2228,7 +2280,7 @@ func _grips(o: Dictionary) -> Array:
 			out.append({"kind": "depth", "at": Vector2(-float(_param(o, "depth", 2.0)) * 0.5, 0), "dir": Vector2(-1, 0)})
 		"spiral":
 			out.append({"kind": "diameter", "at": Vector2(half, 0), "dir": Vector2(1, 0)})
-		"spline", "pool":
+		"spline", "pool", "pipe":
 			# one per point the curve goes through: drag it to bend the wall
 			var raw = o.get("points", [])
 			if raw is Array:
@@ -2331,6 +2383,7 @@ func _wheel_edit(up: bool, turn: bool) -> void:
 	if turn: _set_prop("rotation", float(o.rotation) + s * 15.0)
 	elif _shape(t) in ["pillar", "column"]: _set_prop("thick", clampf(snappedf(_thick_cells(o) * CELL_M + s * 0.1, 0.05), 0.05, 4.5))
 	elif _pointy(t): return                          # sized by its points
+	elif _info(t).has("model"): _set_prop("scale", clampf(snappedf(float(o.scale) + s * 0.1, 0.05), 0.5, _max_scale(t)))     # a prop: 10 % at a time
 	else: _set_prop("scale", clampf(float(o.scale) + s * SNAP_STEP, 0.5, _max_scale(t)))
 	_sync_inspector()
 	_status(_describe(o))
@@ -2371,6 +2424,7 @@ func _draw_hints() -> void:
 func _wall_align(p: Vector2, cur: float, t := "") -> float:
 	if not align or Input.is_key_pressed(KEY_ALT): return cur
 	if t != "" and not bool(_info(t).get("align", true)): return cur      # corners, curves, pillars, triggers
+	if t != "" and _info(t).has("model"): return cur                       # furniture keeps the way you turned it
 	var whole := func(v: float) -> bool: return absf(v - roundf(v)) < 0.1
 	var half := func(v: float) -> bool: return absf(absf(v - floorf(v)) - 0.5) < 0.1
 	var facing := -1.0
@@ -2455,22 +2509,27 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		var o: Dictionary = objects[i]
 		drag_off = Vector2(o.pos_x, o.pos_y) - _pos_at(mb.position)
 		drag = "move"
+		# standing on a table already? (dragged off it, it goes back to the floor)
+		var top := _surface_under(Vector2(o.pos_x, o.pos_y), o, i)
+		_moved_from_surface = top >= 0.0 and absf(float(o.get("elev", 0.0)) - top) < 0.02
 	elif tool == "select":
 		_select(-1)
 		box_from = mb.position                       # drag out a box to select everything in it
 		drag = "box"
 	else:
 		_push_undo()
-		var p := _snap_pos(_pos_at(mb.position))
 		var t := tool.get_slice(":", 1)
+		var p := _snap_pos(_pos_at(mb.position), t)
 		if bool(_info(t).get("draw_spline", false)):
 			# a wall along a curve: its first point here, the next one following the mouse until a click puts it down
+			if _shape(t) == "pipe": p = _pipe_snap(p, -1)
 			var sp := _new_object(t, p, 0.0)
 			sp["points"] = [[0.0, 0.0], [0.0, 0.0]]
 			objects.append(sp)
 			_select(objects.size() - 1)
 			drag = "spline"
-			_status("Drawing a spline wall: click each point it bends through, double click / right click / Enter to finish")
+			if _shape(t) == "pipe": _status("Drawing a pipe: click each point it runs through (straight and square; Alt: any angle). Click on another pipe or a riser to join it. Double click / right click / Enter to finish")
+			else: _status("Drawing a spline wall: click each point it bends through, double click / right click / Enter to finish")
 			_mark_dirty()
 			return
 		if bool(_info(t).get("draw_line", false)):
@@ -2482,6 +2541,8 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_mark_dirty()
 			return
 		var made := _new_object(t, p, _wall_align(p, place_rot, t))
+		_stand_on_surface(made, -1)
+		_snap_ports(made, -1)
 		if _is_stairs(t):
 			# a new stairwell: here, and its other end on the floor above (Stairs up) or below (Stairs down)
 			_stair_square(made)
@@ -2557,6 +2618,7 @@ func _object_drag(p: Vector2) -> void:
 	if drag == "spline":
 		# the point following the mouse
 		var q := _snap_pos(_pos_at(p))
+		if _shape(o.type) == "pipe": q = _pipe_route(o, q)
 		var l := (q - Vector2(o.pos_x, o.pos_y)).rotated(-deg_to_rad(float(o.rotation)))
 		var pts: Array = o.points
 		pts[pts.size() - 1] = [snappedf(l.x, 0.001), snappedf(l.y, 0.001)]
@@ -2572,12 +2634,14 @@ func _object_drag(p: Vector2) -> void:
 		_mark_dirty()
 		return
 	if drag == "move":
-		var q := _snap_pos(_pos_at(p) + drag_off)
+		var q := _snap_pos(_pos_at(p) + drag_off, str(o.type))
 		if _is_stairs(str(o.type)): q = q.round()
 		o.pos_x = q.x
 		o.pos_y = q.y
+		_stand_on_surface(o, selected, true)
 		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
 			o.rotation = _wall_align(q, o.rotation, o.type)
+		_snap_ports(o, selected)
 	else:
 		var v := p - _obj_xf(o).origin
 		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
@@ -2769,7 +2833,9 @@ func _sync_inspector() -> void:
 	if insp == null: return
 	insp.get_parent().visible = selected >= 0
 	if selected < 0: return
-	if tool_scroll != null:
+	# the inspector sits at the top of the tool panel: bring it into view when an object is picked up,
+	# but not while placing one (a placed object is selected too, and the palette must stay where it is)
+	if tool_scroll != null and not tool.begins_with("obj:"):
 		tool_scroll.scroll_vertical = 0
 	var o: Dictionary = objects[selected]
 	insp_type.select(OBJ_TYPES.find(o.type))
@@ -2782,7 +2848,15 @@ func _sync_inspector() -> void:
 	# the size field means what the shape makes of it; pillars and columns are sized by their thickness
 	var sh := _shape(o.type)
 	insp_scale_label.text = {"arc": "Diameter", "spiral": "Diameter", "corner": "Leg length"}.get(sh, "Width")
-	insp_scale_label.visible = sh not in ["pillar", "column", "spline", "pool"] and not _is_stairs(str(o.type))
+	if _info(o.type).has("model"):
+		# a model prop's size: 1 is its real size (its type's "help" ends with its real measurements)
+		insp_scale_label.text = "Size"
+		insp_scale.suffix = "x"
+		insp_scale.tooltip_text = "1 = real life size%s. At most %.1f" % [_real_size(o), _max_scale(o.type)]
+	else:
+		insp_scale.suffix = ""
+		insp_scale.tooltip_text = "span in cells"
+	insp_scale_label.visible = sh not in ["pillar", "column", "spline", "pool", "pipe", "riser"] and not _is_stairs(str(o.type))
 	insp_scale.visible = insp_scale_label.visible
 	if insp_trigger_btn != null:
 		insp_trigger_btn.visible = (o.type == "trigger")
@@ -2907,11 +2981,15 @@ func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 	var col: Color = _info(o.type).col
 	col.a = alpha
 	if zoom < 3.0:
-		var sz := maxf(zoom * maxf(float(o.scale), 0.8), 2.5)
+		var foot := _foot_cells(o)
+		var sz := maxf(zoom * (maxf(foot.x, foot.y) if foot != Vector2.ZERO else maxf(float(o.scale), 0.8)), 2.5)
 		canvas.draw_rect(Rect2(op - Vector2(sz * 0.5, sz * 0.5), Vector2(sz, sz)), col)
 		return
 	if _shape(o.type) == "lamp":
 		_draw_lamp(o, alpha, op)
+		return
+	if o.type == "entity":
+		_draw_entity(o, alpha, op)
 		return
 	var xf := _obj_xf(o)
 	var half: float = o.scale * 0.5
@@ -2955,10 +3033,44 @@ func _draw_object(o: Dictionary, alpha: float, own := true) -> void:
 ## editor has no plan drawing for: a slab its thickness by its width. A wall you can see over (a half
 ## wall) is drawn hatched with a dashed centre line.
 func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> void:
+	var foot := _foot_cells(o)
+	if foot != Vector2.ZERO:
+		# a model prop: its real footprint, its front (the arrow's side) drawn solid so you can see which way it faces
+		var fx := maxf(foot.x, 3.0 / zoom) * 0.5
+		var fz := maxf(foot.y, 3.0 / zoom) * 0.5
+		var pts := _local_rect(xf, -fx, -fz, fx, fz)
+		canvas.draw_colored_polygon(pts, Color(col, alpha * 0.55))
+		for i in 4:
+			canvas.draw_line(pts[i], pts[(i + 1) % 4], Color(0, 0, 0, alpha * 0.7), 1.0)
+		canvas.draw_line(xf * (Vector2(fx, -fz) * zoom), xf * (Vector2(fx, fz) * zoom), Color(1, 1, 1, alpha * 0.9), maxf(2.0, zoom * 0.03))
+		if zoom >= 14.0 and foot.y * zoom > 40.0:
+			_tag(xf.origin + Vector2(-foot.y * zoom * 0.3, -6), str(_info(o.type).get("label", o.type)), Color(1, 1, 1, alpha * 0.85), 9)
+		return
 	var t := maxf(_thick_cells(o), minf(5.0 / zoom, 1.0))
 	var h := float(_param(o, "height", 0.0))
 	var low := h > 0.0 and h < 1.8
 	match _shape(o.type):
+		"pipe":
+			# the run in its finish's colour, a dot at each turn; hanging from the ceiling: a dashed centre line
+			var pts := _shape_path(o)
+			if pts.size() < 2: return
+			var line := PackedVector2Array()
+			for q in pts: line.append(xf * (q * zoom))
+			var w := maxf(_thick_cells(o) * zoom, 2.5)
+			var pc := _pipe_col(str(_param(o, "material", "rust")))
+			canvas.draw_polyline(line, Color(0, 0, 0, alpha * 0.8), w + 2.0)
+			canvas.draw_polyline(line, Color(pc, alpha), w)
+			if str(_param(o, "hang", "ceiling")) == "ceiling":
+				for i in line.size() - 1:
+					canvas.draw_dashed_line(line[i], line[i + 1], Color(1, 1, 1, alpha * 0.55), 1.0, maxf(zoom * 0.15, 3.0))
+			for q in line: canvas.draw_circle(q, maxf(w * 0.32, 1.5), Color(0, 0, 0, alpha * 0.55))
+			return
+		"riser":
+			var rr := maxf(_thick_cells(o) * 0.5 * zoom, 3.0)
+			canvas.draw_circle(xf.origin, rr, Color(_pipe_col(str(_param(o, "material", "rust"))), alpha))
+			canvas.draw_arc(xf.origin, rr, 0.0, TAU, 20, Color(0, 0, 0, alpha * 0.85), 1.5)
+			canvas.draw_circle(xf.origin, rr * 0.38, Color(0, 0, 0, alpha * 0.6))
+			return
 		"pillar":
 			_fill(_local_rect(xf, -t * 0.5, -t * 0.5, t * 0.5, t * 0.5), col)
 		"column":
@@ -3299,7 +3411,12 @@ func _end_spline() -> void:
 		_status("A spline wall needs two points at least: dropped")
 		return
 	o["points"] = clean
-	_status("Spline wall of %d points. Select it and drag its squares to move them; Smooth / Closed in the inspector" % clean.size())
+	if _shape(o.type) == "pipe" and _pipe_attach(o):
+		_status("Pipe run of %d points, on a pipe piece's opening: its Hang, Off floor and Diameter now match it" % clean.size())
+	elif _shape(o.type) == "pipe":
+		_status("Pipe run of %d points. Its ends join any pipe or riser they touch; drag its squares to reroute it. Hang, Count, Material in the inspector" % clean.size())
+	else:
+		_status("Spline wall of %d points. Select it and drag its squares to move them; Smooth / Closed in the inspector" % clean.size())
 	_sync_inspector()
 	_mark_dirty()
 
@@ -3508,3 +3625,227 @@ func _point_remove(i: int) -> void:
 	pts.remove_at(i)
 	_status("Took a point out (%d left)" % pts.size())
 	_mark_dirty()
+
+
+# ---------------------------------------------------------------- pipes
+## A pipe finish's colour on the map
+func _pipe_col(m: String) -> Color:
+	return {"rust": Color("8a4a2a"), "steel": Color("9aa0a6"), "dark": Color("3a3a3e"), "copper": Color("c07a40"),
+		"green": Color("3d6b3d"), "red": Color("a8302a"), "yellow": Color("d4a020"), "blue": Color("2f5a96"),
+		"white": Color("d8d8d0"), "grey": Color("72767a")}.get(m, Color("8a4a2a"))
+
+## A point (map cells) put onto the nearest pipe end, riser or pipe within reach (pipe `skip` aside), else as it is:
+## where a run starts or ends on another, the game joins them
+func _pipe_snap(q: Vector2, skip: int) -> Vector2:
+	const END_REACH := 0.3
+	const SIDE_REACH := 0.18
+	var best := q
+	var bd := END_REACH
+	var segs: Array = []
+	for i in objects.size():
+		if i == skip: continue
+		var o: Dictionary = objects[i]
+		var sh := _shape(o.type)
+		var at := Vector2(o.pos_x, o.pos_y)
+		if sh == "riser":
+			if q.distance_to(at) < bd:
+				bd = q.distance_to(at)
+				best = at
+		elif sh == "pipe":
+			var rot := deg_to_rad(float(o.rotation))
+			var pts := _shape_path(o)
+			for k in pts.size():
+				var w := at + pts[k].rotated(rot)
+				if (k == 0 or k == pts.size() - 1) and q.distance_to(w) < bd:
+					bd = q.distance_to(w)
+					best = w
+				if k > 0: segs.append([at + pts[k - 1].rotated(rot), w])
+		elif _info(o.type).has("ports"):
+			for pt: Dictionary in _ports_of(o):
+				if q.distance_to(pt.at) < bd:
+					bd = q.distance_to(pt.at)
+					best = pt.at
+	if best != q: return best
+	var sd := SIDE_REACH
+	for sg: Array in segs:
+		var c := Geometry2D.get_closest_point_to_segment(q, sg[0], sg[1])
+		if q.distance_to(c) < sd:
+			sd = q.distance_to(c)
+			best = c
+	return best
+
+## The next point of the pipe being drawn: onto a pipe or riser it reaches, else straight on from the last point,
+## along the map's axes as pipework runs (Alt: any angle)
+func _pipe_route(o: Dictionary, q: Vector2) -> Vector2:
+	var snapped := _pipe_snap(q, selected)
+	if snapped != q: return snapped
+	if Input.is_key_pressed(KEY_ALT): return q
+	var pts: Array = o.points
+	if pts.size() < 2: return q
+	var prev := Vector2(o.pos_x, o.pos_y) + Vector2(float(pts[-2][0]), float(pts[-2][1])).rotated(deg_to_rad(float(o.rotation)))
+	var d := q - prev
+	return prev + (Vector2(d.x, 0.0) if absf(d.x) >= absf(d.y) else Vector2(0.0, d.y))
+
+# ---------------------------------------------------------------- props on tables
+var _moved_from_surface := false
+
+## The top (metres) of the table, desk, box... under `p` (map cells) a prop `o` could stand on: an object whose type
+## has "surface_h" (its top at scale 1), its footprint under `p` and bigger than `o`'s. -1: none.
+func _surface_under(p: Vector2, o: Dictionary, skip := -1) -> float:
+	var mine := _foot_cells(o)
+	var best := -1.0
+	for i in objects.size():
+		if i == skip: continue
+		var s: Dictionary = objects[i]
+		var si := _info(s.type)
+		if not si.has("surface_h") or is_same(s, o): continue
+		var b := _obj_bounds(s)
+		if maxf(mine.x, mine.y) > maxf(b.size.x, b.size.y): continue        # (a sofa does not go on a coffee table)
+		var l := (p - Vector2(s.pos_x, s.pos_y)).rotated(-deg_to_rad(float(s.rotation)))
+		if not b.has_point(l): continue
+		best = maxf(best, float(_param(s, "elev", 0.0)) + float(si.surface_h) * float(s.scale))
+	return best
+
+## A small prop put down or moved onto a table (or a box, a desk, a shelf top) stands on it: its Off floor becomes
+## the top's height. Moved off it again, it goes back down to the floor.
+func _stand_on_surface(o: Dictionary, skip: int, moving := false) -> void:
+	var info := _info(o.type)
+	if not info.has("model") or str(info.get("mount", "")) == "wall": return
+	var params: Dictionary = info.get("params", {})
+	if not params.has("elev"): return
+	var top := _surface_under(Vector2(o.pos_x, o.pos_y), o, skip)
+	if top >= 0.0:
+		o["elev"] = snappedf(top, 0.005)
+		if moving: _moved_from_surface = true
+		_status("On a surface, %.2f m up" % top)
+	elif moving and _moved_from_surface:
+		o["elev"] = float(params.elev)
+		_moved_from_surface = false
+
+# ---------------------------------------------------------------- pipe pieces' openings
+const PIPE_CEIL_M := 5.4             # the ceiling a ceiling-hung run is measured from on the map (the game: the cell's own)
+const PORT_REACH := 0.35             # cells: how near an opening has to come to a pipe end to jump onto it
+
+## The openings of a pipe prop (object_types.json "ports": [x, y, z, dx, dy, dz, diameter], metres in the prop's own
+## frame at scale 1) on the map: [{at: cells, y: metres up, dir: Vector3 (out of it; x, z as the map's x, y), d}]
+func _ports_of(o: Dictionary) -> Array:
+	var out: Array = []
+	var rot := deg_to_rad(float(o.rotation))
+	var s := float(o.scale)
+	var at := Vector2(o.pos_x, o.pos_y)
+	for p: Array in _info(o.type).get("ports", []):
+		var flat := Vector2(float(p[0]), float(p[2])) * s / CELL_M
+		var dxz := Vector2(float(p[3]), float(p[5])).rotated(rot)
+		out.append({"at": at + flat.rotated(rot), "y": float(_param(o, "elev", 0.0)) + float(p[1]) * s,
+			"dir": Vector3(dxz.x, float(p[4]), dxz.y), "d": float(p[6]) * s})
+	return out
+
+## The height (m) of a pipe run's middle as the game hangs it (props/pipe_network.gd _add_run)
+func _pipe_y(o: Dictionary) -> float:
+	var r := float(_param(o, "diameter", 0.3)) * 0.5
+	match str(_param(o, "hang", "ceiling")):
+		"floor": return r + 0.12
+		"elev": return float(_param(o, "elev", 1.0)) + r
+	return PIPE_CEIL_M - maxf(float(_param(o, "drop", 0.45)), r + 0.05)
+
+## Everything a pipe piece can be joined onto (object `skip` aside): run ends, riser tops and bottoms, other pieces'
+## openings. [{at: cells, y: metres, out: Vector3 (the way out of it), d}]
+func _pipe_ends(skip: int) -> Array:
+	var out: Array = []
+	for i in objects.size():
+		if i == skip: continue
+		var o: Dictionary = objects[i]
+		var at := Vector2(o.pos_x, o.pos_y)
+		var d := float(_param(o, "diameter", 0.3))
+		match _shape(o.type):
+			"riser":
+				var top := float(_param(o, "to", 0.0))
+				out.append({"at": at, "y": top if top > 0.0 else PIPE_CEIL_M, "out": Vector3.UP, "d": d})
+				out.append({"at": at, "y": float(_param(o, "from", 0.0)), "out": Vector3.DOWN, "d": d})
+			"pipe":
+				var pts := _shape_path(o)
+				if pts.size() < 2: continue
+				var rot := deg_to_rad(float(o.rotation))
+				var y := _pipe_y(o)
+				for e in [0, 1]:
+					var a := at + pts[0 if e == 0 else pts.size() - 1].rotated(rot)
+					var b := at + pts[1 if e == 0 else pts.size() - 2].rotated(rot)
+					var w := (a - b).normalized()
+					out.append({"at": a, "y": y, "out": Vector3(w.x, 0.0, w.y), "d": d})
+			_:
+				for pt: Dictionary in _ports_of(o):
+					out.append({"at": pt.at, "y": pt.y, "out": pt.dir, "d": pt.d})
+	return out
+
+## A pipe piece (Pipe section, elbow, tee, Rusty pipes) brought near a run end, a riser or another piece: the nearest
+## of its openings that can face it is put on it, the piece turned (an opening on its side) and raised to meet it
+func _snap_ports(o: Dictionary, skip: int) -> void:
+	var ports: Array = _info(o.type).get("ports", [])
+	if ports.is_empty(): return
+	var ends := _pipe_ends(skip)
+	var s := float(o.scale)
+	var here := Vector2(o.pos_x, o.pos_y)
+	var best := {}
+	var bd := PORT_REACH
+	for pl: Array in ports:
+		var pdir := Vector3(float(pl[3]), float(pl[4]), float(pl[5]))
+		var flat := Vector2(float(pl[0]), float(pl[2])) * s / CELL_M
+		var now := here + flat.rotated(deg_to_rad(float(o.rotation)))
+		for e: Dictionary in ends:
+			var eo: Vector3 = e.out
+			var dist := now.distance_to(e.at)
+			if dist >= bd: continue
+			var rot := float(o.rotation)
+			if absf(pdir.y) > 0.5:
+				if absf(eo.y) < 0.5 or pdir.y * eo.y > 0.0: continue        # up meets down, down meets up
+			else:
+				if absf(eo.y) > 0.5: continue
+				rot = rad_to_deg(Vector2(-eo.x, -eo.z).angle() - Vector2(pdir.x, pdir.z).angle())
+			var elev := float(e.y) - float(pl[1]) * s
+			if elev < -0.01: continue                                          # (it would have to sink into the floor)
+			bd = dist
+			best = {"rot": fposmod(snappedf(rot, 0.01), 360.0), "at": (e.at as Vector2) - flat.rotated(deg_to_rad(rot)), "elev": maxf(elev, 0.0)}
+	if best.is_empty(): return
+	o.rotation = best.rot
+	o.pos_x = snappedf((best.at as Vector2).x, 0.0001)
+	o.pos_y = snappedf((best.at as Vector2).y, 0.0001)
+	o["elev"] = snappedf(best.elev, 0.005)
+	_status("Joined onto the pipe there, %.2f m up" % float(best.elev))
+
+## A run just drawn with an end on a pipe piece's opening: hung at that opening's height (over or under it if the
+## opening faces up or down) and as wide as it, so the game joins them. False if neither end is on one.
+func _pipe_attach(o: Dictionary) -> bool:
+	var pts := _shape_path(o)
+	if pts.size() < 2: return false
+	var at := Vector2(o.pos_x, o.pos_y)
+	var rot := deg_to_rad(float(o.rotation))
+	for e in [pts[0], pts[pts.size() - 1]]:
+		var w: Vector2 = at + (e as Vector2).rotated(rot)
+		for i in objects.size():
+			var p: Dictionary = objects[i]
+			if is_same(p, o) or not _info(p.type).has("ports"): continue
+			for pt: Dictionary in _ports_of(p):
+				if w.distance_to(pt.at) > 0.06: continue
+				var d := snappedf(float(pt.d), 0.01)
+				var r := d * 0.5
+				var dir: Vector3 = pt.dir
+				var mid := float(pt.y)
+				if absf(dir.y) > 0.5: mid += signf(dir.y) * r * 1.3        # over (under) an opening facing up (down)
+				if mid - r < 0.0: continue
+				o["diameter"] = d
+				o["hang"] = "elev"
+				o["elev"] = snappedf(mid - r, 0.005)
+				return true
+	return false
+
+## " (0.32 x 0.31 m, 1.30 m high)" from a model prop's help, at the object's size; "" if its help doesn't say
+func _real_size(o: Dictionary) -> String:
+	var help := str(_info(o.type).get("help", ""))
+	var at := help.rfind("(")
+	if at < 0 or not help.ends_with("high)"): return ""
+	var nums: Array[float] = []
+	for w in help.substr(at + 1).replace("x", " ").replace(",", " ").split(" ", false):
+		if w.is_valid_float(): nums.append(w.to_float())
+	if nums.size() != 3: return ""
+	var k := float(o.scale)
+	return " (here %.2f x %.2f m, %.2f m high)" % [nums[0] * k, nums[1] * k, nums[2] * k]

@@ -15,6 +15,7 @@ extends "res://scripts/World/level/level_lighting.gd"
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
 const LevelExit := preload("res://scripts/World/props/level_exit.gd")
+const TerminalMachine := preload("res://scripts/World/props/terminal_machine.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const BATTERY_PER_CELLS := 60        # roughly one pack per this many open cells
 const BATTERY_MIN_SPAWN_DIST := 3    # cells: none right at the spawn point
@@ -35,17 +36,22 @@ const DEAD_FIXTURE_PER_CELLS := 75
 var exit_door: Node3D
 
 func _ready() -> void:
+	Stability.trace("level: building")
 	rng.seed = _floor_seed()           # the same layout of burnt / flickering tubes every run
 	built_floor = Game.level_floor
 	load_current()
+	Stability.trace("level: level data loaded")
 	step_mask()                        # the nav table, now while loading, not on a monster's first flood fill
 	build_geometry()
+	Stability.trace("level: geometry built")
 	build_lighting()
+	Stability.trace("level: lighting built")
 	_build_exit()
 	_spawn_batteries()
 	_spawn_tape()
 	_spawn_flashes()
 	_spawn_survey_props()
+	Stability.trace("level: props spawned")
 	var marks := TapeMarks.new()
 	marks.name = "TapeMarks"
 	add_child(marks)
@@ -61,6 +67,7 @@ func _ready() -> void:
 	_find_loops()
 	_sync_shells()
 	_build_wrap_copies()
+	Stability.trace("level: level fully built")
 
 func _process(delta: float) -> void:
 	if rebuilding: return              # no fixtures to light with until the floor is built
@@ -391,6 +398,10 @@ func _spawn_survey_props() -> void:
 		var first_notebook := SurveyClipboard.new()
 		first_notebook.position = spawn_pos + Vector3(0.5, 0.0, 0.8)
 		add_child(first_notebook)
+		
+		var term := TerminalMachine.new()
+		term.position = spawn_pos + Vector3(1.5, 0.0, 0.8)
+		add_child(term)
 	
 	_scatter(func(): return SurveyClipboard.new(), CLIPBOARD_PER_CELLS, 2, 6)
 	_scatter(func(): return DeadFixture.new(), DEAD_FIXTURE_PER_CELLS, 2, 8)
@@ -531,6 +542,8 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	low.clear()
 	crawl.clear()
 	tiles.clear()
+	hotel.clear()
+	hotel_faces.clear()
 	bright.clear()
 	dark.clear()
 	dim.clear()
@@ -744,9 +757,8 @@ func _floor_ready() -> void:
 		var ent: Node = root.get_node_or_null("Entity")
 		if ent != null and ent.has_method("_setup_nav"):
 			ent._setup_nav()
-			if ent.has_method("_spawn_cell"):
-				var sp: Array = ent._spawn_cell()
-				ent.global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
+			if ent.has_method("relocate"):
+				ent.relocate()                 # onto this floor's bacteria mark, with its behavior
 		# the Mimic's grid (a new level can be another size) and the routes it remembers
 		var mm: Node = root.get_node_or_null("Mimic")
 		if mm != null and mm.has_method("on_floor_changed"):

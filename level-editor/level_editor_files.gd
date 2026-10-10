@@ -6,8 +6,8 @@ extends "res://level_editor_gen.gd"
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 ## The ceiling lights ("lights" in the .lvl, level_geometry.gd lights_mode()): the ceiling's own light panels (its
-## tiles lit where it has none), hanging troffers with their ballasts, or none at all. Unset: panels.
-const LIGHTS := [["panels", "Ceiling panels"], ["troffers", "Troffers (ballast tubes)"], ["none", "None"]]
+## tiles lit where it has none), hanging troffers with their ballasts, hanging fluorescent tubes (the new model), or none at all. Unset: panels.
+const LIGHTS := [["panels", "Ceiling panels"], ["troffers", "Troffers (ballast tubes)"], ["fluorescent", "Fluorescent (new model)"], ["none", "None"]]
 const NAME_WORDS := ["The Lobby", "Habitable Zone", "Sector", "Annex", "Storage", "Maintenance", "Threshold", "Pool Rooms", "Stairwell", "Office"]
 const SCATTER_PER_CELLS := 25         # roughly one prop per this many open floor cells
 const SCATTER_KEEPOUT := 2            # cells kept clear round spawn / exit / entity / tv and existing objects
@@ -126,6 +126,11 @@ func _parse_floor(d: Dictionary) -> Dictionary:
 				for k in o:                                        # its params (thickness, height, event...), kept as saved
 					if not obj.has(k): obj[k] = o[k]
 				fd.objects.append(obj)
+	# the old single "entity" cell (levels saved before entity marks were objects) becomes one bacteria mark
+	var old_ent = d.get("entity")
+	if old_ent is Array and old_ent.size() >= 2:
+		fd.objects.append({"type": "entity", "pos_x": float(old_ent[0]), "pos_y": float(old_ent[1]), "rotation": 0.0,
+			"scale": 1.0, "kind": "bacteria", "behavior": "roam"})
 	return fd
 
 ## One floor's fields as .lvl keys (grid, objects, zones, paint, markers)
@@ -458,7 +463,7 @@ func _scatter_props() -> void:
 		var c: Vector2i = open.pop_at(rng.randi_range(0, open.size() - 1))
 		var t: String = kinds[rng.randi_range(0, kinds.size() - 1)]
 		objects.append({"type": t, "pos_x": c.x + rng.randf_range(-0.3, 0.3), "pos_y": c.y + rng.randf_range(-0.3, 0.3),
-			"rotation": rng.randf_range(0.0, 360.0), "scale": rng.randf_range(0.8, 1.3)})
+			"rotation": rng.randf_range(0.0, 360.0), "scale": snappedf(rng.randf_range(0.95, 1.05), 0.01) if _info(t).has("model") else rng.randf_range(0.8, 1.3)})     # props stay life-size
 		placed += 1
 	selected = -1
 	_sync_inspector()
