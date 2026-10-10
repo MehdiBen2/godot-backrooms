@@ -470,11 +470,11 @@ func _build_horizon_fog() -> void:
 
 func update_lighting(delta: float) -> void:
 	if player == null or pool.is_empty(): return
-	_update_fixtures(delta)
-	_update_pool(delta)
-	_update_atmosphere(delta)
-	_update_grid_gi()
-	_update_dust()
+	if not Perf.skip("fixtures"): _update_fixtures(delta)
+	if not Perf.skip("pool"): _update_pool(delta)
+	if not Perf.skip("atmo"): _update_atmosphere(delta)
+	if not Perf.skip("gridgi"): _update_grid_gi()
+	if not Perf.skip("dust"): _update_dust()
 
 ## How much bounce light the look you stand in wants, in the colour of its light
 func _update_grid_gi() -> void:

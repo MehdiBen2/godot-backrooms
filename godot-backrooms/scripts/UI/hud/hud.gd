@@ -694,6 +694,11 @@ func set_paused(on: bool, start := false) -> void:
 
 # ---- per-frame values -----------------------------------------------------------------
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("HUD", _pt)
+
+func _process_timed(dt: float) -> void:
 	t += dt
 	# fear channels for the post shader (game.fear / terror / glitch in the web pipeline)
 	threat_s += (Game.terror - threat_s) * minf(1.0, dt * 3.0)

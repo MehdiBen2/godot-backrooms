@@ -202,6 +202,10 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("Texture filtering", "aniso", [[0, "Off"], [2, "2x"], [4, "4x"], [8, "8x"], [16, "16x"]]))
 	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
 	v.add_child(_cycle_row("Bloom", "glow", off_on))
+	v.add_child(_choice_row("Carpet", func(): return Gfx.carpet_soft, [true, false], func(x: bool): Gfx.set_carpet_soft(x),
+		{true: "Soft", false: "Original"}))
+	v.add_child(_choice_row("Dark atmosphere", func(): return Gfx.mood, [true, false], func(x: bool): Gfx.set_mood(x),
+		{true: "On", false: "Off"}))
 
 	v.add_child(_section_title("LIGHTING"))
 	var quality := [[0, "Off"], [1, "Low"], [2, "Medium"], [3, "High"]]
@@ -209,7 +213,8 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("Tube lights", "lights", [[6, "6"], [8, "8"], [10, "10"], [12, "12"]]))
 	v.add_child(_cycle_row("Tube light shadows", "light_shadows", [[0, "Off"], [2, "2"], [4, "4"], [8, "8"]]))
 	v.add_child(_cycle_row("Ambient occlusion", "ssao", quality))
-	v.add_child(_cycle_row("Global illumination", "ssil", off_on))
+	v.add_child(_cycle_row("Global illumination", "baked_gi", off_on))
+	v.add_child(_cycle_row("Screen-space GI (heavy)", "ssil", off_on))
 	v.add_child(_cycle_row("Reflections", "ssr", off_on))
 	v.add_child(_cycle_row("Volumetric fog", "vfog", quality))
 	Gfx.changed.connect(_gfx_sync)

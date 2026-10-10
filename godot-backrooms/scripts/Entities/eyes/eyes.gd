@@ -101,6 +101,11 @@ func alive_count() -> int:
 	return n
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("Eyes", _pt)
+
+func _process_timed(dt: float) -> void:
 	if player == null:
 		return
 	var running: bool = Game.playing and not Game.dead

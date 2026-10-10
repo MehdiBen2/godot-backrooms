@@ -494,6 +494,11 @@ func force_bed() -> String:
 	return TRACKS[i].file
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("Ambience", _pt)
+
+func _process_timed(dt: float) -> void:
 	_update_near(dt)
 	_update_moods(dt)
 	tension += (_target_tension() - tension) * (1.0 - exp(-dt / 2.5))

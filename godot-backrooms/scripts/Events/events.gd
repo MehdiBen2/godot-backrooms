@@ -296,6 +296,11 @@ func director_calm() -> bool:
 	return not player.dead and Game.terror == 0.0 and Game.time >= busy_until and watchers.is_empty()
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("Events", _pt)
+
+func _process_timed(dt: float) -> void:
 	# solo: a pause holds the scare where it is. Co-op: the others are still in it, so it runs on (dead too:
 	# whatever it switched off still has to come back)
 	if DISABLED or (not Net.is_online() and (not Game.playing or Game.dead)):

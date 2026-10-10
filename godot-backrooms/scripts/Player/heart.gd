@@ -95,6 +95,11 @@ func _target() -> float:
 	return 1.0 - (1.0 - t) * (1.0 - body)
 
 func _process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(delta)
+	Perf.add("Heart", _pt)
+
+func _process_timed(delta: float) -> void:
 	if not Game.playing or Game.dead or player.dead:
 		return
 	clock += delta

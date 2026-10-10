@@ -70,6 +70,11 @@ func _ready() -> void:
 	Stability.trace("level: level fully built")
 
 func _process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(delta)
+	Perf.add("Level", _pt)
+
+func _process_timed(delta: float) -> void:
 	if rebuilding: return              # no fixtures to light with until the floor is built
 	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
 	update_lighting(delta)
@@ -77,6 +82,11 @@ func _process(delta: float) -> void:
 ## Through a hole in the floor into the one below: that floor takes over half way down the slab between them,
 ## with the player where they are, still falling (rebuild_floor_seamless, kind "fall")
 func _physics_process(_delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(_delta)
+	Perf.add("Level (physics)", _pt)
+
+func _physics_process_timed(_delta: float) -> void:
 	if rebuilding or player == null or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
 		return
 	if edge_wrap: _wrap_player()          # (noclip too: flying off the edge of an endless level comes back round)

@@ -61,12 +61,15 @@ void fragment() {
 	}
 	// Style 2: Hazard striped warning cable
 	else if (cable_style == 2) {
-		float stripe = fract(v_uv.y * 3.2 + v_uv.x * 1.5);
-		bool is_yellow = stripe < 0.5;
+		// anti-aliased: the hard stripe edge turned into a flickering dotted line from a distance. The band blurs as
+		// wide as a pixel covers (fwidth), so far away the stripes settle into an even yellow-black average
+		float phase = v_uv.y * 3.2 + v_uv.x * 1.5;
+		float k = clamp(fwidth(phase) * 5.0, 0.02, 1.0);
+		float yel = smoothstep(-k, k, sin(phase * 6.28318));
 		vec3 yellow = vec3(0.96, 0.78, 0.10) * (0.85 + 0.3 * base_tex.r);
 		vec3 black = vec3(0.10, 0.10, 0.11) * (0.85 + 0.3 * base_tex.r);
-		col = is_yellow ? yellow : black;
-		r_val = is_yellow ? (r_val * 0.85) : (r_val * 1.15);
+		col = mix(black, yellow, yel);
+		r_val = mix(r_val * 1.15, r_val * 0.85, yel);
 	}
 	// Style 3: Braided technical nylon sheath
 	else if (cable_style == 3) {

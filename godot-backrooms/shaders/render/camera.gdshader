@@ -53,7 +53,8 @@ uniform float glitch = 0.0;
 uniform float pulse = 0.0;
 uniform float classic = 0.0;
 uniform float corrupt = 0.0;           // 0..1 the recording breaking up into blocks (Game.fx_corrupt)
-uniform float banding = 0.0;          // fluorescent banding: 0 off, else how much tube light the picture is lit by
+uniform float mood = 0.0;             // 0..1 the cheap dark-atmosphere look (Gfx.mood)
+uniform float banding = 0.0;         // fluorescent banding: 0 off, else how much tube light the picture is lit by
 uniform vec3 wb = vec3(1.0);
 uniform float black_lift = 0.0;
 uniform float exhaust = 0.0;
@@ -402,6 +403,10 @@ void fragment() {
 	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12 - insanity * 0.08, 0.88 - tunnel * 0.3 - insanity * 0.18, length(q));
 	float edge = 1.0 - vig;
 	col *= mix(mix(vignette_amt, 0.9, classic) - tunnel * 0.3, 1.0, vig);
+	// ---- mood (Gfx.mood): the dark, heavy air Ultra gets from ambient occlusion, GI and volumetric fog, faked in
+	// the post pass for next to nothing: corners and distance sink, mid-tones fall toward the shadows
+	col *= mix(1.0, mix(0.72, 1.0, vig), mood);
+	col = pow(max(col, vec3(0.0)), vec3(1.0 + 0.2 * mood));
 	col = mix(col, vec3(dot(col, LUMA)), clamp(edge * (threat * 0.9 + exhaust * 0.6), 0.0, 0.85));
 	col *= 1.0 - edge * exhaust * 0.35;
 	col += band * 0.02 * (0.5 + glitch);

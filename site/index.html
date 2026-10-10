@@ -671,6 +671,39 @@
       </div>
     </section>
 
+    <!-- ============ OBJECTIVES ============ -->
+    <section id="objectives">
+      <div class="label rv">Your job</div>
+      <h2 class="rv" style="--d:0.05s">Catch it. Log it. Get out.</h2>
+      <div class="grid">
+        <article class="card rv tilt" style="--d:0.05s">
+          <div class="code">01</div>
+          <h3>Catch</h3>
+          <p>Something in the halls is wrong: a room that doesn't match the last one, a sound with no source, a face that is a little too still. Catch it before it catches you.</p>
+        </article>
+        <article class="card rv tilt" style="--d:0.12s">
+          <div class="code">02</div>
+          <h3>Scan</h3>
+          <p>Hold the field scanner on it to detect the anomaly and log its details. The log can disagree with what you see. Trust the mismatch.</p>
+        </article>
+        <article class="card rv tilt" style="--d:0.19s">
+          <div class="code">03</div>
+          <h3>Report</h3>
+          <p>File each anomaly in the field terminal. Reported entries are what the Threshold Spatial Research Agency learns from, and what your crew needs to know which halls to avoid.</p>
+        </article>
+        <article class="card rv tilt" style="--d:0.26s">
+          <div class="code">04</div>
+          <h3>Survive</h3>
+          <p>Most anomalies can't be fought. Keep your torch lit, keep moving, and don't stand still to study something that is studying you back.</p>
+        </article>
+        <article class="card rv tilt" style="--d:0.33s">
+          <div class="code">05</div>
+          <h3>Find the way out</h3>
+          <p>Every run ends with an exit, and it is never where the last hall pointed. Mark the corridors you've walked, follow the signs, and don't let the hum lead you back.</p>
+        </article>
+      </div>
+    </section>
+
     <!-- ============ KIT ============ -->
     <section id="kit">
       <div class="label rv">Equipment</div>
@@ -764,7 +797,7 @@
         <div class="dl-status" id="dlStatus"><span class="dot"></span><span id="dlText">Checking for the launcher</span></div>
 
         <div class="dl-row">
-          <a class="btn" id="dlBtn" href="https://github.com/MehdiBen2/godot-backrooms/releases/download/launcher/Backrooms-Launcher.exe">Download</a>
+          <a class="btn" id="dlBtn" href="#download" aria-disabled="true" style="opacity:0.5;pointer-events:none">Coming soon</a>
           <a class="link" href="#how">How it works</a>
           <a class="link" href="https://github.com/MehdiBen2/godot-backrooms/releases/latest/download/backrooms-windows.zip">Game only (zip)</a>
         </div>
@@ -1031,21 +1064,12 @@
     .then((rel) => {
       const asset = (rel.assets || []).find((a) => a.name === "Backrooms-Launcher.exe");
       if (!asset) throw new Error("404");
-      setStatus("ready", "Launcher is available");
+      // the launcher is not released yet: the button stays disabled as "Coming soon"
+      setStatus("missing", "Coming soon");
       dlFoot.textContent = `Backrooms-Launcher.exe · ${mb(asset.size)} · Windows 10 or 11, 64-bit`;
-      dlBtn.href = asset.browser_download_url;
-      dlBar.classList.add("on");
     })
-    .catch((err) => {
-      if (err.message === "404") {
-        setStatus("missing", "Not available yet. Check back soon");
-        dlBtn.setAttribute("aria-disabled", "true");
-        dlBtn.style.opacity = "0.5";
-        dlBtn.addEventListener("click", (e) => e.preventDefault());
-      } else {
-        // the API could not be reached (offline, rate limit): the download link still works on its own
-        setStatus("", "Download the launcher");
-      }
+    .catch(() => {
+      setStatus("missing", "Coming soon");
     });
 
   /* ---------- a line after a long wait ---------- */

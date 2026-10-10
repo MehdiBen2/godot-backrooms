@@ -153,6 +153,11 @@ func _build() -> bool:
 
 # ---------------------------------------------------------------- stalking
 func _physics_process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(delta)
+	Perf.add("Burnt", _pt)
+
+func _physics_process_timed(delta: float) -> void:
 	puppet = Net.is_online() and not Net.hosting
 	if puppet:
 		_physics_puppet(delta)
@@ -425,6 +430,11 @@ func _flow_dir(to: Vector3) -> Vector3:
 
 # ---------------------------------------------------------------- its body, posed
 func _process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(delta)
+	Perf.add("Burnt (pose)", _pt)
+
+func _process_timed(delta: float) -> void:
 	if not present or body == null: return
 	# the gait: a slow, heavy sway as it walks, leaning into it
 	_gait += delta * 3.2 * _walk

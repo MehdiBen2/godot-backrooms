@@ -102,9 +102,8 @@ func _build_skirting() -> void:
 		var b: Vector2 = SKIRT[mini(i + 1, SKIRT.size() - 1)]
 		var d := (b - a).normalized()
 		_skirt_normals.append(Vector2(-d.y, d.x))      # (out of the wall and up: the profile runs top to toe)
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var any := false
+	# one mesh per chunk (_chunk_st): every wall face of the level in one mesh was drawn whole whenever any of it showed
+	var sts := {}
 	# the maze's walls, a face at a time: its ends cut square where the wall runs straight on, mitred into an
 	# inside corner, and mitred round an outside one (the vertex at depth d moves d along the wall)
 	for f: Dictionary in _faces:
@@ -116,19 +115,17 @@ func _build_skirting() -> void:
 		var b := mid + along * (CELL * 0.5)
 		var sa: float = MITRE[f.ends[0]]
 		var sb: float = MITRE[f.ends[1]]
-		_skirt_run(st, [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
-		any = true
+		_skirt_run(_chunk_st(sts, mid), [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
 	# placed walls, pillars and columns: round the outline of each
 	for o: Dictionary in objects:
+		var xf := object_transform(o)
 		for outline: Array in _object_outlines(o):
-			_skirt_loop(st, outline[0], object_transform(o), outline[1])
-			any = true
-	if not any: return
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = _skirt_material()
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF      # (a centimetre proud of the wall)
-	add_child(mi)
+			_skirt_loop(_chunk_st(sts, xf.origin), outline[0], xf, outline[1])
+	if sts.is_empty(): return
+	var mat := _skirt_material()
+	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)      # (a centimetre proud of the wall)
 
 ## One strip of skirting along `pts` (world, on the floor at the wall's face). `miter[i]`: where a vertex at
 ## depth d sits, as pts[i] + miter[i] * d. `face_in[i]` / `face_out[i]`: the wall's outward normal at pts[i] for
@@ -446,27 +443,29 @@ func _build_wall_wear(switches: Array) -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = _coded_wear()
 	mat.render_priority = 1
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_custom_data = true
-	mm.mesh = QuadMesh.new()
-	mm.instance_count = cards.size()
-	var buf := MMBuffer.alloc(mm)
-	var st := MMBuffer.stride(mm)
-	for i in cards.size():
-		var cd: Array = cards[i]
-		MMBuffer.put(buf, i * st, cd[0])
-		buf[i * st + 12] = cd[1]
-		buf[i * st + 13] = cd[2]
-		buf[i * st + 14] = cd[3]
-		buf[i * st + 15] = cd[4]
-	mm.buffer = buf
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	add_child(mmi)
+	var quad := QuadMesh.new()
+	_chunked(cards, func(cd: Array) -> Vector3: return (cd[0] as Transform3D).origin, "", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_custom_data = true
+		mm.mesh = quad
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for i in list.size():
+			var cd: Array = list[i]
+			MMBuffer.put(buf, i * st, cd[0])
+			buf[i * st + 12] = cd[1]
+			buf[i * st + 13] = cd[2]
+			buf[i * st + 14] = cd[3]
+			buf[i * st + 15] = cd[4]
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		return mmi)
 
 # ---------------------------------------------------------------- damp
 ## Water come down the wall from a leak in the ceiling: mould and wet staining in streaks from the top, fading
@@ -526,22 +525,24 @@ func _build_damp() -> void:
 	mat.set_shader_parameter("damp", atlas)
 	mat.set_shader_parameter("strip_h", DAMP_STRIP)
 	mat.set_shader_parameter("span", span)
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.use_custom_data = true
-	mm.mesh = QuadMesh.new()
-	mm.instance_count = cards.size()
-	for i in cards.size():
-		mm.set_instance_transform(i, cards[i][0])
-		mm.set_instance_custom_data(i, cards[i][1])
-		mm.set_instance_color(i, Color(1, 1, 1, cards[i][2]))
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	add_child(mmi)
+	var quad := QuadMesh.new()
+	_chunked(cards, func(cd: Array) -> Vector3: return (cd[0] as Transform3D).origin, "", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
+		mm.use_custom_data = true
+		mm.mesh = quad
+		mm.instance_count = list.size()
+		for i in list.size():
+			mm.set_instance_transform(i, list[i][0])
+			mm.set_instance_custom_data(i, list[i][1])
+			mm.set_instance_color(i, Color(1, 1, 1, list[i][2]))
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = mat
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		return mmi)
 
 static var _damp_shader: Shader
 static func _coded_damp() -> Shader:

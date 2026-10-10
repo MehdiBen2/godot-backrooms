@@ -51,7 +51,8 @@ const PRESETS := {
 		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
-		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
+		# baked GI on Medium too: rendered at half resolution with the low cone count (project.godot), it is cheap
+		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
 	# High / Ultra: SSR (a full-screen ray march nobody notices on carpet and wallpaper), TAA (history buffers that
 	# were rebuilt on every change), the 2nd fog tier and the extra cube shadows were dropped: they were the
 	# crashes and the static noise (GPU overload / driver reset) for no visible gain.
@@ -215,6 +216,36 @@ func set_fullscreen(on: bool) -> void:
 ## How many one-shot particles an effect should use, as a fraction of its full count
 func particle_scale() -> float:
 	return [0.45, 0.75, 1.0][clampi(int(s.get("post", 2)), 0, 2)]
+
+## Carpet look (not a quality preset, like the camera): soft = smoother, darker, cheaper than the original pile
+var carpet_soft := true
+var _carpet_mats: Array = []
+
+## level_geometry.gd hands over each carpet material so the menu option reaches the ones already built
+func register_carpet(mat: ShaderMaterial) -> void:
+	_carpet_mats = _carpet_mats.filter(func(w: WeakRef): return w.get_ref() != null)
+	_carpet_mats.append(weakref(mat))
+	mat.set_shader_parameter("soft", 1.0 if carpet_soft else 0.0)
+
+func set_carpet_soft(on: bool) -> void:
+	if on == carpet_soft:
+		return
+	carpet_soft = on
+	for w in _carpet_mats:
+		var m = w.get_ref()
+		if m:
+			m.set_shader_parameter("soft", 1.0 if on else 0.0)
+	_save()
+	changed.emit()
+
+## Dark atmosphere (not a quality preset): the heavy look Ultra gets from AO / GI / fog, faked in the camera pass for ~free
+var mood := true
+
+func set_mood(on: bool) -> void:
+	if on != mood:
+		mood = on
+		_save()
+		changed.emit()
 
 func set_camera(c: String) -> void:
 	if c in CAMERAS and c != camera:
@@ -437,6 +468,8 @@ func _load() -> void:
 			if typeof(v) == typeof(s[k]):
 				s[k] = v
 	fullscreen = bool(cf.get_value("gfx", "fullscreen", false))
+	carpet_soft = bool(cf.get_value("gfx", "carpet_soft", true))
+	mood = bool(cf.get_value("gfx", "mood", true))
 	# a settings file from before bodycam became the default holds the old default ("auto"): start on bodycam
 	if int(cf.get_value("gfx", "camera_rev", 0)) >= CAMERA_REV:
 		var c := str(cf.get_value("gfx", "camera", camera))
@@ -455,6 +488,8 @@ func _save() -> void:
 	cf.set_value("gfx", "fullscreen", fullscreen)
 	cf.set_value("gfx", "camera", camera)
 	cf.set_value("gfx", "camera_rev", CAMERA_REV)
+	cf.set_value("gfx", "carpet_soft", carpet_soft)
+	cf.set_value("gfx", "mood", mood)
 	for k in s:
 		cf.set_value("gfx", k, s[k])
 	cf.save(PATH)

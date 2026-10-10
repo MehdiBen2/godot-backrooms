@@ -1291,6 +1291,11 @@ func hit_player() -> void:
 
 # ================================================================= frame
 func _physics_process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(delta)
+	Perf.add("Mimic", _pt)
+
+func _physics_process_timed(delta: float) -> void:
 	if Game.freeze_ai:
 		return
 	var online := Net.is_online()

@@ -329,6 +329,62 @@ func _fog_end() -> float:
 func _chunk_reach() -> float:
 	return _fog_end() + SURF_CHUNK * CELL * sqrt(2.0) / 2.0 + SURF_RANGE_SLACK
 
+## The chunk (SURF_CHUNK x SURF_CHUNK cells) a point is drawn in
+func _chunk_at(p: Vector3) -> Vector2i:
+	var c := cell_of(p)
+	return Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK)
+
+## Split `items` into chunks by `pos_of`, and build one MultiMesh per chunk, each with its own visibility range.
+## One MultiMesh across the whole level has the level for its bounds, so it is drawn whole (every instance through
+## the vertex shader) whenever any part of it is in view; per chunk, frustum and occlusion culling drop the rest.
+## `build(list)` gets one chunk's items and returns its MultiMeshInstance3D, configured and filled with instance j
+## as list[j]. With `key`, each item is given its chunk's MultiMesh and its instance there (item[key + "_mm"],
+## item[key + "_i"]), so a colour can be written to it later. `extra` widens the range for pools that draw past
+## their cell. Returns the first MultiMesh (null if there were no items): the level's "is there any" flag.
+func _chunked(items: Array, pos_of: Callable, key: String, build: Callable, extra := 0.0) -> MultiMesh:
+	if items.is_empty(): return null
+	var chunks := {}
+	for it in items: chunks.get_or_add(_chunk_at(pos_of.call(it)), []).append(it)
+	var reach := _chunk_reach() + extra
+	var first: MultiMesh = null
+	for k in chunks:
+		var list: Array = chunks[k]
+		var mmi: MultiMeshInstance3D = build.call(list)
+		mmi.visibility_range_end = reach
+		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		add_child(mmi)
+		if first == null: first = mmi.multimesh
+		if key == "": continue
+		for j in list.size():
+			var it: Dictionary = list[j]
+			it[key + "_mm"] = mmi.multimesh
+			it[key + "_i"] = j
+	return first
+
+## The SurfaceTool for the chunk `p` is in, from `sts` (chunk -> SurfaceTool), begun the first time it is asked for:
+## a level-wide mesh built a piece at a time comes out as one mesh per chunk (_commit_chunks)
+func _chunk_st(sts: Dictionary, p: Vector3) -> SurfaceTool:
+	var k := _chunk_at(p)
+	if not sts.has(k):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		sts[k] = st
+	return sts[k]
+
+## One MeshInstance3D per chunk from _chunk_st's SurfaceTools, each with the visibility range of a floor chunk.
+## `setup(mi)` gives each its material and settings.
+func _commit_chunks(sts: Dictionary, setup: Callable) -> void:
+	var reach := _chunk_reach()
+	for k in sts:
+		var mesh := (sts[k] as SurfaceTool).commit()
+		if mesh == null or mesh.get_surface_count() == 0: continue     # (asked for, then given nothing)
+		var mi := MeshInstance3D.new()
+		mi.mesh = mesh
+		mi.visibility_range_end = reach
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		setup.call(mi)
+		add_child(mi)
+
 ## _cell_surface, cut into chunks that each carry a visibility range
 func _ranged_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> void:
 	var chunks := {}
@@ -466,6 +522,7 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("floor_map", _floor_map_tex)
 	sm.set_shader_parameter("map_cells", float(size))
 	sm.set_shader_parameter("map_cell", CELL)
+	Gfx.register_carpet(sm)
 	return sm
 
 ## The floor plan the carpet wears by (carpet_pom.gdshader), one texel a cell. r: a solid wall block (the carpet
@@ -2123,11 +2180,8 @@ func _build_dirt() -> void:
 
 func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 	if cells.is_empty(): return
-	var variants: Array = []
-	for i in 4:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		variants.append(st)
+	# per stain texture, one mesh per chunk (_chunk_st): see-through, so a level-wide one was also sorted as one piece
+	var variants: Array = [{}, {}, {}, {}]
 	var uvs := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
 	var corners := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]
 	for c in cells:
@@ -2137,7 +2191,7 @@ func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 		var a := rng.randf() * TAU
 		var ca := cos(a)
 		var sa := sin(a)
-		var st: SurfaceTool = variants[rng.randi() % 4]
+		var st := _chunk_st(variants[rng.randi() % 4], Vector3(x0, y, z0))
 		for k in [0, 3, 2, 0, 2, 1]:
 			var s: Vector2 = corners[k]
 			st.set_normal(Vector3.UP)
@@ -2158,8 +2212,7 @@ func _grime_layer(cells: Array, wet: bool, sz: float, y: float) -> void:
 			else:
 				m.roughness = 1.0
 			_grime_mats[key] = m
-		var mi := MeshInstance3D.new()
-		mi.mesh = (variants[i] as SurfaceTool).commit()
-		mi.material_override = _grime_mats[key]
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mi)
+		var gm: Material = _grime_mats[key]
+		_commit_chunks(variants[i], func(mi: MeshInstance3D) -> void:
+			mi.material_override = gm
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)

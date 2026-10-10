@@ -2,11 +2,6 @@
   {
     "file": "level0.lvl",
     "id": "level0",
-    "name": "Level 0: The Lobby"
-  },
-  {
-    "file": "nada.lvl",
-    "id": "nada",
-    "name": "nada"
+    "name": "Level 0: Floor Zero"
   }
 ]

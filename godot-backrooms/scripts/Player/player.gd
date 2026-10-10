@@ -442,12 +442,22 @@ func _unhandled_input(e: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(delta)
+	Perf.add("Player", _pt)
+
+func _process_timed(delta: float) -> void:
 	if not dead and not frozen:
 		_update_flashlight_aim(delta)
 	focused_door = _find_interactable_door() if not dead and not frozen and not _door_anim_active else null
 	_update_fall_fx(delta)
 
 func _physics_process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(dt)
+	Perf.add("Player (physics)", _pt)
+
+func _physics_process_timed(dt: float) -> void:
 	spawn_grace = maxf(0.0, spawn_grace - dt)
 	# nothing is hunting you any more (or nothing is left to say so): let the burst wind down on its own
 	adr_idle += dt

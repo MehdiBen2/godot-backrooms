@@ -145,6 +145,11 @@ func _set_state(s: String) -> void:
 
 # ================================================================= per frame
 func _physics_process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(delta)
+	Perf.add("Grabber", _pt)
+
+func _physics_process_timed(delta: float) -> void:
 	if drag.active():
 		drag.update(delta)                    # this machine's own player is the one being dragged
 	if Game.freeze_ai or body == null:

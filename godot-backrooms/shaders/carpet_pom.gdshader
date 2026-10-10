@@ -20,6 +20,9 @@ uniform int max_layers : hint_range(0, 64) = 14;    // 0 turns POM off (Low pres
 uniform float near_distance : hint_range(2.0, 20.0) = 8.0;
 uniform float near_fade_range : hint_range(1.0, 5.0) = 3.0;
 uniform float crevice_ao_strength : hint_range(0.0, 2.0) = 0.3;
+// "Soft carpet" (Gfx.carpet_soft): 0 the original look, 1 smoother. Costs nothing, it only picks blurrier
+// mips (so the pile stops crawling as single pixels), eases the bump and shortens the parallax march.
+uniform float soft : hint_range(0.0, 1.0) = 0.0;
 
 uniform float mid_distance : hint_range(8.0, 60.0) = 25.0;
 uniform float mid_fade_range : hint_range(2.0, 12.0) = 8.0;
@@ -87,9 +90,11 @@ void fragment() {
 	vec2 uv = v_uv;
 	// Gradients taken once, up front: inside the (per-pixel, variable-length) march below implicit derivatives
 	// are undefined and the GPU falls back to slow paths, and every fetch here reuses them via textureGrad.
-	vec2 uv_dx = dFdx(uv);
-	vec2 uv_dy = dFdy(uv);
 	float dist = -VERTEX.z;
+	// wider gradients: textureGrad reads a blurrier mip, more so with distance where the pile only shimmers
+	float blur = mix(1.0, 2.2 + 2.5 * clamp(dist / 14.0, 0.0, 1.0), soft);
+	vec2 uv_dx = dFdx(uv) * blur;
+	vec2 uv_dy = dFdy(uv) * blur;
 	float final_depth = 0.0;
 
 	// Tier 1: Near Range (0 to 10m) - Full Silhouette POM & Crevice Shadowing
@@ -104,6 +109,7 @@ void fragment() {
 		v_ts = normalize(v_ts);
 
 		float num_layers = mix(float(max_layers), float(min_layers), clamp(dot(NORMAL, VIEW), 0.0, 1.0));
+		num_layers = max(num_layers * mix(1.0, 0.6, soft), 3.0);
 		float layer_step = 1.0 / num_layers;
 		vec2 max_offset = -(v_ts.xy / max(v_ts.z, 0.20)) * (height_scale * pom_weight);
 		vec2 delta_uv = max_offset * layer_step;
@@ -134,8 +140,9 @@ void fragment() {
 	}
 
 	// Tier 3: Far Range (30m+) - Basic Texturing (Normal map high-frequencies smoothly disabled)
-	float far_fade = clamp((dist - (mid_distance - mid_fade_range)) / mid_fade_range, 0.0, 1.0);
-	float active_normal_depth = mix(normal_scale, 0.0, far_fade);
+	float far_start = mix(mid_distance - mid_fade_range, 7.0, soft);    // soft: the bump is gone by mid distance
+	float far_fade = clamp((dist - far_start) / mix(mid_fade_range, 9.0, soft), 0.0, 1.0);
+	float active_normal_depth = mix(normal_scale * mix(1.0, 0.55, soft), 0.0, far_fade);
 
 	vec4 alb = textureGrad(albedo_tex, uv, uv_dx, uv_dy) * albedo_tint;
 	float rough = textureGrad(roughness_tex, uv, uv_dx, uv_dy).r * roughness_mult;

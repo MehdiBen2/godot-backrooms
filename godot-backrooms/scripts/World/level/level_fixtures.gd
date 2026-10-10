@@ -345,36 +345,7 @@ func _tile_panel_size() -> float:
 	return float(panel_ceiling.get_meta("panel_tiles", 4)) * 2.25 / 8.0
 
 # One quad per cell, the texture repeating exactly once per cell so its panels sit where the lights are
-## The chunk (level_geometry.gd SURF_CHUNK x SURF_CHUNK cells) a point is drawn in
-func _chunk_at(p: Vector3) -> Vector2i:
-	var c := cell_of(p)
-	return Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK)
-
-## Split `items` into chunks by `pos_of`, and build one MultiMesh per chunk, each with its own visibility range.
-## `build(list)` gets one chunk's items and returns its MultiMeshInstance3D, configured and filled with instance j
-## as list[j]. With `key`, each item is given its chunk's MultiMesh and its instance there (item[key + "_mm"],
-## item[key + "_i"]), so a colour can be written to it later. `extra` widens the range for pools that draw past
-## their cell. Returns the first MultiMesh (null if there were no items): the level's "is there any" flag.
-func _chunked(items: Array, pos_of: Callable, key: String, build: Callable, extra := 0.0) -> MultiMesh:
-	if items.is_empty(): return null
-	var chunks := {}
-	for it in items: chunks.get_or_add(_chunk_at(pos_of.call(it)), []).append(it)
-	var reach := _chunk_reach() + extra
-	var first: MultiMesh = null
-	for k in chunks:
-		var list: Array = chunks[k]
-		var mmi: MultiMeshInstance3D = build.call(list)
-		mmi.visibility_range_end = reach
-		mmi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
-		add_child(mmi)
-		if first == null: first = mmi.multimesh
-		if key == "": continue
-		for j in list.size():
-			var it: Dictionary = list[j]
-			it[key + "_mm"] = mmi.multimesh
-			it[key + "_i"] = j
-	return first
-
+# (_chunk_at and _chunked, which split the fixtures' MultiMeshes into chunks, live in level_geometry.gd)
 func _build_panel_ceiling() -> void:
 	if fx.is_empty(): return
 	var drop := drop_ceiling()

@@ -422,6 +422,11 @@ func move(delta: float) -> void:
 
 # ================================================================= per frame
 func _physics_process(delta: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_physics_process_timed(delta)
+	Perf.add("Bacteria", _pt)
+
+func _physics_process_timed(delta: float) -> void:
 	if Game.freeze_ai:
 		return
 	var online := Net.is_online()
@@ -442,6 +447,8 @@ func _physics_process(delta: float) -> void:
 		relocate()
 		vel = Vector3.ZERO
 	gather_target()
+	if _dormant_step(delta, online):
+		return
 	if stun_timer > 0.0:
 		stun_timer -= delta
 		if stun_timer <= 0.0:
@@ -468,6 +475,34 @@ func _physics_process(delta: float) -> void:
 	rotation.y = yaw
 	rig.animate(delta, speed_now, state)
 	_present(delta)
+
+# Far from you and only wandering, it goes dormant: the body is hidden and not posed, the voice and the sound
+# occlusion rays stop, and it thinks once a second instead of ten times. It still walks its route, so it is
+# somewhere believable when you get near. Wakes inside WAKE_DIST (SLEEP_DIST out, so it doesn't flicker on the edge).
+const SLEEP_DIST := 70.0
+const WAKE_DIST := 58.0
+var dormant := false
+var _dormant_think := 0.0
+
+func _dormant_step(delta: float, online: bool) -> bool:
+	var d := INF if tgt.dead else global_position.distance_to(tgt.pos)
+	var idle := state == "roam" or state == "lurk"
+	var want := not online and idle and stun_timer <= 0.0 and d > (WAKE_DIST if dormant else SLEEP_DIST)
+	if want != dormant:
+		dormant = want
+		rig.visible = not want
+		if want:
+			scares.entity_breathe(0.0)
+	if not dormant:
+		return false
+	_dormant_think -= delta
+	if _dormant_think <= 0.0:
+		_dormant_think = 1.0
+		think(1.0)
+	move(delta)
+	rotation.y = yaw
+	update_fear(delta)
+	return true
 
 # Everything each machine plays for itself: the voice, the breath, the tubes, your fear
 func _present(delta: float) -> void:

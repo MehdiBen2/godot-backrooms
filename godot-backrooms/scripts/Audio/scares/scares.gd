@@ -117,6 +117,11 @@ func _stream(path: String) -> AudioStream:
 	return _streams[path]
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("Scares", _pt)
+
+func _process_timed(dt: float) -> void:
 	_clock += dt
 	preacher_fx.update(dt)
 

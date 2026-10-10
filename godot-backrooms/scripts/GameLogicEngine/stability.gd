@@ -23,6 +23,8 @@ const TRACE_FILE := "user://boot_trace.log"
 const REPORT_DIR := "user://crash_reports/"
 const MIN_RUN := 25.0            # seconds a flagged run must have lasted for a test run to count as a crash
 const RELAUNCH_ARG := "--stability-relaunch"
+## Off: after repeated crashes the game used to restart itself on Vulkan, which is the driver that loses the device on the RX 5700 XT
+const ALLOW_VULKAN_FALLBACK := false
 const SAMPLE_EVERY := 2.0
 const VERDICT_ROWS := 10         # the verdict looks at the last 20 seconds
 const RING_SIZE := 30            # one minute of history
@@ -101,6 +103,9 @@ func _back_off() -> void:
 
 ## Direct3D 12 died twice running: the same game on Vulkan, once (the argument stops a restart loop)
 func _relaunch_on_vulkan() -> void:
+	if not ALLOW_VULKAN_FALLBACK:
+		trace("relaunch on Vulkan disabled: staying on %s" % RenderingServer.get_current_rendering_driver_name())
+		return
 	var user_args := OS.get_cmdline_user_args()
 	if RenderingServer.get_current_rendering_driver_name() != "d3d12" or user_args.has(RELAUNCH_ARG):
 		trace("relaunch on Vulkan skipped (driver=%s, already relaunched=%s)" % [RenderingServer.get_current_rendering_driver_name(), user_args.has(RELAUNCH_ARG)])

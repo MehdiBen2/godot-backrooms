@@ -31,6 +31,11 @@ var _moving_for := 0.0
 var _steps_at := -100.0
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(dt)
+	Perf.add("Mimic (sounds)", _pt)
+
+func _process_timed(dt: float) -> void:
 	var player: Node = mimic.player if mimic != null else null
 	if player == null or not Game.playing or Game.dead or player.dead or Game.outdoors:
 		return

@@ -450,6 +450,11 @@ func _guest_locked() -> bool:
 	return Net.is_online() and not Net.hosting
 
 func _process(_dt: float) -> void:
+	var _pt := Time.get_ticks_usec()
+	_process_timed(_dt)
+	Perf.add("Console", _pt)
+
+func _process_timed(_dt: float) -> void:
 	if _guest_locked() and menu_window.visible:
 		_toggle(false)                          # joined someone's game with it open
 	if menu_window.visible and current_tab == "world":
