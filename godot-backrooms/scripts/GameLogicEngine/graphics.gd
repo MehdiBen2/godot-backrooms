@@ -48,24 +48,24 @@ const PHYS_WINDOW := 2.0
 const PRESETS := {
 	"low": {"scale": 60, "msaa": 0, "fxaa": false, "taa": false, "shadows": 0, "ssao": 0, "ssr": false, "ssil": false,
 		"glow": false, "vfog": 0, "post": 0, "aniso": 0, "vsync": true, "fps": 60,
-		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": false, "adapt": true, "banding": true},
+		"lights": 6, "light_shadows": 0, "far_lights": 8, "baked_gi": false, "smooth": true, "adapt": true, "banding": true},
 	"medium": {"scale": 80, "msaa": 0, "fxaa": true, "taa": false, "shadows": 1, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 1, "aniso": 4, "vsync": true, "fps": 0,
 		# baked GI on Medium too: rendered at half resolution with the low cone count (project.godot), it is cheap
-		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
+		"lights": 8, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 	# High / Ultra: SSR (a full-screen ray march nobody notices on carpet and wallpaper), TAA (history buffers that
 	# were rebuilt on every change), the 2nd fog tier and the extra cube shadows were dropped: they were the
 	# crashes and the static noise (GPU overload / driver reset) for no visible gain.
 	"high": {"scale": 100, "msaa": 0, "fxaa": true, "taa": false, "shadows": 2, "ssao": 1, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 8, "light_shadows": 1, "far_lights": 14, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
+		"lights": 8, "light_shadows": 1, "far_lights": 14, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 	# Ultra: the same picture for a lot less. TAA already cleans the edges, so MSAA 4x on top bought nothing;
 	# 4096 shadow maps and the 2nd fog/AO tier are visually the same at this room size.
 	# SSIL is off and 3 tubes cast shadows (each is 6 shadow renders a frame): with them this froze the PC and crackled the
 	# audio on an RX 5700 XT and ended in a Vulkan device loss.
 	"ultra": {"scale": 100, "msaa": 0, "fxaa": true, "taa": false, "shadows": 2, "ssao": 2, "ssr": false, "ssil": false,
 		"glow": true, "vfog": 1, "post": 2, "aniso": 8, "vsync": true, "fps": 0,
-		"lights": 10, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": false, "adapt": true, "banding": true},
+		"lights": 10, "light_shadows": 2, "far_lights": 16, "baked_gi": true, "smooth": true, "adapt": true, "banding": true},
 }
 
 var s := {}                     # the active settings (same keys as a preset)

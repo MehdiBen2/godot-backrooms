@@ -17,6 +17,7 @@ const ITEM_DESC := "A shrink-wrapped pair of AA cells, still holding a charge. P
 	+ "into the flashlight: +45% battery."
 
 const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
+const FONT := preload("res://fonts/vcr.ttf")
 const MODEL_PATH := "res://models/aa_batteries.glb"
 const MODEL_SIZE := 0.3          # metres, longest side
 static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread, so the menu's threaded load would stall on it
@@ -30,6 +31,9 @@ var backdrop: Sprite3D
 var _alpha := 0.0
 var _shown := false
 var _full_t := 0.0             # >0: just failed to pick up, show "PACK FULL"
+var _key_txt := ""             # what the labels currently show: Label3D re-shapes its text on every assignment, so only set it when it changes
+var _name_txt := ""
+var _was_full := false
 
 func _ready() -> void:
 	if model_scene == null:
@@ -58,7 +62,7 @@ func _ready() -> void:
 func _label3d(text: String, size: int, px: float, color: Color) -> Label3D:
 	var l := Label3D.new()
 	l.text = text
-	l.font = load("res://fonts/vcr.ttf")
+	l.font = FONT
 	l.font_size = size
 	l.pixel_size = px
 	l.outline_size = 10
@@ -118,9 +122,11 @@ func _apply_vis_range(n: Node) -> void:
 
 func _process(delta: float) -> void:
 	light.light_energy = 0.3 + 0.15 * sin(Game.time * 2.5 + position.x)
-	var player = get_parent().get("player") if get_parent() != null else null
-	var focused: bool = not used and player != null and "focused_door" in player and player.focused_door == self
+	var player: Node = Game.player
+	var focused: bool = not used and player != null and is_instance_valid(player) and player.get("focused_door") == self
 	_full_t = maxf(_full_t - delta, 0.0)
+	if not focused and _alpha <= 0.0:
+		return                              # out of focus and faded out: nothing below needs to run
 	_alpha = move_toward(_alpha, 1.0 if focused else 0.0, delta * (5.0 if focused else 4.0))
 	prompt.visible = _alpha > 0.01
 	if not prompt.visible:
@@ -143,12 +149,21 @@ func _process(delta: float) -> void:
 	prompt.scale = Vector3.ONE * lerpf(0.7, 1.0, ease_a)
 	var full := _full_t > 0.0
 	var txt := "PACK FULL" if full else "[E] PICK UP"
-	key_label.text = txt
-	key_label.visible_characters = clampi(int(ease_a * (txt.length() + 3)), 0, txt.length())      # types in
-	key_label.modulate = Color(0.9, 0.35, 0.3, _alpha) if full else Color(CREAM, _alpha)
+	# Label3D has no visible_characters, so "typing in" is done by showing a growing prefix of the text
+	var key_now := txt.substr(0, clampi(int(ease_a * (txt.length() + 3)), 0, txt.length()))
+	if key_now != _key_txt:
+		_key_txt = key_now
+		key_label.text = key_now
+	if full != _was_full:
+		_was_full = full
+		key_label.modulate = Color(0.9, 0.35, 0.3, _alpha) if full else Color(CREAM, _alpha)
 	var nm := ITEM_NAME.to_upper()
-	name_label.visible_characters = clampi(int((ease_a - 0.25) / 0.75 * (nm.length() + 3)), 0, nm.length())
-	name_label.modulate = Color(GLOW, 0.85 * _alpha)
+	var name_now := nm.substr(0, clampi(int((ease_a - 0.25) / 0.75 * (nm.length() + 3)), 0, nm.length()))
+	if name_now != _name_txt:
+		_name_txt = name_now
+		name_label.text = name_now
+	key_label.modulate.a = _alpha
+	name_label.modulate.a = 0.85 * _alpha
 	backdrop.modulate.a = _alpha
 
 ## Player focus test: close enough, looking squarely at it, nothing solid in between
