@@ -6,7 +6,7 @@ Everything to paste into https://itch.io/game/new, using the site's palette, fon
 
 | Field | Value |
 |---|---|
-| Title | The Backrooms |
+| Title | The Backrooms: Nullspace |
 | Project URL | `the-backrooms` (if it's taken: `backrooms-archive` or `tsra-backrooms`) |
 | Short description or tagline | First-person horror in the yellow halls. Go alone or bring up to seven other people. |
 | Classification | Games |
@@ -37,7 +37,7 @@ Under **Metadata → More details** (after the first save):
 Paste this in the description editor's HTML/source view:
 
 ```html
-<p><strong>The Backrooms</strong> is a first-person horror game about walking through the wrong parts of a building. You can go alone or bring up to seven other people.</p>
+<p><strong>The Backrooms: Nullspace</strong> is a first-person horror game about walking through the wrong parts of a building. You can go alone or bring up to seven other people.</p>
 <p>The yellow halls are the quiet part. Nothing attacks you there right away. The longer you stay, the more you start to notice the hum.</p>
 <p><strong>Your torch runs down.</strong> Your camcorder lets you read signs from far away. Most of what hunts you, you can't fight, so you mostly have to get away.</p>
 

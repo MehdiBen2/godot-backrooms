@@ -13,7 +13,10 @@ const BG_SET := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]     # hand-picked screenshots, bg
 const ZOOM := 1.14                      # slow push-in over each frame's lifetime
 const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
-const MUSIC_DB := -24.0                 # quiet bed, not a soundtrack
+const MUSIC_DB := -20.0                 # quiet bed, not a soundtrack
+const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # plays once, then fades into the bed
+const BED_PATH := "res://audio/ambients/ambient1.mp3"          # the usual menu loop
+const XFADE := 3.0                      # seconds the intro takes to hand over to the bed
 const MAIN_SCENE := "res://scenes/main.tscn"
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const TIPS := [
@@ -128,7 +131,10 @@ var load_elapsed := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
 var tick: AudioStreamPlayer
-var music: AudioStreamPlayer
+var music: AudioStreamPlayer             # the looping bed (ambient1), created once the intro hands over
+var intro_music: AudioStreamPlayer      # the one-shot intro track
+var music_fade: Tween                   # the live volume tween on whichever track(s) are audible
+var handover: Tween                     # the scheduled intro -> bed crossfade
 var settings_menu                       # scripts/UI/menu.gd instance in embedded mode
 var crt: Control
 var crt_top: ColorRect
@@ -296,6 +302,11 @@ func _build() -> void:
 		title_label.add_child(s)
 		fringes.append(s)
 	col.add_child(title_label)
+	# the second line of the lockup: NULLSPACE in the red of the tag dot, under the title
+	var nullspace := _label("NULLSPACE", 60, RED, 20)
+	nullspace.add_theme_constant_override("outline_size", 4)
+	nullspace.add_theme_color_override("font_outline_color", RED)
+	col.add_child(nullspace)
 	col.add_child(_spacer(8))
 	sub_label = _label("T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
 	col.add_child(sub_label)
@@ -680,31 +691,60 @@ void fragment() {
 	return s
 
 func _start_music() -> void:
-	if not ResourceLoader.exists("res://audio/ambients/ambient1.mp3"):
+	if not ResourceLoader.exists(INTRO_PATH) or not ResourceLoader.exists(BED_PATH):
 		return
 	# Coming back from a run leaves the game's Master bus effects (compressor, low-pass, death muffle)
 	# behind. The menu music is played clean, so strip them.
 	while AudioServer.get_bus_effect_count(0) > 0:
 		AudioServer.remove_bus_effect(0, 0)
 	AudioServer.set_bus_volume_linear(0, 1.0)
-	var stream: AudioStream = load("res://audio/ambients/ambient1.mp3")
+	# the intro plays through once; the bed is only started when the intro hands over to it
+	intro_music = _music_player(load(INTRO_PATH), -60.0)
+	intro_music.play()
+	music_fade = create_tween()
+	music_fade.tween_property(intro_music, "volume_db", MUSIC_DB, 4.0)
+	handover = create_tween()
+	handover.tween_interval(maxf(intro_music.stream.get_length() - XFADE, 0.0))
+	handover.tween_callback(_crossfade_to_bed)
+
+func _music_player(stream: AudioStream, db: float) -> AudioStreamPlayer:
+	var p := AudioStreamPlayer.new()
+	p.stream = stream
+	p.bus = "Master"
+	p.volume_db = db
+	add_child(p)
+	return p
+
+## The intro is nearly over: start the menu bed and swap the two tracks over XFADE seconds.
+func _crossfade_to_bed() -> void:
+	if busy or music:
+		return
+	var stream: AudioStream = load(BED_PATH)
 	if stream is AudioStreamMP3:
 		stream.loop = true
-	music = AudioStreamPlayer.new()
-	music.stream = stream
-	music.bus = "Master"
-	music.volume_db = -60.0
-	add_child(music)
+	music = _music_player(stream, -80.0)
 	music.play()
-	create_tween().tween_property(music, "volume_db", MUSIC_DB, 4.0)
+	if music_fade:
+		music_fade.kill()
+	music_fade = create_tween().set_parallel(true)
+	music_fade.tween_property(music, "volume_db", MUSIC_DB, XFADE)
+	music_fade.tween_property(intro_music, "volume_db", -80.0, XFADE)
+
+## Move every audible menu track to `db` over `secs`. Replaces any fade still running.
+func _fade_music(db: float, secs: float) -> void:
+	if music_fade:
+		music_fade.kill()
+	music_fade = create_tween().set_parallel(true)
+	for p in [intro_music, music]:
+		if p and is_instance_valid(p) and p.playing:
+			music_fade.tween_property(p, "volume_db", db, secs)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		if music and is_instance_valid(music):
-			create_tween().tween_property(music, "volume_db", -80.0, 0.2)
+		_fade_music(-80.0, 0.2)
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		if music and is_instance_valid(music) and not busy:
-			create_tween().tween_property(music, "volume_db", MUSIC_DB, 0.25)
+		if not busy:
+			_fade_music(MUSIC_DB, 0.25)
 
 func _click() -> void:
 	click.pitch_scale = randf_range(0.96, 1.04)
@@ -749,8 +789,7 @@ func _on_quit() -> void:
 	tw.chain().tween_property(crt_line, "modulate:a", 0.0, 0.12)
 	tw.chain().tween_interval(0.15)
 	tw.chain().tween_callback(get_tree().quit)
-	if music:
-		create_tween().tween_property(music, "volume_db", -60.0, 0.7)
+	_fade_music(-60.0, 0.7)
 
 ## PLAY: the entry blinks, the column fades away, then the loading screen comes up over it.
 ## `now` skips the hand-off (launched straight into a level from the level editor).
@@ -758,8 +797,7 @@ func _on_play(now := false) -> void:
 	if busy:
 		return
 	busy = true
-	if music:
-		create_tween().tween_property(music, "volume_db", -60.0, 1.5)
+	_fade_music(-60.0, 1.5)
 	if now:
 		_start_loading()
 		return

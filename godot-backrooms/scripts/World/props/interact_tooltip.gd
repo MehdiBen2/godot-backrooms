@@ -42,7 +42,7 @@ func _alert() -> bool:
 
 func _anchor() -> Vector3:
 	var p := get_parent() as Node3D
-	var at := p.get_handle_global_pos() if p.has_method("get_handle_global_pos") else p.global_position
+	var at: Vector3 = p.get_handle_global_pos() if p.has_method("get_handle_global_pos") else p.global_position
 	return at + Vector3(0, height, 0)
 
 func _label3d(text: String, size: int, px: float, color: Color) -> Label3D:
