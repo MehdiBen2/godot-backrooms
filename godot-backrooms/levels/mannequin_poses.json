@@ -1,0 +1,185 @@
+{
+	"poses": [
+		{
+			"kind": "stalk",
+			"name": "Stalking 1",
+			"pose": {
+				"armL": -0.13,
+				"armR": -0.45,
+				"bob": 0.0,
+				"headNod": 0.07,
+				"headTilt": 0.0,
+				"headYaw": 0.0,
+				"lean": 0.06,
+				"legL": 0.18,
+				"legR": -0.22,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": -0.04,
+				"splayR": 0.05,
+				"twist": -0.03
+			}
+		},
+		{
+			"kind": "stalk",
+			"name": "Stalking 2",
+			"pose": {
+				"armL": -0.13,
+				"armR": -0.22,
+				"bob": 0.0,
+				"headNod": -0.16,
+				"headTilt": 0.4,
+				"headYaw": 0.0,
+				"lean": 0.06,
+				"legL": 0.15,
+				"legR": -0.17,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.73,
+				"splayR": 0.56,
+				"twist": -0.02
+			}
+		},
+		{
+			"kind": "stalk",
+			"name": "Stalking 3",
+			"pose": {
+				"armL": 1.05,
+				"armR": -0.14,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": 0.0,
+				"headYaw": 0.0,
+				"lean": 0.06,
+				"legL": 0.03,
+				"legR": 0.0,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.38,
+				"splayR": 0.34,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "walk",
+			"name": "Walking 1",
+			"pose": {
+				"armL": -0.8,
+				"armR": 0.3,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": 0.0,
+				"headYaw": 0.04,
+				"lean": 0.0,
+				"legL": 0.62,
+				"legR": -0.3,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.15,
+				"splayR": 0.15,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "walk",
+			"name": "Walking 2",
+			"pose": {
+				"armL": -0.8,
+				"armR": 0.3,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": 0.0,
+				"headYaw": 0.0,
+				"lean": 0.2,
+				"legL": 0.45,
+				"legR": -0.3,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.43,
+				"splayR": 0.15,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "stand",
+			"name": "Standing 1",
+			"pose": {
+				"armL": 0.0,
+				"armR": 0.0,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": 0.0,
+				"headYaw": 0.79,
+				"lean": 0.0,
+				"legL": 0.0,
+				"legR": 0.0,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.0,
+				"splayR": 0.0,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "stand",
+			"name": "Standing 2",
+			"pose": {
+				"armL": 1.18,
+				"armR": 2.83,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": -0.3,
+				"headYaw": 0.66,
+				"lean": 0.0,
+				"legL": 0.0,
+				"legR": 0.0,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.0,
+				"splayR": 0.0,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "stand",
+			"name": "Standing 3",
+			"pose": {
+				"armL": 0.0,
+				"armR": 1.38,
+				"bob": 0.0,
+				"headNod": -0.28,
+				"headTilt": -0.29,
+				"headYaw": -0.2,
+				"lean": 0.29,
+				"legL": 0.0,
+				"legR": 0.0,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": -0.13,
+				"splayR": 0.0,
+				"twist": 0.0
+			}
+		},
+		{
+			"kind": "stand",
+			"name": "Standing 4",
+			"pose": {
+				"armL": -0.8,
+				"armR": 0.0,
+				"bob": 0.0,
+				"headNod": 0.0,
+				"headTilt": 0.0,
+				"headYaw": 0.0,
+				"lean": 0.0,
+				"legL": -0.32,
+				"legR": 0.43,
+				"rollL": 0.0,
+				"rollR": 0.0,
+				"splayL": 0.13,
+				"splayR": 1.14,
+				"twist": 0.0
+			}
+		}
+	],
+	"version": 1
+}

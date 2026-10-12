@@ -564,6 +564,88 @@ func part_transforms(pose: Dictionary) -> Array:
 		out.append(norm_xf * t)
 	return out
 
+# ---- poses drawn in the level editor (its Mannequin poses window, saved to levels/mannequin_poses.json), by kind:
+#   "walk"  a stride: it snaps into it on a step, and its mirror on the next, so the legs alternate
+#   "stalk" a close-in step (the arms-out, head-fixed come-at-you lunge), used the nearer it gets
+#   "stand" a still decoy's pose
+# Any that are drawn are mixed in with the generated poses; with none the generated ones are all there is.
+const POSES_PATH := "res://levels/mannequin_poses.json"
+const CUSTOM_WALK_CHANCE := 0.8            # of the strides, how many use a drawn "walk" pose (when there are any)
+const CUSTOM_STAND_CHANCE := 0.4           # of the decoys, how many stand in a drawn "stand" pose (when there are any)
+const POSE_JITTER := 0.03                  # rad: a drawn pose is never the same twice
+static var _custom := {}                   # kind -> Array of full pose Dictionaries
+static var _custom_loaded := false
+
+static func custom_poses(kind: String) -> Array:
+	if not _custom_loaded:
+		_custom_loaded = true
+		_load_custom()
+	return _custom.get(kind, [])
+
+static func _load_custom() -> void:
+	if not FileAccess.file_exists(POSES_PATH):
+		return
+	var data = JSON.parse_string(FileAccess.get_file_as_string(POSES_PATH))
+	if not (data is Dictionary):
+		return
+	for e in data.get("poses", []):
+		if not (e is Dictionary) or not (e.get("pose") is Dictionary):
+			continue
+		var p := rest_pose()
+		for k in POSE_KEYS:
+			if e.pose.has(k):
+				p[k] = float(e.pose[k])
+		var kind := str(e.get("kind", "walk"))
+		if not _custom.has(kind):
+			_custom[kind] = []
+		_custom[kind].append(p)
+
+## The same pose as seen in a mirror: left and right swapped, the head and the torso turned the other way
+static func mirrored(p: Dictionary) -> Dictionary:
+	var m := p.duplicate()
+	for pair in [["legL", "legR"], ["armL", "armR"], ["splayL", "splayR"], ["rollL", "rollR"]]:
+		m[pair[0]] = p[pair[1]]
+		m[pair[1]] = p[pair[0]]
+	m.headYaw = -p.headYaw
+	m.headTilt = -p.headTilt
+	m.twist = -p.twist
+	return m
+
+## One of the drawn poses of `kind`, a hair different each time (mirrored when `flip` < 0 or `mirror`)
+static func _drawn(rng: RandomNumberGenerator, kind: String, mirror: bool) -> Dictionary:
+	var list := custom_poses(kind)
+	var p: Dictionary = list[rng.randi() % list.size()].duplicate()
+	if mirror:
+		p = mirrored(p)
+	for k in POSE_KEYS:
+		if k != "bob" and k != "rollL" and k != "rollR":
+			p[k] = float(p[k]) + rng.randf_range(-POSE_JITTER, POSE_JITTER)
+	return p
+
+## One stop-motion step of a walking figure (the real one's and the walking decoys'): the legs and arms swing
+## about the stride, the head snaps to a new wrong angle. `to_dist` is how far it still has to go to you.
+static func step_pose(rng: RandomNumberGenerator, flip: float, to_dist: float) -> Dictionary:
+	# a pose drawn in the level editor: the nearer it is, the more often the close-in one
+	var near := clampf(1.0 - to_dist / 8.0, 0.0, 1.0)
+	if near > 0.0 and not custom_poses("stalk").is_empty() and rng.randf() < 0.25 + near * 0.75:
+		return _drawn(rng, "stalk", flip < 0.0)
+	if not custom_poses("walk").is_empty() and rng.randf() < CUSTOM_WALK_CHANCE:
+		return _drawn(rng, "walk", flip < 0.0)
+	var to := rest_pose()
+	to.legL = flip * rng.randf_range(0.4, 0.55); to.legR = -flip * rng.randf_range(0.25, 0.4)
+	to.armL = -flip * rng.randf_range(0.2, 0.45); to.armR = flip * rng.randf_range(0.2, 0.45)
+	to.splayL = rng.randf_range(0.05, 0.3); to.splayR = rng.randf_range(0.05, 0.3)
+	# the head snaps to a new wrong angle every step
+	to.headYaw = rng.randf_range(-0.45, 0.45); to.headTilt = rng.randf_range(-0.22, 0.22); to.headNod = rng.randf_range(-0.05, 0.18)
+	to.twist = -flip * rng.randf_range(0.01, 0.04); to.lean = rng.randf_range(0.03, 0.08)
+	# close in: more and more often it comes with its arms out, head fixed on you
+	var close := clampf(1.0 - to_dist / 8.0, 0.0, 1.0)
+	if close > 0.0 and rng.randf() < 0.25 + close * 0.75:
+		to.armL = rng.randf_range(1.3, 1.6); to.armR = rng.randf_range(1.3, 1.6)
+		to.splayL = rng.randf_range(0.04, 0.14); to.splayR = rng.randf_range(0.04, 0.14)
+		to.headYaw = rng.randf_range(-0.1, 0.1); to.headNod = rng.randf_range(-0.08, 0.04)
+	return to
+
 static func random_pose(rng: RandomNumberGenerator) -> Dictionary:
 	var p := rest_pose()
 	p.legL = rng.randf_range(-0.12, 0.12); p.legR = rng.randf_range(-0.12, 0.12)
@@ -576,6 +658,10 @@ static func random_pose(rng: RandomNumberGenerator) -> Dictionary:
 ## Decoys are frozen mid-something: some with an arm reaching, some with the head snapped far round,
 ## some lying on the floor
 static func decoy_pose(rng: RandomNumberGenerator) -> Dictionary:
+	if not custom_poses("stand").is_empty() and rng.randf() < CUSTOM_STAND_CHANCE:
+		var q := _drawn(rng, "stand", rng.randf() < 0.5)
+		q["mode"] = "stand"
+		return q
 	var p := random_pose(rng)
 	var roll := rng.randf()
 	p["mode"] = "stand"

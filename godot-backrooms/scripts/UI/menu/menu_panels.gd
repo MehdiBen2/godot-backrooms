@@ -199,7 +199,7 @@ func _build_graphics() -> Control:
 		{false: "Off", true: "On"}))
 
 	v.add_child(_section_title("IMAGE"))
-	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"]]))
+	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"], [3, "FSR 2"]]))
 	v.add_child(_cycle_row("Bloom", "glow", off_on))
 	v.add_child(_choice_row("Carpet", func(): return Gfx.carpet_soft, [true, false], func(x: bool): Gfx.set_carpet_soft(x),
 		{true: "Soft", false: "Original"}))

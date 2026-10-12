@@ -13,6 +13,14 @@ const SHUFFLE_RANGE := 16.0
 const STALK_STEP := 0.9
 const STALK_MIN_DIST := 2.2                  # it never crowds closer than this by itself
 const VARIANT_CHANCE := 0.32                 # of the standing decoys, how many wear a plain sculpt (any one of them)
+# Walking decoys: still figures that start stepping toward you (the real one's own stride, the same footsteps)
+# when you catch it on the move, and sometimes on their own. They never kill, and they stop a few metres off.
+const MAX_WALKERS := 2
+const WALK_LIFE := 12.0                      # s a walker keeps coming before it gives up and stands still
+const WALK_STOP_DIST := 2.6                  # it stops this close to you
+const WALK_RANGE := 26.0                     # ...or gives up when you are further than this
+const WALK_CHANCE_MIN := 10.0                # s between the walkers that start on their own
+const WALK_CHANCE_MAX := 18.0
 
 var m: Node3D                                # mannequin.gd
 var decoys: Array = []                       # {x, z, yaw, pose, g, body, variant}
@@ -23,6 +31,8 @@ var stalker := -1                            # decoy index of the one that creep
 var tick := 0.0
 var cooldown := 4.0
 var _blink_used := false
+var walkers: Array = []                      # {i, life, t, dur, moving, stepped, step_idx, from, to, yaw_from, yaw_to, pose_from, pose_to}
+var walk_cd := 12.0
 
 func _init(owner: Node3D) -> void:
 	m = owner
@@ -134,6 +144,7 @@ func _place(i: int, x: float, z: float, yaw: float) -> void:
 		(body as Node3D).position = Vector3(x, 0.0, z)
 
 func update(delta: float) -> void:
+	_walk(delta)
 	tick += delta
 	if tick < 0.1:
 		return
@@ -162,7 +173,7 @@ func update(delta: float) -> void:
 	var hidden: Array = []
 	for s in pool:
 		var d: Dictionary = decoys[s.i]
-		if pp.distance_to(Vector3(d.x, 0.0, d.z)) > SHUFFLE_RANGE:
+		if is_walking(s.i) or pp.distance_to(Vector3(d.x, 0.0, d.z)) > SHUFFLE_RANGE:
 			continue
 		if cam.is_position_in_frustum(_head_pos(d.x, d.z)) and not m.eyes_shut():
 			s.seen = true
@@ -202,6 +213,139 @@ func update(delta: float) -> void:
 		var az: float = a.z
 		_place(hidden[k * 2], b.x, b.z, a.yaw)
 		_place(hidden[k * 2 + 1], ax, az, b.yaw)
+
+func is_walking(i: int) -> bool:
+	for w in walkers:
+		if w.i == i:
+			return true
+	return false
+
+## A still decoy that can be walked: standing, and a jointed figure (the rigged or plain sculpts can't be posed here)
+func _walkable(i: int) -> bool:
+	var d: Dictionary = decoys[i]
+	return d.pose.get("mode", "stand") == "stand" and not d.get("variant", false) and not is_walking(i)
+
+## You caught it on the move: it stops, and `count` of the still ones near it take up the chase. They only move
+## while unseen, like it does, so which one is coming is something you have to work out. Ones in view are picked
+## first, so the player has to look away from the very figures that may start walking.
+func handoff(near: Vector3, count: int) -> void:
+	var cam: Camera3D = m.player.cam
+	var seen_c := []
+	var other := []
+	for i in decoys.size():
+		if not _walkable(i):
+			continue
+		var d: Dictionary = decoys[i]
+		var dd := Vector2(d.x - near.x, d.z - near.z).length()
+		if dd < 1.0 or dd > 14.0:
+			continue
+		if cam.is_position_in_frustum(_head_pos(d.x, d.z)):
+			seen_c.append(i)
+		else:
+			other.append(i)
+	var pool := seen_c if not seen_c.is_empty() else other
+	while count > 0 and not pool.is_empty() and walkers.size() < MAX_WALKERS:
+		var pick: int = pool[m.rng.randi() % pool.size()]
+		pool.erase(pick)
+		_start_walk(pick)
+		count -= 1
+
+func _start_walk(i: int) -> void:
+	var d: Dictionary = decoys[i]
+	var w := {"i": i, "life": WALK_LIFE, "t": 0.0, "dur": 0.0, "moving": false, "stepped": false, "step_idx": 0,
+		"from": Vector2(d.x, d.z), "to": Vector2(d.x, d.z), "yaw_from": d.yaw, "yaw_to": d.yaw,
+		"pose_from": d.pose.duplicate(), "pose_to": d.pose.duplicate()}
+	walkers.append(w)
+	if not _next_step(w):
+		walkers.erase(w)
+
+## Plan the next stride toward the player. False when it has got as close as it means to (or is blocked).
+func _next_step(w: Dictionary) -> bool:
+	var d: Dictionary = decoys[w.i]
+	var player: Node3D = m.player
+	var pp := player.global_position
+	var from := Vector2(d.x, d.z)
+	var to_p := Vector2(pp.x - from.x, pp.z - from.y)
+	var dist := to_p.length()
+	if dist < WALK_STOP_DIST:
+		return false
+	# round corners the way the real one does (the next cell on the way to you when there is no straight line)
+	var way: Vector3 = m.step_target(Vector3(from.x, 0.0, from.y), Vector3(pp.x, 0.0, pp.z))
+	var to_w := Vector2(way.x - from.x, way.z - from.y)
+	var wd := maxf(to_w.length(), 0.001)
+	if wd < 0.05:
+		return false                                      # no way to you from here: it stands where it is
+	var step := to_w / wd * maxf(0.15, minf(minf(m.STEP_LENGTH, wd), dist - WALK_STOP_DIST + 0.2))
+	var np: Vector3 = m.nav.resolve(Vector3(from.x + step.x, 0.0, from.y + step.y), m.RADIUS)
+	# never through a wall: no clear line to where the stride lands, no stride
+	if not m.nav.clear_line(from.x, from.y, np.x, np.z, 0.2) or not _spot_free(np, w.i):
+		return false
+	w.step_idx += 1
+	w.from = from
+	w.to = Vector2(np.x, np.z)
+	w.pose_from = d.pose.duplicate()
+	w.yaw_from = d.yaw
+	w.yaw_to = atan2(pp.x - np.x, pp.z - np.z)
+	var flip := 1.0 if w.step_idx % 2 == 1 else -1.0
+	var pose := MannequinModel.step_pose(m.rng, flip, dist)
+	pose["mode"] = "stand"
+	w.pose_to = pose
+	w.dur = m.STEP_TIME * m.rng.randf_range(0.85, 1.15)
+	w.t = 0.0
+	w.stepped = false
+	w.moving = true
+	return true
+
+func _smooth(x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+## Each walker: the same stop-motion stride as the real one (pose snaps, then the body lurches as the foot lands),
+## and a footfall. Runs every frame, so the stride keeps its timing.
+func _walk(delta: float) -> void:
+	if walkers.is_empty():
+		_maybe_start_walk(delta)
+		return
+	var player: Node3D = m.player
+	if player == null or not is_instance_valid(player):
+		return
+	var pp := player.global_position
+	for w in walkers.duplicate():
+		var d: Dictionary = decoys[w.i]
+		# like the real one, it only moves while nobody is looking at it (a blink counts as not looking)
+		if m.seen(Vector3(d.x, 0.0, d.z)):
+			continue
+		w.life -= delta
+		if w.life <= 0.0 or pp.distance_to(Vector3(d.x, 0.0, d.z)) > WALK_RANGE:
+			walkers.erase(w)
+			continue
+		w.t += delta
+		var snap_k := _smooth(w.t / 0.11)
+		var p := {"mode": "stand"}
+		for k in MannequinModel.POSE_KEYS:
+			p[k] = lerpf(w.pose_from[k], w.pose_to[k], snap_k)
+		d.pose = p
+		var mv := 1.0 - pow(1.0 - clampf(w.t / (w.dur * 0.4), 0.0, 1.0), 3.0)
+		var np: Vector2 = w.from.lerp(w.to, mv)
+		var yaw := lerpf(w.yaw_from, w.yaw_to, snap_k)
+		_place(w.i, np.x, np.y, yaw)
+		if not w.stepped and w.t > 0.05:
+			w.stepped = true
+			var dd := Vector2(pp.x - np.x, pp.z - np.y).length()
+			var close := maxf(0.0, 1.0 - dd / 28.0)
+			m.scares.mannequin_step(Vector3(np.x, 0.05, np.y), (0.45 + close * 0.95) * m.LOUDNESS)
+		if w.t >= w.dur and not _next_step(w):
+			walkers.erase(w)
+
+## Now and then a still one starts walking on its own, so the chase is not always started by you looking
+func _maybe_start_walk(delta: float) -> void:
+	if m.real_node == null or not m.awake:
+		return
+	walk_cd -= delta
+	if walk_cd > 0.0:
+		return
+	walk_cd = m.rng.randf_range(WALK_CHANCE_MIN, WALK_CHANCE_MAX)
+	handoff(m.real_node.position, 1)
 
 # Clear floor for a decoy: not on top of another decoy, the real one, or you
 func _spot_free(p: Vector3, self_i: int) -> bool:

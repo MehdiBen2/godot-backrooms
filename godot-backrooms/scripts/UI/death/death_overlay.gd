@@ -22,7 +22,7 @@ const TITLE_COLOR := Color("d8d3bd")
 const DOT_RED := Color("c4271f")
 const SHADOW_RED := Color(0.627, 0.078, 0.059, 0.55)
 
-const SWAP := 2.7                  # YOU DIED starts to tear out
+const SWAP := 4.5                  # YOU DIED starts to tear out
 const TEAR := 0.32                 # ... and is gone after this
 const REC_IN := SWAP + 0.22        # the end card flickers on
 const ROWS_AT := REC_IN + 0.6      # first stat row

@@ -21,6 +21,7 @@ extends "res://level_editor_files.gd"
 ## on the floor, or for a "mount": "wall" prop on the wall face and at the height under the mouse.
 
 const Icons := preload("res://editor_icons.gd")
+const PoseEditor := preload("res://pose_editor.gd")
 ## The interface's colours: dark neutral greys and one blue accent (the map keeps its own palette)
 const UI_BG := Color("17181b")
 const UI_PANEL := Color("1f2023")
@@ -58,6 +59,7 @@ The Kane Pixels opening. Uses the same destination as this floor's Noclip zone (
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
 const ATMO_HELP := "The level's look (the game's scripts/Render/atmospheres.gd), shown in the 3D view (F4):\ndim = your look (default): failing tubes, warm dark halls, light dies in the fog. Filmed on the bodycam\nclassic = the whole level is a Classic zone: the Kane Pixels found footage, bright, flat, overexposed yellow, clear air. Filmed on the camcorder\nliminal = the whole level is a Liminal zone: all lights on, pale, a haze you can see a long way into. Filmed on the bodycam\n(Which camera: the game's Camera setting on Auto.) A ceiling material with glowing panels (Ceiling_Drop_Square, Ceiling_Drop_Long, Ceiling_Light_Panels) swaps the tubes for its panels."
+var pose_editor: Window              # the mannequin pose editor window (null until first opened)
 var search: LineEdit
 var tool_buttons := {}
 var brush_label: Label
@@ -456,6 +458,7 @@ func _build_toolbar() -> Control:
 	h.add_child(_icon_button("zoom_in", "Zoom in  (+)", func(): _zoom_at(canvas.size * 0.5, 1.25, true)))
 	h.add_child(_icon_button("fit", "Fit the map  (F)", _fit))
 	h.add_child(_icon_button("cube", "3D view  (F4)\nRight drag orbits, wheel zooms, E walks it. Pick an object and click where it goes", _toggle_3d))
+	h.add_child(_icon_button("pose", "Mannequin poses\nDraw the poses the mannequins stalk, walk and stand in. They are saved to the game's levels/mannequin_poses.json", _open_poses))
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(gap)
@@ -1732,6 +1735,13 @@ func _set_paint_mat(id: String) -> void:
 func _toggle_3d() -> void:
 	if preview3d.visible: preview3d.visible = false
 	else: preview3d.open()
+
+## The mannequin pose editor (pose_editor.gd): its own window, built the first time it is opened
+func _open_poses() -> void:
+	if pose_editor == null:
+		pose_editor = PoseEditor.new()
+		add_child(pose_editor)
+	pose_editor.open(GAME)
 
 ## The window lost focus (another program, the test game, a dialog) with a button or Space down: its release
 ## will not arrive here, so whatever it was doing on the map ends now

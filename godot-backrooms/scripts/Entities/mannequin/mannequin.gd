@@ -35,6 +35,14 @@ const KILL_DISTANCE := 1.15
 const HUNT_TIME := 30.0
 const ZONE_LOSE_DISTANCE := 40.0             # out of its zone, past this far from it, it counts you as lost...
 const LOSE_TIME := 6.0                       # ...once that has gone on this long
+# Corner lurk: now and then it doesn't come straight at you but goes round a corner or into a doorway ahead of you,
+# out of your sight, and stands there still until you walk into it (it only ever moves unseen, like the rest)
+const LURK_CD_MIN := 18.0                    # s between the times it may try this
+const LURK_CD_MAX := 32.0
+const LURK_CHANCE := 0.55                    # of those tries, how many it goes through with
+const LURK_SPRING_DIST := 4.5                # m: you come this close to its corner and it comes out after you
+const LURK_MAX := 25.0                       # s it will wait there before the hunt goes on
+const LURK_PATH_MAX := 28                    # cells: no corner further than this by foot from it
 const REST_TIME := 20.0
 const LONG_PAUSE_EVERY := 3
 const LONG_PAUSE_TIME := 300.0
@@ -51,8 +59,8 @@ const SETTLE_RANGE := 10.0                   # turn and catch it this close afte
 const WHISPER_PATH := "res://audio/entity/mannequin_whisper.mp3"
 const WHISPER_RANGE := 7.0
 # Staring them down: eyes can't stay open forever. After a few seconds of watching, your eyes sting and you
-# start to blink at random, more often and slower the longer you stare, and while the lids are shut the crowd
-# shifts (the real one holds still: it only moves while you are not looking at it). Every second you watch costs a little sanity.
+# start to blink at random, more often and slower the longer you stare, and while the lids are shut nobody is
+# watching: the real one steps, the crowd shifts. Every second you watch costs a little sanity.
 const STARE_STING := 4.0                     # s of staring before the blinks start
 const STARE_RAMP := 10.0                     # s more to reach the full blink urge
 const STARE_BLINK_RATE := 0.35               # blinks per second at full urge
@@ -91,6 +99,14 @@ var summoned := false             # a trigger / the debug warp asked for it; oth
 var moving := false
 var rest_left := 0.0
 var lose_t := 0.0                          # s out of its zone and out of reach (see ZONE_LOSE_DISTANCE)
+var lurking := false                       # on its way to a corner, or standing in it (see LURK_*)
+var lurk_cell := Vector2i.ZERO
+var lurk_t := 0.0                          # s since it chose the corner
+var lurk_cd := 14.0                        # s until it may choose another
+var _lurk_trip := false                    # this step is a walk to the corner, not a stride at you (begin_step)
+var pause_left := 0.0                      # s it is standing still mid-hunt (a random few-second stop)
+var pause_cd := 8.0                        # s until the next chance of such a stop
+var _hunt_seen := false                    # watched last frame (the handoff to a walking decoy fires when this turns true)
 var hunt_clock := 0.0
 var rest_count := 0
 var killed := false
@@ -248,6 +264,7 @@ func reset() -> void:
 	rest_count = 0
 	awake = false
 	moving = false
+	lurking = false
 	snap.finish()
 	if level.mannequin.is_empty() and not summoned and EntityMarks.of_kind(level, "mannequin").is_empty():
 		real_node = null                # no zone painted in this level: no mannequins
@@ -346,7 +363,7 @@ func eyes_shut() -> bool:
 	return player.blink != null and player.blink.blinking() and Game.fx_blink > 0.55
 
 func seen(pos: Vector3) -> bool:
-	if player.dead or player.frozen or not Game.playing:
+	if player.dead or player.frozen or not Game.playing or eyes_shut():
 		return false
 	var cam: Camera3D = player.cam
 	var d := Vector2(pos.x - cam.global_position.x, pos.z - cam.global_position.z).length()
@@ -397,15 +414,36 @@ func step_target(pos: Vector3, tgt: Vector3) -> Vector3:
 	n = nav.n                          # (a new floor can be a different size; bfs sizes the field to it)
 	var cx := GridNav.cell(pos.x)
 	var cz := GridNav.cell(pos.z)
-	if not nav.bfs(GridNav.cell(tgt.x), GridNav.cell(tgt.z), flow):
-		return tgt
+	# the field is grown from the goal's cell. A goal in a cell it can't enter (a wall, a Safe zone, a pit's rim)
+	# is grown from the open cell beside it that is nearest the goal instead
+	var gx := GridNav.cell(tgt.x)
+	var gz := GridNav.cell(tgt.z)
+	if nav.blocked(gx, gz):
+		var near_c := Vector2i(-1, -1)
+		var near_d := INF
+		for ox in range(-1, 2):
+			for oz in range(-1, 2):
+				if nav.blocked(gx + ox, gz + oz):
+					continue
+				var dd := Vector2((gx + ox) * CELL - tgt.x, (gz + oz) * CELL - tgt.z).length()
+				if dd < near_d:
+					near_d = dd
+					near_c = Vector2i(gx + ox, gz + oz)
+		if near_c.x < 0:
+			return pos                 # nowhere it can go: it holds where it is rather than walking at the wall
+		gx = near_c.x
+		gz = near_c.y
+	if not nav.bfs(gx, gz, flow):
+		return pos
 	var best := flow[cx * n + cz] if (cx >= 0 and cz >= 0 and cx < n and cz < n) else -1
-	var target := tgt
+	var target := pos                  # (no way downhill: it holds where it is)
 	for o in GridNav.NEIGHBOURS:
 		var nx: int = cx + o.x
 		var nz: int = cz + o.y
 		if nx < 0 or nz < 0 or nx >= n or nz >= n:
 			continue
+		if not nav.can_step(cx, cz, nx, nz):
+			continue                   # a thin wall or a door's edge is in the way: the field's lower number is not a way through
 		var d := flow[nx * n + nz]
 		if d != -1 and (best == -1 or d < best):
 			best = d
@@ -428,8 +466,12 @@ func _is_behind(at: Vector3) -> bool:
 func begin_step(tgt: Vector3) -> void:
 	# It doesn't come at you from the side: closing in, it aims for the spot right behind you
 	var d_to := Vector2(tgt.x - real_node.position.x, tgt.z - real_node.position.z).length()
-	var behind_k := clampf(1.0 - (d_to - 3.0) / 5.0, 0.0, 1.0)
+	var behind_k := 0.0 if _lurk_trip else clampf(1.0 - (d_to - 3.0) / 5.0, 0.0, 1.0)
+	var aim := tgt
 	tgt = tgt - t_fwd * 1.0 * behind_k
+	# ...but not into a wall: with your back to one, the spot behind you is inside it
+	if behind_k > 0.0 and (nav.blocked(GridNav.cell(tgt.x), GridNav.cell(tgt.z)) or not nav.clear_line(aim.x, aim.z, tgt.x, tgt.z, 0.2)):
+		tgt = aim
 	var pos := real_node.position
 	var target := step_target(pos, tgt)
 	var to_x := tgt.x - pos.x
@@ -439,45 +481,80 @@ func begin_step(tgt: Vector3) -> void:
 	var perp := Vector3(-to_z / to_dist, 0.0, to_x / to_dist)
 	if flank_sign == 1.0:
 		flank_sign = (-1.0 if rng.randf() < 0.5 else 1.0) * (0.8 + rng.randf() * 1.5)
-	if to_dist > 2.2:
+	if to_dist > 2.2 and not _lurk_trip and target.distance_to(pos) > 0.05:
 		var fw := minf(2.5, to_dist * 0.22)
 		var f := target + perp * flank_sign * fw
-		if not nav.blocked(GridNav.cell(f.x), GridNav.cell(f.z)):
+		# (only to a spot it can see from here: an open cell on the far side of a wall is no flank)
+		if not nav.blocked(GridNav.cell(f.x), GridNav.cell(f.z)) and nav.clear_line(pos.x, pos.z, f.x, f.z, 0.3):
 			target = f
 	var dx := target.x - pos.x
 	var dz := target.z - pos.z
 	var dist := maxf(Vector2(dx, dz).length(), 0.001)
+	var heading := atan2(dx, dz) if dist > 0.01 else real_yaw         # (holding in place: it keeps its facing)
 	var length := maxf(0.15, minf(STEP_LENGTH, minf(dist, to_dist - 0.3)))
 	hunt.step_idx += 1
 	hunt.step_t = 0.0
 	hunt.stepped = false
 	hunt["from"] = real_pose.duplicate()
 	hunt.yaw_from = real_yaw
-	hunt.yaw_to = real_yaw + wrapf(atan2(dx, dz) - real_yaw, -PI, PI)
+	hunt.yaw_to = real_yaw + wrapf(heading - real_yaw, -PI, PI)
 	hunt.move_from = Vector2(pos.x, pos.z)
 	hunt.move_to = Vector2(pos.x + dx / dist * length, pos.z + dz / dist * length)
 	hunt.dur = STEP_TIME * rng.randf_range(0.85, 1.15) * (1.6 if rng.randf() < 0.08 else 1.0)
 	var flip := 1.0 if hunt.step_idx % 2 == 1 else -1.0
-	var to := rest_pose()
-	to.legL = flip * rng.randf_range(0.4, 0.55); to.legR = -flip * rng.randf_range(0.25, 0.4)
-	to.armL = -flip * rng.randf_range(0.2, 0.45); to.armR = flip * rng.randf_range(0.2, 0.45)
-	to.splayL = rng.randf_range(0.05, 0.3); to.splayR = rng.randf_range(0.05, 0.3)
-	# the head snaps to a new wrong angle every step
-	to.headYaw = rng.randf_range(-0.45, 0.45); to.headTilt = rng.randf_range(-0.22, 0.22); to.headNod = rng.randf_range(-0.05, 0.18)
-	to.twist = -flip * rng.randf_range(0.01, 0.04); to.lean = rng.randf_range(0.03, 0.08)
-	# close in: more and more often it comes with its arms out, head fixed on you
-	var close := clampf(1.0 - to_dist / 8.0, 0.0, 1.0)
-	if close > 0.0 and rng.randf() < 0.25 + close * 0.75:
-		to.armL = rng.randf_range(1.3, 1.6); to.armR = rng.randf_range(1.3, 1.6)
-		to.splayL = rng.randf_range(0.04, 0.14); to.splayR = rng.randf_range(0.04, 0.14)
-		to.headYaw = rng.randf_range(-0.1, 0.1); to.headNod = rng.randf_range(-0.08, 0.04)
-	hunt["to"] = to
+	hunt["to"] = MannequinModel.step_pose(rng, flip, 99.0 if _lurk_trip else to_dist)
+
+## Choose a corner or doorway a few cells from you, ahead of where you are heading, out of your line of sight and
+## reachable on foot from where it stands. False when there is none (it just keeps hunting).
+func _pick_lurk(pos: Vector3, tgt: Vector3) -> bool:
+	n = nav.n
+	var pc := Vector2i(GridNav.cell(tgt.x), GridNav.cell(tgt.z))
+	var rc := Vector2i(GridNav.cell(pos.x), GridNav.cell(pos.z))
+	if rc.x < 0 or rc.y < 0 or rc.x >= n or rc.y >= n:
+		return false
+	var ahead: Array[Vector2i] = []
+	var other: Array[Vector2i] = []
+	for dx in range(-4, 5):
+		for dz in range(-4, 5):
+			if maxi(absi(dx), absi(dz)) < 2:
+				continue
+			var c := pc + Vector2i(dx, dz)
+			if nav.blocked(c.x, c.y):
+				continue
+			var walls_round := int(nav.blocked(c.x - 1, c.y)) + int(nav.blocked(c.x + 1, c.y)) \
+				+ int(nav.blocked(c.x, c.y - 1)) + int(nav.blocked(c.x, c.y + 1))
+			if walls_round != 2:
+				continue                                  # neither a corner nor a doorway
+			var cw := Vector3(c.x * CELL, 0.0, c.y * CELL)
+			if nav.clear_line(tgt.x, tgt.z, cw.x, cw.z, 0.3):
+				continue                                  # you would see it standing there
+			var to_c := Vector3(cw.x - tgt.x, 0.0, cw.z - tgt.z).normalized()
+			if to_c.dot(t_fwd) > 0.2:
+				ahead.append(c)
+			else:
+				other.append(c)
+	var pool: Array[Vector2i] = ahead if not ahead.is_empty() else other
+	pool.shuffle()
+	for k in mini(pool.size(), 6):
+		var c: Vector2i = pool[k]
+		if not nav.bfs(c.x, c.y, flow):
+			continue
+		var steps := flow[rc.x * n + rc.y]
+		# on its way to you, not a detour away from you: about as far on foot as you are in a line, plus a few cells
+		var cells_to_you := Vector2(tgt.x - pos.x, tgt.z - pos.z).length() / CELL
+		if steps >= 0 and steps <= mini(LURK_PATH_MAX, int(cells_to_you) + 3):
+			lurk_cell = c
+			lurking = true
+			lurk_t = 0.0
+			return true
+	return false
 
 func smooth(x: float) -> float:
 	x = clampf(x, 0.0, 1.0)
 	return x * x * (3.0 - 2.0 * x)
 
 func update_real(delta: float) -> void:
+	var was_moving := moving
 	moving = false
 	var tg := Net.nearest_survivor(real_node.position, t_id)
 	if tg.is_empty():
@@ -506,15 +583,23 @@ func update_real(delta: float) -> void:
 			rest_left = 0.0
 			hunt_clock = 0.0
 			rest_count = 0
+			pause_left = 0.0
+			lurking = false
 			hunt.move_to = null
 			return
 	# watched by anyone: it holds its pose, silent, exactly where it is
-	if seen(pos) or Net.mq_seen_by_peers():
+	var now_seen := seen(pos) or Net.mq_seen_by_peers()
+	if now_seen and not _hunt_seen and was_moving:
+		# caught on the move: it stops, and one or two of the still ones start coming for you instead
+		crowd.handoff(pos, 1 if rng.randf() < 0.6 else 2)
+	_hunt_seen = now_seen
+	if now_seen:
 		return
 	if zone:
-		# standing in the zone it never rests: it is always coming
+		# standing in the zone it never rests or pauses: it is always coming
 		rest_left = 0.0
 		hunt_clock = 0.0
+		pause_left = 0.0
 	if rest_left > 0.0:
 		rest_left -= delta
 		return
@@ -528,9 +613,42 @@ func update_real(delta: float) -> void:
 		else:
 			rest_left = REST_TIME
 		return
+	# out in the open it sometimes just stops for a few seconds, so the chase never runs on a fixed clock
+	if pause_left > 0.0:
+		pause_left -= delta
+		return
+	if not zone:
+		pause_cd -= delta
+		if pause_cd <= 0.0:
+			pause_cd = rng.randf_range(7.0, 13.0)
+			if rng.randf() < 0.7:
+				pause_left = rng.randf_range(4.0, 6.0)
+				return
+	# corner lurk: now and then it doesn't come straight at you but goes round a corner ahead and waits there,
+	# out of sight, for you to walk into it
+	var goal := tgt
+	_lurk_trip = false
+	if lurking:
+		lurk_t += delta
+		var lp := Vector3(lurk_cell.x * CELL, 0.0, lurk_cell.y * CELL)
+		if d_tgt < LURK_SPRING_DIST or lurk_t > LURK_MAX or d_tgt > ZONE_LOSE_DISTANCE:
+			lurking = false                              # you are on top of it, or it waited long enough: the hunt goes on
+		elif Vector2(lp.x - pos.x, lp.z - pos.z).length() < 1.2:
+			hunt.move_to = null                          # there: it stands in the corner, still, and waits
+			return
+		else:
+			goal = lp
+			_lurk_trip = true
+	elif d_tgt > 12.0 and d_tgt < ZONE_LOSE_DISTANCE:
+		lurk_cd -= delta
+		if lurk_cd <= 0.0:
+			lurk_cd = rng.randf_range(LURK_CD_MIN, LURK_CD_MAX)
+			if rng.randf() < LURK_CHANCE and _pick_lurk(pos, tgt):
+				goal = Vector3(lurk_cell.x * CELL, 0.0, lurk_cell.y * CELL)
+				_lurk_trip = true
 	moving = true
 	if hunt.move_to == null:
-		begin_step(tgt)
+		begin_step(goal)
 	hunt.step_t += delta
 	# the pose snaps in over the first moments of a step and is then held: stop-motion
 	var snap_k := smooth(hunt.step_t / 0.11)
@@ -563,7 +681,7 @@ func update_real(delta: float) -> void:
 		_footfall(np, int(hunt.step_idx))
 	if hunt.step_t >= hunt.dur:
 		hunt.move_to = null
-		begin_step(tgt)
+		begin_step(goal)
 	# it reaches you while you weren't looking
 	var reach := Vector2(tgt.x - np.x, tgt.z - np.z).length()
 	if reach < KILL_DISTANCE and _is_behind(np):

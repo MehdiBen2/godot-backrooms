@@ -136,7 +136,8 @@ var crt_bottom: ColorRect
 var crt_line: ColorRect
 
 func _ready() -> void:
-	Engine.max_fps = 60
+	_menu_fps()
+	Gfx.changed.connect(_menu_fps)           # Gfx.apply() writes the in-game FPS cap on every settings change
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	multiplayer.connected_to_server.connect(_on_multiplayer_connected)
@@ -164,6 +165,11 @@ func _ready() -> void:
 		_on_play(true)
 		return
 	_intro()
+
+## The title screen runs uncapped: vsync (on in every preset) paces it to the monitor's refresh rate, so the
+## slow drift and the CRT effect stay smooth. The in-game cap (a preset's `fps`) is only for the run itself.
+func _menu_fps() -> void:
+	Engine.max_fps = 0
 
 # ---- helpers ------------------------------------------------------------------
 func _font(spacing: float) -> FontVariation:

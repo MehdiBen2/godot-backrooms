@@ -296,6 +296,15 @@ func _rank_slots() -> void:
 		slot_want[i] = r < _lit_cap and (shadow or slot_fixture[i].get("seen", true))
 		if pool[i].shadow_enabled != shadow:
 			pool[i].shadow_enabled = shadow
+		# your own body's shadow (player_shadow.gd) is cast by the nearest tube only. A shadow map is drawn again
+		# whenever anything in it moves, and the body moves every frame: cast into every shadowed tube it had all
+		# of them re-render the room each frame (~1 ms of GPU). The others now keep the map they have.
+		var mask := ALL_CASTERS if r == 0 else ALL_CASTERS & ~PLAYER_SHADOW_LAYER
+		if pool[i].shadow_caster_mask != mask:
+			pool[i].shadow_caster_mask = mask
+
+const PLAYER_SHADOW_LAYER := 1 << 19   # player_shadow.gd SHADOW_LAYER
+const ALL_CASTERS := 0xFFFFFFFF
 
 ## Eases toward `target` and lands on it exactly once close: an exponential ease never quite arrives, and
 ## a light whose position creeps by a hair every frame has its whole cube shadow re-rendered every frame.

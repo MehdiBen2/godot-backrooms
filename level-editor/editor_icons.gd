@@ -22,6 +22,7 @@ const ICONS := {
 	"zoom_out": '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3L20.5 20.5M7.5 10.5h6"/>',
 	"fit": '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/><rect x="8.5" y="8.5" width="7" height="7" rx="1" stroke-width="1.2"/>',
 	"cube": '<path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M3.8 7.4l8.2 4.6 8.2-4.6M12 12v9.2"/>',
+	"pose": '<circle cx="12" cy="4.6" r="2.2"/><path d="M12 7.5v7M12 9l-5 3.6M12 9l5 2.6M12 14.5l-3.4 6M12 14.5l4 5.6"/>',
 	"play": '<path d="M7 4.3v15.4L19.5 12z" fill="{c}" stroke="none"/>',
 	"play_here": '<path d="M4.5 4.5v11l8.8-5.5z" fill="{c}" stroke="none"/><path d="M17.5 21s-4-3.6-4-6.6a4 4 0 018 0c0 3-4 6.6-4 6.6z"/><circle cx="17.5" cy="14.3" r="1.3" fill="{c}"/>',
 	"save": '<path d="M5 3.5h11.5l3 3V20.5H5z"/><path d="M8.5 3.5v5h7v-5M8.5 20.5v-6.5h7v6.5"/>',

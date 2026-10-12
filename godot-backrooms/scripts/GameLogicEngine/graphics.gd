@@ -40,13 +40,13 @@ const PHYS_WINDOW := 2.0
 ## the carpet and the ceiling grid sharp down a long hall; only Low (built for integrated GPUs) keeps it at 4x.
 const PRESETS := {
 	"low": {"scale": 70, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
-		"vsync": true, "fps": 60, "lights": 6, "light_shadows": 0, "far_lights": 8, "smooth": true, "banding": true},
-	"medium": {"scale": 85, "aa": 1, "shadows": 1, "ssao": 1, "bounce": true, "glow": true, "post": 1, "aniso": 16,
-		"vsync": true, "fps": 0, "lights": 8, "light_shadows": 1, "far_lights": 12, "smooth": true, "banding": true},
-	"high": {"scale": 100, "aa": 2, "shadows": 2, "ssao": 2, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": true, "fps": 0, "lights": 10, "light_shadows": 2, "far_lights": 16, "smooth": true, "banding": true},
-	"ultra": {"scale": 100, "aa": 2, "shadows": 3, "ssao": 3, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": true, "fps": 0, "lights": 12, "light_shadows": 3, "far_lights": 20, "smooth": true, "banding": true},
+		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "far_lights": 8, "smooth": true, "banding": true},
+	"medium": {"scale": 67, "aa": 3, "shadows": 1, "ssao": 1, "bounce": true, "glow": true, "post": 1, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "far_lights": 12, "smooth": true, "banding": true},
+	"high": {"scale": 77, "aa": 3, "shadows": 2, "ssao": 2, "bounce": true, "glow": true, "post": 2, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "far_lights": 16, "smooth": true, "banding": true},
+	"ultra": {"scale": 87, "aa": 3, "shadows": 3, "ssao": 3, "bounce": true, "glow": true, "post": 2, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "far_lights": 20, "smooth": true, "banding": true},
 }
 ## Per shadow tier (0 off .. 3 high): the positional shadow atlas, its filter, and whether the tubes are area
 ## lights (PCSS: sharp where a thing meets the floor, softer further out, like a real 60 cm diffuser)
@@ -261,7 +261,8 @@ func _put(key: String, value: Variant, setter: Callable) -> void:
 func apply() -> void:
 	var vp := get_viewport()
 	var aa := int(s.get("aa", 1))
-	var taa := aa == 2 and not compat
+	if aa == 3 and compat: aa = 1               # (no FSR 2 on the compatibility renderer: FXAA)
+	var taa := aa == 2
 	var shadows := clampi(int(s.get("shadows", 1)), 0, 3)
 	var ssao := clampi(int(s.get("ssao", 1)), 0, 3)
 	_render_scale()
@@ -272,6 +273,7 @@ func apply() -> void:
 	_put("debanding", true, func(v): vp.use_debanding = v)
 	# slightly sharper mips keep the wallpaper and carpet readable down a long hall, but only TAA can afford them:
 	# without it the sharper mips crawl and shimmer on the far ceiling grid
+	# (FSR 2 sets its own, from the render scale)
 	_put("mip_bias", -0.35 if taa else 0.0, func(v): vp.texture_mipmap_bias = v)
 	_put("mesh_lod", [3.0, 2.0, 1.5, 1.0][shadows], func(v): vp.mesh_lod_threshold = v)
 	var aniso: int = {2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X, 8: Viewport.ANISOTROPY_8X,
@@ -280,8 +282,9 @@ func apply() -> void:
 	_put("shadow_atlas", SHADOW_ATLAS[shadows], func(v): vp.positional_shadow_atlas_size = v)
 	_put("shadow_filter", SHADOW_FILTER[shadows], _set_shadow_filter)
 	if not compat:
-		# ambient occlusion: half resolution below High (blurred, it reads the same in a corner at a fraction of the cost)
-		_put("ssao_q", ssao, func(v): RenderingServer.environment_set_ssao_quality(SSAO_QUALITY[v], v < 3, 0.5, 2, 50.0, 300.0))
+		# ambient occlusion at half resolution on every preset: it is blurred anyway, and reads the same in a corner
+		# (full resolution on Ultra was ~0.3 ms of GPU a frame for nothing you could see); the quality tier still differs
+		_put("ssao_q", ssao, func(v): RenderingServer.environment_set_ssao_quality(SSAO_QUALITY[v], true, 0.5, 2, 50.0, 300.0))
 	_put("vsync", DisplayServer.VSYNC_ENABLED if s.vsync else DisplayServer.VSYNC_DISABLED, func(v): DisplayServer.window_set_vsync_mode(v))
 	Engine.max_fps = s.fps
 	Engine.physics_ticks_per_second = physics_hz()
@@ -306,12 +309,18 @@ func physics_hz() -> int:
 		hz = mini(hz, int(s.fps))
 	return clampi(hz, 60, SMOOTH_MAX_HZ)
 
-## The 3D render size: the preset's `scale`. Under 100 it is upscaled with FSR 1 (cheap, and sharper than bilinear).
+## The 3D render size: the preset's `scale`. With anti-aliasing "FSR 2" (aa 3) the picture is rendered at that
+## size and rebuilt to full size from the frames before it (FSR 2: an upscaler and a temporal AA in one, so it
+## replaces TAA): Medium / High / Ultra shade a half to three quarters of the pixels and keep a sharp picture.
+## Otherwise, under 100 it is upscaled with FSR 1 (cheap, and sharper than bilinear).
 func _render_scale() -> void:
 	var vp := get_viewport()
 	var live := clampf(float(s.get("scale", 100)) / 100.0, 0.5, 1.0)
-	_put("scale_mode", Viewport.SCALING_3D_MODE_FSR if (live < 1.0 and not compat) else Viewport.SCALING_3D_MODE_BILINEAR,
-		func(v): vp.scaling_3d_mode = v)
+	var mode := Viewport.SCALING_3D_MODE_BILINEAR
+	if compat: pass
+	elif int(s.get("aa", 1)) == 3: mode = Viewport.SCALING_3D_MODE_FSR2
+	elif live < 1.0: mode = Viewport.SCALING_3D_MODE_FSR
+	_put("scale_mode", mode, func(v): vp.scaling_3d_mode = v)
 	_put("scale", live, func(v): vp.scaling_3d_scale = v)
 	_put("fsr_sharp", 0.2, func(v): vp.fsr_sharpness = v)   # 0 = sharpest: FSR's own sharpening puts back what the upscale softens
 

@@ -1305,30 +1305,6 @@
       "type": "prop_box_c"
     },
     {
-      "custom_event": "",
-      "delay": 0.0,
-      "depth": 2.0,
-      "duration": 20.0,
-      "event": "machineVoice",
-      "events_list": [
-        {
-          "custom_event": "",
-          "event": "machineVoice"
-        },
-        {
-          "custom_event": "",
-          "event": "message"
-        }
-      ],
-      "once": true,
-      "pos_x": 22.5,
-      "pos_y": 21.5,
-      "rotation": 180.0,
-      "scale": 3.0,
-      "text": "something is off.",
-      "type": "trigger"
-    },
-    {
       "behavior": "roam",
       "kind": "bacteria",
       "pos_x": 51.0,
@@ -1344,6 +1320,24 @@
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_water_cooler"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
     },
     {
       "behavior": "roam",
@@ -6828,6 +6822,110 @@
       [
         81,
         18
+      ],
+      [
+        88,
+        23
+      ],
+      [
+        89,
+        23
+      ],
+      [
+        90,
+        23
+      ],
+      [
+        91,
+        23
+      ],
+      [
+        92,
+        23
+      ],
+      [
+        93,
+        23
+      ],
+      [
+        94,
+        23
+      ],
+      [
+        95,
+        23
+      ],
+      [
+        96,
+        23
+      ],
+      [
+        97,
+        23
+      ],
+      [
+        98,
+        23
+      ],
+      [
+        99,
+        23
+      ],
+      [
+        100,
+        23
+      ],
+      [
+        88,
+        24
+      ],
+      [
+        89,
+        24
+      ],
+      [
+        90,
+        24
+      ],
+      [
+        91,
+        24
+      ],
+      [
+        92,
+        24
+      ],
+      [
+        93,
+        24
+      ],
+      [
+        94,
+        24
+      ],
+      [
+        95,
+        24
+      ],
+      [
+        96,
+        24
+      ],
+      [
+        97,
+        24
+      ],
+      [
+        98,
+        24
+      ],
+      [
+        99,
+        24
+      ],
+      [
+        100,
+        24
       ],
       [
         89,
