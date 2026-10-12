@@ -32,6 +32,7 @@ uniform float vignette_amt = 0.62;     // corner brightness at the edge (1 = non
 // ---- kept from post.gdshader (same names, same meaning)
 uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.30;       // the barrel lens (see lens())
+uniform float cctv = 0.0;              // the CCTV filter (Gfx `cctv`, the CAMERA menu): 0 off, render_engine.gd sets it
 uniform float chroma_amt = 0.0028;
 uniform float grain = 0.034;
 uniform float vhs = 1.0;
@@ -104,14 +105,14 @@ vec3 yuv_to_rgb(vec3 yuv) {
 }
 
 // The lens: the original game's barrel "fish eye" (post.gdshader), exactly: bends the picture outward with
-// enough overscan that the edges never clamp, gentler in a Classic zone, bent harder by a long fall.
+// enough overscan that the edges never clamp, the same in a Classic zone, bent harder by a long fall.
 // lens_pointer.gd runs the same maths for the cursor.
 vec2 lens(vec2 uv, float aspect) {
 	vec2 p = uv - 0.5;
 	p.x *= aspect;
 	float r2 = dot(p, p);
 	float max_r2 = 0.25 * (aspect * aspect + 1.0);
-	float dist = distortion * (1.0 - 0.6 * classic) + fall_warp;
+	float dist = distortion + fall_warp;
 	float zoom = 1.0 + max_r2 * (dist + chroma_amt) * 1.05;
 	p *= (1.0 + r2 * dist) / zoom;
 	p.x /= aspect;
@@ -463,6 +464,18 @@ void fragment() {
 		float pen = (1.0 - smoothstep(top_edge, top_edge + 0.09, SCREEN_UV.y)) + smoothstep(bot_edge - 0.09, bot_edge, SCREEN_UV.y);
 		col *= 1.0 - 0.7 * fx_blink * clamp(pen, 0.0, 1.0);
 		blink_lids = lids;
+	}
+
+	// ---- the CCTV filter: colour drained toward a cold grey-green, faint interlaced lines whose fields swap
+	// at the feed's choppy frame rate, a slow hum bar rolling up and the picture's brightness stepping a hair
+	// from frame to frame. Kept low: it should read as the camera, not as an effect.
+	if (cctv > 0.001) {
+		float feed = floor(TIME * 12.5);
+		float l_c = dot(col, LUMA);
+		col = mix(col, vec3(l_c) * vec3(0.94, 1.0, 0.97), 0.22 * cctv);
+		col *= 1.0 - 0.07 * cctv * mod(floor(FRAGCOORD.y / 2.0) + feed, 2.0);
+		col *= 1.0 + 0.05 * cctv * (1.0 - smoothstep(0.0, 0.08, abs(fract(SCREEN_UV.y * 0.5 - TIME * 0.07) - 0.5)));
+		col *= 1.0 + (hash12(vec2(feed, 7.31)) - 0.5) * 0.03 * cctv;
 	}
 
 	// ---- the sensor's own noise, last (it is in the signal, under nothing)

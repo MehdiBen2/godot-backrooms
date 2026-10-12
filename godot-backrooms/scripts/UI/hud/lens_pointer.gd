@@ -22,7 +22,6 @@ static func screen_to_render(mouse: Vector2, vp: Viewport) -> Vector2:
 	p.x *= aspect
 	var r2 := p.dot(p)
 	var max_r2 := 0.25 * (aspect * aspect + 1.0)
-	dist *= 1.0 - 0.6 * Game.fx_classic
 	var zoom := 1.0 + max_r2 * (dist + chroma_amt) * 1.05
 	var f := (1.0 + r2 * dist) / zoom
 	var q := p * f

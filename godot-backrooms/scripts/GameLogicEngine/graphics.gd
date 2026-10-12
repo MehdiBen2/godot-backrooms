@@ -186,6 +186,15 @@ func set_mood(on: bool) -> void:
 		_save()
 		changed.emit()
 
+## CCTV filter (not a quality preset): a faint surveillance-feed look over the camera (camera.gdshader `cctv`). Off by default.
+var cctv := false
+
+func set_cctv(on: bool) -> void:
+	if on != cctv:
+		cctv = on
+		_save()
+		changed.emit()
+
 func set_camera(c: String) -> void:
 	if c in CAMERAS and c != camera:
 		camera = c
@@ -380,6 +389,7 @@ func _load() -> void:
 		fullscreen = bool(cf.get_value("gfx", "fullscreen", false))
 		carpet_soft = bool(cf.get_value("gfx", "carpet_soft", true))
 		mood = bool(cf.get_value("gfx", "mood", true))
+		cctv = bool(cf.get_value("gfx", "cctv", false))
 		# a settings file from before bodycam became the default holds the old default ("auto"): start on bodycam
 		if int(cf.get_value("gfx", "camera_rev", 0)) >= CAMERA_REV:
 			var c := str(cf.get_value("gfx", "camera", camera))
@@ -416,6 +426,7 @@ func _save() -> void:
 	cf.set_value("gfx", "camera_rev", CAMERA_REV)
 	cf.set_value("gfx", "carpet_soft", carpet_soft)
 	cf.set_value("gfx", "mood", mood)
+	cf.set_value("gfx", "cctv", cctv)
 	for k in s:
 		cf.set_value("gfx", k, s[k])
 	cf.save(PATH)

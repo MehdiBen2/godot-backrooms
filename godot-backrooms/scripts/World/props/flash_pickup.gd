@@ -1,11 +1,12 @@
 extends Node3D
-## A spare camera flash standing on the carpet. Walking over it puts it in the inventory,
-## where each one is one charge (up to STACK); G fires one (flash_tool.gd). With the stack full it
-## stays on the floor. Rare: spawned at random open cells by level_builder._spawn_flashes.
+## A spare camera flash standing on the carpet. Walking over it, or looking at it and pressing E, puts it in
+## the inventory, where each one is one charge (up to STACK); G fires one (flash_tool.gd). With the stack full
+## it stays on the floor. The pickup tooltip is pickup_prompt.gd. Rare: spawned at random open cells by
+## level_builder._spawn_flashes.
 
 const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
+const PickupPrompt := preload("res://scripts/World/props/pickup_prompt.gd")
 
-const TRIGGER_RADIUS := 0.9
 const ITEM_ID := "flash"
 const ITEM_NAME := "Camera Flash"
 const ITEM_CODE := "FLSH"
@@ -20,8 +21,6 @@ const ITEM_DESC := "A camera speedlight with one charge left in its capacitor. P
 
 static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread (battery_pickup.gd)
 
-var used := false
-
 func _ready() -> void:
 	if model_scene == null:
 		model_scene = load(MODEL_PATH)
@@ -35,6 +34,10 @@ func _ready() -> void:
 		model.scale = Vector3.ONE * k
 		var c := box.get_center()
 		model.position = Vector3(-c.x * k, -box.position.y * k, -c.z * k)
+	var prompt := PickupPrompt.new()
+	add_child(prompt)
+	prompt.setup({"id": ITEM_ID, "name": ITEM_NAME, "code": ITEM_CODE, "desc": ITEM_DESC, "stack": STACK,
+		"model": MODEL_PATH, "sound": "flash_click_on.wav", "height": 0.6, "walk_over": true})
 	_apply_vis_range(model)
 
 func _apply_vis_range(n: Node) -> void:
@@ -44,20 +47,3 @@ func _apply_vis_range(n: Node) -> void:
 		n.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	for c in n.get_children():
 		_apply_vis_range(c)
-
-func _process(_delta: float) -> void:
-	if used or Game.dead or not Game.playing:
-		return
-	var player: Node3D = get_parent().player
-	if player == null:
-		return
-	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z).length()
-	if d < TRIGGER_RADIUS and absf(player.global_position.y - global_position.y) < 2.0:
-		var ui: Node = Game.main.get_node_or_null("UI") if Game.main != null else null
-		if ui == null or not ui.pick_up_item(ITEM_ID, ITEM_NAME, ITEM_DESC, ITEM_CODE, STACK, MODEL_PATH):
-			return                       # stack full: leave it for later
-		used = true
-		var audio: Node = Game.main.get_node_or_null("Audio")
-		if audio:
-			audio.play_world("flash_click_on.wav")
-		queue_free()

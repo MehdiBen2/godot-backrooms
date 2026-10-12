@@ -195,6 +195,8 @@ func _build_graphics() -> Control:
 		{"auto": "Auto", "bodycam": "Bodycam", "camcorder": "Camcorder"}))
 	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
 	v.add_child(_cycle_row("Fluorescent banding", "banding", off_on))
+	v.add_child(_choice_row("CCTV filter", func(): return Gfx.cctv, [false, true], func(x: bool): Gfx.set_cctv(x),
+		{false: "Off", true: "On"}))
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"]]))

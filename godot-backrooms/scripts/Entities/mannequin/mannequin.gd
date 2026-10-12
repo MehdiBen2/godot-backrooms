@@ -33,6 +33,8 @@ const STEP_TIME := 0.34
 const STEP_LENGTH := 1.05
 const KILL_DISTANCE := 1.15
 const HUNT_TIME := 30.0
+const ZONE_LOSE_DISTANCE := 40.0             # out of its zone, past this far from it, it counts you as lost...
+const LOSE_TIME := 6.0                       # ...once that has gone on this long
 const REST_TIME := 20.0
 const LONG_PAUSE_EVERY := 3
 const LONG_PAUSE_TIME := 300.0
@@ -49,8 +51,8 @@ const SETTLE_RANGE := 10.0                   # turn and catch it this close afte
 const WHISPER_PATH := "res://audio/entity/mannequin_whisper.mp3"
 const WHISPER_RANGE := 7.0
 # Staring them down: eyes can't stay open forever. After a few seconds of watching, your eyes sting and you
-# start to blink at random, more often and slower the longer you stare, and while the lids are shut nobody is
-# watching: the real one steps, the crowd shifts. Every second you watch costs a little sanity.
+# start to blink at random, more often and slower the longer you stare, and while the lids are shut the crowd
+# shifts (the real one holds still: it only moves while you are not looking at it). Every second you watch costs a little sanity.
 const STARE_STING := 4.0                     # s of staring before the blinks start
 const STARE_RAMP := 10.0                     # s more to reach the full blink urge
 const STARE_BLINK_RATE := 0.35               # blinks per second at full urge
@@ -59,6 +61,7 @@ const STARE_SANITY_MAX := 0.6                # ...rising to this after a long st
 
 var room_cells: Array[Vector2i] = []
 var room_near := {}                          # room cells and their neighbours
+var zone_cells := {}                         # exactly the painted cells: standing in one, it is always coming for you
 var room_box := Rect2i()
 var level: Node
 var player: CharacterBody3D
@@ -87,6 +90,7 @@ var awake := false
 var summoned := false             # a trigger / the debug warp asked for it; otherwise it only exists where the level paints a Mannequin zone
 var moving := false
 var rest_left := 0.0
+var lose_t := 0.0                          # s out of its zone and out of reach (see ZONE_LOSE_DISTANCE)
 var hunt_clock := 0.0
 var rest_count := 0
 var killed := false
@@ -177,6 +181,9 @@ func _find_room() -> void:
 			for dz in range(-1, 2):
 				room_near[c + Vector2i(dx, dz)] = true
 	room_box = Rect2i(lo, hi - lo)
+	zone_cells.clear()
+	for c in room_cells:
+		zone_cells[c] = true
 
 func room_slots(count: int) -> Array:
 	var cells: Array = []
@@ -213,6 +220,10 @@ func in_room(p: Vector3) -> bool:
 	var x := GridNav.cell(p.x)
 	var z := GridNav.cell(p.z)
 	return room_near.has(Vector2i(x, z))
+
+## Standing on one of the painted cells (the white area in the level editor)
+func in_zone(p: Vector3) -> bool:
+	return zone_cells.has(Vector2i(GridNav.cell(p.x), GridNav.cell(p.z)))
 
 # Re-deal the room: everyone gets a new spot and a new pose, and one of them is the real one
 func reset() -> void:
@@ -335,7 +346,7 @@ func eyes_shut() -> bool:
 	return player.blink != null and player.blink.blinking() and Game.fx_blink > 0.55
 
 func seen(pos: Vector3) -> bool:
-	if player.dead or player.frozen or not Game.playing or eyes_shut():
+	if player.dead or player.frozen or not Game.playing:
 		return false
 	var cam: Camera3D = player.cam
 	var d := Vector2(pos.x - cam.global_position.x, pos.z - cam.global_position.z).length()
@@ -476,14 +487,34 @@ func update_real(delta: float) -> void:
 	t_fwd = tg.fwd
 	var tgt: Vector3 = tg.pos
 	var pos := real_node.position
+	var d_tgt := Vector2(tgt.x - pos.x, tgt.z - pos.z).length()
+	var zone := in_zone(tgt)
 	if not awake:
-		if Vector2(tgt.x - pos.x, tgt.z - pos.z).length() < WAKE_DISTANCE or in_room(tgt):
+		# it comes for you as soon as you step into its zone
+		if d_tgt < WAKE_DISTANCE or zone:
 			awake = true
 		else:
+			return
+	# out of the zone and well away from it: after a few seconds it loses you and goes dormant again
+	if zone or d_tgt < ZONE_LOSE_DISTANCE:
+		lose_t = 0.0
+	else:
+		lose_t += delta
+		if lose_t >= LOSE_TIME:
+			lose_t = 0.0
+			awake = false
+			rest_left = 0.0
+			hunt_clock = 0.0
+			rest_count = 0
+			hunt.move_to = null
 			return
 	# watched by anyone: it holds its pose, silent, exactly where it is
 	if seen(pos) or Net.mq_seen_by_peers():
 		return
+	if zone:
+		# standing in the zone it never rests: it is always coming
+		rest_left = 0.0
+		hunt_clock = 0.0
 	if rest_left > 0.0:
 		rest_left -= delta
 		return
@@ -589,7 +620,7 @@ func _physics_process_timed(delta: float) -> void:
 		snap.update(delta)
 		return
 	# far from its room and nothing has woken it (EntityLOD ASLEEP): nothing to do until you come near
-	if not online and not awake and EntityLOD.tier(self) == EntityLOD.ASLEEP:
+	if not online and not awake and EntityLOD.tier(self) == EntityLOD.ASLEEP and not in_zone(player.global_position):
 		return
 	if puppet:
 		_puppet_step(delta)

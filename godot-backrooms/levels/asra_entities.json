@@ -150,19 +150,5 @@
       ],
       "incident": "LOG 0-08: Recovered 300m from Level 0 spawn. The ink on the final entry is fresh, despite the paper being brittle with decades of dry rot."
     }
-  },
-  "dead_ballast": {
-    "code": "TSRA-AN-02",
-    "common_name": "Dead Ballast Anomaly",
-    "threat_class": "Harmonic Anomaly",
-    "description": "A fallen or shattered fluorescent lighting troffer casing that continues to emit a faint 60Hz electromagnetic tone and residual luminescence despite being completely disconnected from the grid.",
-    "behavior_vector": "Inert fixture; emits localized harmonic resonance and electrostatic interference.",
-    "directive": "Document harmonic frequency with scanner. Do not touch exposed capacitor housing without insulated gloves.",
-    "classified": {
-      "origin": "Dislodged ceiling fixtures that broke loose during seismic drift events. Analysis indicates the phosphor residue inside the tubes is absorbing background spatial radiation and re-emitting it as audible hum.",
-      "field_notes": [
-        "\"You can hear the hum even when the bulb is smashed into dust. It isn't the lamp making the noise — the lamp is just where the noise comes out.\" — Field Analyst Varga"
-      ]
-    }
   }
 }

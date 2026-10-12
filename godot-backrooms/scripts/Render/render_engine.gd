@@ -119,6 +119,7 @@ func _process_timed(dt: float) -> void:
 	var tubes := 0.0 if Game.outdoors else clampf(Game.fx_tubes * 2.5, 0.0, 1.0)
 	mat.set_shader_parameter("mood", 0.0 if Game.outdoors or not Gfx.mood else 1.0)
 	mat.set_shader_parameter("banding", tubes if bool(Gfx.s.get("banding", true)) else 0.0)
+	mat.set_shader_parameter("cctv", 0.35 if Gfx.cctv else 0.0)       # the CCTV filter (Gfx `cctv`, the CAMERA menu)
 
 ## Profile `a` leaned `t` of the way to `b` (numbers and colours)
 func _blend(a: Dictionary, b: Dictionary, t: float) -> Dictionary:

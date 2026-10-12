@@ -28,10 +28,8 @@ const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
 const SurveyClipboard := preload("res://scripts/World/props/survey_clipboard.gd")
-const DeadFixture := preload("res://scripts/World/props/dead_fixture.gd")
 const LOOT_WEIGHT := 6               # how many ordinary cells a Loot zone cell is worth when things are scattered
 const CLIPBOARD_PER_CELLS := 90
-const DEAD_FIXTURE_PER_CELLS := 75
 
 var exit_door: Node3D
 
@@ -414,7 +412,6 @@ func _spawn_survey_props() -> void:
 		add_child(term)
 	
 	_scatter(func(): return SurveyClipboard.new(), CLIPBOARD_PER_CELLS, 2, 6)
-	_scatter(func(): return DeadFixture.new(), DEAD_FIXTURE_PER_CELLS, 2, 8)
 
 ## Each floor's own layout of burnt and flickering tubes and stains, the same every time you come back to it
 func _floor_seed() -> int:

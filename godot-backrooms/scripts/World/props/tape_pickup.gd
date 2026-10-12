@@ -1,11 +1,12 @@
 extends Node3D
-## A roll of reflective hazard tape lying on the carpet. Walking over it puts it in the
-## inventory, where rolls stack (up to STACK); hold T to lay a strip (tape_tool.gd). With the
-## stack full it stays on the floor. Spawned at random open cells by level_builder._spawn_tape.
+## A roll of reflective hazard tape lying on the carpet. Walking over it, or looking at it and pressing E,
+## puts it in the inventory, where rolls stack (up to STACK); hold T to lay a strip (tape_tool.gd). With the
+## stack full it stays on the floor. The pickup tooltip is pickup_prompt.gd. Spawned at random open cells by
+## level_builder._spawn_tape.
 
 const TapeRoll := preload("res://scripts/World/props/tape_roll.gd")
+const PickupPrompt := preload("res://scripts/World/props/pickup_prompt.gd")
 
-const TRIGGER_RADIUS := 0.9
 const ITEM_ID := "tape"
 const ITEM_NAME := "Reflective Hazard Tape"
 const ITEM_CODE := "TAPE"
@@ -18,26 +19,11 @@ const ITEM_DESC := "A fat roll of black and yellow retroreflective tape, 20 cm w
 	+ "already walked: when the halls loop back on themselves, the tape tells you. It catches the " \
 	+ "torch from a long way off."
 
-var used := false
-
 func _ready() -> void:
 	var roll := TapeRoll.new()
 	roll.rotation.x = randf_range(-0.04, 0.04)    # never quite flat on the carpet pile
 	add_child(roll)
-
-func _process(_delta: float) -> void:
-	if used or Game.dead or not Game.playing:
-		return
-	var player: Node3D = get_parent().player
-	if player == null:
-		return
-	var d := Vector2(player.global_position.x - global_position.x, player.global_position.z - global_position.z).length()
-	if d < TRIGGER_RADIUS and absf(player.global_position.y - global_position.y) < 2.0:
-		var ui: Node = Game.main.get_node_or_null("UI") if Game.main != null else null
-		if ui == null or not ui.pick_up_item(ITEM_ID, ITEM_NAME, ITEM_DESC, ITEM_CODE, STACK, MODEL_PATH):
-			return                       # stack full: leave it for later
-		used = true
-		var audio: Node = Game.main.get_node_or_null("Audio")
-		if audio:
-			audio.play_world("flash_click_on.wav")
-		queue_free()
+	var prompt := PickupPrompt.new()
+	add_child(prompt)
+	prompt.setup({"id": ITEM_ID, "name": ITEM_NAME, "code": ITEM_CODE, "desc": ITEM_DESC, "stack": STACK,
+		"model": MODEL_PATH, "sound": "flash_click_on.wav", "height": 0.55, "walk_over": true})

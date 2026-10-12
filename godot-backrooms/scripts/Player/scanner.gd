@@ -7,7 +7,7 @@ extends Node
 ## readings of logged entities still pay, a little.
 ## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
 ## the points it can be read from in scan_points() (see the entity scripts). Entities read from
-## anywhere in RANGE; props (survey_clipboard.gd, dead_fixture.gd) give a short scan_range(), so
+## anywhere in RANGE; props (survey_clipboard.gd) give a short scan_range(), so
 ## the signal meter still leads to them from afar but the reading only starts up close.
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
 ## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`, and,
