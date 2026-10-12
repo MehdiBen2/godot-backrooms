@@ -746,7 +746,7 @@ func _process_timed(dt: float) -> void:
 		var show_door := false
 		if player != null and "focused_door" in player and player.focused_door != null:
 			var d = player.focused_door
-			if is_instance_valid(d) and d.has_method("get_interact_prompt"):
+			if is_instance_valid(d) and d.has_method("get_interact_prompt") and not d.has_node("InteractTooltip"):    # (those draw their own tooltip in the world)
 				door_prompt.text = d.get_interact_prompt()
 				show_door = true
 		door_prompt.modulate.a = move_toward(door_prompt.modulate.a, 1.0 if show_door else 0.0, dt * 8.0)

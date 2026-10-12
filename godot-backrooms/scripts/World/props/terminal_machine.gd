@@ -1,6 +1,7 @@
 extends Node3D
 
 const TerminalUI = preload("res://scripts/UI/terminal_machine_ui.gd")
+const InteractTooltip := preload("res://scripts/World/props/interact_tooltip.gd")
 
 var ui_instance: Control = null
 
@@ -49,11 +50,19 @@ func _ready() -> void:
 	static_body.add_child(col_shape)
 	add_child(static_body)
 
+	var tip := InteractTooltip.new()
+	tip.name = "InteractTooltip"
+	tip.height = 1.6
+	add_child(tip)
+
 func can_interact(_from_pos: Vector3) -> bool:
 	return true
 
 func get_interact_prompt() -> String:
-	return "ACCESS T.S.R.A. TERMINAL"
+	return "[E] ACCESS"
+
+func get_interact_title() -> String:
+	return "T.S.R.A. Terminal"
 
 func interact(player: Node3D) -> bool:
 	if ui_instance != null and is_instance_valid(ui_instance):

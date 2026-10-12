@@ -4,7 +4,7 @@ Static page for the Backrooms launcher, hosted on Netlify (free). It lives in th
 
 ## Where the downloads come from
 - **Launcher:** a GitHub release tagged `launcher`, with the file `Backrooms-Launcher.exe`. The button links straight to it, and the page reads its size from the GitHub API.
-- **Game:** the zip on the latest game release (`backrooms-windows.zip`, uploaded by `tools/publish.ps1`). The page links to GitHub's "latest" URL, so it always points at the newest game.
+- **Game:** not offered on the page. The game zip is no longer linked from the site.
 
 Nothing binary is stored in git or on Netlify.
 

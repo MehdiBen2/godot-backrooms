@@ -567,8 +567,8 @@ func update_real(delta: float) -> void:
 	var d_tgt := Vector2(tgt.x - pos.x, tgt.z - pos.z).length()
 	var zone := in_zone(tgt)
 	if not awake:
-		# it comes for you as soon as you step into its zone
-		if d_tgt < WAKE_DISTANCE or zone:
+		# it stays dormant (silent, no footsteps) until you step into its painted zone
+		if zone:
 			awake = true
 		else:
 			return

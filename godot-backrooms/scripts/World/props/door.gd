@@ -42,6 +42,7 @@ const LEAF_MODELS := {
 	"metal": {"path": "res://models/props/asset_pack/door_metal-_20mb.glb", "nodes": ["door_2"]},
 }
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
+const InteractTooltip := preload("res://scripts/World/props/interact_tooltip.gd")
 var leaf := "wood"          # set before build(): which of LEAF_MODELS the leaf is made from
 
 var pivot: Node3D
@@ -68,6 +69,16 @@ var is_open := false
 func _ready() -> void:
 	add_to_group("doors")
 	_setup_audio()
+	_setup_tooltip()
+
+## The same hovering "[E] ..." tooltip the floor pickups have
+func _setup_tooltip() -> void:
+	if has_node("InteractTooltip"):
+		return
+	var tip := InteractTooltip.new()
+	tip.name = "InteractTooltip"
+	tip.height = 0.3
+	add_child(tip)
 
 func _setup_audio() -> void:
 	if audio_open != null:
@@ -95,6 +106,7 @@ func _play(a: AudioStreamPlayer3D, pitch: float) -> void:
 func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_mat: Material, leaf_mat: Material, hw_mat: Material) -> void:
 	add_to_group("doors")
 	_setup_audio()
+	_setup_tooltip()
 	var rw := DOOR_W + LINING * 2.0          # rough opening cut in the wall
 	var rh := DOOR_H + LINING
 	var side_w := (cell - rw) * 0.5
@@ -461,4 +473,7 @@ func get_handle_global_pos() -> Vector3:
 
 func get_interact_prompt() -> String:
 	return "[E] CLOSE" if target_open_amount > 0.5 else "[E] OPEN"
+
+func get_interact_title() -> String:
+	return "Door"
 
