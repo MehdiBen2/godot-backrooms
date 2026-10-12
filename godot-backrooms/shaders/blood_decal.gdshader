@@ -39,14 +39,13 @@ float fbm2(vec2 p) {
 	for (int i = 0; i < 3; i++) { s += a * vno(p); p = p * 2.17 + 13.0; a *= 0.5; }
 	return s;
 }
-// triplanar blend weighted by the surface normal, sampled at WORLD position with NO per-decal offset:
-// every splat on the same surface reads the same mottling field, so where two overlap the pattern
-// keeps running instead of jump-cutting to a different noise at the boundary (which is what made
-// overlapping splats read as two stickers stacked on top of each other rather than one stain)
-float tri(vec3 p) {
-	vec3 w = abs(splat_normal);
-	w /= max(w.x + w.y + w.z, 0.001);
-	return fbm2(p.xy) * w.z + fbm2(p.zy) * w.x + fbm2(p.xz) * w.y;
+// the mottling, sampled at WORLD position with NO per-decal offset: every splat on the same surface reads the
+// same field, so where two overlap the pattern keeps running instead of jump-cutting to a different noise at
+// the boundary (which is what made overlapping splats read as two stickers stacked on top of each other).
+// Splats only ever land on floors (death_blood.gd), so one planar read does what the triplanar blend did at a
+// third of the cost.
+float mottle(vec3 p) {
+	return fbm2(p.xz);
 }
 float field(vec2 p) {
 	float hit = clamp(length(impact_dir), 0.0, 1.0);
@@ -108,10 +107,15 @@ void fragment() {
 	// the rim of a puddle bulges up (surface tension): tilt the normal there so it catches the light.
 	// Kept subtle - each splat computes this from only its own shape, so a strong bump here is what
 	// let one splat's rim show up as a ring drawn over a neighbour it happens to overlap.
-	float e = 0.01;
-	vec2 gr = vec2(field(p + vec2(e, 0.0)) - f, field(p + vec2(0.0, e)) - f) / e;
+	// The field's slope comes from the screen-space derivatives of f and p (the chain rule), not from two more
+	// evaluations of field(): those tripled the cost of every pixel of every splat, and the bite lays dozens of
+	// them, overlapping, right under a camera looking down at them (a 750 ms frame on an RX 5700 XT).
+	vec2 px = dFdx(p);
+	vec2 py = dFdy(p);
+	float det = px.x * py.y - px.y * py.x;
+	vec2 gr = abs(det) > 1e-9 ? vec2(dFdx(f) * py.y - dFdy(f) * px.y, dFdy(f) * px.x - dFdx(f) * py.x) / det : vec2(0.0);
 	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.018 * lip, vec2(-0.35), vec2(0.35)), 1.0)) * 0.5 + 0.5;
-	float n = tri(wpos * 3.0);   // world-aligned mottling: clotting, shared by overlapping splats
+	float n = mottle(wpos * 3.0);   // world-aligned mottling: clotting, shared by overlapping splats
 	vec3 thin_col = vec3(0.15, 0.006, 0.007);
 	vec3 thick_col = vec3(0.1, 0.003, 0.005);
 	vec3 dried = vec3(0.04, 0.002, 0.003);

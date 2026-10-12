@@ -65,7 +65,6 @@ const FF_FOG := 0.14               # found footage: fog left at this share (clea
 # found footage: ceiling bounce-light fill (panel_ceiling / drop_ceiling.gdshader). Off: in the classic look it made
 # the ceiling glow on its own, flat and fake; the ceiling is lit by its real lights only, as in every other look
 const FF_CEIL_FILL := 0.0
-const VFOG_EMISSION := Color(0.035, 0.03, 0.015)   # main.tscn's volumetric fog emission (the dim look)
 const FF_BLACK_LIFT := 0.025        # found footage: black level (camera.gdshader black_lift): a hint of lift, not a milky tape pedestal
 # Camcorder auto exposure: meters the scene late, then swings past the right exposure and settles
 const AE_KEY := 0.75                # meter reading that gives a gain of 1 (a typical lit hall)
@@ -155,95 +154,19 @@ func build_lighting() -> void:
 	Gfx.changed.connect(_read_quality)
 	_apply_gi()
 	Gfx.changed.connect(_apply_gi)
-	build_grid_gi()
 
-## The floor's bounce light (grid_gi.gd), solved for the fixtures just placed and laid over its floors, walls and
-## ceilings. Not on a look-only copy of a floor, nor on the compatibility renderer.
-func build_grid_gi() -> void:
-	grid_gi = null
-	if shell or Gfx.compat: return
-	grid_gi = GridGI.new()
-	grid_gi.build(self, (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) / LIGHT_ENERGY, CLASSIC_BOOST, CELL, WALL_H)
-	grid_gi.attach(self, _pit_materials(), CEIL_LAYER)
-
-## Bounce light. Best: the level's baked VoxelGI (tools/bake_level.gd, run by the level editor on every save).
-## Only the geometry is baked, the light bouncing round it is live, so flickering tubes and power cuts bounce
-## too. It is used while the .lvl is unchanged since the bake and the preset allows it (Gfx `baked_gi`: High and
-## Ultra; Ultra adds a second bounce). Without a bake: SDFGI, heavy, so only on Ultra ("ssil") and only for
-## levels with a Classic zone unless the .lvl forces it with "sdfgi": true / false (the editor's REAL-TIME GI).
-const BAKE_VERSION := "1"          # bump when the geometry code changes in a way old bakes no longer match
-var voxel_gi: VoxelGI
-
-func gi_path() -> String:
-	return "res://levels/baked/%s_gi.res" % str(level_meta.get("id", "level"))
-
-static var _hash_cache := {}
-## Changes whenever the level file (or BAKE_VERSION) does: a stale bake is never used
-func bake_hash() -> String:
-	var file_name := str(level_meta.get("file", ""))
-	if not _hash_cache.has(file_name):
-		_hash_cache[file_name] = (FileAccess.get_file_as_string("res://levels/" + file_name) + BAKE_VERSION).md5_text()
-	return _hash_cache[file_name]
-
-## The box the VoxelGI covers: the whole grid, floor to the highest ceiling, a little margin all round
-func gi_bounds() -> Dictionary:
-	var top := GRAND_H if not grand.is_empty() else (TALL_H if not tall.is_empty() else WALL_H)
-	var lo := Vector3(-CELL * 0.5, -0.5, -CELL * 0.5)
-	var hi := Vector3((size - 0.5) * CELL, top + 0.5, (size - 0.5) * CELL)
-	return {"center": (lo + hi) * 0.5, "size": hi - lo}
-
-var _gi_read := {}     # gi_path() -> the bake, read once: it is megabytes, and every floor of a level asks for it
-
-func _load_baked_gi() -> VoxelGIData:
-	var path := gi_path()
-	if not _gi_read.has(path):
-		_gi_read[path] = (load(path) as VoxelGIData) if ResourceLoader.exists(path) else null
-	var data: VoxelGIData = _gi_read[path]
-	return data if data != null and str(data.get_meta("lvl_hash", "")) == bake_hash() else null
-
+## Bounce light: the level's grid GI (grid_gi.gd), solved for the fixtures just placed and laid over its floors,
+## walls and ceilings. The only GI there is (graphics.gd: VoxelGI and SDFGI were the GPU resets); Gfx `bounce`
+## switches it, live. Not on a look-only copy of a floor, nor on the compatibility renderer.
 func _apply_gi() -> void:
-	if env == null: return
-	# The found-footage (classic) levels are big and flat-lit: a 200 m bake gets ~0.4 m voxels, only about ten
-	# floor to ceiling, and their seams showed as a dark line across every wall at eye height plus uneven
-	# bounce on the far ceiling. The look's even ambient fill does that job cleanly, so no GI there.
-	var flat_lit := atmosphere() == "classic"
-	# (an endless level: the bake covers the map only, so the halls past the seam would sit darker than this side)
-	var data: VoxelGIData = _load_baked_gi() if (bool(Gfx.s.get("baked_gi", false)) and not Gfx.compat and not flat_lit and not edge_wrap) else null
-	if data != null:
-		if voxel_gi == null:
-			voxel_gi = VoxelGI.new()
-			voxel_gi.position = data.get_meta("center")
-			voxel_gi.size = data.get_meta("size")
-			voxel_gi.subdiv = data.get_meta("subdiv")
-			add_child(voxel_gi)
-		data.interior = true                 # no sky: only the tubes light the place
-		data.energy = 1.15
-		data.propagation = 0.75              # how far bounced light travels from voxel to voxel
-		data.dynamic_range = 4.0
-		data.bias = 1.0
-		data.normal_bias = 0.2
-		data.use_two_bounces = false         # each bounce off yellow walls multiplies the colour: two turned dark corners red-brown
-		voxel_gi.data = data
-		voxel_gi.visible = true
-	elif voxel_gi != null:
-		voxel_gi.visible = false
-	var want: bool = level_data.get("sdfgi", not classic.is_empty()) and not flat_lit
-	env.sdfgi_enabled = data == null and want and bool(Gfx.s.get("ssil", false)) and not Gfx.compat
-	if env.sdfgi_enabled:
-		env.sdfgi_cascades = 4               # one more doubling of range: the last cascade's edge showed on the far ceiling
-		env.sdfgi_min_cell_size = 0.5
-		# No sky in here: rays that slip out through the coarse far cascades (or past the last one) read the
-		# background, which is the pale haze colour, and washed the far ceiling out to white
-		env.sdfgi_read_sky_light = false
-		# cells half as tall as they are wide: more detail at a 3 m ceiling and less bounce light leaking
-		# through the (single-quad) ceiling in the coarse far cascades, which made the far ceiling brighter
-		env.sdfgi_y_scale = Environment.SDFGI_Y_SCALE_50_PERCENT
-		# Off: SDFGI's probe occlusion approximates AO from the voxel cascades, which lag behind
-		# fast-moving dynamic objects (the player) and show up as a dark halo/blob dragging along
-		# beneath them. The bounce light itself still works fine without it.
-		env.sdfgi_use_occlusion = false
-		env.sdfgi_bounce_feedback = 0.6
-		env.sdfgi_energy = 1.0
+	var want: bool = bool(Gfx.s.get("bounce", true)) and not shell and not Gfx.compat
+	if want and grid_gi == null:
+		grid_gi = GridGI.new()
+		grid_gi.build(self, (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) / LIGHT_ENERGY, CLASSIC_BOOST, CELL, WALL_H)
+		grid_gi.attach(self, _pit_materials(), CEIL_LAYER)
+	elif not want and grid_gi != null:
+		grid_gi.detach()
+		grid_gi = null
 
 func _update_atmosphere(delta: float) -> void:
 	if env == null: return
@@ -340,12 +263,6 @@ func _update_atmosphere(delta: float) -> void:
 	var lit_scale := FOG_LIT_SCALE + (1.0 + FOG_DARK_BOOST - FOG_LIT_SCALE) * darkness
 	# web uses exp2 fog at 0.075; Godot's exponential fog needs a lower density for the same feel
 	env.fog_density = FOG_DENSITY * 0.8 * lit_scale * zone_fog * sight * (1.0 + (0.55 - 1.0) * grid_glow)
-	if env.volumetric_fog_enabled:
-		# lit volumetric fog scatters every tube it passes and piles up with distance (a glowing far band), so
-		# in the found-footage look's clear air it is almost gone
-		env.volumetric_fog_density = 0.016 * lit_scale * zone_fog * sight * (1.0 + (0.55 - 1.0) * grid_glow) * (1.0 - 0.85 * open_mix) * (1.0 - 0.7 * _lim)
-		env.volumetric_fog_albedo = Color(0.88, 0.82, 0.58, 1.0).lerp(Color(0.08, 0.06, 0.03, 1.0), darkness)
-		env.volumetric_fog_emission = VFOG_EMISSION * (1.0 - 0.85 * open_mix)   # its own glow piles up with distance too
 
 ## Blend the WorldEnvironment from its own (dim) values toward an ATMOSPHERES look: the camera settings
 ## follow classic_mix (where you stand), the light itself open_mix (which a power cut takes away).
@@ -372,7 +289,7 @@ func _blend_env(a: Dictionary) -> void:
 		# kept on the resource: main.tscn's Environment can outlive a level reload with the last blend in it
 		if not env.has_meta("atmo_base"):
 			env.set_meta("atmo_base", {"ambient_energy": env.ambient_light_energy, "ambient_color": env.ambient_light_color,
-				"exposure": env.tonemap_exposure, "tonemap_white": env.tonemap_white,
+				"exposure": env.tonemap_exposure, "agx_white": env.tonemap_agx_white,
 				"glow_threshold": env.glow_hdr_threshold, "glow_intensity": env.glow_intensity,
 				"glow_bloom": env.glow_bloom, "glow_wide": env.get_glow_level(5), "ssao_intensity": env.ssao_intensity})
 		_env_base = env.get_meta("atmo_base")
@@ -385,7 +302,7 @@ func _blend_env(a: Dictionary) -> void:
 	env.ambient_light_energy = lerpf(b.ambient_energy, a.ambient_energy, open_mix) * (1.0 + CRAWL_AMBIENT * _crawl_mix * (1.0 - grid_glow))
 	env.ambient_light_color = (b.ambient_color as Color).lerp(a.ambient_color, open_mix)
 	env.tonemap_exposure = lerpf(b.exposure, a.exposure, cam_mix) * exposure_gain
-	env.tonemap_white = lerpf(b.tonemap_white, a.tonemap_white, cam_mix)
+	env.tonemap_agx_white = lerpf(b.agx_white, a.agx_white, cam_mix)
 	env.glow_hdr_threshold = lerpf(b.glow_threshold, a.glow_threshold, cam_mix)
 	env.glow_intensity = lerpf(b.glow_intensity, a.glow_intensity, cam_mix) * (1.0 + 0.35 * glare)   # the light you stare into blooms a bit more
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)

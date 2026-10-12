@@ -54,7 +54,7 @@ func _process(delta: float) -> void:
 		var ground := _find_floor_point(Vector3(p.x, floor_y + 3.0, p.z)) if p.y <= floor_y + 3.0 else Vector3(p.x, floor_y, p.z)
 		var hit_floor := p.y <= ground.y + 0.03
 		if hit_floor or _wall_at(p.x, p.z):
-			if hit_floor and randf() < 0.6:
+			if hit_floor and randf() < 0.35:            # (not every drop: the splats are the costly part, see MAX_DECALS)
 				surface_decal(Vector3(p.x, ground.y, p.z), Vector3.UP, 0.16 + d.size * 6.0 + randf() * 0.25, 0.0, null, d.v)
 			mi.queue_free()
 			d["dead"] = true

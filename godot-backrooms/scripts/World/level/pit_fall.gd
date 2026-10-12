@@ -163,7 +163,7 @@ func _build_shaft(cells: Dictionary) -> Dictionary:
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		mi.visible = false
 		root.add_child(mi)
-		if lamp_mesh != null: mi.add_child(ShaftLamps.instance(lamp_mesh, _lamp_mats))
+		if not lamp_mesh.is_empty(): mi.add_child(ShaftLamps.instance(lamp_mesh, _lamp_mats))
 		pool.append(mi)
 	# the fog above you: looking up out of the pit you see haze, not the lit room you left
 	var cap := MeshInstance3D.new()

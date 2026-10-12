@@ -17,6 +17,9 @@ const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the
 # read as a small blob standing on its edge rather than a puddle lying down; below this, the blob keeps
 # rolling/falling instead of painting one there.
 const FLAT_ENOUGH_Y := 0.92
+# Splats laid at most. Each is a transparent, lit card: under the bite's camera (lifted, looking down at the floor
+# it is all landing on) they overlap many deep, and every layer is shaded in full. 90 made a 750 ms frame.
+const MAX_DECALS := 60
 
 # The flying blob: a sphere whose vertices bob around the surface so it wobbles like a loose mass of blood.
 const BLOB_SHADER := preload("res://shaders/blood_blob.gdshader")
@@ -166,7 +169,7 @@ func _physics_process(delta: float) -> void:
 ## (not a Decal node — full control over the shader), centred exactly at the hit point and trimmed to
 ## the surface that is actually there: the card never hangs over a wall's top edge or corner into open air.
 func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, on: CollisionObject3D = null, impact := Vector3.ZERO, link_world := Vector3.ZERO) -> void:
-	if _decals.size() > 90:
+	if _decals.size() >= MAX_DECALS:
 		return
 	if _decal_shader == null:
 		_decal_shader = DECAL_SHADER
@@ -315,6 +318,14 @@ func spray(origin: Vector3, toward: Vector3) -> void:
 	var dir := (toward.normalized() + Vector3(0, 0.35, 0)).normalized()
 	_emit(origin, dir, 150, 0.9, 2.5, 8.5, 70.0, 0.022, 0.06, Color(0.07, 0.002, 0.005), 0.16)
 	_emit(origin, dir, 90, 0.55, 5.0, 11.0, 55.0, 0.008, 0.02, Color(0.1, 0.004, 0.008), 0.32)
+
+## The bacteria's bite: three bursts in the same emitter (and so the same, already built, pipeline) as spray()
+func burst(origin: Vector3, toward: Vector3, count: float, force: float) -> void:
+	_ensure_floor_collider(origin)
+	var dir := (toward.normalized() + Vector3(0, 0.18, 0)).normalized()
+	_emit(origin, dir, maxi(4, int(70 * count)), 0.85, 3.6 * force, 9.2 * force, 58.0, 0.025, 0.05, Color(0.24, 0.006, 0.01), 0.08)
+	_emit(origin, dir, maxi(4, int(35 * count)), 0.75, 1.8 * force, 5.4 * force, 82.0, 0.01, 0.02, Color(0.38, 0.012, 0.018), 0.15)
+	_emit(origin, dir, maxi(4, int(18 * count)), 1.1, 2.0 * force, 7.5 * force, 90.0, 0.04, 0.07, Color(0.14, 0.003, 0.006), 0.2)
 
 func _ensure_floor_collider(near: Vector3) -> void:
 	if _floor_col == null or not is_instance_valid(_floor_col):

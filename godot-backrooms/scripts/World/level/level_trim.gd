@@ -50,9 +50,14 @@ func _face_frame(f: Dictionary) -> Array:
 ## stain put there would sit half inside it. [outline, solid] (solid: the outline's inside is wall too; a round
 ## room's two rings are not, the room is inside them).
 var _obstacles: Array = []
+## The same outlines filed by grid cell (each under every cell its box, grown by OBSTACLE_REACH, overlaps), so a
+## query looks at the few near it, not at every object on the floor: the trim asks thousands of them a floor
+const OBSTACLE_REACH := 0.5          # m: the widest margin _clear_of_objects is ever asked for
+var _obstacle_grid := {}             # Vector2i -> Array of _obstacles entries
 
 func _gather_obstacles() -> void:
 	_obstacles.clear()
+	_obstacle_grid.clear()
 	for o: Dictionary in objects:
 		var outlines := _object_outlines(o)
 		var xf := object_transform(o)
@@ -61,12 +66,23 @@ func _gather_obstacles() -> void:
 			for p: Vector2 in outline[0]:
 				var w := xf * Vector3(p.x, 0.0, p.y)
 				poly.append(Vector2(w.x, w.z))
-			_obstacles.append([poly, outlines.size() == 1])
+			if poly.is_empty(): continue
+			var ob := [poly, outlines.size() == 1]
+			_obstacles.append(ob)
+			var box := Rect2(poly[0], Vector2.ZERO)
+			for v in poly: box = box.expand(v)
+			box = box.grow(OBSTACLE_REACH)
+			for gx in range(floori(box.position.x / CELL), floori(box.end.x / CELL) + 1):
+				for gz in range(floori(box.position.y / CELL), floori(box.end.y / CELL) + 1):
+					var k := Vector2i(gx, gz)
+					if not _obstacle_grid.has(k): _obstacle_grid[k] = []
+					(_obstacle_grid[k] as Array).append(ob)
 
-## True when floor-plan point `p` (world) is at least `margin` metres clear of every placed wall, pillar and column
+## True when floor-plan point `p` (world) is at least `margin` metres (at most OBSTACLE_REACH) clear of every
+## placed wall, pillar and column
 func _clear_of_objects(p: Vector3, margin: float) -> bool:
 	var q := Vector2(p.x, p.z)
-	for ob: Array in _obstacles:
+	for ob: Array in _obstacle_grid.get(Vector2i(floori(q.x / CELL), floori(q.y / CELL)), []):
 		var poly: PackedVector2Array = ob[0]
 		if ob[1] and Geometry2D.is_point_in_polygon(q, poly): return false
 		for i in poly.size():

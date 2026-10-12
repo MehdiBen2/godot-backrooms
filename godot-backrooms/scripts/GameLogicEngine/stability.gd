@@ -3,11 +3,13 @@ extends Node
 ## removes it on a clean exit; a flag still there at the next start means the last run died (a driver reset, a
 ## hang that was killed, a crash). Two things then happen:
 ##
-## 1. The game backs off by itself instead of going straight back into what killed it:
-##      every unclean exit:        the preset drops one step (Ultra -> High -> Medium -> Low)
-##      2nd in a row:              Medium at most, and on Direct3D 12 the game restarts itself once on Vulkan
-##    A clean exit resets the count. Level-editor test runs are killed by the editor when it relaunches one, so
-##    a missing clean exit there is only trusted once the run had lasted a while (MIN_RUN).
+## 1. When the last run's engine log shows the GPU was lost (a driver reset: Vulkan "device was lost", D3D12
+##    DXGI_ERROR_DEVICE_REMOVED), the preset drops one step (Ultra -> High -> Medium -> Low) instead of going
+##    straight back into what killed it. Any other unclean exit (the game stopped from the editor, killed in the
+##    Task Manager, a script crash) leaves the settings alone: it used to lower the preset too, so stopping a test
+##    run a few times quietly put the game on Low. A clean exit resets the count. Level-editor test runs are
+##    killed by the editor when it relaunches one, so a missing clean exit there is only trusted once the run had
+##    lasted a while (MIN_RUN).
 ##
 ## 2. A crash report says what went wrong. Every SAMPLE_EVERY seconds the run saves a snapshot of its resources
 ##    (script memory, video memory, node / object / orphan counts, draw calls, slowest frame, level, position)
@@ -22,9 +24,8 @@ const STATE_FILE := "user://last_state.txt"
 const TRACE_FILE := "user://boot_trace.log"
 const REPORT_DIR := "user://crash_reports/"
 const MIN_RUN := 25.0            # seconds a flagged run must have lasted for a test run to count as a crash
-const RELAUNCH_ARG := "--stability-relaunch"
-## Off: after repeated crashes the game used to restart itself on Vulkan, which is the driver that loses the device on the RX 5700 XT
-const ALLOW_VULKAN_FALLBACK := false
+## What the engine logs when the GPU goes away (Vulkan, D3D12: DXGI_ERROR_DEVICE_REMOVED / HUNG / RESET)
+const GPU_LOST := ["device was lost", "0x887a0005", "0x887a0006", "0x887a0007", "DEVICE_REMOVED", "VK_ERROR_DEVICE_LOST"]
 const SAMPLE_EVERY := 2.0
 const VERDICT_ROWS := 10         # the verdict looks at the last 20 seconds
 const RING_SIZE := 30            # one minute of history
@@ -71,8 +72,12 @@ func _ready() -> void:
 	trace("crash counter=%d, running.flag present=%s (its content = seconds the last run lasted)" % [crashes, flagged])
 	if flagged and _last_run_counts():
 		crashes += 1
-		_write_report()
-		_back_off()
+		var gpu_lost := _gpu_lost_last_run()
+		_write_report(gpu_lost)
+		if gpu_lost:
+			_back_off()
+		else:
+			trace("the last run did not exit cleanly, but its log shows no GPU loss: settings left as they were")
 	elif flagged:
 		trace("flag present but ignored: the last run was an editor test window killed after under %.0fs" % MIN_RUN)
 	_save()
@@ -88,40 +93,28 @@ func _last_run_counts() -> bool:
 		return false             # the editor killing its previous test window
 	return true
 
+## The previous run's engine log has the driver's own words for a lost GPU
+func _gpu_lost_last_run() -> bool:
+	var path := _previous_log()
+	if path == "" or not FileAccess.file_exists(path):
+		return false
+	var text := FileAccess.get_file_as_string(path)
+	for k in GPU_LOST:
+		if text.containsn(k):
+			return true
+	return false
+
 # ---- back off ----------------------------------------------------------------------------------------
 func _back_off() -> void:
-	push_warning("Stability: the last run did not exit cleanly (%d in a row), backing off" % crashes)
-	trace("BACK OFF: %d unclean exit(s) in a row, preset %s -> lower%s" % [crashes, Gfx.preset, ", and may relaunch on Vulkan" if crashes >= 2 else ""])
+	push_warning("Stability: the GPU was lost in the last run (%d unclean exit(s) in a row), backing off" % crashes)
 	var lower := {"ultra": "high", "high": "medium", "medium": "low"}
+	var was := Gfx.preset
 	if lower.has(Gfx.preset):
 		Gfx.set_preset(lower[Gfx.preset])
-	if crashes >= 2:
-		if Gfx.preset != "medium" and Gfx.preset != "low":
-			Gfx.set_preset("medium")
-		_relaunch_on_vulkan()
+	elif Gfx.preset == "custom":
+		Gfx.set_preset("medium")
+	trace("BACK OFF: GPU lost in the last run, preset %s -> %s" % [was, Gfx.preset])
 	safe_mode = Gfx.preset
-
-## Direct3D 12 died twice running: the same game on Vulkan, once (the argument stops a restart loop)
-func _relaunch_on_vulkan() -> void:
-	if not ALLOW_VULKAN_FALLBACK:
-		trace("relaunch on Vulkan disabled: staying on %s" % RenderingServer.get_current_rendering_driver_name())
-		return
-	var user_args := OS.get_cmdline_user_args()
-	if RenderingServer.get_current_rendering_driver_name() != "d3d12" or user_args.has(RELAUNCH_ARG):
-		trace("relaunch on Vulkan skipped (driver=%s, already relaunched=%s)" % [RenderingServer.get_current_rendering_driver_name(), user_args.has(RELAUNCH_ARG)])
-		return
-	var out: PackedStringArray = ["--rendering-driver", "vulkan"]
-	if not OS.has_feature("template"):          # run from the Godot executable (editor test): it needs the project
-		out.append_array(["--path", ProjectSettings.globalize_path("res://")])
-	out.append("--")
-	out.append_array(user_args)
-	out.append(RELAUNCH_ARG)
-	trace("RELAUNCHING ON VULKAN: this process quits now. Command: %s %s" % [OS.get_executable_path(), out])
-	if OS.create_process(OS.get_executable_path(), out) > 0:
-		crashes = 0              # (so the new run starts clean)
-		_save()
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(FLAG))
-		get_tree().quit()
 
 func _save() -> void:
 	var cf := ConfigFile.new()
@@ -205,7 +198,7 @@ func _where() -> String:
 	return "scene=%s pos=%s" % [scene.name if scene else "-", pos]
 
 # ---- the report --------------------------------------------------------------------------------------
-func _write_report() -> void:
+func _write_report(gpu_lost: bool) -> void:
 	var state := FileAccess.get_file_as_string(STATE_FILE) if FileAccess.file_exists(STATE_FILE) else ""
 	var rows: Array = []
 	var lines := state.split("\n", false)
@@ -214,6 +207,8 @@ func _write_report() -> void:
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-")
 	var out: PackedStringArray = []
 	out.append("CRASH REPORT  %s  (the previous run did not exit cleanly; %d in a row)" % [stamp, crashes])
+	out.append("KIND: " + ("GPU LOST (the driver reset the graphics card: the preset was lowered one step)" if gpu_lost
+		else "no GPU loss in the log: the game was stopped, killed or hung (stopping it from the editor counts too)"))
 	out.append("")
 	out.append("== Verdict (what grew or spiked in the snapshots before it died)")
 	out.append_array(_verdict(rows))

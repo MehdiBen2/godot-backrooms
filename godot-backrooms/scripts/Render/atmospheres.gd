@@ -12,7 +12,8 @@ extends RefCounted
 ##             drop ceiling with recessed panels, evenly lit, exposed right, clear air, only the panels clip.
 ##
 ## Keys are what _blend_env reads from the environment: ambient_energy / ambient_color (fill light), exposure and
-## tonemap_white (the camera's metering), glow_* (bloom), ssao_intensity, and haze (what the distance fades to).
+## agx_white (the camera's metering: the AgX tonemapper's white point, lower clips sooner; main.tscn's base is 6),
+## glow_* (bloom), ssao_intensity, and haze (what the distance fades to).
 
 const LOOKS := {
 	# THE CLASSIC OFFICE, rebuilt from scratch: a real office under recessed fluorescent panels. What makes it read as
@@ -27,7 +28,7 @@ const LOOKS := {
 	"classic": {
 		"ambient_energy": 0.38, "ambient_color": Color(0.4, 0.37, 0.27),   # a low, warm bounce floor: gaps stay dim
 		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7), "gi_ceil": 0.0,       # the bounce's strength and tint (yellow walls, beige carpet); a faint lift on the ceiling
-		"exposure": 1.0, "tonemap_white": 2.0,                             # ACES: mid-tones in the middle, highlights roll off
+		"exposure": 1.0, "agx_white": 4.0,                                 # mid-tones in the middle; the panels clip, the walls don't
 		"glow_threshold": 1.0,                                             # only the HDR panels bloom (a lit wall, or a torch on one, does not)
 		"glow_intensity": 0.75, "glow_bloom": 0.1, "glow_wide": 0.45,      # a soft halo round each panel, wider with distance
 		"ssao_intensity": 1.2,                                             # contact darkening where walls meet the ceiling and in corners
@@ -37,7 +38,7 @@ const LOOKS := {
 	# takes over from there.
 	"liminal": {
 		"ambient_energy": 0.65, "ambient_color": Color(0.31, 0.3, 0.25),    # pale, washed-out fill: shadows go grey, not black
-		"exposure": 1.1, "tonemap_white": 2.4,        # a touch bright, highlights rolled off softly
+		"exposure": 1.1, "agx_white": 5.0,            # a touch bright, highlights rolled off softly
 		"glow_threshold": 1.0, "glow_intensity": 0.85,
 		"glow_bloom": 0.06, "glow_wide": 0.35,        # a faint dreamy halo round the tubes
 		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow

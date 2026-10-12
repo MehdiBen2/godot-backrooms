@@ -34,6 +34,7 @@ func _ready() -> void:
 	else:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
+	preload("res://scripts/GameLogicEngine/load_manifest.gd").finish(get_tree())    # what this build read, kept for next time
 
 func toggle_fullscreen() -> void:
 	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN

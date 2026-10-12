@@ -193,14 +193,11 @@ func _build_graphics() -> Control:
 	v.add_child(_section_title("CAMERA"))
 	v.add_child(_choice_row("Camera", func(): return Gfx.camera, Gfx.CAMERAS, func(x: String): Gfx.set_camera(x),
 		{"auto": "Auto", "bodycam": "Bodycam", "camcorder": "Camcorder"}))
+	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
 	v.add_child(_cycle_row("Fluorescent banding", "banding", off_on))
 
 	v.add_child(_section_title("IMAGE"))
-	v.add_child(_cycle_row("Anti-aliasing (MSAA)", "msaa", [[0, "Off"], [2, "2x"], [4, "4x"]]))
-	v.add_child(_cycle_row("Temporal AA (TAA)", "taa", off_on))
-	v.add_child(_cycle_row("Edge smoothing (FXAA)", "fxaa", off_on))
-	v.add_child(_cycle_row("Texture filtering", "aniso", [[0, "Off"], [2, "2x"], [4, "4x"], [8, "8x"], [16, "16x"]]))
-	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
+	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"]]))
 	v.add_child(_cycle_row("Bloom", "glow", off_on))
 	v.add_child(_choice_row("Carpet", func(): return Gfx.carpet_soft, [true, false], func(x: bool): Gfx.set_carpet_soft(x),
 		{true: "Soft", false: "Original"}))
@@ -209,14 +206,11 @@ func _build_graphics() -> Control:
 
 	v.add_child(_section_title("LIGHTING"))
 	var quality := [[0, "Off"], [1, "Low"], [2, "Medium"], [3, "High"]]
-	v.add_child(_cycle_row("Shadows", "shadows", quality))
 	v.add_child(_cycle_row("Tube lights", "lights", [[6, "6"], [8, "8"], [10, "10"], [12, "12"]]))
-	v.add_child(_cycle_row("Tube light shadows", "light_shadows", [[0, "Off"], [2, "2"], [4, "4"], [8, "8"]]))
+	v.add_child(_cycle_row("Shadows", "shadows", quality))
+	v.add_child(_cycle_row("Tube light shadows", "light_shadows", [[0, "Off"], [1, "1"], [2, "2"], [3, "3"]]))
 	v.add_child(_cycle_row("Ambient occlusion", "ssao", quality))
-	v.add_child(_cycle_row("Global illumination", "baked_gi", off_on))
-	v.add_child(_cycle_row("Screen-space GI (heavy)", "ssil", off_on))
-	v.add_child(_cycle_row("Reflections", "ssr", off_on))
-	v.add_child(_cycle_row("Volumetric fog", "vfog", quality))
+	v.add_child(_cycle_row("Bounce light", "bounce", off_on))
 	Gfx.changed.connect(_gfx_sync)
 	_gfx_sync()
 	return v
@@ -228,9 +222,9 @@ func _gfx_sync() -> void:
 		_set_link_active(gfx_preset_buttons[n], Gfx.preset == n)
 	if gfx_scale_slider and int(gfx_scale_slider.value) != int(Gfx.s.scale):
 		gfx_scale_slider.value = Gfx.s.scale
-	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for weak PCs. Tube lights and their shadows cost the most. Smooth motion runs the camera at your screen's refresh rate. Adaptive resolution quietly lowers the render size when frames start dropping, and puts it back when they recover."
+	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for laptops and integrated graphics. Tube lights and their shadows cost the most, then ambient occlusion. Bounce light is the light the walls and carpet throw back. Smooth motion runs the camera at your screen's refresh rate."
 	if Gfx.compat:
-		note = "Compatibility renderer: ambient occlusion, reflections, global illumination and volumetric fog are unavailable on this PC."
+		note = "Compatibility renderer: ambient occlusion, bounce light and temporal anti-aliasing are unavailable on this PC."
 	gfx_note.text = note
 
 # ---- voice section (scripts/Voice/voice.gd) ----------------------------------------------------------

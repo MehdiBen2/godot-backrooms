@@ -163,7 +163,7 @@ func _report() -> String:
 			Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME), Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000],
 		"lights %d   shadow casters %d   VRAM %d MB   nodes %d" % [lc.x, lc.y,
 			Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576, Performance.get_monitor(Performance.OBJECT_NODE_COUNT)],
-		"preset %s   GI %s" % [Gfx.preset, "baked" if bool(Gfx.s.get("baked_gi", false)) else "off"],
+		"preset %s   bounce light %s" % [Gfx.preset, "on" if bool(Gfx.s.get("bounce", false)) else "off"],
 	]
 	lines.append_array(_systems_text(_sys_avg, 1.0))
 	lines.append("entities:")

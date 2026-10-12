@@ -76,134 +76,17 @@ func _safe_look_basis(dir_to: Vector3, fallback_fwd: Vector3) -> Basis:
 		up = -fallback_fwd if absf(fallback_fwd.dot(fwd)) < 0.9 else Vector3.RIGHT
 	return Basis.looking_at(fwd, up)
 
-## Spawns genuine 3D blood splatter particle bursts exploding toward and past the player's view
+## Blood thrown from its jaws toward and past the camera: a fast arterial spray, a fine mist and heavier clots.
+## Three bursts through the death effects' particle emitter (death_blood.gd), whose pipeline is built at level
+## start (its warm-up), so the bite never compiles anything in the middle of the attack; every droplet is opaque
+## for the same reason (an alpha-blended one is another pipeline). It used to be nine new particle systems with
+## new materials in half a second, on top of the death's own blood, the ragdoll and the camera's heaviest effects.
 func _spawn_blood_burst(origin: Vector3, to_cam: Vector3, intensity: float = 1.0) -> void:
 	if e == null or not is_instance_valid(e) or not e.is_inside_tree():
 		return
-	var world: Node = Game.main if Game.main != null and is_instance_valid(Game.main) else e.get_tree().current_scene
-	if world == null:
-		return
 	var count := intensity * Gfx.particle_scale()     # fewer droplets on the low presets
-	var dir_norm := (to_cam.normalized() + Vector3(0.0, 0.18, 0.0)).normalized()
-
-	# 1. High-velocity arterial blood spray (elongated droplets flying directly toward/past the camera)
-	var p_spray := GPUParticles3D.new()
-	p_spray.amount = maxi(4, int(120 * count))
-	p_spray.lifetime = 0.85
-	p_spray.one_shot = true
-	p_spray.explosiveness = 0.96
-	p_spray.local_coords = false
-	p_spray.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
-
-	var mat_spray := ParticleProcessMaterial.new()
-	mat_spray.direction = dir_norm
-	mat_spray.spread = 58.0
-	mat_spray.initial_velocity_min = 3.6 * intensity
-	mat_spray.initial_velocity_max = 9.2 * intensity
-	mat_spray.gravity = Vector3(0.0, -14.0, 0.0)
-	mat_spray.damping_min = 0.5
-	mat_spray.damping_max = 1.6
-	mat_spray.scale_min = 0.8
-	mat_spray.scale_max = 1.8
-	mat_spray.particle_flag_align_y = true
-	p_spray.process_material = mat_spray
-
-	var cap_mesh := CapsuleMesh.new()
-	cap_mesh.radius = 0.016
-	cap_mesh.height = 0.14
-	cap_mesh.radial_segments = 6
-	cap_mesh.rings = 2
-	var cap_mat := StandardMaterial3D.new()
-	cap_mat.albedo_color = Color(0.24, 0.006, 0.01, 0.96)
-	cap_mat.roughness = 0.08
-	cap_mat.metallic_specular = 0.95
-	cap_mat.metallic = 0.05
-	cap_mesh.material = cap_mat
-	p_spray.draw_pass_1 = cap_mesh
-	p_spray.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	world.add_child(p_spray)
-	p_spray.global_position = origin
-	p_spray.emitting = true
-
-	# 2. Fine blood mist / vapor cloud hanging in the flashlight beam
-	var p_mist := GPUParticles3D.new()
-	p_mist.amount = maxi(4, int(60 * count))
-	p_mist.lifetime = 0.75
-	p_mist.one_shot = true
-	p_mist.explosiveness = 0.92
-	p_mist.local_coords = false
-	p_mist.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
-
-	var mat_mist := ParticleProcessMaterial.new()
-	mat_mist.direction = dir_norm
-	mat_mist.spread = 82.0
-	mat_mist.initial_velocity_min = 1.8 * intensity
-	mat_mist.initial_velocity_max = 5.4 * intensity
-	mat_mist.gravity = Vector3(0.0, -4.5, 0.0)
-	mat_mist.damping_min = 1.2
-	mat_mist.damping_max = 2.8
-	mat_mist.scale_min = 0.9
-	mat_mist.scale_max = 2.2
-	p_mist.process_material = mat_mist
-
-	var sph_mesh := SphereMesh.new()
-	sph_mesh.radius = 0.024
-	sph_mesh.height = 0.048
-	sph_mesh.radial_segments = 6
-	sph_mesh.rings = 3
-	var sph_mat := StandardMaterial3D.new()
-	sph_mat.albedo_color = Color(0.38, 0.012, 0.018, 0.75)
-	sph_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	sph_mat.roughness = 0.15
-	sph_mesh.material = sph_mat
-	p_mist.draw_pass_1 = sph_mesh
-	p_mist.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	world.add_child(p_mist)
-	p_mist.global_position = origin
-	p_mist.emitting = true
-
-	# 3. Dense flesh/blood chunks exploding outward
-	var p_chunks := GPUParticles3D.new()
-	p_chunks.amount = maxi(4, int(25 * count))
-	p_chunks.lifetime = 1.1
-	p_chunks.one_shot = true
-	p_chunks.explosiveness = 0.98
-	p_chunks.local_coords = false
-	p_chunks.visibility_aabb = AABB(Vector3(-10, -10, -10), Vector3(20, 20, 20))
-
-	var mat_chunks := ParticleProcessMaterial.new()
-	mat_chunks.direction = (dir_norm + Vector3(randf_range(-0.4, 0.4), 0.3, randf_range(-0.4, 0.4))).normalized()
-	mat_chunks.spread = 90.0
-	mat_chunks.initial_velocity_min = 2.0 * intensity
-	mat_chunks.initial_velocity_max = 7.5 * intensity
-	mat_chunks.gravity = Vector3(0.0, -18.0, 0.0)
-	mat_chunks.damping_min = 0.4
-	mat_chunks.damping_max = 1.0
-	mat_chunks.scale_min = 0.8
-	mat_chunks.scale_max = 2.0
-	p_chunks.process_material = mat_chunks
-
-	var chunk_mesh := SphereMesh.new()
-	chunk_mesh.radius = 0.032
-	chunk_mesh.height = 0.064
-	chunk_mesh.radial_segments = 5
-	chunk_mesh.rings = 3
-	var chunk_mat := StandardMaterial3D.new()
-	chunk_mat.albedo_color = Color(0.14, 0.003, 0.006, 1.0)
-	chunk_mat.roughness = 0.2
-	chunk_mesh.material = chunk_mat
-	p_chunks.draw_pass_1 = chunk_mesh
-	p_chunks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	world.add_child(p_chunks)
-	p_chunks.global_position = origin
-	p_chunks.emitting = true
-
-	# Auto-free after particles complete
-	e.get_tree().create_timer(1.8).timeout.connect(func() -> void:
-		if is_instance_valid(p_spray): p_spray.queue_free()
-		if is_instance_valid(p_mist): p_mist.queue_free()
-		if is_instance_valid(p_chunks): p_chunks.queue_free()
-	)
+	var dir := to_cam.normalized() if to_cam.length_squared() > 0.0001 else Vector3.UP
+	Death.bite_burst(origin, dir, count, intensity)
 
 # It has you: called from the entity's reach check instead of an instant death
 func start() -> void:

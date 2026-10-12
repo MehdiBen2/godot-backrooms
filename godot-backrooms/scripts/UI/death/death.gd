@@ -159,6 +159,11 @@ func bite(mouth: Vector3, victim: Vector3, cam_pos: Vector3) -> void:
 	var to_victim := cam_pos - mouth
 	_fx.spray(mouth, to_victim if to_victim.length() > 0.01 else Vector3.UP)
 
+## The bacteria's bite (bacteria_grab.gd): spray, mist and clots out of its jaws toward the camera. `count` scales
+## the droplets (the preset's particle share times the bite's intensity), `force` their speed.
+func bite_burst(origin: Vector3, dir: Vector3, count: float, force: float) -> void:
+	_fx.burst(origin, dir, count, force)
+
 ## The grab begins: clear last run's blood
 func grab_begin() -> void:
 	_fx.clear()

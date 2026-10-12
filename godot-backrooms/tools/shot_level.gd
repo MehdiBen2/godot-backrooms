@@ -59,20 +59,15 @@ func _initialize() -> void:
 			best = d
 	player.rotation.y = atan2(-float(best.x), -float(best.y))
 	cam.rotation.x = deg_to_rad(float(env_or.call("PITCH", "8")))
-	# OFF=vfog,ssr,ssao,ssil,glow,fog,post,gi,hud: switch effects off to find which one draws something
+	# OFF=ssao,glow,fog,post,gi,hud: switch effects off to find which one draws something
 	var off: PackedStringArray = str(env_or.call("OFF", "")).split(",", false)
 	var e: Environment = (main.get_node("WorldEnvironment") as WorldEnvironment).environment
 	for k in off:
 		match k:
-			"vfog": e.volumetric_fog_enabled = false
-			"ssr": e.ssr_enabled = false
 			"ssao": e.ssao_enabled = false
-			"ssil": e.ssil_enabled = false
 			"glow": e.glow_enabled = false
 			"fog": e.fog_enabled = false
-			"gi":
-				e.sdfgi_enabled = false
-				if level.voxel_gi: level.voxel_gi.visible = false
+			"gi": root.get_node("Gfx").set_value("bounce", false)
 			"post", "hud": main.get_node("UI").visible = false
 			"torch":
 				player.flash_on = false

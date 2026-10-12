@@ -235,7 +235,7 @@ func _build_wrap_copies() -> void:
 ## The plain geometry the floor's build made (no scripted node or scene, nor anything under one)
 func _collect_wrap(n: Node, out: Array) -> void:
 	for c in n.get_children():
-		if c == _wrap_root or c == _horizon or c == voxel_gi or c in shells.values() or c.has_meta("demoted"): continue
+		if c == _wrap_root or c == _horizon or c in shells.values() or c.has_meta("demoted"): continue
 		if c.get_script() != null or c.scene_file_path != "" or c is Light3D: continue
 		if (c is GeometryInstance3D and (c as Node3D).visible) or c is OccluderInstance3D: out.append(c)
 		if c is Node3D: _collect_wrap(c, out)
@@ -510,7 +510,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 		stay[away] = true
 	var mats: Array = []
 	for c in get_children():
-		if c == marks or c == sketches or pool_set.has(c) or c == voxel_gi or c == dust or c == keep or c == cover or stay.has(c):
+		if c == marks or c == sketches or pool_set.has(c) or c == dust or c == keep or c == cover or stay.has(c):
 			continue
 		# (the fake floor reflections hang under their floor, which from here would be in the room below it)
 		if away != null and not (c in stairwells) and c != reflect_mmi and c != pit_fall:
@@ -650,8 +650,8 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 				_build_fixture_meshes()
 			_build_floor_reflections()
 			_build_floor_glow()
-			_apply_gi()
-			build_grid_gi(),
+			grid_gi = null                 # (the old floor's surfaces, which it was laid over, are gone)
+			_apply_gi(),
 		func() -> void:
 			_build_exit()
 			_spawn_batteries()
@@ -673,7 +673,7 @@ func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 		stage.call()
 		if cover == null: continue
 		for c in get_children():
-			if not before.has(c) and c is Node3D and c != voxel_gi and (c as Node3D).visible:
+			if not before.has(c) and c is Node3D and (c as Node3D).visible:
 				(c as Node3D).visible = false
 				veiled.append(c)
 	if cover != null:

@@ -44,6 +44,7 @@ var img: Image
 var tex: ImageTexture
 var passes: Array[ShaderMaterial] = []
 var ceil_passes: Array[ShaderMaterial] = []
+var _owners: Array[Material] = []  # the materials attach() hung a pass on (detach() takes it off again)
 var _scale := 1.0
 var _boost := 1.0
 var _cell := 4.5
@@ -217,11 +218,22 @@ func attach(root: Node, skip: Array, ceil_layer: int) -> void:
 			ceil_passes.append(cp)
 			made[m] = cp
 			m.next_pass = cp
+			_owners.append(m)
 			continue
 		if not _eligible(m): continue
 		var p := _pass_for(m)
 		made[m] = p
 		m.next_pass = p
+		_owners.append(m)
+
+## Take the passes off again (Gfx `bounce` switched off): every material attach() gave one gets its own look back
+func detach() -> void:
+	for m: Material in _owners:
+		if is_instance_valid(m) and m.next_pass != null and m.next_pass.has_meta("grid_gi"):
+			m.next_pass = null
+	_owners.clear()
+	passes.clear()
+	ceil_passes.clear()
 
 ## A ceiling material can take the additive lift: opaque, and not already carrying a pass of ours
 func _eligible_ceil(m: Material) -> bool:

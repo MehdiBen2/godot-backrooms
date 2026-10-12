@@ -1,7 +1,7 @@
 extends RefCounted
 ## The tubes on the walls of a shaft (pit_fall.gd, endless_shaft.gd): the level's own troffer model
-## (models/lights, as level_fixtures.gd places it), screwed to the wall under the slab. One mesh of all the lamps of a
-## storey, a surface for each part of the model. Their light is the shader's (pit_lamp.gdshader, pit_lamp_lens.gdshader):
+## (models/lights, as level_fixtures.gd places it), screwed to the wall under the slab. A MultiMesh for each part
+## of the model, holding every lamp of a storey. Their light is the shader's (pit_lamp.gdshader, pit_lamp_lens.gdshader):
 ## the row's level, the same one pit_shaft.gdshader lights the walls from, so the tube, the glass and the wall agree.
 
 const MODEL := "res://models/lights/office_lighting_troffer_light_1x4.glb"
@@ -36,20 +36,21 @@ static func spot(at: Vector3, dir: Vector3, n: Vector3) -> Transform3D:
 	var b := Basis(dir, -n, dir.cross(-n)).scaled(Vector3.ONE * SCALE)
 	return Transform3D(b, at + n * 0.02)
 
-## One mesh of the lamps at `spots` (Transform3D), or null
-static func build(spots: Array) -> ArrayMesh:
-	if spots.is_empty(): return null
+## The lamps at `spots` (Transform3D): [[part id, MultiMesh of it at every spot]], empty if none. (They were merged
+## into one mesh with SurfaceTool.append_from, which reads the model's vertex data back off the GPU on every call:
+## 78 lamps took a third of a second. A MultiMesh draws the same with nothing to merge.)
+static func build(spots: Array) -> Array:
+	if spots.is_empty(): return []
 	_load_parts()
-	if _parts.is_empty(): return null
-	var out := ArrayMesh.new()
+	var out: Array = []
 	for part: Dictionary in _parts:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		var src: Mesh = part.mesh
-		for sp: Transform3D in spots:
-			st.append_from(src, 0, sp * (part.xf as Transform3D))
-		st.commit(out)
-		out.surface_set_name(out.get_surface_count() - 1, String(part.id))
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = part.mesh
+		mm.instance_count = spots.size()
+		for i in spots.size():
+			mm.set_instance_transform(i, (spots[i] as Transform3D) * (part.xf as Transform3D))
+		out.append([String(part.id), mm])
 	return out
 
 ## The materials, by part, taking what they share from the shaft's material `src`
@@ -74,13 +75,15 @@ static func sync(mats: Dictionary, src: ShaderMaterial, keys: Array = SHARED) ->
 		if v == null: continue
 		for m: ShaderMaterial in mats.values(): m.set_shader_parameter(k, v)
 
-## A MeshInstance3D of `mesh` wearing `mats` (from `materials`), seen only from near
-static func instance(mesh: ArrayMesh, mats: Dictionary) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	for i in mesh.get_surface_count():
-		mi.set_surface_override_material(i, mats[mesh.surface_get_name(i)])
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	mi.visibility_range_end = REACH
-	return mi
+## The lamps of `set` (from `build`) wearing `mats` (from `materials`), seen only from near
+static func instance(set: Array, mats: Dictionary) -> Node3D:
+	var root := Node3D.new()
+	for part: Array in set:
+		var mi := MultiMeshInstance3D.new()
+		mi.multimesh = part[1]
+		mi.material_override = mats[part[0]]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		mi.visibility_range_end = REACH
+		root.add_child(mi)
+	return root

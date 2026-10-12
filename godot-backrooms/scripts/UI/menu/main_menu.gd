@@ -15,6 +15,7 @@ const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
 const MUSIC_DB := -24.0                 # quiet bed, not a soundtrack
 const MAIN_SCENE := "res://scenes/main.tscn"
+const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const TIPS := [
 	"The hum is not always the lights.",
 	"Batteries stack. Tab to use them.",
@@ -140,6 +141,8 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	multiplayer.connected_to_server.connect(_on_multiplayer_connected)
 	_build()
+	if Game.test_level == "":
+		_preload_game()                  # (a level editor launch picks its level first: _on_play does it then)
 	if Game.test_level == "" and not Game.boot_played:   # first time up this launch: warnings, logo, CRT on
 		Game.boot_played = true
 		modulate.a = 0.0
@@ -775,11 +778,24 @@ func _start_loading() -> void:
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
-	ResourceLoader.load_threaded_request(MAIN_SCENE)
-	_warm_level_resources()
+	_preload_game()
+
+## The run, loading on loader threads from the moment the title screen is up (and again here, for a level other
+## than the one asked for then). Loading main.tscn compiles every script the run uses, ~57,000 lines of GDScript:
+## nearly all of the 3.5 s it takes, which used to start only when PLAY was pressed.
+static var _main_asked := false
+var _warm_for := -1                     # the level whose files _warm_level_resources asked for
+
+func _preload_game() -> void:
+	if not _main_asked:
+		_main_asked = ResourceLoader.load_threaded_request(MAIN_SCENE) == OK
+	if _warm_for != Game.level_index:
+		_warm_for = Game.level_index
+		_warm_level_resources()
 
 ## Things the level builder load()s one after another (a stall with no loading screen once the scene has
-## switched): requested here on loader threads, so those load() calls find them already in the cache.
+## switched): requested here on loader threads, so those load() calls find them already in the cache. These are
+## the ones known by hand; everything else the level read the last time it was built comes from load_manifest.gd.
 const WARM_SETS := [
 	["l0_carpet_", ["color", "normal", "rough", "ao"], ".webp"], ["l0_ceiling_", ["color", "normal", "rough", "ao"], ".webp"],
 	["l0_wallpaper_", ["color", "normal", "rough", "ao"], ".webp"], ["tiles_", ["color", "normal", "rough", "ao"], ".png"],
@@ -805,7 +821,6 @@ func _warm_level_resources() -> void:
 	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
 	if not levels.is_empty():
 		var meta: Dictionary = levels[clampi(Game.level_index, 0, levels.size() - 1)]
-		paths.append("res://levels/baked/%s_gi.res" % str(meta.get("id", "level")))
 		# the level's own material picks: its "materials" slots and every pbr name used by the "paint" brush
 		var d = JSON.parse_string(FileAccess.get_file_as_string("res://levels/" + str(meta.get("file", ""))))
 		if d is Dictionary:
@@ -818,9 +833,7 @@ func _warm_level_resources() -> void:
 			for id in ids:
 				if not str(id).is_empty():
 					paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
-	for p in paths:
-		if ResourceLoader.exists(p) and ResourceLoader.load_threaded_request(p) == OK:
-			_warm.append(p)
+	_warm = LoadManifest.warm(PackedStringArray(paths) + LoadManifest.paths(Game.level_index))
 
 func _warm_pending() -> bool:
 	for p in _warm:
@@ -838,11 +851,13 @@ func _level_name() -> String:
 
 func _finish_loading() -> void:
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
+	_main_asked = false
 	Stability.trace("play: main scene loaded (%s), switching to it" % ("OK" if packed != null else "FAILED: null"))
 	Game.respawned = true              # straight into the run: the title screen is this scene
 	Engine.max_fps = int(Gfx.s.get("fps", 0))
 	var tree := get_tree()
 	var cover := _cover_from_screen()
+	LoadManifest.record(Game.level_index)      # (main.gd stops it once the run is up)
 	tree.change_scene_to_packed(packed)
 	Stability.trace("play: change_scene_to_packed returned")
 	_fade_cover(tree, cover)
@@ -980,7 +995,7 @@ func _process_loading(dt: float) -> void:
 			set_process(false)
 			load_bar.size.x = 700.0
 			load_pct.text = "100%"
-			await get_tree().create_timer(0.25).timeout
+			await get_tree().create_timer(0.1).timeout     # (a beat on 100% so it reads; the game is usually loaded by now)
 			_finish_loading()
 
 # ---- AFK screen: the column fades away, the logo sits in the middle, a click brings the menu back ----

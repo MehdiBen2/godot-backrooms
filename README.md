@@ -26,8 +26,8 @@ Inside the game project:
 | `scripts/Events/` | The event director (power cuts, whispers, ...). |
 | `scripts/Net/`, `scripts/Voice/` | Co-op over WebSocket and proximity voice chat (ADPCM). |
 | `scripts/UI/` | Menus, HUD, inventory, death screen, debug console. |
-| `levels/` | Level grids (`*.lvl`), the level list (`levels.json`), object types and baked GI. |
-| `tools/` | Editor/headless helper scripts (smoke test, level bake, asset generators). Not exported. |
+| `levels/` | Level grids (`*.lvl`), the level list (`levels.json`), and object types. |
+| `tools/` | Editor/headless helper scripts (smoke test, screenshots, asset generators). Not exported. |
 
 ## Running the game
 
@@ -92,7 +92,7 @@ Command-line options (also passed by the launcher):
 
 Levels are ASCII grids in `godot-backrooms/levels/*.lvl`, listed in `levels.json`. Edit them with the level
 editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if the game folder isn't the
-sibling `godot-backrooms/`). After changing a level, re-bake its lighting with `tools/bake_level.gd`.
+sibling `godot-backrooms/`).
 
 Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs and shafts. Besides grid
 walls, the OBJECTS panel places free walls of any shape: thin walls and half walls (per-object Thickness and

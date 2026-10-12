@@ -317,9 +317,7 @@ func _build_menubar() -> Control:
 	var ctrl := KEY_MASK_CTRL
 	_menu(mb, "File", [
 		["New level", _ask_new, ctrl | KEY_N], ["Duplicate level", _ask_dup, ctrl | KEY_D], ["Rename level...", _ask_rename, 0], [],
-		["Save", save, ctrl | KEY_S], ["Save and bake lighting", func():
-			save()
-			if current >= 0: _bake(str(index[current].id)), 0], [],
+		["Save", save, ctrl | KEY_S], [],
 		["Test", _test_level, KEY_F5], ["Test here (noclip, cell under the mouse)", func(): _test_level(true), KEY_F6], [],
 		["Delete level...", _ask_delete, 0]])
 	_menu(mb, "Edit", [

@@ -1647,14 +1647,11 @@ func set_fullbright(on: bool) -> void:
 				env.set_meta("orig_ambient_energy", env.ambient_light_energy)
 				env.set_meta("orig_ambient_color", env.ambient_light_color)
 				env.set_meta("orig_fog", env.fog_enabled)
-				env.set_meta("orig_vol_fog", env.volumetric_fog_enabled)
 			env.ambient_light_energy = 2.2
 			env.ambient_light_color = Color.WHITE
 			env.fog_enabled = false
-			env.volumetric_fog_enabled = false
 		else:
 			if env.has_meta("orig_ambient_energy"):
 				env.ambient_light_energy = float(env.get_meta("orig_ambient_energy"))
 				env.ambient_light_color = env.get_meta("orig_ambient_color")
 				env.fog_enabled = bool(env.get_meta("orig_fog"))
-				env.volumetric_fog_enabled = bool(env.get_meta("orig_vol_fog"))

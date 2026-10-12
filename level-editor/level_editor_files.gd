@@ -1,7 +1,7 @@
 extends "res://level_editor_gen.gd"
 ## Level editor, part 3: the level files. Reads and writes levels.json and the .lvl files (including legacy
 ## migration), creates / duplicates / renames / moves / deletes levels, resizes the grid, sets materials,
-## bakes GI and launches the game on the current level. level_editor.gd builds the window around it.
+## and launches the game on the current level. level_editor.gd builds the window around it.
 
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
@@ -407,21 +407,6 @@ func save() -> void:
 	dirty = false
 	_update_title()
 	_status("Saved " + str(index[current].file))
-
-## Bake the saved level's bounce light (the game's tools/bake_level.gd: a VoxelGI of its walls, floors and
-## ceilings) in the background. Takes 30 s to 2 min depending on size; until it lands the game falls back to SDFGI.
-var _bake_pid := -1
-
-func _bake(id: String) -> void:
-	var exe := _godot_path()
-	if exe == "": return
-	if _bake_pid > 0 and OS.is_process_running(_bake_pid):
-		OS.kill(_bake_pid)                      # a newer save supersedes the running bake
-	var args := ["--path", GAME, "--resolution", "320x180", "--position", "-4000,-4000",
-		"--script", "res://tools/bake_level.gd", "--", "--bake-level=" + id]
-	_bake_pid = OS.create_process(exe, args)
-	if _bake_pid > 0:
-		_status("Saved %s  -  baking lighting in the background..." % str(index[current].file))
 
 ## Random clutter, scattered onto open floor: every object type flagged "scatter" in object_types.json
 ## (the industrial props), dropped at a random cell with a random rotation and size, clear of spawn / exit

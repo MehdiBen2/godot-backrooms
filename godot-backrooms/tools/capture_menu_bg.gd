@@ -24,9 +24,7 @@ func _initialize() -> void:
 	root.get_node("Game").respawned = true
 	var gfx := root.get_node("Gfx")
 	gfx.set_preset("ultra")
-	gfx.s["adapt"] = false
 	gfx.s["scale"] = 100
-	gfx.adapt_ratio = 1.0
 	gfx.apply()
 	main = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)

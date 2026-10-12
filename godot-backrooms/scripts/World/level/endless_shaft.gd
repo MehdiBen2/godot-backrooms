@@ -53,7 +53,7 @@ func setup(lvl: Node3D, from: Dictionary) -> void:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		add_child(mi)
-		if k > 0 and lamp_mesh != null: mi.add_child(ShaftLamps.instance(lamp_mesh, lamp_mats))
+		if k > 0 and not lamp_mesh.is_empty(): mi.add_child(ShaftLamps.instance(lamp_mesh, lamp_mats))
 	_add_cap(cells)
 
 ## The haze over the top, so the far end is never a hole to the sky

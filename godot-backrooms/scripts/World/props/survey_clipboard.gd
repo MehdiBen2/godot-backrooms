@@ -30,19 +30,23 @@ func _build_mesh() -> void:
 
 	# 1. The paper: one of the A4 sheets, its middle on the note's origin, lying on the floor
 	var top := 0.03
-	var model := Prop._instance(PAPER_MODEL)
-	if model != null:
-		var key := paper
-		if not PAPERS.has(key):                     # the same paper every time for a note in the same place
-			var spot := Vector2i(roundi(global_position.x * 10.0), roundi(global_position.z * 10.0))
-			key = RANDOM_PAPERS[absi(hash(spot)) % RANDOM_PAPERS.size()]
-		var box := AABB()
-		var first := true
-		for mi in Prop.kept_meshes(model, [PAPERS[key]], []):
-			var b := Prop.mesh_box(mi.mesh, Prop.in_model(mi, model))
-			box = b if first else box.merge(b)
-			first = false
-		_merge_parts(model)
+	var key := paper
+	if not PAPERS.has(key):                     # the same paper every time for a note in the same place
+		var spot := Vector2i(roundi(global_position.x * 10.0), roundi(global_position.z * 10.0))
+		key = RANDOM_PAPERS[absi(hash(spot)) % RANDOM_PAPERS.size()]
+	var built := _paper(key)
+	if not built.is_empty():
+		var box: AABB = built.box
+		var model := Node3D.new()
+		model.transform = built.xf
+		for part: Array in built.parts:
+			var mi := MeshInstance3D.new()
+			mi.mesh = part[0]
+			mi.material_override = part[1]
+			mi.visibility_range_end = 45.0
+			mi.visibility_range_end_margin = 8.0
+			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			model.add_child(mi)
 		model.scale = Vector3.ONE * PAPER_SCALE
 		model.position = Vector3(-box.get_center().x, -box.position.y, -box.get_center().z) * PAPER_SCALE + Vector3(0, 0.002, 0)
 		mesh_root.rotation.y = float(absi(hash(Vector2i(roundi(global_position.x * 7.0), roundi(global_position.z * 7.0)))) % 360) * PI / 180.0
@@ -61,10 +65,35 @@ func _build_mesh() -> void:
 
 
 
+## One kind of paper (a key of PAPERS), built once and shared by every note of that kind: {parts: [[merged mesh,
+## material]], box: its box in the model's space, xf: the model root's own transform}. Empty if the model is missing.
+## (Each note used to instance the whole paper pack and merge it again: most of the cost of a level's notes.)
+static var _papers := {}
+
+static func _paper(key: String) -> Dictionary:
+	if _papers.has(key):
+		return _papers[key]
+	var model := Prop._instance(PAPER_MODEL)
+	if model == null:
+		return {}
+	var box := AABB()
+	var first := true
+	for mi in Prop.kept_meshes(model, [PAPERS[key]], []):
+		var b := Prop.mesh_box(mi.mesh, Prop.in_model(mi, model))
+		box = b if first else box.merge(b)
+		first = false
+	var parts: Array = []
+	for mi: MeshInstance3D in _merge_parts(model):
+		parts.append([mi.mesh, mi.material_override])
+	_papers[key] = {"parts": parts, "box": box, "xf": model.transform}
+	model.free()
+	return _papers[key]
+
 ## The model (a paper, or several) can be many small meshes, each with its own material and visibility. They are merged here
 ## into one mesh per material (SurfaceTool), so a clipboard is a few nodes, not dozens. Each merged mesh is darkened
-## and matted the way the parts were, and fades out past 45 m as they did.
-func _merge_parts(model: Node3D) -> void:
+## and matted the way the parts were.
+static func _merge_parts(model: Node3D) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
 	var groups := {}                                   # source material (or null) -> SurfaceTool
 	var parts := model.find_children("*", "MeshInstance3D", true, false)
 	for part: MeshInstance3D in parts:
@@ -90,15 +119,14 @@ func _merge_parts(model: Node3D) -> void:
 		if mat is StandardMaterial3D:
 			var sm := (mat as StandardMaterial3D).duplicate() as StandardMaterial3D
 			sm.roughness = 1.0                                 # paper: matte, no sheen
-			sm.specular = 0.5                                  # keep the model's albedo; a soft highlight, not a shine
+			sm.metallic_specular = 0.5                         # keep the model's albedo; a soft highlight, not a shine
 			m = sm
 		var mi := MeshInstance3D.new()
 		mi.mesh = (groups[mat] as SurfaceTool).commit()
 		mi.material_override = m
-		mi.visibility_range_end = 45.0
-		mi.visibility_range_end_margin = 8.0
-		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		model.add_child(mi)
+		out.append(mi)
+	return out
 
 ## Scanner interface for Q (scanner.gd)
 func scan_points() -> Array:

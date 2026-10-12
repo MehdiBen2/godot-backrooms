@@ -206,6 +206,16 @@ static func in_model(mi: Node3D, inst: Node) -> Transform3D:
 		up = up.get_parent()
 	return xf
 
+## A mesh's triangles as a collision shape, made once and shared by every prop drawn with that mesh: making one
+## reads the mesh back off the GPU, and the physics engine builds its tree for each shape it is given, so the same
+## sofa a dozen times over was a dozen of each (Level 0: 29 shapes, 109,000 triangles, mostly repeats).
+static var _trimeshes := {}          # Mesh -> ConcavePolygonShape3D
+
+static func _trimesh(mesh: Mesh) -> Shape3D:
+	if not _trimeshes.has(mesh):
+		_trimeshes[mesh] = mesh.create_trimesh_shape()
+	return _trimeshes[mesh]
+
 ## Something solid where the prop stands, so you can't walk through a sofa: a box round it, or its real shape
 func _add_collision(kind: String, box: AABB, meshes: Array[MeshInstance3D], inst: Node3D) -> void:
 	if kind == "none" or box.size.y < 0.05:
@@ -216,7 +226,7 @@ func _add_collision(kind: String, box: AABB, meshes: Array[MeshInstance3D], inst
 	if kind == "mesh":
 		for mi in meshes:
 			var cs := CollisionShape3D.new()
-			cs.shape = mi.mesh.create_trimesh_shape()
+			cs.shape = _trimesh(mi.mesh)
 			cs.transform = inst.transform * in_model(mi, inst)
 			body.add_child(cs)
 		return

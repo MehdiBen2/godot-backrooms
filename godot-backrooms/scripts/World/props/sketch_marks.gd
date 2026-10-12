@@ -364,8 +364,24 @@ func _spawn(s: Dictionary) -> void:
 	meshes[s.id] = key
 	_rebuild(key)
 
-## Draw a batch again: every stroke in it, one surface each, lifted a little apart so they don't fight
+## The batch's mesh is out of date: it is drawn again once, at the end of the frame (_flush), however many of
+## its strokes changed. Rebuilding it on every stroke made loading a floor quadratic: Level 0's 788 strokes in
+## batches of up to 200 drew ~20,000 ribbons where 788 do, and froze the first frame of the run for two seconds.
 func _rebuild(key: Vector2i) -> void:
+	if _dirty.is_empty():
+		_flush.call_deferred()
+	_dirty[key] = true
+
+var _dirty := {}
+
+func _flush() -> void:
+	for key: Vector2i in _dirty:
+		if _batch.has(key) and _batch_mi.has(key) and is_instance_valid(_batch_mi[key]):
+			_draw_batch(key)
+	_dirty.clear()
+
+## Draw a batch again: every stroke in it, one surface each, lifted a little apart so they don't fight
+func _draw_batch(key: Vector2i) -> void:
 	var mesh := ArrayMesh.new()
 	var list: Array = _batch[key]
 	for i in list.size():

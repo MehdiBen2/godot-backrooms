@@ -119,9 +119,12 @@ void fragment() {
 		float curr_map_depth = 1.0 - textureGrad(height_tex, curr_uv, uv_dx, uv_dy).r;
 		float prev_map_depth = curr_map_depth;
 
-		// hard-capped march (an unbounded while can spin on a flat-black height texel)
-		int steps = int(num_layers) + 1;
-		for (int i = 0; i < steps && curr_layer_depth < curr_map_depth; i++) {
+		// hard-capped march (an unbounded while can spin on a flat-black height texel). The bound is a constant:
+		// a loop whose length comes from a float (NaN from a degenerate view vector converts to any int) is one the
+		// GPU can be stuck in long enough for the driver to reset it
+		int steps = clamp(int(num_layers) + 1, 1, 65);
+		for (int i = 0; i < 65; i++) {
+			if (i >= steps || curr_layer_depth >= curr_map_depth) break;
 			prev_map_depth = curr_map_depth;
 			curr_uv += delta_uv;
 			curr_layer_depth += layer_step;
