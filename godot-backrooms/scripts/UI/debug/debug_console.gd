@@ -16,6 +16,8 @@ extends CanvasLayer
 ##  - TELEPORTATION: Warp to Spawn, Mannequins, Bacteria, Ceiling (+5m), Custom X/Z
 ##  - LIVE OVERLAY HUD: Realtime on-screen telemetry (FPS, Pos, Speed, Vitals, Radar)
 ##  - HAND ANIMATION TEST: Battery swap, smack, squeeze, finger roll, regrip, flinch (P plays the last again)
+##  - ANIMATION TEST: a survivor suit walking forward / backward / strafing / diagonals / a circle, walk run or
+##    crouch, head looks, death, slow motion ([ ] next move, ; gait, ' head test, / slow motion)
 ##  - COMMAND CONSOLE: Full command line with history and existing dev commands
 
 const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
@@ -23,6 +25,7 @@ const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const EntityRoster := preload("res://scripts/Entities/entity_roster.gd")
+const AnimWalker := preload("res://scripts/UI/debug/anim_walker.gd")
 
 const ENTITIES := {
 	"bacteria": "Entity",
@@ -136,6 +139,11 @@ var dbg_anims: Array[String] = []
 var dbg_anims_idx := 0
 
 var hand_anim_last := "swap"      # the arm clip P plays again
+
+# Animation test walker (ANIMATION tab)
+var walker: AnimWalker
+var walker_status: Label
+var btn_walker_slow: Button
 
 func _ready() -> void:
 	layer = 120
@@ -648,6 +656,7 @@ func _build_menu_window(parent: Control) -> void:
 		{"id": "entities", "label": "MONSTERS & BEHAVIOR"},
 		{"id": "world", "label": "WORLD & EVENTS"},
 		{"id": "teleport", "label": "TELEPORTATION"},
+		{"id": "anim", "label": "ANIMATION"},
 		{"id": "console", "label": "CONSOLE"}
 	]
 	for t in tabs:
@@ -672,6 +681,7 @@ func _build_menu_window(parent: Control) -> void:
 	tab_panels["entities"] = _build_entities_tab()
 	tab_panels["world"] = _build_world_tab()
 	tab_panels["teleport"] = _build_teleport_tab()
+	tab_panels["anim"] = _build_anim_tab()
 	tab_panels["console"] = _build_console_tab()
 
 	for k in tab_panels:
@@ -681,6 +691,66 @@ func _build_menu_window(parent: Control) -> void:
 	_sync_quick_buttons()
 
 # ---------------------------------------------------------------- Tabs Content
+# TAB: Animation test. A survivor suit walking on the same Locomotion teammates use, pacing a short lane
+# beside you. The window would hide it: a move or head test closes the menu; gait / slow motion don't.
+func _build_anim_tab() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 12)
+	scroll.add_child(v)
+
+	v.add_child(_label("A survivor walks a %d m lane in front of you, turns round at each end and keeps the same step." % int(AnimWalker.LANE), 12, Color(0.75, 0.85, 0.8)))
+	v.add_child(_label("Menu closed:  [ ]  previous / next move     ;  walk / run / crouch     '  next head test     /  slow motion", 11, Color(0.55, 0.65, 0.62)))
+	walker_status = _label("WALKER: none", 12, Color(0.95, 0.85, 0.5))
+	v.add_child(walker_status)
+
+	v.add_child(_section_header("WALKER"))
+	var top := HFlowContainer.new()
+	top.add_theme_constant_override("h_separation", 8)
+	top.add_theme_constant_override("v_separation", 6)
+	v.add_child(top)
+	top.add_child(_action_btn("SUMMON HERE", func(): _walker_summon(true)))
+	top.add_child(_action_btn("DISMISS", func(): _walker_off()))
+	top.add_child(_action_btn("DIE", func(): _walker_do(func(w): w.dead = true, true)))
+	top.add_child(_action_btn("REVIVE", func(): _walker_do(func(w): w.dead = false, true)))
+	btn_walker_slow = _make_toggle_btn("SLOW MOTION 0.25x", Color(0.85, 0.6, 1.0), func(on):
+		_walker_do(func(w): w.time_scale = 0.25 if on else 1.0, false))
+	top.add_child(btn_walker_slow)
+
+	v.add_child(_section_header("GAIT"))
+	var gaits := HFlowContainer.new()
+	gaits.add_theme_constant_override("h_separation", 8)
+	v.add_child(gaits)
+	for g in AnimWalker.GAITS:
+		gaits.add_child(_action_btn(str(g).to_upper(), func(): _walker_do(func(w): w.set_gait(g), false)))
+
+	v.add_child(_section_header("MOVES (MENU CLOSES TO WATCH)"))
+	var moves := HFlowContainer.new()
+	moves.add_theme_constant_override("h_separation", 8)
+	moves.add_theme_constant_override("v_separation", 6)
+	v.add_child(moves)
+	for m in AnimWalker.MOVES:
+		moves.add_child(_action_btn(AnimWalker.MOVES[m][0], func(): _walker_do(func(w): w.set_move(m), true)))
+
+	v.add_child(_section_header("HEAD (STANDS, FACES YOU, THEN LOOKS)"))
+	var looks := HFlowContainer.new()
+	looks.add_theme_constant_override("h_separation", 8)
+	looks.add_theme_constant_override("v_separation", 6)
+	v.add_child(looks)
+	for l in AnimWalker.LOOKS:
+		looks.add_child(_action_btn(AnimWalker.LOOKS[l][0], func(): _walker_do(func(w): w.set_look(l), true)))
+
+	v.add_child(_section_header("RAW CLIPS (IN PLACE, NO BLENDING)"))
+	var raw := HFlowContainer.new()
+	raw.add_theme_constant_override("h_separation", 8)
+	v.add_child(raw)
+	raw.add_child(_action_btn("SHOW / HIDE  (M)", func(): _model_command("")))
+	raw.add_child(_action_btn("PREVIOUS CLIP  (,)", func(): _model_command("prev")))
+	raw.add_child(_action_btn("NEXT CLIP  (.)", func(): _model_command("next")))
+	return scroll
+
 # TAB 1: Cheats & Player
 func _build_cheats_tab() -> Control:
 	var scroll := ScrollContainer.new()
@@ -1416,6 +1486,14 @@ func _input(e: InputEvent) -> void:
 	if not Game.dev_keys or not unlocked or _guest_locked():
 		return
 
+	# Animation test walker hotkeys (only while one is out)
+	if not menu_window.visible and is_instance_valid(walker):
+		var keys := {KEY_BRACKETRIGHT: "next", KEY_BRACKETLEFT: "prev", KEY_SEMICOLON: "gait", KEY_APOSTROPHE: "look", KEY_SLASH: "slow"}
+		if keys.has(e.physical_keycode):
+			_walker_command(keys[e.physical_keycode])
+			get_viewport().set_input_as_handled()
+			return
+
 	# Survivor model preview hotkeys
 	if not menu_window.visible and e.physical_keycode == KEY_M:
 		_model_command("")
@@ -1494,6 +1572,7 @@ func _submit(line: String) -> void:
 		"help", "?":
 			_print("Cheats: noclip, invisible, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
+			_print("Walker: walker [%s|walk|run|crouch|look [%s]|die|revive|slow|off]" % ["|".join(AnimWalker.MOVES.keys()), "|".join(AnimWalker.LOOKS.keys())])
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("Events: event <name>, event stop (ends them all), events (lists them)")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
@@ -1660,6 +1739,8 @@ func _submit(line: String) -> void:
 			_print("bacteria stalking" if ok else "[color=orange]no stalk spot found here, try another spot[/color]")
 		"model":
 			_model_command(arg)
+		"walker":
+			_walker_command(line.to_lower().trim_prefix("walker").strip_edges())
 		"anim":
 			_hand_anim(arg)
 		"hud", "hidehud", "showhud", "togglehud":
@@ -1872,3 +1953,91 @@ func _play_model_clip() -> void:
 	var clip: String = dbg_anims[dbg_anims_idx]
 	dbg_anim.play(clip)
 	_print("model clip %d/%d: %s" % [dbg_anims_idx + 1, dbg_anims.size(), clip])
+
+# ---------------------------------------------------------------- animation test walker
+## Puts a walker in front of you (replacing one already out when `fresh`). False if the model is missing.
+func _walker_summon(fresh: bool) -> bool:
+	var pl := _get_player() as Node3D
+	if pl == null:
+		return false
+	if is_instance_valid(walker):
+		if not fresh:
+			return true
+		walker.queue_free()
+	walker = AnimWalker.new()
+	walker.name = "AnimWalker"
+	if not walker.build(pl.global_rotation.y):
+		walker.queue_free()
+		walker = null
+		_print("[color=orange]survivor model missing or has no animations[/color]")
+		return false
+	# 3.5 m in front of you, so its lane crosses your view
+	var fwd := -pl.global_transform.basis.z
+	fwd.y = 0.0
+	walker.position = pl.global_position + fwd.normalized() * 3.5
+	root.add_child(walker)
+	_walker_report()
+	return true
+
+func _walker_off() -> void:
+	if is_instance_valid(walker):
+		walker.queue_free()
+	walker = null
+	_walker_report()
+
+## Runs `what(walker)`, summoning one first if needed; `close` shuts the menu so it can be seen.
+func _walker_do(what: Callable, close: bool) -> void:
+	if not _walker_summon(false):
+		return
+	what.call(walker)
+	_walker_report()
+	if close and menu_window.visible:
+		_toggle(false)
+
+func _walker_command(arg: String) -> void:
+	var parts := arg.split(" ", false)
+	var a := parts[0] if parts.size() > 0 else ""
+	var keys: Array = AnimWalker.MOVES.keys()
+	match a:
+		"off", "dismiss":
+			_walker_off()
+			return
+		"", "summon":
+			_walker_summon(true)
+			return
+		"next", "prev":
+			if _walker_summon(false):
+				var i := keys.find(walker.move)
+				walker.set_move(keys[posmod(i + (1 if a == "next" else -1), keys.size())])
+		"gait":
+			if _walker_summon(false):
+				var gs: Array = AnimWalker.GAITS
+				walker.set_gait(gs[(gs.find(walker.gait) + 1) % gs.size()])
+		"walk", "run", "crouch":
+			_walker_do(func(w): w.set_gait(a), false)
+		"look":
+			if _walker_summon(false):
+				var ls: Array = AnimWalker.LOOKS.keys()
+				var which := parts[1] if parts.size() > 1 else str(ls[(ls.find(walker.look) + 1) % ls.size()])
+				walker.set_look(which)
+		"die", "dead":
+			_walker_do(func(w): w.dead = true, false)
+		"revive":
+			_walker_do(func(w): w.dead = false, false)
+		"slow":
+			_walker_do(func(w): w.time_scale = 1.0 if w.time_scale < 1.0 else 0.25, false)
+		_:
+			if AnimWalker.MOVES.has(a):
+				_walker_do(func(w): w.set_move(a), false)
+			else:
+				_print("[color=orange]walker what? %s[/color]" % ", ".join(keys))
+				return
+	_walker_report()
+
+func _walker_report() -> void:
+	var text := walker.describe() if is_instance_valid(walker) else "none"
+	if walker_status:
+		walker_status.text = "WALKER: " + text
+	if btn_walker_slow:
+		_update_toggle_btn(btn_walker_slow, is_instance_valid(walker) and walker.time_scale < 1.0, "SLOW MOTION 0.25x", Color(0.85, 0.6, 1.0))
+	_print("walker: " + text)

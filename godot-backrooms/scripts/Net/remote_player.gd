@@ -175,7 +175,7 @@ func _process(dt: float) -> void:
 	if _last_pos == Vector3.INF or _last_pos.distance_to(st.pos) > 3.0:
 		_vel = Vector3.ZERO
 	elif dt > 0.0:
-		var v := (st.pos - _last_pos) / dt
+		var v: Vector3 = (st.pos - _last_pos) / dt
 		_vel = _vel.lerp(Vector3(v.x, 0.0, v.z), 1.0 - exp(-12.0 * dt))
 	_last_pos = st.pos
 	if loco != null:

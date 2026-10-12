@@ -16,6 +16,7 @@ the file as it is and adds, all looping cleanly (last frame = first):
     run_strafe_l/_r   a side shuffle (chasse): lead foot, the other skips in to meet it, a short hop.
                       Three per run loop (same length as run)
     crouch_strafe_l/_r  the side-step low, two per crouch-walk loop
+    idle_still        idle_lookaround with its scripted head scan taken out (the game turns the head itself)
 
 Strafes keep the forward clip's upper body at the same time (so the breathing and the hands match), with
 the arm swing and chest twist mostly damped out, and rebuild the legs with IK. Left is the suit's own left
@@ -159,6 +160,13 @@ def mean_quat(qs):
     for q in qs:
         acc = acc + (q if ref.dot(q) >= 0 else -q)
     return acc.normalized()
+
+
+def facing(r, bone):
+    """Yaw (radians, + = to its left) of where `bone` faces with armature-space rotation r: its rest
+    forward (-Y) carried round."""
+    f = r @ rot3(REST[bone]).inverted() @ Vector((0, -1, 0))
+    return math.atan2(f.x, -f.y)
 
 
 def lean_of(samples):
@@ -389,6 +397,63 @@ def strafe(src_name, name, side, cycles, duty, w, r, lift, bob, lean_change=0.0,
     return name
 
 
+# =============================================================== idle without the scripted look-around
+def scan(t):
+    """build_player_hazmat.py's look-around yaw (radians) over the whole clip, t in 0..1"""
+    keys = [(0.0, 0.0), (0.08, 0.0), (0.22, 50.0), (0.40, 50.0), (0.60, -45.0), (0.78, -45.0), (0.92, 0.0), (1.0, 0.0)]
+    for (ta, ya), (tb, yb) in zip(keys, keys[1:]):
+        if t <= tb:
+            return math.radians(ya + (yb - ya) * smoothstep(ta, tb, t))
+    return 0.0
+
+
+def idle_still(src_name="idle_lookaround", name="idle_still"):
+    """idle_lookaround with its head / neck / chest scan taken back out: the same breathing, eyes ahead. A body
+    whose look is known (Locomotion's HeadLook) turns its head where the player really looks instead.
+    The build turned Spine02, then NeckTwist01, then Head (and everything under each) about Z, and tipped the
+    head down at the sides; this undoes them in the reverse order."""
+    src = SOURCE[src_name]
+    f0, f1 = frames(src)
+    total = f1 - f0
+    S = [sample(src, f0 + i) for i in range(total + 1)]
+    G = []
+    for i in range(total + 1):
+        g = {b: rot3(m[1]) for b, m in S[i].items()}
+        y = scan(i / total)
+        tilt = -math.radians(6) * abs(math.sin(y))
+        for root, share in (("Head", 0.5), ("NeckTwist01", 0.3), ("Spine02", 0.2)):
+            R = Matrix.Rotation(y * share, 3, "Z")
+            if root == "Head":
+                R = R @ Matrix.Rotation(tilt, 3, "X")
+            Ri = R.inverted()
+            for b in subtree(root):
+                g[b] = Ri @ g[b]
+        G.append(g)
+    # the old suit's idle stands with its chest and head turned off to its left even with the scan out:
+    # square both up to face where the hips do (the game turns the head to the real look)
+    def mean_yaw(bone):
+        return sum(facing(g[bone], bone) - facing(g["Hip"], "Hip") for g in G) / len(G)
+    chest = mean_yaw("Spine02")
+    Rc = Matrix.Rotation(-chest, 3, "Z")
+    for g in G:
+        for b in subtree("Spine02"):
+            g[b] = Rc @ g[b]
+    head = mean_yaw("Head")
+    Rh = Matrix.Rotation(-head, 3, "Z")
+    for g in G:
+        for b in subtree("Head"):
+            g[b] = Rh @ g[b]
+    print("%s: chest squared %.1f deg, head %.1f deg" % (name, math.degrees(chest), math.degrees(head)))
+    new_action(name)
+    prev = {}
+    for i in range(total + 1):
+        local = {k: v[0] for k, v in S[i].items()}
+        goals = {b: G[i][b] for b in subtree("Spine02")}
+        basis, _ = solve(goals, local)
+        key_pose(basis, f0 + i, prev)
+    return name
+
+
 # =============================================================== build
 walk_lean = lean_of([sample(SOURCE["walk"], f) for f in range(*frames(SOURCE["walk"]))])
 run_lean = lean_of([sample(SOURCE["run"], f) for f in range(*frames(SOURCE["run"]))])
@@ -396,6 +461,7 @@ print("chest lean: walk %.1f deg, run %.1f deg" % (walk_lean, run_lean))
 BACK_RUN_LEAN = run_lean - (walk_lean + 5.0)          # a backpedal keeps the chest a little over the toes
 
 made = [
+    idle_still(),
     backward("walk", "walk_back", lean_change=2.0),
     backward("run", "run_back", lean_change=BACK_RUN_LEAN, stride=0.7, lift=0.5, flatten=0.4),
     backward("crouch_walk", "crouch_walk_back"),

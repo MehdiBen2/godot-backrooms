@@ -5,7 +5,7 @@ extends Node
 ## Underfoot is read with a ray: a stairwell's solids carry their style ("concrete" or "carpet", props/stairs.gd),
 ## and elsewhere the level's "tiles" zones are waxed tile. On tile the heel is a hard tick and the scuff lighter
 ## and brighter; on concrete a gritty knock under a dry, thin scuff; both carry further (noise() is read by the
-## entity's hearing). The recorded takes in audio/footsteps/tile|concrete/ replace the borrowed carpet scuffs there,
+## entity's hearing). The recorded takes in audio/footsteps/tile|concrete/ replace the borrowed carpet scuffs there.
 ## `pace` (0 walk .. 1 full sprint, from your real speed) makes faster steps louder and heavier.
 ## Outdoors (Game.outdoors, the hills level) the surface comes from the terrain: recorded grass steps on
 ## the meadow, gravel / sand on the road and steep slopes, no heel knock, and the level scales to each set.
@@ -67,11 +67,13 @@ const RECORDED_HEEL := 0.5
 
 func _ready() -> void:
 	player = get_parent()
+	# takes 1-4 are the recordings, 5 on are variants spliced from them (tools/gen_carpet_variants.py)
 	var w := []
 	var s := []
-	for i in range(1, 5):
-		w.append(load("res://audio/footsteps/carpet/carpet_walk_%d.wav" % i))
-		s.append(load("res://audio/footsteps/carpet/carpet_sprint_%d.wav" % i))
+	while ResourceLoader.exists("res://audio/footsteps/carpet/carpet_walk_%d.wav" % (w.size() + 1)):
+		w.append(load("res://audio/footsteps/carpet/carpet_walk_%d.wav" % (w.size() + 1)))
+	while ResourceLoader.exists("res://audio/footsteps/carpet/carpet_sprint_%d.wav" % (s.size() + 1)):
+		s.append(load("res://audio/footsteps/carpet/carpet_sprint_%d.wav" % (s.size() + 1)))
 	walk = Bag.new(w)
 	sprint = Bag.new(s)
 	scuff = _voice()

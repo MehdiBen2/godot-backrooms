@@ -80,9 +80,11 @@ func _ready() -> void:
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = load(Gfx.CAMERA_SHADER)       # the camera (render_engine.gd drives it)
-	var dirt := _pick_lens_dirt()
-	if dirt != "":
-		mat.set_shader_parameter("lens_dirt_tex", load(dirt))
+	_dirt_paths = _lens_dirt_paths()
+	if not _dirt_paths.is_empty():
+		_dirt_now = _dirt_paths[randi() % _dirt_paths.size()]
+		mat.set_shader_parameter("lens_dirt_tex", load(_dirt_now))
+		_queue_next_dirt()
 	if ResourceLoader.exists("res://textures/lens_smudge.png"):
 		mat.set_shader_parameter("lens_smudge_tex", load("res://textures/lens_smudge.png"))
 	post.material = mat
@@ -213,15 +215,51 @@ func _corner(anchor: Control.LayoutPreset, x: float, y: float, top: bool, left: 
 	corners.append(c)
 	return c
 
-## The camera's lens dirt for this session: the original or one of the CC0 pack (textures/CREDITS.txt), at random,
-## so the glass is dirty a different way each time ("" when there is none)
+## The camera's lens dirt: the original or one of the CC0 pack (textures/CREDITS.txt). It only shows against strong
+## light (camera.gdshader), so once the player has looked into a light and then away from it for a moment, the
+## glass is swapped for another: it is never seen changing, and the next light shows it dirty a different way.
+## The next one is loaded in the background beforehand, so the swap itself costs nothing.
 const LENS_DIRT_VARIANTS := 6
-func _pick_lens_dirt() -> String:
+const DIRT_SEEN := 0.25            # glare (level_lighting.gd) at which the dirt has clearly been seen
+const DIRT_HIDDEN := 0.03          # glare under which it has gone (the picture's own bright patches aside)
+const DIRT_AWAY_TIME := 1.0        # s looking away before the swap
+var _dirt_paths: Array[String] = []
+var _dirt_now := ""
+var _dirt_next := ""
+var _dirt_seen := false
+var _dirt_away := 0.0
+
+func _lens_dirt_paths() -> Array[String]:
 	var found: Array[String] = []
 	for i in LENS_DIRT_VARIANTS + 1:
 		var path := "res://textures/lens_dirt.png" if i == 0 else "res://textures/lens_dirt_%d.png" % i
 		if ResourceLoader.exists(path): found.append(path)
-	return "" if found.is_empty() else found[randi() % found.size()]
+	return found
+
+## Pick the glass after this one (never the same) and start loading it
+func _queue_next_dirt() -> void:
+	if _dirt_paths.size() < 2: return
+	var others := _dirt_paths.filter(func(p: String) -> bool: return p != _dirt_now)
+	_dirt_next = others[randi() % others.size()]
+	ResourceLoader.load_threaded_request(_dirt_next)
+
+func _update_lens_dirt(dt: float) -> void:
+	if _dirt_next == "": return
+	var g = post_mat.get_shader_parameter("glare")        # (null until the level's lighting first sets it)
+	var glare := float(g) if g != null else 0.0
+	if glare > DIRT_SEEN:
+		_dirt_seen = true
+	if not _dirt_seen or glare > DIRT_HIDDEN:
+		_dirt_away = 0.0
+		return
+	_dirt_away += dt
+	if _dirt_away < DIRT_AWAY_TIME: return
+	if ResourceLoader.load_threaded_get_status(_dirt_next) != ResourceLoader.THREAD_LOAD_LOADED: return
+	post_mat.set_shader_parameter("lens_dirt_tex", ResourceLoader.load_threaded_get(_dirt_next))
+	_dirt_now = _dirt_next
+	_dirt_seen = false
+	_dirt_away = 0.0
+	_queue_next_dirt()
 
 # ---- HUD ------------------------------------------------------------------------
 func _build_hud() -> void:
@@ -731,6 +769,7 @@ func _process_timed(dt: float) -> void:
 		post_mat.set_shader_parameter("fx_shock", Game.fx_shock)
 		post_mat.set_shader_parameter("fx_blood", Game.fx_blood)
 		post_mat.set_shader_parameter("fx_static", Game.fx_static)
+		_update_lens_dirt(dt)
 		post_mat.set_shader_parameter("corrupt", Game.fx_corrupt)
 		post_mat.set_shader_parameter("fx_warp", Game.fx_warp)
 		post_mat.set_shader_parameter("fx_blink", Game.fx_blink)

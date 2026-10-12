@@ -185,8 +185,6 @@ static func local_time(unix: int) -> String:
 	return "%04d-%02d-%02d %02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute]
 
 const LOGO_PATH := "res://textures/ui/tsra_logo.png"     # tools/gen_tsra_logo.py
-const INK := Color(0.05, 0.032, 0.006)   # text on an inverse-video bar (a selected row, a key cap)
-const LIT := Color(0.76, 0.52, 0.17)     # an inverse-video bar: the amber held down, or its glow drowns the text
 const RULE := 2.0                        # the terminal's line weight: frames, rules, the sheet
 static var _logo_tex: Texture2D
 
@@ -313,23 +311,17 @@ static func dots(col := Color(MUTED, 0.5)) -> Control:
 	)
 	return d
 
-## A key on the function-key strip: its name in inverse video
-static func keycap(key: String) -> PanelContainer:
-	var p := PanelContainer.new()
-	var sb := box(LIT)
-	sb.content_margin_left = 8; sb.content_margin_right = 8
-	sb.content_margin_top = 1; sb.content_margin_bottom = 1
-	p.add_theme_stylebox_override("panel", sb)
-	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var l := label(key, 15, INK, 2)
-	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
-	p.add_child(l)
-	return p
+## A key on the function-key strip: its name in brackets, lit
+static func keycap(key: String) -> Label:
+	var l := label("[%s]" % key, 15, AMBER, 2)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
 
-## The terminal's selection: the row in inverse video (`hover`: a faint wash under the cursor)
+## The terminal's selection, as the pack always marked it: a faint amber wash with a bar down its left
+## edge (`hover`: just the wash, fainter)
 static func row_box(on: bool, hover := false) -> StyleBoxFlat:
-	var sb := box(LIT if on else (Color(AMBER, 0.08) if hover else Color(0, 0, 0, 0)))
+	var sb := box(Color(AMBER, 0.16) if on else (Color(AMBER, 0.07) if hover else Color(0, 0, 0, 0)), AMBER)
+	sb.border_width_left = 3 if on else 0
 	sb.content_margin_left = 10; sb.content_margin_right = 10
 	sb.content_margin_top = 4; sb.content_margin_bottom = 4
 	return sb

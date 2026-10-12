@@ -2,11 +2,11 @@ extends Control
 ## Inventory as a T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
 ## Drawn like an old text terminal: a square double border, panels framed by plain lines with their
-## titles set into the top edge, selections in inverse video, statuses in [BRACKETS], dotted leaders
+## titles set into the top edge, the selection a lit bar down its left edge, statuses in [BRACKETS], dotted leaders
 ## between a name and its figure, and a function-key strip along the bottom. Header: the emblem, the
 ## clearance tier and the link. Down the left, the vitals (POWER / STAMINA / SANITY / TIME: an icon in
 ## a bordered square over a segmented bar) and PACK (one numbered line per slot, SLOT_COUNT of them). On
-## the right, the sheet under its slanted folder tabs, with a dotted scroll track beside it. Each
+## the right, the sheet under its slanted folder tabs, with the PG UP / PG DN scroll rail beside it. Each
 ## page is a script of its own in scripts/UI/inventory/pages/ (terminal_page.gd): ITEMS (the selected
 ## item), SITE (the level's threshold dossier and the phenomena logged there, from Archive,
 ## scripts/GameLogicEngine/asra_archive.gd), ARCHIVE (every catalogued entity; new ones are marked until
@@ -81,13 +81,14 @@ const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 
 # scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
-const INK := Kit.INK
 
 const SLOT_COUNT := 8            # item kinds carried at once
 const STACK_CELLS := 8           # widest stack gauge (the ITEMS page)
 const ROW_H := 34.0              # one line of the pack
-const RAIL_W := 12.0             # the sheet's scroll track, in the gap left of it (_draw_rail)
-const RAIL_GAP := 14.0
+const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of it (fits "PG UP")
+const RAIL_GAP := 26.0
+const RAIL_END := 70.0           # arrow + key label at each end of the rail
+const ROW_ICON := 28.0           # an item's icon on its pack line (rendered from its model, item_icon.gd)
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE", "CREW"]
 # what each page is called on the menu bar (the ids stay the pages' script names; F1-F6 jump to them)
@@ -367,7 +368,7 @@ func _refresh_clearance(report := {}) -> void:
 	clearance_label.text = str(Clearance.tier().get("code", "C-0"))
 	Kit.set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
 
-## The function-key strip along the bottom: each key in inverse video, then what it does; the clock
+## The function-key strip along the bottom: each [KEY] lit, then what it does; the clock
 ## at the far end
 func _build_footer() -> Control:
 	var h := HBoxContainer.new()
@@ -537,7 +538,7 @@ func _update_link() -> void:
 		link_label.add_theme_color_override("font_color", col)
 	link_label.modulate.a = (1.0 if fmod(t, 0.5) < 0.3 else 0.25) if state == "DEGRADED" else 1.0
 
-# ---- the pack: one numbered line per slot, the selected one in inverse video ----------------------
+# ---- the pack: one numbered line per slot, the selected one lit ----------------------------------
 func _build_items() -> Control:
 	pack_frame = Kit.frame("PACK", "0/%d" % SLOT_COUNT)
 	pack_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -588,6 +589,13 @@ func _item_row(i: int) -> Control:
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var slot := Kit.label("%02d" % (i + 1), 16, MUTED, 2)
 	h.add_child(_centered(slot))
+	# icon slot on every line, empty for items without a model, so the names stay in a column
+	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 1.0) if it.icon != "" else null
+	if icon == null or (icon as TextureRect).texture == null:
+		icon = Control.new()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
+	h.add_child(_centered(icon))
 	var name_l := Kit.label(str(it.name).to_upper(), 18, TEXT, 2)
 	h.add_child(_centered(name_l))
 	var d := Kit.dots()
@@ -610,6 +618,7 @@ func _empty_row(i: int) -> Control:
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pad.add_child(Kit.label("%02d" % (i + 1), 16, Color(MUTED, 0.3), 2))
 	h.add_child(_centered(pad))
+	h.add_child(Kit.spacer_w(ROW_ICON))
 	h.add_child(Kit.dots(Color(MUTED, 0.14)))
 	return h
 
@@ -622,10 +631,9 @@ func _style_row(i: int) -> void:
 	var ls: Array = p.get_meta("labels")
 	for j in ls.size():
 		var l: Label = ls[j]
-		l.add_theme_color_override("font_color", INK if sel else (MUTED if j == 0 else TEXT))
-		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.0 if sel else 0.8))
+		l.add_theme_color_override("font_color", AMBER if sel else (MUTED if j == 0 else TEXT))
 	var d: Control = p.get_meta("dots")
-	d.set_meta("color", Color(INK, 0.6) if sel else Color(MUTED, 0.5))
+	d.set_meta("color", Color(AMBER, 0.6) if sel else Color(MUTED, 0.5))
 	d.queue_redraw()
 
 func _refresh_selection() -> void:
@@ -886,15 +894,15 @@ func _update_crew_tab() -> void:
 	if not on and active_page == "CREW":
 		select_tab("ITEMS", true)
 
-## Scroll bar in the gap left of the sheet: a faint track and the active page's position, shown only
-## when the page runs longer than the sheet. Click it to jump, or use the wheel over it. It stands in for
-## the pages' own scrollbars, which are hidden (they still scroll; PgUp / PgDn page them).
+## Scroll rail in the gap left of the sheet: the active page's position, with PG UP / PG DN at its
+## ends, lit when there is more that way. Click an end to page, the track to jump, or use the wheel
+## over it. It stands in for the pages' own scrollbars, which are hidden (they still scroll).
 func _build_rail() -> Control:
 	rail = Control.new()
 	rail.anchor_left = 1.0; rail.anchor_right = 1.0; rail.anchor_bottom = 1.0
 	rail.offset_right = -PANEL_RIGHT - PANEL_W - RAIL_GAP
 	rail.offset_left = rail.offset_right - RAIL_W
-	rail.offset_top = TOP + TAB_H + 14.0; rail.offset_bottom = -BOTTOM - 14.0
+	rail.offset_top = TOP + TAB_H; rail.offset_bottom = -BOTTOM
 	rail.mouse_filter = Control.MOUSE_FILTER_STOP
 	rail.draw.connect(_draw_rail)
 	rail.gui_input.connect(_rail_input)
@@ -914,18 +922,27 @@ func _page_extent() -> Dictionary:
 	return {"ratio": bar.page / bar.max_value, "pos": clampf(bar.value / (bar.max_value - bar.page), 0.0, 1.0)}
 
 func _draw_rail() -> void:
+	var w := rail.size.x
+	var h := rail.size.y
+	var cx := w * 0.5
 	var ext := _page_extent()
 	var ratio: float = ext.ratio
-	if ratio >= 1.0:
-		return
-	var h := rail.size.y
-	var cx := rail.size.x * 0.5
-	var y := 0.0
-	while y < h:                               # the track: a column of points, like a text scroll bar
-		rail.draw_rect(Rect2(cx - 2, y, 4, 4), Color(AMBER, 0.2))
-		y += 10.0
-	var th := maxf(40.0, h * ratio)
-	rail.draw_rect(Rect2(cx - 5, (h - th) * float(ext.pos), 10, th), Color(AMBER, 0.85))
+	var pos: float = ext.pos
+	var more_up := ratio < 1.0 and pos > 0.005
+	var more_down := ratio < 1.0 and pos < 0.995
+	var f := Kit.font(2)
+	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, 30), Vector2(cx + 12, 30), Vector2(cx, 12)]),
+		AMBER if more_up else AMBER_DIM)
+	rail.draw_string(f, Vector2(0, 54), "PG UP", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_up else TEXT_DIM)
+	rail.draw_string(f, Vector2(0, h - 44), "PG DN", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_down else TEXT_DIM)
+	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, h - 30), Vector2(cx + 12, h - 30), Vector2(cx, h - 12)]),
+		AMBER if more_down else AMBER_DIM)
+	var y0 := RAIL_END
+	var track := h - RAIL_END * 2.0
+	rail.draw_line(Vector2(cx, y0), Vector2(cx, y0 + track), Color(AMBER, 0.3), 2.0)
+	var th := maxf(40.0, track * ratio)
+	var ty := y0 + (track - th) * pos
+	rail.draw_rect(Rect2(cx - 5, ty, 10, th), AMBER if ratio < 1.0 else AMBER_DIM)
 
 func _rail_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
@@ -938,9 +955,15 @@ func _rail_input(e: InputEvent) -> void:
 		MOUSE_BUTTON_WHEEL_UP: sc.scroll_vertical -= 60
 		MOUSE_BUTTON_WHEEL_DOWN: sc.scroll_vertical += 60
 		MOUSE_BUTTON_LEFT:
-			var bar := sc.get_v_scroll_bar()
-			var k := clampf(mb.position.y / rail.size.y, 0.0, 1.0)
-			sc.scroll_vertical = int(k * maxf(0.0, bar.max_value - bar.page))
+			var y := mb.position.y
+			if y < RAIL_END:
+				_scroll_page(-1)
+			elif y > rail.size.y - RAIL_END:
+				_scroll_page(1)
+			else:
+				var bar := sc.get_v_scroll_bar()
+				var k := clampf((y - RAIL_END) / (rail.size.y - RAIL_END * 2.0), 0.0, 1.0)
+				sc.scroll_vertical = int(k * maxf(0.0, bar.max_value - bar.page))
 
 func _scroll_page(delta: int) -> void:
 	var s: ScrollContainer = page_scrolls.get(active_page)

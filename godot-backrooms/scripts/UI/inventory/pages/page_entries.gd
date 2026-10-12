@@ -1,6 +1,6 @@
 extends "res://scripts/UI/inventory/terminal_page.gd"
 ## ARCHIVE: every catalogued entity. A list on the left, one line each (its code and name, ???? until it
-## is scanned, a * until its entry has been opened), the selected one in inverse video; its entry on
+## is scanned, a * until its entry has been opened), the selected one lit; its entry on
 ## the right: designation, threat, overview, behaviour, protocol, where it has been seen and when it
 ## was logged, then the classified annex. Arrows / clicks pick one; the SITE page's phenomena open
 ## theirs here (open_entry).
@@ -116,11 +116,8 @@ func _style_entry_row(i: int) -> void:
 	p.add_theme_stylebox_override("panel", row_box(sel, p.get_meta("hover")))
 	var logged: bool = p.get_meta("logged")
 	var ls: Array = p.get_meta("labels")
-	(ls[0] as Label).add_theme_color_override("font_color", INK if sel else MUTED)
-	(ls[1] as Label).add_theme_color_override("font_color", INK if sel else (TEXT if logged else TEXT_DIM))
-	(ls[2] as Label).add_theme_color_override("font_color", INK if sel else AMBER)
-	for l in ls:
-		(l as Label).add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.0 if sel else 0.8))
+	(ls[0] as Label).add_theme_color_override("font_color", AMBER if sel else MUTED)
+	(ls[1] as Label).add_theme_color_override("font_color", AMBER if sel else (TEXT if logged else TEXT_DIM))
 
 func select_entry(i: int, quiet := false) -> void:
 	if entry_ids.is_empty():

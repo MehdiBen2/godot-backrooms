@@ -176,7 +176,10 @@ class Locomotion:
 			var a := AnimationNodeAnimation.new()
 			a.animation = n if player.has_animation(n) else fallback
 			return a
-		var idle := str(clips.get("idle", ""))
+		# the idle without its scripted look-around: HeadLook turns the head where they really look
+		var idle := "idle_still" if player.has_animation("idle_still") else str(clips.get("idle", ""))
+		if idle == "idle_still":
+			player.get_animation(idle).loop_mode = Animation.LOOP_LINEAR
 		var walk := str(clips.get("walk", idle))
 		bt.add_node("idle", anim_node.call(idle, walk))
 		bt.add_node("crouch_idle", anim_node.call(str(clips.get("crouch_idle", "")), idle))
@@ -195,7 +198,7 @@ class Locomotion:
 				var a: AnimationNodeAnimation = anim_node.call(str(names[i]), fwd)
 				if i == 1 and not player.has_animation(names[1]):
 					a.play_mode = AnimationNodeAnimation.PLAY_MODE_BACKWARD     # no back clip: the forward one reversed
-				bs.add_blend_point(a, pts[i])
+				bs.add_blend_point(a, pts[i], -1, ["forward", "back", "left", "right"][i])
 			for i in 4:
 				if player.has_animation(names[i]):
 					player.get_animation(names[i]).loop_mode = Animation.LOOP_LINEAR

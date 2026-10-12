@@ -1,7 +1,7 @@
 shader_type spatial;
 // The field terminal's tube (scripts/World/props/terminal_machine.gd): the terminal's SubViewport
 // (terminal_os.gd) shown the way a real CRT shows a picture, not as a texture on a card.
-//  - The faceplate is glass: dark grey-green, glossy, lit by the room and reflecting it, with faint smudges.
+//  - The faceplate is glass: dark grey-green, glossy, lit by the room and reflecting it.
 //  - The picture is light from a phosphor layer `depth` behind that glass (emission), so it slides under the
 //    glass when seen at an angle.
 //  - The phosphor is a Trinitron aperture grille (vertical RGB stripes) lit by beam lines that swell where
@@ -25,17 +25,6 @@ uniform float converge = 0.0016;
 uniform float depth = 0.005;                     // m from the outer glass to the phosphor
 uniform vec2 glass_size = vec2(0.2809, 0.2107);  // m
 uniform mat3 to_glass = mat3(1.0);               // world -> glass (x right, y up, z out of the glass)
-
-float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
-float vnoise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
-}
 
 vec3 pic(vec2 uv) {
 	return texture(screen_tex, uv).rgb;
@@ -79,10 +68,9 @@ void fragment() {
 	float vig = smoothstep(0.78, 0.38, length(c * vec2(1.0, 1.25)));
 	EMISSION = col * inside * mix(0.65, 1.0, vig) * energy;
 
-	// the faceplate itself
-	float smudge = vnoise(UV * vec2(9.0, 7.0)) * 0.6 + vnoise(UV * 31.0) * 0.4;
+	// the faceplate itself: one even roughness, so lamp reflections stay a single clean highlight
 	ALBEDO = glass_tint;
 	METALLIC = 0.0;
 	SPECULAR = 0.35;                               // a soft sheen, not a mirror held up to the lamps
-	ROUGHNESS = mix(0.12, 0.32, smoothstep(0.4, 0.85, smudge));
+	ROUGHNESS = 0.12;
 }

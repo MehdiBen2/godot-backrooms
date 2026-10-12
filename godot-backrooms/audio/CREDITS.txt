@@ -19,17 +19,6 @@ credit is not required, but given. Outdoor footsteps and ambience: footsteps/CRE
     "fluorescent light flickering 1.wav" by TemperMode, CC0, https://freesound.org/people/TemperMode/sounds/484157
     "flourescent light" by samwd, CC0, https://freesound.org/people/samwd/sounds/457438
 
-- footsteps/carpet/walk_0..7.ogg, sprint_0..7.ogg  damp carpet: heel, toe, fibre brush, a little wet give, layered (cues/carpet/)
-    "Fabric-Sofa-Rubbing-Wooshes_StereoSP_96000.wav" by Sonicquinn, CC0, https://freesound.org/people/Sonicquinn/sounds/435829
-    "Pressing down on sponge" by emilyneiswonger, CC0, https://freesound.org/people/emilyneiswonger/sounds/594753
-    "Fabric rubbed on a couch.wav" by Chubbers1995, CC0, https://freesound.org/people/Chubbers1995/sounds/344627
-    "04-Man walking carpet.wav" by 14GPanskaHonc_Petr, CC0, https://freesound.org/people/14GPanskaHonc_Petr/sounds/419163
-    "light footsteps on carpet walk.wav" by rsellick, CC0, https://freesound.org/people/rsellick/sounds/545540
-    "Steps: Sneakers on Carpet 1" by Sheyvan, CC0, https://freesound.org/people/Sheyvan/sounds/474051
-    "Walking Footsteps on Carpet.aif" by Abolla, CC0, https://freesound.org/people/Abolla/sounds/164100
-    "Walking on Carpet" by Jarebear1223, CC0, https://freesound.org/people/Jarebear1223/sounds/618536
-    "footsteps rug" by Yuval, CC0, https://freesound.org/people/Yuval/sounds/205731
-
 - footsteps/tile/tile_0..9.ogg  steps cut from
     "Footsteps, Tile, Male Tennis Shoes, Slow Pace.wav" by SpliceSound, CC0, https://freesound.org/people/SpliceSound/sounds/170498
     "Footsteps, Tile, Male Sneakers, Slow Pace.wav" by SpliceSound, CC0, https://freesound.org/people/SpliceSound/sounds/170506
