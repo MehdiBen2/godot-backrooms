@@ -5,7 +5,7 @@ extends Node
 ## Underfoot is read with a ray: a stairwell's solids carry their style ("concrete" or "carpet", props/stairs.gd),
 ## and elsewhere the level's "tiles" zones are waxed tile. On tile the heel is a hard tick and the scuff lighter
 ## and brighter; on concrete a gritty knock under a dry, thin scuff; both carry further (noise() is read by the
-## entity's hearing). Recorded takes dropped in audio/footsteps/tile|concrete/ replace the borrowed carpet scuffs.
+## entity's hearing). The recorded takes in audio/footsteps/tile|concrete/ replace the borrowed carpet scuffs there,
 ## `pace` (0 walk .. 1 full sprint, from your real speed) makes faster steps louder and heavier.
 ## Outdoors (Game.outdoors, the hills level) the surface comes from the terrain: recorded grass steps on
 ## the meadow, gravel / sand on the road and steep slopes, no heel knock, and the level scales to each set.
@@ -60,14 +60,18 @@ const SURFACE := {
 	"tile": [0.55, 1.1, 1.8],
 	"concrete": [0.45, 1.12, 1.9],
 }
+# recorded tile / concrete takes are peak-normalized; their sharp heel clicks carry less energy than the carpet
+# scuffs at the same peak, so they play this much louder (partly made up: a click reads louder than its RMS)
+const RECORDED_GAIN := {"tile": 1.78, "concrete": 1.26}
+const RECORDED_HEEL := 0.5
 
 func _ready() -> void:
 	player = get_parent()
 	var w := []
 	var s := []
 	for i in range(1, 5):
-		w.append(load("res://audio/carpet_walk_%d.wav" % i))
-		s.append(load("res://audio/carpet_sprint_%d.wav" % i))
+		w.append(load("res://audio/footsteps/carpet/carpet_walk_%d.wav" % i))
+		s.append(load("res://audio/footsteps/carpet/carpet_sprint_%d.wav" % i))
 	walk = Bag.new(w)
 	sprint = Bag.new(s)
 	scuff = _voice()
@@ -220,6 +224,7 @@ func step(sprinting: bool, crouching: bool, intensity: float, pace := -1.0) -> v
 	var loud: float = level * randf_range(0.75, 1.1) * intensity * GAIN
 	if recorded.has(surface):
 		scuff.stream = recorded[surface].next()
+		loud *= RECORDED_GAIN.get(surface, 1.0)
 		scuff.volume_linear = loud
 		scuff.pitch_scale = pitch
 		_layer(recorded[surface].next(), loud, pitch)
@@ -231,6 +236,8 @@ func step(sprinting: bool, crouching: bool, intensity: float, pace := -1.0) -> v
 		_layer((walk if sprinting else sprint).next(), loud * feel[0], pitch * feel[1])
 	# the knock underneath: deeper and heavier the faster you go, hardly any creeping, and never the same share of the step
 	var weight: float = (0.15 if crouching else lerpf(0.32, 0.6, pace)) * feel[2] * randf_range(0.6, 1.25)
+	if recorded.has(surface):
+		weight *= RECORDED_HEEL           # the recording has its own heel: the synth one only adds weight under it
 	heel.stream = heels[surface].next()
 	heel.volume_linear = level * weight * randf_range(0.8, 1.1) * intensity * GAIN
 	heel.pitch_scale = randf_range(0.9, 1.1) * (0.96 if foot < 0.0 else 1.02) * lerpf(1.0, 0.86, pace)

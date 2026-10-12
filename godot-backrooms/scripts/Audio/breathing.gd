@@ -229,9 +229,9 @@ func play_queue() -> void:
 		var mi := _nearest(BREATH_MOUTH, q.mouth)
 		var si := 1 if q.shake > 0.2 else 0
 		var file: String
-		if q.inhale: file = "breath_in_%d_%d_%d.wav" % [mi, di, si]
-		elif q.voiced > 0.3: file = "breath_outv_%d.wav" % di
-		else: file = "breath_out_%d_%d_%d.wav" % [mi, di, si]
+		if q.inhale: file = "player/breath/breath_in_%d_%d_%d.wav" % [mi, di, si]
+		elif q.voiced > 0.3: file = "player/breath/breath_outv_%d.wav" % di
+		else: file = "player/breath/breath_out_%d_%d_%d.wav" % [mi, di, si]
 		var pitch := clampf(BREATH_DURS[di] / maxf(0.05, q.dur), 0.7, 1.4)
 		for p in breath_pool:
 			if not p.playing:

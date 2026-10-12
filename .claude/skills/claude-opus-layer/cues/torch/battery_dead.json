@@ -1,0 +1,37 @@
+{
+ "duration_s": 0.8,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "s1",
+     "sound": "glitch/own-ov-c3fabebb",
+     "t": 0.03
+    }
+   ]
+  },
+  {
+   "gain_db": -6,
+   "cues": [
+    {
+     "id": "s2",
+     "sound": "glitch/own-ov-30c2359e",
+     "t": 0.17,
+     "pitch": -3
+    }
+   ]
+  },
+  {
+   "gain_db": -13,
+   "cues": [
+    {
+     "id": "s3",
+     "sound": "glitch/own-ov-c3fabebb",
+     "t": 0.36,
+     "pitch": -6
+    }
+   ]
+  }
+ ]
+}

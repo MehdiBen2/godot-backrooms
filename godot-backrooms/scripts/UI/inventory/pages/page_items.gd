@@ -1,9 +1,9 @@
 extends "res://scripts/UI/inventory/terminal_page.gd"
-## [F1] ITEMS: the record of the item selected in the terminal's inventory list (inventory.gd
-## items / selected): its icon, designation, code, quantity and description.
+## ITEMS: the record of the item selected in the pack (inventory.gd items / selected): its wireframe in
+## a square frame beside its designation, code and quantity, then its description.
 
 const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
-const PAGE_ICON := 190.0         # the item's icon, larger than on its inventory row
+const PAGE_ICON := 180.0         # the item's wireframe, drawn from its model
 
 var body: VBoxContainer
 
@@ -18,26 +18,36 @@ func refresh() -> void:
 	var items: Array = term.items
 	var selected: int = term.selected
 	if selected < 0 or selected >= items.size():
-		body.add_child(label("[ITEM RECORD // NO SELECTION]", 21, TEXT, 1))
-		body.add_child(spacer(12))
-		body.add_child(label("NO ITEMS CARRIED.", 21, TEXT_DIM, 1, true))
+		heading(body, "ITEM RECORD", "NO SELECTION")
+		empty_state(body, "NO ITEMS CARRIED.", "Pick up supplies in the field, or requisition them at the spawn terminal.")
 		return
 	var it: Dictionary = items[selected]
-	body.add_child(label("[ITEM RECORD // SLOT %02d OF %02d]" % [selected + 1, term.SLOT_COUNT], 21, TEXT, 1))
-	body.add_child(spacer(12))
+	heading(body, "ITEM RECORD", "SLOT %02d / %02d" % [selected + 1, term.SLOT_COUNT])
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 26)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if it.icon != "":
-		var frame := PanelContainer.new()       # the icon in a bordered square, like the vitals'
-		var sb := box(Color(AMBER, 0.05), AMBER_DIM, 2)
-		sb.set_content_margin_all(10)
-		frame.add_theme_stylebox_override("panel", sb)
-		frame.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		frame.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
-		body.add_child(frame)
-		body.add_child(spacer(12))
-	body.add_child(label("DESIGNATION: " + str(it.name).to_upper(), 21, TEXT, 1, true))
-	body.add_child(label("CODE: " + str(it.code), 21, TEXT, 1))
-	body.add_child(label("QUANTITY: %d / %d" % [it.count, it.stack], 21, TEXT, 1))
+		var fr := frame("")
+		fr.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		fr.add_child(ItemIcon.outlined(it.icon, PAGE_ICON, ORANGE, 4.0))
+		top.add_child(fr)
+	var facts := VBoxContainer.new()
+	facts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	facts.add_theme_constant_override("separation", 10)
+	facts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	facts.add_child(spacer(14))
+	facts.add_child(leader("DESIGNATION", str(it.name).to_upper(), AMBER, 18))
+	facts.add_child(leader("CODE", str(it.code), TEXT, 18))
+	facts.add_child(leader("QUANTITY", "%d / %d" % [it.count, it.stack], TEXT, 18))
+	if int(it.stack) > 1:
+		var n := mini(int(it.stack), term.STACK_CELLS)
+		var gauge := cells(n, 4.0, false)
+		gauge.custom_minimum_size = Vector2(0, 12)
+		gauge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		set_cells(gauge, mini(int(it.count), n), AMBER)
+		facts.add_child(gauge)
+	top.add_child(facts)
+	body.add_child(top)
 	if str(it.desc) != "":
-		body.add_child(spacer(12))
-		body.add_child(label(str(it.desc), 21, TEXT_DIM, 1, true))
+		section(body, "DESCRIPTION")
+		para(body, str(it.desc), TEXT, 18)

@@ -1,0 +1,33 @@
+{
+ "duration_s": 1.2,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "hand4",
+     "sound": "swish/fs-14176-28-wav-3",
+     "t": 0.22,
+     "pitch": 1
+    },
+    {
+     "id": "bag4",
+     "sound": "swish/own-ov-f06be8b0",
+     "t": 0.46,
+     "pitch": -2
+    }
+   ]
+  },
+  {
+   "gain_db": -14,
+   "cues": [
+    {
+     "id": "zip4",
+     "sound": "swish/own-ov-13df73b8",
+     "t": 0.7,
+     "pitch": 2
+    }
+   ]
+  }
+ ]
+}

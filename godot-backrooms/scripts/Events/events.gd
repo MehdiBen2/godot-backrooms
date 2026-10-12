@@ -1217,7 +1217,7 @@ var _carpet_steps: Array = []
 func _carpet_step(pos: Vector3, volume: float) -> void:
 	if _carpet_steps.is_empty():
 		for i in range(1, 5):
-			var path := "res://audio/carpet_walk_%d.wav" % i
+			var path := "res://audio/footsteps/carpet/carpet_walk_%d.wav" % i
 			if ResourceLoader.exists(path):
 				_carpet_steps.append(load(path))
 	if _carpet_steps.is_empty():

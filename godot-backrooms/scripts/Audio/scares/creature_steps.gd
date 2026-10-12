@@ -16,7 +16,7 @@ func _init(owner: Node) -> void:
 	rng.randomize()
 	_mq_lp = AudioServer.get_bus_effect(AudioServer.get_bus_index("MannequinSteps"), 0) as AudioEffectLowPassFilter
 	for i in range(1, 5):
-		var path := "res://audio/carpet_walk_%d.wav" % i
+		var path := "res://audio/footsteps/carpet/carpet_walk_%d.wav" % i
 		if ResourceLoader.exists(path):
 			_carpet.append(load(path))
 

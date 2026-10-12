@@ -15,6 +15,7 @@ const WindowPiece := preload("res://scripts/World/props/window.gd")
 const WaterBody := preload("res://scripts/World/props/water_body.gd")
 const WaterView := preload("res://scripts/World/props/water_view.gd")
 const IndustrialProp := preload("res://scripts/World/props/industrial_prop.gd")
+const EntityRoster := preload("res://scripts/Entities/entity_roster.gd")
 const SurveyNote := preload("res://scripts/World/props/survey_clipboard.gd")
 const PipeNetwork := preload("res://scripts/World/props/pipe_network.gd")
 const Stairs := preload("res://scripts/World/props/stairs.gd")
@@ -1010,6 +1011,9 @@ func _build_objects() -> void:
 			"stairs_up", "stairs_down": _build_stairs(o)
 			"survey_note":
 				if not shell: _build_survey_note(o)
+			"entity":
+				# a model-only roster entry (entity_roster.gd) stands on its mark; the monsters read theirs themselves
+				if not shell: EntityRoster.place(self, str(o.get("kind", "")), object_transform(o), float(o.get("scale", 1.0)))
 			_:
 				var info := object_info(o.type)
 				if info.has("model"):

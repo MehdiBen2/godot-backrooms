@@ -256,7 +256,7 @@ func _spawn(p: Dictionary) -> MeshInstance3D:
 	mi.add_child(omni)
 	
 	# 3) Low-frequency spatial portal hum audio (volume increased)
-	var drone_stream = load("res://audio/drone.wav")
+	var drone_stream = load("res://audio/ambients/drone.wav")
 	if drone_stream != null:
 		var sfx = AudioStreamPlayer3D.new()
 		sfx.stream = drone_stream

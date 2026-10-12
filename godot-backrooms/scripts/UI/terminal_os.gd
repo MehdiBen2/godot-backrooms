@@ -71,8 +71,8 @@ const CATALOG := [
 const FILES := [
 	{"code": "MEMO-001", "title": "Operative Orientation", "lock": "",
 		"text": "Welcome to the threshold. You are standing in a staging area maintained by the agency. It is the only room in this sector we can vouch for.\n\nYour job is to observe, mark and report. Log what you see with the field scanner. Mark your way with tape. Do not run unless you are sure where you are running to.\n\nThis terminal will be here when you come back. Assume nothing else will be."},
-	{"code": "MEMO-014", "title": "On the Lights", "lock": "",
-		"text": "The fluorescent fixtures in this level hum at a frequency our instruments cannot isolate. Operatives report that the hum stops shortly before an encounter.\n\nIf the room goes quiet, stop moving and listen."},
+	{"code": "MEMO-014", "title": "On Return Paths", "lock": "",
+		"text": "A corridor walked once is not guaranteed to lead back the way it came. Return paths on this level close after roughly forty metres of undocumented travel.\n\nMark every junction you pass. Tape is the only map that holds."},
 	{"code": "KST-07", "title": "Kestrel Survey Log, Day 3", "lock": "survey_clipboard",
 		"text": "Count of rooms on the east loop: 41. Count on the return pass: 40. Nobody remembers which one is missing.\n\nWe have started taping every doorway. Harlow says the tape on the third junction was moved a metre to the left overnight. I told her it was not. I am not sure that was true."},
 	{"code": "KST-11", "title": "Kestrel Survey Log, Final", "lock": "mannequin",

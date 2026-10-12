@@ -111,7 +111,7 @@ func _play(kind: String, c: Vector2i, player: Node) -> void:
 		"torch_on", "torch_off":
 			_one(player.click_on if kind == "torch_on" else player.click_off, at + Vector3(0, 1.4, 0), -6.0, 1.0)
 		"tape":
-			_one(preload("res://scripts/Audio/sfx_pool.gd").get_stream("res://audio/tape_rip.wav"), at + Vector3(0, 1.2, 0), -3.0, randf_range(0.92, 1.08))
+			_one(preload("res://scripts/Audio/sfx_pool.gd").get_stream("res://audio/items/tape/tape_rip.wav"), at + Vector3(0, 1.2, 0), -3.0, randf_range(0.92, 1.08))
 		_:
 			_steps(kind.trim_prefix("steps_"), c, player)
 

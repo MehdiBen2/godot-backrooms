@@ -70,6 +70,7 @@ def write(name, xs, gain=1.0, loop_fade=0):
         gain *= 0.999 / pk
         print('  (limited %s by %.4f)' % (name, 0.999 / pk))
     SCALES[name] = gain      # linear factor applied on top of the web-level signal; Godot divides it back out
+    os.makedirs(os.path.dirname(OUT + name), exist_ok=True)
     with wave.open(OUT + name, 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -116,18 +117,18 @@ def hum():
         bus.append(v)
     # Housing resonance then a darker top end
     out = Biquad('lowpass', 3800, 0.6).run(Biquad('peaking', 2350, 1.4, 1.5).run(bus))
-    write('hum_voice.wav', out, 1.0, loop_fade=SR // 4)
+    write('world/lights/hum_voice.wav', out, 1.0, loop_fade=SR // 4)
     # Diffuse room tone (the sea of distant fixtures): lowpass 480 x0.05 + 120 Hz mains x0.012.
     # Stored 10x hotter (level restored in Godot) so 16-bit quantisation stays clean.
     diff = Biquad('lowpass', 480, 0.5).run(out)
     mix = [d * 0.05 + 0.012 * math.sin(2 * math.pi * 120 * i / SR) for i, d in enumerate(diff)]
-    write('hum_diffuse.wav', mix, 10.0, loop_fade=SR // 4)
+    write('world/lights/hum_diffuse.wav', mix, 10.0, loop_fade=SR // 4)
 
 # dread drone: 38 Hz through a lowpass at 80 Hz, always on (fear swells it)
 def drone():
     n = SR * 2
     xs = [math.sin(2 * math.pi * 38 * i / SR) for i in range(n)]
-    write('drone.wav', xs, 1.0)
+    write('ambients/drone.wav', xs, 1.0)
 
 # ------------------------------------------------------------------ breathing (breathing.js _phase)
 def lerp(a, b, m):
@@ -179,9 +180,9 @@ def breaths():
     for di, d in enumerate(BREATH_DURS):
         for mi, m in enumerate(BREATH_MOUTH):
             for si, sh in enumerate([0.0, 0.4]):
-                breath('breath_in_%d_%d_%d.wav' % (mi, di, si), d, True, m, sh)
-                breath('breath_out_%d_%d_%d.wav' % (mi, di, si), d, False, m, sh)
-        breath('breath_outv_%d.wav' % di, d, False, 1.0, 0.0, 1.0)
+                breath('player/breath/breath_in_%d_%d_%d.wav' % (mi, di, si), d, True, m, sh)
+                breath('player/breath/breath_out_%d_%d_%d.wav' % (mi, di, si), d, False, m, sh)
+        breath('player/breath/breath_outv_%d.wav' % di, d, False, 1.0, 0.0, 1.0)
 
 # ------------------------------------------------------------------ one-shots (sfx.js)
 def exp_ramp(a, b, t):
@@ -209,9 +210,9 @@ def noise_burst(name, dur, kind, freq, q, vol, decay=0.3):
     write(name, xs, 1.0)
 
 def sfx():
-    click('flash_click_on.wav', 1600, 120, 0.04, 0.18)
-    click('flash_click_off.wav', 1100, 120, 0.04, 0.18)
-    click('battery_dead_click.wav', 340, 70, 0.04, 0.14)
+    click('items/torch/flash_click_on.wav', 1600, 120, 0.04, 0.18)
+    click('items/torch/flash_click_off.wav', 1100, 120, 0.04, 0.18)
+    # items/torch/battery_dead_click_N.wav and battery_dead.wav are recordings now (audio/CREDITS.txt)
     # battery dying: saw sweep 480->50 through a falling lowpass, plus a noise burst
     n = int(0.45 * SR)
     ph = 0.0
@@ -225,9 +226,9 @@ def sfx():
     xs = Biquad('lowpass', 500, 2.5).run(xs)
     nb = Biquad('bandpass', 800, 2).run(noise(n))
     xs = [x + b * 0.18 * math.exp(-(i / SR) / 0.05) for i, (x, b) in enumerate(zip(xs, nb))]
-    write('battery_dead.wav', xs, 1.0)
-    noise_burst('tube_drop.wav', 0.05, 'bandpass', 1300, 2.0, 0.2, 0.3)
-    noise_burst('tube_restrike.wav', 0.03, 'bandpass', 3400, 2.5, 0.12, 0.25)
+    # write('items/torch/battery_dead.wav', xs, 1.0)   # replaced by a recording
+    noise_burst('world/lights/tube_drop.wav', 0.05, 'bandpass', 1300, 2.0, 0.2, 0.3)
+    noise_burst('world/lights/tube_restrike.wav', 0.03, 'bandpass', 3400, 2.5, 0.12, 0.25)
     # jump: clothing rustle (bandpass sweeping 700->1500), on the body bus
     n = int(0.18 * SR)
     src = noise(n)
@@ -238,7 +239,7 @@ def sfx():
         g = (0.0001 + 0.0699 * min(1, i / (0.03 * SR))) if i < 0.03 * SR else exp_ramp(0.07, 0.001, min(1, (i - 0.03 * SR) / (0.13 * SR)))
         xs.append(src[i] * g)
     xs = Biquad('bandpass', 1000, 0.8).run(xs)
-    write('jump.wav', xs, 6.0)
+    write('player/body/jump.wav', xs, 6.0)
     # landing thud: 90 -> 38 Hz over 0.14 s
     n = int(0.22 * SR)
     ph = 0.0
@@ -247,7 +248,7 @@ def sfx():
         f = exp_ramp(90, 38, min(1, i / (0.14 * SR)))
         ph += f / SR
         xs.append(math.sin(2 * math.pi * ph) * exp_ramp(0.22, 0.001, min(1, i / (0.2 * SR))))
-    write('land_thud.wav', xs, 1.0)
+    write('player/body/land_thud.wav', xs, 1.0)
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)

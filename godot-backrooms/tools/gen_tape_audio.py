@@ -59,6 +59,7 @@ def normalize(xs, peak):
 
 def write(name, xs):
     path = os.path.join(OUT, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -106,6 +107,6 @@ def rip():
 
 if __name__ == '__main__':
     for k in range(4):
-        write('tape_grain_%d.wav' % k, grain(100 + k))
-    write('tape_stick.wav', stick())
-    write('tape_rip.wav', rip())
+        write('items/tape/tape_grain_%d.wav' % k, grain(100 + k))
+    write('items/tape/tape_stick.wav', stick())
+    write('items/tape/tape_rip.wav', rip())

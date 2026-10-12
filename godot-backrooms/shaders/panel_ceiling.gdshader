@@ -40,6 +40,8 @@ uniform float cell = 4.5;               // level_data.gd CELL
 uniform float fill_between = 0.3;       // share of the fill left halfway between two lit cells
 // A drop ceiling is never flat: some tiles sit a little tilted in their grid and catch the light unevenly
 uniform float tilted = 0.2;             // share of tiles that do
+// A lit panel's lens dims a little toward its frame (see drop_ceiling.gdshader)
+uniform float lens_edge = 0.78;
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
 uniform vec3 world_shift = vec3(0.0);
@@ -82,6 +84,15 @@ vec2 leak(vec2 w, float aa) {
 		line = max(line, (1.0 - smoothstep(0.003 - aa, 0.003 + aa, abs(d2))) * 0.4 * smoothstep(0.35, 0.7, run2));
 	}
 	return vec2(body, line) * (0.55 + 0.45 * hash12(reg + 57.0));
+}
+
+// Metres outside the nearest of a cell's panels (< 0 inside it), `p` from the cell's middle (drop_ceiling.gdshader)
+float panel_dist(vec2 p, vec2 half_sz) {
+	vec2 q0 = abs(p) - half_sz;
+	vec2 q1 = abs(p - sign(p) * 1.5) - half_sz;
+	float d0 = length(max(q0, 0.0)) + min(max(q0.x, q0.y), 0.0);
+	float d1 = length(max(q1, 0.0)) + min(max(q1.x, q1.y), 0.0);
+	return min(d0, d1);
 }
 
 // In Ceiling_Light_Panels's layout (6 x 6 tiles a cell, tile k centred at UV k / 6) the panels are tiles (1,1) (5,1) (1,5)
@@ -159,5 +170,8 @@ void fragment() {
 	// offset from the nearest lit cell's centre (they sit every 2 cells each way, at the world origin's parity)
 	vec2 to_lit = (fract(world / (2.0 * cell) + 0.5) - 0.5) * 2.0 * cell;
 	float pool = 1.0 - smoothstep(1.0, cell * 1.1, length(to_lit));
+	vec2 p = world - round(world / cell) * cell;
+	float pd = panel_dist(p, vec2(tile_size * 0.5));
+	emit *= mix(lens_edge, 1.0, smoothstep(0.0, 0.2, -pd));
 	EMISSION = emit * COLOR.rgb * mix(1.0, 1.0 / peak, far_k) + ALBEDO * ceiling_fill * mix(fill_between, 1.0, pool);
 }

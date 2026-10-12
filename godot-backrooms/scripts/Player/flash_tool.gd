@@ -32,7 +32,7 @@ var _charge_sfx: AudioStreamPlayer
 
 func _ready() -> void:
 	_charge_sfx = AudioStreamPlayer.new()
-	_charge_sfx.stream = load("res://audio/flash_charge.wav")
+	_charge_sfx.stream = load("res://audio/items/flash/flash_charge.wav")
 	_charge_sfx.bus = "World"
 	_charge_sfx.volume_db = -14.0
 	add_child(_charge_sfx)
@@ -102,7 +102,7 @@ static func burst(pos: Vector3) -> void:
 	light.shadow_enabled = true
 	root.add_child(light)
 	var pop := AudioStreamPlayer3D.new()
-	pop.stream = load("res://audio/flash_fire.wav")
+	pop.stream = load("res://audio/items/flash/flash_fire.wav")
 	pop.bus = "World"
 	pop.unit_size = 8.0
 	pop.max_distance = 60.0

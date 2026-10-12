@@ -1,0 +1,146 @@
+{
+ "packs": [],
+ "freesound": [
+  {
+   "id": "ov-2643a48b",
+   "url": "https://cdn.freesound.org/previews/618/618536_11526892-hq.mp3",
+   "title": "Walking on Carpet",
+   "creator": "Jarebear1223",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Jarebear1223/sounds/618536",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "heel"
+   ]
+  },
+  {
+   "id": "ov-aaedd8fa",
+   "url": "https://cdn.freesound.org/previews/205/205731_770707-hq.mp3",
+   "title": "footsteps rug",
+   "creator": "Yuval",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Yuval/sounds/205731",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "heel"
+   ]
+  },
+  {
+   "id": "ov-c32b4da1",
+   "url": "https://cdn.freesound.org/previews/164/164100_2054457-hq.mp3",
+   "title": "Walking Footsteps on Carpet.aif",
+   "creator": "Abolla",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Abolla/sounds/164100",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "heel"
+   ]
+  },
+  {
+   "id": "ov-3210889b",
+   "url": "https://cdn.freesound.org/previews/545/545540_6233742-hq.mp3",
+   "title": "light footsteps on carpet walk.wav",
+   "creator": "rsellick",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/rsellick/sounds/545540",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "contact"
+   ]
+  },
+  {
+   "id": "ov-862ea4b4",
+   "url": "https://cdn.freesound.org/previews/474/474051_3248005-hq.mp3",
+   "title": "Steps: Sneakers on Carpet 1",
+   "creator": "Sheyvan",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Sheyvan/sounds/474051",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "contact"
+   ]
+  },
+  {
+   "id": "ov-2c6e8a39",
+   "url": "https://cdn.freesound.org/previews/419/419163_8353567-hq.mp3",
+   "title": "04-Man walking carpet.wav",
+   "creator": "14GPanskaHonc_Petr",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/14GPanskaHonc_Petr/sounds/419163",
+   "type": "thump",
+   "k": 10,
+   "tags": [
+    "carpet",
+    "contact"
+   ]
+  },
+  {
+   "id": "ov-31540398",
+   "url": "https://cdn.freesound.org/previews/435/435829_8913961-hq.mp3",
+   "title": "Fabric-Sofa-Rubbing-Wooshes_StereoSP_96000.wav",
+   "creator": "Sonicquinn",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Sonicquinn/sounds/435829",
+   "type": "swish",
+   "k": 4,
+   "tags": [
+    "carpet",
+    "brush"
+   ]
+  },
+  {
+   "id": "ov-5b21c56c",
+   "url": "https://cdn.freesound.org/previews/344/344627_6073969-hq.mp3",
+   "title": "Fabric rubbed on a couch.wav",
+   "creator": "Chubbers1995",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/Chubbers1995/sounds/344627",
+   "type": "swish",
+   "k": 4,
+   "tags": [
+    "carpet",
+    "brush"
+   ]
+  },
+  {
+   "id": "ov-43808b9a",
+   "url": "https://cdn.freesound.org/previews/594/594753_13373365-hq.mp3",
+   "title": "Pressing down on sponge",
+   "creator": "emilyneiswonger",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/emilyneiswonger/sounds/594753",
+   "type": "swish",
+   "k": 4,
+   "tags": [
+    "carpet",
+    "damp"
+   ]
+  },
+  {
+   "id": "ov-dcde31d7",
+   "url": "https://cdn.freesound.org/previews/575/575332_9246516-hq.mp3",
+   "title": "squishing and squeezing a wet sponge in a bowl",
+   "creator": "breadparticles",
+   "license": "cc0",
+   "landing": "https://freesound.org/people/breadparticles/sounds/575332",
+   "type": "swish",
+   "k": 4,
+   "tags": [
+    "carpet",
+    "damp"
+   ]
+  }
+ ],
+ "defaults": []
+}

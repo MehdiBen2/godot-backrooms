@@ -33,6 +33,8 @@ uniform float tilted = 0.12;            // share of tiles sitting a little tilte
 uniform float water_stains = 0.5;       // the wide stains across many tiles (0 = none)
 uniform float tide_stains = 0.18;       // share of 3 m patches of ceiling with a leak stain (tide lines round it)
 uniform float dead_lamps = 0.06;        // share of light panels with one of their three lamps gone
+// A lit panel is not a flat sticker: its lens is a little dimmer toward the frame (the lamps sit in the middle)
+uniform float lens_edge = 0.78;         // the lens's brightness at its frame, of its middle
 uniform float normal_depth = 1.0;
 uniform float specular = 0.35;
 // bounce light on the ceiling (level_lighting.gd); pools round the lit cells like panel_ceiling.gdshader's
@@ -90,6 +92,16 @@ vec2 leak(vec2 w, float aa) {
 	return vec2(body, line) * (0.55 + 0.45 * hash12(reg + 57.0));
 }
 
+// Metres outside the nearest of a lit cell's panels (< 0 inside it): the middle one or the diagonal one on this
+// side (level_fixtures.gd PANEL_OFFSETS, 1.5 m out). `p` from the cell's middle, `half` a panel's half size.
+float panel_dist(vec2 p, vec2 half_sz) {
+	vec2 q0 = abs(p) - half_sz;
+	vec2 q1 = abs(p - sign(p) * 1.5) - half_sz;
+	float d0 = length(max(q0, 0.0)) + min(max(q0.x, q0.y), 0.0);
+	float d1 = length(max(q1, 0.0)) + min(max(q1.x, q1.y), 0.0);
+	return min(d0, d1);
+}
+
 // A grille's dark opening: `code` is level_fixtures.gd _vent_code (1 + type * 1024 + (ix + 16) + (iz + 16) * 32,
 // ix / iz its centre in 0.375 m steps from the cell's middle; type 1 is a return grille)
 bool in_grille(float code, vec2 p) {
@@ -138,6 +150,7 @@ void fragment() {
 	float tpp = max(length(dFdx(wt)), length(dFdy(wt)));        // tiles a pixel
 	float keep = 1.0 - smoothstep(0.08, 0.25, tpp);
 	float px_m = length(fwidth(world));                         // metres a pixel (taken here: not inside a branch)
+	float pd = panel_dist(p, tsz * 0.5);
 
 	vec3 alb;
 	vec3 nm;
@@ -165,7 +178,7 @@ void fragment() {
 			float at = (floor(hash12(pid + 33.1) * 3.0) - 1.0) * 0.27;   // which lamp, across the panel
 			dead = 1.0 - 0.7 * (1.0 - smoothstep(0.05, 0.18, abs(l.y * flip.y - at)));
 		}
-		emit *= tone * gain * mix(0.82, 1.08, lamp) * dead;
+		emit *= tone * gain * mix(0.82, 1.08, lamp) * dead * mix(lens_edge, 1.0, smoothstep(0.0, 0.2, -pd));
 	} else {
 		alb = textureGrad(tile_albedo, uv, gx, gy).rgb * albedo_tint;
 		nm = textureGrad(tile_normal, uv, gx, gy).rgb;

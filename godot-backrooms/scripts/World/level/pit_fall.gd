@@ -561,7 +561,7 @@ func _begin(i: int) -> void:
 	add_child(_wind)
 	_wind.play()
 	_hum = AudioStreamPlayer.new()
-	_hum.stream = load("res://audio/hum_diffuse.wav")
+	_hum.stream = load("res://audio/world/lights/hum_diffuse.wav")
 	_hum.bus = bus
 	_hum.volume_db = -80.0
 	add_child(_hum)

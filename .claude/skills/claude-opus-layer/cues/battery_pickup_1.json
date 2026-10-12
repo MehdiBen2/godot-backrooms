@@ -1,0 +1,30 @@
+{
+ "duration_s": 1.2,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "hand1",
+     "sound": "swish/fs-718668-wrapping-cloth-3",
+     "t": 0.16
+    },
+    {
+     "id": "bag1",
+     "sound": "swish/own-ov-f06be8b0",
+     "t": 0.4
+    }
+   ]
+  },
+  {
+   "gain_db": -12,
+   "cues": [
+    {
+     "id": "zip1",
+     "sound": "swish/own-ov-a75a795f",
+     "t": 0.66
+    }
+   ]
+  }
+ ]
+}

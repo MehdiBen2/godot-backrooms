@@ -8,6 +8,9 @@ extends RefCounted
 ##   run              sprinting
 ##   crouch_idle      squatting still        crouch_walk   creeping, heel to toe
 ##   death            falls onto its back and holds the last frame
+## and, for a body whose real velocity is known (Locomotion below; tools/blender/add_survivor_directions.py):
+##   walk_back / run_back / crouch_walk_back                       going backwards (a backpedal when running)
+##   strafe_l/_r / run_strafe_l/_r / crouch_strafe_l/_r            side-steps, a side shuffle when running
 
 const MODEL := "res://models/player/survivor.glb"
 const FADE := 0.22              # clip cross-fade, seconds
@@ -21,8 +24,8 @@ const NATIVE := {"walk": 1.2, "run": 4.2, "sprint": 4.2, "crouch_walk": 1.4}
 const SCALE_RANGE := {"walk": Vector2(0.6, 1.25), "run": Vector2(0.6, 1.5), "sprint": Vector2(0.7, 1.6), "crouch_walk": Vector2(0.5, 2.0)}
 
 const PATTERNS := {
-	"idle": "look|^idle", "walk": "^walk", "run": "^run", "sprint": "sprint",
-	"crouch_idle": "crouch.*idle", "crouch_walk": "crouch.*walk", "death": "death",
+	"idle": "look|^idle", "walk": "^walk$", "run": "^run$", "sprint": "sprint",
+	"crouch_idle": "crouch.*idle", "crouch_walk": "^crouch_walk$", "death": "death",
 }
 ## A role the model has no clip for plays the nearest one it does have.
 const FALLBACK := {"crouch_walk": "walk", "crouch_idle": "idle", "sprint": "run", "run": "walk", "walk": "run", "idle": "walk"}
@@ -116,3 +119,201 @@ class FloorGuard:
 				need = maxf(need, _flat - (_to_parent(_sk.get_bone_global_pose(i).origin).y - lift))
 		lift = need
 		_holder.position.y = _base + lift
+
+
+## gait -> its clips going [forward, back, left, right]; left / right are the suit's own
+const DIRS := {
+	"walk": ["walk", "walk_back", "strafe_l", "strafe_r"],
+	"run": ["run", "run_back", "run_strafe_l", "run_strafe_r"],
+	"crouch": ["crouch_walk", "crouch_walk_back", "crouch_strafe_l", "crouch_strafe_r"],
+}
+## Ground speed (m/s) each gait's clips cover at speed 1 going (forward, back, sideways), as
+## add_survivor_directions.py prints them; and the playback range that still looks like that gait.
+const DIR_NATIVE := {"walk": Vector3(1.2, 1.17, 0.94), "run": Vector3(4.2, 2.58, 2.4), "crouch": Vector3(1.4, 1.4, 1.11)}
+const DIR_RANGE := {"walk": Vector2(0.6, 1.3), "run": Vector2(0.6, 1.6), "crouch": Vector2(0.5, 2.0)}
+
+
+## Moves a body the way it is really going. An AnimationTree (built here, next to the suit's AnimationPlayer)
+## blends each gait's four directional clips in a 2D blend space by the velocity in the body's own frame, so
+## going backwards plays walk_back / run_back and sideways a side-step, never the forward run. Idle, gait,
+## run, crouch and death cross-fade by damped weights. The body's yaw follows the look with a lag (standing,
+## the head alone turns until the look is past `turn_start`, then the feet shuffle round) and the HeadLook
+## modifier turns chest, neck and head the rest of the way, damped: no snapping.
+##   var loco := SurvivorAnim.Locomotion.new(anim, clips)
+##   each frame: loco.update(dt, world_velocity, speed, sprinting, crouching, dead, look_yaw, look_pitch)
+##   then use loco.body_yaw as the body's rotation.y (the node faces -Z)
+class Locomotion:
+	var fade_rate := 10.0                       # 1/s: idle / gait / run / crouch / death weights (~FADE to settle)
+	var dir_rate := 7.0                         # 1/s: the blend following a change of direction
+	var turn_moving := 9.0                      # 1/s: body yaw catching up with the look while moving
+	var turn_idle := 5.0                        # 1/s: ... standing, once it has started to turn
+	var turn_start := deg_to_rad(70.0)          # standing: how far the head turns alone before the feet follow
+	var turn_stop := deg_to_rad(5.0)
+	var head_rate := 12.0                       # 1/s: head after the look (smooths network steps, never snaps)
+	var head_max_yaw := deg_to_rad(85.0)
+	var head_max_pitch := deg_to_rad(60.0)
+
+	var tree: AnimationTree
+	var look: HeadLook
+	var body_yaw := 0.0
+	var _ang := 0.0                             # direction of travel in the body's frame: 0 forward, + right
+	var _move := 0.0
+	var _run := 0.0
+	var _crouch := 0.0
+	var _dead := 0.0
+	var _was_dead := false
+	var _turning := false
+
+	func _init(player: AnimationPlayer, clips: Dictionary) -> void:
+		tree = AnimationTree.new()
+		tree.name = "Locomotion"
+		player.get_parent().add_child(tree)            # a sibling: the same root for the track paths
+		tree.anim_player = tree.get_path_to(player)
+		player.stop()
+		player.active = false                           # the tree poses the skeleton now, not the player
+		var bt := AnimationNodeBlendTree.new()
+		var anim_node := func(n: String, fallback: String) -> AnimationNodeAnimation:
+			var a := AnimationNodeAnimation.new()
+			a.animation = n if player.has_animation(n) else fallback
+			return a
+		var idle := str(clips.get("idle", ""))
+		var walk := str(clips.get("walk", idle))
+		bt.add_node("idle", anim_node.call(idle, walk))
+		bt.add_node("crouch_idle", anim_node.call(str(clips.get("crouch_idle", "")), idle))
+		var death := AnimationNodeAnimation.new()
+		death.animation = str(clips.get("death", "")) if str(clips.get("death", "")) != "" else idle
+		bt.add_node("death", death)
+		bt.add_node("death_seek", AnimationNodeTimeSeek.new())
+		bt.connect_node("death_seek", 0, "death")
+		for gait in DIRS:
+			var names: Array = DIRS[gait]
+			var fwd := str(names[0]) if player.has_animation(names[0]) else walk
+			var bs := AnimationNodeBlendSpace2D.new()
+			bs.sync = true                                   # same-length clips: the feet stay in step
+			var pts := [Vector2(0, 1), Vector2(0, -1), Vector2(-1, 0), Vector2(1, 0)]
+			for i in 4:
+				var a: AnimationNodeAnimation = anim_node.call(str(names[i]), fwd)
+				if i == 1 and not player.has_animation(names[1]):
+					a.play_mode = AnimationNodeAnimation.PLAY_MODE_BACKWARD     # no back clip: the forward one reversed
+				bs.add_blend_point(a, pts[i])
+			for i in 4:
+				if player.has_animation(names[i]):
+					player.get_animation(names[i]).loop_mode = Animation.LOOP_LINEAR
+			bt.add_node(gait + "_dir", bs)
+			bt.add_node(gait + "_rate", AnimationNodeTimeScale.new())
+			bt.connect_node(gait + "_rate", 0, gait + "_dir")
+		for b in ["gait", "stand", "crouch", "posture", "life"]:
+			bt.add_node(b, AnimationNodeBlend2.new())
+		bt.connect_node("gait", 0, "walk_rate")
+		bt.connect_node("gait", 1, "run_rate")
+		bt.connect_node("stand", 0, "idle")
+		bt.connect_node("stand", 1, "gait")
+		bt.connect_node("crouch", 0, "crouch_idle")
+		bt.connect_node("crouch", 1, "crouch_rate")
+		bt.connect_node("posture", 0, "stand")
+		bt.connect_node("posture", 1, "crouch")
+		bt.connect_node("life", 0, "posture")
+		bt.connect_node("life", 1, "death_seek")
+		bt.connect_node("output", 0, "life")
+		tree.tree_root = bt
+		tree.active = true
+		var sks := player.get_parent().find_children("*", "Skeleton3D", true, false)
+		if not sks.is_empty():
+			look = HeadLook.new()
+			sks[0].add_child(look)
+
+	## Snap to a facing without turning (first sight, respawn, coming back into view).
+	func face(yaw: float) -> void:
+		body_yaw = yaw
+		_turning = false
+
+	func update(dt: float, vel: Vector3, speed: float, sprinting: bool, crouching: bool, dead: bool, look_yaw: float, look_pitch: float) -> void:
+		var moving := speed > MOVING_ABOVE and not dead
+		# ---- body yaw: lags the look; standing, only once the head can't cover it
+		var before := body_yaw
+		var diff := wrapf(look_yaw - body_yaw, -PI, PI)
+		if dead:
+			_turning = false                            # lies where it fell
+		elif moving:
+			_turning = false
+			body_yaw += diff * (1.0 - exp(-turn_moving * dt))
+		else:
+			if absf(diff) > turn_start:
+				_turning = true
+			if _turning:
+				body_yaw += diff * (1.0 - exp(-turn_idle * dt))
+				if absf(wrapf(look_yaw - body_yaw, -PI, PI)) < turn_stop:
+					_turning = false
+		body_yaw = wrapf(body_yaw, -PI, PI)
+		var turn_rate := wrapf(body_yaw - before, -PI, PI) / maxf(dt, 1e-4)      # rad/s, + = to the left
+
+		# ---- direction of travel in the body's frame (x right, y forward; the body faces -Z)
+		var right := Vector3(cos(body_yaw), 0.0, -sin(body_yaw))
+		var fwd := Vector3(-sin(body_yaw), 0.0, -cos(body_yaw))
+		var local := Vector2(vel.dot(right), vel.dot(fwd))
+		var step := 0.0                             # turning on the spot: the feet shuffle round with it
+		if moving and local.length() > 0.05:
+			_ang = lerp_angle(_ang, atan2(local.x, local.y), 1.0 - exp(-dir_rate * dt))
+		elif _turning and not crouching:
+			step = clampf(absf(turn_rate) / PI, 0.0, 0.6)
+			_ang = lerp_angle(_ang, -PI / 2.0 if turn_rate > 0.0 else PI / 2.0, 1.0 - exp(-dir_rate * 2.0 * dt))
+		var p := Vector2(sin(_ang), cos(_ang))
+		p /= absf(p.x) + absf(p.y)                  # onto the diamond the four clips span
+		var k := 1.0 - exp(-fade_rate * dt)
+		_move = lerpf(_move, maxf(1.0 if moving else 0.0, step), k)
+		_run = lerpf(_run, 1.0 if sprinting and moving else 0.0, k)
+		_crouch = lerpf(_crouch, 1.0 if crouching else 0.0, k)
+		_dead = lerpf(_dead, 1.0 if dead else 0.0, k)
+		if dead and not _was_dead:
+			tree.set("parameters/death_seek/seek_request", 0.0)     # falls from the start, holds the end
+		_was_dead = dead
+		var gait_speed := speed if moving else 0.9 * step
+		for gait in DIRS:
+			tree.set("parameters/%s_dir/blend_position" % gait, p)
+			var nat: Vector3 = DIR_NATIVE[gait]
+			var native := absf(p.y) * (nat.x if p.y >= 0.0 else nat.y) + absf(p.x) * nat.z
+			var r: Vector2 = DIR_RANGE[gait]
+			tree.set("parameters/%s_rate/scale" % gait, clampf(gait_speed / native, r.x, r.y))
+		tree.set("parameters/gait/blend_amount", _run)
+		tree.set("parameters/stand/blend_amount", _move)
+		tree.set("parameters/crouch/blend_amount", _move)
+		tree.set("parameters/posture/blend_amount", _crouch)
+		tree.set("parameters/life/blend_amount", _dead)
+
+		# ---- head: the rest of the look, damped, within what a neck can do
+		if look:
+			var hk := 1.0 - exp(-head_rate * dt)
+			var want_yaw := 0.0 if dead else clampf(wrapf(look_yaw - body_yaw, -PI, PI), -head_max_yaw, head_max_yaw)
+			var want_pitch := 0.0 if dead else clampf(look_pitch, -head_max_pitch, head_max_pitch)
+			look.yaw = lerpf(look.yaw, want_yaw, hk)
+			look.pitch = lerpf(look.pitch, want_pitch, hk)
+			look.influence = 1.0 - _dead
+
+
+## Turns the chest, neck and head after the animation is posed: `yaw` (rad, + = to its left) and `pitch`
+## (rad, + = up), each shared out along the spine so no single joint takes it all. Skeleton space, so it
+## doesn't care how the rig's bones are rolled. The suit faces +Z in its own file, up +Y.
+class HeadLook extends SkeletonModifier3D:
+	const SHARES := [["Spine02", 0.25, 0.15], ["NeckTwist01", 0.3, 0.35], ["Head", 0.45, 0.5]]   # bone, yaw, pitch
+	var yaw := 0.0
+	var pitch := 0.0
+	var _bones: Array = []                          # [bone index, parent index, yaw share, pitch share]
+
+	func _process_modification_with_delta(_delta: float) -> void:
+		var sk := get_skeleton()
+		if sk == null:
+			return
+		if _bones.is_empty():
+			for s in SHARES:
+				var i := sk.find_bone(s[0])
+				if i >= 0:
+					_bones.append([i, sk.get_bone_parent(i), s[1], s[2]])
+		var turned := 0.0
+		for b in _bones:
+			turned += yaw * float(b[2])
+			var qy := Quaternion(Vector3.UP, yaw * float(b[2]))
+			var qp := Quaternion(Quaternion(Vector3.UP, turned) * Vector3.LEFT, pitch * float(b[3]))   # nods about its own (turned) side axis
+			var gp := sk.get_bone_global_pose(b[0])
+			var pg := sk.get_bone_global_pose(b[1]) if int(b[1]) >= 0 else Transform3D.IDENTITY
+			var local := pg.basis.orthonormalized().inverse() * (Basis(qp * qy) * gp.basis.orthonormalized())
+			sk.set_bone_pose_rotation(b[0], local.get_rotation_quaternion())

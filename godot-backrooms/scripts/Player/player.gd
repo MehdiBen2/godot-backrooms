@@ -152,8 +152,8 @@ var stair_vy := 0.0              # smoothed climb rate on a flight (m/s, + up)
 var stair_prev_y := 0.0
 var breath := 0.0
 var click_player: AudioStreamPlayer
-var click_on: AudioStream = load("res://audio/on.mp3")
-var click_off: AudioStream = load("res://audio/off.mp3")
+var click_on: AudioStream = load("res://audio/items/torch/on.mp3")
+var click_off: AudioStream = load("res://audio/items/torch/off.mp3")
 
 # --- Door interaction & camera animation ---
 var focused_door: Node = null
@@ -570,6 +570,10 @@ func _physics_process_timed(dt: float) -> void:
 		velocity.y = move_toward(velocity.y, want, dt * 7.0)
 		jump_buffer = 0.0
 		coyote = 0.0
+	elif crawling:
+		jump_buffer = 0.0              # no room to jump under a crawl-space ceiling
+		if not is_on_floor():
+			velocity.y = maxf(velocity.y - GRAVITY * dt, -fall_speed_max)
 	elif (space or jump_buffer > 0.0) and coyote > 0.0:
 		velocity.y = JUMP_SPEED * Game.jump_mult
 		jump_buffer = 0.0
@@ -624,7 +628,7 @@ func _physics_process_timed(dt: float) -> void:
 		if lens_up > 0.02:
 			torch.visible = false        # the camcorder is at your eye: both hands are on it
 	if shadow_body:
-		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length())
+		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length(), velocity, cam.rotation.x)
 	_update_flashlight(dt)
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)

@@ -37,7 +37,7 @@ func _ready() -> void:
 	var prompt := PickupPrompt.new()
 	add_child(prompt)
 	prompt.setup({"id": ITEM_ID, "name": ITEM_NAME, "code": ITEM_CODE, "desc": ITEM_DESC, "stack": STACK,
-		"model": MODEL_PATH, "sound": "flash_click_on.wav", "height": 0.6, "walk_over": true})
+		"model": MODEL_PATH, "sound": "items/torch/flash_click_on.wav", "height": 0.6, "walk_over": true})
 	_apply_vis_range(model)
 
 func _apply_vis_range(n: Node) -> void:

@@ -31,7 +31,7 @@ const GRAIN_EVERY := 0.045       # m of tape per crackle
 const PEEL_SPEED := 9.0          # m/s a strip peels back
 const PEEL_MIN := 0.35           # s: even a short one takes this long
 const RESULT_TIME := 1.4        # s the readout shows how the last pull went
-const GRAINS := ["tape_grain_0.wav", "tape_grain_1.wav", "tape_grain_2.wav", "tape_grain_3.wav"]
+const GRAINS := ["items/tape/tape_grain_0.wav", "items/tape/tape_grain_1.wav", "items/tape/tape_grain_2.wav", "items/tape/tape_grain_3.wav"]
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd
@@ -139,7 +139,7 @@ func _start() -> void:
 	_preview.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	TapeMarks.live.add_child(_preview)
 	_preview.global_transform = Transform3D.IDENTITY
-	_play("tape_stick.wav", -6.0)
+	_play("items/tape/tape_stick.wav", -6.0)
 
 ## Where the tape is aimed from and along: the middle of the screen, or through the mouse cursor
 func _reach() -> float:
@@ -233,7 +233,7 @@ func _tear_off() -> void:
 		_result("short", l)
 		return
 	TapeMarks.live.place(a, b, n)
-	_play("tape_rip.wav", -5.0, randf_range(0.92, 1.08))
+	_play("items/tape/tape_rip.wav", -5.0, randf_range(0.92, 1.08))
 	roll_left -= l
 	_result("placed", l)
 	result_ry = int(Clearance.file_survey(_cells_marked(a, b, n), _count_open()).get("total", 0))
@@ -290,7 +290,7 @@ func _finish_peel() -> void:
 		inventory.add_item(TapePickup.ITEM_ID, TapePickup.ITEM_NAME, TapePickup.ITEM_DESC, 1,
 			TapePickup.ITEM_CODE, TapePickup.STACK, TapePickup.MODEL_PATH)
 		roll_left = maxf(peel_full, MIN_STRIP)
-	_play("tape_rip.wav", -6.0, randf_range(0.75, 0.9))
+	_play("items/tape/tape_rip.wav", -6.0, randf_range(0.75, 0.9))
 	_result("peeled", peel_full)
 
 func _stop_peel() -> void:

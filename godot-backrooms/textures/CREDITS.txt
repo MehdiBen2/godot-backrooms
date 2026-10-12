@@ -24,3 +24,11 @@ Supplied with the project (asetsuimprot/), source and licence to be confirmed:
       Made from "grungy-stained-concrete-wall-texture.jpg", "grungy-stained-concrete-wall-texture (1).jpg" and
       "grungy-weathered-concrete-wall-texture.jpg": each turned into a multiply map (clean plaster white),
       2048 x 1365, stacked in one picture.
+
+Textures under CC0 (https://creativecommons.org/publicdomain/zero/1.0/):
+
+- lens_dirt_1.png .. lens_dirt_6.png (the camera's lens dirt, one picked at random each session: scripts/UI/hud/hud.gd)
+      "Lens dirt texture Pack" by zisongbr, OpenGameArt (https://opengameart.org/content/lens-dirt-texture-pack-1png
+      .. -9png), CC0. Pack files 1, 2, 3, 6, 7 and 8 became lens_dirt_1 .. 6: scaled from 3870 x 2177 to
+      2560 x 1440, and the dark ones (3, 6, 7) brightened (x1.35, x3.3, x3.65) so they read through
+      camera.gdshader's dirt threshold like lens_dirt.png does.

@@ -183,3 +183,153 @@ static func local_time(unix: int) -> String:
 	var bias := int(Time.get_time_zone_from_system().get("bias", 0)) * 60
 	var d := Time.get_datetime_dict_from_unix_time(unix + bias)
 	return "%04d-%02d-%02d %02d:%02d" % [d.year, d.month, d.day, d.hour, d.minute]
+
+const LOGO_PATH := "res://textures/ui/tsra_logo.png"     # tools/gen_tsra_logo.py
+const INK := Color(0.05, 0.032, 0.006)   # text on an inverse-video bar (a selected row, a key cap)
+const LIT := Color(0.76, 0.52, 0.17)     # an inverse-video bar: the amber held down, or its glow drowns the text
+const RULE := 2.0                        # the terminal's line weight: frames, rules, the sheet
+static var _logo_tex: Texture2D
+
+## The T.S.R.A. emblem at `px` square, its pixels kept square (imported if the editor has seen it, else
+## read straight from the file)
+static func logo(px: float) -> TextureRect:
+	if _logo_tex == null:
+		if ResourceLoader.exists(LOGO_PATH):
+			_logo_tex = load(LOGO_PATH)
+		else:
+			var img := Image.load_from_file(ProjectSettings.globalize_path(LOGO_PATH))
+			if img != null:
+				_logo_tex = ImageTexture.create_from_image(img)
+	var r := TextureRect.new()
+	r.texture = _logo_tex
+	r.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	r.custom_minimum_size = Vector2(px, px)
+	r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
+
+## A status the old way: a word in square brackets, coloured. "[ACTIVE]", "[LOCKED]", "[CLASS 4]"
+static func tag(text: String, col: Color, px := 15) -> Label:
+	return label("[%s]" % text, px, col, 2)
+
+## A line of a terminal's frame: square, `RULE` thick, drawn round its children with the title set into
+## the top edge ("+- STATUS ------------ 5/8 -+"). `right` is a figure at the other end of that edge
+## (set_frame_right changes it).
+static func frame(title: String, right := "", pad := 18.0) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxEmpty.new()
+	sb.content_margin_left = pad; sb.content_margin_right = pad
+	sb.content_margin_top = pad + 12.0; sb.content_margin_bottom = pad
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.set_meta("title", title)
+	p.set_meta("right", right)
+	p.draw.connect(func(): _draw_frame(p))
+	return p
+
+static func set_frame_right(p: Control, text: String) -> void:
+	if p.get_meta("right") != text:
+		p.set_meta("right", text)
+		p.queue_redraw()
+
+static func _draw_frame(p: Control) -> void:
+	var f := font(3)
+	var px := 15
+	var w := p.size.x
+	var h := p.size.y
+	var y := 10.0                                   # the top edge runs through the title's middle
+	var col := Color(AMBER, 0.6)
+	var title: String = p.get_meta("title")
+	var right: String = p.get_meta("right")
+	var base := y + (f.get_ascent(px) - f.get_descent(px)) * 0.5
+	var x := 0.0
+	if title != "":
+		var tw := f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+		p.draw_rect(Rect2(0, y - RULE * 0.5, 14, RULE), col)
+		p.draw_string(f, Vector2(24, base), title, HORIZONTAL_ALIGNMENT_LEFT, -1, px, AMBER)
+		x = 24.0 + tw + 10.0
+	var end := w
+	if right != "":
+		var rw := f.get_string_size(right, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+		p.draw_string(f, Vector2(w - 24 - rw, base), right, HORIZONTAL_ALIGNMENT_LEFT, -1, px, MUTED)
+		p.draw_rect(Rect2(w - 14, y - RULE * 0.5, 14, RULE), col)
+		end = w - 24 - rw - 10
+	p.draw_rect(Rect2(x, y - RULE * 0.5, maxf(0.0, end - x), RULE), col)
+	p.draw_rect(Rect2(0, y - RULE * 0.5, RULE, h - y + RULE * 0.5), col)
+	p.draw_rect(Rect2(w - RULE, y - RULE * 0.5, RULE, h - y + RULE * 0.5), col)
+	p.draw_rect(Rect2(0, h - RULE, w, RULE), col)
+
+## A section heading inside a page: "-- TITLE ------------------- RIGHT --"
+static func rule(title := "", right := "", col := AMBER) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(_rule_line(18.0, col))
+	if title != "":
+		h.add_child(label(title, 15, col, 3))
+	var fill := _rule_line(0.0, col)
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(fill)
+	if right != "":
+		h.add_child(label(right, 15, MUTED, 2))
+		h.add_child(_rule_line(18.0, col))
+	return h
+
+static func _rule_line(w: float, col: Color) -> ColorRect:
+	var r := ColorRect.new()
+	r.color = Color(col, 0.45)
+	r.custom_minimum_size = Vector2(w, 1)
+	r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return r
+
+## "KEY ........................ VALUE": a dotted leader between a name and its figure
+static func leader(key: String, value: String, col := TEXT, px := 17) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(label(key, px - 1, MUTED, 2))
+	h.add_child(dots())
+	var v := label(value, px, col, 2)
+	h.add_child(v)
+	h.set_meta("value", v)
+	return h
+
+## The leader's dots: a row of points on the text's baseline, filling whatever width is left
+static func dots(col := Color(MUTED, 0.5)) -> Control:
+	var d := Control.new()
+	d.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	d.custom_minimum_size = Vector2(16, 0)
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	d.set_meta("color", col)
+	d.draw.connect(func():
+		var c: Color = d.get_meta("color")
+		var x := 2.0
+		while x < d.size.x - 2.0:
+			d.draw_rect(Rect2(x, d.size.y * 0.66, 2, 2), c)
+			x += 8.0
+	)
+	return d
+
+## A key on the function-key strip: its name in inverse video
+static func keycap(key: String) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := box(LIT)
+	sb.content_margin_left = 8; sb.content_margin_right = 8
+	sb.content_margin_top = 1; sb.content_margin_bottom = 1
+	p.add_theme_stylebox_override("panel", sb)
+	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := label(key, 15, INK, 2)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+	p.add_child(l)
+	return p
+
+## The terminal's selection: the row in inverse video (`hover`: a faint wash under the cursor)
+static func row_box(on: bool, hover := false) -> StyleBoxFlat:
+	var sb := box(LIT if on else (Color(AMBER, 0.08) if hover else Color(0, 0, 0, 0)))
+	sb.content_margin_left = 10; sb.content_margin_right = 10
+	sb.content_margin_top = 4; sb.content_margin_bottom = 4
+	return sb

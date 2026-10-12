@@ -30,7 +30,7 @@ const LOOKS := {
 		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7), "gi_ceil": 0.0,       # the bounce's strength and tint (yellow walls, beige carpet); a faint lift on the ceiling
 		"exposure": 1.0, "agx_white": 4.0,                                 # mid-tones in the middle; the panels clip, the walls don't
 		"glow_threshold": 1.0,                                             # only the HDR panels bloom (a lit wall, or a torch on one, does not)
-		"glow_intensity": 0.75, "glow_bloom": 0.1, "glow_wide": 0.45,      # a soft halo round each panel, wider with distance
+		"glow_intensity": 1.6, "glow_bloom": 0.1, "glow_wide": 0.8,        # each panel bleeds over its frame, a soft halo wider out
 		"ssao_intensity": 1.2,                                             # contact darkening where walls meet the ceiling and in corners
 		"haze": Color(0.3, 0.28, 0.2),                                     # the far halls fade into dim room air
 	},
@@ -39,8 +39,8 @@ const LOOKS := {
 	"liminal": {
 		"ambient_energy": 0.65, "ambient_color": Color(0.31, 0.3, 0.25),    # pale, washed-out fill: shadows go grey, not black
 		"exposure": 1.1, "agx_white": 5.0,            # a touch bright, highlights rolled off softly
-		"glow_threshold": 1.0, "glow_intensity": 0.85,
-		"glow_bloom": 0.06, "glow_wide": 0.35,        # a faint dreamy halo round the tubes
+		"glow_threshold": 1.0, "glow_intensity": 1.5,
+		"glow_bloom": 0.06, "glow_wide": 0.65,        # a dreamy halo round the tubes
 		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow
 		"haze": Color(0.3, 0.29, 0.23),               # the distance fades to this
 		"fog": 0.2,                                   # share of the fog left: you see a long way, but not the end

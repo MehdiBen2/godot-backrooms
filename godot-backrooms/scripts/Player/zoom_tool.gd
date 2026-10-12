@@ -41,8 +41,8 @@ var blur := 0.0                  # mip level of softness: 0 sharp
 var lock := 1.0                  # 0..1 how well in focus
 var lens_pos := Vector3.ZERO     # where the crosshair ray ends (for the readout)
 var anomaly := 0.0               # 0..1 eased: an entity in the lens. The picture tears and corrupts (cam_zoom.gdshader)
-var _click_on: AudioStream = load("res://audio/flash_click_on.wav")
-var _click_off: AudioStream = load("res://audio/flash_click_off.wav")
+var _click_on: AudioStream = load("res://audio/items/torch/flash_click_on.wav")
+var _click_off: AudioStream = load("res://audio/items/torch/flash_click_off.wav")
 var _click: AudioStreamPlayer
 var _whirr: AudioStreamPlayer    # the zoom motor: a looped servo, louder and higher the harder it runs
 var _sfx: AudioStreamPlayer      # the one-shots: motor tick and end stop

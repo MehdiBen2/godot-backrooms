@@ -41,7 +41,7 @@ const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const HUG_SPREAD := 0.12          # m: each hand's fingertips are this far off the middle of the wall in front
 const HUG_LOWER := 0.12           # m below eye height the hands go
 
-signal swap_started               # the hands begin (audio/battery_swap.wav is cut to the clip)
+signal swap_started               # the hands begin (audio/items/torch/battery_swap.wav is cut to the clip)
 signal swap_dark(dark: bool)      # the cap is off, no light / it's back on
 signal swap_done                  # the new cells are in
 signal swap_cut                   # it was cut short (a flinch): the sound has to stop

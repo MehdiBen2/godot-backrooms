@@ -16,7 +16,7 @@ const MAX_GLOWS := 12
 const LIGHT_REACH := 18.0
 const LIGHT_COLOR := Color(1.0, 0.93, 0.78)     # level_light_pool.gd LIGHT_COLOR
 const LIMINAL_COLOR := Color(0.95, 0.98, 0.9)   # Render/atmospheres.gd LOOKS.liminal.light
-const PANEL_LIGHT := 1.9                        # level_light_pool.gd PANEL_ENERGY
+const PANEL_LIGHT := 2.3                        # level_light_pool.gd PANEL_ENERGY
 const CLASSIC_BOOST := 1.6
 
 ## Neighbouring floors take the two shell render layers turn about (level_geometry.gd SHELL_LAYERS), so a

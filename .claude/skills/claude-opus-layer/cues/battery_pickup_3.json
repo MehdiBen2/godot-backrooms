@@ -1,0 +1,31 @@
+{
+ "duration_s": 1.2,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "hand3",
+     "sound": "swish/fs-268226-woosh-2-mp3-1",
+     "t": 0.2,
+     "pitch": -5
+    },
+    {
+     "id": "bag3",
+     "sound": "swish/own-ov-f58959dc",
+     "t": 0.46
+    }
+   ]
+  },
+  {
+   "gain_db": -13,
+   "cues": [
+    {
+     "id": "zip3",
+     "sound": "swish/own-ov-6f88541e",
+     "t": 0.68
+    }
+   ]
+  }
+ ]
+}

@@ -57,7 +57,7 @@ const TUBE_LIGHT_SIZE := 0.5        # metres: a troffer (Godot's emitter is a sp
 # Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
 # in the middle, four on the diagonals). Only every other cell each way glows and hides a real light behind
 # its panels (a sparse, regular grid); the other cells' panel squares are drawn as plain ceiling tiles.
-const PANEL_ENERGY := 1.9
+const PANEL_ENERGY := 2.3
 const PANEL_RANGE := 16.0
 # ---- light pool
 # Spots pointing straight down, their cone like a diffuser's spread (level_fixtures.gd SPOT_ANGLE): a troffer

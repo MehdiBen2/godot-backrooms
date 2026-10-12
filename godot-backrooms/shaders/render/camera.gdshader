@@ -34,7 +34,7 @@ uniform vec3 grade = vec3(1.07, 1.03, 0.88);
 uniform float distortion = 0.30;       // the barrel lens (see lens())
 uniform float cctv = 0.0;              // the CCTV filter (Gfx `cctv`, the CAMERA menu): 0 off, render_engine.gd sets it
 uniform float chroma_amt = 0.0028;
-uniform float grain = 0.034;
+uniform float grain = 0.018;
 uniform float vhs = 1.0;
 uniform float vhs_soft = 0.3;
 uniform float vhs_color_offset_multiplier : hint_range(0.0, 0.1) = 0.004;
@@ -276,13 +276,16 @@ void fragment() {
 		vec3 light_tint = mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
 		vec3 dirt_rgb = dirt_l * light_tint;
 		float lens_clean = 1.0 - 0.7 * classic;
-		col += dirt_rgb * local_light * dirt_base * lens_clean;
 		float lens_t = 0.58 - 0.18 * glare;
+		// the dirt on the glass only shows against strong light: a light in or near the frame (glare), or a patch of
+		// the picture blown near white. A wall in the torch or a dim hall leaves the lens looking clean.
+		float strong = max(smoothstep(0.62, 0.95, luma_local), glare);
+		col += dirt_rgb * local_light * dirt_base * lens_clean * strong;
 		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90);
 		float smudge = texture(lens_smudge_tex, clamp(dirt_uv, 0.0, 1.0)).r * lens_clean;
 		if (smudge > 0.004) {
 			col = mix(col, textureLod(screen_tex, uvg, 2.0).rgb, clamp(smudge * smudge_soft, 0.0, 0.5));
-			float smudge_lit = smudge_base + smoothstep(lens_t - 0.3, 0.95, luma_local) * (1.0 + 2.5 * glare);
+			float smudge_lit = (smudge_base + smoothstep(lens_t - 0.3, 0.95, luma_local) * (1.0 + 2.5 * glare)) * strong;
 			col += smudge * light_tint * local_light * smudge_lit * smudge_amt;
 		}
 		if (luma_local > lens_t) {

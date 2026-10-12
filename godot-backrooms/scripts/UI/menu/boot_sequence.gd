@@ -79,7 +79,7 @@ func _ready() -> void:
 	grain.material.shader = _grain_shader()
 	root.add_child(grain)
 	_full(grain)
-	hum = _player("res://audio/hum_diffuse.wav", -60.0)
+	hum = _player("res://audio/world/lights/hum_diffuse.wav", -60.0)
 	if hum:
 		hum.finished.connect(hum.play)
 		hum.play()
@@ -120,7 +120,7 @@ func _logo() -> void:
 	skip = false
 	shown_at = clock
 	logo = _build_logo()
-	_sfx("res://audio/tube_restrike.wav", -6.0)
+	_sfx("res://audio/world/lights/tube_restrike.wav", -6.0)
 	if hum:
 		create_tween().tween_property(hum, "volume_db", -16.0, 0.6)
 	for step in [[1.0, 0.05], [0.0, 0.09], [0.7, 0.04], [0.0, 0.2], [1.0, 0.06], [0.15, 0.1], [1.0, 0.0]]:
@@ -164,7 +164,7 @@ func _tv_on() -> void:
 	_tv_frame(0.0)
 	bg.visible = false                     # the tube's own black takes over from here
 	reveal.emit()
-	_sfx("res://audio/flash_click_on.wav", -4.0)
+	_sfx("res://audio/items/torch/flash_click_on.wav", -4.0)
 	_start_tv_audio()
 	var tw := create_tween()
 	tw.tween_method(_tv_frame, 0.0, TV_TIME, TV_TIME)

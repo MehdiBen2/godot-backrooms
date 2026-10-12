@@ -816,7 +816,7 @@ const GLOW_CELLS := 3               # the pool's quad, in cells: the tube's own 
 # LIGHT_RANGE / PANEL_RANGE, PANEL_ENERGY, the pool's spot_attenuation and CLASSIC_BOOST; the cone is SPOT_ANGLE)
 const GLOW_RANGE := 20.0
 const GLOW_RANGE_PANEL := 16.0
-const GLOW_ENERGY_PANEL := 1.9
+const GLOW_ENERGY_PANEL := 2.3
 const GLOW_DECAY := 1.15
 const GLOW_CLASSIC := 1.3
 const CONE_TOP := 0.3               # metres: the cone's radius at the tube...

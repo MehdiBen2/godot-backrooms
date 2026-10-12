@@ -1,7 +1,8 @@
 extends Node3D
-## Another survivor. Wears the hazmat suit (models/player/survivor.glb) and plays its clips through
-## survivor_anim.gd: look-around idle / walk / run / crouch idle / crouch walk, and the death clip which
-## holds its last frame. Falls back to a box figure if the model can't load.
+## Another survivor. Wears the hazmat suit (models/player/survivor.glb) and moves it through
+## survivor_anim.gd's Locomotion: look-around idle, walk / run / crouch walk blended forwards, backwards and
+## sideways by the way they are really going, and the death clip which holds its last frame. The body turns
+## after their look and the head leads it. Falls back to a box figure if the model can't load.
 ## Smoothed towards the last state received.
 
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
@@ -41,9 +42,11 @@ var tag: Label3D
 var model: Node3D
 var anim: AnimationPlayer
 var _floor: SurvivorAnim.FloorGuard
+var loco: SurvivorAnim.Locomotion
 var clips := {}                 # role -> animation name found in the model
-var _role := ""
 var _walk := 0.0
+var _vel := Vector3.ZERO         # m/s, from how their (interpolated) position moves: the way they're going
+var _last_pos := Vector3.INF
 var _speed := 0.0
 var speed := 0.0                # m/s, smoothed; read by the entity's senses
 var _fall := 0.0
@@ -129,11 +132,10 @@ func _load_model() -> void:
 	model.add_child(root)
 	root.transform = HazmatFit.fit(root, model, MODEL_HEIGHT)
 	model.rotation.y = PI
-	_floor = SurvivorAnim.FloorGuard.new(model, anim)
+	loco = SurvivorAnim.Locomotion.new(anim, clips)
+	_floor = SurvivorAnim.FloorGuard.new(model, loco.tree)
 	_tint(root)
 	figure.visible = false
-	_role = ""
-	_play("idle")
 
 # the suit takes a little of the survivor's colour so everyone is easy to tell apart
 func _tint(root: Node) -> void:
@@ -146,12 +148,6 @@ func _tint(root: Node) -> void:
 				var c: StandardMaterial3D = mat.duplicate()
 				c.albedo_color = c.albedo_color * tint
 				mi.set_surface_override_material(i, c)
-
-func _play(role: String) -> void:
-	if role == "" or role == _role:
-		return
-	_role = role
-	anim.play(clips[role], SurvivorAnim.FADE)
 
 ## A snapshot from the network: sender clock t (s), feet position, facing, look pitch, ground speed
 func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int, floor_i: int) -> void:
@@ -172,9 +168,23 @@ func _process(dt: float) -> void:
 	level_i = int(st.level)
 	floor_i = int(st.get("floor", 0))
 	here = level_i == Game.level_index and floor_i == Game.level_floor
+	var was_visible := visible
 	visible = here and flags & 16 == 0
 	global_position = st.pos
-	rotation.y = st.yaw
+	# velocity from the smoothed position (a jump of metres is a teleport: respawn, stairs, a portal)
+	if _last_pos == Vector3.INF or _last_pos.distance_to(st.pos) > 3.0:
+		_vel = Vector3.ZERO
+	elif dt > 0.0:
+		var v := (st.pos - _last_pos) / dt
+		_vel = _vel.lerp(Vector3(v.x, 0.0, v.z), 1.0 - exp(-12.0 * dt))
+	_last_pos = st.pos
+	if loco != null:
+		if not was_visible and visible:
+			loco.face(st.yaw)                    # coming into view: already facing the right way
+		rotation.y = loco.body_yaw             # the body lags their look; the head and torch lead it
+		light.rotation.y = wrapf(st.yaw - rotation.y, -PI, PI)
+	else:
+		rotation.y = st.yaw
 	target_pos = buf.latest().pos
 	target_yaw = st.yaw
 	target_pitch = st.pitch
@@ -194,12 +204,14 @@ func _process(dt: float) -> void:
 	light.rotation.x = target_pitch
 	light.visible = torch_on and not dead and visible
 
-	if anim != null:
-		anim.active = visible                    # nobody sees them: don't pose a skeleton every frame
+	if loco != null:
+		loco.tree.active = visible               # nobody sees them: don't pose a skeleton every frame
 		if not visible:
+			loco.face(st.yaw)
 			return
-		_play(SurvivorAnim.pick_role(clips, _role, _speed, _speed > SurvivorAnim.SPRINT_ABOVE, crouching, dead))
-		anim.speed_scale = SurvivorAnim.speed_scale(_role, _speed)    # feet match the real movement
+		# their own speed (measured on their machine) for the stride, our velocity for its direction
+		var dir := _vel.normalized() if _vel.length() > 0.05 else Vector3.ZERO
+		loco.update(dt, dir * _speed, _speed, _speed > SurvivorAnim.SPRINT_ABOVE, crouching, dead, st.yaw, target_pitch)
 		_floor.on = not dead
 		tag.position.y = 0.9 if dead else (1.75 if crouching else 2.25)
 		return

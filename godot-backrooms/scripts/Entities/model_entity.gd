@@ -5,6 +5,7 @@ extends Node3D
 ## and Burnt nodes in main.tscn, which set the model and its size.
 
 const GridNav := preload("res://scripts/World/grid_nav.gd")
+const EntityMount := preload("res://scripts/Entities/entity_mount.gd")
 const SPAWN_DIST := 3.5       # how far in front of the player it appears
 
 @export_file("*.glb") var model := ""
@@ -16,6 +17,20 @@ const SPAWN_DIST := 3.5       # how far in front of the player it appears
 @export var yaw_offset := 0.0 # deg, for a model whose own front isn't +Z
 ## Plays the file's idle clip (one named "idle", else its first), looped. Just the clip: no behaviour.
 @export var auto_anim := false
+## A file holding several pieces (a pack): the name of the one node to keep, with whatever hangs under it
+@export var part := ""
+@export var size := 1.0       # times as big as `height` (or the file) makes it: an Entity mark's scale
+## Stood on a level's Entity mark by the floor's build (entity_roster.gd place()): it lives under the level, not
+## under main, so it has no Level / Player beside it, and it gets a box you can't walk through
+var placed := false
+## Where it goes instead of the floor (entity_roster.gd MOUNTS; entity_mount.gd): "wall" (flat on the nearest wall,
+## nowhere else) or "prop" (sat on the nearest prop's free top). Worked out a couple of physics frames after the
+## floor is built, once its walls and props are solid; hidden until then.
+var mount := ""
+var settled := false
+var _mark_at := Vector3.ZERO
+var _mark_arrow := Vector3.ZERO
+var _settle_wait := 0
 
 var level: Node
 var player: CharacterBody3D
@@ -25,6 +40,7 @@ var present := false
 var last_error := ""          # why the last debug_spawn() failed, for the console
 
 func _ready() -> void:
+	if placed: return
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")
 	nav = GridNav.new(level)
@@ -39,10 +55,16 @@ func _build() -> bool:
 		push_warning("%s: %s did not load (not imported yet?)" % [name, model])
 		return false
 	body = packed.instantiate()
+	if part != "" and not _keep_part():
+		body.free()
+		body = null
+		last_error = "no piece called %s in %s" % [part, model.get_file()]
+		push_warning("%s: %s" % [name, last_error])
+		return false
 	add_child(body)
 	body.rotation.y = deg_to_rad(yaw_offset)
 	if source_height > 0.0:
-		body.scale = Vector3.ONE * (height / source_height)
+		body.scale = Vector3.ONE * (height / source_height * size)
 	else:
 		_fit()
 	for mi in body.find_children("*", "MeshInstance3D", true, false):
@@ -51,6 +73,78 @@ func _build() -> bool:
 	if auto_anim:
 		_play_idle()
 	return true
+
+## Drop every mesh but the ones in `part` (_fit then measures and centres just that piece)
+func _keep_part() -> bool:
+	var keep := body.find_child(part, true, false)
+	if keep == null: return false
+	for n in body.find_children("*", "MeshInstance3D", true, false):
+		if n != keep and not keep.is_ancestor_of(n):
+			n.free()
+	return true
+
+## The placed model's box, for a collider: its meshes as built (not posed: a rigged one gets none)
+func _solid() -> void:
+	if not body.find_children("*", "Skeleton3D", true, false).is_empty(): return
+	var b := local_box()
+	if b.size == Vector3.ZERO: return
+	var sb := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = b.size
+	cs.shape = bs
+	cs.position = b.get_center()
+	sb.add_child(cs)
+	add_child(sb)
+
+## Its meshes' box in its own space, as built (feet at y = 0, middle on the origin, front +Z)
+func local_box() -> AABB:
+	var lo := Vector3.INF
+	var hi := -Vector3.INF
+	for n in body.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null: continue
+		var xf := Transform3D.IDENTITY
+		var p: Node = mi
+		while p != null and p != self:
+			xf = (p as Node3D).transform * xf if p is Node3D else xf
+			p = p.get_parent()
+		var box := xf * mi.mesh.get_aabb()
+		lo = lo.min(box.position)
+		hi = hi.max(box.end)
+	return AABB() if lo.x == INF else AABB(lo, hi - lo)
+
+## Placed with a mount: wait for the floor to be solid, then go to the wall / prop near the mark
+func settle_later(at: Vector3, arrow: Vector3) -> void:
+	_mark_at = at
+	_mark_arrow = arrow
+	_settle_wait = 2
+	visible = false
+
+func _physics_process(_dt: float) -> void:
+	if _settle_wait <= 0: return
+	_settle_wait -= 1
+	if _settle_wait > 0: return
+	if _settle(_mark_at, _mark_arrow, EntityMount.WALL_REACH):
+		visible = true
+	else:
+		push_warning("%s: no wall within %.1f m of its mark, left out" % [name, EntityMount.WALL_REACH])
+		queue_free()
+
+## Mount it from the mark at `at` (its arrow `arrow`): false if it has to be on a wall and none is in reach. Off a
+## prop's top it stands on the floor at the mark instead.
+func _settle(at: Vector3, arrow: Vector3, reach: float) -> bool:
+	var ok := false
+	if mount == "wall":
+		ok = EntityMount.on_wall(self, at, arrow, reach)
+	elif mount == "prop":
+		ok = EntityMount.on_prop(self, level, at)
+		if not ok:
+			global_position = at
+			ok = true
+	settled = ok
+	present = ok
+	return ok
 
 ## source_height 0: measure the model as it stands in its file and scale it to `height` (0: as it is), its feet on
 ## the floor and its middle on the origin. A rigged model is measured on its bones (a skinned mesh's box is its
@@ -81,7 +175,7 @@ func _fit() -> void:
 			lo = lo.min(box.position)
 			hi = hi.max(box.end)
 	if lo.x == INF or hi.y - lo.y < 0.0001: return
-	var k := 1.0 if height <= 0.0 else height / (hi.y - lo.y)
+	var k := (1.0 if height <= 0.0 else height / (hi.y - lo.y)) * size
 	var mid := (lo + hi) * 0.5
 	body.scale = Vector3.ONE * k
 	body.position = body.basis * Vector3(-mid.x, -lo.y, -mid.z)
@@ -146,6 +240,14 @@ func debug_spawn() -> bool:
 	if not _place():
 		last_error = "no room to spawn here, try another spot"
 		return false
+	if mount != "":
+		# the wall you are looking at (else the nearest) / the prop nearest the spot ahead of you
+		var fwd := -player.global_transform.basis.z
+		fwd = Vector3(fwd.x, 0.0, fwd.z).normalized()
+		var from := player.global_position if mount == "wall" else global_position
+		if not _settle(Vector3(from.x, global_position.y, from.z), fwd, EntityMount.DEBUG_REACH):
+			last_error = "it only goes on a wall, and none is within %d m" % EntityMount.DEBUG_REACH
+			return false
 	present = true
 	visible = true
 	return true

@@ -11,7 +11,7 @@ Hardware, not a game show: relays, key switches, static and a Geiger counter; no
   terminal_scan.wav    field scanner: one Geiger-counter tick (scanner.gd fires them at random,
                        sparse at the edge of a signal, a rattle as a reading fills)
   terminal_logged.wav  new entry logged: a run of print-head strikes, then one low muted tone
-Every file is peak-normalized to 0.8 (the level of audio/ui_click.wav); loudness is set per sound
+Every file is peak-normalized to 0.8 (the level of audio/ui/ui_click.wav); loudness is set per sound
 by volume_db where it is played (inventory.gd SFX, scanner.gd, terminal_toast.gd).
 """
 import math, os, random, struct, wave

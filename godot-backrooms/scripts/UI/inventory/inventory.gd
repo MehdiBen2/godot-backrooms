@@ -1,16 +1,17 @@
 extends Control
-## Inventory as an T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
+## Inventory as a T.S.R.A. field terminal (TAB): an amber CRT readout laid over the live camera
 ## feed, a little smaller than the screen (WINDOW_SCALE) so the corridor still shows around it.
-## Down the left: icon vitals (POWER / STAMINA / SANITY / TIME) with segmented bars, then the
-## the inventory: all SLOT_COUNT slots numbered (icon, name, a stack's cells and count; free ones
-## faint), the selection and the torch's battery estimate. On the right, a tabbed sheet, with a
-## scroll rail in the gap beside it (_draw_rail). Each of its pages is a script of its own in
-## scripts/UI/inventory/pages/ (terminal_page.gd): [F1] ITEMS (the selected item's record),
-## [F2] DOSSIER (the level's threshold dossier and which of its anomalies are logged, from Archive,
-## scripts/GameLogicEngine/asra_archive.gd), [F3] ENTRIES (every catalogued entity: pick one with
-## the arrows or a click and read its full entry; new ones are marked until opened), [F4] PAPERS
-## (recovered lore) and [F5] CLEARANCE (the player's service record, asra_clearance.gd). This file
-## is the terminal around them: the lens, header, vitals, inventory list, tabs, rail and input.
+## Drawn like an old text terminal: a square double border, panels framed by plain lines with their
+## titles set into the top edge, selections in inverse video, statuses in [BRACKETS], dotted leaders
+## between a name and its figure, and a function-key strip along the bottom. Header: the emblem, the
+## clearance tier and the link. Down the left, the vitals (POWER / STAMINA / SANITY / TIME: an icon in
+## a bordered square over a segmented bar) and PACK (one numbered line per slot, SLOT_COUNT of them). On
+## the right, the sheet under its slanted folder tabs, with a dotted scroll track beside it. Each
+## page is a script of its own in scripts/UI/inventory/pages/ (terminal_page.gd): ITEMS (the selected
+## item), SITE (the level's threshold dossier and the phenomena logged there, from Archive,
+## scripts/GameLogicEngine/asra_archive.gd), ARCHIVE (every catalogued entity; new ones are marked until
+## opened), FILES (recovered lore), RECORD (the player's clearance, asra_clearance.gd) and CREW (co-op
+## only: hidden when you are on your own). This file is the terminal around them.
 ## The palette and widget helpers they all use are in terminal_kit.gd.
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
 ## (a mild corner-fitted CRT curve, scanlines, grain, tear glitch); mouse input is pushed through the
@@ -18,10 +19,10 @@ extends Control
 ## half-resolution blur passes (scripts/UI/crt/crt_bloom.gd) that the lens adds back, flickering like
 ## a tired tube (crt_flicker.gd). The HUD's scanner reticle and toast share both (crt_layer.gd).
 ## Sounds are synthesized by tools/gen_terminal_audio.py (audio/terminal/): a relay and static on
-## power on / off, a key switch on page switches (which also lift the tab and type the page in behind
-## a scan line), a lighter tick on item / entry selection.
+## power on / off, a key switch on page switches (which also type the page in behind a scan line), a
+## lighter tick on item / entry selection.
 ## Toggled with TAB (scripts/GameLogicEngine/main.gd -> hud.gd set_inventory), closed by TAB / ESC
-## or a click outside the window; arrows, F1-F5 and PgUp/PgDn navigate while it is up.
+## or a click outside the window; arrows, F1-F6 and PgUp/PgDn navigate while it is up.
 ## Empty by default: scripts/World/props pickups can call add_item() / add_lore() to populate it.
 
 signal close_requested
@@ -52,25 +53,26 @@ const RED := Kit.RED
 const FILL := Kit.FILL
 
 # layout, in the 1920x1080 canvas (stretch mode canvas_items / expand, so width/height only grow)
-const FRAME_INSET := 28.0        # rounded screen border, from the edges
-const COL_X := 92.0              # left column: vitals, then the item list
-const COL_W := 580.0
-const PANEL_W := 830.0           # right-hand tabbed sheet; the middle stays clear for the view
-const PANEL_RIGHT := 92.0
-const TOP := 118.0
-const BOTTOM := 92.0
-const ICON_BOX := 74.0
-const BAR_H := 32.0
+const FRAME_INSET := 28.0        # the screen's double border, from the edges
+const HEAD_RULE := 100.0         # y of the double rule under the header
+const FOOT_RULE := 92.0          # ... and of the one over the key strip, from the bottom
+const COL_X := 84.0              # left column: STATUS, then PACK
+const COL_W := 600.0
+const PANEL_W := 900.0           # right-hand sheet; the middle stays clear for the view
+const PANEL_RIGHT := 84.0
+const TOP := 128.0
+const BOTTOM := 118.0
 const BAR_LEVEL := Color(0.72, 0.72, 0.72, 1.0)   # the meter segments are the densest lit area: kept dimmer so they don't blow out the glow
-const VITAL_LINE := 3             # thinner outline on the vitals icon boxes and bars
-const BAR_GAP := 4.0             # dark space between a bar's outline and its segments
 const BAR_SEGMENTS := 20
-const TAB_H := 50.0
+const TAB_H := 50.0              # the folder tabs over the sheet
 const TAB_SLANT := 24.0
 const CHAMFER := 10.0
+const ICON_BOX := 74.0           # a vitals icon's bordered square
+const BAR_H := 32.0
+const VITAL_LINE := 3            # thinner outline on the vitals icon boxes and bars
+const BAR_GAP := 4.0             # dark space between a bar's outline and its segments
 const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corner-fitted
 const LINE := Kit.LINE
-const FRAME_LINE := 5            # the rounded screen border
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
 const BLOOM := 1.15              # phosphor glow strength (ui_vhs_overlay bloom_amt)
 const BLOOM_WIDE := 0.42         # the neon halo's strength (a broad blur added over the tight glow)
@@ -79,21 +81,18 @@ const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 
 # scripts/UI/crt/crt_flicker.gd)
 # terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
 const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
+const INK := Kit.INK
 
 const SLOT_COUNT := 8            # item kinds carried at once
-const STACK_CELLS := 8           # widest stack gauge on an INV row
-const ROW_ICON := 30.0           # item icon on an inventory row (rendered from its model, item_icon.gd)
-const ROW_H := 34.0              # one inventory slot row; all SLOT_COUNT are listed, empty ones dim
-const INV_TOP := TOP + 4.0 * ICON_BOX + 3.0 * 30.0 + 40.0   # the inventory list, under the vitals
-const RAIL_W := 64.0             # the sheet's scroll rail, in the gap left of it (fits "PG UP")
-const RAIL_GAP := 26.0
-const RAIL_END := 70.0           # arrow + key label at each end of the rail
+const STACK_CELLS := 8           # widest stack gauge (the ITEMS page)
+const ROW_H := 34.0              # one line of the pack
+const RAIL_W := 12.0             # the sheet's scroll track, in the gap left of it (_draw_rail)
+const RAIL_GAP := 14.0
 const TAPE_SECONDS := 3600.0     # TIME meter: tape left on a one-hour cassette, run off Game.time
 const TABS := ["ITEMS", "DOSSIER", "ENTRIES", "PAPERS", "CLEARANCE", "CREW"]
-# short, so four fit on the sheet; the dossier page carries its full title
-# five across the 830 px sheet: bare "F1" keys, and _style_tab keeps the tabs behind small
-const TAB_TITLES := {"ITEMS": "F1 ITEMS", "DOSSIER": "F2 DOSSIER", "ENTRIES": "F3 ENTRIES", "PAPERS": "F4 PAPERS",
-	"CLEARANCE": "F5 CLEARANCE", "CREW": "F6 CREW"}
+# what each page is called on the menu bar (the ids stay the pages' script names; F1-F6 jump to them)
+const TAB_TITLES := {"ITEMS": "ITEMS", "DOSSIER": "SITE", "ENTRIES": "ARCHIVE", "PAPERS": "FILES",
+	"CLEARANCE": "RECORD", "CREW": "CREW"}
 const TAB_KEYS := {KEY_F1: "ITEMS", KEY_F2: "DOSSIER", KEY_F3: "ENTRIES", KEY_F4: "PAPERS", KEY_F5: "CLEARANCE", KEY_F6: "CREW"}
 const CREW_REFRESH := 1.0            # s between rebuilds of [F6] CREW while it is open (distances, signal)
 
@@ -117,23 +116,20 @@ var bloom: CrtBloom
 var clickables: Array = []           # fixed controls in the viewport that take a click (hand cursor)
 
 # vitals
-var stats := {}                      # key -> {icon, value, cells, shown}
+var stats := {}                      # key -> {value, cells, shown} (POWER: + extra, the torch line)
 var link_label: Label
-var clearance_label: Label           # header: T.S.R.A. clearance tier (asra_clearance.gd)
+var clock_label: Label
+var clearance_label: Label           # header: T.S.R.A. clearance tier's code (asra_clearance.gd)
 var clearance_cells: Control
-var clearance_yield: Label
 var link_state := ""
 
 # items
 var items: Array = []                # {id, name, desc, count, code, stack, icon (model path or "")}
 var selected := -1
+var pack_frame: PanelContainer
 var item_rows: VBoxContainer
 var row_nodes: Array = []            # one PanelContainer per item, rebuilt by _refresh_items()
-var selected_label: Label
-var slots_label: Label
-var rail: Control                    # scroll rail beside the sheet (_draw_rail)
-var battery_label: Label
-var cursor: ColorRect
+var rail: Control                    # scroll track beside the sheet (_draw_rail)
 
 # right-hand sheet
 var readout: Control
@@ -147,7 +143,7 @@ var tab_lift := 1.0                  # 0..1: the active tab rising out of the ro
 var scan_t := -1.0                   # 0..1 down the sheet while a page redraws, < 0 off
 var scan_overlay: Control
 var lore_entries: Array = []         # {id, title, text}, shown on [F4] PAPERS
-var clearance_new := false           # promoted since [F5] CLEARANCE was last opened: a dot on its tab
+var clearance_new := false           # promoted since RECORD was last opened: a * on its menu entry
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -235,8 +231,7 @@ func _build() -> void:
 	viewport.add_child(screen)
 	screen.add_child(_build_frame())
 	screen.add_child(_build_header())
-	screen.add_child(_build_vitals())
-	screen.add_child(_build_items())
+	screen.add_child(_build_left())
 	screen.add_child(_build_readout())
 	screen.add_child(_build_rail())
 	screen.add_child(_build_footer())
@@ -310,63 +305,54 @@ func _through_lens(pos: Vector2) -> Vector2:
 	p.x /= aspect
 	return (p + Vector2(0.5, 0.5)) * sz
 
-## The rounded CRT border around the whole readout
+## The screen's border, the old way: a square double line round the whole readout, and a double rule
+## under the header and over the key strip
 func _build_frame() -> Control:
-	var f := Panel.new()
+	var f := Control.new()
 	f.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	f.offset_left = FRAME_INSET; f.offset_top = FRAME_INSET
-	f.offset_right = -FRAME_INSET; f.offset_bottom = -FRAME_INSET
 	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	f.add_theme_stylebox_override("panel", Kit.box(Color(0.03, 0.022, 0.008, 0.55), Color(AMBER, 0.85), FRAME_LINE, 16))
-	# a rule under the title line and over the key line, like a terminal's status bars
-	for top in [true, false]:
-		var rule := ColorRect.new()
-		rule.color = Color(AMBER, 0.3)
-		rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rule.anchor_right = 1.0
-		rule.offset_left = 30.0; rule.offset_right = -30.0
-		if top:
-			rule.offset_top = 54.0; rule.offset_bottom = 56.0
-		else:
-			rule.anchor_top = 1.0; rule.anchor_bottom = 1.0
-			rule.offset_top = -54.0; rule.offset_bottom = -52.0
-		f.add_child(rule)
+	f.draw.connect(func():
+		var r := Rect2(Vector2(FRAME_INSET, FRAME_INSET), f.size - Vector2(FRAME_INSET, FRAME_INSET) * 2.0)
+		f.draw_rect(r, Color(0.03, 0.022, 0.008, 0.55))
+		f.draw_rect(r, Color(AMBER, 0.85), false, 3.0)
+		f.draw_rect(r.grow(-7.0), Color(AMBER, 0.35), false, 1.0)
+		for y in [HEAD_RULE, f.size.y - FOOT_RULE]:
+			f.draw_rect(Rect2(r.position.x + 7.0, y, r.size.x - 14.0, 2.0), Color(AMBER, 0.55))
+			f.draw_rect(Rect2(r.position.x + 7.0, y + 5.0, r.size.x - 14.0, 1.0), Color(AMBER, 0.3))
+	)
+	f.resized.connect(f.queue_redraw)
 	return f
 
+## One line of text across the top: the emblem and the terminal's name, then clearance and link
 func _build_header() -> Control:
 	var h := HBoxContainer.new()
 	h.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	h.offset_left = FRAME_INSET + 30; h.offset_right = -FRAME_INSET - 30
-	h.offset_top = FRAME_INSET + 14; h.offset_bottom = FRAME_INSET + 44
+	h.offset_left = FRAME_INSET + 26; h.offset_right = -FRAME_INSET - 30
+	h.offset_top = FRAME_INSET + 14; h.offset_bottom = HEAD_RULE - 10
+	h.add_theme_constant_override("separation", 14)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := Kit.label("T.S.R.A. FIELD TERMINAL // MK-IV BIOS v2.11", 19, MUTED, 2)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title.clip_text = true           # gives way to the clearance readout on narrow screens
-	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(title)
-	# T.S.R.A. clearance (asra_clearance.gd): tier, the bar to the next one, the yield against it
-	h.add_child(Kit.label("CLEARANCE: ", 19, MUTED, 2))
-	clearance_label = Kit.label("", 19, AMBER, 2)
-	h.add_child(clearance_label)
-	h.add_child(Kit.spacer_w(12))
+	h.add_child(Kit.logo(40))
+	h.add_child(_centered(Kit.label("T.S.R.A.", 24, AMBER, 7)))
+	var sub := Kit.label("FIELD TERMINAL  //  MK-IV", 15, MUTED, 3)
+	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(_centered(sub))
+	h.add_child(_centered(Kit.label("CLEARANCE:", 15, MUTED, 3)))
+	clearance_label = Kit.label("", 18, AMBER, 2)
+	h.add_child(_centered(clearance_label))
 	clearance_cells = Kit.cells(10, 3.0, false)
-	clearance_cells.custom_minimum_size = Vector2(130, 0)
-	clearance_cells.size_flags_vertical = Control.SIZE_FILL
-	var bar := MarginContainer.new()
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_theme_constant_override("margin_top", 7)
-	bar.add_theme_constant_override("margin_bottom", 9)
-	bar.add_child(clearance_cells)
-	h.add_child(bar)
-	h.add_child(Kit.spacer_w(12))
-	clearance_yield = Kit.label("", 17, TEXT_DIM, 2)
-	h.add_child(clearance_yield)
-	h.add_child(Kit.spacer_w(40))
+	clearance_cells.custom_minimum_size = Vector2(120, 12)
+	clearance_cells.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(clearance_cells)
+	h.add_child(Kit.spacer_w(30))
+	h.add_child(_centered(Kit.label("LINK:", 15, MUTED, 3)))
+	link_label = Kit.label("[STABLE]", 18, GREEN, 2)
+	h.add_child(_centered(link_label))
 	_refresh_clearance()
-	h.add_child(Kit.label("LINK STATUS: ", 19, MUTED, 2))
-	link_label = Kit.label("STABLE", 19, GREEN, 2)
-	h.add_child(link_label)
 	return h
+
+func _centered(l: Control) -> Control:
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return l
 
 func _refresh_clearance(report := {}) -> void:
 	if not clearance_label:
@@ -378,51 +364,64 @@ func _refresh_clearance(report := {}) -> void:
 			clearance_new = true
 			if readout: readout.queue_redraw()
 	_refresh_page("CLEARANCE")
-	clearance_label.text = Clearance.tier_label()
+	clearance_label.text = str(Clearance.tier().get("code", "C-0"))
 	Kit.set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
-	clearance_yield.text = "%d %s" % [Clearance.total, Clearance.unit] if Clearance.is_max_tier() \
-		else "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), Clearance.unit]
 
+## The function-key strip along the bottom: each key in inverse video, then what it does; the clock
+## at the far end
 func _build_footer() -> Control:
 	var h := HBoxContainer.new()
 	h.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	h.offset_left = FRAME_INSET + 30; h.offset_right = -FRAME_INSET - 30
-	h.offset_top = -FRAME_INSET - 42; h.offset_bottom = -FRAME_INSET - 14
-	h.alignment = BoxContainer.ALIGNMENT_END
-	h.add_theme_constant_override("separation", 14)
+	h.offset_left = FRAME_INSET + 26; h.offset_right = -FRAME_INSET - 30
+	h.offset_top = -FOOT_RULE + 14; h.offset_bottom = -FRAME_INSET - 12
+	h.add_theme_constant_override("separation", 12)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# the agency's full name on the left, under the item column; the key hints stay on the right
-	var agency := Kit.label("T.S.R.A. // %s // PROPERTY OF THE AGENCY" % Archive.AGENCY, 17, MUTED, 2)
-	agency.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	agency.clip_text = true
-	agency.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(agency)
-	for hint in ["UP/DN/WHEEL SELECT", "F1-F6 PAGE", "PGUP/PGDN SCROLL"]:
-		h.add_child(Kit.label(hint, 17, MUTED, 2))
-		h.add_child(Kit.label("•", 17, MUTED))
+	h.add_child(Kit.keycap("TAB"))
 	var close := Button.new()
-	close.text = "TAB // CLOSE"
+	close.text = "CLOSE"
 	close.flat = true
 	close.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxEmpty.new()
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		close.add_theme_stylebox_override(s, sb)
-	close.add_theme_font_override("font", Kit.font(2))
-	close.add_theme_font_size_override("font_size", 17)
+	close.add_theme_font_override("font", Kit.font(3))
+	close.add_theme_font_size_override("font_size", 15)
 	close.add_theme_color_override("font_color", MUTED)
-	close.add_theme_color_override("font_hover_color", TEXT)
-	close.add_theme_color_override("font_pressed_color", TEXT)
+	close.add_theme_color_override("font_hover_color", AMBER)
+	close.add_theme_color_override("font_pressed_color", AMBER)
 	close.pressed.connect(func(): close_requested.emit())
 	clickables.append(close)
 	h.add_child(close)
+	for k in [["◄ ►", "PAGE"], ["▲ ▼", "SELECT"], ["PG UP / DN", "SCROLL"]]:
+		h.add_child(Kit.spacer_w(14))
+		h.add_child(Kit.keycap(k[0]))
+		h.add_child(_centered(Kit.label(k[1], 15, MUTED, 3)))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(gap)
+	clock_label = Kit.label("", 15, MUTED, 3)
+	h.add_child(_centered(clock_label))
 	return h
 
-# ---- vitals: POWER / STAMINA / SANITY / TIME, live off the player -----------------
+# ---- the left column: STATUS (POWER / STAMINA / SANITY / TIME, live off the player), then PACK ----
+func _build_left() -> Control:
+	var v := VBoxContainer.new()
+	v.anchor_bottom = 1.0
+	v.offset_left = COL_X; v.offset_right = COL_X + COL_W
+	v.offset_top = TOP; v.offset_bottom = -BOTTOM
+	v.add_theme_constant_override("separation", 24)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(_build_vitals())
+	v.add_child(_build_items())
+	return v
+
+## The four meters as they always were: the icon in a bordered square, then the name and figure over
+## a segmented bar. The icons are white alpha masks (textures/ui/terminal_*.png), tinted to follow the
+## bar's state colour. POWER's line also carries the torch's time left.
 func _build_vitals() -> Control:
 	var v := VBoxContainer.new()
-	v.position = Vector2(COL_X, TOP)
-	v.custom_minimum_size = Vector2(COL_W, 0)
-	v.add_theme_constant_override("separation", 30)
+	v.add_theme_constant_override("separation", 22)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(_stat_row("POWER", "res://textures/ui/terminal_battery.png"))
 	v.add_child(_stat_row("STAMINA", "res://textures/ui/terminal_stamina.png"))
@@ -430,15 +429,13 @@ func _build_vitals() -> Control:
 	v.add_child(_stat_row("TIME", "res://textures/ui/terminal_time.png"))
 	return v
 
-## Icon in a bordered square, then the name / percentage over a segmented bar. The icons are white
-## alpha masks (textures/ui/terminal_*.png), tinted here so they follow the bar's state colour.
 func _stat_row(key: String, icon_path: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 20)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var box := PanelContainer.new()
-	var sb := Kit.box(FILL, AMBER, VITAL_LINE, 6)
+	var sb := Kit.box(FILL, AMBER, VITAL_LINE)
 	sb.set_content_margin_all(12)
 	box.add_theme_stylebox_override("panel", sb)
 	box.custom_minimum_size = Vector2(ICON_BOX, ICON_BOX)
@@ -458,15 +455,19 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var meta := HBoxContainer.new()
+	meta.add_theme_constant_override("separation", 16)
 	meta.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title := Kit.label(key, 24, TEXT, 3)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	meta.add_child(title)
+	var extra := Kit.label("", 16, TEXT_DIM, 2)           # POWER: the torch's time left
+	extra.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	meta.add_child(extra)
 	var val := Kit.label("100%", 24, TEXT, 2)
 	meta.add_child(val)
 	col.add_child(meta)
 	var bar := PanelContainer.new()
-	var bsb := Kit.box(FILL, AMBER, VITAL_LINE, 4)
+	var bsb := Kit.box(FILL, AMBER, VITAL_LINE)
 	bsb.set_content_margin_all(VITAL_LINE + BAR_GAP)
 	bar.add_theme_stylebox_override("panel", bsb)
 	bar.custom_minimum_size = Vector2(0, BAR_H)
@@ -476,7 +477,7 @@ func _stat_row(key: String, icon_path: String) -> Control:
 	col.add_child(bar)
 	row.add_child(col)
 
-	stats[key] = {"icon": icon, "value": val, "cells": cells, "shown": -1.0}
+	stats[key] = {"icon": icon, "value": val, "cells": cells, "extra": extra, "shown": -1.0}
 	return row
 
 func _update_vitals(dt: float) -> void:
@@ -506,7 +507,9 @@ func _set_stat(key: String, value: float, state: String, dt: float, pulse: float
 	var col := AMBER
 	var txt := TEXT
 	match state:
-		"low": col = ORANGE
+		"low":
+			col = ORANGE
+			txt = ORANGE
 		"critical":
 			col = Color(RED, pulse)
 			txt = RED
@@ -527,65 +530,33 @@ func _update_link() -> void:
 	elif Game.terror > 0.15: state = "UNSTABLE"
 	if state != link_state:
 		link_state = state
-		link_label.text = state
+		link_label.text = "[%s]" % state
 		var col := GREEN
 		if state == "UNSTABLE": col = ORANGE
 		elif state == "DEGRADED": col = RED
 		link_label.add_theme_color_override("font_color", col)
 	link_label.modulate.a = (1.0 if fmod(t, 0.5) < 0.3 else 0.25) if state == "DEGRADED" else 1.0
 
-# ---- items: numbered slot rows, selection, battery estimate ------------------------
+# ---- the pack: one numbered line per slot, the selected one in inverse video ----------------------
 func _build_items() -> Control:
-	var v := VBoxContainer.new()
-	v.anchor_bottom = 1.0
-	v.offset_left = COL_X; v.offset_right = COL_X + COL_W
-	v.offset_top = INV_TOP; v.offset_bottom = -BOTTOM
-	v.add_theme_constant_override("separation", 6)
-	v.mouse_filter = Control.MOUSE_FILTER_STOP     # the wheel over the list steps the selection
-	v.gui_input.connect(func(e: InputEvent):
-		if _wheel_items(e): v.accept_event()
+	pack_frame = Kit.frame("PACK", "0/%d" % SLOT_COUNT)
+	pack_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pack_frame.mouse_filter = Control.MOUSE_FILTER_STOP     # the wheel over the pack steps the selection
+	pack_frame.gui_input.connect(func(e: InputEvent):
+		if _wheel_items(e): pack_frame.accept_event()
 	)
-	var head := HBoxContainer.new()
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var title := Kit.label("INVENTORY", 19, MUTED, 3)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	slots_label = Kit.label("0 / %d SLOTS" % SLOT_COUNT, 19, MUTED, 2)
-	head.add_child(slots_label)
-	v.add_child(head)
-	v.add_child(Kit.hline(Color(AMBER, 0.35), 1))
 	item_rows = VBoxContainer.new()
 	item_rows.add_theme_constant_override("separation", 2)
 	item_rows.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(item_rows)
-	var fill := Control.new()                # pushes the selection lines to the bottom
-	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(fill)
-	selected_label = Kit.label("SELECTED: [NONE]", 24, TEXT, 1)
-	selected_label.clip_text = true
-	selected_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	v.add_child(selected_label)
-	battery_label = Kit.label("BATTERY LIFE: 100%", 24, TEXT, 1)
-	var last := HBoxContainer.new()
-	last.add_theme_constant_override("separation", 8)
-	last.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	last.add_child(battery_label)
-	cursor = ColorRect.new()                 # the prompt's block cursor, blinking (_process)
-	cursor.color = AMBER
-	cursor.custom_minimum_size = Vector2(13, 22)
-	cursor.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cursor.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	last.add_child(cursor)
-	v.add_child(last)
-	return v
+	pack_frame.add_child(item_rows)
+	return pack_frame
 
 func _refresh_items() -> void:
 	if not item_rows:
 		return
 	Kit.clear(item_rows)
 	row_nodes.clear()
-	slots_label.text = "%d / %d SLOTS" % [items.size(), SLOT_COUNT]
+	Kit.set_frame_right(pack_frame, "%d/%d" % [items.size(), SLOT_COUNT])
 	for i in SLOT_COUNT:
 		if i < items.size():
 			var row := _item_row(i)
@@ -595,8 +566,7 @@ func _refresh_items() -> void:
 			item_rows.add_child(_empty_row(i))
 	_refresh_selection()
 
-## "01  [icon]  BATTERY PACK      ▮ . . . . .   1/6": slot, icon, name, then for a stack one cell
-## per unit it holds and the count
+## "01  AA BATTERY PACK ............... 3/6". A click selects it and turns the sheet to ITEMS.
 func _item_row(i: int) -> Control:
 	var it: Dictionary = items[i]
 	var p := PanelContainer.new()
@@ -612,54 +582,35 @@ func _item_row(i: int) -> Control:
 	)
 	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_row(i))
 	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_row(i))
-
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 12)
+	h.add_theme_constant_override("separation", 14)
 	h.custom_minimum_size.y = ROW_H
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	h.add_child(Kit.label("%02d" % (i + 1), 18, TEXT_DIM, 1))
-	# icon slot on every row, empty for items without a model, so the names stay in a column
-	var icon: Control = ItemIcon.outlined(it.icon, ROW_ICON, AMBER, 1.0) if it.icon != "" else null
-	if icon == null or (icon as TextureRect).texture == null:
-		icon = Control.new()
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.custom_minimum_size = Vector2(ROW_ICON, ROW_ICON)
-	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	h.add_child(icon)
-	var name_label := Kit.label(str(it.name).to_upper(), 22, TEXT, 1)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.clip_text = true
-	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	h.add_child(name_label)
-	var labels := [name_label]
-	if it.stack > 1:
-		var n := mini(it.stack, STACK_CELLS)
-		var cells := Kit.cells(n, 5.0, true)
-		cells.custom_minimum_size = Vector2(16 * n, 0)
-		cells.set_meta("filled", mini(it.count, n))
-		h.add_child(cells)
-		var count := Kit.label("%d/%d" % [it.count, it.stack], 20, TEXT, 1)
-		count.custom_minimum_size.x = 56
-		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		h.add_child(count)
-		labels.append(count)
+	var slot := Kit.label("%02d" % (i + 1), 16, MUTED, 2)
+	h.add_child(_centered(slot))
+	var name_l := Kit.label(str(it.name).to_upper(), 18, TEXT, 2)
+	h.add_child(_centered(name_l))
+	var d := Kit.dots()
+	h.add_child(d)
+	var count := Kit.label("%d/%d" % [it.count, it.stack], 17, TEXT, 2)
+	h.add_child(_centered(count))
 	p.add_child(h)
-	p.set_meta("labels", labels)
+	p.set_meta("labels", [slot, name_l, count])
+	p.set_meta("dots", d)
 	return p
 
-## A free slot: its number and EMPTY, faint, so the list shows how much room is left
+## A free slot: its number and an empty run of dots, faint
 func _empty_row(i: int) -> Control:
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 12)
-	h.custom_minimum_size.y = ROW_H
+	h.add_theme_constant_override("separation", 14)
+	h.custom_minimum_size.y = ROW_H + 8.0
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var pad := MarginContainer.new()          # lines up with the item rows' panel margin
+	var pad := MarginContainer.new()          # lines up with the item rows' margin
 	pad.add_theme_constant_override("margin_left", 10)
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pad.add_child(Kit.label("%02d" % (i + 1), 18, Color(TEXT, 0.22), 1))
-	h.add_child(pad)
-	h.add_child(Kit.spacer_w(ROW_ICON))
-	h.add_child(Kit.label("EMPTY", 18, Color(TEXT, 0.22), 2))
+	pad.add_child(Kit.label("%02d" % (i + 1), 16, Color(MUTED, 0.3), 2))
+	h.add_child(_centered(pad))
+	h.add_child(Kit.dots(Color(MUTED, 0.14)))
 	return h
 
 func _style_row(i: int) -> void:
@@ -667,44 +618,39 @@ func _style_row(i: int) -> void:
 		return
 	var p: PanelContainer = row_nodes[i]
 	var sel := i == selected
-	var bg := Color(0, 0, 0, 0)
-	if sel: bg = Color(AMBER, 0.16)
-	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
-	var sb := Kit.box(bg, AMBER)
-	sb.border_width_left = 3 if sel else 0
-	sb.content_margin_left = 10; sb.content_margin_right = 10
-	sb.content_margin_top = 1; sb.content_margin_bottom = 1
-	p.add_theme_stylebox_override("panel", sb)
-	for l in p.get_meta("labels"):
-		(l as Label).add_theme_color_override("font_color", AMBER if sel else TEXT)
+	p.add_theme_stylebox_override("panel", Kit.row_box(sel, p.get_meta("hover")))
+	var ls: Array = p.get_meta("labels")
+	for j in ls.size():
+		var l: Label = ls[j]
+		l.add_theme_color_override("font_color", INK if sel else (MUTED if j == 0 else TEXT))
+		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.0 if sel else 0.8))
+	var d: Control = p.get_meta("dots")
+	d.set_meta("color", Color(INK, 0.6) if sel else Color(MUTED, 0.5))
+	d.queue_redraw()
 
 func _refresh_selection() -> void:
 	for i in row_nodes.size():
 		_style_row(i)
-	if selected >= 0 and selected < items.size():
-		selected_label.text = Kit.vcr("SELECTED: [%s]" % str(items[selected].name).to_upper())
-	else:
-		selected_label.text = "SELECTED: [NONE]"
 	_refresh_page("ITEMS")
 
-## Torch time left at the current drain (player.gd BATTERY_DRAIN, a quarter of it in a power cut)
+## STATUS's last line: torch time left at the current drain (player.gd BATTERY_DRAIN, a quarter of it
+## in a power cut)
 func _update_battery_line() -> void:
 	if not player:
 		return
 	var bat: float = player.battery
-	var txt: String
-	if bat <= 0.0:
-		txt = "BATTERY LIFE: 0% (DEPLETED)"
-	else:
+	var txt := "DEPLETED"
+	if bat > 0.0:
 		var drain: float = PlayerScript.BATTERY_DRAIN * (0.25 if player.grid_down else 1.0)
 		var secs := int(bat / drain)
-		txt = "BATTERY LIFE: %d%% (EST. %d:%02d)" % [int(round(bat)), secs / 60, secs % 60]
-	if battery_label.text != txt:
-		battery_label.text = txt
+		txt = "%d:%02d LEFT" % [secs / 60, secs % 60]
+	var l: Label = stats.POWER.extra
+	if l.text != txt:
+		l.text = txt
 		var col := TEXT
 		if bat < PlayerScript.BATTERY_CRIT: col = RED
 		elif bat < PlayerScript.BATTERY_LOW: col = ORANGE
-		battery_label.add_theme_color_override("font_color", col)
+		l.add_theme_color_override("font_color", col)
 
 func _select(i: int, quiet := false) -> void:
 	if i >= items.size():
@@ -713,8 +659,8 @@ func _select(i: int, quiet := false) -> void:
 	selected = i
 	_refresh_selection()
 
-## Mouse wheel over the inventory: down to the next item, up to the previous, and the sheet turns
-## to [F1] ITEMS to show it, as a click would. True when `e` was a wheel step (the caller eats it)
+## Mouse wheel over the pack: down to the next item, up to the previous, and the sheet turns to ITEMS
+## to show it, as a click would. True when `e` was a wheel step (the caller eats it)
 func _wheel_items(e: InputEvent) -> bool:
 	var mb := e as InputEventMouseButton
 	if mb == null or not mb.pressed:
@@ -735,7 +681,7 @@ func _move_selection(delta: int) -> void:
 		return
 	_select(clampi(maxi(selected, 0) + delta, 0, items.size() - 1))
 
-# ---- right-hand sheet: [F1] ITEMS / [F2] DOSSIER / [F3] ENTRIES / [F4] PAPERS / [F5] CLEARANCE --
+# ---- right-hand sheet: ITEMS / SITE / ARCHIVE / FILES / RECORD / CREW ------------------------------
 func _build_readout() -> Control:
 	readout = Control.new()
 	readout.anchor_left = 1.0; readout.anchor_right = 1.0; readout.anchor_bottom = 1.0
@@ -809,6 +755,8 @@ func _draw_readout() -> void:
 	var gap_y := top
 	for tab in TABS:
 		var b: Button = tab_buttons[tab]
+		if not b.visible:
+			continue
 		var x0 := tabs_row.position.x + b.position.x
 		var x1 := x0 + b.size.x
 		var on: bool = tab == active_page
@@ -837,13 +785,13 @@ func _style_tab(tab: String) -> void:
 	var on := tab == active_page
 	b.text = TAB_TITLES[tab]
 	var sb := StyleBoxEmpty.new()
-	sb.content_margin_left = 10                 # (six tabs across the sheet: tighter than the five were)
+	sb.content_margin_left = 14
 	sb.content_margin_right = 10 + TAB_SLANT
 	sb.content_margin_top = 0.0 if on else 8.0
 	for s in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
 		b.add_theme_stylebox_override(s, sb)
 	b.add_theme_font_override("font", Kit.font(2 if on else 1))
-	b.add_theme_font_size_override("font_size", 18 if on else 13)
+	b.add_theme_font_size_override("font_size", 18 if on else 14)
 	for s in ["font_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(s, TEXT if on else TEXT_DIM)
 	b.add_theme_color_override("font_hover_color", TEXT)
@@ -928,17 +876,25 @@ func play_sfx(n: String) -> void:
 		sp.play()
 
 func _cycle_tab(delta: int) -> void:
-	select_tab(TABS[wrapi(TABS.find(active_page) + delta, 0, TABS.size())])
+	var shown_tabs := TABS.filter(func(k): return tab_buttons[k].visible)
+	select_tab(shown_tabs[wrapi(shown_tabs.find(active_page) + delta, 0, shown_tabs.size())])
 
-## Scroll rail in the gap left of the sheet: the active page's position, with PG UP / PG DN at its
-## ends, lit when there is more that way. Click an end to page, the track to jump, or use the wheel
-## over it. It stands in for the pages' own scrollbars, which are hidden (they still scroll).
+## CREW only means something with others on the channel: its tab is hidden when you are on your own
+func _update_crew_tab() -> void:
+	var on: bool = Net.is_online() or not Net.phantoms.is_empty()
+	tab_buttons.CREW.visible = on
+	if not on and active_page == "CREW":
+		select_tab("ITEMS", true)
+
+## Scroll bar in the gap left of the sheet: a faint track and the active page's position, shown only
+## when the page runs longer than the sheet. Click it to jump, or use the wheel over it. It stands in for
+## the pages' own scrollbars, which are hidden (they still scroll; PgUp / PgDn page them).
 func _build_rail() -> Control:
 	rail = Control.new()
 	rail.anchor_left = 1.0; rail.anchor_right = 1.0; rail.anchor_bottom = 1.0
 	rail.offset_right = -PANEL_RIGHT - PANEL_W - RAIL_GAP
 	rail.offset_left = rail.offset_right - RAIL_W
-	rail.offset_top = TOP + TAB_H; rail.offset_bottom = -BOTTOM
+	rail.offset_top = TOP + TAB_H + 14.0; rail.offset_bottom = -BOTTOM - 14.0
 	rail.mouse_filter = Control.MOUSE_FILTER_STOP
 	rail.draw.connect(_draw_rail)
 	rail.gui_input.connect(_rail_input)
@@ -958,27 +914,18 @@ func _page_extent() -> Dictionary:
 	return {"ratio": bar.page / bar.max_value, "pos": clampf(bar.value / (bar.max_value - bar.page), 0.0, 1.0)}
 
 func _draw_rail() -> void:
-	var w := rail.size.x
-	var h := rail.size.y
-	var cx := w * 0.5
 	var ext := _page_extent()
 	var ratio: float = ext.ratio
-	var pos: float = ext.pos
-	var more_up := ratio < 1.0 and pos > 0.005
-	var more_down := ratio < 1.0 and pos < 0.995
-	var f := Kit.font(2)
-	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, 30), Vector2(cx + 12, 30), Vector2(cx, 12)]),
-		AMBER if more_up else AMBER_DIM)
-	rail.draw_string(f, Vector2(0, 54), "PG UP", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_up else TEXT_DIM)
-	rail.draw_string(f, Vector2(0, h - 44), "PG DN", HORIZONTAL_ALIGNMENT_CENTER, w, 13, MUTED if more_down else TEXT_DIM)
-	rail.draw_colored_polygon(PackedVector2Array([Vector2(cx - 12, h - 30), Vector2(cx + 12, h - 30), Vector2(cx, h - 12)]),
-		AMBER if more_down else AMBER_DIM)
-	var y0 := RAIL_END
-	var track := h - RAIL_END * 2.0
-	rail.draw_line(Vector2(cx, y0), Vector2(cx, y0 + track), Color(AMBER, 0.3), 2.0)
-	var th := maxf(40.0, track * ratio)
-	var ty := y0 + (track - th) * pos
-	rail.draw_rect(Rect2(cx - 5, ty, 10, th), AMBER if ratio < 1.0 else AMBER_DIM)
+	if ratio >= 1.0:
+		return
+	var h := rail.size.y
+	var cx := rail.size.x * 0.5
+	var y := 0.0
+	while y < h:                               # the track: a column of points, like a text scroll bar
+		rail.draw_rect(Rect2(cx - 2, y, 4, 4), Color(AMBER, 0.2))
+		y += 10.0
+	var th := maxf(40.0, h * ratio)
+	rail.draw_rect(Rect2(cx - 5, (h - th) * float(ext.pos), 10, th), Color(AMBER, 0.85))
 
 func _rail_input(e: InputEvent) -> void:
 	var mb := e as InputEventMouseButton
@@ -991,15 +938,9 @@ func _rail_input(e: InputEvent) -> void:
 		MOUSE_BUTTON_WHEEL_UP: sc.scroll_vertical -= 60
 		MOUSE_BUTTON_WHEEL_DOWN: sc.scroll_vertical += 60
 		MOUSE_BUTTON_LEFT:
-			var y := mb.position.y
-			if y < RAIL_END:
-				_scroll_page(-1)
-			elif y > rail.size.y - RAIL_END:
-				_scroll_page(1)
-			else:
-				var bar := sc.get_v_scroll_bar()
-				var k := clampf((y - RAIL_END) / (rail.size.y - RAIL_END * 2.0), 0.0, 1.0)
-				sc.scroll_vertical = int(k * maxf(0.0, bar.max_value - bar.page))
+			var bar := sc.get_v_scroll_bar()
+			var k := clampf(mb.position.y / rail.size.y, 0.0, 1.0)
+			sc.scroll_vertical = int(k * maxf(0.0, bar.max_value - bar.page))
 
 func _scroll_page(delta: int) -> void:
 	var s: ScrollContainer = page_scrolls.get(active_page)
@@ -1029,6 +970,8 @@ func set_shown(on: bool) -> void:
 		_refresh_page("ENTRIES")
 		_refresh_page("CLEARANCE")
 		_refresh_page("CREW")
+		_update_crew_tab()
+		clock_label.text = Time.get_time_string_from_system().left(5)
 		play_sfx("on")
 		for k in stats: stats[k].shown = 0.0
 		backdrop.modulate.a = 0.0
@@ -1083,7 +1026,9 @@ func _input(e: InputEvent) -> void:
 				_move_selection(step)
 		KEY_LEFT: _cycle_tab(-1)
 		KEY_RIGHT: _cycle_tab(1)
-		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6: select_tab(TAB_KEYS[k.physical_keycode])
+		KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6:
+			if tab_buttons[TAB_KEYS[k.physical_keycode]].visible:
+				select_tab(TAB_KEYS[k.physical_keycode])
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return
@@ -1100,7 +1045,8 @@ func _process(dt: float) -> void:
 			_refresh_page("CREW")
 	_update_vitals(dt)
 	_update_battery_line()
-	cursor.self_modulate.a = 1.0 if fmod(t, 1.06) < 0.53 else 0.0
+	if Engine.get_process_frames() % 30 == 0:
+		clock_label.text = Time.get_time_string_from_system().left(5)
 	rail.queue_redraw()
 	_update_link()
 	_update_glitch(dt)

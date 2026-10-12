@@ -1,0 +1,66 @@
+{
+ "duration_s": 0.6,
+ "kit": "audio/carpet/lib",
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "walk6h",
+     "sound": "thump/own-ov-2643a48b",
+     "t": 0.03
+    },
+    {
+     "id": "walk6l",
+     "sound": "thump/fs-ov-3210889b-light-footsteps-on-carpet-wa-8",
+     "t": 0.032,
+     "pitch": 1
+    }
+   ]
+  },
+  {
+   "gain_db": -3,
+   "cues": [
+    {
+     "id": "walk6s",
+     "sound": "thump/fs-ov-862ea4b4-steps-sneakers-on-carpet-1-3",
+     "t": 0.034,
+     "pitch": 1
+    }
+   ]
+  },
+  {
+   "gain_db": -3,
+   "cues": [
+    {
+     "id": "walk6t",
+     "sound": "thump/fs-ov-2c6e8a39-04-man-walking-carpet-wav-9",
+     "t": 0.103,
+     "pitch": 2
+    }
+   ]
+  },
+  {
+   "gain_db": -9,
+   "cues": [
+    {
+     "id": "walk6b",
+     "sound": "swish/fs-ov-31540398-fabric-sofa-rubbing-wooshes-2",
+     "t": 0.123,
+     "pitch": -2
+    }
+   ]
+  },
+  {
+   "gain_db": -15,
+   "cues": [
+    {
+     "id": "walk6d",
+     "sound": "swish/own-ov-43808b9a",
+     "t": 0.042,
+     "pitch": 1
+    }
+   ]
+  }
+ ]
+}

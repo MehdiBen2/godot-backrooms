@@ -80,8 +80,9 @@ func _ready() -> void:
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var mat := ShaderMaterial.new()
 	mat.shader = load(Gfx.CAMERA_SHADER)       # the camera (render_engine.gd drives it)
-	if ResourceLoader.exists("res://textures/lens_dirt.png"):
-		mat.set_shader_parameter("lens_dirt_tex", load("res://textures/lens_dirt.png"))
+	var dirt := _pick_lens_dirt()
+	if dirt != "":
+		mat.set_shader_parameter("lens_dirt_tex", load(dirt))
 	if ResourceLoader.exists("res://textures/lens_smudge.png"):
 		mat.set_shader_parameter("lens_smudge_tex", load("res://textures/lens_smudge.png"))
 	post.material = mat
@@ -211,6 +212,16 @@ func _corner(anchor: Control.LayoutPreset, x: float, y: float, top: bool, left: 
 
 	corners.append(c)
 	return c
+
+## The camera's lens dirt for this session: the original or one of the CC0 pack (textures/CREDITS.txt), at random,
+## so the glass is dirty a different way each time ("" when there is none)
+const LENS_DIRT_VARIANTS := 6
+func _pick_lens_dirt() -> String:
+	var found: Array[String] = []
+	for i in LENS_DIRT_VARIANTS + 1:
+		var path := "res://textures/lens_dirt.png" if i == 0 else "res://textures/lens_dirt_%d.png" % i
+		if ResourceLoader.exists(path): found.append(path)
+	return "" if found.is_empty() else found[randi() % found.size()]
 
 # ---- HUD ------------------------------------------------------------------------
 func _build_hud() -> void:

@@ -33,6 +33,7 @@ def normalize(xs, peak):
 
 def write(name, xs):
     path = os.path.join(OUT, name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with wave.open(path, 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -85,5 +86,5 @@ def charge():
 
 
 if __name__ == '__main__':
-    write('flash_fire.wav', fire())
-    write('flash_charge.wav', charge())
+    write('items/flash/flash_fire.wav', fire())
+    write('items/flash/flash_charge.wav', charge())

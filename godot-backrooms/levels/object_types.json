@@ -426,7 +426,19 @@
         "grabber": "THE GRABBER. Placed from a mark: it hangs from the ceiling there (roam: it moves on in time; lurk: it stays)",
         "skinstealer": "THE SKIN STEALER. Not placed from a mark yet: kept in the level, skipped by the game",
         "burnt": "THE BURNT. Placed from a mark: it starts there (roam: stalks you at once; lurk: waits until you are close)",
-        "eyes": "THE EYES. Placed from a mark: a pair of eyes watches from there and never leaves"
+        "eyes": "THE EYES. Placed from a mark: a pair of eyes watches from there and never leaves",
+        "screamface": "Screaming face statue (model only, no AI yet). WALLS ONLY: hangs flat on the wall nearest the mark (the one its arrow points at, if any), at face height. No wall within a cell: left out",
+        "sculpture_tall": "Sculpture: tall draped figure (model only): stands on the mark, facing along its arrow",
+        "sculpture_chair": "Sculpture: draped chair (model only): stands on the mark, facing along its arrow",
+        "sculpture_wide": "Sculpture: wide draped heap (model only): stands on the mark, facing along its arrow",
+        "sculpture_low1": "Sculpture: low draped heap 1 (model only): stands on the mark, facing along its arrow",
+        "sculpture_low2": "Sculpture: low draped heap 2 (model only): stands on the mark, facing along its arrow",
+        "sculpture_low3": "Sculpture: low draped heap 3 (model only): stands on the mark, facing along its arrow",
+        "sculpture_low4": "Sculpture: low draped heap 4 (model only): stands on the mark, facing along its arrow",
+        "clownhead_thin1": "Clown head, thin 1 (model only). Put the mark by a prop (table, shelf, chair, a draped sculpture): it sits itself on that prop's best free top, clear of the other heads, looking into the room. No prop within 6 m: on the floor at the mark",
+        "clownhead_thin2": "Clown head, thin 2 (model only). Put the mark by a prop (table, shelf, chair, a draped sculpture): it sits itself on that prop's best free top, clear of the other heads, looking into the room. No prop within 6 m: on the floor at the mark",
+        "clownhead_fat1": "Clown head, fat 1 (model only). Put the mark by a prop (table, shelf, chair, a draped sculpture): it sits itself on that prop's best free top, clear of the other heads, looking into the room. No prop within 6 m: on the floor at the mark",
+        "clownhead_fat2": "Clown head, fat 2 (model only). Put the mark by a prop (table, shelf, chair, a draped sculpture): it sits itself on that prop's best free top, clear of the other heads, looking into the room. No prop within 6 m: on the floor at the mark"
       },
       "behavior": {
         "roam": "Starts at the mark and wanders the level",

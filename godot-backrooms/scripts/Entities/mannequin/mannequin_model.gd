@@ -15,7 +15,8 @@ const POSE_KEYS := ["legL", "legR", "armL", "armR", "splayL", "splayR", "rollL",
 # them stand alike. Each bone's +Y runs down its limb. mannequinvar3.glb carries its own unrelated humanoid
 # rig (Pelvis/Spine01/L_Upperarm/...) from a different auto-rig tool, so it is posed through RIG_PROFILES
 # below instead of the hardcoded bone names: same pose Dictionary, mapped to whichever names that rig uses.
-const VARIANT_MODELS := ["res://models/entities/mannequin_variant.glb", "res://models/entities/mannequinvar3.glb", "res://models/entities/mannequinvar4.glb"]
+const VARIANT_MODELS := ["res://models/entities/mannequin_variant.glb", "res://models/entities/mannequinvar3.glb", "res://models/entities/mannequinvar4.glb",
+	"res://models/entities/mannequinvar5.glb"]
 # role -> bone name for each entry in VARIANT_MODELS, so pose_variant() works on either rig. "spine" is the
 # single bone twist/lean turns (mannequin_variant.glb only has one torso bone; mannequinvar3.glb's nearest
 # equivalent is the waist, just below its two spine bones).
@@ -26,10 +27,14 @@ const RIG_PROFILES := [
 	# aliases both spellings) modelled in a T-pose, so "arm_plant" first drops each arm from out-sideways to hanging.
 	{"spine": "mixamorig_Spine1", "head": "mixamorig_Head", "armL": "mixamorig_LeftArm", "armR": "mixamorig_RightArm",
 		"forearmL": "mixamorig_LeftForeArm", "forearmR": "mixamorig_RightForeArm", "legL": "mixamorig_LeftUpLeg", "legR": "mixamorig_RightUpLeg"},
+	# mannequinvar5.glb: Mixamo again ("mixamorig1:" prefix), exported from Sketchfab, which numbers every bone
+	# ("mixamorig1:Hips_01"); _load_one_variant aliases the names without that number. Also a T-pose.
+	{"spine": "mixamorig1_Spine1", "head": "mixamorig1_Head", "armL": "mixamorig1_LeftArm", "armR": "mixamorig1_RightArm",
+		"forearmL": "mixamorig1_LeftForeArm", "forearmR": "mixamorig1_RightForeArm", "legL": "mixamorig1_LeftUpLeg", "legR": "mixamorig1_RightUpLeg"},
 ]
 # Rigs whose arms rest out sideways (T-pose) rather than hanging: how far (0..1) to turn each arm bone down before the
 # pose's swing/splay is applied, by RIG_PROFILES index. Without it the swing would only roll the arm about its own axis.
-const ARM_PLANT := {2: 1.0}
+const ARM_PLANT := {2: 1.0, 3: 1.0}
 # Its rest pose is a catwalk stride with a hand on the hip. A frozen mannequin reads better planted, so the
 # legs are brought most of the way back under it before a pose is applied (0 = keep the stride).
 const VARIANT_PLANT := 0.75
@@ -86,6 +91,7 @@ var _top_x := Vector2.ZERO                   # x extent of the last arm's should
 ## vbones, arm_l_pivot}. Both currently-shipped variants are rigged, so every decoy that rolls a variant
 ## (mannequin_crowd.gd) picks a random loaded index and gets its own posed copy - no longer one model per run.
 var _variants: Array = []
+var _bone_num := RegEx.create_from_string("_[0-9]+$")
 var variant_ok := false                      # true once at least one entry loaded
 var variant_rigged := false                  # true if any loaded entry is rigged (gates the plain-mesh fallback)
 # Back-compat aliases mirroring _variants[0], read by the offline pose/screenshot tools (tools/shot_variant_poses.gd)
@@ -268,6 +274,14 @@ func _load_one_variant(host: Node, idx: int) -> Dictionary:
 		var sk := skels[0] as Skeleton3D
 		for i in sk.get_bone_count():
 			vbones[sk.get_bone_name(i)] = i
+		# the same bones under the names RIG_PROFILES uses: ":" as "_" and without a Sketchfab export's "_01" number
+		for bn: String in vbones.keys():
+			var alias := bn.replace(":", "_")
+			var num := _bone_num.search(alias)
+			if num != null:
+				alias = alias.substr(0, num.get_start())
+			if not vbones.has(alias):
+				vbones[alias] = vbones[bn]
 		profile = RIG_PROFILES[idx]
 		rigged = profile.values().all(func(n): return vbones.has(n))
 		# The rig's left shoulder joint sits at hip height (the right one is at the shoulder), so swinging

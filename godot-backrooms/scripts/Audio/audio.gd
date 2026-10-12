@@ -20,6 +20,9 @@ extends Node
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const Breathing := preload("res://scripts/Audio/breathing.gd")
 
+# the switch clicked on an empty torch: three recorded takes (audio/CREDITS.txt), one at random each press
+const DEAD_CLICKS := ["items/torch/battery_dead_click_1.wav", "items/torch/battery_dead_click_2.wav",
+	"items/torch/battery_dead_click_3.wav"]
 const HUM_VOLUME := 0.02            # AUDIO.humVolume: gentle ballast buzz
 const HUM_HABITUATED := 0.35        # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0        # AUDIO.humHabituationTime
@@ -110,11 +113,11 @@ func _ready() -> void:
 	level.slot_assigned.connect(func(_i): hum_notice(0.12))   # walking under a new light draws the ear back
 	player.jumped.connect(_on_jump)
 	player.landed.connect(_on_land)
-	player.battery_died.connect(func(): play_world("battery_dead.wav"))
-	player.battery_swap.connect(func(): play_world("battery_swap.wav"))
-	player.battery_swap_cut.connect(func(): stop_world("battery_swap.wav"))
-	player.dead_click.connect(func(): play_world("battery_dead_click.wav"))
-	player.contact_click.connect(func(off: bool): play_world("flash_click_off.wav" if off else "flash_click_on.wav"))
+	player.battery_died.connect(func(): play_world("items/torch/battery_dead.wav"))
+	player.battery_swap.connect(func(): play_world("items/torch/battery_swap.wav"))
+	player.battery_swap_cut.connect(func(): stop_world("items/torch/battery_swap.wav"))
+	player.dead_click.connect(func(): play_world(DEAD_CLICKS.pick_random()))
+	player.contact_click.connect(func(off: bool): play_world("items/torch/flash_click_off.wav" if off else "items/torch/flash_click_on.wav"))
 	var amb := Node.new()
 	amb.name = "Ambience"
 	amb.set_script(preload("res://scripts/Audio/ambience.gd"))
@@ -240,7 +243,7 @@ func loop_stream(file: String) -> AudioStream:
 func _setup_hum() -> void:
 	for i in level.POOL_SIZE:
 		var p := AudioStreamPlayer3D.new()
-		p.stream = loop_stream("hum_voice.wav")
+		p.stream = loop_stream("world/lights/hum_voice.wav")
 		p.bus = "World"
 		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 		p.unit_size = 1.6
@@ -251,15 +254,15 @@ func _setup_hum() -> void:
 		voices.append(p)
 		voice_gain.append(0.0)
 	diffuse = AudioStreamPlayer.new()
-	diffuse.stream = loop_stream("hum_diffuse.wav")
+	diffuse.stream = loop_stream("world/lights/hum_diffuse.wav")
 	diffuse.bus = "World"
 	diffuse.volume_db = -80.0
 	add_child(diffuse)
 	diffuse.play()
 	drone = AudioStreamPlayer.new()
-	drone.stream = loop_stream("drone.wav")
+	drone.stream = loop_stream("ambients/drone.wav")
 	drone.bus = "World"
-	drone.volume_linear = DRONE_BASE / float(scales.get("drone.wav", 1.0))     # sub-bass dread drone (fear swells it)
+	drone.volume_linear = DRONE_BASE / float(scales.get("ambients/drone.wav", 1.0))     # sub-bass dread drone (fear swells it)
 	add_child(drone)
 	drone.play()
 
@@ -277,7 +280,7 @@ func _update_hum(dt: float) -> void:
 	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
 	hum_event += (hum_event_target - hum_event) * (1.0 - exp(-dt / 0.8))
 	var mix: float = hum_mix * HUM_VOLUME * hum_user * hum_event * vol.hum * (1.0 - outdoor_mix)     # no fluorescent hum under the sky
-	var comp := 1.0 / float(scales["hum_voice.wav"])
+	var comp := 1.0 / float(scales["world/lights/hum_voice.wav"])
 	for i in voices.size():
 		var lvl: float = level.slot_level(i)
 		var p := voices[i]
@@ -286,11 +289,11 @@ func _update_hum(dt: float) -> void:
 		var want := lvl * SLOT_GAIN * mix * comp * 2.0 * (1.0 - 0.6 * float(p.get_meta("occl", 0.0)))
 		voice_gain[i] += (want - voice_gain[i]) * (1.0 - exp(-dt / 0.03))
 		p.volume_linear = voice_gain[i]
-	diffuse.volume_linear = mix / float(scales["hum_diffuse.wav"])
+	diffuse.volume_linear = mix / float(scales["world/lights/hum_diffuse.wav"])
 	# dread drone: swells with the entity's presence and the run's overall fear, up to 3x
 	var swell := clampf(maxf(Game.presence, Game.fear * 0.7), 0.0, 1.0)
 	drone_swell += (swell - drone_swell) * (1.0 - exp(-dt / 1.2))
-	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) * (1.0 - outdoor_mix) / float(scales.get("drone.wav", 1.0))
+	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) * (1.0 - outdoor_mix) / float(scales.get("ambients/drone.wav", 1.0))
 
 # ---------------------------------------------------------------- tube pops
 func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
@@ -299,7 +302,7 @@ func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
 	# one within the light pool's reach (26 m, round corners and behind walls too) used to pop: the same click
 	# over and over with no light to be seen doing it.
 	if not f.get("seen", true) and float(f.get("dsq", 0.0)) > POP_UNSEEN * POP_UNSEEN: return
-	var file := "tube_restrike.wav" if restrike else "tube_drop.wav"
+	var file := "world/lights/tube_restrike.wav" if restrike else "world/lights/tube_drop.wav"
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream(file)
 	p.bus = "World"
@@ -338,10 +341,10 @@ func stop_world(file: String) -> void:
 			p.stop()
 
 func _on_jump() -> void:
-	_play("jump.wav", "Body", 1.0)
+	_play("player/body/jump.wav", "Body", 1.0)
 
 func _on_land(strength: float) -> void:
-	_play("land_thud.wav", "Body", minf(1.0, 0.4 + strength * 0.6))
+	_play("player/body/land_thud.wav", "Body", minf(1.0, 0.4 + strength * 0.6))
 
 # ---------------------------------------------------------------- pause / muffle
 # While something has hold of you (0..1): the world slowly closes in, dulling and ducking a little at

@@ -112,7 +112,7 @@ func _tint(c: Color, b: Button) -> void:
 func _click() -> void:
 	if click_player == null:
 		click_player = AudioStreamPlayer.new()
-		click_player.stream = load("res://audio/ui_click.wav")
+		click_player.stream = load("res://audio/ui/ui_click.wav")
 		click_player.volume_db = -6.0
 		add_child(click_player)
 	click_player.pitch_scale = randf_range(0.96, 1.04)

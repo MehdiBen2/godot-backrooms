@@ -374,7 +374,7 @@ func _build() -> void:
 	_full(fx)
 
 	click = AudioStreamPlayer.new()
-	click.stream = load("res://audio/ui_click.wav")
+	click.stream = load("res://audio/ui/ui_click.wav")
 	click.volume_db = -6.0
 	add_child(click)
 	tick = AudioStreamPlayer.new()          # much quieter, higher tick when the selection moves

@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://6ecpguol8sgj"]
 
 [ext_resource type="Script" uid="uid://bwjl4yumsrghd" path="res://scripts/UI/menu/main_menu.gd" id="1"]
-[ext_resource type="PackedScene" uid="uid://cciksfeumqo3q" path="res://models/player/survivor.glb" id="2_ekxnf"]
 
 [node name="MainMenu" type="Control" unique_id=1915644492]
 layout_mode = 3
@@ -11,6 +10,3 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
-
-[node name="survivor" parent="." unique_id=340946353 instance=ExtResource("2_ekxnf")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.105487466, 0, 1.0239024)

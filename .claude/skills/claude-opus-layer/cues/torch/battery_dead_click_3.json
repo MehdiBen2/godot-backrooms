@@ -1,0 +1,16 @@
+{
+ "duration_s": 0.4,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "c3",
+     "sound": "click/own-ov-7c2cbe0e",
+     "t": 0.02,
+     "pitch": -4
+    }
+   ]
+  }
+ ]
+}

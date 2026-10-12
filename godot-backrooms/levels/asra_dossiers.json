@@ -6,7 +6,7 @@
     "metrics": {
       "spatial_reliability": "94.2% Euclidean // minor drift vectors, east corridor // room topology stable",
       "temporal_coherence": "NOMINAL // baseline-aligned, no measurable dilation",
-      "cognitive_decay": "Fluorescent hum 38dB // sensory erosion index LOW",
+      "cognitive_decay": "Sensory erosion index LOW // 0.4 perceptual errors per hour",
       "atmosphere_substratum": "Carpet moisture 12% // airborne mold count TRACE"
     },
     "directives": [
@@ -29,7 +29,7 @@
         "If the room you walk into is full of mannequins, leave it walking backwards."
       ],
       "survey_note": "Room counts on Level 0 do not converge. Three independent surveys of the same wing returned 212, 208, and \"more than there were a minute ago\".",
-      "incident": "INCIDENT 0-001: The first T.S.R.A. field recording. Eleven minutes of empty office rooms and fluorescent hum, no speech. The surveyor who made it has no memory of doing so, and was never reported missing."
+      "incident": "INCIDENT 0-001: The first T.S.R.A. field recording. Eleven minutes of empty office rooms, no speech. The surveyor who made it has no memory of doing so, and was never reported missing."
     }
   },
   "level_2_yellow_halls": {
@@ -38,13 +38,13 @@
     "metrics": {
       "spatial_reliability": "71.8% Euclidean // pronounced drift vectors, all axes // topology unstable past 200m",
       "temporal_coherence": "RETROGRADE // dilation increases with depth",
-      "cognitive_decay": "Fluorescent hum 61dB // sensory erosion index ELEVATED",
+      "cognitive_decay": "Sensory erosion index ELEVATED // 2.7 perceptual errors per hour",
       "atmosphere_substratum": "Carpet moisture 34% // airborne mold count HIGH"
     },
     "directives": [
       "Do not linger at wall junctions.",
       "Sound discipline is mandatory beyond the second hallway.",
-      "Abort exploration if hum exceeds 70dB."
+      "Abort exploration if the sensory erosion index reaches SEVERE."
     ],
     "entities": [
       "bacteria",
@@ -53,15 +53,15 @@
       "grabber"
     ],
     "classified": {
-      "history": "The Yellow Halls lie below Level 0: older, wetter and louder. The hum rises with depth, and long service corridors dominate the layout. The agency believes the level is still growing - survey maps go out of date within days.",
+      "history": "The Yellow Halls lie below Level 0: older, wetter and darker. Long service corridors dominate the layout. The agency believes the level is still growing - survey maps go out of date within days.",
       "survival": [
-        "Listen before you move. The hum masks footsteps - yours and the Howler's.",
+        "Listen before you move. The Howler is heard before it is seen.",
         "Wall junctions are where things wait. Cross them quickly and never stop at one.",
         "A figure in a hazmat suit at the far end of a corridor is not your teammate until it speaks.",
         "When the grid fails here, whatever hunts by sight starts hunting by other means. Keep moving toward light.",
         "Anything standing perfectly still and facing you: log it if you must, then leave."
       ],
-      "survey_note": "Hum above 70dB correlates with every Class 4 sighting on file. The mandate to abort above 70dB is not a comfort guideline.",
+      "survey_note": "Every Class 4 sighting on file was logged with the erosion index at SEVERE. The abort mandate is not a comfort guideline.",
       "incident": "INCIDENT 2-003: Survey Team WREN reported a corridor that was \"longer on the way back\". Odometer data confirms it: 212 m outbound, 1.4 km return."
     }
   },

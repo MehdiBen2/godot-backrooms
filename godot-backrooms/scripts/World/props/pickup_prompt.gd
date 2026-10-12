@@ -15,7 +15,8 @@ var item_code := ""
 var item_desc := ""
 var stack := 1
 var model_path := ""
-var sound := ""                # played when the item is taken
+var sound: Variant = ""        # played when the item is taken: a file under res://audio/, or an Array of takes
+static var _last_take := {}    # item id -> the take played last, so a pickup never sounds the same twice running
 var walk_over := false
 var _full_t := 0.0             # >0: just failed to pick up, show "PACK FULL"
 var _taken := false
@@ -79,9 +80,20 @@ func take() -> bool:
 	_taken = true
 	var audio: Node = Game.main.get_node_or_null("Audio") if Game.main != null else null
 	if audio:
-		audio.play_world(sound)
+		audio.play_world(_pick_take())
 	get_parent().queue_free()
 	return true
+
+## One of the card's takes at random, never the one this kind of item played last
+func _pick_take() -> String:
+	if not sound is Array:
+		return str(sound)
+	var takes: Array = sound.duplicate()
+	if takes.size() > 1:
+		takes.erase(_last_take.get(item_id, ""))
+	var take: String = takes.pick_random()
+	_last_take[item_id] = take
+	return take
 
 ## Player focus test: close enough, looking squarely at it, nothing solid in between
 func can_interact(from_pos: Vector3) -> bool:

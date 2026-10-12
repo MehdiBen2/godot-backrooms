@@ -15,12 +15,12 @@ const CASING_D := 0.025
 const LEAF_T := 0.045
 const KNOB_H := 0.95
 const OPEN_ANGLE := deg_to_rad(120.0)
-# The timing follows the two sounds. audio/door_open.mp3 (1.63 s): the knob rattles (0-0.15 s), the latch
-# gives (~0.25 s), then the creak of the swing dies away by ~1.35 s. audio/door_close.mp3 (0.58 s): the leaf
+# The timing follows the two sounds. audio/world/doors/door_open.mp3 (1.63 s): the knob rattles (0-0.15 s), the latch
+# gives (~0.25 s), then the creak of the swing dies away by ~1.35 s. audio/world/doors/door_close.mp3 (0.58 s): the leaf
 # meets the frame ~0.15 s in. The player's scripted scene (player.gd _door_scene) says when the hand turns the
 # knob (turn_knob) or starts the pull (pull); with no scene, REACH_* stand in for it.
-const OPEN_SOUND := "res://audio/door_open.mp3"
-const CLOSE_SOUND := "res://audio/door_close.mp3"
+const OPEN_SOUND := "res://audio/world/doors/door_open.mp3"
+const CLOSE_SOUND := "res://audio/world/doors/door_close.mp3"
 const LATCH_AFTER := 0.25    # s into the open sound the latch gives and the leaf moves
 const CLOSE_HIT := 0.15      # s into the close sound the leaf meets the frame
 const REACH_OPEN := 0.55     # s from [E] to the knob turning, with no scene to say so

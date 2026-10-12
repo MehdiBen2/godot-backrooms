@@ -16,6 +16,16 @@
         "-e",
         "const fs=require('fs'),cp=require('child_process');const mac='/Users/medy/tools/codegraph-mcp/bin/codegraph-mcp.js';const w=process.platform==='win32';const c=fs.existsSync(mac)?['node',[mac]]:[w?'codegraph.cmd':'codegraph',['serve','--mcp']];cp.spawn(c[0],c[1],{stdio:'inherit',shell:w,windowsHide:true})"
       ]
+    },
+    "blender": {
+      "command": "uvx",
+      "args": ["mcp-for-blender"],
+      "env": {
+        "BLENDER_HOST": "localhost",
+        "BLENDER_PORT": "9876",
+        "DISABLE_TELEMETRY": "true",
+        "UV_SYSTEM_CERTS": "1"
+      }
     }
   }
 }

@@ -1,0 +1,42 @@
+Recorded sounds in this folder, made with .claude/skills/claude-opus-layer (opus-sound-layer). All CC0:
+credit is not required, but given. Outdoor footsteps and ambience: footsteps/CREDITS.txt.
+
+- items/pickups/battery_pickup_1..4.wav  into the backpack: a hand swish, the bag, a quiet zip (cue sheets: .claude/skills/claude-opus-layer/cues/battery_pickup_N.json)
+    "28.wav" by adcbicycle, CC0, https://freesound.org/people/adcbicycle/sounds/14176
+    "Woosh 2.mp3" by XxChr0nosxX, CC0, https://freesound.org/people/XxChr0nosxX/sounds/268226
+    "Wrapping cloth" by ChuckleNutsDev, CC0, https://freesound.org/people/ChuckleNutsDev/sounds/718668
+    "Zipper.aif" by Tee_Hee_Tummy_Tums, CC0, https://freesound.org/people/Tee_Hee_Tummy_Tums/sounds/263039
+    "a variety of zipper sounds" by florianreichelt, CC0, https://freesound.org/people/florianreichelt/sounds/447448
+    "Zipper Regular Pull 01" by Rudmer_Rotteveel, CC0, https://freesound.org/people/Rudmer_Rotteveel/sounds/536234
+    "Put in bag and zip up.mp3" by Caitlin_100, CC0, https://freesound.org/people/Caitlin_100/sounds/365619
+    "Inventory Open" by Fission9, CC0, https://freesound.org/people/Fission9/sounds/568992
+    "zipping backpack and rustling papers.wav" by TheSupremeMuffinPooter, CC0, https://freesound.org/people/TheSupremeMuffinPooter/sounds/333519
+
+- items/torch/battery_dead.wav  the bulb sputtering out; battery_dead_click_1..3.wav  the switch on an empty torch (cues/torch/)
+    "Flashlight Switch" by Daybreaker64, CC0, https://freesound.org/people/Daybreaker64/sounds/545248
+    "flashlight click" by realgtro, CC0, https://freesound.org/people/realgtro/sounds/629008
+    "Flashlight clicking sounds" by wiiinviiid, CC0, https://freesound.org/people/wiiinviiid/sounds/718128
+    "fluorescent light flickering 1.wav" by TemperMode, CC0, https://freesound.org/people/TemperMode/sounds/484157
+    "flourescent light" by samwd, CC0, https://freesound.org/people/samwd/sounds/457438
+
+- footsteps/carpet/walk_0..7.ogg, sprint_0..7.ogg  damp carpet: heel, toe, fibre brush, a little wet give, layered (cues/carpet/)
+    "Fabric-Sofa-Rubbing-Wooshes_StereoSP_96000.wav" by Sonicquinn, CC0, https://freesound.org/people/Sonicquinn/sounds/435829
+    "Pressing down on sponge" by emilyneiswonger, CC0, https://freesound.org/people/emilyneiswonger/sounds/594753
+    "Fabric rubbed on a couch.wav" by Chubbers1995, CC0, https://freesound.org/people/Chubbers1995/sounds/344627
+    "04-Man walking carpet.wav" by 14GPanskaHonc_Petr, CC0, https://freesound.org/people/14GPanskaHonc_Petr/sounds/419163
+    "light footsteps on carpet walk.wav" by rsellick, CC0, https://freesound.org/people/rsellick/sounds/545540
+    "Steps: Sneakers on Carpet 1" by Sheyvan, CC0, https://freesound.org/people/Sheyvan/sounds/474051
+    "Walking Footsteps on Carpet.aif" by Abolla, CC0, https://freesound.org/people/Abolla/sounds/164100
+    "Walking on Carpet" by Jarebear1223, CC0, https://freesound.org/people/Jarebear1223/sounds/618536
+    "footsteps rug" by Yuval, CC0, https://freesound.org/people/Yuval/sounds/205731
+
+- footsteps/tile/tile_0..9.ogg  steps cut from
+    "Footsteps, Tile, Male Tennis Shoes, Slow Pace.wav" by SpliceSound, CC0, https://freesound.org/people/SpliceSound/sounds/170498
+    "Footsteps, Tile, Male Sneakers, Slow Pace.wav" by SpliceSound, CC0, https://freesound.org/people/SpliceSound/sounds/170506
+    "01-20 Footsteps, Tile, Slippers, Slow Pace.wav" by SpliceSound, CC0, https://freesound.org/people/SpliceSound/sounds/260120
+
+- footsteps/concrete/concrete_0..9.ogg  steps cut from
+    "Footsteps Salted Concrete.WAV" by saturdaysoundguy, CC0, https://freesound.org/people/saturdaysoundguy/sounds/388025
+    "Walking on Hard Floor 2" by NachtmahrTV, CC0, https://freesound.org/people/NachtmahrTV/sounds/571802
+    "footsteps concrete" by Yuval, CC0, https://freesound.org/people/Yuval/sounds/205748
+    "mco_walk_b02.wav" by Fantozzi, CC0, https://freesound.org/people/Fantozzi/sounds/166290

@@ -5,7 +5,8 @@
                       the old cells rattling down the tube and landing on the carpet, cloth for the new
                       pair, each one knocking home, the cap set back on, two turns screwing down and the
                       last one seating.
-  battery_pickup.wav  a pack off the floor: a hand closing on it, the two cells knocking
+  battery_pickup.wav  a pack off the floor: a hand closing on it, the two cells knocking. No longer written:
+                      the game's file is now layered recordings (audio/CREDITS.txt); pickup() is kept for reference
 Small sounds made close to the ear by hands, at the level of the torch's own click (flash_click_on.wav)
 and as dull: everything is shaped noise, short and damped. Nothing rings or glides, a note in here reads
 as a cartoon.
@@ -162,6 +163,7 @@ def finish(xs, peak):
 
 
 def write(name, xs):
+    os.makedirs(os.path.dirname(os.path.join(OUT, name)), exist_ok=True)
     with wave.open(os.path.join(OUT, name), 'wb') as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -235,5 +237,5 @@ def pickup():
 
 
 if __name__ == '__main__':
-    write('battery_swap.wav', swap())
-    write('battery_pickup.wav', pickup())
+    write('items/torch/battery_swap.wav', swap())
+    # write('battery_pickup.wav', pickup())   # replaced by a recording, see audio/CREDITS.txt

@@ -20,8 +20,8 @@ const PROFILES := {
 		"shutter": 1.0 / 100.0,      # a fast shutter: turning the head blurs a little, never smears (see blur_max_px)
 		"sharpen": 0.45,
 		"codec": 0.55,
-		"noise_luma": 0.05,
-		"noise_chroma": 0.045,
+		"noise_luma": 0.024,
+		"noise_chroma": 0.018,
 		"vignette_amt": 0.55,
 		"vhs": 0.2,                  # a subtle touch of tape: soft colour bleed, faint line wobble
 		"tape": 0.6,                 # and its grain, under the digital noise
@@ -35,8 +35,8 @@ const PROFILES := {
 		"shutter": 1.0 / 120.0,
 		"sharpen": 0.4,              # a digital camera's in-camera sharpening: the wallpaper's grain and the tile edges read
 		"codec": 0.0,
-		"noise_luma": 0.03,          # a fine sensor grain over the walls
-		"noise_chroma": 0.008,
+		"noise_luma": 0.016,         # a fine sensor grain over the walls
+		"noise_chroma": 0.005,
 		"vignette_amt": 0.72,
 		"vhs": 0.0,
 		"tape": 0.12,

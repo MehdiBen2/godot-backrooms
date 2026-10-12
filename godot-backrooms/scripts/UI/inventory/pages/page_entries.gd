@@ -1,9 +1,13 @@
 extends "res://scripts/UI/inventory/terminal_page.gd"
-## [F3] ENTRIES: every catalogued entity, a list on the left (redacted until scanned, NEW until
-## opened), the chosen one's full entry on the right. Arrows / clicks pick one; the dossier's
-## phenomena rows open theirs here (open_entry).
+## ARCHIVE: every catalogued entity. A list on the left, one line each (its code and name, ???? until it
+## is scanned, a * until its entry has been opened), the selected one in inverse video; its entry on
+## the right: designation, threat, overview, behaviour, protocol, where it has been seen and when it
+## was logged, then the classified annex. Arrows / clicks pick one; the SITE page's phenomena open
+## theirs here (open_entry).
 
-var entries_title: Label
+const LIST_W := 300.0
+
+var _head: VBoxContainer             # the page's heading, rebuilt with the count in it
 var entries_list: VBoxContainer
 var entry_detail: VBoxContainer
 var entry_ids: Array = []            # every catalogued entity, in code order
@@ -14,17 +18,20 @@ func build() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 0)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	entries_title = label("[ANOMALY ENTRIES]", 21, TEXT, 1)
-	v.add_child(entries_title)
-	v.add_child(spacer(14))
+	var head := VBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(head)
+	heading(head, "ANOMALY ARCHIVE", "")
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
+	row.add_theme_constant_override("separation", 22)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(row)
 	var list_scroll := scroll()
-	list_scroll.custom_minimum_size.x = 250
-	entries_list = scroll_body(list_scroll, 6)
+	list_scroll.custom_minimum_size.x = LIST_W
+	list_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	entries_list = scroll_body(list_scroll, 2)
 	row.add_child(list_scroll)
 	var div := ColorRect.new()
 	div.color = Color(AMBER, 0.35)
@@ -36,6 +43,7 @@ func build() -> Control:
 	entry_detail = scroll_body(scroll_box, 6)
 	row.add_child(scroll_box)
 	root = v
+	_head = head
 	return root
 
 func hoverables() -> Array:
@@ -50,7 +58,8 @@ func refresh() -> void:
 	var logged := 0
 	for id in entry_ids:
 		if Archive.is_discovered(str(id)): logged += 1
-	entries_title.text = "[ANOMALY ENTRIES // %d OF %d LOGGED]" % [logged, entry_ids.size()]
+	clear(_head)
+	heading(_head, "ANOMALY ARCHIVE", "%d OF %d LOGGED" % [logged, entry_ids.size()])
 	clear(entries_list)
 	entry_rows.clear()
 	for i in entry_ids.size():
@@ -62,7 +71,7 @@ func refresh() -> void:
 		_style_entry_row(i)
 	_show_entry()
 
-## A list row: the code (and NEW until it is opened), the name under it; redacted until logged
+## "EN-01  THE MANNEQUINS *": its code, its name (or ????????), and * while it is new
 func _entry_row(i: int, id: String) -> Control:
 	var logged := Archive.is_discovered(id)
 	var info := Archive.entity_info(id)
@@ -75,24 +84,26 @@ func _entry_row(i: int, id: String) -> Control:
 	)
 	p.mouse_entered.connect(func(): p.set_meta("hover", true); _style_entry_row(i))
 	p.mouse_exited.connect(func(): p.set_meta("hover", false); _style_entry_row(i))
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 0)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var top := HBoxContainer.new()
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var code := label(str(info.get("code", "TSRA-EN-??")) if logged else "TSRA-EN-??", 19, TEXT if logged else TEXT_DIM, 1)
-	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(code)
-	var badge := label("NEW", 15, AMBER, 2)
-	badge.visible = Archive.is_unread(id)
-	top.add_child(badge)
-	v.add_child(top)
-	var nm := label(str(info.get("common_name", id)).to_upper() if logged else "UNREGISTERED", 15, TEXT_DIM, 1)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 12)
+	h.custom_minimum_size.y = 30
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var code := label(str(info.get("code", "TSRA-EN-??")).replace("TSRA-", "") if logged else "EN-??", 16, MUTED, 2)
+	code.custom_minimum_size.x = 64
+	code.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(code)
+	var nm := label(str(info.get("common_name", id)).to_upper() if logged else "????????", 17, TEXT if logged else TEXT_DIM, 2)
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	nm.clip_text = true
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	v.add_child(nm)
-	p.add_child(v)
-	p.set_meta("code", code)
+	h.add_child(nm)
+	var badge := label("*", 17, AMBER, 1)
+	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	badge.visible = Archive.is_unread(id)
+	h.add_child(badge)
+	p.add_child(h)
+	p.set_meta("labels", [code, nm, badge])
 	p.set_meta("badge", badge)
 	p.set_meta("logged", logged)
 	return p
@@ -102,16 +113,14 @@ func _style_entry_row(i: int) -> void:
 		return
 	var p: PanelContainer = entry_rows[i]
 	var sel := i == entry_sel
-	var bg := Color(0, 0, 0, 0)
-	if sel: bg = Color(AMBER, 0.16)
-	elif p.get_meta("hover"): bg = Color(AMBER, 0.07)
-	var sb := box(bg, AMBER)
-	sb.border_width_left = LINE if sel else 0
-	sb.content_margin_left = 12; sb.content_margin_right = 10
-	sb.content_margin_top = 5; sb.content_margin_bottom = 5
-	p.add_theme_stylebox_override("panel", sb)
+	p.add_theme_stylebox_override("panel", row_box(sel, p.get_meta("hover")))
 	var logged: bool = p.get_meta("logged")
-	(p.get_meta("code") as Label).add_theme_color_override("font_color", AMBER if sel else (TEXT if logged else TEXT_DIM))
+	var ls: Array = p.get_meta("labels")
+	(ls[0] as Label).add_theme_color_override("font_color", INK if sel else MUTED)
+	(ls[1] as Label).add_theme_color_override("font_color", INK if sel else (TEXT if logged else TEXT_DIM))
+	(ls[2] as Label).add_theme_color_override("font_color", INK if sel else AMBER)
+	for l in ls:
+		(l as Label).add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.0 if sel else 0.8))
 
 func select_entry(i: int, quiet := false) -> void:
 	if entry_ids.is_empty():
@@ -127,7 +136,7 @@ func select_entry(i: int, quiet := false) -> void:
 func step(delta: int) -> void:
 	select_entry(entry_sel + delta)
 
-## [F3] from the dossier's phenomena list: straight to that entity's entry (built before the page
+## ARCHIVE from the SITE page's phenomena: straight to that entity's entry (built before the page
 ## switch, so it types in with the rest of the page)
 func open_entry(id: String) -> void:
 	var i := entry_ids.find(id)
@@ -139,7 +148,7 @@ func open_entry(id: String) -> void:
 	term.select_tab("ENTRIES", false, false)
 	_mark_seen()
 
-## The entry on show is no longer new once it has been opened on [F3]
+## The entry on show is no longer new once it has been opened here
 func _mark_seen() -> void:
 	if entry_ids.is_empty() or not term.shown or term.active_page != "ENTRIES":
 		return
@@ -149,7 +158,7 @@ func _mark_seen() -> void:
 		(entry_rows[entry_sel].get_meta("badge") as Label).visible = false
 		term.readout.queue_redraw()
 
-## Arriving on [F3] with something new logged: that one first
+## Arriving on ARCHIVE with something new logged: that one first
 func focus_unread() -> void:
 	for i in entry_ids.size():
 		if Archive.is_unread(str(entry_ids[i])):
@@ -161,41 +170,45 @@ func _show_entry() -> void:
 		return
 	clear(entry_detail)
 	if entry_ids.is_empty():
-		entry_detail.add_child(label("NO ENTRIES CATALOGUED.", 19, TEXT_DIM, 1))
+		empty_state(entry_detail, "NO ENTRIES CATALOGUED.", "")
 		return
 	var id := str(entry_ids[entry_sel])
 	var info := Archive.entity_info(id)
 	_mark_seen()
-	if Archive.is_discovered(id):
-		entry_detail.add_child(label(str(info.get("code", "TSRA-EN-??")), 26, AMBER, 2))
-		entry_detail.add_child(label(str(info.get("common_name", id)).to_upper(), 21, TEXT, 1, true))
-		entry_detail.add_child(label("THREAT CLASS: " + str(info.get("threat_class", "Undetermined")), 18, RED, 1, true))
-		if info.has("description"):
-			_entry_section("OVERVIEW", str(info.description))
-		_entry_section("BEHAVIOUR VECTOR", str(info.get("behavior_vector", "")))
-		_entry_section("FIELD PROTOCOL", str(info.get("directive", "")))
-		var cl: Dictionary = info.get("classified", {})
-		if not cl.is_empty():
-			annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
-				["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 18)
-	else:
-		entry_detail.add_child(label("TSRA-EN-??", 26, TEXT_DIM, 2))
-		entry_detail.add_child(label("UNREGISTERED ANOMALY", 21, TEXT_DIM, 1))
-		entry_detail.add_child(spacer(14))
+	if not Archive.is_discovered(id):
+		entry_detail.add_child(label("TSRA-EN-??", 15, MUTED, 3))
+		entry_detail.add_child(label("UNREGISTERED ANOMALY", 24, TEXT_DIM, 2, true))
+		entry_detail.add_child(leader("STATUS", "[NO SCAN ON FILE]", TEXT_DIM, 17))
+		entry_detail.add_child(spacer(10))
 		for n in [4, 3, 4, 2]:
 			entry_detail.add_child(redacted(id + str(n), n))
 		entry_detail.add_child(spacer(12))
-		entry_detail.add_child(label("NO SCAN ON FILE. HOLD Q WITH THE FIELD SCANNER ON IT TO LOG THIS ENTRY.", 17, AMBER, 1, true))
+		para(entry_detail, "HOLD [Q] WITH THE FIELD SCANNER ON IT TO LOG THIS ENTRY.", MUTED, 15)
+		return
+	entry_detail.add_child(label(str(info.get("code", "TSRA-EN-??")), 15, MUTED, 3))
+	entry_detail.add_child(label(str(info.get("common_name", id)).to_upper(), 24, AMBER, 2, true))
+	entry_detail.add_child(spacer(4))
+	var cls := str(info.get("threat_class", "Undetermined")).to_upper()
+	entry_detail.add_child(leader("THREAT", "[%s]" % cls, RED if cls.to_int() >= 4 else (ORANGE if cls.to_int() == 3 else AMBER), 17))
 	var sites := Archive.sites_of(id)
-	_entry_section("KNOWN SITES", "\n".join(sites) if not sites.is_empty() else "NONE ON RECORD")
+	entry_detail.add_child(leader("SITES", str(sites.size()) if not sites.is_empty() else "NONE ON RECORD", TEXT, 17))
 	var when := Archive.logged_info(id)
 	if when.has("t"):
-		var level_id := str(when.get("level", ""))
-		var where := str(Archive.dossiers().get(level_id, {}).get("designation", level_id))
-		entry_detail.add_child(spacer(12))
-		entry_detail.add_child(label("LOGGED %s // %s" % [local_time(int(when.t)), where], 15, MUTED, 1, true))
-
-func _entry_section(title: String, text: String) -> void:
-	entry_detail.add_child(spacer(12))
-	entry_detail.add_child(label(title, 15, MUTED, 2))
-	entry_detail.add_child(label(text, 18, TEXT, 1, true))
+		entry_detail.add_child(leader("LOGGED", local_time(int(when.t)), TEXT, 17))
+	if info.has("description"):
+		section(entry_detail, "OVERVIEW")
+		para(entry_detail, str(info.description))
+	if str(info.get("behavior_vector", "")) != "":
+		section(entry_detail, "BEHAVIOUR")
+		para(entry_detail, str(info.behavior_vector))
+	if str(info.get("directive", "")) != "":
+		section(entry_detail, "FIELD PROTOCOL")
+		para(entry_detail, str(info.directive), AMBER)
+	if not sites.is_empty():
+		section(entry_detail, "KNOWN SITES")
+		for s in sites:
+			para(entry_detail, str(s), TEXT_DIM, 16)
+	var cl: Dictionary = info.get("classified", {})
+	if not cl.is_empty():
+		annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
+			["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 16)

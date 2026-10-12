@@ -60,7 +60,7 @@ const BITE_DEATH := "res://audio/player/death/bite/bitedeathsound.mp3"
 # kept only as a fallback if this one is ever missing)
 const NECK_SNAP_SOUND := "res://audio/player/death/neck_snap/floraphonic-necksnap-10-218514.mp3"
 const GRID_OFF := "res://audio/events/gridoff.mp3"
-const TUBE_RESTRIKE := "res://audio/tube_restrike.wav"
+const TUBE_RESTRIKE := "res://audio/world/lights/tube_restrike.wav"
 # A recorded single lub-dub dropped at one of these paths replaces the synthesized one
 const HEART_SAMPLES := ["res://audio/player/heartbeat.ogg", "res://audio/player/heartbeat.wav", "res://audio/player/heartbeat.mp3"]
 

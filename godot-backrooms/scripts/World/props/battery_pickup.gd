@@ -17,6 +17,9 @@ const ITEM_DESC := "A shrink-wrapped pair of AA cells, still holding a charge. P
 const ItemIcon := preload("res://scripts/UI/inventory/item_icon.gd")
 const MODEL_PATH := "res://models/aa_batteries.glb"
 const MODEL_SIZE := 0.3          # metres, longest side
+# into the backpack: a hand swish, the bag, a quiet zip (four recorded takes, audio/CREDITS.txt)
+const PICKUP_TAKES := ["items/pickups/battery_pickup_1.wav", "items/pickups/battery_pickup_2.wav",
+	"items/pickups/battery_pickup_3.wav", "items/pickups/battery_pickup_4.wav"]
 static var model_scene: PackedScene    # a .glb can't be preloaded off the main thread, so the menu's threaded load would stall on it
 
 var light: OmniLight3D
@@ -44,7 +47,7 @@ func _ready() -> void:
 	var prompt := PickupPrompt.new()
 	add_child(prompt)
 	prompt.setup({"id": ITEM_ID, "name": ITEM_NAME, "code": ITEM_CODE, "desc": ITEM_DESC, "stack": STACK,
-		"model": MODEL_PATH, "sound": "battery_pickup.wav", "height": 0.85})
+		"model": MODEL_PATH, "sound": PICKUP_TAKES, "height": 0.85})
 	_apply_vis_range(model)
 
 func _apply_vis_range(n: Node) -> void:

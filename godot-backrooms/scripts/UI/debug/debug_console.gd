@@ -910,7 +910,7 @@ func _build_entities_tab() -> Control:
 		mdl_box.add_child(_action_btn("DESPAWN", func(): _apply(row[1], false)))
 
 	# the model-only entities and characters (entity_roster.gd): stood in front of you, no AI
-	for grp in [["entity", "MODEL ENTITIES (NO AI)"], ["character", "CHARACTERS (NO AI)"]]:
+	for grp in [["entity", "MODEL ENTITIES (NO AI)"], ["new", "NEW ENTITIES (NO AI YET)"], ["character", "CHARACTERS (NO AI)"]]:
 		v.add_child(_label(grp[1], 12, Color(0.75, 0.85, 0.95)))
 		for id: String in EntityRoster.ROSTER:
 			var e: Array = EntityRoster.ROSTER[id]
