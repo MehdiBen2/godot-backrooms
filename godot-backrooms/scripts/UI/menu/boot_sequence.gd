@@ -297,6 +297,18 @@ func _build_logo() -> Control:
 		fringe.show_behind_parent = true
 		title.add_child(fringe)
 	col.add_child(title)
+	# the second line of the lockup: NULLSPACE in the warning red, under the title
+	var nullspace := _label("NULLSPACE", 84, RED, 28)
+	nullspace.add_theme_constant_override("outline_size", 4)
+	nullspace.add_theme_color_override("font_outline_color", RED)
+	for f in [[Vector2(-4, 0), Color(1, 0.1, 0.1, 0.35)], [Vector2(4, 1), Color(0.1, 0.4, 1, 0.35)]]:
+		var fringe := _label("NULLSPACE", 84, f[1], 28)     # chromatic split, as on the title above
+		fringe.add_theme_constant_override("outline_size", 4)
+		fringe.add_theme_color_override("font_outline_color", f[1])
+		fringe.position = f[0]
+		fringe.show_behind_parent = true
+		nullspace.add_child(fringe)
+	col.add_child(nullspace)
 	col.add_child(_rule(760))
 	return center
 

@@ -302,11 +302,20 @@ func _build() -> void:
 		title_label.add_child(s)
 		fringes.append(s)
 	col.add_child(title_label)
-	# the second line of the lockup: NULLSPACE in the red of the tag dot, under the title
-	var nullspace := _label("NULLSPACE", 60, RED, 20)
-	nullspace.add_theme_constant_override("outline_size", 4)
-	nullspace.add_theme_color_override("font_outline_color", RED)
-	col.add_child(nullspace)
+	# the second line of the lockup: NULLSPACE in the red of the tag dot, under the title, with the same glitch
+	nullspace_label = _label(NAME_TEXT, 60, RED, 20)
+	nullspace_label.add_theme_constant_override("outline_size", 4)
+	nullspace_label.add_theme_color_override("font_outline_color", RED)
+	name_fringes = []
+	for f in [[Vector2(2, 0), Color(0.627, 0.078, 0.059, 0.4)], [Vector2(-2, 0), Color(0.157, 0.353, 0.431, 0.28)]]:
+		var s := _label(NAME_TEXT, 60, f[1], 20)
+		s.add_theme_constant_override("outline_size", 4)
+		s.add_theme_color_override("font_outline_color", f[1])
+		s.position = f[0]
+		s.show_behind_parent = true
+		nullspace_label.add_child(s)
+		name_fringes.append(s)
+	col.add_child(nullspace_label)
 	col.add_child(_spacer(8))
 	sub_label = _label("T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY", 13, Color(0.9, 0.882, 0.804, 0.5), 5)
 	col.add_child(sub_label)
@@ -324,7 +333,7 @@ func _build() -> void:
 	_menu_item(col, "VOICE", "MICROPHONE / PROXIMITY", "voice", _open_panel.bind("voice"), "sub")
 	_menu_item(col, "GO BACK", "MAIN MENU", "", _set_group.bind("main"), "sub")
 	col.add_child(_spacer(32))
-	footer = _label("BUILD 0.1 // TAPE 04        UP / DOWN  SELECT    ENTER  CONFIRM", 11, Color(0.9, 0.882, 0.804, 0.3), 3)
+	footer = _label("BUILD 0.1.30 // TAPE 04        UP / DOWN  SELECT    ENTER  CONFIRM", 11, Color(0.9, 0.882, 0.804, 0.3), 3)
 	col.add_child(footer)
 
 	# Credits, bottom right
@@ -1104,6 +1113,24 @@ const TITLE_TEXT := "THE BACKROOMS"
 const WRONG_GLYPHS := {"T": "7", "H": "N", "E": "3", "B": "8", "A": "4", "C": "(", "K": "X",
 		"R": "P", "O": "0", "M": "W", "S": "5"}   # lookalikes; W is the M turned upside down
 var next_wrong := 1.5
+const NAME_TEXT := "NULLSPACE"
+const NAME_GLYPHS := {"N": "H", "U": "V", "L": "1", "P": "R", "A": "4", "C": "(", "E": "3", "S": "5"}
+var nullspace_label: Label
+var name_fringes: Array = []
+
+# The same swap for NULLSPACE: one of its letters turns into a lookalike, then snaps back
+func _wrong_name() -> void:
+	var idx := randi() % NAME_TEXT.length()
+	while not NAME_GLYPHS.has(NAME_TEXT[idx]):
+		idx = randi() % NAME_TEXT.length()
+	var bad: String = NAME_TEXT.substr(0, idx) + NAME_GLYPHS[NAME_TEXT[idx]] + NAME_TEXT.substr(idx + 1)
+	nullspace_label.text = bad
+	for f in name_fringes:
+		f.text = bad
+	await get_tree().create_timer(randf_range(0.2, 0.45)).timeout
+	nullspace_label.text = NAME_TEXT
+	for f in name_fringes:
+		f.text = NAME_TEXT
 
 # One letter of the title briefly turns into a lookalike, then snaps back
 func _wrong_letter() -> void:
@@ -1127,6 +1154,7 @@ func _update_glitch(dt: float) -> void:
 	if next_wrong <= 0.0:
 		next_wrong = randf_range(1.2, 3.5)
 		_wrong_letter()
+		_wrong_name()
 	if glitch_left > 0.0:
 		glitch_left -= dt
 		glitch_tick -= dt
@@ -1134,12 +1162,19 @@ func _update_glitch(dt: float) -> void:
 			fringes[0].position = Vector2(2, 0)
 			fringes[1].position = Vector2(-2, 0)
 			title_label.modulate.a = 1.0
+			name_fringes[0].position = Vector2(2, 0)
+			name_fringes[1].position = Vector2(-2, 0)
+			nullspace_label.modulate.a = 1.0
 		elif glitch_tick <= 0.0:
 			glitch_tick = 0.045
 			var kick := randf_range(4.0, 16.0)
 			fringes[0].position = Vector2(kick, randf_range(-2, 2))
 			fringes[1].position = Vector2(-kick * 0.8, randf_range(-2, 2))
 			title_label.modulate.a = randf_range(0.55, 1.0)
+			var nk := randf_range(4.0, 16.0)
+			name_fringes[0].position = Vector2(nk, randf_range(-2, 2))
+			name_fringes[1].position = Vector2(-nk * 0.8, randf_range(-2, 2))
+			nullspace_label.modulate.a = randf_range(0.55, 1.0)
 		return
 	next_glitch -= dt
 	if next_glitch <= 0.0:
