@@ -16,7 +16,7 @@ const SND_ON := "res://audio/terminal/terminal_on.wav"
 const SND_KEY := "res://audio/terminal/terminal_select.wav"
 const SND_TAB := "res://audio/terminal/terminal_tab.wav"
 const SND_OK := "res://audio/terminal/terminal_logged.wav"
-const BED_DB := -15.0
+const BED_DB := -24.0
 const KEY_DB := -26.0
 const CREAM := Color("e6e1cd")
 const DIMC := Color(0.9, 0.882, 0.804, 0.55)
@@ -198,7 +198,7 @@ func _build_page(level_name: String) -> void:
 	_page_row(right, "FIELD REPORTS", 15, DIMC, 5, 0.3, true)
 	for r in data.get("reports", []):
 		_page_row(right, "[%s // %s]" % [str(r.get("source", "UNKNOWN")), str(r.get("reliability", "UNVERIFIED"))], 14, AMBER, 2, 0.15, false, 2)
-		_page_row(right, "\"%s\"" % str(r.get("text", "")), 16, CREAM, 1, 0.05, false, 10)
+		_page_row(right, str(r.get("text", "")), 16, CREAM, 1, 0.05, false, 10)
 	var look: Array = data.get("investigate", [])
 	if not look.is_empty():
 		_page_row(right, "INVESTIGATE AND LOG", 15, DIMC, 5, 0.3, true, 0, 4)
@@ -223,8 +223,12 @@ func _build_page(level_name: String) -> void:
 	prompt.modulate.a = 0.0
 	page.add_child(prompt)
 
-## The tube over everything drawn before it
+## The tube over everything drawn before it. The title screen's own blur already took the frame's screen copy
+## (the menu picture); without a fresh copy here the tube would show that instead of the page.
 func _build_crt() -> void:
+	var copy := BackBufferCopy.new()
+	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(copy)
 	var crt := ColorRect.new()
 	add_child(crt)
 	_full(crt)
@@ -237,7 +241,8 @@ func _build_audio() -> void:
 	if not ResourceLoader.exists(bed_path):
 		bed_path = BED_DEFAULT
 	bed = _player(bed_path, -50.0)
-	bed.finished.connect(bed.play)          # loop whatever the import settings say
+	bed.stream = _looped(bed.stream)
+	bed.finished.connect(bed.play)          # (belt and braces: a stream that still ends starts over)
 	bed.play()
 	create_tween().tween_property(bed, "volume_db", BED_DB, 2.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	key_snd = _player(SND_KEY, KEY_DB)
@@ -245,6 +250,20 @@ func _build_audio() -> void:
 	tab_snd = _player(SND_TAB, -18.0)
 	ok_snd = _player(SND_OK, -10.0)
 	on_snd = _player(SND_ON, -12.0)
+
+## A copy of `s` set to loop end to end, whatever its import settings say (the in-game ambience shares the file)
+func _looped(s: AudioStream) -> AudioStream:
+	if s is AudioStreamWAV:
+		var w := s.duplicate() as AudioStreamWAV
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_begin = 0
+		w.loop_end = int(w.get_length() * w.mix_rate)
+		return w
+	if s is AudioStreamMP3 or s is AudioStreamOggVorbis:
+		var c := s.duplicate()
+		c.loop = true
+		return c
+	return s
 
 func _player(path: String, db: float) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()

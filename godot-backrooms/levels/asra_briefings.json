@@ -6,7 +6,11 @@
     "objective": "Survey the sector. Document anything that does not match the baseline. Locate a way out.",
     "situation": "No prior survey on file. Treat every reading as unconfirmed.",
     "reports": [
-      {"source": "AUTOMATED LOG", "reliability": "INCOMPLETE", "text": "Telemetry ends at the threshold. No further data."}
+      {
+        "source": "AUTOMATED BEACON",
+        "reliability": "NO RESPONSE",
+        "text": "no wanderer activity recorded on this level. no wanderer has come back to record any."
+      }
     ],
     "orders": [
       "Log before you touch.",
@@ -20,12 +24,21 @@
     "objective": "Establish a baseline reading of the entry stratum. Find the exit marker and document the route to it. Filing comes before heroics.",
     "situation": "Level 0 is the most common point of entry and is rated stable. Every surveyor who has worked it has also filed one report that contradicts that rating. The reports do not agree with each other.",
     "reports": [
-      {"source": "SURVEYOR KESTREL-2", "reliability": "UNVERIFIED",
-       "text": "Storage wing logged as 41 display units. Count on the way out was 40. Please have the count checked by someone who was not there."},
-      {"source": "SURVEYOR // NAME WITHHELD", "reliability": "PARTIAL",
-       "text": "Something at the far end of the long corridors. Never there when you reach the end. I stopped reaching the end."},
-      {"source": "AUTOMATED LOG", "reliability": "CORRUPTED",
-       "text": "...ceiling tubes out above grid C, no fault found... contractor reports pressure on the ankle, no contact... [REMAINDER LOST]"}
+      {
+        "source": "WANDERER JOURNAL",
+        "reliability": "RECOVERED PAGE",
+        "text": "day 11. maybe 12. the hum gets louder when i stop walking so i don't stop. found a room full of store dummies. counted them twice, got two different numbers. didn't go in."
+      },
+      {
+        "source": "RADIO // BASE ONE // 03:12",
+        "reliability": "PARTIAL",
+        "text": "...anyone on this channel. if you see eyes at the end of a hallway, don't walk to them. the hallway's longer than it looks. it's always longer than it l— [SIGNAL LOST]"
+      },
+      {
+        "source": "NOTE // TAPED TO A DOORFRAME",
+        "reliability": "UNSIGNED",
+        "text": "keep the lights on over you. if the tube above you goes dark, don't look up. just keep walking."
+      }
     ],
     "investigate": [
       "The light that blinks on a count. Do not count it. Log that it blinks.",
@@ -46,12 +59,21 @@
     "objective": "Re-map the service corridors below Level 0. Confirm whether the layout is still growing. Recover any equipment left by Survey Team WREN.",
     "situation": "Older, wetter and darker than the stratum above. Maps expire within days. Two teams have gone down; one has come back.",
     "reports": [
-      {"source": "SURVEY TEAM WREN", "reliability": "LAST TRANSMISSION",
-       "text": "Corridor was longer on the way back. We heard it before the lights went. Do not stop at the junctions."},
-      {"source": "SURVEYOR // REDACTED", "reliability": "UNVERIFIED",
-       "text": "Saw one of ours ahead in a hazmat suit, retracing my route. I had not walked it yet."},
-      {"source": "AUTOMATED LOG", "reliability": "CORRUPTED",
-       "text": "...figure holding position, grid D, facing surveyor, no reaction to... [REMAINDER LOST]"}
+      {
+        "source": "WANDERER JOURNAL",
+        "reliability": "WATER DAMAGED",
+        "text": "the pipes knock in threes down here. something knocked back in fours. haven't heard it since. but when the lights start buzzing i can hear it breathing."
+      },
+      {
+        "source": "RADIO // TEAM WREN // LAST CONTACT",
+        "reliability": "PARTIAL",
+        "text": "Hale's up ahead, I can see her torch. Hale, wait up. ...Hale, why are you behind m— [SIGNAL LOST]"
+      },
+      {
+        "source": "NOTE // SCRATCHED INTO WALLPAPER",
+        "reliability": "UNSIGNED",
+        "text": "IF IT IS STANDING STILL LET IT STAND STILL"
+      }
     ],
     "investigate": [
       "Anything standing perfectly still in a corridor. Log it from range. Leave.",
