@@ -19,9 +19,9 @@ uniform float flash = 0.0;                       // the beam's hot core while th
 uniform vec3 glass_tint : source_color = vec3(0.045, 0.05, 0.047);
 uniform float scan_lines = 300.0;                // beam lines down the picture
 uniform float grille = 170.0;                    // RGB stripe triads across it
-uniform float mask_amt = 0.6;
-uniform float halation = 0.3;
-uniform float converge = 0.0016;
+uniform float mask_amt = 0.0;                    // the RGB grille tints text with colour fringes; off for legibility
+uniform float halation = 0.0;                    // the glow round bright text smeared it; off
+uniform float converge = 0.0;                    // red / blue beam offset: ghosted the text and the cursor; off
 uniform float depth = 0.005;                     // m from the outer glass to the phosphor
 uniform vec2 glass_size = vec2(0.2809, 0.2107);  // m
 uniform mat3 to_glass = mat3(1.0);               // world -> glass (x right, y up, z out of the glass)
@@ -68,9 +68,9 @@ void fragment() {
 	float vig = smoothstep(0.78, 0.38, length(c * vec2(1.0, 1.25)));
 	EMISSION = col * inside * mix(0.65, 1.0, vig) * energy;
 
-	// the faceplate itself: one even roughness, so lamp reflections stay a single clean highlight
+	// the faceplate itself: matte and non-reflective, so no lamp glare lands on the picture
 	ALBEDO = glass_tint;
 	METALLIC = 0.0;
-	SPECULAR = 0.35;                               // a soft sheen, not a mirror held up to the lamps
-	ROUGHNESS = 0.12;
+	SPECULAR = 0.0;
+	ROUGHNESS = 1.0;
 }

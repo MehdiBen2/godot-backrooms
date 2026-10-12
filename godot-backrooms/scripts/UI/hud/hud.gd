@@ -220,9 +220,10 @@ func _corner(anchor: Control.LayoutPreset, x: float, y: float, top: bool, left: 
 ## glass is swapped for another: it is never seen changing, and the next light shows it dirty a different way.
 ## The next one is loaded in the background beforehand, so the swap itself costs nothing.
 const LENS_DIRT_VARIANTS := 6
-const DIRT_SEEN := 0.25            # glare (level_lighting.gd) at which the dirt has clearly been seen
-const DIRT_HIDDEN := 0.03          # glare under which it has gone (the picture's own bright patches aside)
-const DIRT_AWAY_TIME := 1.0        # s looking away before the swap
+const DIRT_SEEN := 0.2             # glare (level_lighting.gd) at which the dirt has clearly been seen
+const DIRT_AWAY := 0.04            # no light in view this frame (level_lighting.gd glare_now) under this...
+const DIRT_FADED := 0.15           # ...and the dirt's own glow (the smoothed glare) faded under this
+const DIRT_AWAY_TIME := 0.5        # s looking away before the swap
 var _dirt_paths: Array[String] = []
 var _dirt_now := ""
 var _dirt_next := ""
@@ -245,11 +246,11 @@ func _queue_next_dirt() -> void:
 
 func _update_lens_dirt(dt: float) -> void:
 	if _dirt_next == "": return
-	var g = post_mat.get_shader_parameter("glare")        # (null until the level's lighting first sets it)
-	var glare := float(g) if g != null else 0.0
+	if level == null or not ("glare_now" in level): return
+	var glare: float = level.glare
 	if glare > DIRT_SEEN:
 		_dirt_seen = true
-	if not _dirt_seen or glare > DIRT_HIDDEN:
+	if not _dirt_seen or level.glare_now > DIRT_AWAY or glare > DIRT_FADED:
 		_dirt_away = 0.0
 		return
 	_dirt_away += dt
@@ -257,6 +258,7 @@ func _update_lens_dirt(dt: float) -> void:
 	if ResourceLoader.load_threaded_get_status(_dirt_next) != ResourceLoader.THREAD_LOAD_LOADED: return
 	post_mat.set_shader_parameter("lens_dirt_tex", ResourceLoader.load_threaded_get(_dirt_next))
 	_dirt_now = _dirt_next
+	print("lens dirt: ", _dirt_now.get_file())
 	_dirt_seen = false
 	_dirt_away = 0.0
 	_queue_next_dirt()

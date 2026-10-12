@@ -21,6 +21,7 @@ const PUSH_TIME := 2.2                  # PLAY: seconds the picture pushes in an
 const PUSH_ZOOM := 1.7                  # how far in it gets
 const MAIN_SCENE := "res://scenes/main.tscn"
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
+const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
 const TIPS := [
 	"The hum is not always the lights.",
 	"Batteries stack. Tab to use them.",
@@ -119,6 +120,7 @@ var corner_tw: Tween
 var group := "main"                     # which entry list is up: "main" or "sub" (Settings categories)
 var group_tw: Tween
 var group_filler: Control
+var briefing: Control                   # PLAY: the T.S.R.A. mission briefing, between the push-in and the loading screen
 var loading_root: Control
 var load_title: Label
 var load_bar: ColorRect
@@ -387,6 +389,7 @@ func _build() -> void:
 	push_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(push_black)
 	_full(push_black)
+	_build_briefing()
 	_build_loading()
 	_build_crt()
 
@@ -592,6 +595,11 @@ func _intro() -> void:
 		intro.tween_property(inner, "position:x", 0.0, 0.55).set_delay(d).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 		intro.tween_property(inner, "modulate:a", 1.0, 0.4).set_delay(d)
 	W._stagger(intro, [footer, credits, counter], 1.45, 0.1, 0.6)
+
+func _build_briefing() -> void:
+	briefing = Briefing.new()
+	add_child(briefing)
+	briefing.accepted.connect(_start_loading.bind(true))
 
 func _build_loading() -> void:
 	loading_root = Control.new()
@@ -809,7 +817,8 @@ func _on_quit() -> void:
 	tw.chain().tween_callback(get_tree().quit)
 	_fade_music(-60.0, 0.7)
 
-## PLAY: the entry blinks, the column fades away, then the loading screen comes up over it.
+## PLAY: the entry blinks, the column fades away, the mission briefing comes up out of the dark; accepting it
+## brings up the loading screen (the level keeps streaming in behind the briefing).
 ## `now` skips the hand-off (launched straight into a level from the level editor).
 func _on_play(now := false) -> void:
 	if busy:
@@ -830,7 +839,12 @@ func _on_play(now := false) -> void:
 	# the camera creeps forward, faster and faster, while everything sinks into the black
 	tw.tween_property(bg_root, "scale", Vector2(PUSH_ZOOM, PUSH_ZOOM), PUSH_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tw.tween_property(push_black, "modulate:a", 1.0, PUSH_TIME * 0.7).set_delay(PUSH_TIME * 0.3).set_trans(Tween.TRANS_SINE)
-	tw.chain().tween_callback(_start_loading.bind(true))
+	tw.chain().tween_callback(_start_briefing)
+
+## The run keeps loading on its threads while the briefing is read; `accepted` then shows the loading screen
+func _start_briefing() -> void:
+	_preload_game()
+	briefing.open(Archive.current_level_id(), _level_name())
 
 ## `fade`: coming out of the push (fully black by now), the loading text comes up out of the dark instead of cutting in
 func _start_loading(fade := false) -> void:

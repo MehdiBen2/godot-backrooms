@@ -95,6 +95,7 @@ var env: Environment
 var bounce := 1.0
 var eye := 1.0                     # eye-adaptation exposure gain
 var glare := 0.0                   # 0..1 smoothed: how much light you are looking straight into
+var glare_now := 0.0               # the same this frame, unsmoothed (hud.gd swaps the lens dirt on it)
 var cam_mix := 0.0                 # how far the camera settings lean to the classic look (Classic zone, or softer in Bright)
 var grid_glow := 0.0
 var zone_amb := 1.0
@@ -221,7 +222,8 @@ func _update_atmosphere(delta: float) -> void:
 	eye += (gain - eye) * minf(1.0, delta * EYE_SPEED)
 	if cam:
 		var target := _glare_now(cam)
-		glare += (target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
+		glare_now = target
+		glare +=(target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
 	if Gfx.post_mat:
 		Gfx.post_mat.set_shader_parameter("glare", glare)   # lens dirt / halation / streaks swell (camera.gdshader)
 	_update_camcorder(delta, seen)
