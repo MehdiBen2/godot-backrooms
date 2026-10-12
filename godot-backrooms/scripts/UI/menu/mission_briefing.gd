@@ -105,7 +105,7 @@ func _briefing(level_id: String) -> Dictionary:
 
 # ---- building ---------------------------------------------------------------------------
 
-## REC dot, agency line, the signal trace and the EYES ONLY stamp along the top
+## REC dot, agency line, the signal trace and the CONTRACTOR COPY stamp along the top
 func _build_chrome() -> void:
 	var dot_row := HBoxContainer.new()
 	dot_row.add_theme_constant_override("separation", 10)
@@ -118,7 +118,7 @@ func _build_chrome() -> void:
 	dc.add_child(rec_dot)
 	dot_row.add_child(dc)
 	dot_row.add_child(_label("REC", 13, DIMC, 4))
-	var file := _label("T.S.R.A. // FIELD OPERATIONS // MISSION FILE %s" % str(data.get("file_no", "SR-0000")), 14, DIMC, 3)
+	var file := _label("T.S.R.A. // CONTRACTOR SERVICES // DEPLOYMENT FILE %s" % str(data.get("file_no", "SR-0000")), 14, DIMC, 3)
 	file.position = Vector2(LEFT_X + 150, 70)
 	add_child(file)
 	# the uplink's carrier: a wavering trace that jumps when the picture tears
@@ -128,8 +128,10 @@ func _build_chrome() -> void:
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scope.draw.connect(_draw_scope)
 	add_child(scope)
-	var stamp := _label("EYES ONLY", 16, RED, 6)
-	stamp.position = Vector2(1920 - LEFT_X - 160, 70)
+	var stamp := _label("CONFIDENTIAL // CONTRACTOR COPY", 13, RED, 4)
+	stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	stamp.position = Vector2(1920 - LEFT_X - 300, 72)
+	stamp.size = Vector2(300, 20)
 	add_child(stamp)
 	var rule := ColorRect.new()
 	rule.color = Color(0.9, 0.882, 0.804, 0.15)
@@ -149,12 +151,12 @@ func _build_boot() -> void:
 	boot_kick.clear()
 	var tier: Dictionary = Clearance.tier()
 	for line in [
-			["T.S.R.A. // SECURE FIELD UPLINK", 22, CREAM, 0.2],
+			["T.S.R.A. // CONTRACTOR SERVICES", 22, CREAM, 0.2],
 			["ROUTING ............. RELAY %d" % (3 + absi(str(data.get("file_no", "")).hash()) % 9), 16, DIMC, 0.25],
-			["HANDSHAKE ........... OK", 16, DIMC, 0.15],
 			["CONTRACTOR .......... %s" % str(tier.get("code", "C-0")), 16, DIMC, 0.15],
-			["CLEARANCE ........... GRANTED", 16, AMBER, 0.15],
-			["DECRYPTING FILE %s" % str(data.get("file_no", "SR-0000")), 16, CREAM, 0.3]]:
+			["LIABILITY WAIVER .... ON FILE", 16, DIMC, 0.15],
+			["NEXT OF KIN ......... NOT REQUIRED", 16, DIMC, 0.2],
+			["RETRIEVING DEPLOYMENT FILE %s" % str(data.get("file_no", "SR-0000")), 16, CREAM, 0.3]]:
 		boot_rows.append(_row(box, line[0], line[1], line[2], 3, 0))
 		boot_pause.append(line[3])
 		boot_kick.append(false)
@@ -179,11 +181,11 @@ func _build_page(level_name: String) -> void:
 	page_pause.clear()
 	page_kick.clear()
 
-	# left column: who, where, what
+	# left column: who, where, what, and on what terms
 	var left := _column(page, Vector2(LEFT_X, 150), LEFT_W)
 	var designation := str(dossier.get("designation", level_name.to_upper()))
 	var threat := str(dossier.get("threat_classification", "UNDETERMINED"))
-	_page_row(left, "MISSION BRIEFING", 34, CREAM, 6, 0.2, true)
+	_page_row(left, "DEPLOYMENT NOTICE", 34, CREAM, 6, 0.2, true)
 	_page_row(left, "ASSIGNMENT  %s" % str(data.get("assignment", "UNSCHEDULED SURVEY")), 18, AMBER, 3, 0.1, false, 6)
 	_page_row(left, "CONTRACTOR  %s" % Clearance.tier_label(), 16, DIMC, 3, 0.05)
 	_page_row(left, "SITE        %s" % designation, 16, DIMC, 3, 0.05)
@@ -191,22 +193,27 @@ func _build_page(level_name: String) -> void:
 	_page_row(left, "OBJECTIVE", 15, DIMC, 5, 0.3, true)
 	_page_row(left, str(data.get("objective", "")), 20, CREAM, 1, 0.1, false, 18)
 	_page_row(left, "SITUATION", 15, DIMC, 5, 0.25, true)
-	_page_row(left, str(data.get("situation", "")), 18, CREAM, 1, 0.1)
+	_page_row(left, str(data.get("situation", "")), 18, CREAM, 1, 0.1, false, 18)
+	var terms: Array = data.get("terms", [])
+	if not terms.is_empty():
+		_page_row(left, "TERMS OF DEPLOYMENT", 15, DIMC, 5, 0.25, true)
+		for s in terms:
+			_page_row(left, "- %s" % str(s), 16, DIMC, 1, 0.05, false, 2)
 
-	# right column: field chatter, what to look into, standing orders
+	# right column: material from earlier deployments, what to record, conduct
 	var right := _column(page, Vector2(RIGHT_X, 150), RIGHT_W)
-	_page_row(right, "FIELD REPORTS", 15, DIMC, 5, 0.3, true)
+	_page_row(right, "PRIOR MATERIAL // UNREVIEWED", 15, DIMC, 5, 0.3, true)
 	for r in data.get("reports", []):
 		_page_row(right, "[%s // %s]" % [str(r.get("source", "UNKNOWN")), str(r.get("reliability", "UNVERIFIED"))], 14, AMBER, 2, 0.15, false, 2)
 		_page_row(right, str(r.get("text", "")), 16, CREAM, 1, 0.05, false, 10)
 	var look: Array = data.get("investigate", [])
 	if not look.is_empty():
-		_page_row(right, "INVESTIGATE AND LOG", 15, DIMC, 5, 0.3, true, 0, 4)
+		_page_row(right, "DATA REQUIREMENTS", 15, DIMC, 5, 0.3, true, 0, 4)
 		for s in look:
 			_page_row(right, "[ ] %s" % str(s), 16, CREAM, 1, 0.05, false, 4)
 	var orders: Array = data.get("orders", [])
 	if not orders.is_empty():
-		_page_row(right, "STANDING ORDERS", 15, DIMC, 5, 0.3, true, 0, 10)
+		_page_row(right, "CONDUCT POLICY", 15, DIMC, 5, 0.3, true, 0, 10)
 		for i in orders.size():
 			_page_row(right, "%d. %s" % [i + 1, str(orders[i])], 16, CREAM, 1, 0.05, false, 2)
 
@@ -218,10 +225,15 @@ func _build_page(level_name: String) -> void:
 	page_pause.append(0.5)
 	page_kick.append(false)
 
-	prompt = _label("[ ENTER ]  ACCEPT ASSIGNMENT", 20, CREAM, 5)
+	prompt = _label("[ ENTER ]  ACKNOWLEDGE AND PROCEED", 20, CREAM, 5)
 	prompt.position = Vector2(LEFT_X, 980)
 	prompt.modulate.a = 0.0
 	page.add_child(prompt)
+	var legal := _label("THIS NOTICE REMAINS T.S.R.A. PROPERTY. UNAUTHORISED RETENTION IS A BREACH OF CONTRACT.", 11, Color(0.9, 0.882, 0.804, 0.3), 2)
+	legal.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	legal.position = Vector2(1920 - LEFT_X - 1100, 1000)
+	legal.size = Vector2(1100, 16)
+	page.add_child(legal)
 
 ## The tube over everything drawn before it. The title screen's own blur already took the frame's screen copy
 ## (the menu picture); without a fresh copy here the tube would show that instead of the page.
@@ -412,7 +424,7 @@ func _accept() -> void:
 	if phase == "out":
 		return
 	phase = "out"
-	prompt.text = "ASSIGNMENT ACCEPTED"
+	prompt.text = "ACKNOWLEDGED. DEPLOYMENT LOGGED."
 	prompt.modulate.a = 1.0
 	prompt.add_theme_color_override("font_color", AMBER)
 	ok_snd.play()
