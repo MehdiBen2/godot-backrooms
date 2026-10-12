@@ -46,6 +46,7 @@ var hint: Label
 var grain: ColorRect
 var logo: Control
 var logo_live := false     # the logo's tube is lit: it stutters now and then
+var name_fringes: Array = []   # the two aberration copies behind NULLSPACE on the logo card
 var hum: AudioStreamPlayer
 var tv: ColorRect
 var tv_audio: AudioStreamPlayer
@@ -246,6 +247,12 @@ func _process(dt: float) -> void:
 		hint.modulate.a = clampf(clock - 1.5, 0.0, 1.0) * (0.3 + 0.12 * sin(clock * 2.4))
 	if logo_live and logo:
 		logo.modulate.a = 1.0 if randf() > 0.035 else randf_range(0.3, 0.8)
+	if name_fringes.size() == 2:
+		# a slow drift plus a soft pulse every few seconds: the colours split and ease back together
+		var pulse := pow(maxf(sin(clock * 0.8), 0.0), 6.0)
+		var d := 1.5 + 1.0 * sin(clock * 1.4) + 5.0 * pulse
+		name_fringes[0].position = Vector2(-d, 0.6 * sin(clock * 1.1))
+		name_fringes[1].position = Vector2(d, -0.6 * sin(clock * 0.9))
 	if tv_audio:
 		_feed_tv_audio()
 
@@ -299,15 +306,21 @@ func _build_logo() -> Control:
 	col.add_child(title)
 	# the second line of the lockup: NULLSPACE in the warning red, under the title
 	var nullspace := _label("NULLSPACE", 84, RED, 28)
+	nullspace.size_flags_horizontal = Control.SIZE_SHRINK_CENTER   # as wide as its text, so the fringes line up with the letters
 	nullspace.add_theme_constant_override("outline_size", 4)
 	nullspace.add_theme_color_override("font_outline_color", RED)
-	for f in [[Vector2(-4, 0), Color(1, 0.1, 0.1, 0.35)], [Vector2(4, 1), Color(0.1, 0.4, 1, 0.35)]]:
-		var fringe := _label("NULLSPACE", 84, f[1], 28)     # chromatic split, as on the title above
+	# chromatic aberration: a cyan and a warm copy added behind the letters, drifting apart and together (_process)
+	name_fringes = []
+	for c in [Color(0.1, 0.65, 0.9, 0.5), Color(1.0, 0.3, 0.2, 0.4)]:
+		var fringe := _label("NULLSPACE", 84, c, 28)
 		fringe.add_theme_constant_override("outline_size", 4)
-		fringe.add_theme_color_override("font_outline_color", f[1])
-		fringe.position = f[0]
+		fringe.add_theme_color_override("font_outline_color", c)
 		fringe.show_behind_parent = true
+		var add := CanvasItemMaterial.new()
+		add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		fringe.material = add
 		nullspace.add_child(fringe)
+		name_fringes.append(fringe)
 	col.add_child(nullspace)
 	col.add_child(_rule(760))
 	return center

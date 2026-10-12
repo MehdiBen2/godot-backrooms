@@ -1,62 +1,205 @@
 extends Node3D
+## The T.S.R.A. field terminal in the spawn room (level_builder.gd _spawn_survey_props): a 14" Sony PVM CRT on a
+## steel equipment cabinet, facing +Z. Its glass shows the terminal's own screen (scripts/UI/terminal_os.gd),
+## drawn into a SubViewport here and lit up by shaders/crt_screen.gdshader.
+##
+## [E] takes the view: a camera of the terminal's own leaves your eyes and glides in to face the glass, the tube
+## blinks off and warms back up, and the terminal boots. Logging off (ESC on its main menu) powers it down and
+## glides the view back to your eyes. While you are at it the HUD and your hands are put away, the mouse drives a
+## cursor on the glass, and every key goes to the terminal.
 
-const TerminalUI = preload("res://scripts/UI/terminal_machine_ui.gd")
+const TerminalOS := preload("res://scripts/UI/terminal_os.gd")
 const InteractTooltip := preload("res://scripts/World/props/interact_tooltip.gd")
+const Prop := preload("res://scripts/World/props/industrial_prop.gd")
+const SCREEN_SHADER := preload("res://shaders/crt_screen.gdshader")
+const FONT := preload("res://fonts/vcr.ttf")
+const CRT_MODEL := "res://models/props/asset_pack/sony_pvm-14l2_crt_tv.glb"
 
-var ui_instance: Control = null
+const CABINET := Vector3(0.56, 0.9, 0.5)
+# The PVM in its own file (measured off the mesh): it faces +Z, feet at y = -0.006, face at z = 0.012. Its glass
+# is 0.272 x 0.206 m, its middle 0.1885 m up, bowed round a vertical axis (radius 0.707 m) so the sides sit
+# 13 mm back from the middle.
+const MODEL_FEET := 0.0062
+const MODEL_FRONT := 0.0123
+const GLASS_W := 0.272
+const GLASS_H := 0.206
+const GLASS_R := 0.707
+const GLASS_AT := Vector3(0.0, 0.1885, 0.0049)      # 1 mm proud of the glass's middle
+const SET_BACK := 0.03                              # the monitor's face sits this far behind the cabinet's
+
+const VIEW_FOV := 50.0
+const VIEW_FILL := 0.8          # of the view's height the glass fills once the camera is in front of it
+const PAN_IN := 1.1
+const PAN_OUT := 0.85
+const DRAW_NEAR := 9.0          # m: the idle screen keeps drawing while a camera is this close
+const GLOW_IDLE := 0.35
+const GLOW_ON := 0.9
+const AMBER := Color("f0a838")
+
+const SFX_FILES := {
+	"on": ["res://audio/terminal/terminal_on.wav", -12.0],
+	"off": ["res://audio/terminal/terminal_off.wav", -12.0],
+	"select": ["res://audio/terminal/terminal_select.wav", -17.0],
+	"tab": ["res://audio/terminal/terminal_tab.wav", -15.0],
+	"scan": ["res://audio/terminal/terminal_scan.wav", -15.0],
+	"logged": ["res://audio/terminal/terminal_logged.wav", -14.0],
+}
+
+var viewport: SubViewport
+var os: TerminalOS
+var screen: MeshInstance3D
+var screen_mat: ShaderMaterial
+var glow: OmniLight3D
+var led: MeshInstance3D
+var cam: Camera3D
+var tip: Node3D
+var player: Node3D = null       # while someone is at the terminal
+var session := false
+var busy := false               # panning or switching the tube: keys and clicks wait
+var tw: Tween
+var hud_was := false
+var sfx := {}
+var check_t := 0.0
+var t := 0.0
 
 func _ready() -> void:
-	var base_mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = Vector3(0.7, 1.4, 0.6)
-	base_mesh.mesh = box
-	
-	var chassis_mat := StandardMaterial3D.new()
-	chassis_mat.albedo_color = Color(0.12, 0.13, 0.14)
-	chassis_mat.metallic = 0.5
-	chassis_mat.roughness = 0.4
-	base_mesh.material_override = chassis_mat
-	base_mesh.position.y = 0.7
-	add_child(base_mesh)
-	
-	# Amber glowing CRT screen on front
-	var screen_mesh := MeshInstance3D.new()
-	var s_quad := QuadMesh.new()
-	s_quad.size = Vector2(0.48, 0.36)
-	screen_mesh.mesh = s_quad
-	var screen_mat := StandardMaterial3D.new()
-	screen_mat.albedo_color = Color(0.04, 0.03, 0.01)
-	screen_mat.emission_enabled = true
-	screen_mat.emission = Color("f0a838")
-	screen_mat.emission_energy_multiplier = 2.0
-	screen_mesh.material_override = screen_mat
-	screen_mesh.position = Vector3(0, 0.95, 0.302)
-	add_child(screen_mesh)
-	
-	# Warm amber screen light
-	var light := OmniLight3D.new()
-	light.light_color = Color("f0a838")
-	light.light_energy = 1.2
-	light.omni_range = 3.5
-	light.position = Vector3(0, 0.95, 0.5)
-	add_child(light)
-	
-	var static_body := StaticBody3D.new()
-	var col_shape := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = box.size
-	col_shape.shape = shape
-	col_shape.position.y = 0.7
-	static_body.add_child(col_shape)
-	add_child(static_body)
+	_build_cabinet()
+	var crt := Prop._instance(CRT_MODEL)
+	var crt_at := Vector3(0.0, CABINET.y + MODEL_FEET, CABINET.z * 0.5 - SET_BACK - MODEL_FRONT)
+	if crt:
+		crt.position = crt_at
+		add_child(crt)
 
-	var tip := InteractTooltip.new()
+	viewport = SubViewport.new()
+	viewport.size = TerminalOS.SIZE
+	viewport.disable_3d = true
+	viewport.transparent_bg = false
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+	os = TerminalOS.new()
+	viewport.add_child(os)
+	os.sfx.connect(play_sfx)
+	os.logged_off.connect(_log_off)
+
+	screen = MeshInstance3D.new()
+	screen.mesh = _glass_mesh()
+	screen.position = crt_at + GLASS_AT
+	screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	screen_mat = ShaderMaterial.new()
+	screen_mat.shader = SCREEN_SHADER
+	screen_mat.set_shader_parameter("screen_tex", viewport.get_texture())
+	screen.material_override = screen_mat
+	add_child(screen)
+
+	glow = OmniLight3D.new()
+	glow.light_color = AMBER
+	glow.light_energy = GLOW_IDLE
+	glow.omni_range = 2.6
+	glow.position = screen.position + Vector3(0.0, 0.0, 0.22)
+	add_child(glow)
+
+	cam = Camera3D.new()
+	cam.near = 0.02
+	add_child(cam)
+
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	var top := CABINET.y + 0.34
+	box.size = Vector3(CABINET.x, top, CABINET.z)
+	shape.shape = box
+	shape.position.y = top * 0.5
+	body.add_child(shape)
+	add_child(body)
+
+	tip = InteractTooltip.new()
 	tip.name = "InteractTooltip"
-	tip.height = 1.6
+	tip.height = 1.45
 	add_child(tip)
 
+	for k in SFX_FILES:
+		var sp := AudioStreamPlayer.new()
+		sp.stream = load(SFX_FILES[k][0])
+		sp.volume_db = SFX_FILES[k][1]
+		add_child(sp)
+		sfx[k] = sp
+
+	os.standby()
+	_raster(Vector2(0.5, 0.5))
+
+## A steel equipment cabinet in agency olive: plinth, body, a lipped top the monitor stands on, a recessed front
+## panel with vent slats, a stencilled designation and a status lamp
+func _build_cabinet() -> void:
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.2, 0.21, 0.17)
+	steel.metallic = 0.55
+	steel.roughness = 0.6
+	var dark := StandardMaterial3D.new()
+	dark.albedo_color = Color(0.07, 0.075, 0.065)
+	dark.metallic = 0.4
+	dark.roughness = 0.75
+	var front := CABINET.z * 0.5
+	_box(Vector3(CABINET.x - 0.04, 0.06, CABINET.z - 0.04), Vector3(0, 0.03, 0), dark)
+	_box(Vector3(CABINET.x, CABINET.y - 0.085, CABINET.z), Vector3(0, 0.06 + (CABINET.y - 0.085) * 0.5, 0), steel)
+	_box(Vector3(CABINET.x + 0.02, 0.025, CABINET.z + 0.02), Vector3(0, CABINET.y - 0.0125, 0), steel)
+	_box(Vector3(CABINET.x - 0.08, 0.5, 0.01), Vector3(0, 0.36, front + 0.002), dark)
+	for i in 5:
+		_box(Vector3(CABINET.x - 0.2, 0.01, 0.012), Vector3(0, 0.7 + i * 0.024, front + 0.004), dark)
+	var label := Label3D.new()
+	label.text = "T.S.R.A.   FT-07"
+	label.font = FONT
+	label.font_size = 48
+	label.pixel_size = 0.0007
+	label.outline_size = 0
+	label.shaded = true
+	label.modulate = Color(0.78, 0.62, 0.28)
+	label.position = Vector3(0, 0.82, front + 0.002)
+	add_child(label)
+	led = MeshInstance3D.new()
+	var bead := SphereMesh.new()
+	bead.radius = 0.006
+	bead.height = 0.012
+	led.mesh = bead
+	var lamp := StandardMaterial3D.new()
+	lamp.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lamp.albedo_color = Color(1.6, 0.95, 0.3)
+	led.material_override = lamp
+	led.position = Vector3(CABINET.x * 0.5 - 0.06, 0.82, front + 0.004)
+	add_child(led)
+
+func _box(size: Vector3, at: Vector3, mat: Material) -> void:
+	var m := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = size
+	m.mesh = b
+	m.material_override = mat
+	m.position = at
+	add_child(m)
+
+## The picture's surface: a strip bowed like the PVM's glass, its middle on the origin, UV (0, 0) top left
+static func _glass_mesh() -> ArrayMesh:
+	const SEG := 24
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in SEG:
+		var u0 := float(i) / SEG
+		var u1 := float(i + 1) / SEG
+		var quad := [[u0, 0.0], [u1, 0.0], [u1, 1.0], [u0, 0.0], [u1, 1.0], [u0, 1.0]]
+		for q in quad:
+			var x: float = (q[0] - 0.5) * GLASS_W
+			var z := _bow(x)
+			st.set_normal(Vector3(x, 0.0, z + GLASS_R).normalized())
+			st.set_uv(Vector2(q[0], q[1]))
+			st.add_vertex(Vector3(x, (0.5 - q[1]) * GLASS_H, z))
+	return st.commit()
+
+## How far back the glass is at `x` from its middle
+static func _bow(x: float) -> float:
+	return -(GLASS_R - sqrt(GLASS_R * GLASS_R - x * x))
+
+# ---------------------------------------------------------------- interaction
 func can_interact(_from_pos: Vector3) -> bool:
-	return true
+	return not session
 
 func get_interact_prompt() -> String:
 	return "[E] ACCESS"
@@ -64,28 +207,174 @@ func get_interact_prompt() -> String:
 func get_interact_title() -> String:
 	return "T.S.R.A. Terminal"
 
-func interact(player: Node3D) -> bool:
-	if ui_instance != null and is_instance_valid(ui_instance):
+func interact(p: Node3D) -> bool:
+	if session or busy or p == null or not ("cam" in p):
 		return false
-	
-	var ui_node = Game.main.get_node_or_null("UI")
-	if ui_node == null: return false
-	
-	ui_instance = TerminalUI.new()
-	ui_instance.player = player
-	if ui_node.get("inventory"):
-		ui_instance.inventory = ui_node.inventory
-	ui_node.add_child(ui_instance)
-	
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	player.frozen = true
-	ui_instance.connect("closed", Callable(self, "_on_ui_closed").bind(player))
-	
+	player = p
+	session = true
+	busy = true
+	p.frozen = true
+	hud_was = Game.hide_hud
+	Game.hide_hud = true
+	var pc: Camera3D = p.cam
+	cam.fov = pc.fov
+	cam.far = pc.far
+	cam.cull_mask = pc.cull_mask
+	cam.environment = pc.environment
+	cam.attributes = pc.attributes
+	cam.global_transform = pc.global_transform
+	cam.make_current()
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var from := cam.global_transform
+	var to := _view_xform()
+	var fov0 := pc.fov
+	if tw: tw.kill()
+	tw = create_tween()
+	tw.tween_method(func(k: float):
+		cam.global_transform = from.interpolate_with(to, k)
+		cam.fov = lerpf(fov0, VIEW_FOV, k)
+	, 0.0, 1.0, PAN_IN).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(_power_on)
 	return true
 
-func _on_ui_closed(player: Node3D) -> void:
-	if player and is_instance_valid(player):
-		player.frozen = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	ui_instance = null
+## Square on to the glass, far enough back that it fills VIEW_FILL of the view's height
+func _view_xform() -> Transform3D:
+	var c := screen.global_position
+	var n := screen.global_transform.basis.z.normalized()
+	var d := GLASS_H / VIEW_FILL * 0.5 / tan(deg_to_rad(VIEW_FOV) * 0.5)
+	return Transform3D(Basis.looking_at(-n, Vector3.UP), c + n * d)
 
+## The standby picture collapses to a line and a dot, a beat of dark glass, then the tube warms up into the boot
+func _power_on() -> void:
+	play_sfx("on")
+	tw = create_tween()
+	tw.tween_method(_raster, Vector2(0.5, 0.5), Vector2(0.5, 0.0015), 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_method(_raster, Vector2(0.5, 0.0015), Vector2(0.0, 0.0015), 0.08)
+	tw.tween_callback(os.boot)
+	tw.tween_interval(0.3)
+	tw.tween_method(_raster, Vector2(0.0, 0.0015), Vector2(0.5, 0.0015), 0.16).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_method(_raster, Vector2(0.5, 0.0015), Vector2(0.5, 0.5), 0.24).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(glow, "light_energy", GLOW_ON, 0.24)
+	tw.tween_callback(func():
+		busy = false
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+	)
+
+## The terminal's ESC on its main menu: power down, come back to standby, glide back to the eyes
+func _log_off() -> void:
+	if busy or not session:
+		return
+	busy = true
+	os.pointer(Vector2(-1, -1))
+	play_sfx("off")
+	if tw: tw.kill()
+	tw = create_tween()
+	tw.tween_method(_raster, Vector2(0.5, 0.5), Vector2(0.5, 0.0015), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(glow, "light_energy", GLOW_IDLE * 0.4, 0.12)
+	tw.tween_method(_raster, Vector2(0.5, 0.0015), Vector2(0.0, 0.0015), 0.1)
+	tw.tween_callback(os.standby)
+	tw.tween_interval(0.25)
+	var pc: Camera3D = player.cam
+	var from := _view_xform()
+	tw.tween_method(func(k: float):
+		if not is_instance_valid(pc): return
+		cam.global_transform = from.interpolate_with(pc.global_transform, k)
+		cam.fov = lerpf(VIEW_FOV, pc.fov, k)
+	, 0.0, 1.0, PAN_OUT).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(_raster, Vector2(0.0, 0.0015), Vector2(0.5, 0.5), 0.35).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(glow, "light_energy", GLOW_IDLE, 0.35)
+	tw.tween_callback(_end_session)
+
+func _end_session() -> void:
+	if player and is_instance_valid(player):
+		player.cam.make_current()
+		if not player.dead:
+			player.frozen = false
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	Game.hide_hud = hud_was
+	session = false
+	busy = false
+	player = null
+
+## Something took you away from the terminal (death, the level going): give the view back at once
+func _abort() -> void:
+	if tw: tw.kill()
+	os.pointer(Vector2(-1, -1))
+	os.standby()
+	_raster(Vector2(0.5, 0.5))
+	glow.light_energy = GLOW_IDLE
+	_end_session()
+
+func _exit_tree() -> void:
+	if session:
+		if tw: tw.kill()
+		_end_session()
+
+func _raster(r: Vector2) -> void:
+	screen_mat.set_shader_parameter("raster", r)
+
+func play_sfx(k: String) -> void:
+	var sp: AudioStreamPlayer = sfx.get(k)
+	if sp:
+		sp.pitch_scale = randf_range(0.97, 1.03)
+		sp.play()
+
+# ---------------------------------------------------------------- input
+func _input(e: InputEvent) -> void:
+	if not session:
+		return
+	if e is InputEventKey:
+		var k := e as InputEventKey
+		if k.pressed and not k.echo and not busy:
+			os.key(k.physical_keycode)
+		get_viewport().set_input_as_handled()     # every key is the terminal's while you are at it
+	elif e is InputEventMouse:
+		get_viewport().set_input_as_handled()
+		if busy:
+			return
+		var at := _glass_px(get_viewport().get_mouse_position())
+		os.pointer(at)
+		if at.x < 0.0:
+			return
+		var ev := e.duplicate() as InputEventMouse
+		ev.position = at
+		ev.global_position = at
+		viewport.push_input(ev, true)
+
+## Where on the terminal's screen (its pixels) the view's `at` falls on the glass; (-1, -1) off it
+func _glass_px(at: Vector2) -> Vector2:
+	var inv := screen.global_transform.affine_inverse()
+	var o := inv * cam.project_ray_origin(at)
+	var d := inv.basis * cam.project_ray_normal(at)
+	if absf(d.z) < 0.00001:
+		return Vector2(-1, -1)
+	var hit := o
+	var z := 0.0
+	for i in 3:                      # onto the bowed glass: a plane at the depth of the last guess, refined
+		hit = o + d * ((z - o.z) / d.z)
+		z = _bow(clampf(hit.x, -GLASS_W * 0.5, GLASS_W * 0.5))
+	var uv := Vector2(hit.x / GLASS_W + 0.5, 0.5 - hit.y / GLASS_H)
+	if uv.x < 0.0 or uv.x > 1.0 or uv.y < 0.0 or uv.y > 1.0:
+		return Vector2(-1, -1)
+	return uv * Vector2(TerminalOS.SIZE)
+
+# ---------------------------------------------------------------- upkeep
+func _process(dt: float) -> void:
+	t += dt
+	if session:
+		if player == null or not is_instance_valid(player) or player.dead:
+			_abort()
+			return
+		# back from the pause menu (it recaptures the mouse on resume): the cursor is the terminal's again
+		if not busy and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not get_tree().paused:
+			Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+		glow.light_energy = GLOW_ON * (0.94 + 0.06 * sin(t * 47.0) * sin(t * 3.1)) if not busy else glow.light_energy
+	if led:
+		led.visible = session or fmod(t, 2.0) < 1.0
+	# the idle screen only draws while someone could see it
+	check_t -= dt
+	if check_t <= 0.0 and not session:
+		check_t = 0.5
+		var c := get_viewport().get_camera_3d()
+		var near := c != null and c.global_position.distance_to(screen.global_position) < DRAW_NEAR
+		viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS if near else SubViewport.UPDATE_DISABLED
