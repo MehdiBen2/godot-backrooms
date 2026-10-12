@@ -1,7 +1,7 @@
 extends Node3D
 ## The T.S.R.A. field terminal in the spawn room (level_builder.gd _spawn_survey_props): a 14" Sony PVM CRT on a
-## steel equipment cabinet, facing +Z. Its glass shows the terminal's own screen (scripts/UI/terminal_os.gd),
-## drawn into a SubViewport here and lit up by shaders/crt_screen.gdshader.
+## steel equipment cabinet, facing +Z. The PVM's own glass shows the terminal's screen (scripts/UI/terminal_os.gd,
+## drawn into a SubViewport here under shaders/terminal_crt.gdshader), lit up by shaders/crt_screen.gdshader.
 ##
 ## [E] takes the view: a camera of the terminal's own leaves your eyes and glides in to face the glass, the tube
 ## blinks off and warms back up, and the terminal boots. Logging off (ESC on its main menu) powers it down and
@@ -17,14 +17,14 @@ const CRT_MODEL := "res://models/props/asset_pack/sony_pvm-14l2_crt_tv.glb"
 
 const CABINET := Vector3(0.56, 0.9, 0.5)
 # The PVM in its own file (measured off the mesh): it faces +Z, feet at y = -0.006, face at z = 0.012. Its glass
-# is 0.272 x 0.206 m, its middle 0.1885 m up, bowed round a vertical axis (radius 0.707 m) so the sides sit
-# 13 mm back from the middle.
+# (40 triangles of the front shell, the top corners reaching out further than the sides) is 0.281 x 0.211 m
+# (4:3), its middle 0.189 m up, bowed round a vertical axis (radius 0.645 m) so the sides sit 15 mm back.
 const MODEL_FEET := 0.0062
 const MODEL_FRONT := 0.0123
-const GLASS_W := 0.272
-const GLASS_H := 0.206
-const GLASS_R := 0.707
-const GLASS_AT := Vector3(0.0, 0.1885, 0.0049)      # 1 mm proud of the glass's middle
+const GLASS_W := 0.2809
+const GLASS_H := 0.2107
+const GLASS_R := 0.645
+const GLASS_AT := Vector3(0.0, 0.1887, 0.0037)
 const SET_BACK := 0.03                              # the monitor's face sits this far behind the cabinet's
 
 const VIEW_FOV := 50.0
@@ -32,8 +32,8 @@ const VIEW_FILL := 0.8          # of the view's height the glass fills once the 
 const PAN_IN := 1.1
 const PAN_OUT := 0.85
 const DRAW_NEAR := 9.0          # m: the idle screen keeps drawing while a camera is this close
-const GLOW_IDLE := 0.35
-const GLOW_ON := 0.9
+const GLOW_IDLE := 0.22
+const GLOW_ON := 0.5
 const AMBER := Color("f0a838")
 
 const SFX_FILES := {
@@ -47,7 +47,7 @@ const SFX_FILES := {
 
 var viewport: SubViewport
 var os: TerminalOS
-var screen: MeshInstance3D
+var screen: Node3D              # on the glass's middle, facing out: the camera frames it, the mouse is read off it
 var screen_mat: ShaderMaterial
 var glow: OmniLight3D
 var led: MeshInstance3D
@@ -81,21 +81,28 @@ func _ready() -> void:
 	os.sfx.connect(play_sfx)
 	os.logged_off.connect(_log_off)
 
-	screen = MeshInstance3D.new()
-	screen.mesh = _glass_mesh()
-	screen.position = crt_at + GLASS_AT
-	screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	screen_mat = ShaderMaterial.new()
 	screen_mat.shader = SCREEN_SHADER
 	screen_mat.set_shader_parameter("screen_tex", viewport.get_texture())
-	screen.material_override = screen_mat
+	screen = Node3D.new()
+	screen.position = crt_at + GLASS_AT
 	add_child(screen)
+	# the shader follows the view through the faceplate to the phosphor behind it, in the glass's own terms
+	screen_mat.set_shader_parameter("glass_size", Vector2(GLASS_W, GLASS_H))
+	screen_mat.set_shader_parameter("to_glass", screen.global_basis.inverse())
+	if not (crt and _light_glass(crt)):
+		var sheet := MeshInstance3D.new()      # no model, or no glass in it: a bowed sheet where the glass would be
+		sheet.mesh = _glass_mesh()
+		sheet.material_override = screen_mat
+		sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		screen.add_child(sheet)
 
 	glow = OmniLight3D.new()
 	glow.light_color = AMBER
 	glow.light_energy = GLOW_IDLE
 	glow.omni_range = 2.6
-	glow.position = screen.position + Vector3(0.0, 0.0, 0.22)
+	glow.light_specular = 0.0          # it lights the room; it must not shine back off its own glass
+	glow.position = screen.position + Vector3(0.0, 0.05, 0.5)
 	add_child(glow)
 
 	cam = Camera3D.new()
@@ -176,7 +183,55 @@ func _box(size: Vector3, at: Vector3, mat: Material) -> void:
 	m.position = at
 	add_child(m)
 
-## The picture's surface: a strip bowed like the PVM's glass, its middle on the origin, UV (0, 0) top left
+## The PVM's own glass carries the picture: the front shell's triangles lying on the tube's bow inside GLASS_W x
+## GLASS_H are lifted out of its mesh into a surface of their own, UV-mapped across the glass, with the screen
+## material; the rest of the shell keeps its own. False if the file has no such triangles.
+func _light_glass(crt: Node3D) -> bool:
+	for n in crt.find_children("*front_case*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null or mi.mesh.get_surface_count() != 1:
+			continue
+		var xf := Prop.in_model(mi, crt)
+		var arrays := mi.mesh.surface_get_arrays(0)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var shell := PackedInt32Array()
+		var glass := PackedInt32Array()
+		for i in range(0, idx.size(), 3):
+			var on := true
+			for k in 3:
+				var p := xf * verts[idx[i + k]] - GLASS_AT
+				if absf(p.x) > GLASS_W * 0.5 + 0.004 or absf(p.y) > GLASS_H * 0.5 + 0.004 or absf(p.z - _bow(p.x)) > 0.0025:
+					on = false
+					break
+			if on:
+				glass.append_array(idx.slice(i, i + 3))
+			else:
+				shell.append_array(idx.slice(i, i + 3))
+		if glass.is_empty():
+			continue
+		var uv := PackedVector2Array()
+		uv.resize(verts.size())
+		for j in verts.size():
+			var p := xf * verts[j] - GLASS_AT
+			uv[j] = Vector2(p.x / GLASS_W + 0.5, 0.5 - p.y / GLASS_H)
+		var shell_mat := mi.get_active_material(0)
+		var mesh := ArrayMesh.new()
+		var a := arrays.duplicate()
+		a[Mesh.ARRAY_INDEX] = shell
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
+		mesh.surface_set_material(0, shell_mat)
+		var g := arrays.duplicate()
+		g[Mesh.ARRAY_INDEX] = glass
+		g[Mesh.ARRAY_TEX_UV] = uv
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, g)
+		mesh.surface_set_material(1, screen_mat)
+		mi.material_override = null
+		mi.mesh = mesh
+		return true
+	return false
+
+## The fallback picture surface: a strip bowed like the PVM's glass, its middle on the origin, UV (0, 0) top left
 static func _glass_mesh() -> ArrayMesh:
 	const SEG := 24
 	var st := SurfaceTool.new()

@@ -17,6 +17,8 @@ const MUSIC_DB := -20.0                 # quiet bed, not a soundtrack
 const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # plays once, then fades into the bed
 const BED_PATH := "res://audio/ambients/ambient1.mp3"          # the usual menu loop
 const XFADE := 3.0                      # seconds the intro takes to hand over to the bed
+const PUSH_TIME := 2.2                  # PLAY: seconds the picture pushes in and goes dark before the loading screen
+const PUSH_ZOOM := 1.7                  # how far in it gets
 const MAIN_SCENE := "res://scenes/main.tscn"
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const TIPS := [
@@ -135,6 +137,7 @@ var music: AudioStreamPlayer             # the looping bed (ambient1), created o
 var intro_music: AudioStreamPlayer      # the one-shot intro track
 var music_fade: Tween                   # the live volume tween on whichever track(s) are audible
 var handover: Tween                     # the scheduled intro -> bed crossfade
+var push_black: ColorRect               # PLAY: fades in over the whole title screen before the loading screen
 var settings_menu                       # scripts/UI/menu.gd instance in embedded mode
 var crt: Control
 var crt_top: ColorRect
@@ -378,6 +381,12 @@ func _build() -> void:
 	tick.stream = click.stream
 	tick.volume_db = -22.0
 	add_child(tick)
+	push_black = ColorRect.new()            # over the picture and every bit of menu chrome, under the loading screen
+	push_black.color = Color(0.008, 0.008, 0.005)
+	push_black.modulate.a = 0.0
+	push_black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(push_black)
+	_full(push_black)
 	_build_loading()
 	_build_crt()
 
@@ -812,16 +821,26 @@ func _on_play(now := false) -> void:
 		return
 	settings_menu.close_panel()
 	if corner_tw: corner_tw.kill()           # closing the panel would bring the corners back
+	bg_timer = -PUSH_TIME * 4.0              # no frame swap while the picture is pushing in
+	bg_root.pivot_offset = Vector2(960, 470) # in toward the far end of the hall
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(menu_box, "modulate:a", 0.0, 0.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(menu_box, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	for c in [counter, credits]:
-		tw.tween_property(c, "modulate:a", 0.0, 0.15)
-	tw.chain().tween_callback(_start_loading)
+		tw.tween_property(c, "modulate:a", 0.0, 0.5)
+	# the camera creeps forward, faster and faster, while everything sinks into the black
+	tw.tween_property(bg_root, "scale", Vector2(PUSH_ZOOM, PUSH_ZOOM), PUSH_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	tw.tween_property(push_black, "modulate:a", 1.0, PUSH_TIME * 0.7).set_delay(PUSH_TIME * 0.3).set_trans(Tween.TRANS_SINE)
+	tw.chain().tween_callback(_start_loading.bind(true))
 
-func _start_loading() -> void:
+## `fade`: coming out of the push (fully black by now), the loading text comes up out of the dark instead of cutting in
+func _start_loading(fade := false) -> void:
 	loading = true
 	loading_root.visible = true
 	loading_root.modulate.a = 1.0
+	for c in loading_root.get_children().slice(1):          # child 0 is the opaque black backdrop
+		c.modulate.a = 0.0 if fade else 1.0
+		if fade:
+			create_tween().tween_property(c, "modulate:a", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
 	load_title.text = "LOADING // %s" % _level_name().to_upper()
 	load_title.visible_characters = -1
 	load_tip.text = TIPS[randi() % TIPS.size()]

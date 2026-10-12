@@ -247,6 +247,8 @@ func _process(dt: float) -> void:
 		hint.modulate.a = clampf(clock - 1.5, 0.0, 1.0) * (0.3 + 0.12 * sin(clock * 2.4))
 	if logo_live and logo:
 		logo.modulate.a = 1.0 if randf() > 0.035 else randf_range(0.3, 0.8)
+	if name_fringes.size() == 2 and not (is_instance_valid(name_fringes[0]) and is_instance_valid(name_fringes[1])):
+		name_fringes = []                  # the logo card was freed once it had played
 	if name_fringes.size() == 2:
 		# a slow drift plus a soft pulse every few seconds: the colours split and ease back together
 		var pulse := pow(maxf(sin(clock * 0.8), 0.0), 6.0)
@@ -296,7 +298,7 @@ func _build_logo() -> Control:
 	var title := _label("THE BACKROOMS", 124, Color("ece3bf"), 28)
 	title.add_theme_constant_override("outline_size", 5)   # VCR has no bold: a same-colour outline thickens the strokes
 	title.add_theme_color_override("font_outline_color", Color("ece3bf"))
-	for f in [[Vector2(-4, 0), Color(1, 0.1, 0.1, 0.35)], [Vector2(4, 1), Color(0.1, 0.4, 1, 0.35)]]:
+	for f in [[Vector2(-4, 0), Color(0.835, 0.0, 0.036, 0.35)], [Vector2(4, 1), Color(0.1, 0.4, 1, 0.35)]]:
 		var fringe := _label("THE BACKROOMS", 124, f[1], 28)
 		fringe.add_theme_constant_override("outline_size", 5)
 		fringe.add_theme_color_override("font_outline_color", f[1])

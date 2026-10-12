@@ -28,7 +28,11 @@ func blocked(cx: int, cz: int) -> bool:
 	return level.walls.has(c) or level.pits.has(c) or level.safe.has(c)
 
 func open_at(x: float, z: float) -> bool:
-	return not blocked(cell(x), cell(z))
+	var cx := cell(x)
+	var cz := cell(z)
+	if cx < 0 or cz < 0 or cx >= n or cz >= n:
+		return false                  # off the map is not open floor (nothing there to wall it in)
+	return not blocked(cx, cz)
 
 ## One step from a cell to a neighbouring one: the target is open and no off-centre wall is in between
 func can_step(ax: int, az: int, bx: int, bz: int) -> bool:

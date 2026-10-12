@@ -17,9 +17,9 @@ const Kit = preload("res://scripts/UI/inventory/terminal_kit.gd")
 const LOGO_PATH := "res://textures/ui/tsra_logo.png"     # tools/gen_tsra_logo.py
 const CRT_SHADER := preload("res://shaders/terminal_crt.gdshader")
 
-const SIZE := Vector2i(1024, 768)
-const PAD := 34.0
-const LIST_W := 420.0
+const SIZE := Vector2i(1024, 768)             # the PVM's glass is 4:3
+const PAD := 50.0                              # clear of the tube's rounded corners
+const LIST_W := 400.0
 
 const AMBER := Kit.AMBER
 const TEXT := Kit.TEXT
@@ -28,7 +28,7 @@ const MUTED := Kit.MUTED
 const GREEN := Kit.GREEN
 const ORANGE := Kit.ORANGE
 const RED := Kit.RED
-const BG := Color(0.035, 0.024, 0.008)
+const BG := Color(0.055, 0.036, 0.012)
 const INK := Color(0.05, 0.03, 0.0)          # text on an inverse (selected) bar
 
 const MENU := [
@@ -242,8 +242,10 @@ func _run_steps(dt: float) -> void:
 
 func _enter_step(s: Dictionary) -> void:
 	match str(s.k):
-		"line", "check", "count", "bar":
-			_log(str(s.get("text", "")), s.get("col", TEXT))
+		"line":
+			_log(str(s.text), s.get("col", TEXT))
+		"check", "count", "bar":
+			_log(str(s.text), TEXT)
 		"clear":
 			for c in boot_log.get_children():
 				c.queue_free()
@@ -394,9 +396,12 @@ func open_page(id: String) -> void:
 	list.mouse_filter = Control.MOUSE_FILTER_PASS
 	deck.add_child(list)
 	var entries := _page_rows(id)
+	var code_w := 0.0
+	for e in entries:
+		code_w = maxf(code_w, 14.0 * str(e.code).length() + 6.0)
 	for i in entries.size():
 		var e: Dictionary = entries[i]
-		list.add_child(_row(i, e.code, e.name, "", 18, 0, e.get("col", TEXT)))
+		list.add_child(_row(i, e.code, e.name, "", 18, 0, e.get("col", TEXT), code_w))
 	var sheet := PanelContainer.new()
 	sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var sb := Kit.box(Color(AMBER, 0.035), Color(AMBER, 0.5), 2, 2)
@@ -471,8 +476,8 @@ func _detail_archive(eid: String) -> void:
 		_d("SPECIMEN NOT YET LOGGED", 22, AMBER, 2)
 		_d("THREAT CLASS: " + cls, 18, _threat_col(cls), 2)
 		_rule()
-		for n in [5, 3, 4, 2]:
-			detail.add_child(Kit.redacted(eid + str(n), n))
+		for n in [4, 3, 4, 2]:
+			detail.add_child(_redacted(eid + str(n), n))
 		_rule()
 		_d("FILE AN ENTRY: hold the field scanner [Q] on the specimen until the reading completes. The dossier decrypts the moment it is logged.", 17, TEXT_DIM, 1, true)
 		return
@@ -539,8 +544,8 @@ func _detail_file(f: Dictionary) -> void:
 	if not f.open:
 		_d("[ENCRYPTED]", 24, TEXT_DIM, 2)
 		_rule()
-		for n in [4, 5, 3, 4, 2]:
-			detail.add_child(Kit.redacted(str(f.code) + str(n), n))
+		for n in [4, 3, 4, 2, 3]:
+			detail.add_child(_redacted(str(f.code) + str(n), n))
 		_rule()
 		_d(str(f.hint), 17, TEXT_DIM, 1, true)
 		return
@@ -813,7 +818,7 @@ func _footer(hints: Array) -> void:
 	stage.add_child(bar)
 
 ## One line of a list: inverse video when selected. Hover selects it, a click opens / uses it.
-func _row(i: int, code: String, title: String, info: String, px: int, h: float, col := TEXT) -> PanelContainer:
+func _row(i: int, code: String, title: String, info: String, px: int, h: float, col := TEXT, code_w := 44.0) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.custom_minimum_size.y = h
@@ -823,11 +828,12 @@ func _row(i: int, code: String, title: String, info: String, px: int, h: float, 
 	var mark := Kit.label(" ", px, AMBER, 1)
 	line.add_child(mark)
 	var c := Kit.label(code, px - 2, MUTED, 2)
-	c.custom_minimum_size.x = 112 if px < 24 else 44
+	c.custom_minimum_size.x = code_w
 	line.add_child(c)
 	var n := Kit.label(title, px, col, 2)
 	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	n.clip_text = true
+	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	line.add_child(n)
 	var r := Kit.label(info, px - 8, MUTED, 2)
 	line.add_child(r)
@@ -870,6 +876,21 @@ func _d(text: String, px: int, col: Color, spacing := 1.0, wrap := false) -> Lab
 	var l := Kit.label(text, px, col, spacing, wrap)
 	detail.add_child(l)
 	return l
+
+## A line of blacked-out words, narrow enough for the sheet (Kit.redacted's run wider than it)
+func _redacted(id: String, bars: int) -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 8)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rng := RandomNumberGenerator.new()
+	rng.seed = id.hash()
+	for i in bars:
+		var bar := ColorRect.new()
+		bar.color = Color(TEXT, 0.22)
+		bar.custom_minimum_size = Vector2(rng.randi_range(36, 96), 14)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		h.add_child(bar)
+	return h
 
 func _rule() -> void:
 	detail.add_child(Kit.hline(Color(AMBER, 0.25), 1))

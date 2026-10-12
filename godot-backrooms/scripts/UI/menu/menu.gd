@@ -131,6 +131,12 @@ func _build() -> void:
 		title_static.add_child(bar)
 	title_label.add_child(title_static)
 
+	# the second line of the lockup, as on the title screen
+	var nullspace := _label("NULLSPACE", 52, RED, 20)
+	nullspace.add_theme_constant_override("outline_size", 3)
+	nullspace.add_theme_color_override("font_outline_color", RED)
+	main.add_child(nullspace)
+
 	main.add_child(_spacer(22))
 	sub_label = _label("T.S.R.A // THRESHOLD SPATIAL RESEARCH AGENCY", 12, Color(0.9, 0.882, 0.804, 0.5), 4)
 	main.add_child(sub_label)
