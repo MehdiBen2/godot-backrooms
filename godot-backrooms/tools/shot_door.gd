@@ -16,6 +16,7 @@ func _initialize() -> void:
 	root.add_child(main)
 	await create_timer(2.0).timeout
 	game.playing = true
+	game.god_mode = true                  # (no entity catching you mid-test: it ends the door scene)
 	var player: CharacterBody3D = main.get_node("Player")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	# (not pinned on top: it would cover whatever else is open)
