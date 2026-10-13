@@ -100,6 +100,7 @@ var WallGeom: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_geo
 var WallJoints: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_joints.gd"))
 var WallMesh: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_mesh.gd"))
 var WallSnap: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_snap.gd"))
+var WallOpenings: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_openings.gd"))
 var wall_graph: RefCounted = WallGraph.new()
 const WALL_TOL := 0.1 / CELL_M        # ends this close (cells) are one node
 var materials := {}                  # slot -> pbr name: the level-wide material of each surface

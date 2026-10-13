@@ -54,6 +54,10 @@ func start() -> void:
 	prepped = false
 	trauma = 0.0
 	beat = 0.6              # the start beats once already: 0 would fire a second one next frame
+	# you jump: the hands fly up and the torch is flung away, then they shake there until the snap (torch_model.gd)
+	var torch = player.get("torch")
+	if torch != null:
+		torch.catch_scene("mannequin", player, SNAP_AT)
 	player.frozen = true
 	player.velocity = Vector3.ZERO
 	# however it got here, it ends up standing right behind you, so the neck snap is always the same

@@ -288,21 +288,51 @@ func _place_panel_fixtures() -> void:
 			lit.append(f)
 	_index_fixtures()
 
-# ---------------------------------------------------------------- no dark gaps
-## The grids above only know the grid's walls. Walls off it (thin walls, the wall graph) standing close together
-## make corridors and nooks those grids never put a tube in, and the walls round them keep the neighbours' light
-## out: a black slot with a black ceiling. So, after the grid: every open cell (a Dark zone's aside) has to have
-## a tube within a cell of it that it can see; one that hasn't gets one, lit. Then a small pocket shut in by walls
-## (POCKET cells at most) whose tubes all came out burnt gets one of them back (a whole dark room is the Dark
-## zone's job, not the dice's). `real(f)`: fixture f is a tube (on a panel ceiling: one of the cells with a light
-## behind its panels). `make(c)`: a new tube in cell c (null: none can go there).
+# ---------------------------------------------------------------- no dark gaps, no lights in walls
+## The grids above only know the grid's walls and hang every tube on a cell's centre. Walls off the grid (thin
+## walls, the wall graph) don't keep to cells: one may run right under a tube (its light inside the wall, the wall
+## beside it never lit, its glow on the floor of both sides), and two standing close make corridors and nooks the
+## grids never put a tube in, kept dark by the walls round them. So, after the grid:
+##   1. a tube too close to such a wall moves to the clearest of its cell's panel spots (a panel ceiling's five
+##      panels: the light comes from a panel that glows; a hanging tube is hung there instead);
+##   2. every spot of open floor (each cell's centre and its four panel spots, those clear of walls) has to see a
+##      tube within GAP_REACH; one that doesn't gets its cell's tube lit at the spot nearest it, or, when the cell
+##      has a tube already (for the floor across a wall), a second light of its own there (no second panel drawn);
+##   3. a small pocket shut in by walls (POCKET cells at most) whose tubes all came out burnt gets one back (a
+##      whole dark room is the Dark zone's job, not the dice's).
+## `real(f)`: fixture f is a tube (on a panel ceiling: one of the cells with a light behind its panels). `make(c)`:
+## a new tube in cell c (an invalid Callable: a panel ceiling, where every open cell has its fixture already).
 const POCKET := 16
-var gaps_lit := 0                     # tubes this pass lit (for the tools: tools/probe_light.gd)
+const LIGHT_CLEAR := 0.6              # metres a light keeps off a wall's face
+const SPOT_CLEAR := 0.2               # metres off a wall's face a spot of floor has to be to count
+const GAP_REACH := 2.0 * 4.5          # metres: how far the tube lighting a spot may be (level_data.gd CELL): the
+                                      # grids' own spacing, so open floor is left as the grids lay it...
+const GAP_REACH_WALLED := 5.0         # ...but within GAP_NEAR_WALL of a wall off the grid (a corridor between two,
+const GAP_NEAR_WALL := 2.5            # where light comes from one way only and the walls drink it): this near
+var gaps_lit := 0                     # lights this pass lit (for the tools: tools/probe_light.gd)
 
 func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 	gaps_lit = 0
+	var troffers := make.is_valid()
 	var by_cell := {}
 	for f: Dictionary in fx: by_cell[Vector2i(roundi(f.pos.x / CELL), roundi(f.pos.z / CELL))] = f
+	# 1: off the walls
+	for f: Dictionary in fx:
+		if not real.call(f): continue
+		var lp := Vector2(f.light_pos.x, f.light_pos.z)
+		if wall_gap(lp) >= LIGHT_CLEAR: continue
+		var best := lp
+		var bd := wall_gap(lp)
+		for sp: Vector2 in _spots(f):
+			var g := wall_gap(sp)
+			if g > bd:
+				bd = g
+				best = sp
+		_light_at(f, best, troffers)
+	# 2: every spot of open floor sees a tube (a burnt one counts: the dice's darkness is kept, the walls' isn't)
+	var lights := {}                     # Vector2i (cell) -> Array of light points (metres)
+	for f: Dictionary in fx:
+		if real.call(f): _file_light(lights, f)
 	var light_up := func(f: Dictionary) -> void:
 		if f.burnt or not real.call(f):
 			gaps_lit += 1
@@ -314,21 +344,31 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 		for x in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if not _wants_light(c): continue
-			var near := false
-			for dz in range(-1, 2):
-				for dx in range(-1, 2):
-					var d := c + Vector2i(dx, dz)
-					var f = by_cell.get(d)
-					if f != null and real.call(f) and (d == c or _sees_cell(c, d)): near = true
-			if near: continue
-			var f = by_cell.get(c)
-			if f == null and make.is_valid():
-				f = make.call(c)
-				if f != null:
+			var centre := Vector2(c) * CELL
+			for o: Vector2 in PANEL_OFFSETS:
+				var spot: Vector2 = centre + o
+				var gap := wall_gap(spot)
+				if gap < SPOT_CLEAR or _lit_near(lights, spot, GAP_REACH_WALLED if gap < GAP_NEAR_WALL else GAP_REACH): continue
+				var at := _light_spot(c, spot)
+				var f = by_cell.get(c)
+				if f != null and real.call(f):
+					f = f.duplicate()             # its tube is for the floor across a wall: a second light
+					f.erase("cell")
+					f.erase("gap")
+					f["nopanel"] = true
 					fx.append(f)
-					by_cell[c] = f
-			if f != null: light_up.call(f)
-	# small pockets with only burnt tubes
+					gaps_lit += 1
+				elif f == null and troffers:
+					f = make.call(c)
+					if f != null:
+						fx.append(f)
+						by_cell[c] = f
+						gaps_lit += 1
+				if f == null: continue
+				light_up.call(f)
+				_light_at(f, at, troffers)
+				_file_light(lights, f)
+	# 3: small pockets with only burnt tubes
 	var done := {}
 	for z in range(1, size - 1):
 		for x in range(1, size - 1):
@@ -363,6 +403,52 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 					bd = Vector2(c).distance_to(mid)
 					best = f
 			if best != null: light_up.call(best)
+
+## The panel spots of fixture f's cell (metres, x / z): its centre and its four diagonal panels
+func _spots(f: Dictionary) -> Array:
+	var c := Vector2(roundf(f.pos.x / CELL), roundf(f.pos.z / CELL)) * CELL
+	return PANEL_OFFSETS.map(func(o: Vector2) -> Vector2: return c + o)
+
+## Where cell c's light goes to light floor spot `spot`: the clear panel spot of the cell nearest it that can see
+## it, else the spot itself
+func _light_spot(c: Vector2i, spot: Vector2) -> Vector2:
+	var best := spot
+	var bd := INF
+	for o: Vector2 in PANEL_OFFSETS:
+		var q: Vector2 = Vector2(c) * CELL + o
+		if wall_gap(q) < LIGHT_CLEAR or sight_blocked(q / CELL, spot / CELL): continue
+		if q.distance_to(spot) < bd:
+			bd = q.distance_to(spot)
+			best = q
+	return best
+
+## Fixture f's light at floor-plan point p (metres); a hanging tube is hung there too
+func _light_at(f: Dictionary, p: Vector2, tube: bool) -> void:
+	f.light_pos = Vector3(p.x, f.light_pos.y, p.y)
+	if tube: f.pos = Vector3(p.x, f.pos.y, p.y)
+
+func _file_light(lights: Dictionary, f: Dictionary) -> void:
+	var p := Vector2(f.light_pos.x, f.light_pos.z)
+	lights.get_or_add(Vector2i(floori(p.x / CELL), floori(p.y / CELL)), []).append(p)
+
+## Is a light within `reach` metres of floor spot `p` (metres) with nothing in the way?
+func _lit_near(lights: Dictionary, p: Vector2, reach: float) -> bool:
+	var c := Vector2i(floori(p.x / CELL), floori(p.y / CELL))
+	for x in range(c.x - 2, c.x + 3):
+		for z in range(c.y - 2, c.y + 3):
+			for q: Vector2 in lights.get(Vector2i(x, z), []):
+				if q.distance_to(p) <= reach and _open_between(p, q): return true
+	return false
+
+## No grid wall (doors and thin walls' cells aside: their walls are in sight_blocked) and no wall off the grid
+## between floor-plan points a and b (metres)
+func _open_between(a: Vector2, b: Vector2) -> bool:
+	var steps := maxi(1, ceili(a.distance_to(b) / (CELL * 0.25)))
+	for k in range(1, steps):
+		var q := a.lerp(b, float(k) / steps) / CELL
+		var c := Vector2i(roundi(q.x), roundi(q.y))
+		if walls.has(c) and not carved.has(c): return false
+	return not sight_blocked(a / CELL, b / CELL)
 
 ## A cell a ceiling tube should light: open floor under a ceiling, not in a Dark zone
 func _wants_light(c: Vector2i) -> bool:
@@ -483,7 +569,8 @@ func _build_panel_ceiling() -> void:
 	# one MultiMesh per SURF_CHUNK x SURF_CHUNK cells, each with its own visibility range (as the floors are): a
 	# chunk out of reach or out of view costs nothing. panels_mm is kept only as the "there are panels" flag.
 	var chunks := {}
-	for f: Dictionary in fx: chunks.get_or_add(_chunk_at(f.pos), []).append(f)
+	for f: Dictionary in fx:
+		if not f.get("nopanel", false): chunks.get_or_add(_chunk_at(f.pos), []).append(f)
 	var reach := _chunk_reach()
 	for key in chunks:
 		var list: Array = chunks[key]
@@ -926,6 +1013,10 @@ const CONE_TOP := 0.3               # metres: the cone's radius at the tube...
 const CONE_BOTTOM := 1.9            # ...and at the floor
 const GLOW_COLOR := Color(1.0, 0.93, 0.78)   # the tubes' light (level_light_pool.gd LIGHT_COLOR, which is declared below this script)
 var cone_mm: MultiMesh
+## The cones of lit air under each tube (a see-through cylinder, brightest where it's seen edge on). Off: its
+## straight silhouette read as a hard wedge against the ceiling, worst under a tall one (a 10 m shaft); the fog
+## and the bloom round the panels give the air its light instead. True puts them back.
+const LIGHT_CONES := false
 var wall_glow_mm: MultiMesh       # the lit wall faces round each tube
 
 func _build_floor_glow() -> void:
@@ -979,7 +1070,10 @@ void fragment() {
 	float e = energy * nd * nd * pow(d, -decay) * (info.w / d);
 	// the spot's cone, worked out as SpotLight3D does it
 	e *= 1.0 - pow(clamp((1.0 - info.w / d) / (1.0 - cone_cos), 0.0001, 1.0), cone_soft);
-	e *= 1.0 - smoothstep(cell * 0.75, cell * 1.45, length(lp));
+	// short of the nearest wall off the grid (level_fixtures.gd glow_r); a pool cut small fades from its middle
+	// out, so it reads as light falling off, never as a disc with an edge
+	float rim = cell * 1.45 * COLOR.a;
+	e *= 1.0 - smoothstep(rim * 0.52 * COLOR.a * COLOR.a, rim, length(lp));
 	vec3 base = info.z > 0.5 ? texture(tile_tex, wp.xz * tile_scale).rgb : texture(floor_tex, wp.xz * floor_scale).rgb * floor_tint;
 	ALBEDO = base * light_color * COLOR.rgb * e * strength;
 }""")
@@ -1004,7 +1098,9 @@ void fragment() {
 	mat.set_shader_parameter("cone_cos", cone_cos)
 	mat.set_shader_parameter("cone_soft", SPOT_SOFT)
 	# the pool spreads GLOW_CELLS past its own cell, so its chunk's range is widened by that
-	glow_mm = _chunked(lit, func(f: Dictionary) -> Vector3: return f.pos, "glow", func(list: Array) -> MultiMeshInstance3D:
+	# (not under a tube in a tall room: its real light falls broad and even from up there, and a pool this size
+	# reads as a blot on the floor, gaps of dark between them; the real and far lights light it)
+	glow_mm = _chunked(lit.filter(_low_lamp), func(f: Dictionary) -> Vector3: return f.pos, "glow", func(list: Array) -> MultiMeshInstance3D:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
@@ -1019,9 +1115,13 @@ void fragment() {
 			var f: Dictionary = list[j]
 			f.glow_lvl = float(f.get("peak", 1.0))
 			f.glow_share = 1.0
-			var c := cell_of(f.pos)
-			MMBuffer.put_at(buf, j * st, Vector3(f.pos.x, 0.02, f.pos.z))
-			MMBuffer.put_color(buf, j * st, Color.WHITE)
+			# the pool lies under the light (moved off a wall: _fill_dark_gaps) and stops short of a wall off the grid,
+			# which the cell mask below doesn't know of (its own floor across the wall would be lit through it)
+			var lp := Vector2(f.light_pos.x, f.light_pos.z)
+			var c := cell_of(f.light_pos)
+			f.glow_r = clampf(wall_gap(lp, CELL * 1.5) / (CELL * 1.45), 0.12, 1.0)
+			MMBuffer.put_at(buf, j * st, Vector3(lp.x, 0.02, lp.y))
+			MMBuffer.put_color(buf, j * st, Color(1.0, 1.0, 1.0, f.glow_r))
 			buf[j * st + 16] = _glow_mask(c)
 			buf[j * st + 17] = f.rot
 			buf[j * st + 18] = 1.0 if tiles.has(c) else 0.0
@@ -1061,7 +1161,7 @@ void fragment() {
 	cone.rings = 1
 	cone.cap_top = false
 	cone.cap_bottom = false
-	cone_mm = _chunked(lit, func(f: Dictionary) -> Vector3: return f.pos, "cone", func(list: Array) -> MultiMeshInstance3D:
+	cone_mm = _chunked(lit if LIGHT_CONES else [], func(f: Dictionary) -> Vector3: return f.pos, "cone", func(list: Array) -> MultiMeshInstance3D:
 		var cm := MultiMesh.new()
 		cm.transform_format = MultiMesh.TRANSFORM_3D
 		cm.use_colors = true
@@ -1072,7 +1172,7 @@ void fragment() {
 		for j in list.size():
 			var f: Dictionary = list[j]
 			var h: float = f.light_pos.y
-			MMBuffer.put(cbuf, j * cst, Transform3D(Basis.from_scale(Vector3(1.0, h, 1.0)), Vector3(f.pos.x, h * 0.5, f.pos.z)))
+			MMBuffer.put(cbuf, j * cst, Transform3D(Basis.from_scale(Vector3(1.0, h, 1.0)), Vector3(f.light_pos.x, h * 0.5, f.light_pos.z)))
 			MMBuffer.put_color(cbuf, j * cst, Color.WHITE)
 		cm.buffer = cbuf
 		var cmi := MultiMeshInstance3D.new()
@@ -1162,7 +1262,7 @@ void fragment() {
 	for f: Dictionary in lit:
 		f.glow_faces = []                # this tube's wall faces (each a dict, see below)
 		var c := cell_of(f.pos)
-		if stair_cells.has(c): continue
+		if stair_cells.has(c) or not _low_lamp(f): continue       # (a tall room's: an oval stamped on the wall's foot)
 		# (a cell with no floor still has walls round it: a wall lit up to the edge of a pit and black beside
 		# it is a rectangle of light with hard ends)
 		var from: Array[Vector2i] = [c]
@@ -1228,6 +1328,11 @@ func _glow_floor(c: Vector2i) -> bool:
 	if c.x < 0 or c.y < 0 or c.x >= size or c.y >= size: return false
 	return not (walls.has(c) or pits.has(c) or through.has(c) or stair_cells.has(c))
 
+## Does tube `f` hang at a plain room's height or lower? The fake light (the floor pool, the lit wall faces) is
+## shaped for a lamp that close: from a Tall or Grand room's ceiling its light spreads far wider than that
+func _low_lamp(f: Dictionary) -> bool:
+	return float(f.light_pos.y) <= WALL_H + 0.5
+
 ## The fake light of tube `f` as it is now: its level, the events' tint, and the share no real light covers
 func _write_glow(f: Dictionary) -> void:
 	if not f.has("glow_mm"): return          # not a tube the glow pool was built for
@@ -1236,6 +1341,7 @@ func _write_glow(f: Dictionary) -> void:
 	var c := Color(tint.r * w.r * k, tint.g * w.g * k, tint.b * w.b * k)
 	if f.has("cone_mm"): (f.cone_mm as MultiMesh).set_instance_color(f.cone_i, c)
 	if f.classic: c = Color(c.r * GLOW_CLASSIC, c.g * GLOW_CLASSIC, c.b * GLOW_CLASSIC)
+	c.a = float(f.get("glow_r", 1.0))            # (the pool's reach: see _build_floor_glow)
 	(f.glow_mm as MultiMesh).set_instance_color(f.glow_i, c)
 	for face: Dictionary in f.get("glow_faces", []):
 		(face.face_mm as MultiMesh).set_instance_color(face.face_i, Color(c.r, c.g, c.b, face.h))

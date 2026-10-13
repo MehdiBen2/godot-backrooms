@@ -529,14 +529,35 @@ func _graph_walls() -> void:
 		var top := minf(float(w.h), full) if float(w.h) > 0.0 else full
 		spans[e] = Vector2(clampf(float(w.base), 0.0, maxf(top - 0.05, 0.0)), top)
 		keys[e] = {"l": str(w.mat_l), "r": str(w.mat_r), "cap": ""}
-	var res: Dictionary = ed.WallMesh.build(ed.WallJoints.solve(g, 4.5), spans, keys, 2.25)
+	var sol: Dictionary = ed.WallJoints.solve(g, 4.5)
+	var res: Dictionary = ed.WallMesh.build(sol, spans, keys, 2.25, true, ed.WallOpenings.holes_of(g, spans))
 	var level_wall: String = ed._surface_key("wall", Vector2i(-1, -1))
+	var to_view := Transform3D(Basis.from_scale(Vector3(1.0 / 4.5, vscale / 9.0, 1.0 / 4.5)), Vector3.ZERO)
 	for key: String in res.meshes:
 		var mi := MeshInstance3D.new()
 		mi.mesh = res.meshes[key]
-		mi.transform = Transform3D(Basis.from_scale(Vector3(1.0 / 4.5, vscale / 9.0, 1.0 / 4.5)), Vector3.ZERO)
+		mi.transform = to_view
 		mi.material_override = _pbr(key if key != "" else level_wall)
 		world.add_child(mi)
+	# what stands in the openings, as stand-ins: a door's leaf (shut), a window's glass
+	var leaf := _flat(Color("6b4528"))
+	var glass := _flat(Color(0.7, 0.85, 0.95))
+	for e in res.holes:
+		var cv: Dictionary = sol.edges[e].cv
+		for h: Dictionary in res.holes[e]:
+			var kind := str(h.kind)
+			if kind != "door" and kind != "window": continue
+			var xf: Transform3D = ed.WallOpenings.frame_of(h, cv)
+			var w: float = (ed.WallGeom.point(cv, h.t0) as Vector2).distance_to(ed.WallGeom.point(cv, h.t1))
+			var box := BoxMesh.new()
+			var y0: float = h.y0
+			var y1: float = h.y1
+			box.size = Vector3(0.05 if kind == "door" else 0.02, y1 - y0 - (0.04 if kind == "door" else 0.0), w - 0.07)
+			var mi := MeshInstance3D.new()
+			mi.mesh = box
+			mi.transform = to_view * xf * Transform3D(Basis.IDENTITY, Vector3(0.0, (y0 + y1) * 0.5, 0.0))
+			mi.material_override = leaf if kind == "door" else glass
+			world.add_child(mi)
 
 ## One object's meshes, added to `parent` (its holder in the level, or the ghost)
 func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:

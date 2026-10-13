@@ -43,14 +43,17 @@ const LEAF_MODELS := {
 }
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
 const InteractTooltip := preload("res://scripts/World/props/interact_tooltip.gd")
-var leaf := "wood"          # set before build(): which of LEAF_MODELS the leaf is made from
+var leaf := "wood"          # set before build(): which of LEAF_MODELS the leaf is made from ("office", "glass": built)
+var door_w := DOOR_W         # this door's clear opening and leaf height (build_leaf sets them)
+var door_h := DOOR_H
+var open_angle := OPEN_ANGLE
 
 var pivot: Node3D
 var leaf_body: AnimatableBody3D
 var leaf_collision: CollisionShape3D
 var frame_body: StaticBody3D
 var _probe: BoxShape3D       # the leaf, a touch thicker: what the swing checks for bodies in its way
-var angle := 0.0             # the leaf's swing, 0 shut .. OPEN_ANGLE
+var angle := 0.0             # the leaf's swing, 0 shut .. open_angle
 var open_amount := 0.0
 var target_open_amount := 0.0
 var blocked := false
@@ -94,7 +97,7 @@ func _sound(path: String, unit: float, far: float) -> AudioStreamPlayer3D:
 	a.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
 	a.unit_size = unit
 	a.max_distance = far
-	a.position = Vector3(0, KNOB_H, DOOR_W * 0.5)
+	a.position = Vector3(0, KNOB_H, door_w * 0.5)
 	add_child(a)
 	return a
 
@@ -107,8 +110,8 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 	add_to_group("doors")
 	_setup_audio()
 	_setup_tooltip()
-	var rw := DOOR_W + LINING * 2.0          # rough opening cut in the wall
-	var rh := DOOR_H + LINING
+	var rw := door_w + LINING * 2.0          # rough opening cut in the wall
+	var rh := door_h + LINING
 	var side_w := (cell - rw) * 0.5
 	var body := StaticBody3D.new()
 	frame_body = body
@@ -138,22 +141,44 @@ func build(cell: float, thick: float, wall_h: float, wall_mat: Material, frame_m
 		add_child(oi_top)
 	# frame: lining boards inside the opening...
 	for s: float in [-1.0, 1.0]:
-		_box(Vector3(thick + 0.01, rh, LINING), Vector3(0, rh * 0.5, s * (DOOR_W + LINING) * 0.5), frame_mat, self)
-	_box(Vector3(thick + 0.01, LINING, rw), Vector3(0, DOOR_H + LINING * 0.5, 0), frame_mat, self)
+		_box(Vector3(thick + 0.01, rh, LINING), Vector3(0, rh * 0.5, s * (door_w + LINING) * 0.5), frame_mat, self)
+	_box(Vector3(thick + 0.01, LINING, rw), Vector3(0, door_h + LINING * 0.5, 0), frame_mat, self)
 	# ...and casing trim around it on both faces
 	for f: float in [-1.0, 1.0]:
 		var x := f * (thick + CASING_D) * 0.5
 		for s: float in [-1.0, 1.0]:
-			_box(Vector3(CASING_D, DOOR_H + CASING_W, CASING_W), Vector3(x, (DOOR_H + CASING_W) * 0.5, s * (DOOR_W + CASING_W) * 0.5), frame_mat, self)
-		_box(Vector3(CASING_D, CASING_W, DOOR_W + CASING_W * 2.0), Vector3(x, DOOR_H + CASING_W * 0.5, 0), frame_mat, self)
+			_box(Vector3(CASING_D, door_h + CASING_W, CASING_W), Vector3(x, (door_h + CASING_W) * 0.5, s * (door_w + CASING_W) * 0.5), frame_mat, self)
+		_box(Vector3(CASING_D, CASING_W, door_w + CASING_W * 2.0), Vector3(x, door_h + CASING_W * 0.5, 0), frame_mat, self)
 
+	_hang_leaf(leaf_mat, hw_mat)
+
+## A door in an opening of a wall of the graph (wall_openings.gd; the wall, its hole and the frame round it are
+## built with the walls): only the leaf, `w` wide and `h` tall, hinged on its -Z edge, at the middle of the wall.
+## It swings OPEN_IN at most: past square the leaf would cut into the jamb by its hinge.
+const OPEN_IN := deg_to_rad(100.0)
+func build_leaf(w: float, h: float, leaf_mat: Material, hw_mat: Material) -> void:
+	add_to_group("doors")
+	door_w = w
+	door_h = h
+	open_angle = OPEN_IN
+	_setup_audio()
+	_setup_tooltip()
+	if audio_open != null: audio_open.position.z = door_w * 0.5
+	if audio_close != null: audio_close.position.z = door_w * 0.5
+	frame_body = StaticBody3D.new()          # (nothing: the walls are the frame; the swing's probe leaves it out)
+	add_child(frame_body)
+	_hang_leaf(leaf_mat, hw_mat)
+
+func _hang_leaf(leaf_mat: Material, hw_mat: Material) -> void:
 	# the door, hinged on its -Z edge
 	pivot = Node3D.new()
-	pivot.position = Vector3(0, 0, -DOOR_W * 0.5)
+	pivot.position = Vector3(0, 0, -door_w * 0.5)
 	add_child(pivot)
-	var leaf_size := Vector3(LEAF_T, DOOR_H - 0.012, DOOR_W - 0.01)
-	var leaf_pos := Vector3(0, 0.006 + leaf_size.y * 0.5, DOOR_W * 0.5)
-	if not _model_leaf(leaf_size, leaf_pos):
+	var leaf_size := Vector3(LEAF_T, door_h - 0.012, door_w - 0.01)
+	var leaf_pos := Vector3(0, 0.006 + leaf_size.y * 0.5, door_w * 0.5)
+	if leaf == "office" or leaf == "glass":
+		_built_leaf(leaf_size, leaf_pos, leaf_mat, hw_mat)
+	elif not _model_leaf(leaf_size, leaf_pos):
 		_plain_leaf(leaf_size, leaf_pos, leaf_mat, hw_mat)
 	leaf_body = AnimatableBody3D.new()
 	leaf_body.collision_layer = 1
@@ -204,6 +229,75 @@ func _model_leaf(leaf_size: Vector3, leaf_pos: Vector3) -> bool:
 	pivot.add_child(model)
 	return true
 
+static var _glass_mat: StandardMaterial3D
+static var _alu_mat: StandardMaterial3D
+static var _veneer_mat: StandardMaterial3D
+
+## The leaves built here: "office" (a flush veneered slab with a narrow wired-glass vision panel and a lever
+## handle) and "glass" (a full pane in a narrow aluminium frame with a long pull bar), the doors of the offices,
+## the hotels and the shops. The glass casts no shadow: light goes through it.
+func _built_leaf(leaf_size: Vector3, leaf_pos: Vector3, _leaf_mat: Material, hw_mat: Material) -> void:
+	if _glass_mat == null:
+		_glass_mat = StandardMaterial3D.new()
+		_glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_glass_mat.albedo_color = Color(0.72, 0.8, 0.78, 0.16)
+		_glass_mat.roughness = 0.04
+		_glass_mat.metallic_specular = 0.9
+		_glass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_alu_mat = StandardMaterial3D.new()          # anodised aluminium: a soft dull sheen
+		_alu_mat.albedo_color = Color(0.62, 0.63, 0.64)
+		_alu_mat.metallic = 0.85
+		_alu_mat.roughness = 0.38
+		_veneer_mat = StandardMaterial3D.new()       # a pale oak veneer, varnished long ago
+		_veneer_mat.albedo_color = Color(0.58, 0.45, 0.3)
+		_veneer_mat.roughness = 0.6
+	var t := leaf_size.x
+	var w := leaf_size.z
+	var h := leaf_size.y
+	var y0 := leaf_pos.y - h * 0.5
+	var z0 := leaf_pos.z - w * 0.5
+	var at := func(z: float, y: float) -> Vector3: return Vector3(0.0, y0 + y, z0 + z)
+	var part := func(size: Vector3, centre: Vector3, mat: Material) -> void: _box(size, centre, mat, pivot)
+	var glass := func(size: Vector3, centre: Vector3) -> void:
+		var mi := _box(size, centre, _glass_mat, pivot)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if leaf == "glass":
+		var stile := 0.09
+		var rail := 0.11
+		part.call(Vector3(t, h, stile), at.call(stile * 0.5, h * 0.5), _alu_mat)
+		part.call(Vector3(t, h, stile), at.call(w - stile * 0.5, h * 0.5), _alu_mat)
+		part.call(Vector3(t, rail, w - stile * 2.0), at.call(w * 0.5, h - rail * 0.5), _alu_mat)
+		part.call(Vector3(t, rail * 1.8, w - stile * 2.0), at.call(w * 0.5, rail * 0.9), _alu_mat)
+		glass.call(Vector3(0.012, h - rail * 2.8, w - stile * 2.0), at.call(w * 0.5, rail * 1.8 + (h - rail * 2.8) * 0.5))
+		for f: float in [-1.0, 1.0]:                 # a long pull bar on each face, near the free edge
+			var x := f * (t * 0.5 + 0.06)
+			part.call(Vector3(0.03, 1.0, 0.03), Vector3(x, y0 + KNOB_H, z0 + w - 0.12), hw_mat)
+			for dy: float in [-0.42, 0.42]:
+				part.call(Vector3(0.06, 0.025, 0.025), Vector3(f * (t * 0.5 + 0.03), y0 + KNOB_H + dy, z0 + w - 0.12), hw_mat)
+	else:
+		# the slab round a narrow vision panel up its latch side, its glass wired, and a lever handle
+		var vz0 := w * 0.58
+		var vz1 := w * 0.78
+		var vy0 := h * 0.5
+		var vy1 := h * 0.86
+		part.call(Vector3(t, h, vz0), at.call(vz0 * 0.5, h * 0.5), _veneer_mat)
+		part.call(Vector3(t, h, w - vz1), at.call((vz1 + w) * 0.5, h * 0.5), _veneer_mat)
+		part.call(Vector3(t, vy0, vz1 - vz0), at.call((vz0 + vz1) * 0.5, vy0 * 0.5), _veneer_mat)
+		part.call(Vector3(t, h - vy1, vz1 - vz0), at.call((vz0 + vz1) * 0.5, (vy1 + h) * 0.5), _veneer_mat)
+		glass.call(Vector3(0.008, vy1 - vy0, vz1 - vz0), at.call((vz0 + vz1) * 0.5, (vy0 + vy1) * 0.5))
+		for f: float in [-1.0, 1.0]:
+			var face := f * t * 0.5
+			# a bead round the glass
+			for zz: float in [vz0, vz1]:
+				part.call(Vector3(0.012, vy1 - vy0 + 0.03, 0.015), Vector3(face + f * 0.006, y0 + (vy0 + vy1) * 0.5, z0 + zz), _alu_mat)
+			for yy: float in [vy0, vy1]:
+				part.call(Vector3(0.012, 0.015, vz1 - vz0 + 0.03), Vector3(face + f * 0.006, y0 + yy, z0 + (vz0 + vz1) * 0.5), _alu_mat)
+			# the lever: a rose, a short neck and the grip running back towards the hinge
+			var z := w - 0.075
+			_cyl(0.028, 0.01, Vector3(face + f * 0.005, KNOB_H, z0 + z), hw_mat)
+			_cyl(0.01, 0.05, Vector3(face + f * 0.03, KNOB_H, z0 + z), hw_mat)
+			part.call(Vector3(0.018, 0.018, 0.13), Vector3(face + f * 0.055, KNOB_H, z0 + z - 0.055), hw_mat)
+
 # The leaf built here instead (six-panel texture on a slab), with its knobs and hinges: what the door falls
 # back to without the model.
 func _plain_leaf(leaf_size: Vector3, leaf_pos: Vector3, leaf_mat: Material, hw_mat: Material) -> void:
@@ -215,7 +309,7 @@ func _plain_leaf(leaf_size: Vector3, leaf_pos: Vector3, leaf_mat: Material, hw_m
 	# a knob on each face, near the free edge: round rose, short neck, ball
 	for f: float in [-1.0, 1.0]:
 		var face := f * LEAF_T * 0.5
-		var z := DOOR_W - 0.075
+		var z := door_w - 0.075
 		_cyl(0.032, 0.012, Vector3(face + f * 0.006, KNOB_H, z), hw_mat)
 		_cyl(0.011, 0.045, Vector3(face + f * 0.03, KNOB_H, z), hw_mat)
 		var ball := MeshInstance3D.new()
@@ -227,14 +321,14 @@ func _plain_leaf(leaf_size: Vector3, leaf_pos: Vector3, leaf_mat: Material, hw_m
 		ball.material_override = hw_mat
 		pivot.add_child(ball)
 	# hinge barrels on the frame side
-	for hy: float in [0.25, DOOR_H * 0.5, DOOR_H - 0.25]:
+	for hy: float in [0.25, door_h * 0.5, door_h - 0.25]:
 		var hinge := MeshInstance3D.new()
 		var hc := CylinderMesh.new()
 		hc.top_radius = 0.012
 		hc.bottom_radius = 0.012
 		hc.height = 0.1
 		hinge.mesh = hc
-		hinge.position = Vector3(LEAF_T * 0.5, hy, -DOOR_W * 0.5)
+		hinge.position = Vector3(LEAF_T * 0.5, hy, -door_w * 0.5)
 		hinge.material_override = hw_mat
 		add_child(hinge)
 
@@ -352,7 +446,7 @@ func _physics_process(delta: float) -> void:
 	if not _opening and not _hit_played and (1.0 - t) * CLOSE_TIME <= CLOSE_HIT:
 		_hit_played = true
 		_play(audio_close, randf_range(0.96, 1.04))
-	open_amount = angle / OPEN_ANGLE
+	open_amount = angle / open_angle
 	pivot.rotation.y = angle * swing_dir
 	if _t >= 1.0:
 		_moving = false
@@ -366,7 +460,7 @@ func _curve(t: float) -> float:
 		var f := t * t * (2.0 - t)
 		return lerpf(_from, 0.0, clampf(f, 0.0, 1.0))
 	if not _from_shut():
-		return lerpf(_from, OPEN_ANGLE, smoothstep(0.0, 1.0, t))
+		return lerpf(_from, open_angle, smoothstep(0.0, 1.0, t))
 	var f: float
 	if t < CRACK_END:
 		f = CRACK * (1.0 - pow(1.0 - t / CRACK_END, 3.0))
@@ -376,10 +470,10 @@ func _curve(t: float) -> float:
 		# the push: quick off the hand, then the hinges take the speed off it
 		var u := (t - CREEP_END) / (1.0 - CREEP_END)
 		f = lerpf(CREEP, 1.0, 1.0 - pow(1.0 - u, 2.4))
-	return lerpf(_from, OPEN_ANGLE, f)
+	return lerpf(_from, open_angle, f)
 
 func _from_shut() -> bool:
-	return _from <= CRACK * OPEN_ANGLE
+	return _from <= CRACK * open_angle
 
 ## Seconds the current swing takes once it's moving (a door already ajar skips the crack and the creak)
 func _move_time() -> float:
@@ -412,7 +506,7 @@ func side_of(p: Vector3) -> float:
 func knob_at(side: float) -> Vector3:
 	if pivot == null:
 		return global_position + Vector3(0, KNOB_H, 0)
-	return pivot.to_global(Vector3(side * LEAF_T * 0.5, KNOB_H, DOOR_W - 0.075))
+	return pivot.to_global(Vector3(side * LEAF_T * 0.5, KNOB_H, door_w - 0.075))
 
 ## The leaf's face `side` looks this way (world), and its latch edge lies this way from the hinge
 func face_normal(side: float) -> Vector3:
@@ -468,7 +562,7 @@ func can_interact(from_pos: Vector3) -> bool:
 
 func get_handle_global_pos() -> Vector3:
 	if pivot != null:
-		return pivot.to_global(Vector3(0, KNOB_H, DOOR_W * 0.9))
+		return pivot.to_global(Vector3(0, KNOB_H, door_w * 0.9))
 	return global_position + Vector3(0, KNOB_H, 0)
 
 func get_interact_prompt() -> String:

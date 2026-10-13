@@ -423,17 +423,19 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			if open_above.has(c) or shaft_pass.has(c): pass     # a hole in the floor above, or a shaft from below passing up through this wall: no ceiling
 			elif panel_ceiling != null: pass        # built by level_fixtures.gd with its lights
 			elif pc.has(c): paint_ceil.get_or_add(pc[c], []).append(c)
-			elif classic.has(c): classic_ceil.append(c)
+			elif classic.has(c) and not _has_pbr("ceiling"): classic_ceil.append(c)     # (a level's own ceiling wins)
 			else: ceil_cells.append(c)
 			if pits.has(c): continue
 			if cut.has(c):
-				var key := ("paint:" + str(pf[c])) if pf.has(c) else ("classic" if classic.has(c) else ("hotel" if hotel.has(c) else ("tiles" if tiles.has(c) else "carpet")))
+				var key := ("paint:" + str(pf[c])) if pf.has(c) else ("classic" if classic.has(c) and not _has_pbr("floor") else ("hotel" if hotel.has(c) else ("tiles" if tiles.has(c) else "carpet")))
 				cut_keys.get_or_add(key, []).append(c)
 				cut_all.append(c)
 				continue
 			floor_cells.append(c)
+			# the Classic look's beige carpet only where the level hasn't picked a floor of its own (a Classic
+			# atmosphere paints Classic on every open cell: the floor picked in the editor would never show)
 			if pf.has(c): paint_floor.get_or_add(pf[c], []).append(c)
-			elif classic.has(c): classic_floor.append(c)
+			elif classic.has(c) and not _has_pbr("floor"): classic_floor.append(c)
 			elif hotel.has(c): hotel_floor.append(c)
 			elif tiles.has(c): tile_cells.append(c)
 			else: carpet_cells.append(c)
@@ -1447,6 +1449,8 @@ func _build_shaped_walls(list: Array) -> void:
 const WallJoints := preload("res://scripts/World/level/walls/wall_joints.gd")
 const WallMesh := preload("res://scripts/World/level/walls/wall_mesh.gd")
 const WallGeom := preload("res://scripts/World/level/walls/wall_geom.gd")
+const WallOpenings := preload("res://scripts/World/level/walls/wall_openings.gd")
+const OpeningTrim := preload("res://scripts/World/props/opening_trim.gd")
 const WALL_CHUNK := 8                # cells a side: the wall graph's meshes are cut into chunks this big
 ## What wall_mesh.gd built of the floor's wall graph (not its meshes): the outlines of the walls' feet ("loops",
 ## for the skirting) and their plans ("solids", for the trim to keep clear of). World metres, x / z.
@@ -1471,8 +1475,10 @@ func _build_wall_graph() -> void:
 		var ch := Vector2i(floori(mid.x / WALL_CHUNK), floori(mid.y / WALL_CHUNK))
 		keys[e] = {"l": "%s|%s|%d,%d" % [ed.mat_l, hk, ch.x, ch.y], "r": "%s|%s|%d,%d" % [ed.mat_r, hk, ch.x, ch.y],
 			"cap": "|%s|%d,%d" % [hk, ch.x, ch.y]}
-	var res := WallMesh.build(WallJoints.solve(wall_graph, CELL), spans, keys, _wall_repeat())
-	wall_plan = {"loops": res.loops, "solids": res.solids}
+	var sol := WallJoints.solve(wall_graph, CELL)
+	var res := WallMesh.build(sol, spans, keys, _wall_repeat(), true, WallOpenings.holes_of(wall_graph, spans))
+	wall_plan = {"loops": res.loops, "solids": res.solids, "holes": res.holes}
+	_build_openings(sol, res.holes)
 	for key: String in res.meshes:
 		var mi := MeshInstance3D.new()
 		mi.mesh = res.meshes[key]
@@ -1513,6 +1519,102 @@ func _build_wall_graph() -> void:
 		var oi := OccluderInstance3D.new()
 		oi.occluder = occ
 		add_child(oi)
+
+## What stands in the openings of the wall graph's walls (wall_openings.gd): a door's leaf (props/door.gd; two
+## for a pair, each hung on its own jamb), a window (props/window.gd) set back in its hole, and the joinery round
+## them (props/opening_trim.gd: the lining in the hole, the casing round it on the faces, a window's stool). An
+## arch is plain plaster, the wall's own reveal.
+const CASING_W := 0.09
+const CASING_D := 0.025
+const LINING_T := 0.035
+func _build_openings(sol: Dictionary, holes: Dictionary) -> void:
+	for e in holes:
+		var w: Dictionary = sol.edges[e]
+		var cv: Dictionary = w.cv
+		for h: Dictionary in holes[e]:
+			var op: Dictionary = h.op
+			var kind := str(h.kind)
+			var trim := {}
+			match kind:
+				"door", "doorway":
+					trim = {"lining": LINING_T, "casing_w": CASING_W, "casing_d": CASING_D, "faces": ["l", "r"]}
+				"window":
+					var sky := str(op.get("glass", "sky")) == "sky"
+					var side := str(op.get("side", "l"))
+					trim = {"lining": 0.02, "casing_w": CASING_W * 0.8, "casing_d": CASING_D, "stool": 0.06,
+						"faces": [side] if sky else ["l", "r"]}
+			if not trim.is_empty():
+				var mi := MeshInstance3D.new()
+				mi.mesh = OpeningTrim.build(h, cv, trim)
+				mi.material_override = door_frame_mat
+				add_child(mi)
+			var xf := WallOpenings.frame_of(h, cv)
+			var clear := (WallGeom.point(cv, h.t0) as Vector2).distance_to(WallGeom.point(cv, h.t1))
+			match kind:
+				"door": _build_wall_door(op, h, xf, clear)
+				"window": _build_wall_window(op, h, cv, xf)
+
+func _build_wall_door(op: Dictionary, h: Dictionary, xf: Transform3D, clear: float) -> void:
+	var leaf_w := clear - LINING_T * 2.0
+	var leaf_h := float(h.y1) - LINING_T
+	if leaf_w < 0.3 or leaf_h < 0.5: return
+	var leaves := clampi(int(op.get("leaves", 1)), 1, 2)
+	var hinge_b := str(op.get("hinge", "a")) == "b"
+	var each := leaf_w / leaves
+	for k in leaves:
+		var d := Door.new()
+		d.leaf = str(op.get("style", "wood"))
+		# a single leaf hangs on its hinge jamb (b: turned round to hang on the other); a pair, one on each
+		var flip: bool = hinge_b if leaves == 1 else k == 1
+		var off := 0.0 if leaves == 1 else -each * 0.5
+		d.transform = xf * Transform3D(Basis(Vector3.UP, PI) if flip else Basis.IDENTITY, Vector3.ZERO) * Transform3D(Basis.IDENTITY, Vector3(0, 0, off))
+		add_child(d)
+		d.build_leaf(each - (0.004 if leaves == 2 else 0.0), leaf_h, door_leaf_mat, door_hw_mat)
+
+## A window in its hole: its own frame (props/window.gd) +x into the room; a window onto the sky stands at the back
+## of the hole (against the face that isn't cut), one you see through in the middle of the wall
+func _build_wall_window(op: Dictionary, h: Dictionary, cv: Dictionary, xf: Transform3D) -> void:
+	var glass := str(op.get("glass", "sky"))
+	var side := str(op.get("side", "l"))
+	var to_room := -1.0 if side == "l" else 1.0          # (the opening's frame has +x to the wall's right face)
+	var inv := xf.affine_inverse()
+	var ls: PackedVector2Array = h.l
+	var rs: PackedVector2Array = h.r
+	var n := ls.size()
+	# the room's face nearest the back, and the back face nearest the room, all along the opening (a curve: the
+	# glass stays in the hole)
+	var room_d := INF
+	var back_d := -INF
+	for i in n:
+		var room: Vector2 = ls[i] if side == "l" else rs[i]
+		var back: Vector2 = rs[i] if side == "l" else ls[i]
+		room_d = minf(room_d, (inv * Vector3(room.x, 0.0, room.y)).x * to_room)
+		back_d = maxf(back_d, (inv * Vector3(back.x, 0.0, back.y)).x * to_room)
+	var glass_d := back_d + 0.03 if glass == "sky" else (room_d + back_d) * 0.5 - WindowPiece.FRAME_D * 0.5
+	# how wide the hole is at the glass: where its jambs (square across the wall) cross that plane
+	var jz := func(k: int) -> float:
+		var a := inv * Vector3(ls[k].x, 0.0, ls[k].y)
+		var b := inv * Vector3(rs[k].x, 0.0, rs[k].y)
+		var f := clampf((glass_d * to_room - a.x) / (b.x - a.x), 0.0, 1.0) if absf(b.x - a.x) > 1e-6 else 0.5
+		return lerpf(a.z, b.z, f)
+	var z0: float = jz.call(0)
+	var z1: float = jz.call(n - 1)
+	var fw := WindowPiece.FRAME_W
+	var wp := WindowPiece.new()
+	wp.glass = glass
+	wp.recess = maxf(room_d - glass_d, 0.0)
+	var turn := Basis(Vector3.UP, PI) if to_room < 0.0 else Basis.IDENTITY
+	wp.transform = xf * Transform3D(Basis.IDENTITY, Vector3(glass_d * to_room, 0.0, (z0 + z1) * 0.5)) * Transform3D(turn, Vector3.ZERO)
+	add_child(wp)
+	var o := {"frame": str(op.get("style", "pane")), "scale": maxf(absf(z1 - z0) - fw * 2.0, 0.1) / CELL, "elev": float(h.y0) + fw,
+		"height": float(h.y1) - float(h.y0) - fw * 2.0, "panes": op.get("panes", 3), "sky": op.get("sky", "noon"),
+		"sun": op.get("sun", 8.0), "sun_angle": op.get("sun_angle", 35.0), "shadows": op.get("shadows", true), "_fitted": true}
+	if h.get("round", false) and not h.get("disc", false):
+		o["height"] = float(h.y1) - float(h.y0) - fw     # (an arched head: its crown just under the hole's)
+	var mid: Vector2 = WallGeom.point(cv, (float(h.t0) + float(h.t1)) * 0.5)
+	wp.build(o, _object_wall_h({"pos_x": mid.x / CELL, "pos_y": mid.y / CELL}), shell, func(p: Vector3) -> bool: return _block_at(cell_of(p)))
+	for l in wp.find_children("*", "Light3D", true, false):
+		(l as Light3D).light_cull_mask &= ~SHELL_LAYERS
 
 ## The material of a wall-graph face: `id` a textures/pbr material ("" the level's walls), unrolled along the wall
 ## in metres (its UVs, not a world projection, so it runs on round a curve); `h` the room height it's drawn for

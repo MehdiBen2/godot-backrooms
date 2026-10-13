@@ -104,6 +104,10 @@ func start() -> void:
 	impulse_pitch = 0.25
 	impulse_yaw = 0.0
 	impulse_roll = 0.0
+	# your arms are thrown up as it hauls you off the ground, flailing at it until the bite (torch_model.gd)
+	var torch = player.get("torch")
+	if torch != null:
+		torch.catch_scene("bacteria", player, BITE_AT - 0.05)
 	player.frozen = true
 	player.velocity = Vector3.ZERO
 	base = player.global_position

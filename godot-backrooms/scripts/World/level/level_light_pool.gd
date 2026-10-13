@@ -184,8 +184,8 @@ func _rank(p: Vector3) -> void:
 		for f in held:
 			if f == null: continue
 			if edge_wrap: f.img = wrap_near(f.pos, p) - f.pos
-			var hx: float = f.pos.x + _img(f).x - p.x
-			var hz: float = f.pos.z + _img(f).z - p.z
+			var hx: float = f.light_pos.x + _img(f).x - p.x       # (where its light is: off a wall it may not be the cell's middle)
+			var hz: float = f.light_pos.z + _img(f).z - p.z
 			f.dsq = hx * hx + hz * hz
 			f.wanted = false
 			f.far_wanted = false
@@ -213,8 +213,8 @@ func _rank(p: Vector3) -> void:
 						if found.has(f.index): continue       # (a small level: two copies of one tube within reach)
 						found[f.index] = true
 						f.img = wrap_near(f.pos, p) - f.pos
-					var dx: float = f.pos.x + _img(f).x - p.x
-					var dz: float = f.pos.z + _img(f).z - p.z
+					var dx: float = f.light_pos.x + _img(f).x - p.x
+					var dz: float = f.light_pos.z + _img(f).z - p.z
 					f.dsq = dx * dx + dz * dz
 					f.wanted = false
 					f.far_wanted = false
@@ -281,7 +281,7 @@ static func _flat(p: Vector3) -> Vector2:
 	return Vector2(p.x, p.z) / CELL
 
 func _seen_from(eyes: Array, f: Dictionary) -> bool:
-	var at: Vector3 = f.pos + _img(f)
+	var at: Vector3 = f.light_pos + _img(f)      # (seen where its light is: moved off a wall, the cell's middle may be in it)
 	for e in eyes:
 		if _line_clear(e, at, true) and not sight_blocked(_flat(e), _flat(at)): return true
 	return false
@@ -485,7 +485,7 @@ func tube_light_at(p: Vector3) -> float:
 		if f == null: continue
 		var w: float = lamp_out(f) * slot_weight[i]
 		if w < 0.001: continue               # (a dark slot adds nothing: no sight line to walk)
-		var at: Vector3 = wrap_near(f.pos, p)       # (across the seam of an endless level: its nearest copy)
+		var at: Vector3 = wrap_near(f.light_pos, p)  # (across the seam of an endless level: its nearest copy)
 		var dsq := at.distance_squared_to(p)
 		# a tube behind a wall only reaches you by bouncing round (it used to count in full, so standing in a
 		# dark corridor beside a lit one read as lit: the eye adaptation, fog and sanity all got it wrong)

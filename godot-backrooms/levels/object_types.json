@@ -32,14 +32,31 @@
     "label": "Door",
     "key": "6",
     "color": "c0602a",
-    "help": "A framed wood door set in its own thin wall; opens as you approach",
+    "help": "A door in a wall: click a wall and it goes into it (a real opening, its frame following a curved wall); drag it along the wall, its ends to size it. Off a wall: a door in its own thin wall across the cell. The inspector sets its style (wood, old wood, metal, office with a glass panel, glass), one leaf or a pair, which jamb it hangs on",
     "thickness": 0.3,
     "opening": 1.12,
     "on_cell": "wall",
     "blocks_nav": true,
     "category": "openings",
+    "opening_kind": "door",
     "params": {"leaf": "wood"},
-    "choices": {"leaf": {"wood": "The framed wood door (the default)", "old_wood": "An old wooden door leaf", "metal": "A metal door leaf"}}
+    "choices": {"leaf": {"wood": "The framed wood door (the default)", "old_wood": "An old wooden door leaf", "metal": "A metal door leaf", "office": "A flush office door with a narrow glass panel", "glass": "A glass door in an aluminium frame"}}
+  },
+  "doorway": {
+    "label": "Doorway",
+    "color": "b08a52",
+    "help": "An open doorway with a cased frame and no door: click a wall to cut it in. You walk and see through it; the monsters path through it",
+    "category": "openings",
+    "shape": "opening",
+    "opening_kind": "doorway"
+  },
+  "wall_arch": {
+    "label": "Wall arch",
+    "color": "9a7a4a",
+    "help": "A round-topped opening in plain plaster: click a wall to cut it in (straight or curved). You walk and see through it",
+    "category": "openings",
+    "shape": "opening",
+    "opening_kind": "arch"
   },
   "squeeze_gap": {
     "label": "Squeeze gap",
@@ -339,7 +356,8 @@
   "window": {
     "label": "Window",
     "color": "bfe8ff",
-    "help": "A window onto a bright outside that isn't there: the sky and the sun through the glass, and real sunlight thrown into the room through its panes (their shadows land on the floor). Put it on a wall face, its arrow pointing into the room. Width along the wall (cells), Height and Off floor (the sill, m), Frame (panes, a round porthole, an arched top, a floor-to-ceiling panorama), Panes (glazing bars), Sun (how much light it throws), Sun angle (how high the sun stands), Sky (the light's colour)",
+    "opening_kind": "window",
+    "help": "Click a wall of the walls tools and it goes into it: a real opening, set back in the wall, the sun thrown in through it with shadows (the inspector: onto the sky, or glass you see through into the next room). On a block wall: a window onto a bright outside that isn't there: the sky and the sun through the glass, and real sunlight thrown into the room through its panes (their shadows land on the floor). Put it on a wall face, its arrow pointing into the room. Width along the wall (cells), Height and Off floor (the sill, m), Frame (panes, a round porthole, an arched top, a floor-to-ceiling panorama), Panes (glazing bars), Sun (how much light it throws), Sun angle (how high the sun stands), Sky (the light's colour)",
     "thickness": 0.25,
     "shape": "window",
     "mount": "wall",

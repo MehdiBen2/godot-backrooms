@@ -5,12 +5,20 @@ extends Node3D
 ##  - the glass shows a sky drawn from the way you look through it (window_sky.gdshader), so it is as far off as
 ##    a real one and the sun stands still in it;
 ##  - a white frame and glazing bars stand proud of the wall, with a sill;
-##  - the sun comes in as sunlight does: a light far back behind the window (its rays all but parallel, nothing
-##    of the wall in its way), its projector the window's own outline and bars seen from the sun (_mask), edges
-##    softened as the sun's own width softens them. So the patch on the floor is the window's shape drawn out
-##    along the sun's angle, bars and all, as a real one is;
-##  - that patch lights the room back up a little (a soft bounce off it), and daylight spills in round the glass;
+##  - the sun comes in as sunlight does: a light at the glass whose projector is the patch the sun draws on the
+##    floor through this window (_mask: every ray of the light that reaches the floor is traced back along the
+##    sun's way to the glass; it is lit if it came through a pane, not a bar or the frame), edges softened as the
+##    sun's own width softens them. So the patch is the window's shape drawn out along the sun's angle, bars and
+##    all, as a real one is. It casts shadows: whatever stands in it (you, a chair) throws one across the patch,
+##    and no wall lets it through (the window's own frame and glass aside: WINDOW_LAYER, drawn in its mask);
+##  - that patch lights the room back up (a soft bounce off it, up onto the ceiling and the walls round it), and
+##    daylight comes in through the opening, soft and shadowed, brightest by the window and dying off into the
+##    room, as a real one's does;
 ##  - where the level's air is hazy (volumetric fog), the sunlight shows as shafts in it.
+## Set in a wall of the graph (wall_openings.gd, level_geometry.gd _build_openings) the window stands in a real
+## hole: `recess` is how far back from the room's face of the wall its glass is. `glass`: "sky" (all the above),
+## "clear" (glass you see through into the next room: no sky, no light of its own, the rooms' lights shine through
+## it) or "frosted" (lets light through, shows nothing).
 ## Styles ("frame"): pane (lights in a row, a transom across), porthole (round, Width its diameter), arched
 ## (lights under a round head) and panorama (a wall of glass from the sill nearly to the ceiling). The MODEL_FRAMES
 ## styles hang a real window model (models/props/asset_pack) round the same sky glass instead of the built frame:
@@ -45,31 +53,40 @@ static var _frame_mat: StandardMaterial3D
 
 var sun: SpotLight3D
 var fill: SpotLight3D
-var bounce: OmniLight3D
+var bounce: SpotLight3D
 var _solid: Callable
+var glass := "sky"                 # "sky", "clear", "frosted" (set before build)
+var recess := 0.0                  # m from the glass to the room's face of the wall (set before build)
+var ceiling_h := 5.4
 
-const SUN_BACK := 16.0             # m behind the glass the sun light stands: far enough that its rays run (nearly) parallel
-const SUN_MAX := 0.4             # the most a window's sun may be (a ceiling lamp's pool is about 1)
+const WINDOW_LAYER := 1 << 16      # the window's own frame, bars and glass: its sun's shadows leave them out
+const ALL_LAYERS := (1 << 20) - 1
+const SUN_MAX := 3.0               # the most a window's sun may be (a ceiling lamp's pool is about 1: sunlight is far brighter)
 const SUN_SOFT := 0.012            # how far the sun's width spreads a shadow's edge, per metre from what casts it
+const FADE := 34.0                 # m: past this the window's lights (and their shadows) fade out together
 
 ## `ceiling`: the ceiling height of the room it looks into (a panorama runs up to just under it). `solid`: is a
 ## point (in the level) inside a wall block (no bounce light is put in a wall)
 func build(o: Dictionary, ceiling: float, shell: bool, solid := Callable()) -> void:
 	_solid = solid
+	ceiling_h = ceiling
 	name = "Window_%d" % get_index()
 	var style := str(o.get("frame", "pane"))
 	var w := float(o.scale) * CELL
 	var sill := maxf(0.0, float(o.get("elev", 0.9)))
 	var h := float(o.get("height", 2.2))
 	if h <= 0.0: h = 2.2
-	if style == "panorama":
+	if o.get("_fitted", false):
+		pass                                       # (sized to its hole already)
+	elif style == "panorama":
 		sill = minf(sill, 0.6)
 		h = maxf(0.5, ceiling - sill - 0.3)
 	elif style == "porthole":
 		var d := minf(w, h)
 		w = d
 		h = d
-	h = minf(h, maxf(0.3, ceiling - sill - 0.05))
+	if not o.get("_fitted", false): h = minf(h, maxf(0.3, ceiling - sill - 0.05))
+	if glass != "sky": shell = true                # (no light of its own)
 	var panes := clampi(roundi(float(o.get("panes", 3.0))), 1, 12)
 	if MODEL_FRAMES.has(style):
 		var spec: Dictionary = MODEL_FRAMES[style]
@@ -121,6 +138,19 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 		_tri(st, Vector3(0.004, mid.y, mid.x), Vector3(0.004, a.y, a.x), Vector3(0.004, b.y, b.x), Vector3.RIGHT)
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
+	mi.layers = WINDOW_LAYER
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	if glass != "sky":
+		# glass you see through (a little green at the edge, a sharp reflection), or frosted: bright, blurred, milky
+		var gm := StandardMaterial3D.new()
+		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		gm.albedo_color = Color(0.74, 0.82, 0.8, 0.14) if glass == "clear" else Color(0.9, 0.92, 0.92, 0.72)
+		gm.roughness = 0.04 if glass == "clear" else 0.55
+		gm.metallic_specular = 0.9 if glass == "clear" else 0.4
+		mi.material_override = gm
+		return
 	var m := ShaderMaterial.new()
 	m.shader = _sky_shader
 	var sky: Array = SKY.get(str(o.get("sky", "noon")), SKY.noon)
@@ -132,8 +162,6 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 	m.set_shader_parameter("sun_dir", -_sun_dir_world(o))
 	m.set_shader_parameter("clouds", 0.6 if str(o.get("sky", "noon")) == "overcast" else 0.2)
 	mi.material_override = m
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
 
 ## Which way the sunlight travels, in the window's frame: into the room and down at the sun's angle
 func _sun_dir_local(o: Dictionary) -> Vector3:
@@ -201,6 +229,7 @@ func _build_frame(style: String, outline: PackedVector2Array, w: float, h: float
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
 	mi.material_override = _frame_mat
+	mi.layers = WINDOW_LAYER
 	add_child(mi)
 
 ## A window model round the glass: its thin side into the room (+x) from the wall face, its width along the wall,
@@ -228,6 +257,7 @@ func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bo
 	box = Transform3D(k * lay, Vector3.ZERO) * raw
 	var c := box.get_center()
 	inst.transform = Transform3D(k * lay, Vector3(-box.position.x, sill + h * 0.5 - c.y, -c.z))
+	for g in inst.find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).layers = WINDOW_LAYER
 	return true
 
 func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float, panes: int) -> void:
@@ -237,102 +267,131 @@ func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float,
 	var overcast := str(o.get("sky", "noon")) == "overcast"
 	var d := _sun_dir_local(o)
 	var mid := Vector3(0.0, sill + h * 0.5, 0.0)
-	var pitch := deg_to_rad(clampf(float(o.get("sun_angle", 35.0)), 5.0, 85.0))
-	# the window as the sun sees it: as wide, its height foreshortened by the sun's angle; the cone is fitted round it
-	var side := maxf(w, h * cos(pitch)) * 1.25
-	var reach := mid.y / maxf(-d.y, 0.1)                 # from the glass down to the floor, along the sun's way
 	var size_k := clampf(w * h / 2.5, 0.4, 3.0)
+	var casters := ALL_LAYERS & ~WINDOW_LAYER
 	if not overcast:
+		# the patch the sun draws on the floor: the window's corners carried along the sun's way down to it
+		var floor_pts: Array[Vector3] = []
+		for c: Vector3 in [Vector3(0, sill, -w * 0.5), Vector3(0, sill, w * 0.5), Vector3(0, sill + h, -w * 0.5), Vector3(0, sill + h, w * 0.5)]:
+			floor_pts.append(c + d * (c.y / maxf(-d.y, 0.05)))
+		var centre := Vector3.ZERO
+		for f in floor_pts: centre += f
+		centre /= 4.0
 		sun = SpotLight3D.new()
 		sun.name = "Sun"
-		sun.position = mid - d * SUN_BACK
-		sun.basis = Basis.looking_at(d, Vector3.UP)
+		sun.position = Vector3(0.02, mid.y, 0.0)          # at the glass, in the opening
+		var fwd := (centre - sun.position).normalized()
+		sun.basis = Basis.looking_at(fwd, Vector3.UP if absf(fwd.y) < 0.99 else Vector3.RIGHT)
+		var ang := 0.0
+		var reach := 0.0
+		for f in floor_pts:
+			ang = maxf(ang, fwd.angle_to((f - sun.position).normalized()))
+			reach = maxf(reach, f.distance_to(sun.position))
+		ang = clampf(rad_to_deg(ang) * 1.12 + 1.5, 3.0, 80.0)
+		sun.spot_angle = ang
+		sun.spot_angle_attenuation = 0.01                 # (its edge is the projector's)
+		sun.spot_attenuation = 0.0                        # sunlight doesn't fade across a room
+		sun.spot_range = reach * 1.6 + 2.0
 		sun.light_color = sky[4]
-		# a patch of sun a little brighter than the lamps' pools, never far past it: any more and the camera's bloom
-		# and lens dirt smear it into a glowing blob (the room round it is dim, and the exposure follows the room)
-		sun.light_energy = minf(power * SUN_GAIN * 0.09, SUN_MAX)
-		sun.spot_range = SUN_BACK + reach * 1.8 + 6.0
-		sun.spot_attenuation = 0.0                       # sunlight doesn't fade across a room
-		sun.spot_angle = clampf(rad_to_deg(atan(side * 0.5 / SUN_BACK)), 0.5, 60.0)
-		sun.spot_angle_attenuation = 0.01                # (its edge is the projector's, softened like the sun's)
+		# a patch of sun well brighter than the lamps' pools ("sun" 8: about one and a half of them), as sunlight on
+		# a floor is beside electric light
+		sun.light_energy = minf(power * SUN_GAIN * 0.45, SUN_MAX)
 		sun.light_specular = 0.08
 		sun.light_volumetric_fog_energy = 1.2
-		sun.shadow_enabled = false                       # (the wall it shines through would stop it)
-		sun.light_projector = _mask(style, w, h, panes, cos(pitch), side, reach, bool(o.get("shadows", true)))
-		sun.distance_fade_enabled = true
-		# (the fade is measured from the camera to the light itself, which stands SUN_BACK behind the glass: the
-		# window's own 50 m, plus that, so the patch on the floor fades out as far from you as the other lights' do)
-		sun.distance_fade_begin = 50.0 + SUN_BACK + reach
-		sun.distance_fade_length = 12.0
+		sun.shadow_enabled = true
+		sun.shadow_caster_mask = casters
+		sun.shadow_bias = 0.04
+		sun.shadow_normal_bias = 1.0
+		sun.light_size = 0.02                             # (the sun is small: crisp shadows, a little soft at the edge)
+		sun.light_projector = _mask(style, w, h, sill, panes, d, sun.transform, ang, bool(o.get("shadows", true)))
+		_fade(sun)
 		add_child(sun)
-		# the patch on the floor lights the room back up: a soft glow off it, in the sun's colour, with no glint
-		var patch := mid + d * reach + Vector3(0.0, 0.6, 0.0)
+		# the sunlit floor lights the room back up: a soft wash up off it onto the ceiling and the walls round it
+		var patch := centre + Vector3(0.0, 0.05, 0.0)
 		var free := not _solid.is_valid() or not bool(_solid.call(transform * patch))
-		if free and reach < 12.0:
-			bounce = OmniLight3D.new()
+		if free and centre.x < 14.0:
+			bounce = SpotLight3D.new()
 			bounce.name = "Bounce"
 			bounce.position = patch
-			bounce.light_color = (sky[4] as Color).lerp(Color(0.95, 0.95, 0.92), 0.3)
-			bounce.light_energy = minf(power * SUN_GAIN * 0.012 * size_k, 0.07)
-			bounce.omni_range = 4.0 + maxf(w, h) * 1.6
-			bounce.omni_attenuation = 1.6
+			bounce.basis = Basis(Vector3.RIGHT, PI * 0.5)    # facing straight up
+			bounce.light_color = (sky[4] as Color).lerp(Color(0.95, 0.9, 0.8), 0.4)
+			bounce.light_energy = minf(power * SUN_GAIN * 0.02 * size_k, 0.12)
+			bounce.spot_angle = 82.0
+			bounce.spot_angle_attenuation = 1.4
+			bounce.spot_attenuation = 1.1
+			bounce.spot_range = ceiling_h + 3.0 + maxf(w, h)
 			bounce.light_specular = 0.0
-			bounce.shadow_enabled = false
-			bounce.distance_fade_enabled = true
-			bounce.distance_fade_begin = 40.0
-			bounce.distance_fade_length = 10.0
+			bounce.shadow_enabled = true                  # (or it would light the room behind a wall beside the patch)
+			bounce.shadow_caster_mask = casters
+			bounce.light_size = 0.6
+			_fade(bounce)
 			add_child(bounce)
-	# daylight in round the glass: a broad soft wash from the window into the room (facing away from the wall, so
-	# it never makes a hot spot on the tiles beside the window)
+	# daylight in through the opening: a broad soft wash from its room side into the room, shadowed (it never leaks
+	# through a wall), brightest by the window (overcast: all there is, so stronger)
 	fill = SpotLight3D.new()
 	fill.name = "Daylight"
-	fill.position = mid + Vector3(0.05, 0.0, 0.0)
-	fill.basis = Basis.looking_at(Vector3(1.0, -0.35, 0.0).normalized(), Vector3.UP)
+	fill.position = Vector3(recess + 0.06, mid.y, 0.0)
+	fill.basis = Basis.looking_at(Vector3(1.0, -0.3, 0.0).normalized(), Vector3.UP)
 	fill.light_color = (sky[1] as Color).lerp(sky[4], 0.4)
-	fill.light_energy = minf(power * SUN_GAIN * (0.04 if overcast else 0.015) * size_k, 0.12)
+	fill.light_energy = minf(power * SUN_GAIN * (0.06 if overcast else 0.03) * size_k, 0.2)
 	fill.spot_range = 6.0 + maxf(w, h) * 2.0
-	fill.spot_angle = 80.0
-	fill.spot_angle_attenuation = 1.6
-	fill.spot_attenuation = 1.3
-	fill.light_specular = 0.0
-	fill.shadow_enabled = false
-	fill.distance_fade_enabled = true
-	fill.distance_fade_begin = 40.0
-	fill.distance_fade_length = 10.0
+	fill.spot_angle = 78.0
+	fill.spot_angle_attenuation = 1.3
+	fill.spot_attenuation = 1.4
+	fill.light_specular = 0.05
+	fill.shadow_enabled = true
+	fill.shadow_caster_mask = casters
+	fill.light_size = clampf(minf(w, h) * 0.5, 0.2, 1.0)  # (a window is a big light: soft shadows)
+	_fade(fill)
 	add_child(fill)
 
-## The window as the sun sees it, for its light's projector: white glass, black frame and bars, square (`side`
-## metres across: the cone's width at the glass), its height squashed by `squash` (the sun's angle foreshortens
-## it). Blurred by what the sun's width does to an edge over `reach` metres, so the patch is soft-edged like a
-## real one. `bars`: the glazing bars throw their shadows too. Made once per shape.
-func _mask(style: String, w: float, h: float, panes: int, squash: float, side: float, reach: float, bars: bool) -> ImageTexture:
-	var key := "%s|%.2f|%.2f|%d|%.2f|%.2f|%s" % [style, w, h, panes, squash, reach, bars]
+func _fade(l: Light3D) -> void:
+	l.distance_fade_enabled = true
+	l.distance_fade_begin = FADE
+	l.distance_fade_length = 8.0
+	l.distance_fade_shadow = FADE
+
+## The sun's projector for a light at `at` (the window's frame) looking along its -z, `ang` degrees each side:
+## each pixel's ray is run on to the floor and traced back up the sun's way `d` to the glass; it is lit if it came
+## through the window (`style`, w x h from `sill`, its bars if `bars`). Blurred by what the sun's width does to an
+## edge, so the patch is soft-edged like a real one. Made once per shape.
+func _mask(style: String, w: float, h: float, sill: float, panes: int, d: Vector3, at: Transform3D, ang: float, bars: bool) -> ImageTexture:
+	var key := "%s|%.2f|%.2f|%.2f|%d|%.3f|%.3f|%.2f|%s" % [style, w, h, sill, panes, d.x, d.y, ang, bars]
 	if _masks.has(key): return _masks[key]
-	const N := 160
+	const N := 192
 	var img := Image.create(N, N, false, Image.FORMAT_L8)
 	var bar := BAR_W * 0.5 + 0.025          # (a bar's shadow, with the frame's depth round it, is wider than the bar)
+	var tn := tan(deg_to_rad(ang))
+	var reach := 0.0
 	for py in N:
 		for px in N:
-			var z := ((float(px) + 0.5) / N - 0.5) * side
-			var y := h * 0.5 - ((float(py) + 0.5) / N - 0.5) * side / maxf(squash, 0.1)    # up the window: up the texture
+			var ray := at.basis * Vector3(((px + 0.5) / N * 2.0 - 1.0) * tn, (1.0 - (py + 0.5) / N * 2.0) * tn, -1.0)
 			var inside := false
-			match style:
-				"porthole":
-					inside = Vector2(z, y - h * 0.5).length() < w * 0.5 - FRAME_W * 0.3
-				"arched":
-					var r := w * 0.5
-					var spring := maxf(h - r, 0.0)
-					inside = absf(z) < r and y > 0.0 and (y < spring or Vector2(z, y - spring).length() < r)
-				_:
-					inside = absf(z) < w * 0.5 and y > 0.0 and y < h
-			if inside and bars and style != "porthole":
-				for k in range(1, panes):
-					if absf(z - (-w * 0.5 + w * k / panes)) < bar: inside = false
-				if style == "pane" and h > 1.3 and absf(y - h * 0.64) < bar: inside = false
-				if style == "arched" and absf(y - maxf(h - w * 0.5, 0.0)) < bar: inside = false
+			if ray.y < -1e-4:
+				var f := at.origin + ray * (-at.origin.y / ray.y)
+				if f.x > 0.0:
+					var g := f - d * (f.x / maxf(d.x, 1e-4))        # back up the sun's way to the glass (x = 0)
+					var z := g.z
+					var y := g.y - sill
+					reach = maxf(reach, f.distance_to(g))
+					match style:
+						"porthole":
+							inside = Vector2(z, y - h * 0.5).length() < w * 0.5 - FRAME_W * 0.3
+						"arched":
+							var r := w * 0.5
+							var spring := maxf(h - r, 0.0)
+							inside = absf(z) < r and y > 0.0 and (y < spring or Vector2(z, y - spring).length() < r)
+						_:
+							inside = absf(z) < w * 0.5 and y > 0.0 and y < h
+					if inside and bars and style != "porthole":
+						for k in range(1, panes):
+							if absf(z - (-w * 0.5 + w * k / panes)) < bar: inside = false
+						if style == "pane" and h > 1.3 and absf(y - h * 0.64) < bar: inside = false
+						if style == "arched" and absf(y - maxf(h - w * 0.5, 0.0)) < bar: inside = false
 			img.set_pixel(px, py, Color.WHITE if inside else Color.BLACK)
 	# the sun's half degree: an edge spreads by reach * SUN_SOFT on the floor
-	var blur := clampi(roundi(reach * SUN_SOFT / side * N * 0.5), 1, 4)
+	var floor_w := 2.0 * tn * maxf(at.origin.y, 0.5) / maxf(-((at.basis * Vector3(0, 0, -1)).y), 0.2)
+	var blur := clampi(roundi(reach * SUN_SOFT / maxf(floor_w, 0.1) * N * 0.5), 1, 4)
 	_box_blur(img, blur)
 	img.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(img)

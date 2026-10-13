@@ -16,6 +16,7 @@ const Joints := preload("res://scripts/World/level/walls/wall_joints.gd")
 const WallMesh := preload("res://scripts/World/level/walls/wall_mesh.gd")
 const Geom := preload("res://scripts/World/level/walls/wall_geom.gd")
 const Snap := preload("res://scripts/World/level/walls/wall_snap.gd")
+const Openings := preload("res://scripts/World/level/walls/wall_openings.gd")
 const CELL := 4.5
 const FULL := 5.4
 
@@ -25,6 +26,7 @@ func _initialize() -> void:
 	for c: Dictionary in Cases.cases():
 		if _check(c.name, c.g, c).is_empty(): _fail(c.name, "the check crashed (see the script error above)")
 	_round_trip()
+	_openings()
 	_snapping()
 	_editing()
 	if not _level0(): _fail("level0", "the check crashed (see the script error above)")
@@ -58,7 +60,7 @@ func _check(name: String, g, want: Dictionary) -> Dictionary:
 			var at: Vector2 = Geom.start_of(cv) if g.edges[e].a == n else Geom.end_of(cv)
 			if at.distance_to(g.pos(n)) > 1e-4: _fail(name, "wall %d came away from moved node %d" % [e, n])
 	var sol := Joints.solve(g, CELL)
-	var res := WallMesh.build(sol, spans_of(g), keys_of(g), 2.25)
+	var res := WallMesh.build(sol, spans_of(g), keys_of(g), 2.25, true, Openings.holes_of(g, spans_of(g)))
 	var polys: Array = []
 	for e in sol.edges: polys.append([sol.edges[e].poly, "wall %d" % e])
 	for n in sol.hubs:
@@ -80,7 +82,11 @@ func _check(name: String, g, want: Dictionary) -> Dictionary:
 					_fail(name, "%s overlaps %s by %.5f m2" % [polys[i][1], polys[j][1], a])
 	# outline
 	var open: int = (res.loops as Array).filter(func(l): return not l.closed).size()
-	if open > 0: _fail(name, "%d outlines don't close (a gap or an overlap)" % open)
+	if open != int(want.get("open", 0)): _fail(name, "%d outlines don't close (a gap or an overlap), wanted %d" % [open, int(want.get("open", 0))])
+	if want.has("holes"):
+		var n := 0
+		for e in res.holes: n += (res.holes[e] as Array).size()
+		if n != int(want.holes): _fail(name, "%d openings cut, wanted %d" % [n, want.holes])
 	if want.has("loops") and res.loops.size() != want.loops: _fail(name, "%d outlines, wanted %d" % [res.loops.size(), want.loops])
 	# mesh
 	var tris := _triangles(res.meshes)
@@ -120,14 +126,28 @@ static func _watertight(tris: PackedVector3Array) -> String:
 			if d.length() < 1e-6: continue
 			var dir := d.normalized()
 			if dir.x < -1e-5 or (absf(dir.x) <= 1e-5 and (dir.y < -1e-5 or (absf(dir.y) <= 1e-5 and dir.z < 0.0))): dir = -dir
-			var o := a - dir * a.dot(dir)
-			var key := "%d,%d,%d|%d,%d,%d" % [roundi(dir.x * 2000), roundi(dir.y * 2000), roundi(dir.z * 2000), roundi(o.x * 500), roundi(o.y * 500), roundi(o.z * 500)]
-			var t0 := a.dot(dir)
-			var t1 := b.dot(dir)
+			# (from the same end whichever way the edge runs, so an edge and its twin round alike)
+			var lo := a if (a.x < b.x or (a.x == b.x and (a.y < b.y or (a.y == b.y and a.z < b.z)))) else b
+			var o := lo - dir * lo.dot(dir)
+			var key := [roundi(dir.x * 2000), roundi(dir.y * 2000), roundi(dir.z * 2000), roundi(o.x * 500), roundi(o.y * 500), roundi(o.z * 500)]
 			if not lines.has(key): lines[key] = []
-			lines[key].append([minf(t0, t1), maxf(t0, t1), 1 if t1 > t0 else -1, a, b])
-	for key in lines:
-		var ivs: Array = lines[key]
+			lines[key].append([a, b])
+	for key: Array in lines:
+		# (an edge and its twin can round into neighbouring buckets: a short edge far out has a noisy direction)
+		var dir: Vector3 = ((lines[key][0][1] as Vector3) - lines[key][0][0]).normalized()
+		var ivs: Array = []
+		for k: Array in _near_keys(key):
+			if not lines.has(k): continue
+			for e: Array in lines[k]:
+				var a: Vector3 = e[0]
+				var b: Vector3 = e[1]
+				if absf((b - a).normalized().dot(dir)) < 0.99999: continue
+				var off := a - dir * a.dot(dir)
+				var o0: Vector3 = (lines[key][0][0] as Vector3) - dir * (lines[key][0][0] as Vector3).dot(dir)
+				if off.distance_to(o0) > 2e-4: continue
+				var t0 := a.dot(dir)
+				var t1 := b.dot(dir)
+				ivs.append([minf(t0, t1), maxf(t0, t1), 1 if t1 > t0 else -1, a, b])
 		var cuts: Array[float] = []
 		for iv: Array in ivs:
 			cuts.append(iv[0])
@@ -146,14 +166,26 @@ static func _watertight(tris: PackedVector3Array) -> String:
 				return "an edge near %s-%s is open (%d)" % [_v(any[3]), _v(any[4]), sum]
 	return ""
 
-## No two triangles in the same plane overlapping
+static func _near_keys(key: Array) -> Array:
+	var out: Array = [key]
+	for i in 6:
+		var more: Array = []
+		for k: Array in out:
+			for dk: int in [-1, 1]:
+				var n := k.duplicate()
+				n[i] += dk
+				more.append(n)
+		out.append_array(more)
+	return out
+
+## No two triangles in the same plane facing the same way overlapping (back to back is fine: the back of a recess
+## against the wall's face on the other side, each seen from its own side only)
 static func _zfight(tris: PackedVector3Array) -> String:
 	var planes := {}
 	for i in range(0, tris.size(), 3):
 		var n := (tris[i + 1] - tris[i]).cross(tris[i + 2] - tris[i])
 		if n.length() < 1e-9: continue
 		n = n.normalized()
-		if n.x < -1e-5 or (absf(n.x) <= 1e-5 and (n.y < -1e-5 or (absf(n.y) <= 1e-5 and n.z < 0.0))): n = -n
 		var key := "%d,%d,%d|%d" % [roundi(n.x * 1000), roundi(n.y * 1000), roundi(n.z * 1000), roundi(n.dot(tris[i]) * 1000)]
 		if not planes.has(key): planes[key] = [n, []]
 		planes[key][1].append(i)
@@ -225,6 +257,65 @@ func _round_trip() -> void:
 		g2.load_dict(JSON.parse_string(JSON.stringify(d)))
 		if JSON.stringify(g2.to_dict()) != JSON.stringify(d): _fail("save round trip", c.name + " changed on the way back in")
 	print("%s save round trip" % ("PASS" if fails == f0 else "FAIL"))
+
+# ---------------------------------------------------------------- openings
+func _openings() -> void:
+	var f0 := fails
+	var add := func(g, at: Vector2, kind: String, settings := {}) -> int:
+		var hit: Dictionary = g.edge_near(at, 0.05)
+		var e: int = hit.e
+		var u: float = g.fit_opening(e, float(hit.t), float(settings.get("w", WallGraph.OPENINGS[kind].w)))
+		g.edges[e].ops.append(WallGraph.new_opening(kind, u, settings))
+		return e
+	# a closed room, a door in one wall (its skirting chain opens there), a window onto the sky in another (cut
+	# into the room's face only), a doorway and an arch
+	var g = WallGraph.new()
+	for w: Array in [[Vector2(0, 0), Vector2(4, 0)], [Vector2(4, 0), Vector2(4, 3)], [Vector2(4, 3), Vector2(0, 3)], [Vector2(0, 3), Vector2(0, 0)]]:
+		Cases.line(g, w[0], w[1])
+	add.call(g, Vector2(2, 0), "door")
+	add.call(g, Vector2(4, 1.5), "window", {"side": "l"})
+	add.call(g, Vector2(2, 3), "arch")
+	_check("openings: door, window, arch in a room", g, {"holes": 3, "open": 4, "loops": 4})
+	# curved walls: a door and an arched window in an arc, a doorway in an arc meeting a straight wall
+	g = WallGraph.new()
+	Cases.arc(g, Vector2(0, 0), Vector2(4, 0), 120.0)
+	Cases.line(g, Vector2(4, 0), Vector2(8, 0))
+	var arc: int = g.edge_near(Geom.point(g.curve_of(g.edges.keys()[0]), 0.5), 0.05).e
+	var mid := Geom.point(g.curve_of(arc), 0.3)
+	add.call(g, mid, "door")
+	add.call(g, Geom.point(g.curve_of(arc), 0.75), "window", {"style": "arched", "glass": "clear", "w": 1.4, "h": 2.0})
+	add.call(g, Vector2(6, 0), "doorway")
+	_check("openings in an arc", g, {"holes": 3, "open": 4})
+	# the openings stay put when their wall is split and joined again, and come back from a save
+	var e: int = g.edge_near(Vector2(6, 0), 0.05).e
+	var at: Vector2 = Geom.point(g.curve_of(e), float(g.ops_of(e)[0].u))
+	g.split(e, Vector2(4.5, 0))
+	var e2: int = g.edge_near(at, 0.05).e
+	var at2: Vector2 = Geom.point(g.curve_of(e2), float(g.ops_of(e2)[0].u)) if not g.ops_of(e2).is_empty() else Vector2(-99, -99)
+	if at2.distance_to(at) > 1e-3: _fail("openings", "a doorway moved when its wall was split (%s -> %s)" % [at, at2])
+	g.tidy_node(g.node_near(Vector2(4.5, 0), 0.01))
+	var e3: int = g.edge_near(at, 0.05).e
+	var at3: Vector2 = Geom.point(g.curve_of(e3), float(g.ops_of(e3)[0].u)) if g.ops_of(e3).size() == 1 else Vector2(-99, -99)
+	if at3.distance_to(at) > 1e-3: _fail("openings", "a doorway moved when its wall was joined back up (%s -> %s)" % [at, at3])
+	var d: Dictionary = g.to_dict()
+	var g2 = WallGraph.new()
+	g2.load_dict(JSON.parse_string(JSON.stringify(d)))
+	if JSON.stringify(g2.to_dict()) != JSON.stringify(d): _fail("openings", "changed on the way back in from a save")
+	# walking through: a doorway leaves a gap in the walls monsters path round, a door doesn't; sight sees
+	# through both
+	var count := func(spans: Array) -> int: return spans.size()
+	var h = WallGraph.new()
+	Cases.line(h, Vector2(0, 0.3), Vector2(4, 0.3))
+	var solid: int = count.call(h.nav_spans())
+	add.call(h, Vector2(2, 0.3), "door")
+	if count.call(h.nav_spans()) != solid: _fail("openings", "a door opened a way through for the monsters")
+	if count.call(h.nav_spans(true, true)) != solid + 1: _fail("openings", "sight doesn't see through a door")
+	h.edges[h.edges.keys()[0]].ops[0].kind = "doorway"
+	if count.call(h.nav_spans()) != solid + 1: _fail("openings", "a doorway leaves no way through")
+	# a wall laid over a wall with a door keeps the door
+	Cases.line(h, Vector2(0, 0.3), Vector2(4, 0.3))
+	if h.edges.size() != 1 or h.ops_of(h.edges.keys()[0]).size() != 1: _fail("openings", "a wall laid over one lost its opening")
+	print("%s openings (in walls and arcs, through splits, joins and saves, nav and sight)" % ("PASS" if fails == f0 else "FAIL"))
 
 # ---------------------------------------------------------------- snapping
 func _snapping() -> void:
@@ -329,7 +420,8 @@ func _level0() -> bool:
 	var lvl: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://levels/level0.lvl"))
 	var size := int(lvl.size)
 	var objects: Array = lvl.objects
-	var walls := objects.filter(func(o): return str(types.get(o.type, {}).get("shape", "")) in ["slab", "corner", "arc", "spline"])
+	# (a door was a thin wall across its cells with the door in it: it is a wall of the graph with a door in it now)
+	var walls := objects.filter(func(o): return o.type == "door" or str(types.get(o.type, {}).get("shape", "")) in ["slab", "corner", "arc", "spline"])
 	# the old way: which cells the wall objects took over, and which cell links they cut
 	var old_cells := {}
 	var old_cut := {}
@@ -374,11 +466,12 @@ func _level0() -> bool:
 	for k in gained: print("    newly cut: ", k)
 	if not lost.is_empty(): _fail("level0", "%d cell links a wall used to cut are open now" % lost.size())
 	print("%s level0 conversion" % ("PASS" if fails == f0 else "FAIL"))
-	return not _check("level0 walls built", g, {}).is_empty()
+	# (its one door opens the outline it stands in, both sides of it)
+	return not _check("level0 walls built", g, {"open": 2, "holes": 1}).is_empty()
 
 static func _old_path(o: Dictionary, info: Dictionary) -> PackedVector2Array:
 	var s := float(o.scale)
-	match str(info.get("shape", "")):
+	match "slab" if o.type == "door" else str(info.get("shape", "")):
 		"slab": return PackedVector2Array([Vector2(0, -s * 0.5), Vector2(0, s * 0.5)])
 		"corner": return PackedVector2Array([Vector2(s, 0), Vector2.ZERO, Vector2(0, s)])
 	return PackedVector2Array()

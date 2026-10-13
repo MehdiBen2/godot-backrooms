@@ -3,15 +3,5 @@
     "file": "level0.lvl",
     "id": "level0",
     "name": "Level 0: Floor Zero"
-  },
-  {
-    "file": "wall_tests.lvl",
-    "id": "wall_tests",
-    "name": "Test: wall joins"
-  },
-  {
-    "file": "debug.lvl",
-    "id": "debug",
-    "name": "debug"
   }
 ]

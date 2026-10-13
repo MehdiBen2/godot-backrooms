@@ -17,8 +17,18 @@ down (torch_model.gd picks one at random, wall_hand.gd eases the hand in and out
                    pose REST_AT in), breathing. Kept up the whole time the torch is; the gestures above
                    blend out of it and back into it then
 
-    IdleSprint     a loop, one stride: the arm pumps, the fist swinging up into the lower left of the view
-                   and back down out of it past the hip. torch_model.gd scrubs it by the head bob's phase,
+    IdleGrope      a loop: feeling your way in the dark. The arm out ahead, nearly straight, the hand up at the
+                   lower left of the view, palm forward and the fingers spread; it sweeps slowly side to side
+                   and probes forward, the fingers twitching one after another as if they'd touched something
+    IdleBrace      caught by something: the hand thrown up in front of the face, palm out, fingers spread,
+                   a touch past and shaking (the torch arm flinches with it). The last quarter second of
+                   the hands before they're gone; for whatever has no catch of its own below
+    CatchLift      (both arms) THE BACTERIA has you and hauls you up: both arms thrown up to the top corners
+                   of the view, palms out, then flailing and clawing at it, out of step, until the bite
+    CatchStartle   (both arms) THE MANNEQUIN has you from behind: the hands jerk up in fright, the right one
+                   flinging the torch away, then held up open and shaking until the neck snap
+    IdleSprint     a loop, one stride: the arm swings with the run, small. The loosely closed hand rises to
+                   about the rest's place at the bottom edge (only its back peeking in) and dips out of view. torch_model.gd scrubs it by the head bob's phase,
                    so it keeps time with your feet at any pace (forward at one footfall, back at the next)
 
 The out file is only the skeleton and these clips; torch_model.gd lays their Left* tracks over the arms it
@@ -59,8 +69,17 @@ REST_AT = 0.5                     # s into IdleFlex: the pose it holds (the hand
 REST_LENGTH = 4.0                 # s: one breath
 SPRINT = "IdleSprint"             # the arm pumping while you sprint (a loop: one stride, scrubbed by the stride)
 SPRINT_LENGTH = 0.8               # s: about one stride at a sprint (torch_model.gd only reads its phase)
-PUMP_FORE = dict(at=(-0.09, -0.135, -0.30), f=(0.20, 0.85, -0.50), n=(1.0, 0.0, 0.3))   # forward: the fist up in view
-PUMP_BACK = dict(at=(-0.23, -0.47, -0.04), f=(0.10, -0.25, -1.0), n=(1.0, 0.0, 0.0))    # back: down by the hip
+PUMP_DROP = Vector((-0.03, -0.09, 0.07))   # m, camera space: from the rest pose to the back of the swing (out of view)
+PUMP_TIP = 18.0                   # degrees the hand tips back (knuckles down) at the back of the swing
+PUMP_CURL = (18.0, 14.0, 10.0)    # degrees the loose hand closes a little more than at rest, running
+GROPE = "IdleGrope"               # feeling your way in the dark (a loop)
+BRACE = "IdleBrace"               # caught: the hand thrown up to shield the face, the last thing seen of it
+LIFT = "CatchLift"                # THE BACTERIA hauls you up: both arms thrown up, flailing (both arms)
+STARTLE = "CatchStartle"          # THE MANNEQUIN: a fright, the torch flung away, hands up shaking (both arms)
+GROPE_LENGTH = 3.0                # s: one slow sweep
+GROPE_AT = dict(at=(-0.215, -0.205, -0.36), f=(0.05, 1.0, -0.40), n=(0.15, 0.15, -1.0))  # out ahead, palm forward
+SPRINT_SHIFT = Vector((-0.03, -0.03, 0.0))  # torch_model.gd update(): sprinting, the whole rig drops and moves in
+SPRINT_TURN = (-0.35, 0.25)       # by this much and pitches / turns by this (rad); the pump is authored to undo it
 
 
 def to_rig():
@@ -121,9 +140,11 @@ def sprung_q(qs, w, z):
     return [Quaternion(v).normalized() for v in sprung(vs, w, z)]
 
 
-def limb(wrist, hand_q, fore_len, upper_len, rest_upper):
-    """elbow (camera space, m), forearm turn, wrist turn (local to the forearm), upper arm turn (local)"""
-    shoulder = SHOULDER.copy()
+def limb(wrist, hand_q, fore_len, upper_len, rest_upper, right=False):
+    """elbow (camera space, m), forearm turn, wrist turn (local to the forearm), upper arm turn (local).
+    `right`: the right arm, its shoulder and the way its elbow hangs mirrored across the view"""
+    flip = Vector((-1.0, 1.0, 1.0)) if right else Vector((1.0, 1.0, 1.0))
+    shoulder = SHOULDER * flip
     reach = (fore_len + upper_len) * 0.97
     span = wrist - shoulder
     if span.length > reach:
@@ -131,7 +152,7 @@ def limb(wrist, hand_q, fore_len, upper_len, rest_upper):
     far = max((wrist - shoulder).length, abs(upper_len - fore_len) + 0.01)
     to_wrist = (wrist - shoulder).normalized()
     bend = max(-1.0, min(1.0, (upper_len ** 2 + far ** 2 - fore_len ** 2) / (2.0 * upper_len * far)))
-    sag = SAG.normalized()
+    sag = (SAG * flip).normalized()
     sag = (sag - to_wrist * sag.dot(to_wrist)).normalized()
     elbow = shoulder + (to_wrist * bend + sag * math.sqrt(1.0 - bend * bend)) * upper_len
     along = (wrist - elbow).normalized()
@@ -145,7 +166,15 @@ def limb(wrist, hand_q, fore_len, upper_len, rest_upper):
 # A key: time, wrist (m), fingers' way, palm's way, curl per finger (deg added to knuckle, middle, tip),
 # spread (deg), thumb (deg about its base: across the palm, out of it)
 def K(t, at, f, n, curl=(0.0, 0.0, 0.0), spread=0.0, thumb=(0.0, 0.0), each=None):
-    return dict(t=t, at=Vector(at), q=hand_turn(f, n), curl=curl, spread=spread, thumb=thumb, each=each)
+    return dict(t=t, at=Vector(at), q=hand_turn(f, n), f=f, n=n, curl=curl, spread=spread, thumb=thumb, each=each)
+
+
+def mirrored(keys, late=0.0):
+    """The same keys for the other hand, across the view (x negated), `late` s behind (but the first and last)"""
+    def m(v):
+        return (-v[0], v[1], v[2])
+    return [K(k["t"] + (late if 0 < i < len(keys) - 1 else 0.0), m(k["at"]), m(k["f"]), m(k["n"]), k["curl"],
+              k["spread"], k["thumb"], k["each"]) for i, k in enumerate(keys)]
 
 
 def down(t):
@@ -221,20 +250,82 @@ def sample(length, keys, t):
     return at + drift, q, curls, spread, thumb
 
 
-def solve(length, keys):
-    """every frame of a gesture: (wrist, hand turn, curls [finger][joint], spread, thumb), sprung"""
+def solve(length, keys, snap=1.0, land=True):
+    """every frame of a gesture: (wrist, hand turn, curls [finger][joint], spread, thumb), sprung (`snap`
+    times stiffer springs for a quick one); `land`: it ends exactly on the let-down pose"""
     frames = int(round(length * FPS)) + 1
     raw = [sample(length, keys, f / FPS) for f in range(frames)]
-    ats = sprung([r[0] for r in raw], 16.0, 0.75)
-    qs = sprung_q([r[1] for r in raw], 15.0, 0.8)
-    curls = [[sprung([r[2][i][j] for r in raw], 24.0, 0.7) for j in range(3)] for i in range(4)]
-    spreads = sprung([r[3] for r in raw], 20.0, 0.8)
-    thumbs = [sprung([r[4][j] for r in raw], 22.0, 0.75) for j in range(2)]
+    ats = sprung([r[0] for r in raw], 16.0 * snap, 0.75)
+    qs = sprung_q([r[1] for r in raw], 15.0 * snap, 0.8)
+    curls = [[sprung([r[2][i][j] for r in raw], 24.0 * snap, 0.7) for j in range(3)] for i in range(4)]
+    spreads = sprung([r[3] for r in raw], 20.0 * snap, 0.8)
+    thumbs = [sprung([r[4][j] for r in raw], 22.0 * snap, 0.75) for j in range(2)]
     out = [(ats[f], qs[f], [[curls[i][j][f] for j in range(3)] for i in range(4)], spreads[f], (thumbs[0][f], thumbs[1][f]))
            for f in range(frames)]
-    # start and end exactly on the let-down pose
-    out[-1] = (Vector(DOWN["at"]), hand_turn(DOWN["f"], DOWN["n"])) + out[-1][2:]
+    if land:                                                      # end exactly on the let-down pose
+        out[-1] = (Vector(DOWN["at"]), hand_turn(DOWN["f"], DOWN["n"])) + out[-1][2:]
     return out
+
+
+def brace():
+    """IdleBrace: caught. The hand thrown up in front of the face, palm out at whatever has you, fingers spread
+    and stiff; it gets there in a tenth of a second, runs a touch past, and shakes. torch_model.gd shows only
+    the first quarter second or so (then the hands are gone), so it starts already on its way up"""
+    shield = dict(f=(0.35, 1.0, 0.10), n=(0.15, -0.10, -1.0))     # fingers up and across, palm away from you
+    stiff = dict(curl=(-12.0, -45.0, -20.0), spread=16.0, thumb=(-20.0, 18.0))
+    keys = [K(0.0, (-0.11, -0.22, -0.30), f=(0.2, 1.0, -0.3), n=(0.2, 0.0, -1.0), curl=(10.0, 5.0, 0.0)),
+            K(0.10, (-0.05, -0.055, -0.27), **shield, **stiff),
+            K(0.16, (-0.045, -0.04, -0.275), **shield, **stiff),
+            K(0.24, (-0.05, -0.05, -0.27), **shield, **stiff)]
+    for k in range(4):                                            # the shake
+        keys.append(K(0.30 + k * 0.06, (-0.05 + 0.004 * (-1) ** k, -0.05 + 0.003 * (-1) ** (k + 1), -0.27),
+                      **shield, **stiff))
+    return 0.6, keys
+
+
+def lift():
+    """CatchLift (THE BACTERIA has you and hauls you up): both arms thrown up as the body is hoisted, hands
+    up at the top corners of the view, palms out at it, fingers spread; then they flail and claw at it, the
+    two out of step, higher as you're lifted. torch_model.gd shows it until the bite"""
+    up = dict(f=(-0.35, 1.0, -0.15), n=(0.3, -0.1, -1.0))         # fingers up and out, palm away
+    opened = dict(curl=(-12.0, -40.0, -15.0), spread=18.0, thumb=(-20.0, 18.0))
+    claw = dict(curl=(35.0, 45.0, 35.0), spread=6.0, thumb=(20.0, 0.0))
+    keys = [down(0.0),
+            K(0.16, (-0.19, -0.24, -0.30), f=(-0.2, 1.0, -0.4), n=(0.3, 0.0, -1.0), curl=(5.0, 5.0, 0.0), spread=10.0),
+            K(0.42, (-0.25, -0.05, -0.33), **up, **opened)]
+    t, k = 0.42, 0
+    while t < 2.9:                                                # struggling: a reach, a claw, a little higher each time
+        t += 0.27 + 0.05 * (k % 3)
+        rise = min(1.0, t / 2.6) * 0.05
+        jit = ((0.03, 0.01, -0.02), (-0.02, 0.03, 0.01), (0.01, -0.02, 0.02))[k % 3]
+        keys.append(K(t, (-0.25 + jit[0], -0.05 + rise + jit[1], -0.33 + jit[2]),
+                      f=(-0.35 + 0.25 * (k % 2), 1.0, -0.15), n=(0.3 - 0.2 * (k % 2), -0.1, -1.0),
+                      **(claw if k % 2 else opened)))
+        k += 1
+    return 3.0, keys
+
+
+def startle():
+    """CatchStartle (THE MANNEQUIN has you, from behind): both hands jerk up in fright, the right one flinging
+    the torch away (torch_model.gd lets go of it THROW_AT in), then held up, open and shaking, sinking a little
+    with the dread, a last jerk as its hands close on your head; gone at the snap"""
+    fright = dict(curl=(-15.0, -45.0, -20.0), spread=20.0, thumb=(-25.0, 20.0))
+    shaking = dict(curl=(10.0, 5.0, 0.0), spread=12.0, thumb=(-10.0, 10.0))
+    palm = dict(f=(0.1, 1.0, -0.2), n=(0.25, -0.1, -1.0))
+    left = [down(0.0),
+            K(0.12, (-0.15, -0.11, -0.30), **palm, **fright),
+            K(0.22, (-0.16, -0.10, -0.31), **palm, **fright)]
+    for k in range(9):                                            # held up, trembling, sinking with the dread
+        t = 0.4 + k * 0.18
+        left.append(K(t, (-0.16 + 0.006 * (-1) ** k, -0.11 - 0.006 * k + 0.004 * (-1) ** (k + 1), -0.31), **palm, **shaking))
+    left += [K(2.02, (-0.15, -0.07, -0.30), **palm, **fright),   # its hands on your head
+             K(2.4, (-0.155, -0.08, -0.30), **palm, **fright)]
+    right = mirrored(left, late=0.03)
+    # the right hand: the torch in its fist, a fling forward and up, the hand flying open as it lets go
+    fist = dict(curl=(80.0, 50.0, 45.0), spread=0.0, thumb=(40.0, -12.0))
+    right[1] = K(0.08, (0.13, -0.16, -0.34), f=(0.0, 0.6, -1.0), n=(-0.3, -0.8, -0.3), **fist)
+    right[2] = K(0.17, (0.16, -0.09, -0.40), f=(-0.1, 1.0, -0.6), n=(-0.25, 0.0, -1.0), **fright)
+    return 2.4, left, right
 
 
 def resting(pose):
@@ -252,24 +343,43 @@ def resting(pose):
     return out
 
 
-def pumping():
-    """IdleSprint: a clenched fist swung forward (phase 0) and back (0.5) and forward again. It races through
-    the middle and hangs at each end, a little longer up front, and the way forward runs higher than the way
-    back (an ellipse, not a line), so it reads as an arm thrown, not a pendulum"""
-    fore, back = PUMP_FORE, PUMP_BACK
-    q_fore, q_back = hand_turn(fore["f"], fore["n"]), hand_turn(back["f"], back["n"])
+def pumping(pose):
+    """IdleSprint: the rest `pose` (forward, phase 0), dropped PUMP_DROP and tipped back (0.5), and up again.
+    It hangs a little longer up front, and swings out on a slight curve rather than a straight line. Only the
+    top of the swing shows, the back of the hand just over the bottom edge, as it does at rest"""
+    at, q, curls, spread, thumb = pose
+    q_back = q @ Quaternion((1, 0, 0), math.radians(-PUMP_TIP))
+    # where the rig hangs normally, and sprinting: authored through `undo`, the hand lands where it's asked
+    # to on screen with the rig lowered (only the arms are scaled by torch_model.gd, so this is plain rigid)
+    def hung(shift, turn):
+        return (Matrix.Translation(VIEW_POS + shift) @ Matrix.Rotation(VIEW_ROT[1] + turn[1], 4, "Y")
+                @ Matrix.Rotation(VIEW_ROT[0] + turn[0], 4, "X"))
+    undo = hung(Vector(), (0.0, 0.0)) @ hung(SPRINT_SHIFT, SPRINT_TURN).inverted()
     out = []
     frames = int(round(SPRINT_LENGTH * FPS)) + 1
     for f in range(frames):
         ph = 2.0 * math.pi * f / (frames - 1)
-        c, sn = math.cos(ph), math.sin(ph)
-        u = (1.0 + c) / 2.0
-        u = u ** 0.8                                              # a touch longer at the front
-        at = Vector(back["at"]).lerp(Vector(fore["at"]), u) + Vector((0.01, 0.025, -0.02)) * -sn
-        q = q_back.slerp(q_fore, u)
-        squeeze = 6.0 * u
-        curls = [[85.0 + squeeze, 55.0 + squeeze * 0.5, 50.0] for _ in range(4)]
-        out.append((at, q, curls, 0.0, (40.0, -12.0)))
+        u = ((1.0 + math.cos(ph)) / 2.0) ** 0.8                   # 1 forward .. 0 back
+        swing = at + PUMP_DROP * (1.0 - u) + Vector((0.006, 0.0, 0.0)) * -math.sin(ph)
+        c = [[curls[i][j] + PUMP_CURL[j] for j in range(3)] for i in range(4)]
+        out.append((undo @ swing, undo.to_quaternion() @ q_back.slerp(q, u), c, 0.0, (thumb[0] + 10.0, thumb[1])))
+    return out
+
+
+def groping():
+    """IdleGrope: GROPE_AT, swept and probed on a few slow sines (whole cycles of the loop, so no seam)"""
+    base, q0 = Vector(GROPE_AT["at"]), hand_turn(GROPE_AT["f"], GROPE_AT["n"])
+    out = []
+    frames = int(round(GROPE_LENGTH * FPS)) + 1
+    for f in range(frames):
+        ph = 2.0 * math.pi * f / (frames - 1)
+        at = base + Vector((0.025 * math.sin(ph), 0.010 * math.sin(2.0 * ph + 0.6), 0.018 * math.sin(ph + 1.6)))
+        turn = (Quaternion((0, 1, 0), math.radians(8.0 * math.sin(ph + 0.4)))      # the palm turns with the sweep
+                @ Quaternion((0, 0, 1), math.radians(4.0 * math.sin(2.0 * ph))))
+        curls = [[(-12.0, -45.0, -20.0)[j] + 9.0 * max(0.0, math.sin(2.0 * ph - i * 0.9)) ** 2 * (1.0, 0.8, 0.6)[j]
+                  for j in range(3)] for i in range(4)]
+        spread = 17.0 + 3.0 * math.sin(ph + 2.2)
+        out.append((at, turn @ q0, curls, spread, (-15.0 + 6.0 * math.sin(ph + 1.0), 15.0)))
     return out
 
 
@@ -286,12 +396,20 @@ def build(arm_obj):
     spin_q = spin.to_quaternion()
     fore_len = rest["LeftHand"][0].length * ARMS_SCALE
     upper_len = UPPER * ARMS_SCALE
-    rest_upper = rest["LeftUpperArm"][1]
     clips = dict(zip(CLIP_NAMES, (solve(*look_hand()), solve(*flex()), solve(*rub()))))
-    clips[REST] = resting(clips["IdleFlex"][int(round(REST_AT * FPS))])
-    clips[SPRINT] = pumping()
+    held = clips["IdleFlex"][int(round(REST_AT * FPS))]
+    clips[REST] = resting(held)
+    clips[SPRINT] = pumping(held)
+    clips[GROPE] = groping()
+    clips[BRACE] = solve(*brace(), snap=2.5, land=False)
+    length, keys = lift()
+    clips[LIFT] = {"Left": solve(length, keys, snap=1.6, land=False),
+                   "Right": solve(length, mirrored(keys, late=0.13), snap=1.6, land=False)}
+    length, left, right = startle()
+    clips[STARTLE] = {"Left": solve(length, left, snap=2.2, land=False),
+                      "Right": solve(length, right, snap=2.2, land=False)}
     pbs = arm_obj.pose.bones
-    for name, frames in clips.items():
+    for name, sides in clips.items():
         old = bpy.data.actions.get(name)
         if old:
             bpy.data.actions.remove(old)
@@ -299,37 +417,44 @@ def build(arm_obj):
         act.use_fake_user = True
         arm_obj.animation_data_create()
         arm_obj.animation_data.action = act
-        for f, (at, q, curls, spread, thumb) in enumerate(frames):
-            elbow, fore, wrist, upper = limb(at, q, fore_len, upper_len, rest_upper)
-            pose = {"LeftLowerArm": (rig_at(elbow), spin_q @ fore),
-                    "LeftHand": (None, wrist), "LeftUpperArm": (None, upper)}
-            for i, fn in enumerate(FINGERS):
-                for j, jn in enumerate(JOINTS):
-                    bone = "Left" + fn + jn
-                    turn = Quaternion((1, 0, 0), math.radians(curls[i][j]))
-                    if j == 0:
-                        sp = spread * (1.0, 0.3, -0.4, -1.0)[i]
-                        turn = Quaternion((0, 0, 1), math.radians(sp)) @ turn
-                    pose[bone] = (None, rest[bone][1] @ turn)
-            across, out = thumb
-            pose["LeftThumbMetacarpal"] = (None, rest["LeftThumbMetacarpal"][1] @ Quaternion((0, 0, 1), math.radians(-across * 0.5))
-                                           @ Quaternion((1, 0, 0), math.radians(out)))
-            pose["LeftThumbProximal"] = (None, rest["LeftThumbProximal"][1] @ Quaternion((1, 0, 0), math.radians(across * 0.6)))
-            pose["LeftThumbDistal"] = (None, rest["LeftThumbDistal"][1] @ Quaternion((1, 0, 0), math.radians(across * 0.4)))
-            for bone, (loc, rot) in pose.items():
-                pb = pbs[bone]
-                pb.rotation_mode = "QUATERNION"
-                rq = rest[bone][1]
-                pb.rotation_quaternion = rq.inverted() @ rot
-                pb.location = (rq.inverted() @ (loc - rest[bone][0])) if loc is not None else Vector()
-                pb.keyframe_insert("rotation_quaternion", frame=f + 1, group=bone)
-                pb.keyframe_insert("location", frame=f + 1, group=bone)
-        print(name, "%.2f s, %d frames" % ((len(frames) - 1) / FPS, len(frames)))
+        if not isinstance(sides, dict):
+            sides = {"Left": sides}
+        for side, frames in sides.items():
+            right = side == "Right"
+            sx = -1.0 if right else 1.0                           # the right hand's spread and thumb turn the other way
+            rest_upper = rest[side + "UpperArm"][1]
+            for f, (at, q, curls, spread, thumb) in enumerate(frames):
+                elbow, fore, wrist, upper = limb(at, q, fore_len, upper_len, rest_upper, right)
+                pose = {side + "LowerArm": (rig_at(elbow), spin_q @ fore),
+                        side + "Hand": (None, wrist), side + "UpperArm": (None, upper)}
+                for i, fn in enumerate(FINGERS):
+                    for j, jn in enumerate(JOINTS):
+                        bone = side + fn + jn
+                        turn = Quaternion((1, 0, 0), math.radians(curls[i][j]))
+                        if j == 0:
+                            sp = spread * (1.0, 0.3, -0.4, -1.0)[i] * sx
+                            turn = Quaternion((0, 0, 1), math.radians(sp)) @ turn
+                        pose[bone] = (None, rest[bone][1] @ turn)
+                across, out = thumb
+                pose[side + "ThumbMetacarpal"] = (None, rest[side + "ThumbMetacarpal"][1]
+                                                  @ Quaternion((0, 0, 1), math.radians(-across * 0.5 * sx))
+                                                  @ Quaternion((1, 0, 0), math.radians(out)))
+                pose[side + "ThumbProximal"] = (None, rest[side + "ThumbProximal"][1] @ Quaternion((1, 0, 0), math.radians(across * 0.6)))
+                pose[side + "ThumbDistal"] = (None, rest[side + "ThumbDistal"][1] @ Quaternion((1, 0, 0), math.radians(across * 0.4)))
+                for bone, (loc, rot) in pose.items():
+                    pb = pbs[bone]
+                    pb.rotation_mode = "QUATERNION"
+                    rq = rest[bone][1]
+                    pb.rotation_quaternion = rq.inverted() @ rot
+                    pb.location = (rq.inverted() @ (loc - rest[bone][0])) if loc is not None else Vector()
+                    pb.keyframe_insert("rotation_quaternion", frame=f + 1, group=bone)
+                    pb.keyframe_insert("location", frame=f + 1, group=bone)
+        print(name, "/".join(sides), "%.2f s, %d frames" % ((len(frames) - 1) / FPS, len(frames)))
     return list(clips)
 
 
 def export(arm_obj, out):
-    keep = set(CLIP_NAMES) | {REST, SPRINT}
+    keep = set(CLIP_NAMES) | {REST, SPRINT, GROPE, BRACE, LIFT, STARTLE}
     for a in list(bpy.data.actions):
         if a.name not in keep:
             bpy.data.actions.remove(a)

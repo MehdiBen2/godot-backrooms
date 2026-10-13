@@ -146,10 +146,13 @@ func _build_skirting() -> void:
 	# the wall graph: right round the outline of its walls' feet, unbroken round every corner, curve and junction
 	# (level_geometry.gd wall_plan; a hole in the outline, a room the walls close in, is skirted from inside)
 	for loop: Dictionary in wall_plan.get("loops", []):
-		if not loop.closed or (loop.pts as PackedVector2Array).size() < 3: continue
 		var pts: Array = Array(loop.pts)
+		if pts.size() < 2: continue
 		var at: Vector2 = pts[0]
-		_skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward)
+		if loop.closed:
+			if pts.size() >= 3: _skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward)
+		else:
+			_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts)
 	if sts.is_empty(): return
 	var mat := _skirt_material()
 	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
@@ -214,6 +217,36 @@ func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool) -> 
 		face_in.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(before.x, 0.0, before.y))
 		face_out.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(after.x, 0.0, after.y))
 	_skirt_run(st, at, miter, face_in, face_out, true)
+
+## Skirting along a run of the wall graph's feet that stops at a doorway each end (wall_mesh.gd breaks the chain
+## there): out from the faces the way they face (the right of the way the run goes), butting up to the door's
+## casing (SKIRT_STOP short of the opening's edge)
+const SKIRT_STOP := 0.09                  # m: the casing's width (level_geometry.gd CASING_W)
+func _skirt_open(st: SurfaceTool, pts: Array) -> void:
+	var p: Array = pts.duplicate()
+	if (p[0] as Vector2).distance_to(p[1]) > SKIRT_STOP * 2.0: p[0] = (p[0] as Vector2).move_toward(p[1], SKIRT_STOP)
+	var n := p.size()
+	if (p[n - 1] as Vector2).distance_to(p[n - 2]) > SKIRT_STOP * 2.0: p[n - 1] = (p[n - 1] as Vector2).move_toward(p[n - 2], SKIRT_STOP)
+	var side: Array[Vector2] = []
+	for i in n - 1:
+		var d: Vector2 = ((p[i + 1] as Vector2) - (p[i] as Vector2)).normalized()
+		side.append(Vector2(d.y, -d.x))
+	var at: Array = []
+	var miter: Array = []
+	var face_in: Array = []
+	var face_out: Array = []
+	for i in n:
+		var before: Vector2 = side[maxi(i - 1, 0)]
+		var after: Vector2 = side[mini(i, n - 2)]
+		var m := (before + after).normalized()
+		var off := m / maxf(m.dot(after), 0.3)
+		var q: Vector2 = p[i]
+		at.append(Vector3(q.x, 0.0, q.y))
+		miter.append(Vector3(off.x, 0.0, off.y))
+		var smooth := before.dot(after) > 0.85
+		face_in.append(Vector3(m.x, 0.0, m.y) if smooth else Vector3(before.x, 0.0, before.y))
+		face_out.append(Vector3(m.x, 0.0, m.y) if smooth else Vector3(after.x, 0.0, after.y))
+	_skirt_run(st, at, miter, face_in, face_out, false)
 
 ## The plan outlines (object space, metres) a placed wall, pillar or column stands on, as [points, inward]: what
 ## its skirting runs round. Doors, arches and everything else: none (a door's frame meets the floor itself).

@@ -14,9 +14,10 @@ extends Node3D
 ## swap() changes the batteries: the right arm turns the torch level, the left hand comes up, unscrews the
 ## tail cap, the old cells drop out, the new pair goes in and the cap goes back on (TorchReload, close to
 ## 7 s). The light is out while the cap is off: swap_started / swap_dark / swap_done tell the player when.
-## The free left hand: while the torch is up it's held low at the bottom of the view (IDLE_REST), and
+## The free left hand: while the torch is up it's held low at the bottom of the view (IDLE_REST), in the
+## dark with the torch down it feels its way ahead as you walk (IDLE_GROPE), sprinting it swings, and
 ## standing about, every so often it does something small (looks at itself, flexes, rubs its fingertips:
-## IDLE_CLIPS), torch on or off. Both from models/player/playerarms_idle.glb, built by
+## IDLE_CLIPS), torch on or off. All from models/player/playerarms_idle.glb, built by
 ## tools/blender/build_idle_hands.py, played on a second AnimationPlayer that runs after the arms' own, so
 ## they only move the left arm; wall_hand.gd eases the hand in and out.
 ## A child of the camera, built by the player. Without the arms model the torch floats on its own.
@@ -54,6 +55,19 @@ const IDLE_BLEND := 0.35          # s the rest and a gesture cross-fade
 const IDLE_SPRINT := "IdleSprint" # a loop, one stride: the left arm pumping while you sprint, scrubbed by the bob
 const SPRINT_PHASE := 0.0         # rad of `bob` the pump is shifted by (0: fist furthest forward at a footfall)
 const SPRINT_BLEND := 0.2         # s into and out of the pump
+const IDLE_GROPE := "IdleGrope"   # a loop: feeling your way in the dark, the hand out ahead, fingers spread
+const GROPE_DARK := Vector2(0.25, 0.35)   # the light (player.gd light_level) it's dark below / light again above
+const GROPE_LINGER := 1.5         # s the hand stays out after you stop walking
+const GROPE_PACE := 0.4           # the reach comes up this much slower than a hand usually moves
+const GROPE_BLEND := 0.6          # s into and out of it from another loop
+const IDLE_BRACE := "IdleBrace"   # caught: the left hand thrown up to shield the face (the torch arm flinches)
+const BRACE_TIME := 0.25          # s the hands are seen doing that before they're gone
+const BRACE_PACE := 2.5           # the hands get there this much faster than a hand usually moves
+const CATCH_LIFT := "CatchLift"   # THE BACTERIA hauls you up: both arms thrown up, flailing (catch_scene)
+const CATCH_STARTLE := "CatchStartle"   # THE MANNEQUIN: a fright, the torch flung away, both hands up shaking
+const CATCHES := {"bacteria": CATCH_LIFT, "mannequin": CATCH_STARTLE}
+const THROW_AT := 0.15            # s into CATCH_STARTLE the right hand lets go of the torch
+const THROW_SPEED := Vector3(0.4, 1.6, -3.2)   # m/s, camera space: the way the torch flies off (right, up, ahead)
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const HUG_SPREAD := 0.12          # m: each hand's fingertips are this far off the middle of the wall in front
 const HUG_LOWER := 0.12           # m below eye height the hands go
@@ -76,6 +90,18 @@ const SWAY_MAX_VEL := 3.0         # m/s
 var raise := 0.0
 var lower := 0.0
 var sway_amount := 1.0            # 0 = hands rigid with the camera (player.gd: head bob / camera shake settings)
+var ambient := 1.0                # how lit it is round you, 0..1 (player.gd light_level): the hand gropes in the dark
+var caught := false:              # an entity has you, or you're dead (player.gd): the hands' last reach, then gone
+	set(v):
+		if v and not caught and _brace_t <= 0.0:
+			_brace()                  # (an entity with a catch of its own started it already: catch_scene)
+		elif not v:
+			_brace_t = 0.0
+			_scene = ""
+			_thrown = false
+		caught = v
+		if v and _brace_t <= 0.0:
+			visible = false
 
 var _have_prev := false
 var _prev_basis := Basis.IDENTITY
@@ -125,7 +151,15 @@ var _cells: Node3D                # the new pair, in the left fist
 var _idle: AnimationPlayer        # the left hand's IDLE_CLIPS (null without them)
 var _idle_on := false             # the rest or a gesture is playing: set_peek leaves the left hand to it
 var _gesture := ""                # the gesture playing ("": none)
-var _base := ""                   # IDLE_REST or IDLE_SPRINT when that's what's playing ("": neither)
+var _base := ""                   # IDLE_REST, IDLE_SPRINT or IDLE_GROPE when that's what's playing ("": none)
+var _dark := false                # dark enough to grope (GROPE_DARK, with some give either way)
+var _grope_t := 0.0               # s the groping hand stays out for
+var _brace_t := 0.0               # s left of the hands being seen, caught (0: none): the brace or a catch scene
+var _scene := ""                  # what they're doing then: IDLE_BRACE, or a clip of CATCHES (both arms)
+var _scene_age := 0.0             # s into it
+var _thrown := false              # the torch has been flung out of the hand (CATCH_STARTLE)
+var _player: Node                 # who's caught (catch_scene): the world, the light and the body for the throw
+var _left_free := true            # set_peek has nothing for the left hand to do (no peek, wall, slit, torch pass)
 var _idle_in := 15.0              # s to the next one
 var _idle_last := ""
 var _still := 0.0                 # s stood still
@@ -253,13 +287,17 @@ func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
 	var found := src.find_children("*", "AnimationPlayer", true, false)
 	var lib := AnimationLibrary.new()
 	var to_skel := String(arms.get_path_to(skel))
-	for clip in IDLE_CLIPS + [IDLE_REST, IDLE_SPRINT]:
+	for clip in IDLE_CLIPS + [IDLE_REST, IDLE_SPRINT, IDLE_GROPE, IDLE_BRACE, CATCH_LIFT, CATCH_STARTLE]:
 		if found.is_empty() or not (found[0] as AnimationPlayer).has_animation(clip):
 			continue
 		var a := (found[0] as AnimationPlayer).get_animation(clip).duplicate(true) as Animation
 		for i in range(a.get_track_count() - 1, -1, -1):
 			var bone := String(a.track_get_path(i).get_concatenated_subnames())
-			if not bone.begins_with("Left") or skel.find_bone(bone) < 0:
+			# the catches move both arms; the right hand's fingers only when it lets go of the torch (else
+			# they stay closed on it, as the arms' own clips have them)
+			var right := clip in [CATCH_LIFT, CATCH_STARTLE] and bone.begins_with("Right") \
+				and (clip == CATCH_STARTLE or bone in ["RightLowerArm", "RightHand", "RightUpperArm"])
+			if not (bone.begins_with("Left") or right) or skel.find_bone(bone) < 0:
 				a.remove_track(i)
 			else:
 				a.track_set_path(i, NodePath(to_skel + ":" + bone))
@@ -269,7 +307,7 @@ func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
 			for k in a.track_get_key_count(i):
 				a.track_set_key_time(i, k, a.track_get_key_time(i, k) - first)
 		a.length -= first
-		a.loop_mode = Animation.LOOP_LINEAR if clip in [IDLE_REST, IDLE_SPRINT] else Animation.LOOP_NONE
+		a.loop_mode = Animation.LOOP_LINEAR if clip in [IDLE_REST, IDLE_SPRINT, IDLE_GROPE] else Animation.LOOP_NONE
 		lib.add_animation(clip, a)
 	src.free()
 	if lib.get_animation_list().is_empty():
@@ -289,6 +327,10 @@ func lens() -> Vector3:
 
 ## `bob`: the head-bob phase (the swing follows your stride)
 func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -> void:
+	_brace_t = maxf(0.0, _brace_t - dt)
+	_scene_age += dt
+	if _scene == CATCH_STARTLE and not _thrown and _scene_age >= THROW_AT:
+		_throw_torch()
 	_follow_camera(dt)
 	if _hands != null:
 		_hands.tick(dt)
@@ -299,7 +341,7 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		_idle_tick(dt, sprinting, moving, bob)
 		_show_arms()
 	else:
-		visible = shown and not (Game.hide_hud or Game.hide_hands)
+		visible = shown and not _no_hands()
 		if not shown:
 			raise = 0.0
 			lower = 0.0
@@ -399,6 +441,12 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		return
 	var left := WallHand.LEFT
 	var right := WallHand.RIGHT
+	_left_free = false                # (only the last branch below leaves the left hand to the idle clips)
+	if _brace_t > 0.0:                # caught: both off whatever they were doing, up in front of the face
+		_hand_torch(right)
+		_hands.set_mode(right, WallHand.Mode.ANIM, BRACE_PACE)
+		_hands.set_mode(left, WallHand.Mode.ANIM, BRACE_PACE)
+		return
 	if _flinching:
 		_hand_torch(right)
 		_hands.set_mode(right, WallHand.Mode.ANIM)
@@ -439,6 +487,7 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		if _hands.hidden(left) and _hands.hidden(right):
 			_hand_torch(right)
 	else:
+		_left_free = true
 		_hands.set_mode(left, WallHand.Mode.ANIM if _idle_on else WallHand.Mode.HIDE)   # (the rest or an idle gesture has it)
 		_hands.set_mode(right, WallHand.Mode.ANIM)
 
@@ -494,14 +543,113 @@ func _hand_torch(i: int) -> void:
 	_grip = _grips[i]
 	_torch.reparent(_grip, false)
 
+## Nothing of the hands is drawn: the screenshot mode, or caught (an entity has you, or you're dead)
+func _no_hands() -> bool:
+	return (caught and _brace_t <= 0.0) or Game.hide_hud or Game.hide_hands
+
+## Caught: the last reach, for whatever has no catch of its own (catch_scene). The torch arm flinches
+## (flinch()) and the left hand is thrown up in front of the face (IDLE_BRACE) from wherever they were, seen
+## for BRACE_TIME; then the hands are gone (_no_hands()).
+## Not in the screenshot mode, and with no arms model there's nothing to show: gone at once.
+func _brace() -> void:
+	if _anim == null or _hands == null or Game.hide_hud or Game.hide_hands:
+		return
+	_brace_t = BRACE_TIME
+	_scene = IDLE_BRACE
+	_scene_age = 0.0
+	if _swap != 0:
+		end_swap()
+	flinch()
+	if _idle != null and _idle.has_animation(IDLE_BRACE):
+		_idle.play(IDLE_BRACE, 0.05)
+		_idle_on = true
+		_gesture = ""
+		_base = IDLE_BRACE
+	_hand_torch(WallHand.RIGHT)
+	_hands.set_mode(WallHand.RIGHT, WallHand.Mode.ANIM)
+	_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM, BRACE_PACE)
+
+## An entity with a catch of its own has you (CATCHES: "bacteria" hauls you up, the arms flailing; "mannequin"
+## startles you from behind, the torch flung away). Both arms play it, seen for `show_for` s, then gone. Call it
+## as the entity takes hold, before player.gd sees you frozen (that would start the brace instead).
+## `player`: its world gets the flung torch, and its torch light goes with it.
+func catch_scene(kind: String, player: Node, show_for: float) -> void:
+	var clip: String = CATCHES.get(kind, "")
+	if _anim == null or _hands == null or _idle == null or not _idle.has_animation(clip) or Game.hide_hud or Game.hide_hands:
+		return
+	_player = player
+	_brace_t = show_for
+	_scene = clip
+	_scene_age = 0.0
+	_thrown = false
+	if _swap != 0:
+		end_swap()
+	_flinching = false
+	_idle.play(clip, 0.05)
+	_idle_on = true
+	_gesture = ""
+	_base = clip
+	_hand_torch(WallHand.RIGHT)
+	for i in [WallHand.LEFT, WallHand.RIGHT]:
+		_hands.set_mode(i, WallHand.Mode.HIDE)                  # (so each sets out afresh from where it is now,
+		_hands.set_mode(i, WallHand.Mode.ANIM, BRACE_PACE)      # even one already left to the animation)
+	visible = true
+
+## The torch flung out of the right hand: a copy of it tumbles off into the world (a body that lands and rolls,
+## and shines on where it ends up if it was on); the one in the hand is gone, and the player's light with it
+func _throw_torch() -> void:
+	_thrown = true
+	var cam := get_parent() as Node3D
+	var world: Node = _player.get_parent() if _player != null else null
+	if _torch == null or cam == null or world == null:
+		return
+	var body := RigidBody3D.new()
+	body.name = "FlungTorch"
+	body.mass = 0.35
+	body.continuous_cd = true
+	var shape := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.025
+	capsule.height = LENGTH
+	shape.shape = capsule
+	shape.rotation.x = PI / 2.0       # the torch lies along -Z, its head that way
+	body.add_child(shape)
+	var copy := _torch.duplicate() as Node3D
+	copy.transform = Transform3D.IDENTITY
+	copy.visible = true
+	body.add_child(copy)
+	world.add_child(body)
+	body.global_transform = Transform3D(_torch.global_basis.orthonormalized(), _torch.global_position)
+	if _player is PhysicsBody3D:
+		body.add_collision_exception_with(_player)
+	var b := cam.global_basis.orthonormalized()
+	body.linear_velocity = b * THROW_SPEED
+	body.angular_velocity = Vector3(randf_range(-14.0, 14.0), randf_range(-6.0, 6.0), randf_range(-14.0, 14.0))
+	var flash = _player.get("flash")
+	if _player.get("flash_on") and flash is SpotLight3D and (flash as SpotLight3D).visible:
+		var beam := (flash as SpotLight3D).duplicate(0) as SpotLight3D
+		beam.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -LENGTH * 0.5))
+		copy.add_child(beam)
+		(flash as SpotLight3D).visible = false
+		var spill = _player.get("flash_spill")
+		if spill is Light3D:
+			(spill as Light3D).visible = false
+		_player.set("flash_on", false)
+
 ## What's in view: the right arm while the torch is up (or on its way) or while it's off the animation and
 ## not let down, the left arm while it's not let down, the torch while it's on
 func _show_arms() -> void:
-	if Game.hide_hud or Game.hide_hands:
+	if _no_hands():
 		if _arms[0] != null: _arms[0].visible = false
 		if _arms[1] != null: _arms[1].visible = false
 		if _torch != null: _torch.visible = false
 		visible = false
+		return
+	if _brace_t > 0.0 and _scene in CATCHES.values():
+		if _arms[0] != null: _arms[0].visible = true
+		if _arms[1] != null: _arms[1].visible = true
+		_torch.visible = not _thrown
+		visible = true
 		return
 	var away := not _on and not _anim.is_playing() and not _flinching
 	var right_seen := not away
@@ -553,7 +701,8 @@ func _fidget(dt: float, sprinting: bool) -> void:
 	_anim.play(pick, 0.2)
 	_anim.queue(HOLD)
 
-## The left hand. Sprinting it pumps (IDLE_SPRINT, in step with your feet), torch on or off; otherwise
+## The left hand. Sprinting it pumps (IDLE_SPRINT, in step with your feet), torch on or off; walking in
+## the dark with the torch down it reaches out ahead, feeling for the walls (IDLE_GROPE); otherwise
 ## while the torch is up it's held low at the bottom of the view (IDLE_REST). Standing about, after you've
 ## been still a moment, every IDLE_EVERY it does one of IDLE_CLIPS (never the same twice running): from the
 ## rest it joins the gesture on its way up and goes back to the rest on its way down, with the torch off it
@@ -561,16 +710,20 @@ func _fidget(dt: float, sprinting: bool) -> void:
 ## squeeze, a flinch, the battery swap) takes it at once; a sprint cuts a gesture short and the arm takes up
 ## the pump; walking off, a gesture finishes. `bob`: the head bob's phase (one step per PI).
 func _idle_tick(dt: float, sprinting: bool, moving: bool, bob: float) -> void:
-	if _idle == null:
+	if _idle == null or caught:       # (caught: the brace has the hand, then it's gone)
 		return
 	_still = 0.0 if moving else _still + dt
 	if _idle_on and (_hands.mode_of(WallHand.LEFT) != WallHand.Mode.ANIM or _swap != 0 or _flinching
-			or _torch_in != WallHand.RIGHT or Game.hide_hud or Game.hide_hands):
+			or _torch_in != WallHand.RIGHT or _no_hands()):
 		_idle_stop()
 	# what the hand goes back to between gestures
+	_dark = ambient < (GROPE_DARK.y if _dark else GROPE_DARK.x)
+	_grope_t = GROPE_LINGER if moving and not sprinting else maxf(0.0, _grope_t - dt)
 	var base := ""
 	if sprinting and _idle.has_animation(IDLE_SPRINT):
 		base = IDLE_SPRINT
+	elif _dark and not _on and _grope_t > 0.0 and _idle.has_animation(IDLE_GROPE):
+		base = IDLE_GROPE
 	elif _on and _idle.has_animation(IDLE_REST):
 		base = IDLE_REST
 	if _gesture != "":
@@ -597,21 +750,29 @@ func _idle_tick(dt: float, sprinting: bool, moving: bool, bob: float) -> void:
 	if not choices.is_empty():
 		_idle_play(choices.pick_random())
 
-## Put the hand in `clip` (the rest or the pump): cross-faded from whatever it's doing, or up from below
+## Put the hand in `clip` (the rest, the pump or the reach in the dark): cross-faded from whatever it's
+## doing, or up from below (slowly, reaching out into the dark)
 func _idle_base(clip: String) -> void:
 	if _idle_on:
-		_idle.play(clip, SPRINT_BLEND if clip == IDLE_SPRINT or _base == IDLE_SPRINT else IDLE_BLEND)
+		var blend := IDLE_BLEND
+		if IDLE_GROPE in [clip, _base]:
+			blend = GROPE_BLEND
+		elif IDLE_SPRINT in [clip, _base]:
+			blend = SPRINT_BLEND
+		_idle.play(clip, blend)
 	else:
 		_idle.play(clip)
 		_idle_on = true
-		_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM)
+		_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM, GROPE_PACE if clip == IDLE_GROPE else 1.0)
 	_base = clip
 
-## Nothing else has the left hand: it's let down, the torch is in the right, no swap, flinch or hands on a wall
+## Nothing else has the left hand: set_peek leaves it free, it's let down, the torch is in the right, no swap,
+## flinch or hands on a wall. (Taking it while a peek has both hands down to pass the torch over would put it
+## back up every frame, and the pass, which waits for both to be out of view, would never happen.)
 func _idle_free() -> bool:
-	return _idle != null and not _idle_on and _swap == 0 and not _flinching and _torch_in == WallHand.RIGHT \
+	return _idle != null and _left_free and not _idle_on and _swap == 0 and not _flinching and _torch_in == WallHand.RIGHT \
 		and not (_hug or _sq_on or _grab) and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.HIDE \
-		and not (Game.hide_hud or Game.hide_hands)
+		and not _no_hands()
 
 ## A gesture: out of the rest if the hand is in it (cross-faded, joined part way up), else from below
 func _idle_play(clip: String) -> void:
@@ -716,7 +877,7 @@ func flinch() -> void:
 	if _anim == null or _anim.current_animation == FLINCH:
 		return
 	_flinching = true
-	visible = not (Game.hide_hud or Game.hide_hands)
+	visible = not _no_hands()
 	_anim.clear_queue()
 	_anim.play(FLINCH, 0.06)
 

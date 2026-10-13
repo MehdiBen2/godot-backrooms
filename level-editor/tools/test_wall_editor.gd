@@ -126,6 +126,50 @@ func _initialize() -> void:
 	await _shot("after")
 	ed._undo()
 	_check("undo takes the paste back", _total() - total0, picked, 0.001)
+	# openings: a door clicked into a wall, slid along it, a jamb dragged out, typed exactly, a window beside it,
+	# set from the inspector, taken out and put back with undo, and kept through a wall splitting it
+	var door_wall: int = (g.add_wall(free + Vector2(0, 12), free + Vector2(6, 12), 0.0, {"tl": 0.15, "tr": 0.15, "h": 0.0}, ed.WALL_TOL) as Array)[0]
+	ed._walls_changed()
+	_view(free + Vector2(3, 12), 48.0)
+	ed._select_tool("obj:door")
+	await _move(free + Vector2(3, 12.03))
+	await _click(free + Vector2(3, 12.03))
+	_ok("a door clicked into a wall", g.ops_of(door_wall).size() == 1)
+	if g.ops_of(door_wall).size() == 1:
+		var len_m: float = g.length_of(door_wall) * CELL
+		_check("where it was clicked (m along)", float(g.ops_of(door_wall)[0].u) * len_m, 3.0 * CELL, 0.1)
+		ed._select_tool("select")
+		await _drag(free + Vector2(3, 12), free + Vector2(4, 12))
+		_check("dragged a cell along its wall (m along)", float(g.ops_of(door_wall)[0].u) * len_m, 4.0 * CELL, 0.1)
+		var w0 := float(g.ops_of(door_wall)[0].w)
+		var jb: Vector2 = ed.WallGeom.point(g.curve_of(door_wall), g.op_span(door_wall, g.ops_of(door_wall)[0]).y)
+		await _drag(jb, jb + Vector2(0.2, 0))
+		_check("its jamb dragged out 0.9 m", float(g.ops_of(door_wall)[0].w), w0 + 0.9, 0.06)
+		ed._op_measure("op_w", 1.5)
+		_check("typed width", float(g.ops_of(door_wall)[0].w), 1.5)
+		ed._select_tool("obj:window")
+		await _move(free + Vector2(1.5, 11.97))
+		await _click(free + Vector2(1.5, 11.97))
+		_ok("a window beside it", g.ops_of(door_wall).size() == 2)
+		if g.ops_of(door_wall).size() == 2:
+			ed._winsp_undo = false
+			ed._op_set("glass", "clear")
+			_ok("the inspector sets its glass", str(g.ops_of(door_wall)[1].glass) == "clear")
+			ed._delete_selected()
+			_ok("Del takes it out", g.ops_of(door_wall).size() == 1)
+			ed._undo()
+			_ok("undo puts it back", g.ops_of(door_wall).size() == 2)
+			# a wall drawn up to it from the side splits it there: each opening stays where it was
+			var at_door: Vector2 = ed.WallGeom.point(g.curve_of(door_wall), float(g.ops_of(door_wall)[0].u))
+			var at_win: Vector2 = ed.WallGeom.point(g.curve_of(door_wall), float(g.ops_of(door_wall)[1].u))
+			g.add_wall(free + Vector2(3, 12), free + Vector2(3, 10), 0.0, {"tl": 0.15, "tr": 0.15, "h": 0.0}, ed.WALL_TOL)
+			var found := 0
+			for e in g.edges:
+				for op: Dictionary in g.ops_of(e):
+					var p: Vector2 = ed.WallGeom.point(g.curve_of(e), float(op.u))
+					if p.distance_to(at_door) < 1e-3 or p.distance_to(at_win) < 1e-3: found += 1
+			_ok("both openings kept where they were through a split (%d)" % found, found == 2)
+			await _shot("openings")
 	print("WALL EDITOR %s (%d failed)" % ["ALL PASSED" if fails == 0 else "FAILED", fails])
 	quit(1 if fails > 0 else 0)
 

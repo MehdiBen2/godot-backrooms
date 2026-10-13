@@ -2,7 +2,10 @@ extends Node
 ## Renders the left hand's idle gestures (torch_model.gd IDLE_CLIPS) from the player's camera, a few
 ## shots into each, and with the torch on the rest it's held in (before, and after each gesture).
 ## Env: SHOT (output prefix), TIMES (comma list of seconds), TORCH (1: torch on), SPRINT (1: then sprint,
-## a shot every eighth of a stride of the pump, and one after stopping).
+## a shot every eighth of a stride of the pump, and one after stopping), GROPE (1: then walk in the dark,
+## torch down: the hand feeling ahead, shots as it comes up and through a sweep, and after stopping), BRACE
+## (1: then caught: the last reach, shots through it and once the hands are gone), CATCH (bacteria |
+## mannequin: that entity's catch instead, both arms, shots through it; the mannequin flings the torch).
 ## Needs a window (not --headless).
 ## godot --path . --audio-driver Dummy --resolution 960x540 res://tools/shot_idle.tscn
 
@@ -98,4 +101,64 @@ func _ready() -> void:
 			await process_frame
 		await shoot.call("sprint_after")
 		print("after the sprint: base ", torch._base, "  left hand hidden: ", torch._hands.hidden(0))
+	if OS.get_environment("GROPE") == "1":
+		torch.ambient = 0.1
+		var walk := func(moving: bool) -> void:
+			_bob += 0.016 * 5.3 if moving else 0.0
+			torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
+			torch.update(0.016, false, false, moving, _bob)
+		var t0 := Time.get_ticks_msec()
+		for at in [0.3, 0.7, 1.5, 2.2, 3.0, 3.8]:
+			while Time.get_ticks_msec() - t0 < at * 1000.0:
+				walk.call(true)
+				await process_frame
+			await shoot.call("grope_%0.1f" % at)
+		print("grope: base ", torch._base, "  left hand hidden: ", torch._hands.hidden(0))
+		t0 = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 3500:
+			walk.call(false)
+			await process_frame
+		await shoot.call("grope_after")
+		print("stopped in the dark: base ", torch._base, "  left hand hidden: ", torch._hands.hidden(0))
+	if OS.get_environment("BRACE") == "1":
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 1500:     # back to standing about first
+			step.call()
+			await process_frame
+		torch.caught = true
+		t0 = Time.get_ticks_msec()
+		for at in [0.04, 0.1, 0.17, 0.24, 0.4]:
+			while Time.get_ticks_msec() - t0 < at * 1000.0:
+				torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
+				torch.update(get_process_delta_time(), false, false, false, 0.0)
+				await process_frame
+			await shoot.call("brace_%0.2f" % at)
+		print("caught: visible ", torch.visible)
+	var kind := OS.get_environment("CATCH")
+	if kind != "":
+		var floor_body := StaticBody3D.new()       # somewhere for a flung torch to land
+		var floor_shape := CollisionShape3D.new()
+		floor_shape.shape = WorldBoundaryShape3D.new()
+		floor_body.add_child(floor_shape)
+		floor_body.position.y = -1.6
+		world.add_child(floor_body)
+		var body := Node3D.new()                   # stands in for the player (the throw's world is its parent)
+		world.add_child(body)
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 1500:   # back to standing about first
+			step.call()
+			await process_frame
+		var show_for := 2.85 if kind == "bacteria" else 2.3
+		torch.catch_scene(kind, body, show_for)
+		torch.caught = true
+		t0 = Time.get_ticks_msec()
+		var times := [0.06, 0.16, 0.3, 0.6, 1.2, 2.0, show_for + 0.2] if kind == "bacteria" else [0.06, 0.12, 0.2, 0.4, 1.0, 2.1, show_for + 0.2]
+		for at in times:
+			while Time.get_ticks_msec() - t0 < at * 1000.0:
+				torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
+				torch.update(get_process_delta_time(), false, false, false, 0.0)
+				await process_frame
+			await shoot.call("%s_%0.2f" % [kind, at])
+		var flung := world.find_child("FlungTorch", true, false)
+		print("%s: hands visible at the end %s, flung torch %s" % [kind, torch.visible, (flung as Node3D).global_position if flung else "none"])
 	get_tree().quit()

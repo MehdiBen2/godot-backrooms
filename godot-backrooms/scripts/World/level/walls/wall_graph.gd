@@ -12,8 +12,27 @@ extends RefCounted
 ## lock_ang (its length / its direction stay as they are while other things move: drag_targets, translate)}.
 ## Every edge ends on shared nodes, so moving a node moves every wall on it, straight or curved, and nothing
 ## can come away from a corner.
+##
+## An edge's "ops" are the openings in it (doors, windows, doorways, arches: wall_openings.gd builds the hole,
+## props/door.gd and props/window.gd what stands in it): [{kind, u (where its middle is along the centre line,
+## 0 at a .. 1 at b), w (metres wide), h (metres tall), sill (metres off the floor), side ("l" / "r": the side a
+## door swings to, the room side of a window onto the sky), hinge ("a" / "b": the jamb a door hangs on), and the
+## kind's own settings (style, leaves, glass, sky, sun...)}]. They go with the wall wherever it goes: split, an
+## opening keeps to the piece its middle is on; joined, both pieces' openings carry on in the one wall.
 
 const Geom := preload("wall_geom.gd")
+
+const CELL_M := 4.5                  # metres a cell (level_data.gd CELL): the openings are sized in metres
+## Each kind of opening: its defaults, and whether you can walk through it (nav) / see and light through it
+const OPENINGS := {
+	"door": {"w": 1.12, "h": 2.19, "sill": 0.0, "style": "wood", "leaves": 1, "walk": false, "see": true},
+	"doorway": {"w": 1.2, "h": 2.4, "sill": 0.0, "walk": true, "see": true},
+	"arch": {"w": 1.8, "h": 3.0, "sill": 0.0, "walk": true, "see": true},
+	"window": {"w": 1.6, "h": 1.5, "sill": 0.9, "style": "pane", "glass": "sky", "panes": 3, "sky": "noon", "sun": 8.0,
+		"sun_angle": 35.0, "walk": false, "see": false},
+}
+const OP_MIN_W := 0.3                # metres: the narrowest opening
+const OP_GAP := 0.1                  # metres of wall kept between two openings, and between one and a corner
 
 const DEFAULT_THICK := 0.3           # metres: the thin wall's thickness (object_types.json)
 const SEE_OVER_H := 1.8              # level_data.gd SEE_OVER_H: a wall lower than this does not take a cell over
@@ -60,13 +79,112 @@ func oriented(e: int, from: int) -> Dictionary:
 	var o := {}
 	for k in EDGE_KEYS: o[k] = ed.get(k, DEFAULTS[k])
 	o["bulge"] = ed.bulge
+	o["ops"] = (ed.get("ops", []) as Array).duplicate(true)
 	if from != ed.a:
 		o["tl"] = ed.get("tr", DEFAULTS.tr)
 		o["tr"] = ed.get("tl", DEFAULTS.tl)
 		o["mat_l"] = ed.get("mat_r", "")
 		o["mat_r"] = ed.get("mat_l", "")
 		o["bulge"] = -float(ed.bulge)
+		o["ops"] = flip_ops(o.ops)
 	return o
+
+# ---------------------------------------------------------------- openings
+func ops_of(e: int) -> Array:
+	return edges[e].get("ops", []) if edges.has(e) else []
+
+## Openings as seen walking their wall the other way: their u from the other end, their sides swapped
+static func flip_ops(ops: Array) -> Array:
+	var out: Array = []
+	for op: Dictionary in ops:
+		var o := op.duplicate(true)
+		o.u = 1.0 - float(op.get("u", 0.5))
+		if o.has("side"): o.side = "r" if str(op.side) == "l" else "l"
+		if o.has("hinge"): o.hinge = "b" if str(op.hinge) == "a" else "a"
+		out.append(o)
+	return out
+
+## A new opening of `kind` (OPENINGS), its settings over the kind's defaults
+static func new_opening(kind: String, u: float, settings := {}) -> Dictionary:
+	var o := {"kind": kind, "u": u, "side": "l", "hinge": "a"}
+	for k in OPENINGS.get(kind, {}):
+		if k != "walk" and k != "see": o[k] = OPENINGS[kind][k]
+	for k in settings: o[k] = settings[k]
+	return o
+
+## Can you walk / see through opening `op`?
+static func op_walk(op: Dictionary) -> bool:
+	return bool(OPENINGS.get(str(op.get("kind", "")), {}).get("walk", false))
+
+static func op_see(op: Dictionary) -> bool:
+	var k := str(op.get("kind", ""))
+	if k == "window": return str(op.get("glass", "sky")) == "clear" or str(op.get("glass", "sky")) == "none"
+	return bool(OPENINGS.get(k, {}).get("see", false))
+
+## Where opening `op` of wall `e` runs along its centre line: [t0, t1] (parameters, 0 at a .. 1 at b)
+func op_span(e: int, op: Dictionary) -> Vector2:
+	var l := maxf(length_of(e) * CELL_M, 1e-6)
+	var half := float(op.get("w", 1.0)) * 0.5 / l
+	var u := float(op.get("u", 0.5))
+	return Vector2(u - half, u + half)
+
+## The u nearest `u` that opening `op` (w metres wide) can sit at on wall `e` clear of its ends (`margin` metres
+## at each: the corners there) and of its other openings (all but number `skip`); NAN when it fits nowhere
+func fit_opening(e: int, u: float, w: float, margin := OP_GAP, skip := -1) -> float:
+	var l := length_of(e) * CELL_M
+	if l < 1e-6: return NAN
+	var half := (w * 0.5 + OP_GAP * 0.5) / l
+	var lo := margin / l + w * 0.5 / l
+	var hi := 1.0 - lo
+	if lo > hi: return NAN
+	var blocked: Array = []
+	var ops := ops_of(e)
+	for i in ops.size():
+		if i == skip: continue
+		var s := op_span(e, ops[i])
+		blocked.append(Vector2(s.x - half - OP_GAP * 0.5 / l, s.y + half + OP_GAP * 0.5 / l))
+	var cands: Array[float] = [clampf(u, lo, hi)]
+	for b: Vector2 in blocked:
+		cands.append(clampf(b.x, lo, hi))
+		cands.append(clampf(b.y, lo, hi))
+	var best := NAN
+	for c: float in cands:
+		var ok := true
+		for b: Vector2 in blocked:
+			if c > b.x + 1e-6 and c < b.y - 1e-6: ok = false
+		if ok and (is_nan(best) or absf(c - u) < absf(best - u)): best = c
+	return best
+
+## The cells of wall `e`'s "cells" that an opening you walk through leaves open (the one its middle is nearest)
+func open_cells(e: int) -> Array:
+	var out: Array = []
+	var cells: Array = edges[e].get("cells", [])
+	if cells.is_empty(): return out
+	var cv := curve_of(e)
+	for op: Dictionary in ops_of(e):
+		if not op_walk(op): continue
+		var at := Geom.point(cv, float(op.get("u", 0.5)))
+		var best = null
+		var bd := INF
+		for c in cells:
+			var d := at.distance_to(Vector2(c[0], c[1]))
+			if d < bd:
+				bd = d
+				best = c
+		if best != null and bd < 0.75 and not out.has(best): out.append(best)
+	return out
+
+## Openings `ops` of a wall from 0 .. 1 made the openings of the stretch t0 .. t1 of it (those whose middle is
+## on it), their u measured along that stretch
+static func _ops_within(ops: Array, t0: float, t1: float, last: bool) -> Array:
+	var out: Array = []
+	for op: Dictionary in ops:
+		var u := float(op.get("u", 0.5))
+		if u < t0 or (u >= t1 and not last) or u > t1: continue
+		var o := op.duplicate(true)
+		o.u = (u - t0) / maxf(t1 - t0, 1e-9)
+		out.append(o)
+	return out
 
 ## Settings for a new edge: DEFAULTS, overridden by `props`
 static func props_of(props: Dictionary) -> Dictionary:
@@ -124,6 +242,7 @@ func add_edge(a: int, b: int, bulge := 0.0, props := {}) -> int:
 	ed["b"] = b
 	ed["bulge"] = bulge
 	ed["cells"] = (props.get("cells", []) as Array).duplicate(true)
+	ed["ops"] = (props.get("ops", []) as Array).duplicate(true)
 	edges[id] = ed
 	return id
 
@@ -138,7 +257,12 @@ func add_wall(p: Vector2, q: Vector2, bulge := 0.0, props := {}, tol := 0.02) ->
 		if pos(na).distance_to(q) <= tol: return []
 		nb = add_node(q)
 	# (an end that snapped onto a node keeps the curve's own sagitta: the arc is rebuilt between the real ends)
-	return planarize([add_edge(na, nb, bulge, props)], tol)
+	var e := add_edge(na, nb, bulge, props)
+	for f in edges_at(na):
+		if f != e and _same_wall(f, e):          # laid right over a wall that is there: that wall, made the most of both
+			_absorb_edge(f, e)
+			return [f]
+	return planarize([e], tol)
 
 ## Split edge `e` at the point of it nearest `p`; e keeps its a end, a new edge takes the rest. An arc's two
 ## halves stay on its circle. Returns the new node.
@@ -159,6 +283,9 @@ func split(e: int, p: Vector2) -> int:
 	var props := {}
 	for k in EDGE_KEYS: props[k] = ed.get(k, DEFAULTS[k])
 	props["cells"] = ed.get("cells", [])
+	var ops: Array = ed.get("ops", [])
+	props["ops"] = _ops_within(ops, t, 1.0, true)
+	ed["ops"] = _ops_within(ops, 0.0, t, false)
 	add_edge(n, b, bulge2, props)
 	return n
 
@@ -206,6 +333,13 @@ func _absorb_edge(e: int, f: int) -> void:
 	a.cells = _union_cells(a.get("cells", []), edges[f].get("cells", []))
 	a.lock_len = bool(a.get("lock_len", false)) or bool(o.lock_len)
 	a.lock_ang = bool(a.get("lock_ang", false)) or bool(o.lock_ang)
+	var ops: Array = (a.get("ops", []) as Array).duplicate(true)
+	for op: Dictionary in o.ops:
+		var clash := false
+		for k: Dictionary in ops:
+			if absf(float(k.u) - float(op.u)) * length_of(e) * CELL_M < (float(k.w) + float(op.w)) * 0.5: clash = true
+		if not clash: ops.append(op)
+	a["ops"] = ops
 	edges.erase(f)
 
 static func _union_cells(x: Array, y: Array) -> Array:
@@ -358,6 +492,19 @@ func tidy_node(n: int) -> void:
 		return
 	var props := o1.duplicate()
 	props["cells"] = _union_cells(edges[e1].get("cells", []), edges[e2].get("cells", []))
+	var l1 := Geom.length(c1)
+	var l2 := Geom.length(c2)
+	var f1 := l1 / maxf(l1 + l2, 1e-9)
+	var ops: Array = []
+	for op: Dictionary in o1.ops:
+		var k := op.duplicate(true)
+		k.u = float(op.u) * f1
+		ops.append(k)
+	for op: Dictionary in o2.ops:
+		var k := op.duplicate(true)
+		k.u = f1 + float(op.u) * (1.0 - f1)
+		ops.append(k)
+	props["ops"] = ops
 	edges.erase(e1)
 	edges.erase(e2)
 	nodes.erase(n)
@@ -367,26 +514,50 @@ func tidy_node(n: int) -> void:
 ## wall_segments / blocked_edges): [[a, b, half thickness, see over], ...] in cells. Each end is pulled in a
 ## hair (as the old wall objects' were), so a wall ending on a cell's centre line doesn't catch the cell links
 ## beside it. A wall lying wholly inside the cells it takes over adds nothing: those cells are walls already
-## (`all`: it does, for whoever wants every wall, the editor's acoustics).
-func nav_spans(all := false) -> Array:
+## (`all`: it does, for whoever wants every wall, the editor's acoustics). The openings you walk through leave a
+## gap (`sight`: the ones you see and light through too: a door, open or not, glass you see through).
+func nav_spans(all := false, sight := false) -> Array:
 	var out: Array = []
 	for e in edges:
 		var ed: Dictionary = edges[e]
 		var cv := curve_of(e)
-		var pts := Geom.polyline(cv, maxi(2, ceili(absf(cv.get("sw", 0.0)) / (PI / 12.0))))
+		var whole := Geom.polyline(cv, maxi(2, ceili(absf(cv.get("sw", 0.0)) / (PI / 12.0))))
 		var cells: Array = ed.get("cells", [])
 		if not cells.is_empty() and not all:
 			var inside := true
-			for p in pts:
+			for p in whole:
 				var hit := false
 				for c in cells:
 					if absf(p.x - c[0]) <= 0.52 and absf(p.y - c[1]) <= 0.52: hit = true
 				if not hit: inside = false
 			if inside: continue
-		pts[0] = pts[0].move_toward(pts[1], 0.01)
-		pts[-1] = pts[-1].move_toward(pts[-2], 0.01)
 		var low := float(ed.h) > 0.0 and float(ed.h) < SEE_OVER_H
-		for i in pts.size() - 1: out.append([pts[i], pts[i + 1], maxf(float(ed.tl), float(ed.tr)), low])
+		for r: Vector2 in _solid_runs(e, sight):
+			var pts := _run_points(cv, r.x, r.y)
+			if pts[0].distance_to(pts[-1]) < 0.03: continue
+			pts[0] = pts[0].move_toward(pts[1], 0.01)
+			pts[-1] = pts[-1].move_toward(pts[-2], 0.01)
+			for i in pts.size() - 1: out.append([pts[i], pts[i + 1], maxf(float(ed.tl), float(ed.tr)), low])
+	return out
+
+## The stretches of wall `e` (t0 .. t1) between the openings you walk through (`sight`: see through)
+func _solid_runs(e: int, sight: bool) -> Array:
+	var gaps: Array = []
+	for op: Dictionary in ops_of(e):
+		if op_walk(op) or (sight and op_see(op)): gaps.append(op_span(e, op))
+	gaps.sort_custom(func(x: Vector2, y: Vector2) -> bool: return x.x < y.x)
+	var out: Array = []
+	var t := 0.0
+	for g: Vector2 in gaps:
+		if g.x > t: out.append(Vector2(t, g.x))
+		t = maxf(t, g.y)
+	if t < 1.0: out.append(Vector2(t, 1.0))
+	return out
+
+static func _run_points(cv: Dictionary, t0: float, t1: float) -> PackedVector2Array:
+	var n := 1 if cv.kind == Geom.LINE else maxi(1, ceili(absf(cv.sw) * (t1 - t0) / (PI / 12.0)))
+	var out := PackedVector2Array()
+	for i in n + 1: out.append(Geom.point(cv, lerpf(t0, t1, float(i) / n)))
 	return out
 
 ## Lines `a` .. `b` - 1 (columns, or rows) cut out of the map: the nodes on them go with their walls, the
@@ -597,6 +768,12 @@ func to_dict() -> Dictionary:
 		if not (ed.get("cells", []) as Array).is_empty(): o["cells"] = ed.cells
 		if bool(ed.get("lock_len", false)): o["lock_len"] = true
 		if bool(ed.get("lock_ang", false)): o["lock_ang"] = true
+		if not (ed.get("ops", []) as Array).is_empty():
+			o["ops"] = (ed.ops as Array).map(func(op: Dictionary) -> Dictionary:
+				var k := {}
+				for key in op: k[key] = float(op[key]) if op[key] is int else op[key]     # (as they come back from JSON)
+				k.u = snappedf(float(op.u), 0.00001)
+				return k)
 		es.append(o)
 	return {"nodes": ns, "edges": es}
 
@@ -624,6 +801,11 @@ func load_dict(d) -> void:
 		for c in o.get("cells", []):
 			if c is Array and c.size() >= 2: cells.append([int(c[0]), int(c[1])])
 		ed["cells"] = cells
+		var ops: Array = []
+		for op in o.get("ops", []):
+			if op is Dictionary and OPENINGS.has(str(op.get("kind", ""))):
+				ops.append(new_opening(str(op.kind), float(op.get("u", 0.5)), op))
+		ed["ops"] = ops
 		edges[id] = ed
 		next_id = maxi(next_id, id + 1)
 	# a node no wall ends on is nothing
@@ -653,6 +835,9 @@ func absorb(objects: Array, types: Dictionary, size: int, tol := 0.1 / 4.5) -> A
 			continue
 		var info: Dictionary = types.get(str(o.get("type", "")), {})
 		var shape := str(info.get("shape", ""))
+		if str(o.get("type", "")) == "door":
+			_absorb_door(o, info, size, tol)
+			continue
 		if shape not in ["slab", "corner", "arc", "spline"] or info.has("model"):
 			kept.append(o)
 			continue
@@ -703,4 +888,58 @@ func absorb(objects: Array, types: Dictionary, size: int, tol := 0.1 / 4.5) -> A
 				for i in pts.size() - 1:
 					add_wall(xf.call(pts[i]), xf.call(pts[i + 1]), 0.0, props, tol)
 				if closed: add_wall(xf.call(pts[-1]), xf.call(pts[0]), 0.0, props, tol)
-	return kept
+	# windows hung on a wall of the graph go into it (on the grid's block walls they stay as they were)
+	var left: Array = []
+	for o in kept:
+		if not (o is Dictionary and str(types.get(str(o.get("type", "")), {}).get("shape", "")) == "window" and _absorb_window(o)):
+			left.append(o)
+	return left
+
+## An old door object (a thin wall across its cells with a door in its middle): the same wall, the door in it
+func _absorb_door(o: Dictionary, info: Dictionary, size: int, tol: float) -> void:
+	var at := Vector2(float(o.get("pos_x", 0.0)), float(o.get("pos_y", 0.0)))
+	var rot := deg_to_rad(float(o.get("rotation", 0.0)))
+	var s := clampf(float(o.get("scale", 1.0)), 0.5, 4.0)
+	var thick := float(info.get("thickness", DEFAULT_THICK))
+	var props := {"tl": thick * 0.5, "tr": thick * 0.5, "h": 0.0}
+	var c := Vector2i(roundi(at.x), roundi(at.y))
+	if absf(at.x - c.x) <= 0.26 and absf(at.y - c.y) <= 0.26 and c.x > 0 and c.y > 0 and c.x < size - 1 and c.y < size - 1:
+		props["cells"] = [[c.x, c.y]]
+	var p := at + Vector2(0, -s * 0.5).rotated(rot)
+	var q := at + Vector2(0, s * 0.5).rotated(rot)
+	add_wall(p, q, 0.0, props, tol)
+	# (the old door's leaf hung on its -z jamb, the p end, and swung away from whoever opened it)
+	var hit := edge_near(at, 0.05)
+	if hit.is_empty(): return
+	var e: int = hit.e
+	var near_a := pos(edges[e].a).distance_to(p) < pos(edges[e].a).distance_to(q)
+	var w := float(info.get("opening", OPENINGS.door.w))
+	var fit := fit_opening(e, float(hit.t), w)
+	if is_nan(fit): return
+	var settings := {"w": w, "hinge": "a" if near_a else "b", "style": str(o.get("leaf", "wood"))}
+	edges[e].ops.append(new_opening("door", fit, settings))
+
+## An old window object on a wall of the graph: its back on a face of the wall, its arrow (+x) into the room.
+## False if there is no wall of the graph under it.
+func _absorb_window(o: Dictionary) -> bool:
+	var at := Vector2(float(o.get("pos_x", 0.0)), float(o.get("pos_y", 0.0)))
+	var rot := deg_to_rad(float(o.get("rotation", 0.0)))
+	var into := Vector2(1, 0).rotated(rot)
+	var hit := edge_near(at - into * 0.04, 0.12)
+	if hit.is_empty(): return false
+	var e: int = hit.e
+	var cv := curve_of(e)
+	var t := float(hit.t)
+	var facing := Geom.normal(cv, t).dot(into)
+	if absf(facing) < 0.7: return false
+	var w := clampf(float(o.get("scale", 0.5)) * CELL_M, OP_MIN_W, 30.0)
+	var fit := fit_opening(e, t, w)
+	if is_nan(fit): return false
+	var settings := {"w": w, "side": "l" if facing > 0.0 else "r", "glass": "sky"}
+	for k in ["panes", "sky", "sun", "sun_angle", "shadows"]:
+		if o.has(k): settings[k] = o[k]
+	if o.has("frame"): settings["style"] = o.frame
+	settings["sill"] = maxf(0.0, float(o.get("elev", OPENINGS.window.sill)))
+	settings["h"] = float(o.height) if float(o.get("height", 0.0)) > 0.0 else 2.2
+	edges[e].ops.append(new_opening("window", fit, settings))
+	return true

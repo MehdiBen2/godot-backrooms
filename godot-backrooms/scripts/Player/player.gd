@@ -463,6 +463,8 @@ func _physics_process_timed(dt: float) -> void:
 	adr_idle += dt
 	if adr_idle > 0.5 and (adr_active or adrenaline > 0.0):
 		_tick_adrenaline(dt, false)
+	if torch:
+		torch.caught = dead or frozen                   # held by an entity, or dead: the hands are gone
 	if dead or frozen:
 		if _door_anim_active: _end_door_scene()        # grabbed, or worse, with a hand on the door
 		if adrenaline > 0.0 or adr_active: end_adrenaline()
@@ -479,10 +481,11 @@ func _physics_process_timed(dt: float) -> void:
 			torch.set_squeeze(false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
 			torch.set_peek(peek.side, false, peek.edge, peek.normal, peek.out, peek.dist, false, is_crouching)
 		if shadow_body: shadow_body.update(false, false, is_crouching, dead, 0.0)
-		if dead:
-			if torch:
+		if torch:
+			if dead:
 				torch.end_swap()
-				torch.update(dt, false, false, false, bob)
+			torch.update(dt, false, false, false, bob)    # (held too: the hands' last reach plays out, then they're gone)
+		if dead:
 			flash.visible = false
 			flash.light_energy = 0.0
 			if flash_spill:
@@ -624,6 +627,7 @@ func _physics_process_timed(dt: float) -> void:
 			torch.set_grab(_corner_on, corner.side, corner.point, corner.normal, corner.out)
 			torch.set_hug(peek.hug, peek.hug_point, peek.hug_normal, slow)
 			torch.set_peek(peek.side, peek.leaning, peek.edge, peek.normal, peek.out, peek.dist, slow, crouch)
+		torch.ambient = light_level                    # (in the dark, with the torch down, the free hand gropes ahead)
 		torch.update(dt, flash_on and not dead and not _tight_spot(), is_sprinting, is_moving, bob)
 		if lens_up > 0.02:
 			torch.visible = false        # the camcorder is at your eye: both hands are on it

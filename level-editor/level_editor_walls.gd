@@ -19,6 +19,11 @@ extends "res://level_editor_canvas.gd"
 ## nudge the picked walls. The inspector sets thickness, height, materials and locks on all of them at once. A
 ## wall with its length / angle locked keeps it while you move what is round it. Del or right click deletes;
 ## what it leaves is tidied (a node nothing ends on goes, two walls left in line become one). F3 shows the graph.
+## OPENINGS (Door, Doorway, Wall arch, Window): click a wall and it goes into it, a real opening (the side of the
+## wall you click is the side a door swings to, the room a window lights). Picked (Select), drag it along its wall,
+## drag its ends (the squares on its jambs) to size it, click its measurements to type them; the inspector sets the
+## rest (its style, a pair of doors, the jamb it hangs on, glass onto the sky or into the next room, the sun).
+## Del / right click takes it out. It goes wherever its wall goes, through every edit.
 
 var wall_snap_px := 14.0             # how near (screen pixels) the mouse must come for a snap to catch
 var wall_angle_step := 15.0          # degrees: the angle snap's steps
@@ -37,6 +42,10 @@ var _wplan := {}                     # the walls' plan in cells, worked out once
 var _wlabels: Array = []             # the picked wall's measurements as drawn: [screen rect, what it is]
 var _wpopup: LineEdit                # typing one of them in
 var _winsp_undo := false             # the inspector already pushed an undo step for this selection
+var wsel_op := {}                    # the picked opening: {e, i} (its wall, its place in the wall's "ops")
+var whover_op := {}
+var wop_ghost := {}                  # where the opening tool would put one: {e, u, w, side} ({e, bad}: no room there)
+var _op_pressed := false             # the opening tool took this click (its release too)
 
 const WALL_FILL := Color(0.25, 0.23, 0.19)
 const WALL_LOW := Color(0.5, 0.44, 0.32)
@@ -89,7 +98,9 @@ func _walls_changed() -> void:
 	for e in wsel_edges.duplicate():
 		if not wall_graph.edges.has(e): wsel_edges.erase(e)
 	if wsel_node >= 0 and not wall_graph.nodes.has(wsel_node): wsel_node = -1
+	if not _op_valid(wsel_op): wsel_op = {}
 	_wall_insp_sync()
+	_op_insp_sync()
 	if canvas != null: canvas.queue_redraw()
 
 ## The plan of every wall and hub in cells: {e: [outline, tags, box, drawable]}, hubs the same
@@ -127,6 +138,7 @@ func _walls_draw() -> void:
 		_draw_plan(plan.edges[e], view, WALL_LOW if low else WALL_FILL, float(ed.base) > 0.0)
 	for n in plan.hubs:
 		_draw_plan(plan.hubs[n], view, WALL_FILL, false)
+	_draw_ops(view)
 	# the picked and hovered walls
 	for e in wsel_edges:
 		if plan.edges.has(e): _draw_outline_px(plan.edges[e], Color(0, 0, 0, 0.8), 4.0, SEL, 2.0)
@@ -195,12 +207,14 @@ func _walls_overlay() -> void:
 	if tool == "select" and one >= 0:
 		_draw_handles(one)
 		if wdrag.is_empty() or wdrag.kind != "node": _draw_labels(one)
+	if tool == "select" and not wsel_op.is_empty(): _draw_op_labels()
+	if not wop_ghost.is_empty() and _op_kind() != "": _draw_op_ghost()
 	if not wsnap.is_empty() and (not wdraw.is_empty() or _walls_tool() or wdrag.get("kind", "") == "node"):
 		_draw_snap(wsnap)
 	if wtyped != "":
 		var what := _typed_what()
 		_tag(mouse_px + Vector2(14, 22), "= %s   %s   (Enter)" % [wtyped, what], GOLD, 13)
-	elif not wdrag.is_empty() and str(wdrag.kind) in ["slide", "thick_l", "thick_r", "height", "bend"]:
+	elif not wdrag.is_empty() and str(wdrag.kind) in ["slide", "thick_l", "thick_r", "height", "bend", "op_move", "op_a", "op_b"]:
 		_tag(mouse_px + Vector2(14, 22), _drag_readout(), CREAM, 12)
 
 ## The one wall picked (-1: none or several)
@@ -414,7 +428,11 @@ func _wall_press(mb: InputEventMouseButton) -> bool:
 		if not wdrag.is_empty() and mb.button_index == MOUSE_BUTTON_LEFT:
 			_wall_drag_end()
 			return true
+		if _op_pressed:
+			_op_pressed = false
+			return true
 		return _walls_tool()
+	if _op_kind() != "" and _op_press(mb): return true
 	if _walls_tool():
 		if mb.button_index == MOUSE_BUTTON_RIGHT:
 			if not wdraw.is_empty():
@@ -427,6 +445,10 @@ func _wall_press(mb: InputEventMouseButton) -> bool:
 		return mb.button_index == MOUSE_BUTTON_LEFT
 	if mb.button_index == MOUSE_BUTTON_RIGHT:
 		if _obj_at(mb.position) >= 0: return false
+		var hit := _op_at(mb.position)
+		if not hit.is_empty():
+			_op_delete(hit)
+			return true
 		var e := _wall_at(mb.position)
 		if e < 0: return false
 		_wall_delete([e], -1)
@@ -437,6 +459,19 @@ func _wall_press(mb: InputEventMouseButton) -> bool:
 		if (lb[0] as Rect2).has_point(mb.position):
 			_open_popup(lb[1], lb[0])
 			return true
+	if not wsel_op.is_empty():
+		var oh := _op_handle_at(mb.position)
+		if oh != "":
+			_op_drag_start(oh, mb.position)
+			return true
+	var oh2 := _op_at(mb.position)
+	if not oh2.is_empty() and _handle_at(mb.position) == "":
+		_select(-1)
+		wsel_op = oh2
+		_winsp_undo = false
+		_op_drag_start("op_move", mb.position)
+		_walls_changed()
+		return true
 	var h := _handle_at(mb.position)
 	if h != "":
 		_push_undo()
@@ -577,15 +612,24 @@ func _walls_motion(p: Vector2) -> bool:
 	whover_edge = -1
 	whover_node = -1
 	whover_handle = {}
+	whover_op = {}
+	wop_ghost = {}
 	if _walls_tool():
 		wsnap = {} if wdraw.get("stage", "") == "bend" else _draw_snap_at(p)
+	elif _op_kind() != "":
+		wsnap = {}
+		wop_ghost = _op_ghost_at(p)
+		if canvas != null: canvas.queue_redraw()
 	elif tool == "select":
 		wsnap = {}
 		var h := _handle_at(p)
-		if h != "": whover_handle = {"kind": h}
+		var oh := _op_handle_at(p) if not wsel_op.is_empty() else ""
+		if oh != "": whover_handle = {"kind": oh}
+		elif h != "": whover_handle = {"kind": h}
 		else:
 			whover_node = _node_at(p)
-			if whover_node < 0 and _obj_at(p) < 0: whover_edge = _wall_at(p)
+			if whover_node < 0: whover_op = _op_at(p)
+			if whover_node < 0 and whover_op.is_empty() and _obj_at(p) < 0: whover_edge = _wall_at(p)
 	else:
 		wsnap = {}
 	return false
@@ -631,6 +675,8 @@ func _wall_drag_to(p: Vector2) -> void:
 			var h := clampf(float(wdrag.h0) + (float(wdrag.from_px.y) - p.y) * 0.02, 0.1, room)
 			if not free: h = snappedf(h, 0.05)
 			wall_graph.edges[e].h = 0.0 if h >= room - 0.025 else h
+		"op_move", "op_a", "op_b":
+			_op_drag_to(cur, free)
 	_walls_changed()
 
 ## How far sideways the slide drag has pulled its wall (cells, + to the wall's left), on 0.1 m steps
@@ -644,6 +690,7 @@ func _slide_dist(cur: Vector2) -> float:
 	return dist
 
 func _drag_readout() -> String:
+	if str(wdrag.get("kind", "")).begins_with("op_"): return _op_readout()
 	var e: int = wdrag.get("edge", -1)
 	if e < 0 or not wall_graph.edges.has(e): return ""
 	var ed: Dictionary = wall_graph.edges[e]
@@ -655,6 +702,10 @@ func _drag_readout() -> String:
 		"bend":
 			var cv: Dictionary = wall_graph.curve_of(e)
 			return "straight" if cv.kind == WallGeom.LINE else "r %.2f m   %s°" % [float(cv.r) * CELL_M, _deg(absf(rad_to_deg(cv.sw)))]
+		"op_move", "op_a", "op_b":
+			var op := _op_of(wsel_op)
+			if op.is_empty(): return ""
+			return "%.2f m wide   %.2f m from the wall's end   (type a number: %s)" % [float(op.w), _op_from_a(wsel_op), "width" if wdrag.kind != "op_move" else "how far from its end"]
 	return ""
 
 func _wall_drag_end() -> void:
@@ -665,6 +716,10 @@ func _wall_drag_end() -> void:
 			if wdrag.moved:
 				for n in wdrag.nodes:
 					if wall_graph.nodes.has(n): wall_graph.settle_node(n, WALL_TOL)
+		"op_move", "op_a", "op_b":
+			if wall_graph.edges.has(wdrag.edge) and str(wdrag.kind) == "op_move" and not wdrag.get("moved", false):
+				_undo()                            # (a click that picked it: nothing changed)
+				redo_stack.clear()
 		"bend", "slide":
 			if wall_graph.edges.has(wdrag.edge):
 				wall_graph.planarize([wdrag.edge] + wall_graph.edges_at(wall_graph.edges[wdrag.edge].a) + wall_graph.edges_at(wall_graph.edges[wdrag.edge].b), WALL_TOL)
@@ -685,6 +740,8 @@ func _typed_what() -> String:
 		"thick_l", "thick_r": return "this side m"
 		"height": return "height m  (0: full)"
 		"node": return "length m of the wall it pulls"
+		"op_move": return "m from the wall's end to its middle"
+		"op_a", "op_b": return "width m"
 	return ""
 
 ## A key while drawing or dragging: digits, a point, a minus and a comma make the number, Backspace takes one
@@ -742,6 +799,8 @@ func _typed_apply() -> void:
 		"thick_l": wall_graph.edges[e].tl = maxf(v, 0.01)
 		"thick_r": wall_graph.edges[e].tr = maxf(v, 0.01)
 		"height": wall_graph.edges[e].h = _fit_h(e, v)
+		"op_move": _op_measure("op_at", v, false)
+		"op_a", "op_b": _op_measure("op_w", v, false)
 		"node":
 			var n: int = wdrag.node
 			var at: Array = wall_graph.edges_at(n)
@@ -753,6 +812,9 @@ func _typed_apply() -> void:
 # ---------------------------------------------------------------- typing a measurement in
 func _open_popup(kind: String, r: Rect2) -> void:
 	_close_popup()
+	if kind.begins_with("op_"):
+		_open_op_popup(kind, r)
+		return
 	var e := _one_wall()
 	if e < 0: return
 	var ed: Dictionary = wall_graph.edges[e]
@@ -873,6 +935,9 @@ func _wall_delete(es: Array, n: int) -> void:
 	_mark_dirty()
 
 func _delete_selected() -> void:
+	if not wsel_op.is_empty():
+		_op_delete(wsel_op)
+		return
 	if not wsel_edges.is_empty() or wsel_node >= 0:
 		_wall_delete(wsel_edges.duplicate(), wsel_node)
 		if _group().is_empty(): return
@@ -882,6 +947,7 @@ func _select(i: int) -> void:
 	if i >= 0 or wdrag.is_empty():
 		wsel_edges = []
 		wsel_node = -1
+		wsel_op = {}
 		_winsp_undo = false
 	super(i)
 	_wall_insp_sync()
@@ -892,6 +958,7 @@ func _cancel_all() -> void:
 	if not wdraw.is_empty(): _wall_stop()
 	if not wdrag.is_empty():
 		_restore_positions(wdrag.get("orig", {}))
+		if wdrag.has("orig_op") and _op_valid(wsel_op): wall_graph.edges[wsel_op.e].ops[wsel_op.i] = wdrag.orig_op
 		wdrag = {}
 		wsnap = {}
 		wtyped = ""
@@ -1004,6 +1071,17 @@ func _end_spline() -> void:
 
 # ---------------------------------------------------------------- the status line
 func _walls_status() -> bool:
+	if _op_kind() != "":
+		if wop_ghost.get("bad", false): _status("No room for it there: it needs %.2f m of wall clear of the corners and the other openings" % _op_default_w())
+		elif not wop_ghost.is_empty(): _status("%s into wall %d: click to put it in (it opens to / lights the side you are on)" % [_op_kind().capitalize(), wop_ghost.e])
+		else: _status("Point at a wall to put a %s in it%s" % [_op_kind(), "" if _op_kind() in ["doorway", "arch"] else " (off the walls: placed as before)"])
+		return true
+	if not whover_op.is_empty() or str(wdrag.get("kind", "")).begins_with("op_"):
+		var o: Dictionary = whover_op if not whover_op.is_empty() else wsel_op
+		var op := _op_of(o)
+		if not op.is_empty():
+			_status("%s in wall %d: %.2f x %.2f m   drag: along the wall   its ends: width   Del / right click: take it out" % [str(op.kind).capitalize(), o.e, float(op.w), float(op.h)])
+			return true
 	if _walls_tool():
 		var s := "WALL: " + ("drawing from %.1f, %.1f" % [wdraw.from.x, wdraw.from.y] if not wdraw.is_empty() else "click where it starts")
 		if not wsnap.is_empty() and str(wsnap.kind) != "free": s += "   snap: " + str(SNAP_NAME.get(str(wsnap.kind), wsnap.kind))
@@ -1027,6 +1105,10 @@ func _walls_status() -> bool:
 
 func _hint_text() -> String:
 	var always := "     Space / middle drag: move the map     wheel: zoom     Esc: cancel"
+	if _op_kind() != "":
+		return "Click a wall: put the %s in it (on the side you click)     right click one: take it out     Select it to move, size, set it" % _op_kind() + always
+	if tool == "select" and not wsel_op.is_empty():
+		return "Drag: slide it along the wall     drag a square: its width     click a measurement: type it     the inspector: the rest     Del: take it out"
 	if _walls_tool():
 		if not wdraw.is_empty() and wdraw.stage == "bend": return "Move: bend the arc (it snaps straight, to a half circle, and tangent to the wall before)     type a radius + Enter     click: put it down     Alt: no snapping"
 		if not wdraw.is_empty(): return "Click: end this wall and draw on     type 3.5 or 3.5,90 + Enter: exact length (m), angle     A: arc     double / right click, Enter: stop     Alt: no snapping"
@@ -1034,3 +1116,348 @@ func _hint_text() -> String:
 	if tool == "select" and (not wsel_edges.is_empty() or wsel_node >= 0):
 		return "Handles: node, square (slide), diamond (bend), arrows (thickness), bar (height)     click a measurement to type it     arrows: nudge     Del: delete"
 	return super()
+
+# ---------------------------------------------------------------- openings in the walls
+## The kind of opening the current tool puts in a wall (object_types.json "opening_kind"), "" none
+func _op_kind() -> String:
+	if not tool.begins_with("obj:"): return ""
+	return str(_info(tool.get_slice(":", 1)).get("opening_kind", ""))
+
+func _op_default_w() -> float:
+	var k := _op_kind()
+	if k == "door": return float(_info("door").get("opening", 1.12))
+	return float(WallGraph.OPENINGS.get(k, {}).get("w", 1.2))
+
+func _op_valid(o: Dictionary) -> bool:
+	return not o.is_empty() and wall_graph.edges.has(o.e) and int(o.i) < (wall_graph.ops_of(o.e) as Array).size()
+
+func _op_of(o: Dictionary) -> Dictionary:
+	return wall_graph.edges[o.e].ops[o.i] if _op_valid(o) else {}
+
+## Where the opening tool would put one at screen point px: on the wall under it, fitted clear of its corners and
+## other openings, on the side of the wall the mouse is
+func _op_ghost_at(px: Vector2) -> Dictionary:
+	var e := _wall_at(px)
+	if e < 0: return {}
+	var cur := _pos_at(px)
+	var cv: Dictionary = wall_graph.curve_of(e)
+	var c: Dictionary = WallGeom.closest(cv, cur)
+	var w := _op_default_w()
+	var u: float = wall_graph.fit_opening(e, float(c.t), w)
+	if is_nan(u): return {"e": e, "bad": true}
+	if snap and not Input.is_key_pressed(KEY_ALT):       # the middle on 5 cm steps along the wall
+		var l: float = wall_graph.length_of(e) * CELL_M
+		var su: float = wall_graph.fit_opening(e, snappedf(u * l, 0.05) / l, w)
+		if not is_nan(su): u = su
+	var side := "l" if WallGeom.normal(cv, float(c.t)).dot(cur - (c.p as Vector2)) >= 0.0 else "r"
+	return {"e": e, "u": u, "w": w, "side": side}
+
+## A click of the opening tool: into the wall under it (true), or (door, window off the walls) on to the objects
+func _op_press(mb: InputEventMouseButton) -> bool:
+	if mb.button_index == MOUSE_BUTTON_RIGHT:
+		var hit := _op_at(mb.position)
+		if hit.is_empty(): return false
+		_op_delete(hit)
+		_op_pressed = true
+		return true
+	if mb.button_index != MOUSE_BUTTON_LEFT: return false
+	var g := _op_ghost_at(mb.position)
+	if g.is_empty():
+		if _op_kind() in ["doorway", "arch"]:
+			_status("A %s goes in a wall: click one (draw walls with the Thin / Half / Corner / Curved wall tools)" % _op_kind())
+			_op_pressed = true
+			return true
+		return false
+	_op_pressed = true
+	if g.get("bad", false):
+		_status("No room for it there: it needs %.2f m of wall clear of the corners and the other openings" % _op_default_w())
+		return true
+	_push_undo()
+	var settings := {"w": g.w, "side": g.side}
+	if _op_kind() == "door": settings["style"] = str(_info("door").get("params", {}).get("leaf", "wood"))
+	var ops: Array = wall_graph.edges[g.e].ops
+	ops.append(WallGraph.new_opening(_op_kind(), g.u, settings))
+	wsel_op = {"e": g.e, "i": ops.size() - 1}
+	wsel_edges = []
+	_walls_changed()
+	_mark_dirty()
+	_status("%s put in wall %d. Select it to slide or size it; the inspector sets the rest" % [_op_kind().capitalize(), g.e])
+	return true
+
+## The opening under screen point px: {e, i}, or {}
+func _op_at(px: Vector2) -> Dictionary:
+	var cur := _pos_at(px)
+	for e in wall_graph.edges:
+		var ops: Array = wall_graph.ops_of(e)
+		if ops.is_empty(): continue
+		var ed: Dictionary = wall_graph.edges[e]
+		var reach := maxf(maxf(float(ed.tl), float(ed.tr)) / CELL_M, 6.0 / zoom)
+		if not wall_graph.box_of(e, reach).has_point(cur): continue
+		var c: Dictionary = WallGeom.closest(wall_graph.curve_of(e), cur)
+		if c.d > reach: continue
+		for i in ops.size():
+			var sp: Vector2 = wall_graph.op_span(e, ops[i])
+			if float(c.t) >= sp.x and float(c.t) <= sp.y: return {"e": e, "i": i}
+	return {}
+
+## The picked opening's jamb squares: "op_a" (its end towards the wall's a), "op_b"
+func _op_handles() -> Dictionary:
+	var op := _op_of(wsel_op)
+	if op.is_empty(): return {}
+	var cv: Dictionary = wall_graph.curve_of(wsel_op.e)
+	var sp: Vector2 = wall_graph.op_span(wsel_op.e, op)
+	return {"op_a": _cells_px(WallGeom.point(cv, clampf(sp.x, 0.0, 1.0))), "op_b": _cells_px(WallGeom.point(cv, clampf(sp.y, 0.0, 1.0)))}
+
+func _op_handle_at(px: Vector2) -> String:
+	var hs := _op_handles()
+	for k in hs:
+		if (hs[k] as Vector2).distance_to(px) <= 8.0: return k
+	return ""
+
+func _op_drag_start(kind: String, px: Vector2) -> void:
+	_push_undo()
+	var op := _op_of(wsel_op)
+	var cv: Dictionary = wall_graph.curve_of(wsel_op.e)
+	wdrag = {"kind": kind, "edge": wsel_op.e, "orig_op": op.duplicate(true), "t0": float(WallGeom.closest(cv, _pos_at(px)).t),
+		"moved": false, "orig": {}}
+	wtyped = ""
+
+## Dragging the picked opening: along its wall (op_move), or one jamb (op_a / op_b) with the other staying put
+func _op_drag_to(cur: Vector2, free: bool) -> void:
+	if not _op_valid(wsel_op): return
+	var e: int = wsel_op.e
+	var op: Dictionary = wall_graph.edges[e].ops[wsel_op.i]
+	var o0: Dictionary = wdrag.orig_op
+	var l: float = wall_graph.length_of(e) * CELL_M
+	var t := float(WallGeom.closest(wall_graph.curve_of(e), cur).t)
+	if str(wdrag.kind) == "op_move":
+		var u := float(o0.u) + (t - float(wdrag.t0))
+		if snap and not free: u = snappedf(u * l, 0.05) / l
+		var fit: float = wall_graph.fit_opening(e, u, float(op.w), WallGraph.OP_GAP, wsel_op.i)
+		if not is_nan(fit):
+			op.u = fit
+			wdrag.moved = absf(fit - float(o0.u)) > 1e-6
+		return
+	# a jamb: the other one stays where it is
+	var half := float(o0.w) * 0.5 / l
+	var keep := float(o0.u) + (half if wdrag.kind == "op_a" else -half)
+	var w := absf(keep - t) * l
+	if snap and not free: w = snappedf(w, 0.05)
+	w = maxf(w, WallGraph.OP_MIN_W)
+	var u := keep + (-1.0 if wdrag.kind == "op_a" else 1.0) * w * 0.5 / l
+	var fit: float = wall_graph.fit_opening(e, u, w, WallGraph.OP_GAP, wsel_op.i)
+	if not is_nan(fit) and absf(fit - u) * l < 0.01:
+		op.w = w
+		op.u = fit
+		wdrag.moved = true
+
+## How far the picked opening's middle is from its wall's a end, metres
+func _op_from_a(o: Dictionary) -> float:
+	var op := _op_of(o)
+	return float(op.get("u", 0.0)) * wall_graph.length_of(o.e) * CELL_M
+
+func _op_readout() -> String:
+	var op := _op_of(wsel_op)
+	if op.is_empty(): return ""
+	return "%.2f m wide   its middle %.2f m from the wall's end" % [float(op.w), _op_from_a(wsel_op)]
+
+## An exact measurement of the picked opening: op_w (width, about its middle), op_h, op_sill, op_at (its middle's
+## distance from its wall's a end)
+func _op_measure(kind: String, v: float, undo := true) -> void:
+	if not _op_valid(wsel_op): return
+	if undo: _push_undo()
+	var e: int = wsel_op.e
+	var op: Dictionary = wall_graph.edges[e].ops[wsel_op.i]
+	var l: float = wall_graph.length_of(e) * CELL_M
+	match kind:
+		"op_w":
+			var w := maxf(v, WallGraph.OP_MIN_W)
+			var fit: float = wall_graph.fit_opening(e, float(op.u), w, WallGraph.OP_GAP, wsel_op.i)
+			if is_nan(fit): _status("It doesn't fit that wide here")
+			else:
+				op.w = w
+				op.u = fit
+		"op_h": op.h = maxf(v, 0.3)
+		"op_sill": op.sill = maxf(v, 0.0)
+		"op_at":
+			var fit: float = wall_graph.fit_opening(e, v / maxf(l, 1e-6), float(op.w), WallGraph.OP_GAP, wsel_op.i)
+			if not is_nan(fit): op.u = fit
+	_walls_changed()
+	_mark_dirty()
+
+func _op_delete(o: Dictionary) -> void:
+	if not _op_valid(o): return
+	_push_undo()
+	(wall_graph.edges[o.e].ops as Array).remove_at(o.i)
+	wsel_op = {}
+	whover_op = {}
+	_walls_changed()
+	_mark_dirty()
+	_status("Opening taken out")
+
+## Set `key` of the picked opening from the inspector (one undo step for a run of changes)
+func _op_set(key: String, v) -> void:
+	if not _op_valid(wsel_op): return
+	if not _winsp_undo:
+		_push_undo()
+		_winsp_undo = true
+	match key:
+		"w", "h", "sill", "at":
+			_op_measure("op_" + key, float(v), false)
+			return
+	var op: Dictionary = wall_graph.edges[wsel_op.e].ops[wsel_op.i]
+	op[key] = v
+	_walls_changed()
+	_mark_dirty()
+
+## The inspector's buttons: "side" (it opens to / lights the other side), "hinge" (it hangs on the other jamb),
+## "delete"
+func _op_action(what: String) -> void:
+	if not _op_valid(wsel_op): return
+	if what == "delete":
+		_op_delete(wsel_op)
+		return
+	_push_undo()
+	var op: Dictionary = wall_graph.edges[wsel_op.e].ops[wsel_op.i]
+	if what == "side": op.side = "r" if str(op.get("side", "l")) == "l" else "l"
+	elif what == "hinge": op.hinge = "b" if str(op.get("hinge", "a")) == "a" else "a"
+	_walls_changed()
+	_mark_dirty()
+
+## Overridden by level_editor.gd: the opening inspector follows the picked opening
+func _op_insp_sync() -> void:
+	pass
+
+func _open_op_popup(kind: String, r: Rect2) -> void:
+	var op := _op_of(wsel_op)
+	if op.is_empty(): return
+	var val: float = {"op_w": float(op.w), "op_h": float(op.h), "op_sill": float(op.get("sill", 0.0)), "op_at": _op_from_a(wsel_op)}.get(kind, 0.0)
+	_wpopup = LineEdit.new()
+	_wpopup.text = str(snappedf(val, 0.01))
+	_wpopup.position = r.position - Vector2(0, 4)
+	_wpopup.custom_minimum_size = Vector2(maxf(r.size.x, 70.0), 24)
+	_wpopup.tooltip_text = {"op_w": "metres wide", "op_h": "metres tall", "op_sill": "metres off the floor", "op_at": "metres from the wall's end to its middle"}.get(kind, "")
+	canvas.add_child(_wpopup)
+	_wpopup.grab_focus()
+	_wpopup.select_all()
+	_wpopup.text_submitted.connect(func(t: String) -> void:
+		if t.is_valid_float(): _op_measure(kind, float(t))
+		_close_popup())
+	_wpopup.focus_exited.connect(_close_popup)
+
+## The picked opening's measurements by it, each a box you can click to type it
+func _draw_op_labels() -> void:
+	var op := _op_of(wsel_op)
+	if op.is_empty(): return
+	var e: int = wsel_op.e
+	var ed: Dictionary = wall_graph.edges[e]
+	var cv: Dictionary = wall_graph.curve_of(e)
+	var u := float(op.u)
+	var n: Vector2 = WallGeom.normal(cv, u)
+	var at := _cells_px(WallGeom.point(cv, u)) - n * (float(ed.tr) / CELL_M * zoom + 30.0)
+	var items: Array = [["op_w", "w %.2f m" % float(op.w)], ["op_h", "h %.2f m" % float(op.h)]]
+	if str(op.kind) == "window": items.append(["op_sill", "sill %.2f m" % float(op.get("sill", 0.0))])
+	items.append(["op_at", "at %.2f m" % _op_from_a(wsel_op)])
+	var x := at.x - 90.0
+	for it: Array in items:
+		var txt: String = it[1]
+		var w := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 10.0
+		var r := Rect2(Vector2(x, at.y - 10.0), Vector2(w, 18.0))
+		var hot := r.has_point(mouse_px)
+		canvas.draw_rect(r, Color(0.08, 0.08, 0.07, 0.9))
+		canvas.draw_rect(r, GOLD if hot else Color(CREAM, 0.5), false, 1.0)
+		canvas.draw_string(font, r.position + Vector2(5, 13), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, GOLD if hot else CREAM)
+		_wlabels.append([r, it[0]])
+		x += w + 6.0
+	for k: String in _op_handles():
+		var p: Vector2 = _op_handles()[k]
+		var hot: bool = whover_handle.get("kind", "") == k or wdrag.get("kind", "") == k
+		canvas.draw_rect(Rect2(p - Vector2(5, 5), Vector2(10, 10)), Color(0, 0, 0, 0.85))
+		canvas.draw_rect(Rect2(p - Vector2(3.5, 3.5), Vector2(7, 7)), Color.WHITE if hot else GOLD)
+
+## Every opening in the walls on the plan: the gap it makes and what stands in it (a door's leaf swung open with
+## its arc, a window's glass, a doorway's jambs, an arch's dashed head)
+func _draw_ops(view: Rect2) -> void:
+	for e in wall_graph.edges:
+		var ops: Array = wall_graph.ops_of(e)
+		if ops.is_empty(): continue
+		if not view.intersects(wall_graph.box_of(e, 0.5)): continue
+		for i in ops.size():
+			var hot: bool = (wsel_op.get("e", -1) == e and wsel_op.get("i", -1) == i)
+			var over: bool = whover_op.get("e", -1) == e and whover_op.get("i", -1) == i
+			_draw_op(e, ops[i], Color(SEL) if hot else (Color(SEL, 0.6) if over else Color.TRANSPARENT))
+
+func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
+	var ed: Dictionary = wall_graph.edges[e]
+	var cv: Dictionary = wall_graph.curve_of(e)
+	var sp: Vector2 = wall_graph.op_span(e, op)
+	var t0 := clampf(sp.x, 0.0, 1.0)
+	var t1 := clampf(sp.y, 0.0, 1.0)
+	var n := 1 if cv.kind == WallGeom.LINE else 8
+	var lf := WallGeom.offset(cv, float(ed.tl) / CELL_M)
+	var rf := WallGeom.offset(cv, -float(ed.tr) / CELL_M)
+	var ls := PackedVector2Array()
+	var rs := PackedVector2Array()
+	var cs := PackedVector2Array()
+	for k in n + 1:
+		var t := lerpf(t0, t1, float(k) / n)
+		ls.append(_cells_px(WallGeom.point(lf, t)))
+		rs.append(_cells_px(WallGeom.point(rf, t)))
+		cs.append(_cells_px(WallGeom.point(cv, t)))
+	var kind := str(op.kind)
+	var col: Color = OBJ_INFO.get({"door": "door", "doorway": "doorway", "arch": "wall_arch", "window": "window"}.get(kind, ""), {}).get("col", CREAM)
+	var poly := PackedVector2Array(Array(ls))
+	var back := Array(rs)
+	back.reverse()
+	poly.append_array(PackedVector2Array(back))
+	if not Geometry2D.triangulate_polygon(poly).is_empty():
+		canvas.draw_colored_polygon(poly, Color(0.1, 0.095, 0.08, 0.95) if kind != "window" else Color(0.16, 0.22, 0.26, 0.95))
+		if ghost: canvas.draw_colored_polygon(poly, Color(col, 0.35))
+	# the jambs
+	for k: int in [0, n]: canvas.draw_line(ls[k], rs[k], Color(CREAM, 0.9), 1.5)
+	var side_n := WallGeom.normal(cv, float(op.u)) * (1.0 if str(op.get("side", "l")) == "l" else -1.0)
+	var screen_n := side_n          # (cells and screen run the same way; only the scale differs)
+	match kind:
+		"door":
+			var leaves := clampi(int(op.get("leaves", 1)), 1, 2)
+			var hinge_a := str(op.get("hinge", "a")) == "a"
+			var hinges: Array = [[cs[0], cs[n]]] if hinge_a else [[cs[n], cs[0]]]
+			if leaves == 2: hinges = [[cs[0], (cs[0] + cs[n]) * 0.5], [cs[n], (cs[0] + cs[n]) * 0.5]]
+			for hp: Array in hinges:
+				var h: Vector2 = hp[0]
+				var shut: Vector2 = hp[1]
+				var len := h.distance_to(shut)
+				var tip: Vector2 = h + screen_n * len
+				canvas.draw_line(h, tip, col, 2.0)
+				var a0 := (shut - h).angle()
+				var a1 := (tip - h).angle()
+				var d := wrapf(a1 - a0, -PI, PI)
+				canvas.draw_arc(h, len, a0, a0 + d, 16, Color(col, 0.7), 1.0)
+		"doorway":
+			canvas.draw_dashed_line(cs[0], cs[n], Color(col, 0.8), 1.0, 3.0)
+		"arch":
+			for k in n:
+				canvas.draw_dashed_line(cs[k], cs[k + 1], Color(col, 0.9), 1.5, 4.0)
+		"window":
+			var glass := str(op.get("glass", "sky"))
+			for k in n:
+				canvas.draw_line(cs[k], cs[k + 1], Color(col, 0.95), 2.0)
+				canvas.draw_line(ls[k].lerp(cs[k], 0.5), ls[k + 1].lerp(cs[k + 1], 0.5), Color(col, 0.5), 1.0)
+				canvas.draw_line(rs[k].lerp(cs[k], 0.5), rs[k + 1].lerp(cs[k + 1], 0.5), Color(col, 0.5), 1.0)
+			if glass == "sky":            # a little sun on the side it lights
+				var m: Vector2 = cs[n / 2] + side_n * (maxf(float(ed.tl), float(ed.tr)) / CELL_M * zoom + 8.0)
+				canvas.draw_circle(m, 3.0, Color("ffd84a"))
+	if mark.a > 0.0:
+		var ring := PackedVector2Array(Array(poly))
+		ring.append(poly[0])
+		canvas.draw_polyline(ring, mark, 2.0)
+
+func _draw_op_ghost() -> void:
+	var g := wop_ghost
+	if g.get("bad", false):
+		var e: int = g.e
+		var c: Dictionary = WallGeom.closest(wall_graph.curve_of(e), _pos_at(mouse_px))
+		_tag(_cells_px(c.p) + Vector2(10, -12), "no room", Color("ff5a4a"), 11)
+		return
+	var op: Dictionary = WallGraph.new_opening(_op_kind(), g.u, {"w": g.w, "side": g.side})
+	_draw_op(g.e, op, GOLD, true)

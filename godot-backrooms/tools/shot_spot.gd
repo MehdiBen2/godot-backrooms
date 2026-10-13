@@ -24,6 +24,16 @@ func _initialize() -> void:
 	player.global_position = Vector3(float(at[0]) * level.CELL, 0.1, float(at[1]) * level.CELL)
 	cam.rotation.x = deg_to_rad(float(env_or.call("PITCH", "-5")))
 	var prefix: String = env_or.call("SHOT", "res://spot")
+	# OFF=fake,real: hide the fake light (the floor pools, the lit wall faces, the cones) / the real lights, to see
+	# which one draws something
+	var off: PackedStringArray = str(env_or.call("OFF", "")).split(",", false)
+	if off.has("fake"):
+		for mmi in level.find_children("*", "MultiMeshInstance3D", true, false):
+			var m = (mmi as MultiMeshInstance3D).material_override
+			if m is ShaderMaterial and (m as ShaderMaterial).shader != null and (m as ShaderMaterial).shader.code.contains("blend_add"): mmi.visible = false
+	if off.has("real"):
+		for k in ["pool", "pool_b", "far_pool", "ceil_glow"]:
+			for l in level.get(k): (l as Light3D).visible = false
 	for deg in str(env_or.call("LOOK", "0,90,180,270")).split(","):
 		var d := Vector2.from_angle(deg_to_rad(float(deg)))
 		player.rotation.y = atan2(-d.x, -d.y)

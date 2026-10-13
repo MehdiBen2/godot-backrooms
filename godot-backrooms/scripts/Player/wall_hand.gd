@@ -86,6 +86,7 @@ class Hand:
 	var mode := Mode.HIDE
 	var u := 1.0                  # 0..1 from the old pose to the mode's, sprung
 	var vel := 0.0
+	var pace := 1.0               # the spring's speed for this change of mode (set_mode), 1 = the mode's own
 	var seen := false             # posed at least once (so there's a pose to set out from)
 	var from_pos := Vector3.ZERO  # camera space: where it set out from
 	var from_rot := Quaternion.IDENTITY
@@ -175,11 +176,13 @@ func setup(cam: Node3D, anim: AnimationPlayer) -> bool:
 		_hands.append(h)
 	return true
 
-func set_mode(i: int, mode: Mode) -> void:
+## `pace` under 1 eases the hand there more slowly than the mode would (an idle reach in the dark)
+func set_mode(i: int, mode: Mode, pace := 1.0) -> void:
 	var h := _hands[i]
 	if h.mode == mode:
 		return
 	h.mode = mode
+	h.pace = pace
 	h.at_ok = false
 	h.clear_k = 1.0
 	h.from_pos = h.cur_pos
@@ -212,7 +215,7 @@ func aim(i: int, edge: Vector3, normal: Vector3, out: Vector3, holding: bool, cr
 ## One physics tick: the springs, the grip, the odd shift of it
 func tick(dt: float) -> void:
 	for h in _hands:
-		var s := _spring(h.mode)
+		var s := _spring(h.mode) * Vector2(h.pace, 1.0)
 		h.vel += (s.x * s.x * (1.0 - h.u) - 2.0 * s.y * s.x * h.vel) * dt
 		h.u += h.vel * dt
 		h.crouch = lerpf(h.crouch, h.crouch_goal, minf(1.0, dt * 8.0))

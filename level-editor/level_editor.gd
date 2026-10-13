@@ -730,6 +730,7 @@ func _build_right_dock() -> Control:
 	scroll.add_child(side)
 	_build_inspector(side)
 	_build_wall_inspector(side)
+	_build_op_inspector(side)
 	_build_tabs(side)
 	# BUILD
 	var ter := _section(side, "TERRAIN")
@@ -1759,6 +1760,108 @@ func _wall_insp_sync() -> void:
 		pick.select(pbr_names.find(str(ed[k])) + 1)
 	(_wi.lock_len as CheckBox).set_pressed_no_signal(bool(ed.get("lock_len", false)))
 	(_wi.lock_ang as CheckBox).set_pressed_no_signal(bool(ed.get("lock_ang", false)))
+	_wi_sync = false
+
+## The picked opening's inspector (level_editor_walls.gd openings): its size, where it is, its kind's settings
+var op_insp: PanelContainer
+var _oi := {}
+var _oi_rows := {}
+const DOOR_STYLES := ["wood", "old_wood", "metal", "office", "glass"]
+const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_sash"]
+const GLASSES := ["sky", "clear", "frosted"]
+const SKIES := ["noon", "golden", "overcast"]
+
+func _build_op_inspector(side: VBoxContainer) -> void:
+	op_insp = PanelContainer.new()
+	op_insp.add_theme_stylebox_override("panel", _box(UI_PANEL2, UI_LINE, 6, 10))
+	side.add_child(op_insp)
+	var v := VBoxContainer.new()
+	op_insp.add_child(v)
+	v.add_child(_heading("Selected opening"))
+	_oi["head"] = _label("", 15, Color.WHITE)
+	v.add_child(_oi.head)
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 10)
+	v.add_child(g)
+	for f: Array in [["w", "Width", 0.3, 30.0, 0.05, " m", "Across the opening, along the wall"],
+			["h", "Height", 0.3, 16.0, 0.05, " m", "Floor (or sill) to head; it stops a little under the wall's top"],
+			["sill", "Off floor", 0.0, 15.0, 0.05, " m", "A window's sill: how far off the floor the opening starts"],
+			["at", "At", 0.0, 1000.0, 0.05, " m", "Its middle's distance from the wall's first end"],
+			["leaves", "Leaves", 1.0, 2.0, 1.0, "", "One door, or a pair meeting in the middle"],
+			["panes", "Panes", 1.0, 12.0, 1.0, "", "How many lights across (the glazing bars between them)"],
+			["sun", "Sun", 0.0, 30.0, 0.5, "", "How strong the sunlight it throws in is (0: none)"],
+			["sun_angle", "Sun angle", 5.0, 85.0, 1.0, "°", "How high the sun stands: low throws a long patch across the floor"]]:
+		var lbl := _label(f[1], 13, UI_DIM)
+		g.add_child(lbl)
+		var sb := SpinBox.new()
+		sb.min_value = f[2]
+		sb.max_value = f[3]
+		sb.step = f[4]
+		sb.suffix = f[5]
+		sb.tooltip_text = f[6]
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var key: String = f[0]
+		sb.value_changed.connect(func(val): if not _wi_sync: _op_set(key, int(val) if key in ["leaves", "panes"] else val))
+		g.add_child(sb)
+		_oi[key] = sb
+		_oi_rows[key] = [lbl, sb]
+	for f: Array in [["style", "Style", "The door's leaf / the window's frame"], ["glass", "Glass", "Onto the sky (a window out: the sun comes in), clear (into the next room: you see through it), frosted (light, no view)"],
+			["sky", "Sky", "The light's colour: a white noon sun, a low warm golden one, a flat bright overcast"]]:
+		var lbl := _label(f[1], 13, UI_DIM)
+		g.add_child(lbl)
+		var pick := OptionButton.new()
+		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pick.tooltip_text = f[2]
+		var key: String = f[0]
+		pick.item_selected.connect(func(i): if not _wi_sync: _op_set(key, pick.get_item_metadata(i)))
+		g.add_child(pick)
+		_oi[key] = pick
+		_oi_rows[key] = [lbl, pick]
+	var r := HBoxContainer.new()
+	v.add_child(r)
+	for b: Array in [["Other side", "side", "A door: swing it to the other side. A window onto the sky: light the other side"],
+			["Other jamb", "hinge", "Hang the door on its other jamb"], ["Delete", "delete", "Take it out (the wall closes up)"]]:
+		var what: String = b[1]
+		var bt := _button(b[0], func(): _op_action(what))
+		bt.tooltip_text = b[2]
+		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		r.add_child(bt)
+		_oi["btn_" + what] = bt
+	op_insp.visible = false
+
+func _op_insp_sync() -> void:
+	if op_insp == null: return
+	var op := _op_of(wsel_op)
+	op_insp.visible = not op.is_empty()
+	if op.is_empty(): return
+	_wi_sync = true
+	var kind := str(op.kind)
+	(_oi.head as Label).text = "%s in wall %d" % [{"door": "Door", "doorway": "Doorway", "arch": "Arch", "window": "Window"}.get(kind, kind), wsel_op.e]
+	var shows := {"w": true, "h": true, "at": true, "sill": kind == "window", "leaves": kind == "door", "panes": kind == "window",
+		"sun": kind == "window", "sun_angle": kind == "window", "style": kind == "door" or kind == "window", "glass": kind == "window",
+		"sky": kind == "window"}
+	for k in shows:
+		for c: Control in _oi_rows[k]: c.visible = shows[k]
+	(_oi.w as SpinBox).set_value_no_signal(float(op.w))
+	(_oi.h as SpinBox).set_value_no_signal(float(op.h))
+	(_oi.sill as SpinBox).set_value_no_signal(float(op.get("sill", 0.0)))
+	(_oi.at as SpinBox).set_value_no_signal(_op_from_a(wsel_op))
+	(_oi.leaves as SpinBox).set_value_no_signal(float(op.get("leaves", 1)))
+	(_oi.panes as SpinBox).set_value_no_signal(float(op.get("panes", 3)))
+	(_oi.sun as SpinBox).set_value_no_signal(float(op.get("sun", 8.0)))
+	(_oi.sun_angle as SpinBox).set_value_no_signal(float(op.get("sun_angle", 35.0)))
+	var fill := func(pick: OptionButton, list: Array, cur: String) -> void:
+		pick.clear()
+		for i in list.size():
+			pick.add_item(str(list[i]).replace("_", " ").capitalize())
+			pick.set_item_metadata(i, list[i])
+		pick.select(maxi(list.find(cur), 0))
+	fill.call(_oi.style, DOOR_STYLES if kind == "door" else WINDOW_STYLES, str(op.get("style", "wood" if kind == "door" else "pane")))
+	fill.call(_oi.glass, GLASSES, str(op.get("glass", "sky")))
+	fill.call(_oi.sky, SKIES, str(op.get("sky", "noon")))
+	(_oi.btn_hinge as Button).visible = kind == "door"
+	(_oi.btn_side as Button).visible = kind == "door" or (kind == "window" and str(op.get("glass", "sky")) == "sky")
 	_wi_sync = false
 
 ## One per-type param row of the inspector (see _build_inspector), kept in insp_params to show / hide

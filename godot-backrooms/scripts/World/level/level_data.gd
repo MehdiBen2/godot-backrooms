@@ -668,7 +668,9 @@ func _parse(d: Dictionary) -> void:
 	for e in wall_graph.edges:
 		var ed: Dictionary = wall_graph.edges[e]
 		if float(ed.h) > 0.0 and float(ed.h) < SEE_OVER_H: continue
+		var open: Array = wall_graph.open_cells(e)        # (a doorway or an arch in it: that cell stays open)
 		for cc in ed.get("cells", []):
+			if open.has(cc): continue
 			var v := Vector2i(int(cc[0]), int(cc[1]))
 			if v.x > 0 and v.y > 0 and v.x < size - 1 and v.y < size - 1:
 				walls[v] = true
@@ -858,15 +860,15 @@ func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 ## thin walls) and every other span in wall_segments not seen over. [a, b] in cells. The grid walk the light
 ## pool and the fixtures use (level_light_pool.gd _line_clear) only knows the grid; without these a tube behind a
 ## thin wall counted as in view, and its shadowless light shone through the wall.
-var _sight := {}                      # Vector2i -> Array of [a, b]
+var _sight := {}                      # Vector2i -> Array of [a, b, half thickness in metres]
 
 func _build_sight() -> void:
 	_sight.clear()
 	var spans: Array = []
 	for s: Array in wall_segments:
-		if not s[3] and (s[0] as Vector2).distance_to(s[1]) > 1e-4: spans.append([s[0], s[1]])
-	for s: Array in wall_graph.nav_spans(true):
-		if not s[3]: spans.append([s[0], s[1]])
+		if not s[3] and (s[0] as Vector2).distance_to(s[1]) > 1e-4: spans.append([s[0], s[1], s[2]])
+	for s: Array in wall_graph.nav_spans(true, true):
+		if not s[3]: spans.append([s[0], s[1], s[2]])
 	for sp: Array in spans:
 		var a: Vector2 = sp[0]
 		var b: Vector2 = sp[1]
@@ -882,6 +884,20 @@ func sight_blocked(a: Vector2, b: Vector2) -> bool:
 			for sp: Array in _sight.get(Vector2i(x, z), []):
 				if Geometry2D.segment_intersects_segment(a, b, sp[0], sp[1]) != null: return true
 	return false
+
+## How far (metres) floor-plan point `p` (world x / z, metres) is from the face of the nearest such wall within
+## `reach` metres (INF: none that near)
+func wall_gap(p: Vector2, reach := 6.0) -> float:
+	var q := p / CELL
+	var r := ceili(reach / CELL)
+	var c := Vector2i(floori(q.x), floori(q.y))
+	var best := INF
+	for x in range(c.x - r, c.x + r + 1):
+		for z in range(c.y - r, c.y + r + 1):
+			for sp: Array in _sight.get(Vector2i(x, z), []):
+				var d := Geometry2D.get_closest_point_to_segment(q, sp[0], sp[1]).distance_to(q) * CELL - float(sp[2])
+				best = minf(best, d)
+	return best
 
 ## How deep the water stands over world point `p`: metres from it up to the surface, 0 out of the water. A Water
 ## object (props/water_body.gd) is a level surface `level` m over the floor, over a box `depth` cells along its
