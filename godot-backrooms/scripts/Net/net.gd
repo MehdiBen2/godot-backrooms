@@ -48,6 +48,16 @@ const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "c
 const ROOM_PREFIX := "backrooms-coop-1-"      # topic namespace on it
 const CODE_ALPHABET := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no I/O/0/1
 const CODE_LEN := 6                                          # 32^6 ~ 1e9 codes
+## The code is shown the moment the lobby opens: the host posts this first and the tunnel link once
+## cloudflared has one (5+ s), and a guest who finds only this waits for the link instead of giving up
+const ROOM_OPENING := "opening"
+const LOOKUP_WAIT := 40.0        # a guest waits this long for an opening room's link
+const LOOKUP_RETRY := 1.5
+const TUNNEL_TIMEOUT := 45.0     # no tunnel link by then: tell the host it didn't go online
+## cloudflared's local status page (PORT + this) says the tunnel's hostname at /quicktunnel: asked every
+## TUNNEL_POLL, since reading it off cloudflared's log pipe sometimes never comes through
+const METRICS_OFFSET := 20000
+const TUNNEL_POLL := 0.5
 const CLOUDFLARED_PATHS := [
 	"C:/Program Files (x86)/cloudflared/cloudflared.exe",
 	"C:/Program Files/cloudflared/cloudflared.exe",
@@ -86,6 +96,9 @@ var phantoms := {}               # id -> {name, dist, drift}: survivors on the r
 var _deaths := {}                # peer id -> {at, said}: a death seen on their snapshot, and whether it was announced
 var _online_since := -INF        # when this guest connected (survivors already there are "on site", not "joined")
 var _room_token := 0            # bumped on host()/leave(): a slow lookup/publish from an old lobby is ignored
+var _room_code := ""            # host: this lobby's code (shown at once, live once _room_live)
+var _room_live := false         # host: the relay has the tunnel link for it
+var _tunnel_url := ""           # host: cloudflared's link, once known (it is published once)
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -136,8 +149,18 @@ func host(local_only := false) -> void:
 		_set_share_link(_lan_address())
 		_set_status("LOCAL LOBBY OPEN ON PORT %d" % PORT)
 		return
-	_set_status("LOBBY OPEN // CREATING ROOM CODE...")
-	_start_tunnel()
+	_room_code = new_code()
+	_set_share_link(pretty_code(_room_code))
+	_set_status("LOBBY OPEN // GOING ONLINE ...")
+	_post_room(_room_code, ROOM_OPENING)
+	if not _start_tunnel():
+		_set_share_link("")
+		return
+	var token := _room_token
+	get_tree().create_timer(TUNNEL_TIMEOUT).timeout.connect(func():
+		if token == _room_token and hosting and not _room_live:
+			_set_share_link("")
+			_set_status("LOBBY OPEN // COULD NOT GO ONLINE (NO INTERNET?) // NO ROOM CODE"))
 
 ## A short room code, or an address typed in directly (127.0.0.1, 192.168.x.x:port) for testing on one network
 func join(address: String) -> void:
@@ -149,7 +172,7 @@ func join(address: String) -> void:
 	leave()
 	if code != "":
 		_set_status("LOOKING UP ROOM %s ..." % code)
-		_lookup_room(code, _room_token)
+		_lookup_room(code, _room_token, Time.get_ticks_msec() / 1000.0 + LOOKUP_WAIT)
 	else:
 		_connect_url(url)
 
@@ -176,6 +199,9 @@ func leave() -> void:
 		p.close()
 	multiplayer.multiplayer_peer = null
 	hosting = false
+	_room_code = ""
+	_room_live = false
+	_tunnel_url = ""
 	_clear_remotes()
 	_out.clear()
 	_sent.clear()
@@ -218,41 +244,56 @@ static func is_tunnel_url(url: String) -> bool:
 	var re := RegEx.create_from_string("^https://[a-z0-9-]+\\." + TUNNEL_DOMAIN.replace(".", "\\.") + "/?$")
 	return re.search(url.strip_edges()) != null
 
+## The menu pauses the tree when offline: room-code requests have to run anyway
+func _new_http(timeout: float) -> HTTPRequest:
+	var http := HTTPRequest.new()
+	http.timeout = timeout
+	http.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(http)
+	return http
+
 static func _room_url(code: String) -> String:
 	return ROOM_SERVICE + ROOM_PREFIX + code
 
-## Host: tunnel is up -> pick a code and post it with the link
-func _publish_room(url: String) -> void:
-	var code := new_code()
-	var http := HTTPRequest.new()
-	http.timeout = 8.0
-	add_child(http)
-	http.request_completed.connect(_room_published.bind(http, code, _room_token))
-	if http.request(_room_url(code), ["Content-Type: text/plain"], HTTPClient.METHOD_POST, url) != OK:
-		http.queue_free()
-		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
+## "K7QM2X" -> "K7Q-M2X"
+static func pretty_code(code: String) -> String:
+	return code.left(3) + "-" + code.substr(3)
 
-func _room_published(result: int, response: int, _h: PackedStringArray, _b: PackedByteArray, http: HTTPRequest, code: String, token: int) -> void:
+## Host: tunnel is up -> post its link under this lobby's code
+func _publish_room(url: String) -> void:
+	_post_room(_room_code, url)
+
+## Host: post `msg` (ROOM_OPENING, or the tunnel link) under the code
+func _post_room(code: String, msg: String) -> void:
+	var http := _new_http(8.0)
+	http.request_completed.connect(_room_published.bind(http, code, msg != ROOM_OPENING, _room_token))
+	if http.request(_room_url(code), ["Content-Type: text/plain"], HTTPClient.METHOD_POST, msg) != OK:
+		http.queue_free()
+		if msg != ROOM_OPENING:
+			_set_share_link("")
+			_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
+
+func _room_published(result: int, response: int, _h: PackedStringArray, _b: PackedByteArray, http: HTTPRequest, code: String, is_link: bool, token: int) -> void:
 	http.queue_free()
-	if token != _room_token or not hosting:
-		return
+	if token != _room_token or not hosting or not is_link:
+		return                            # (a lost ROOM_OPENING only means early guests don't wait: the link still goes up)
 	if result != HTTPRequest.RESULT_SUCCESS or response != 200:
+		_set_share_link("")
 		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE (NO INTERNET?)")
 		return
-	_set_share_link(code.left(3) + "-" + code.substr(3))
+	_room_live = true
+	_set_share_link(pretty_code(code))
 	_update_count()
 
-## Guest: code -> link -> connect
-func _lookup_room(code: String, token: int) -> void:
-	var http := HTTPRequest.new()
-	http.timeout = 8.0
-	add_child(http)
-	http.request_completed.connect(_room_found.bind(http, token))
+## Guest: code -> link -> connect. A room that is still opening is asked again until `deadline`.
+func _lookup_room(code: String, token: int, deadline: float) -> void:
+	var http := _new_http(8.0)
+	http.request_completed.connect(_room_found.bind(http, code, token, deadline))
 	if http.request(_room_url(code) + "/json?poll=1&since=all") != OK:
 		http.queue_free()
 		_set_status("COULD NOT REACH THE ROOM SERVICE")
 
-func _room_found(result: int, response: int, _h: PackedStringArray, body: PackedByteArray, http: HTTPRequest, token: int) -> void:
+func _room_found(result: int, response: int, _h: PackedStringArray, body: PackedByteArray, http: HTTPRequest, code: String, token: int, deadline: float) -> void:
 	http.queue_free()
 	if token != _room_token:
 		return
@@ -260,11 +301,22 @@ func _room_found(result: int, response: int, _h: PackedStringArray, body: Packed
 		_set_status("COULD NOT REACH THE ROOM SERVICE // CHECK YOUR INTERNET")
 		return
 	var link := ""
-	for line in body.get_string_from_utf8().split("\n", false):     # one JSON event per line; the newest message wins
+	var opening := false
+	for line in body.get_string_from_utf8().split("\n", false):     # one JSON event per line; the newest link wins
 		var ev = JSON.parse_string(line)
 		if ev is Dictionary and ev.get("event", "") == "message":
-			link = str(ev.get("message", "")).strip_edges()
-	if not is_tunnel_url(link):
+			var msg := str(ev.get("message", "")).strip_edges()
+			if is_tunnel_url(msg):
+				link = msg
+			elif msg == ROOM_OPENING:
+				opening = true
+	if link == "":
+		if opening and Time.get_ticks_msec() / 1000.0 < deadline:
+			_set_status("ROOM %s IS STILL OPENING // WAITING FOR THE HOST ..." % pretty_code(code))
+			get_tree().create_timer(LOOKUP_RETRY).timeout.connect(func():
+				if token == _room_token:
+					_lookup_room(code, token, deadline))
+			return
 		_set_status("ROOM NOT FOUND // CHECK THE CODE (THE HOST MAY HAVE CLOSED IT)")
 		return
 	_connect_url(link.replace("https://", "wss://").trim_suffix("/"))
@@ -978,21 +1030,46 @@ func _send_state(dt: float) -> void:
 		Vector2(v.x, v.z).length(), flags, Game.level_index, Game.level_floor))
 
 # ---- cloudflared ------------------------------------------------------------------------------
-func _start_tunnel() -> void:
+## false: cloudflared isn't there (the status says so)
+func _start_tunnel() -> bool:
 	var exe := "cloudflared"
 	var bundled := OS.get_executable_path().get_base_dir().path_join("cloudflared.exe")    # shipped next to the game
 	for path in [bundled] + CLOUDFLARED_PATHS:
 		if FileAccess.file_exists(path):
 			exe = path
 			break
-	var info := OS.execute_with_pipe(exe, ["tunnel", "--url", "http://localhost:%d" % PORT])
+	var info := OS.execute_with_pipe(exe, ["tunnel", "--metrics", "127.0.0.1:%d" % (PORT + METRICS_OFFSET),
+		"--url", "http://localhost:%d" % PORT])
 	if info.is_empty():
 		_set_status("LOBBY OPEN // ONLINE SERVICE MISSING (cloudflared.exe NEXT TO THE GAME) // NO ROOM CODE")
-		return
+		return false
 	_cf_pid = info["pid"]
 	_quit = false
 	_cf_thread = Thread.new()
 	_cf_thread.start(_read_tunnel.bind(info["stderr"]))     # cloudflared logs to stderr
+	_poll_tunnel(_room_token)
+	return true
+
+## Ask cloudflared's status page for the hostname until it has one (or this lobby is gone)
+func _poll_tunnel(token: int) -> void:
+	if token != _room_token or not hosting or _tunnel_url != "":
+		return
+	var http := _new_http(2.0)
+	http.request_completed.connect(_tunnel_polled.bind(http, token))
+	if http.request("http://127.0.0.1:%d/quicktunnel" % (PORT + METRICS_OFFSET)) != OK:
+		http.queue_free()
+		get_tree().create_timer(TUNNEL_POLL).timeout.connect(_poll_tunnel.bind(token))
+
+func _tunnel_polled(result: int, response: int, _h: PackedStringArray, body: PackedByteArray, http: HTTPRequest, token: int) -> void:
+	http.queue_free()
+	if token != _room_token or not hosting or _tunnel_url != "":
+		return
+	if result == HTTPRequest.RESULT_SUCCESS and response == 200:
+		var j = JSON.parse_string(body.get_string_from_utf8())
+		if j is Dictionary and str(j.get("hostname", "")) != "":
+			_tunnel_found("https://" + str(j["hostname"]))
+			return
+	get_tree().create_timer(TUNNEL_POLL).timeout.connect(_poll_tunnel.bind(token))     # not up yet
 
 func _read_tunnel(pipe: FileAccess) -> void:
 	var re := RegEx.new()
@@ -1005,12 +1082,15 @@ func _read_tunnel(pipe: FileAccess) -> void:
 		if m and m.get_string() != "https://api.trycloudflare.com":
 			_tunnel_found.call_deferred(m.get_string())
 
+## From the status page or the log, whichever says it first
 func _tunnel_found(url: String) -> void:
-	if not hosting:
+	if not hosting or _tunnel_url != "":
 		return
 	if not is_tunnel_url(url):
+		_set_share_link("")
 		_set_status("LOBBY OPEN // COULD NOT CREATE A ROOM CODE")
 		return
+	_tunnel_url = url
 	_publish_room(url)
 
 func _stop_tunnel() -> void:

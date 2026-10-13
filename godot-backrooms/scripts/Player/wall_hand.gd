@@ -89,13 +89,20 @@ const PEEL := 0.06                # m the palm pushes off the face as it lets go
 const DROP := Vector2(9.0, 1.0)   # (rad/s, damping) letting go: a slow peel, then the arm falls away
 const DOOR_POSES: Array[String] = ["DoorKnob", "DoorLever", "DoorPush"]   # playerarms_idle.glb (build_idle_hands.py)
 enum Grip { KNOB, LEVER, BAR }
-const KNOB_PALM := 0.036          # m out from a knob's ball (its middle) to the knuckles, the palm closed on it
-const LEVER_PALM := 0.03          # and from a lever's grip, the hand over the top of it
+const KNOB_PALM := 0.042          # m from a knob's ball (its middle) out to the palm closed round it
+const LEVER_PALM := 0.03          # and from a lever's grip up to the palm on top of it
 const KNOB_TWIST := 0.75          # rad the wrist turns the knob through, about its stalk
 const LEVER_DIP := 0.03           # m the lever goes down under the hand
 const LEVER_TIP := 0.45           # rad the hand tips with it
-const DOOR_FRONT := -0.32         # m (camera z): reaching down for a handle the shoulder comes this far forward (you bend to it)
-const DOOR_LET_GO := 0.09         # m: on a door the arm goes a little further after it before letting go
+const GRIP_RISE := 0.25           # the fingers on a handle point this much up from the line of the reach
+const GRIP_BACK := -0.03          # m along the fingers from the knuckles back to where the handle sits in the hand
+const PUSH_UP := 0.2              # the fingers flat on the leaf point across, towards the hinge, and this much up
+const WRIST_MAX := deg_to_rad(65.0)   # the most the wrist bends on a door (from the forearm's line)
+const DOOR_FRONT := -0.15         # m (camera z): reaching down for a handle the shoulder comes this far forward (you bend to it)
+const DOOR_TAKE := 0.02           # m: a handle this little out of reach is reached for already (the shoulder gives the rest,
+                                  # and you're still leaning in): the hand goes as you get there, not after
+const DOOR_DROP := Vector2(14.0, 1.0)   # letting go of a door the arm drops away quicker (the door swings on, you go through)
+const DOOR_LET_GO := 0.1          # m: on a door the arm goes a little further after it before letting go
 const DOOR_LIFT := 0.06           # m the hand comes up off the leaf, moving from the handle to the flat of it
 const DOOR_PRESS := 0.015         # m the palm sinks into its push (the leaf gives under it)
 const GRIP_SPRING := Vector2(26.0, 0.55)   # (rad/s, damping) the fingers closing on a handle: a squeeze past, then easing
@@ -337,7 +344,7 @@ func tick(dt: float) -> void:
 		var g := 1.0 - smoothstep(0.1, 0.5, h.palm_k) if on_door and h.u > 0.8 else 0.0
 		h.grip_v += (GRIP_SPRING.x * GRIP_SPRING.x * (g - h.grip) - 2.0 * GRIP_SPRING.y * GRIP_SPRING.x * h.grip_v) * dt
 		h.grip += h.grip_v * dt
-		var s := (DROP if h.off else _spring(h.mode)) * Vector2(h.pace, 1.0)
+		var s := ((DOOR_DROP if h.mode == Mode.DOOR else DROP) if h.off else _spring(h.mode)) * Vector2(h.pace, 1.0)
 		h.vel += (s.x * s.x * (1.0 - h.u) - 2.0 * s.y * s.x * h.vel) * dt
 		h.u += h.vel * dt
 		h.crouch = lerpf(h.crouch, h.crouch_goal, minf(1.0, dt * 8.0))
@@ -526,7 +533,7 @@ func _wall(h: Hand, cam: Transform3D, wrist: Vector3, unit: float, space: Physic
 ## The shoulder (camera space) leant in towards `target` (where the knuckles go, on the face with normal `n`)
 ## as far as it can; and the hand let go when that's still `let_go` short, or taken back to it once it's in reach
 ## again. Out of reach the hand doesn't hang in the air short of the wall: it's off it (h.off)
-func _lean(h: Hand, target: Vector3, knuckle: Vector3, shoulder: Vector3, n: Vector3, reach: float, let_go: float, front := SHOULDER_FRONT) -> Vector3:
+func _lean(h: Hand, target: Vector3, knuckle: Vector3, shoulder: Vector3, n: Vector3, reach: float, let_go: float, front := SHOULDER_FRONT, take := -TAKE, wait := TAKE_WAIT) -> Vector3:
 	# never inside the wall itself (a squeeze gap is barely wider than the shoulders): the arm would run through it
 	var in_wall := (shoulder - target).dot(n)
 	if in_wall < SHOULDER_OFF:
@@ -541,13 +548,14 @@ func _lean(h: Hand, target: Vector3, knuckle: Vector3, shoulder: Vector3, n: Vec
 		h.over = short - maxf(0.0, room) if toward.z < -0.001 else -1.0
 	h.strain = smoothstep(let_go - STRAIN, let_go, h.over)
 	if h.off:
-		h.take_t = h.take_t + _dt if h.over < -TAKE and not h.let_go else 0.0
-		if h.take_t >= TAKE_WAIT:
+		h.take_t = h.take_t + _dt if h.over < take and not h.let_go else 0.0
+		if h.take_t >= wait:
 			h.off = false
 			_set_out(h, false)
 	elif h.over > let_go:
 		h.off = true
-		h.let_go = h.mode == Mode.DOOR and h.u > 0.6
+		# (in the push, or on its way to the leaf for it: not a slip as the latch gives, which it takes back)
+		h.let_go = h.mode == Mode.DOOR and h.u > 0.6 and (h.palm_goal > 0.5 or h.press > 0.6)
 		h.take_t = 0.0
 		_set_out(h, h.u > 0.6)            # (only a hand that got there pushes off the face)
 	return shoulder
@@ -561,8 +569,6 @@ func _door(h: Hand, cam: Transform3D, wrist: Vector3, unit: float) -> Array:
 	var to_cam := cam.affine_inverse()
 	var up := (to_cam.basis * Vector3.UP).normalized()
 	var n := (to_cam.basis * h.normal).normalized()
-	var lat := to_cam.basis * h.latch
-	lat = (lat - n * lat.dot(n)).normalized()
 	var flat_up := (up - n * up.dot(n)).normalized()
 	var fore_len := wrist.length() * unit
 	var upper_len := UPPER * unit
@@ -572,26 +578,38 @@ func _door(h: Hand, cam: Transform3D, wrist: Vector3, unit: float) -> Array:
 	var shoulder := square * Vector3(SHOULDER.x * h.side, SHOULDER.y, SHOULDER.z)
 	var inward := square * Vector3(-h.side, 0.0, 0.0)                  # across the body, from this hand's side
 	inward = (inward - n * inward.dot(n)).normalized()
-	# on the handle
+	# on the handle. The hand carries on the line of the forearm, as a real one does: the fingers point along the
+	# reach from the shoulder (a little up from it), round the knob with the palm turned in to it and the thumb
+	# up, or over the lever with the palm down on it. (Palm square to the leaf with the fingers up, the wrist had
+	# to fold back past 110 degrees and the glove went into the sleeve: checked in Blender on this rig.) The turn
+	# of the handle is then a roll of the forearm about the handle's stalk
 	var grip := to_cam * h.grip_at
+	var along := (grip - shoulder).normalized()
+	var fing := (along + up * GRIP_RISE).normalized()
 	var g_rot: Quaternion
 	var g_at: Vector3
+	var roll := 0.0
 	if h.kind == Grip.LEVER:
-		var palm_n := (-flat_up * 0.8 - n * 0.6).normalized()           # palm down onto the grip and towards the leaf
-		var fing := (-n * 0.8 + flat_up * 0.6).normalized()             # over the top of it, towards the leaf
+		var palm_n := -up - fing * (-up).dot(fing)                      # palm down on top of the grip
+		palm_n = palm_n.normalized()
 		g_rot = Basis(fing.cross(palm_n), fing, palm_n).get_rotation_quaternion()
-		g_rot = Quaternion(lat, -LEVER_TIP * h.turn * h.side) * g_rot   # pressed down: the hand tips with the lever
-		g_at = grip - flat_up * LEVER_DIP * h.turn - palm_n * LEVER_PALM
+		g_at = grip - palm_n * LEVER_PALM - fing * GRIP_BACK - up * LEVER_DIP * h.turn
+		# pressed down: the far end of the lever (towards the hinge) goes down, the hand rolling with it
+		roll = -LEVER_TIP * h.turn * signf(n.cross(inward).dot(up))
 	else:
-		var fing := (flat_up + inward * 0.35).normalized()              # up over the ball, leaning in
-		g_rot = Basis(fing.cross(-n), fing, -n).get_rotation_quaternion()
-		g_at = grip + n * KNOB_PALM + fing * 0.012
+		var palm_n := inward - fing * inward.dot(fing)                  # palm turned in to the knob, thumb up
+		palm_n = palm_n.normalized()
+		g_rot = Basis(fing.cross(palm_n), fing, palm_n).get_rotation_quaternion()
+		g_at = grip - palm_n * KNOB_PALM - fing * GRIP_BACK
 		if h.kind == Grip.KNOB:
-			var twist := Quaternion(n, KNOB_TWIST * h.turn * -h.side)    # about the stalk (the ball stays put)
-			g_rot = twist * g_rot
-			g_at = grip + twist * (g_at - grip)
-	# flat on the leaf
-	var p_fing := (flat_up - lat * 0.25).normalized()
+			roll = KNOB_TWIST * h.turn * -h.side
+	if roll != 0.0:
+		var twist := Quaternion(n, roll)                                # about the stalk (the handle stays put)
+		g_rot = twist * g_rot
+		g_at = grip + twist * (g_at - grip)
+	# flat on the leaf: the fingers across towards the hinge and a little up (the wrist bent back ~65 degrees,
+	# as it is pushing anything; fingers straight up it went past 85 and pinched the cuff)
+	var p_fing := (flat_up * PUSH_UP + inward).normalized()
 	var p_rot := Basis(p_fing.cross(-n), p_fing, -n).get_rotation_quaternion()
 	var p_at := to_cam * h.push_at + p_rot * (h.knuckle * unit) * 0.5 + n * (HUG_GAP - DOOR_PRESS * h.press)
 	var pk := clampf(h.palm_k, 0.0, 1.0)
@@ -599,8 +617,20 @@ func _door(h: Hand, cam: Transform3D, wrist: Vector3, unit: float) -> Array:
 	var hand := g_rot.slerp(p_rot, smoothstep(0.0, 1.0, pk))
 	var knuckle := hand * (h.knuckle * unit)
 	at -= n * DOOR_PRESS * 0.5 * h.press * (1.0 - pk)                  # leaning on the handle too
-	shoulder = _lean(h, at, knuckle, shoulder, n, reach, DOOR_LET_GO, DOOR_FRONT)
-	return _limb(h, at, hand, knuckle, shoulder, square, up, n, fore_len, upper_len, reach)
+	# the wrist never bends back further than a wrist does: past WRIST_MAX the hand tips round the wrist towards
+	# the forearm (the heel of the palm stays on the leaf, the fingers lift a little off it)
+	var wrist_at := at - knuckle
+	var fore_dir := (wrist_at - shoulder).normalized()
+	var fingers_dir := hand * Vector3.UP
+	var bent := fingers_dir.angle_to(fore_dir)
+	if bent > WRIST_MAX:
+		var axis := fingers_dir.cross(fore_dir)
+		if axis.length() > 0.001:
+			hand = Quaternion(axis.normalized(), bent - WRIST_MAX) * hand
+			knuckle = hand * (h.knuckle * unit)
+			at = wrist_at + knuckle
+	shoulder = _lean(h, at, knuckle, shoulder, n, reach, DOOR_LET_GO, DOOR_FRONT, DOOR_TAKE, 0.06)
+	return _limb(h, at, hand, knuckle, shoulder, square, up, n, fore_len, upper_len, reach, DOOR_FRONT)
 
 ## The door's fingers: the wrist as _door() has it, then open (the push pose) closing on the handle by `grip`
 ## (a bar is pushed, not held), or flat on the leaf. Without the poses, the hand's own wall fingers
@@ -651,14 +681,18 @@ func _slide(h: Hand, cam: Transform3D, wrist: Vector3, unit: float) -> Array:
 
 ## Shoulder, elbow, wrist putting the knuckles at `at` (camera space) with the hand turned `hand`: [forearm
 ## position (the elbow), forearm turn, wrist turn (local to the forearm), upper arm turn (local to the forearm)]
-func _limb(h: Hand, at: Vector3, hand: Quaternion, knuckle: Vector3, shoulder: Vector3, square: Basis, up: Vector3, n: Vector3, fore_len: float, upper_len: float, reach: float) -> Array:
+func _limb(h: Hand, at: Vector3, hand: Quaternion, knuckle: Vector3, shoulder: Vector3, square: Basis, up: Vector3, n: Vector3, fore_len: float, upper_len: float, reach: float, front := -INF) -> Array:
 	var wrist_at := at - knuckle
 	# shoulder, elbow, wrist: whatever moved the hand, the shoulder gives before the arm stretches
 	var span := wrist_at - shoulder
 	var far := span.length()
 	if far > reach:
 		shoulder = wrist_at - span / far * reach
-		far = reach
+		# (but never further forward than `front`, camera z: the sleeve's open end would come into view; the
+		# arm goes straight and the hand stops short instead, for the moment before it lets go)
+		if shoulder.z < front:
+			shoulder.z = front
+		far = minf((wrist_at - shoulder).length(), reach)
 	far = maxf(far, absf(upper_len - fore_len) + 0.01)
 	var to_wrist := (wrist_at - shoulder).normalized()
 	var bend := clampf((upper_len * upper_len + far * far - fore_len * fore_len) / (2.0 * upper_len * far), -1.0, 1.0)

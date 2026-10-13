@@ -44,7 +44,9 @@ uniform float fill_between = 0.3;
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
 uniform vec3 world_shift = vec3(0.0);
 
-varying vec4 info;      // INSTANCE_CUSTOM: x, y two vents (0 none, see level_fixtures.gd _vent_code), z 1 on a lit-grid cell
+// INSTANCE_CUSTOM: x, y two vents (0 none, see level_fixtures.gd _vent_code), z 1 on a lit-grid cell, w the panels a
+// wall cuts (level_fixtures.gd _cut_panels: bit i for PANEL_OFFSETS[i], the middle one then the four diagonals)
+varying vec4 info;
 
 void vertex() {
 	info = INSTANCE_CUSTOM;
@@ -127,7 +129,10 @@ void fragment() {
 	bool panel_spot = longt
 		? ((rel.x == 0.0 && rel.y == 0.0) || (abs(rel.x) == 1.0 && abs(rel.y) == 2.0))
 		: ((rel.x == 0.0 && rel.y == 0.0) || (abs(rel.x) == 2.0 && abs(rel.y) == 2.0));
-	bool is_light = panel_spot && info.z > 0.5;
+	// a panel a wall runs through is not fitted there: plain tile, cut to the wall like the tiles beside it
+	int spot = (rel.x == 0.0 && rel.y == 0.0) ? 0 : 1 + int(rel.x > 0.0) + 2 * int(rel.y > 0.0);
+	bool cut = ((int(info.w + 0.5) >> spot) & 1) == 1;
+	bool is_light = panel_spot && info.z > 0.5 && !cut;
 	// which of the pack's tiles, mirrored which way: 2 x 2 square ones, or 2 long ones (one a row)
 	vec2 flip = step(vec2(0.5), vec2(hash12(tile + 7.7), hash12(tile + 63.2))) * 2.0 - 1.0;
 	vec2 pick = step(vec2(0.5), vec2(hash12(tile + 41.7), hash12(tile + 93.1)));

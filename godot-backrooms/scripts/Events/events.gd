@@ -1615,6 +1615,7 @@ func _event_doorbell() -> void:
 func _event_look_together() -> void:
 	on_clear(func():
 		player.frozen = false
+		player.held_by_event = false
 		Game.fx_reset())
 	_toast("COUNTY SERVICE ADVISORY", [
 		{"kind": "text", "text": "A METEOROLOGICAL EVENT IS IN PROGRESS OVERHEAD.", "size": 16, "wrap": true},
@@ -1633,9 +1634,11 @@ func _event_look_together() -> void:
 			return true
 		if t > 18.0:
 			player.frozen = false
+			player.held_by_event = false
 			Game.fx_reset()
 			return false
 		player.frozen = true
+		player.held_by_event = true   # (nothing has you: the hands stay, torch_model.gd)
 		var cam: Camera3D = player.cam
 		if t < 15.0:
 			cam.rotation.x = minf(cam.rotation.x + dt * 0.24, 1.35)          # your head going back, slowly

@@ -456,9 +456,11 @@ func _build_wall_angle() -> void:
 			_skirt_open(st, pts, y, ANGLE, nrms, 0.0)
 	if sts.is_empty(): return
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.86, 0.84, 0.78)        # white-painted steel, as yellowed as the tiles round it
-	mat.roughness = 0.5
-	mat.metallic_specular = 0.3
+	# painted dark, the wallpaper's black band along the top of the walls: the two read as one edge (a white
+	# strip on the band was a second line round every room)
+	mat.albedo_color = Color(0.05, 0.045, 0.04)
+	mat.roughness = 0.85
+	mat.metallic_specular = 0.1
 	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
 		mi.material_override = mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)

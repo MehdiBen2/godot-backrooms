@@ -165,13 +165,6 @@
       "type": "trigger"
     },
     {
-      "pos_x": 94.0,
-      "pos_y": 22.5,
-      "rotation": 90.0,
-      "scale": 1.0,
-      "type": "door"
-    },
-    {
       "custom_event": "",
       "delay": 0.0,
       "depth": 2.0,
@@ -658,6 +651,15 @@
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_water_cooler"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
     },
     {
       "behavior": "roam",
@@ -1973,6 +1975,28 @@
         "bulge": 0.0,
         "h": 0.0,
         "id": 288,
+        "tl": 0.15,
+        "tr": 0.15
+      },
+      {
+        "a": 207,
+        "b": 203,
+        "bulge": 0.0,
+        "h": 0.0,
+        "id": 289,
+        "ops": [
+          {
+            "h": 2.19,
+            "hinge": "a",
+            "kind": "door",
+            "leaves": 1.0,
+            "side": "l",
+            "sill": 0.0,
+            "style": "wood",
+            "u": 0.5,
+            "w": 1.12
+          }
+        ],
         "tl": 0.15,
         "tr": 0.15
       }

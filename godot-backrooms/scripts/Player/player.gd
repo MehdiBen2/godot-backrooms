@@ -136,6 +136,8 @@ var frozen := false:         # grabbed / snapped: no input
 	set(v):
 		frozen = v
 		if v: _drop_lens()
+var held_by_event := false    # frozen by an event, not an entity (events.gd look-together): you flinch, the hands stay
+var _event_flinched := false
 var stamina := 100.0
 var exhausted := false
 var rest_timer := 0.0
@@ -171,6 +173,8 @@ var _ds_ghost: Object = null       # the leaf you're let through while walking p
 var _ds_way: Dictionary = {}      # how this one is opened (one of DS_WAYS)
 var _ds_grip := 0                 # the handle (WallHand.Grip)
 var _ds_latched := true           # shut on its latch: the handle has to be turned (else a push is enough)
+var _ds_look := Vector3.ZERO      # world: the point the eyes are on, gliding after each beat's
+var _ds_look_ok := false
 var _ds_z := 0.0                  # door-local z you stand at to open it: the handle a little to your left
 var _door_cam_pos := Vector3.ZERO
 var _door_cam_rot := Vector3.ZERO
@@ -469,7 +473,11 @@ func _physics_process_timed(dt: float) -> void:
 	if adr_idle > 0.5 and (adr_active or adrenaline > 0.0):
 		_tick_adrenaline(dt, false)
 	if torch:
-		torch.caught = dead or frozen                   # held by an entity, or dead: the hands are gone
+		torch.caught = dead or (frozen and not held_by_event)   # held by an entity, or dead: the hands are gone
+		# held by an event: a start as it takes hold of you, then the hands stay, the torch as it was
+		if frozen and held_by_event and not dead and not _event_flinched:
+			torch.flinch()
+		_event_flinched = frozen and held_by_event
 	if dead or frozen:
 		if _door_anim_active: _end_door_scene()        # grabbed, or worse, with a hand on the door
 		if adrenaline > 0.0 or adr_active: end_adrenaline()
@@ -489,7 +497,8 @@ func _physics_process_timed(dt: float) -> void:
 		if torch:
 			if dead:
 				torch.end_swap()
-			torch.update(dt, false, false, false, bob)    # (held too: the hands' last reach plays out, then they're gone)
+			# (held too: the hands' last reach plays out, then they're gone; by an event they stay, the torch as it was)
+			torch.update(dt, flash_on and held_by_event and not dead, false, false, bob)
 		if dead:
 			flash.visible = false
 			flash.light_energy = 0.0
@@ -1086,10 +1095,13 @@ const DS_STAND := 0.7                   # m out from the door, square to the mid
 const DS_THROUGH := 1.4                 # m past it on the far side: where the walk through ends
 const DS_STEP := 1.5                    # m/s stepping up to it
 const DS_WALK := 1.05                   # m/s through: slow, careful
-const DS_TURN := 2.0                    # rad/s the most the body turns
+const DS_TURN := 1.6                    # rad/s the most the body turns
+const DS_LOOK_GLIDE := 4.0              # 1/s: how quickly the eyes move on to the next thing looked at
 const DS_PULL_AT := 0.4                 # m: shutting, you keep this far from the knob (the hand on it)
 const DS_PULL_REACH := 0.55             # m: further than this from the knob, you step to it
-const DS_STAND_HANDLE := 0.4            # m out from the door you stand to open it: the handle within a forearm's reach
+const DS_STAND_HANDLE := 0.55           # m out from the door you stand to open it (you lean in to the handle from there)
+const DS_FOLLOW := 0.16                 # m you step in after the door as the latch gives and you push
+const DS_LEAN := Vector3(-0.03, -0.14, -0.19)   # m, camera space: reaching for the handle you lean in from the hips
 const DS_ASIDE := 0.14                  # m the handle is to your left of your middle (the left hand takes it)
 # the ways a door gets opened from shut, one picked each time by its odds:
 #   pace   the swing takes this many times its usual time (door.gd pace)
@@ -1102,7 +1114,7 @@ const DS_WAYS := [
 	{"name": "palm", "odds": 3, "pace": 1.0, "ajar": 0.12, "palm": true, "push": 1.0, "look": 1.0, "turn": 0.14},
 	{"name": "handle", "odds": 3, "pace": 0.9, "ajar": 0.0, "palm": false, "push": 0.8, "look": 0.7, "turn": 0.12},
 	{"name": "careful", "odds": 1, "pace": 1.15, "ajar": 0.35, "palm": true, "push": 0.45, "look": 1.4, "turn": 0.22},
-	{"name": "shove", "odds": 1, "pace": 0.8, "ajar": 0.05, "palm": true, "push": 1.7, "look": 0.4, "turn": 0.1},
+	{"name": "shove", "odds": 1, "pace": 0.8, "ajar": 0.15, "palm": true, "push": 1.7, "look": 0.4, "turn": 0.1},
 ]
 
 func trigger_door_camera_animation(door: Node3D, opening: bool, swing_dir: float) -> void:
@@ -1117,6 +1129,7 @@ func trigger_door_camera_animation(door: Node3D, opening: bool, swing_dir: float
 		# shutting, the knob on the face that looks your way (the leaf may be swung either side of you)
 		_ds_side = 1.0 if door.face_normal(1.0).dot(global_position - door.knob_at(1.0)) > 0.0 else -1.0
 	_ds_k = -1.0
+	_ds_look_ok = false
 	var knob: Vector3 = door.knob_at(_ds_side) if door.has_method("knob_at") else door.global_position
 	_ds_kside = 1.0 if (cam.global_transform.basis.inverse() * (knob - cam.global_position)).x >= 0.0 else -1.0
 	# how it's opened this time
@@ -1195,6 +1208,8 @@ func _door_scene(dt: float) -> void:
 			d.turn_knob()
 		var r: float = k + float(d.LATCH_AFTER)       # the latch gives, the leaf falls ajar
 		var p: float = k + float(d.push_after())      # the push
+		# as it gives, a short step in after it (the hand stays with the leaf, the weight goes in behind it)
+		goal = d.to_global(Vector3(s * (DS_STAND_HANDLE - DS_FOLLOW * smoothstep(r - 0.05, p + 0.2, t)), 0.0, _ds_z))
 		var pushed_only: bool = _ds_grip == WallHand.Grip.BAR or not _ds_latched
 		# the hand: up to the handle, turned and held while the latch gives; then to the leaf, or kept on the handle
 		hand = t > 0.2 and t < p + 1.4
@@ -1216,7 +1231,9 @@ func _door_scene(dt: float) -> void:
 				add_collision_exception_with(_ds_ghost)
 		# a glance down to the knob (not a stare), then through the gap, then the room ahead
 		if t < r:
-			look = knob.lerp(d.to_global(Vector3(s * 0.2, 1.5, 0.15)), 0.62)
+			# the knob in the lower third of the view, the door above it (looking straight down at a knob from
+			# close up the door's edges splay and the view fills with wood)
+			look = knob.lerp(d.to_global(Vector3(s * 0.2, 1.3, 0.15)), 0.45)
 			look_rate = 4.0
 		elif t < p + 0.25 * float(way.look):
 			look = d.to_global(Vector3(-s * 2.5, 1.55, 0.45))
@@ -1225,10 +1242,10 @@ func _door_scene(dt: float) -> void:
 			look = d.to_global(Vector3(-s * 5.0, 1.6, 0.0))
 			look_rate = 2.5
 		# reaching for the knob: a small dip; turning it (the rattle, the sound's first 0.15 s): a twitch of the head
-		# bending to the handle (it's low: the body leans down to it while the hand's on it)
-		var wr := smoothstep(0.15, 0.55, t) * (1.0 - smoothstep(r + 0.1, r + 0.5, t))
-		pos += Vector3(-0.015, -0.07, -0.06) * wr
-		rot.z += 0.025 * wr
+		# leaning in to the handle from the hips while the hand's on it, eased in and out (no roll: it read as the
+		# floor tipping)
+		var wr := smoothstep(0.1, 0.65, t) * (1.0 - smoothstep(p + 0.1, p + 0.7, t))
+		pos += DS_LEAN * wr
 		var wk := smoothstep(k, k + 0.06, t) * (1.0 - smoothstep(k + 0.1, k + 0.2, t))
 		rot.z += ks * 0.012 * wk
 		# the look through the gap: the head goes a little in toward it (a careful one further, and stays)
@@ -1300,7 +1317,13 @@ func _door_scene(dt: float) -> void:
 	if not is_on_floor():
 		velocity.y = maxf(velocity.y - GRAVITY * dt, -fall_speed_max)
 	move_and_slide()
-	# the eyes: the body turns to the look, the head pitches to it
+	# the eyes: the point looked at glides from one beat's to the next (switching straight to a new one, the head
+	# whipped round), the body turns to it, the head pitches to it
+	if not _ds_look_ok:
+		_ds_look = cam.global_position - cam.global_basis.z * 2.0
+		_ds_look_ok = true
+	_ds_look = _ds_look.lerp(look, 1.0 - exp(-dt * DS_LOOK_GLIDE))
+	look = _ds_look
 	var to_look := look - cam.global_position
 	var yaw_goal := atan2(-to_look.x, -to_look.z)
 	var yaw_step := clampf(wrapf(yaw_goal - rotation.y, -PI, PI) * (1.0 - exp(-dt * look_rate)), -DS_TURN * dt, DS_TURN * dt)
@@ -1327,7 +1350,7 @@ func _door_scene(dt: float) -> void:
 		# the leaf's own face and latch way for the handle and the push (the hand goes round with it as it swings)
 		var leaf_n: Vector3 = d.face_normal(s)
 		var leaf_l: Vector3 = d.latch_dir()
-		torch.set_door(hand, d.grip_at(s), d.face_at(s, 1.3, 0.17), leaf_n, leaf_l, _ds_grip, palm, turn, press)
+		torch.set_door(hand, d.grip_at(s), d.face_at(s, 1.2, 0.2), leaf_n, leaf_l, _ds_grip, palm, turn, press)
 		torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
 		torch.update(dt, flash_on and not dead, false, moving, bob)
 	if shadow_body:

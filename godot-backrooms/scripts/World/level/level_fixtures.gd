@@ -577,7 +577,7 @@ func _build_panel_ceiling() -> void:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
-		mm.use_custom_data = drop          # the cell's vents and whether it is on the grid of lit cells (drop_ceiling.gdshader)
+		mm.use_custom_data = drop          # the cell's vents, whether it is on the grid of lit cells, and which of its panels a wall cuts (drop_ceiling.gdshader)
 		mm.mesh = quad
 		mm.instance_count = list.size()
 		var buf := MMBuffer.alloc(mm)
@@ -594,6 +594,7 @@ func _build_panel_ceiling() -> void:
 				buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
 				buf[o + 17] = float(v[1]) if v.size() > 1 else 0.0
 				buf[o + 18] = 1.0 if f.get("casts", false) else 0.0
+				buf[o + 19] = float(_cut_panels(f.pos))
 		mm.buffer = buf
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
@@ -633,8 +634,24 @@ func _pick_vents(c: Vector2i) -> Array:
 	for kind in 2:
 		if r.randf() >= (VENT_DIFFUSER if kind == 0 else VENT_GRILLE): continue
 		var at: Vector2i = spots.pop_at(r.randi() % spots.size())
-		out[kind] = _vent_code(kind, at)
+		# (rolled first, so a wall only takes away the vent it cuts, not the dice of the rest)
+		if not _tile_cut(Vector2(c) * CELL + Vector2(at) * (CELL / 12.0)): out[kind] = _vent_code(kind, at)
 	return out
+
+## True when a wall off the grid (a thin wall, the wall graph: level_data.gd wall_gap) comes into the ceiling tile
+## centred on `p` (world metres, x / z): a light panel or a vent there would be cut in two by it. Tested on the
+## circle round the tile, so a wall that only comes near a corner counts too (a fitter keeps them off the walls).
+func _tile_cut(p: Vector2) -> bool:
+	var half := Vector2(CELL / 6.0, CELL / 12.0) if _long_tiles() else Vector2(CELL / 12.0, CELL / 12.0)
+	return wall_gap(p, 3.0) < half.length() + 0.02
+
+## Which of the panels round a panel fixture at `pos` a wall cuts: bit i for PANEL_OFFSETS[i] (drop_ceiling.gdshader
+## draws plain tile there instead)
+func _cut_panels(pos: Vector3) -> int:
+	var mask := 0
+	for i in PANEL_OFFSETS.size():
+		if _tile_cut(Vector2(pos.x, pos.z) + (PANEL_OFFSETS[i] as Vector2)): mask |= 1 << i
+	return mask
 
 ## 1 + kind * 1024 + (ix + 16) + (iz + 16) * 32 (kind 0 diffuser, 1 grille; ix / iz in 0.375 m steps), see drop_ceiling.gdshader
 static func _vent_code(kind: int, at: Vector2i) -> int:

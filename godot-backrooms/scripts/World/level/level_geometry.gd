@@ -229,9 +229,10 @@ func _wall_uv_mat(h: float) -> StandardMaterial3D:
 		m.uv1_world_triplanar = false
 		m.uv1_scale = Vector3(PBR_PER_M, -PBR_PER_M, 1.0)
 	else:
+		# laid as the blocks' world projection lays it (triplanar flips v): the wallpaper's dark band along the
+		# top under the ceiling, so a drawn or placed wall wears the same strip as the maze's walls
 		m = _wall_material("wall" if key <= WALL_H else "wall_tall", key, false)
-		m.uv1_scale = Vector3(1.0 / 2.25, -1.0 / key, 1.0)
-		m.uv1_offset = Vector3(0.0, 1.0, 0.0)
+		m.uv1_scale = Vector3(1.0 / 2.25, 1.0 / key, 1.0)
 	_uv_wall[key] = m
 	return m
 
