@@ -247,6 +247,7 @@ func _place_fixtures() -> void:
 				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
 			_characterise(fx[-1], c)
 			at_cell[c] = pos
+	_fill_dark_gaps(func(f): return true, _new_tube)
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
@@ -280,11 +281,113 @@ func _place_panel_fixtures() -> void:
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "cell": fx.size(), "wanted": false, "vents": _pick_vents(c)})
 			_characterise(fx[-1], c)
+	_fill_dark_gaps(func(f): return bool(f.get("casts", false)), Callable())
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
 			lit.append(f)
 	_index_fixtures()
+
+# ---------------------------------------------------------------- no dark gaps
+## The grids above only know the grid's walls. Walls off it (thin walls, the wall graph) standing close together
+## make corridors and nooks those grids never put a tube in, and the walls round them keep the neighbours' light
+## out: a black slot with a black ceiling. So, after the grid: every open cell (a Dark zone's aside) has to have
+## a tube within a cell of it that it can see; one that hasn't gets one, lit. Then a small pocket shut in by walls
+## (POCKET cells at most) whose tubes all came out burnt gets one of them back (a whole dark room is the Dark
+## zone's job, not the dice's). `real(f)`: fixture f is a tube (on a panel ceiling: one of the cells with a light
+## behind its panels). `make(c)`: a new tube in cell c (null: none can go there).
+const POCKET := 16
+var gaps_lit := 0                     # tubes this pass lit (for the tools: tools/probe_light.gd)
+
+func _fill_dark_gaps(real: Callable, make: Callable) -> void:
+	gaps_lit = 0
+	var by_cell := {}
+	for f: Dictionary in fx: by_cell[Vector2i(roundi(f.pos.x / CELL), roundi(f.pos.z / CELL))] = f
+	var light_up := func(f: Dictionary) -> void:
+		if f.burnt or not real.call(f):
+			gaps_lit += 1
+			f["gap"] = true
+		f.burnt = false
+		f.flickers = false
+		if f.has("casts"): f.casts = true
+	for z in range(1, size - 1):
+		for x in range(1, size - 1):
+			var c := Vector2i(x, z)
+			if not _wants_light(c): continue
+			var near := false
+			for dz in range(-1, 2):
+				for dx in range(-1, 2):
+					var d := c + Vector2i(dx, dz)
+					var f = by_cell.get(d)
+					if f != null and real.call(f) and (d == c or _sees_cell(c, d)): near = true
+			if near: continue
+			var f = by_cell.get(c)
+			if f == null and make.is_valid():
+				f = make.call(c)
+				if f != null:
+					fx.append(f)
+					by_cell[c] = f
+			if f != null: light_up.call(f)
+	# small pockets with only burnt tubes
+	var done := {}
+	for z in range(1, size - 1):
+		for x in range(1, size - 1):
+			var c0 := Vector2i(x, z)
+			if done.has(c0) or not _wants_light(c0): continue
+			var pocket: Array = [c0]
+			var seen := {c0: true}
+			var i := 0
+			while i < pocket.size() and pocket.size() <= POCKET:
+				var c: Vector2i = pocket[i]
+				i += 1
+				for step: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var n: Vector2i = c + step
+					if seen.has(n) or not _wants_light(n) or not _sees_cell(c, n): continue
+					seen[n] = true
+					pocket.append(n)
+			for c in pocket: done[c] = true
+			if pocket.size() > POCKET: continue
+			var lit_one := false
+			var mid := Vector2.ZERO
+			for c: Vector2i in pocket:
+				mid += Vector2(c)
+				var f = by_cell.get(c)
+				if f != null and real.call(f) and not f.burnt: lit_one = true
+			if lit_one: continue
+			mid /= pocket.size()
+			var best = null
+			var bd := INF
+			for c: Vector2i in pocket:
+				var f = by_cell.get(c)
+				if f != null and real.call(f) and Vector2(c).distance_to(mid) < bd:
+					bd = Vector2(c).distance_to(mid)
+					best = f
+			if best != null: light_up.call(best)
+
+## A cell a ceiling tube should light: open floor under a ceiling, not in a Dark zone
+func _wants_light(c: Vector2i) -> bool:
+	return not (walls.has(c) or pits.has(c) or open_above.has(c) or stair_cells.has(c) or arch_cells.has(c)
+		or pillar_cells.has(c) or dark.has(c)) and c.x > 0 and c.y > 0 and c.x < size - 1 and c.y < size - 1
+
+## Can the middle of cell `c` see the middle of `d` (a cell away)? No wall off the grid between them, and no
+## corner of two grid walls cut across diagonally
+func _sees_cell(c: Vector2i, d: Vector2i) -> bool:
+	if c.x != d.x and c.y != d.y and walls.has(Vector2i(c.x, d.y)) and walls.has(Vector2i(d.x, c.y)): return false
+	return not sight_blocked(Vector2(c), Vector2(d))
+
+## A hanging tube in cell `c` (troffer / fluorescent ceilings), as _place_fixtures hangs them, lit
+func _new_tube(c: Vector2i):
+	var ch := ceiling_height(c)
+	var y := (ch if ch == LOW_H or ch == CRAWL_H else WALL_H) - 0.03
+	var pos := Vector3(c.x * CELL, y, c.y * CELL)
+	var ns := walls.has(c + Vector2i(-1, 0)) and walls.has(c + Vector2i(1, 0))
+	var in_room: bool = _room_node(c) != null
+	var f := {"pos": pos, "light_pos": pos - Vector3(0, 0.45, 0), "rot": _room_rot(c) if in_room else (PI / 2.0 if ns else 0.0),
+		"burnt": false, "bright": bright.has(c), "classic": classic.has(c), "flickers": false, "level": 1.0,
+		"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
+		"index": -1, "wanted": false, "ceil_h": ch}
+	_characterise(f, c)
+	return f
 
 ## What sort of lamp tube `f` (in cell `c`) is. Rolled with a dice of its own, by cell and floor like the vents,
 ## so it never shifts the level's burnt / flickering tubes and a look-only copy of the floor (level_shell.gd)

@@ -93,6 +93,15 @@ var redo_stack: Array = []
 
 var GAME: String = OS.get_environment("BACKROOMS_GAME_DIR") if OS.has_environment("BACKROOMS_GAME_DIR") \
 	else ProjectSettings.globalize_path("res://").path_join("../godot-backrooms").simplify_path()
+## The wall graph (the game's scripts/World/level/walls/, loaded from its folder: the map shows exactly what the
+## game builds). `wall_graph` is this floor's walls; level_editor_walls.gd draws them and edits them.
+var WallGraph: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_graph.gd"))
+var WallGeom: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_geom.gd"))
+var WallJoints: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_joints.gd"))
+var WallMesh: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_mesh.gd"))
+var WallSnap: GDScript = load(GAME.path_join("scripts/World/level/walls/wall_snap.gd"))
+var wall_graph: RefCounted = WallGraph.new()
+const WALL_TOL := 0.1 / CELL_M        # ends this close (cells) are one node
 var materials := {}                  # slot -> pbr name: the level-wide material of each surface
 var pbr_names: Array = []            # the folders in the game's textures/pbr/
 
@@ -880,6 +889,7 @@ func _draw_canvas() -> void:
 	if show_zones: _draw_zones()
 	if show_paint: _draw_paint_marks()
 	if show_grid: _draw_grid(lo, hi)
+	_walls_draw()
 	if show_objects:
 		for o: Dictionary in objects:
 			_draw_object(o, 0.18 if _layer_hidden(o) else 1.0)
@@ -888,7 +898,7 @@ func _draw_canvas() -> void:
 		if not show_objects: pass
 		elif hover_obj >= 0 and hover_obj != selected and drag == "":
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
-		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:"):
+		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:") and not _walls_tool():
 			var t := tool.get_slice(":", 1)
 			var p := _snap_pos(_pos_at(mouse_px), t)        # ghost of what a click would place
 			var ghost := _new_object(t, p, _wall_align(p, place_rot, t))
@@ -911,6 +921,7 @@ func _draw_canvas() -> void:
 		var r := Rect2(box_from, Vector2.ZERO).expand(mouse_px)
 		canvas.draw_rect(r, Color(SEL, 0.08))
 		canvas.draw_rect(r, SEL, false, 1.5)
+	_walls_overlay()
 	canvas.draw_rect(Rect2(pan, Vector2(grid_size, grid_size) * zoom), GOLD, false, 1.5)
 	_draw_rulers()
 	_draw_hints()
@@ -1371,6 +1382,8 @@ func _canvas_input(ev: InputEvent) -> void:
 			pan += mm.relative
 		elif area_from.x >= 0:
 			pass                                        # the box is drawn from area_from to the mouse
+		elif _walls_motion(mm.position):
+			pass                                        # a wall being drawn, a node or a curve being dragged
 		elif drag != "":
 			_object_drag(mm.position)
 		elif painting and tool == "mark:spawn" and not erasing:
@@ -1402,6 +1415,8 @@ func _canvas_input(ev: InputEvent) -> void:
 			canvas.mouse_default_cursor_shape = Control.CURSOR_MOVE
 		if tool == "area":
 			pass                                        # its own hints stay up (_area_status)
+		elif _walls_status():
+			pass
 		elif drag != "" and selected >= 0:
 			_status(_describe(objects[selected]))
 		elif hover_obj >= 0:
@@ -1493,6 +1508,13 @@ func _area_clear(terrain := "", undo := true) -> void:
 		if i < objects.size() and area.has_point(Vector2i(roundi(objects[i].pos_x), roundi(objects[i].pos_y))):
 			_delete_object(i)
 			gone += 1
+	for e in wall_graph.edges.keys():                # walls whose middle is in the box (the walls they ran on from are tidied)
+		if not wall_graph.edges.has(e): continue
+		var mid: Vector2 = WallGeom.point(wall_graph.curve_of(e), 0.5)
+		if area.has_point(Vector2i(roundi(mid.x), roundi(mid.y))):
+			wall_graph.delete_edge(e)
+			gone += 1
+	_walls_changed()
 	multi = []
 	selected = -1
 	for z in zones:
@@ -1598,6 +1620,7 @@ func _area_cut_strip(columns: bool) -> void:
 				else: o.pos_y -= count
 			kept.append(o)
 		fd.objects = kept
+		if fd.get("walls") != null: fd.walls.cut_lines(columns, a, b)
 	for f in all:
 		if f == floor_idx: _load_floor(all[f])
 		else: floor_store[f] = all[f]
@@ -1615,6 +1638,9 @@ func _area_cut_strip(columns: bool) -> void:
 	for f in all:
 		for o: Dictionary in all[f].objects:
 			if (o.pos_y if columns else o.pos_x) > n - count - 2: spare = false
+		if all[f].get("walls") != null:
+			for nd: Dictionary in all[f].walls.nodes.values():
+				if ((nd.p as Vector2).y if columns else (nd.p as Vector2).x) > n - count - 2: spare = false
 		for m in all[f].markers:
 			var c = all[f].markers[m]
 			if c != null and (c.y if columns else c.x) > n - count - 2: spare = false
@@ -1655,7 +1681,8 @@ func _copy() -> bool:
 				var c := area.position + Vector2i(dx, dz)
 				row.append(grid[c.y][c.x] if _in_grid(c) else WALL)
 			rows.append(row)
-		clip = {"size": area.size, "at": area.position, "grid": rows, "zones": {}, "paint": {}, "objects": []}
+		clip = {"size": area.size, "at": area.position, "grid": rows, "zones": {}, "paint": {}, "objects": [],
+			"walls": wall_graph.walls_in(area, Vector2(area.position))}
 		for z in zones:
 			clip.zones[z] = []
 			for c: Vector2i in zones[z]:
@@ -1724,6 +1751,11 @@ func _paste(in_place := false) -> void:
 			for d: Vector2i in clip.paint[slot]:
 				var c := at + d
 				if _in_grid(c): paint[slot][c] = clip.paint[slot][d]
+	for w: Array in clip.get("walls", []):           # the walls copied with the area, joined to what they meet here
+		var props: Dictionary = (w[3] as Dictionary).duplicate(true)
+		props["cells"] = (props.get("cells", []) as Array).map(func(c): return [int(c[0]) + at.x, int(c[1]) + at.y])
+		wall_graph.add_wall((w[0] as Vector2) + Vector2(at), (w[1] as Vector2) + Vector2(at), w[2], props, WALL_TOL)
+	_walls_changed()
 	var made: Array = []
 	for src: Dictionary in clip.objects:
 		var o: Dictionary = src.duplicate(true)
@@ -1943,7 +1975,7 @@ func _set_paint_mat(id: String) -> void:
 # ---------------------------------------------------------------- undo
 # ---------------------------------------------------------------- floors
 func _live_floor() -> Dictionary:
-	return {"grid": grid, "zones": zones, "paint": paint, "markers": markers, "objects": objects, "noclip_to": noclip_to}
+	return {"grid": grid, "zones": zones, "paint": paint, "markers": markers, "objects": objects, "noclip_to": noclip_to, "walls": wall_graph}
 
 func _load_floor(fd: Dictionary) -> void:
 	grid = fd.grid
@@ -1952,6 +1984,9 @@ func _load_floor(fd: Dictionary) -> void:
 	markers = fd.markers
 	objects = fd.objects
 	noclip_to = str(fd.get("noclip_to", ""))
+	if fd.get("walls") == null: fd["walls"] = WallGraph.new()
+	wall_graph = fd.walls
+	_walls_changed()
 	_invalidate_map_cache()
 
 func _copy_floor(fd: Dictionary) -> Dictionary:
@@ -1960,7 +1995,7 @@ func _copy_floor(fd: Dictionary) -> Dictionary:
 	var pt := {}
 	for k in fd.paint: pt[k] = fd.paint[k].duplicate()
 	return {"grid": fd.grid.duplicate(true), "zones": z, "paint": pt, "markers": fd.markers.duplicate(), "objects": fd.objects.duplicate(true),
-		"noclip_to": str(fd.get("noclip_to", ""))}
+		"noclip_to": str(fd.get("noclip_to", "")), "walls": fd.walls.duplicate_graph() if fd.get("walls") != null else WallGraph.new()}
 
 ## A new floor: solid everywhere (draw its rooms in), no zones, paint, markers or objects
 func _new_floor() -> Dictionary:
@@ -1974,7 +2009,7 @@ func _new_floor() -> Dictionary:
 	for z in ZONES: zd[z] = {}
 	var mk := {}
 	for m in MARKERS: mk[m] = null
-	return {"grid": g, "zones": zd, "paint": {"wall": {}, "floor": {}, "ceiling": {}}, "markers": mk, "objects": [], "noclip_to": ""}
+	return {"grid": g, "zones": zd, "paint": {"wall": {}, "floor": {}, "ceiling": {}}, "markers": mk, "objects": [], "noclip_to": "", "walls": WallGraph.new()}
 
 ## Every floor, the live one included: int -> its fields
 func _all_floors() -> Dictionary:
@@ -2012,6 +2047,20 @@ func _switch_floor(f: int) -> void:
 ## Overridden by level_editor.gd to refresh the floor picker
 func _floors_changed() -> void:
 	pass
+
+## The wall graph's part of the map: level_editor_walls.gd fills these in
+func _walls_changed() -> void:              # the walls changed: their plan is worked out again
+	pass
+func _walls_draw() -> void:                 # the walls, under the objects
+	pass
+func _walls_overlay() -> void:              # the wall being drawn, the snap marks, the selection's handles
+	pass
+func _walls_motion(_p: Vector2) -> bool:    # the mouse moved: true when a wall drag took it
+	return false
+func _walls_status() -> bool:               # true when the status line was set for the walls
+	return false
+func _walls_tool() -> bool:                 # the current tool draws walls
+	return false
 
 # ---------------------------------------------------------------- growing the map
 ## Re-lay every floor on an n x n grid with its old cell (x, z) at (x, z) + off. Cells, zones, paint,
@@ -2051,6 +2100,7 @@ func _reframe(n: int, off: Vector2i) -> void:
 			o.pos_y += off.y
 			if o.pos_x >= 0 and o.pos_y >= 0 and o.pos_x <= n - 1 and o.pos_y <= n - 1: kept.append(o)
 		fd.objects = kept
+		if fd.get("walls") != null: fd.walls.shift(Vector2(off), n)
 	grid_size = n
 	mark_shift += off
 	for f in all:
@@ -3514,6 +3564,13 @@ func _auto_acoustics() -> void:
 			for x in range(floori(minf(a.x, b.x)) - 1, ceili(maxf(a.x, b.x)) + 2):
 				for z in range(floori(minf(a.y, b.y)) - 1, ceili(maxf(a.y, b.y)) + 2):
 					segs.get_or_add(Vector2i(x, z), []).append(sp)
+	for sp: Array in wall_graph.nav_spans(true):     # and the wall graph's (low ones aside)
+		if sp[3]: continue
+		var a: Vector2 = sp[0]
+		var b: Vector2 = sp[1]
+		for x in range(floori(minf(a.x, b.x)) - 1, ceili(maxf(a.x, b.x)) + 2):
+			for z in range(floori(minf(a.y, b.y)) - 1, ceili(maxf(a.y, b.y)) + 2):
+				segs.get_or_add(Vector2i(x, z), []).append([a, b, 0.0])
 	var wall_hard := _ac_hardness(str(materials.get("wall", "")), 0.3)
 	var floor_hard := _ac_hardness(str(materials.get("floor", "")), 0.0) - 0.1
 	var waters: Array = objects.filter(func(o): return _shape(o.type) == "water")

@@ -14,6 +14,11 @@ extends Node3D
 ## swap() changes the batteries: the right arm turns the torch level, the left hand comes up, unscrews the
 ## tail cap, the old cells drop out, the new pair goes in and the cap goes back on (TorchReload, close to
 ## 7 s). The light is out while the cap is off: swap_started / swap_dark / swap_done tell the player when.
+## The free left hand: while the torch is up it's held low at the bottom of the view (IDLE_REST), and
+## standing about, every so often it does something small (looks at itself, flexes, rubs its fingertips:
+## IDLE_CLIPS), torch on or off. Both from models/player/playerarms_idle.glb, built by
+## tools/blender/build_idle_hands.py, played on a second AnimationPlayer that runs after the arms' own, so
+## they only move the left arm; wall_hand.gd eases the hand in and out.
 ## A child of the camera, built by the player. Without the arms model the torch floats on its own.
 
 const MODEL := "res://models/flashlight.glb"
@@ -37,6 +42,18 @@ const SWAP_CELLS := Vector2(3.10, 4.18)   # the new pair is in the left hand fro
 const SWAP_WAIT := 1.5            # s it waits for the torch to be up in the right hand before it skips the show
 const FIDGET_EVERY := Vector2(6.0, 14.0)   # s from one fidget to the next
 const SMACK_GAP := Vector2(4.0, 8.0)       # s before it will knock the torch again
+const IDLE_HANDS := "res://models/player/playerarms_idle.glb"
+const IDLE_CLIPS: Array[String] = ["IdleLookHand", "IdleFlex", "IdleRub"]   # the left hand, standing about
+const IDLE_EVERY := Vector2(20.0, 50.0)    # s from one to the next
+const IDLE_STILL := 2.0           # s you have to have stood still before one starts
+const IDLE_REST := "IdleRest"     # a loop: the left hand held low at the bottom of the view while the torch is up
+const IDLE_ENTER := {"IdleLookHand": 0.35, "IdleFlex": 0.5, "IdleRub": 0.35}   # s into a gesture it's joined
+                                  # from the rest (about where it passes the rest's height on the way up)
+const IDLE_EXIT := 0.6            # s before a gesture's end it gives way to the rest again (on the way down)
+const IDLE_BLEND := 0.35          # s the rest and a gesture cross-fade
+const IDLE_SPRINT := "IdleSprint" # a loop, one stride: the left arm pumping while you sprint, scrubbed by the bob
+const SPRINT_PHASE := 0.0         # rad of `bob` the pump is shifted by (0: fist furthest forward at a footfall)
+const SPRINT_BLEND := 0.2         # s into and out of the pump
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const HUG_SPREAD := 0.12          # m: each hand's fingertips are this far off the middle of the wall in front
 const HUG_LOWER := 0.12           # m below eye height the hands go
@@ -105,6 +122,13 @@ var _swap_t := 0.0                # s waited to start it
 var _swap_dark := false
 var _swap_in := false             # the new cells are in (swap_done has gone out)
 var _cells: Node3D                # the new pair, in the left fist
+var _idle: AnimationPlayer        # the left hand's IDLE_CLIPS (null without them)
+var _idle_on := false             # the rest or a gesture is playing: set_peek leaves the left hand to it
+var _gesture := ""                # the gesture playing ("": none)
+var _base := ""                   # IDLE_REST or IDLE_SPRINT when that's what's playing ("": neither)
+var _idle_in := 15.0              # s to the next one
+var _idle_last := ""
+var _still := 0.0                 # s stood still
 
 func _init() -> void:
 	name = "TorchModel"
@@ -216,6 +240,46 @@ func _build_arms() -> void:
 	for clip in [SMACK, RELOAD]:
 		if _anim.has_animation(clip):
 			_anim.set_blend_time(clip, HOLD, 0.2)
+	if _hands != null and not skel.is_empty():
+		_build_idle(arms, skel[0] as Skeleton3D)
+
+## The left hand's IDLE_CLIPS, on an AnimationPlayer placed right after the arms' own (so it runs after it
+## and wins on the left arm). Only their Left* tracks are kept, pointed at this skeleton.
+func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
+	var scn := load(IDLE_HANDS) as PackedScene
+	if scn == null:
+		return
+	var src := scn.instantiate()
+	var found := src.find_children("*", "AnimationPlayer", true, false)
+	var lib := AnimationLibrary.new()
+	var to_skel := String(arms.get_path_to(skel))
+	for clip in IDLE_CLIPS + [IDLE_REST, IDLE_SPRINT]:
+		if found.is_empty() or not (found[0] as AnimationPlayer).has_animation(clip):
+			continue
+		var a := (found[0] as AnimationPlayer).get_animation(clip).duplicate(true) as Animation
+		for i in range(a.get_track_count() - 1, -1, -1):
+			var bone := String(a.track_get_path(i).get_concatenated_subnames())
+			if not bone.begins_with("Left") or skel.find_bone(bone) < 0:
+				a.remove_track(i)
+			else:
+				a.track_set_path(i, NodePath(to_skel + ":" + bone))
+		# Blender's export starts the keys a frame in (its frame 1): start them at 0, so the loop has no seam
+		var first := a.track_get_key_time(0, 0) if a.get_track_count() > 0 and a.track_get_key_count(0) > 0 else 0.0
+		for i in a.get_track_count():
+			for k in a.track_get_key_count(i):
+				a.track_set_key_time(i, k, a.track_get_key_time(i, k) - first)
+		a.length -= first
+		a.loop_mode = Animation.LOOP_LINEAR if clip in [IDLE_REST, IDLE_SPRINT] else Animation.LOOP_NONE
+		lib.add_animation(clip, a)
+	src.free()
+	if lib.get_animation_list().is_empty():
+		return
+	_idle = AnimationPlayer.new()
+	_idle.name = "IdleHands"
+	_anim.add_sibling(_idle)
+	_idle.root_node = _idle.get_path_to(arms)
+	_idle.add_animation_library("", lib)
+	_idle_in = randf_range(IDLE_EVERY.x * 0.5, IDLE_EVERY.y * 0.5)   # the first one comes a little sooner
 
 ## Where the beam leaves from: LENGTH ahead of the torch's middle, along the torch
 func lens() -> Vector3:
@@ -232,6 +296,7 @@ func update(dt: float, shown: bool, sprinting: bool, moving: bool, bob: float) -
 		_update_arm(shown or _swap != 0)    # a swap brings the torch up whether it's on or not
 		_swap_tick(dt)
 		_fidget(dt, sprinting)
+		_idle_tick(dt, sprinting, moving, bob)
 		_show_arms()
 	else:
 		visible = shown and not (Game.hide_hud or Game.hide_hands)
@@ -374,7 +439,7 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 		if _hands.hidden(left) and _hands.hidden(right):
 			_hand_torch(right)
 	else:
-		_hands.set_mode(left, WallHand.Mode.HIDE)
+		_hands.set_mode(left, WallHand.Mode.ANIM if _idle_on else WallHand.Mode.HIDE)   # (the rest or an idle gesture has it)
 		_hands.set_mode(right, WallHand.Mode.ANIM)
 
 ## Up against a wall with both hands free to go on it (peek.gd's hug): palms flat either side of where you
@@ -487,6 +552,88 @@ func _fidget(dt: float, sprinting: bool) -> void:
 	_fidget_last = pick
 	_anim.play(pick, 0.2)
 	_anim.queue(HOLD)
+
+## The left hand. Sprinting it pumps (IDLE_SPRINT, in step with your feet), torch on or off; otherwise
+## while the torch is up it's held low at the bottom of the view (IDLE_REST). Standing about, after you've
+## been still a moment, every IDLE_EVERY it does one of IDLE_CLIPS (never the same twice running): from the
+## rest it joins the gesture on its way up and goes back to the rest on its way down, with the torch off it
+## comes up from below and goes back out of view. Anything else wanting that hand (a peek, the wall, a
+## squeeze, a flinch, the battery swap) takes it at once; a sprint cuts a gesture short and the arm takes up
+## the pump; walking off, a gesture finishes. `bob`: the head bob's phase (one step per PI).
+func _idle_tick(dt: float, sprinting: bool, moving: bool, bob: float) -> void:
+	if _idle == null:
+		return
+	_still = 0.0 if moving else _still + dt
+	if _idle_on and (_hands.mode_of(WallHand.LEFT) != WallHand.Mode.ANIM or _swap != 0 or _flinching
+			or _torch_in != WallHand.RIGHT or Game.hide_hud or Game.hide_hands):
+		_idle_stop()
+	# what the hand goes back to between gestures
+	var base := ""
+	if sprinting and _idle.has_animation(IDLE_SPRINT):
+		base = IDLE_SPRINT
+	elif _on and _idle.has_animation(IDLE_REST):
+		base = IDLE_REST
+	if _gesture != "":
+		var over := not _idle.is_playing() or _idle.current_animation != _gesture
+		var tail := base != "" and _idle.current_animation_position >= _idle.current_animation_length - IDLE_EXIT
+		if not (over or tail or base == IDLE_SPRINT):
+			return
+		_gesture = ""
+	if base == "":
+		if _idle_on:
+			_idle_stop()              # the torch went down / the sprint's over / a gesture's done: out of view
+	elif _base != base and (_idle_on or _idle_free()):
+		_idle_base(base)
+	if _base == IDLE_SPRINT and _idle.current_animation == IDLE_SPRINT:
+		# one stride is TAU of `bob`: the fist is furthest forward as a foot lands
+		_idle.seek(fposmod(bob + SPRINT_PHASE, TAU) / TAU * _idle.current_animation_length)
+	_idle_in -= dt
+	if _idle_in > 0.0 or _still < IDLE_STILL or sprinting:
+		return
+	_idle_in = randf_range(IDLE_EVERY.x, IDLE_EVERY.y)
+	if not (_idle_on or _idle_free()):
+		return
+	var choices := IDLE_CLIPS.filter(func(c): return c != _idle_last and _idle.has_animation(c))
+	if not choices.is_empty():
+		_idle_play(choices.pick_random())
+
+## Put the hand in `clip` (the rest or the pump): cross-faded from whatever it's doing, or up from below
+func _idle_base(clip: String) -> void:
+	if _idle_on:
+		_idle.play(clip, SPRINT_BLEND if clip == IDLE_SPRINT or _base == IDLE_SPRINT else IDLE_BLEND)
+	else:
+		_idle.play(clip)
+		_idle_on = true
+		_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM)
+	_base = clip
+
+## Nothing else has the left hand: it's let down, the torch is in the right, no swap, flinch or hands on a wall
+func _idle_free() -> bool:
+	return _idle != null and not _idle_on and _swap == 0 and not _flinching and _torch_in == WallHand.RIGHT \
+		and not (_hug or _sq_on or _grab) and _hands.mode_of(WallHand.LEFT) == WallHand.Mode.HIDE \
+		and not (Game.hide_hud or Game.hide_hands)
+
+## A gesture: out of the rest if the hand is in it (cross-faded, joined part way up), else from below
+func _idle_play(clip: String) -> void:
+	_idle_last = clip
+	if _idle_on:
+		_idle.play_section(clip, IDLE_ENTER.get(clip, 0.0), -1.0, IDLE_BLEND)
+	else:
+		_idle.play(clip)
+		_idle.seek(0.0, true)
+	_idle_on = true
+	_gesture = clip
+	_base = ""
+	_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM)
+
+func _idle_stop() -> void:
+	_idle_on = false
+	_gesture = ""
+	_base = ""
+	if _idle.is_playing():
+		_idle.stop()
+	if _hands.mode_of(WallHand.LEFT) == WallHand.Mode.ANIM and _swap == 0:
+		_hands.set_mode(WallHand.LEFT, WallHand.Mode.HIDE)
 
 ## The beam is stuttering: `after` s from now the hand knocks the torch, if it's just holding it then.
 ## Asked again before SMACK_GAP is up, or with one already on its way, nothing more happens.
@@ -614,6 +761,13 @@ func _update_arm(shown: bool) -> void:
 func debug_play(clip: String) -> String:
 	if _anim == null:
 		return "no arms model"
+	if clip in IDLE_CLIPS:
+		if _idle == null or not _idle.has_animation(clip):
+			return "no idle hand clip " + clip + " (models/player/playerarms_idle.glb)"
+		if not _idle_on and not _idle_free():
+			return "the left hand is busy (peek, wall, swap or flinch)"
+		_idle_play(clip)
+		return ""
 	if not _anim.has_animation(clip):
 		return "the arms model has no clip " + clip
 	if clip == FLINCH:

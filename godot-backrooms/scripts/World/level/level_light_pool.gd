@@ -272,13 +272,18 @@ func _eyes(p: Vector3) -> Array:
 	var out: Array = [p]
 	for o in [Vector3(CELL * 0.5, 0.0, 0.0), Vector3(-CELL * 0.5, 0.0, 0.0), Vector3(0.0, 0.0, CELL * 0.5), Vector3(0.0, 0.0, -CELL * 0.5)]:
 		var q: Vector3 = p + o
-		if not _solid(cell_of(q)): out.append(q)
+		# (not through a thin wall beside you: the far side of it is not where you can see from)
+		if not _solid(cell_of(q)) and not sight_blocked(_flat(p), _flat(q)): out.append(q)
 	return out
+
+## A world point on the map, in cells
+static func _flat(p: Vector3) -> Vector2:
+	return Vector2(p.x, p.z) / CELL
 
 func _seen_from(eyes: Array, f: Dictionary) -> bool:
 	var at: Vector3 = f.pos + _img(f)
 	for e in eyes:
-		if _line_clear(e, at, true): return true
+		if _line_clear(e, at, true) and not sight_blocked(_flat(e), _flat(at)): return true
 	return false
 
 # Which slots are lit (the nearest `_lit_cap`) and which of those cast shadows (the nearest `_shadow_cap`)
@@ -484,7 +489,7 @@ func tube_light_at(p: Vector3) -> float:
 		var dsq := at.distance_squared_to(p)
 		# a tube behind a wall only reaches you by bouncing round (it used to count in full, so standing in a
 		# dark corridor beside a lit one read as lit: the eye adaptation, fog and sanity all got it wrong)
-		var seen := 1.0 if _line_clear(p, at, true) else HIDDEN_BOUNCE
+		var seen := 1.0 if _line_clear(p, at, true) and not sight_blocked(_flat(p), _flat(at)) else HIDDEN_BOUNCE
 		sum += w * seen / (1.0 + dsq / (BOUNCE_RADIUS * BOUNCE_RADIUS))
 	var out := minf(1.0, sum / BOUNCE_FULL)
 	if _tla_memo.size() < 64: _tla_memo[p] = out

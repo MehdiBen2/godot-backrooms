@@ -441,6 +441,25 @@ func _build_toolbar() -> Control:
 	align_check.button_pressed = align
 	align_check.toggled.connect(func(on): align = on)
 	h.add_child(align_check)
+	# drawing walls: how near the mouse has to come for a snap to catch (screen pixels, so the same at any zoom),
+	# and the angle snap's steps
+	var snap_px := SpinBox.new()
+	snap_px.min_value = 4
+	snap_px.max_value = 40
+	snap_px.value = wall_snap_px
+	snap_px.suffix = "px"
+	snap_px.tooltip_text = "Wall snapping: how near the mouse has to come to a node, a wall or a guide line for it to catch (screen pixels). Alt: no snapping"
+	snap_px.value_changed.connect(func(v): wall_snap_px = v)
+	h.add_child(snap_px)
+	var ang := SpinBox.new()
+	ang.min_value = 0
+	ang.max_value = 90
+	ang.step = 5
+	ang.value = wall_angle_step
+	ang.suffix = "°"
+	ang.tooltip_text = "Wall snapping: the angle steps a wall drawn snaps to (0: none)"
+	ang.value_changed.connect(func(v): wall_angle_step = v)
+	h.add_child(ang)
 	h.add_child(_vsep())
 	var view_group := ButtonGroup.new()
 	for v: Array in [[false, "floorview", "Floor view: floor materials, walls drawn as their tops"], [true, "ceiling", "Ceiling view  (C): the ceiling's materials, to see and paint them"]]:
@@ -710,6 +729,7 @@ func _build_right_dock() -> Control:
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(side)
 	_build_inspector(side)
+	_build_wall_inspector(side)
 	_build_tabs(side)
 	# BUILD
 	var ter := _section(side, "TERRAIN")
@@ -1636,6 +1656,111 @@ func _build_inspector(side: VBoxContainer) -> void:
 		r.add_child(bt)
 	box.visible = false
 
+## The wall inspector: shown while walls are picked (level_editor_walls.gd). A change applies to every picked
+## wall; length, angle and radius are there for one wall at a time.
+var wall_insp: PanelContainer
+var _wi := {}                        # field -> its control
+var _wi_rows := {}                   # field -> [label, control], to show / hide
+var _wi_sync := false                # filling the fields in: their signals are not edits
+
+func _build_wall_inspector(side: VBoxContainer) -> void:
+	wall_insp = PanelContainer.new()
+	wall_insp.add_theme_stylebox_override("panel", _box(UI_PANEL2, UI_LINE, 6, 10))
+	side.add_child(wall_insp)
+	var v := VBoxContainer.new()
+	wall_insp.add_child(v)
+	v.add_child(_heading("Selected walls"))
+	_wi["head"] = _label("", 15, Color.WHITE)
+	v.add_child(_wi.head)
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 10)
+	v.add_child(g)
+	for f: Array in [["length", "Length", 0.05, 1000.0, 0.05, " m", "Along the wall; its first end stays where it is"],
+			["angle", "Angle", 0.0, 360.0, 0.5, "°", "0 = right, anticlockwise as seen on the map"],
+			["radius", "Radius", 0.0, 1000.0, 0.05, " m", "The curve's radius; 0 = straight"],
+			["thick", "Thickness", 0.02, 4.5, 0.01, " m", "Both faces together, centred on its line"],
+			["tl", "Left face", 0.01, 2.25, 0.01, " m", "Thickness on its left (walking it from its first end)"],
+			["tr", "Right face", 0.01, 2.25, 0.01, " m", "Thickness on its right"],
+			["h", "Height", 0.0, 16.2, 0.05, " m", "0 = up to the ceiling of the room it stands in. Under 1.8 m you see over it"],
+			["base", "Off floor", 0.0, 16.2, 0.05, " m", "How far off the floor it starts: a bulkhead hanging from the ceiling"],
+			["segs", "Arc pieces", 0.0, 256.0, 1.0, "", "How many flat pieces a curve is built of; 0 = as many as it needs"]]:
+		var lbl := _label(f[1], 13, UI_DIM)
+		g.add_child(lbl)
+		var sb := SpinBox.new()
+		sb.min_value = f[2]
+		sb.max_value = f[3]
+		sb.step = f[4]
+		sb.suffix = f[5]
+		sb.tooltip_text = f[6]
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var key: String = f[0]
+		sb.value_changed.connect(func(val): if not _wi_sync: _wall_set(key, val))
+		g.add_child(sb)
+		_wi[key] = sb
+		_wi_rows[key] = [lbl, sb]
+	for f: Array in [["mat_l", "Left paper"], ["mat_r", "Right paper"]]:
+		var lbl := _label(f[1], 13, UI_DIM)
+		g.add_child(lbl)
+		var pick := OptionButton.new()
+		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pick.tooltip_text = "The material of this face (textures/pbr); the level's walls when none"
+		var key: String = f[0]
+		pick.item_selected.connect(func(i): if not _wi_sync: _wall_set(key, "" if i == 0 else str(pbr_names[i - 1])))
+		g.add_child(pick)
+		_wi[key] = pick
+	for f: Array in [["lock_len", "Lock length", "Its length stays as it is while you move what is round it"],
+			["lock_ang", "Lock angle", "Its direction stays as it is while you move what is round it"]]:
+		g.add_child(_label("", 13, UI_DIM))
+		var tick := CheckBox.new()
+		tick.text = f[1]
+		tick.tooltip_text = f[2]
+		var key: String = f[0]
+		tick.toggled.connect(func(on): if not _wi_sync: _wall_set(key, on))
+		g.add_child(tick)
+		_wi[key] = tick
+	var r := HBoxContainer.new()
+	v.add_child(r)
+	for b: Array in [["Straighten", "straighten"], ["Flip faces", "flip"], ["Duplicate", "duplicate"], ["Delete", "delete"]]:
+		var what: String = b[1]
+		var bt := _button(b[0], func(): _wall_action(what))
+		bt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		r.add_child(bt)
+	wall_insp.visible = false
+
+func _wall_insp_sync() -> void:
+	if wall_insp == null: return
+	var es: Array = wsel_edges.filter(func(e): return wall_graph.edges.has(e))
+	wall_insp.visible = not es.is_empty()
+	if es.is_empty(): return
+	_wi_sync = true
+	var e: int = es[0]
+	var ed: Dictionary = wall_graph.edges[e]
+	var cv: Dictionary = wall_graph.curve_of(e)
+	(_wi.head as Label).text = ("Wall %d" % e) if es.size() == 1 else "%d walls (a change sets them all)" % es.size()
+	var arc: bool = cv.kind == WallGeom.ARC
+	for k in ["length", "angle", "radius"]:
+		var show: bool = es.size() == 1 and (k != "angle" or not arc)
+		for c: Control in _wi_rows[k]: c.visible = show
+	(_wi.length as SpinBox).set_value_no_signal(WallGeom.length(cv) * CELL_M)
+	(_wi.angle as SpinBox).set_value_no_signal(_map_deg(wall_graph.pos(ed.b) - wall_graph.pos(ed.a)))
+	(_wi.radius as SpinBox).set_value_no_signal(float(cv.get("r", 0.0)) * CELL_M if arc else 0.0)
+	(_wi.thick as SpinBox).set_value_no_signal(float(ed.tl) + float(ed.tr))
+	for k in ["tl", "tr", "base", "segs"]: (_wi[k] as SpinBox).set_value_no_signal(float(ed[k]))
+	# (0: up to the ceiling; a wall is never built taller than its room's ceiling, so one set taller shows 0 too)
+	(_wi.h as SpinBox).set_value_no_signal(0.0 if float(ed.h) >= _room_h(e) - 0.025 else float(ed.h))
+	(_wi.h as SpinBox).tooltip_text = "0 = up to the ceiling (%.1f m over this wall: a Tall or Grand zone raises it). Under 1.8 m you see over it" % _room_h(e)
+	for k in ["mat_l", "mat_r"]:
+		var pick: OptionButton = _wi[k]
+		if pick.item_count != pbr_names.size() + 1:
+			pick.clear()
+			pick.add_item("(the level's walls)")
+			for nm in pbr_names: pick.add_item(str(nm))
+		pick.select(pbr_names.find(str(ed[k])) + 1)
+	(_wi.lock_len as CheckBox).set_pressed_no_signal(bool(ed.get("lock_len", false)))
+	(_wi.lock_ang as CheckBox).set_pressed_no_signal(bool(ed.get("lock_ang", false)))
+	_wi_sync = false
+
 ## One per-type param row of the inspector (see _build_inspector), kept in insp_params to show / hide
 func _insp_param_spin(parent: Control, key: String, text: String, lo: float, hi: float, step: float, suffix: String, tip: String) -> void:
 	var sb := _insp_spin(parent, text, lo, hi, step, key, tip)
@@ -1882,6 +2007,9 @@ func _input(ev: InputEvent) -> void:
 			_spline_back()
 			get_viewport().set_input_as_handled()
 			return
+	if _wall_key(k):                     # drawing walls: A (an arc next), Enter (stop); F3 (show the wall graph)
+		get_viewport().set_input_as_handled()
+		return
 	for t in OBJ_TYPES:                  # each object type's key, from object_types.json
 		if str(OBJ_INFO[t].get("key", "")) == OS.get_keycode_string(k.keycode):
 			_select_tool("obj:" + t)
@@ -1900,7 +2028,7 @@ func _input(ev: InputEvent) -> void:
 			else: _delete_selected()
 		KEY_ESCAPE:
 			# the way out of anything: whatever is following the mouse stops, then the selection goes
-			var busy := panning or painting or drag != "" or rect_from.x >= 0 or area_from.x >= 0
+			var busy := panning or painting or drag != "" or rect_from.x >= 0 or area_from.x >= 0 or not wdraw.is_empty() or not wdrag.is_empty()
 			_cancel_all()
 			edge_cut = false
 			if not busy:
@@ -1908,7 +2036,7 @@ func _input(ev: InputEvent) -> void:
 				area = Rect2i()
 				canvas.queue_redraw()
 		KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN:
-			if _object_tool() and not _group().is_empty():
+			if _object_tool() and (not _group().is_empty() or not wsel_edges.is_empty()):
 				_nudge({KEY_LEFT: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT, KEY_UP: Vector2.UP, KEY_DOWN: Vector2.DOWN}[k.keycode], not k.echo)
 				get_viewport().set_input_as_handled()      # not also a step of the keyboard focus
 		KEY_BRACKETLEFT: _set_brush(brush - 1)

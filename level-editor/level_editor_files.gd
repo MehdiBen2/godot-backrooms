@@ -30,6 +30,7 @@ var name_mode := ""                  # "new" | "rename" | "dup"
 var delete_dialog: ConfirmationDialog
 var godot_dialog: FileDialog
 var shown: Array = []                # index positions currently shown in the list
+var _walls_joined := 0               # wall objects of the level being opened that joined its wall graph
 # ---------------------------------------------------------------- level list
 func _load_index() -> void:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(GAME.path_join("levels/levels.json")))
@@ -58,12 +59,14 @@ func _open(i: int) -> void:
 	mark_shift = Vector2i(int(ms[0]), int(ms[1])) if ms is Array and ms.size() >= 2 else Vector2i.ZERO
 	floor_idx = 0
 	floor_store = {}
+	_walls_joined = 0
 	_load_floor(_parse_floor(data))
 	for k in data.get("floors", {}):
 		if data.floors[k] is Dictionary and int(k) != 0: floor_store[int(k)] = _parse_floor(data.floors[k])
 	_wells_adopt()
 	_floors_changed()
 	var migrated := _migrate_legacy()
+	_walls_absorb()                       # (old thin wall tiles just became thin wall objects: walls of the graph now)
 	selected = -1
 	hover_obj = -1
 	drag = ""
@@ -90,7 +93,8 @@ func _open(i: int) -> void:
 	_fit()
 	_update_title()
 	_sync_inspector()
-	_status("Opened " + str(index[current].file) + ("   (%d old door / arch / thin wall tiles are objects now; save to keep)" % migrated if migrated > 0 else ""))
+	_status("Opened " + str(index[current].file) + ("   (%d old door / arch / thin wall tiles are objects now; save to keep)" % migrated if migrated > 0 else "")
+		+ ("   (%d old wall pieces joined into the wall graph; save to keep)" % _walls_joined if _walls_joined > 0 else ""))
 
 ## One floor of a .lvl (the file itself for the ground floor, a "floors" entry for the others) as editor fields
 func _parse_floor(d: Dictionary) -> Dictionary:
@@ -126,6 +130,12 @@ func _parse_floor(d: Dictionary) -> Dictionary:
 				for k in o:                                        # its params (thickness, height, event...), kept as saved
 					if not obj.has(k): obj[k] = o[k]
 				fd.objects.append(obj)
+	# the walls: the floor's wall graph, and the wall objects of a level saved before it joined into it (as the game does)
+	fd.walls = WallGraph.new()
+	fd.walls.load_dict(d.get("walls", {}))
+	var before: int = fd.objects.size()
+	fd.objects = fd.walls.absorb(fd.objects, OBJ_INFO, grid_size, WALL_TOL)
+	_walls_joined += before - fd.objects.size()
 	# the old single "entity" cell (levels saved before entity marks were objects) becomes one bacteria mark
 	var old_ent = d.get("entity")
 	if old_ent is Array and old_ent.size() >= 2:
@@ -148,6 +158,7 @@ func _serialize_floor(fd: Dictionary) -> Dictionary:
 			if not so.has(k): so[k] = snappedf(o[k], 0.001) if o[k] is float else o[k]
 		objs.append(so)
 	out["objects"] = objs
+	if fd.get("walls") != null and not fd.walls.is_empty(): out["walls"] = fd.walls.to_dict()
 	var zd := {}
 	for z in ZONES:
 		var list := []

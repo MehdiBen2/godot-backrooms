@@ -1,4 +1,4 @@
-extends "res://level_editor_canvas.gd"
+extends "res://level_editor_walls.gd"
 ## Level editor, part 2: the generator. Fills a rectangle of the map with backrooms: rooms split off each
 ## other by walls with doorways (a binary split, so every room is reachable), a maze of corridors, a pillared
 ## hall, a mix of all three room by room, the classic Level 0 look (one open expanse broken by short
@@ -76,6 +76,7 @@ func _generate(area: Rect2i) -> void:
 	if gen_doors and gen_style != "maze": _place_doors()
 	if gen_zones: _room_zones()
 	selected = -1
+	_walls_absorb()                       # (its curved walls are pieces: they join the wall graph)
 	_sync_inspector()
 	_mark_dirty()
 	last_gen = {"area": area, "undo": undo_stack.size()}

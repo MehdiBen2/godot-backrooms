@@ -123,15 +123,15 @@ func _build_chrome() -> void:
 	add_child(file)
 	# the uplink's carrier: a wavering trace that jumps when the picture tears
 	scope = Control.new()
-	scope.position = Vector2(1340, 60)
+	scope.position = Vector2(1010, 60)
 	scope.size = Vector2(250, 36)
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scope.draw.connect(_draw_scope)
 	add_child(scope)
 	var stamp := _label("CONFIDENTIAL // CONTRACTOR COPY", 13, RED, 4)
 	stamp.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	stamp.position = Vector2(1920 - LEFT_X - 300, 72)
-	stamp.size = Vector2(300, 20)
+	stamp.position = Vector2(1920 - LEFT_X - 520, 72)
+	stamp.size = Vector2(520, 20)
 	add_child(stamp)
 	var rule := ColorRect.new()
 	rule.color = Color(0.9, 0.882, 0.804, 0.15)

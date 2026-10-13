@@ -77,9 +77,12 @@ const HAND_ANIMS := {
 	"fingers": "TorchFingers",
 	"regrip": "TorchRegrip",
 	"flinch": "TorchFlinch",
+	"look": "IdleLookHand",
+	"flex": "IdleFlex",
+	"rub": "IdleRub",
 }
 const HAND_ANIM_LABELS := {"swap": "BATTERY SWAP", "smack": "SMACK TORCH", "squeeze": "SQUEEZE", "fingers": "FINGER ROLL",
-	"regrip": "REGRIP", "flinch": "FLINCH"}
+	"regrip": "REGRIP", "flinch": "FLINCH", "look": "LOOK AT HAND", "flex": "FLEX HAND", "rub": "RUB FINGERS"}
 const HAND_ANIM_WAIT := 0.35      # s from the menu closing to the clip, so its start is seen
 
 const FONT_PATH := "res://fonts/vcr.ttf"

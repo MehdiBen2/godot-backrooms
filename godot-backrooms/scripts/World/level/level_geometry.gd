@@ -1032,6 +1032,7 @@ func _build_objects() -> void:
 					"zone":
 						if not shell: _build_trigger(o)
 	_build_shaped_walls(shaped)
+	_build_wall_graph()
 	_build_arches(arch)
 	_build_props(props)
 	_build_pipes(pipes, risers, props)
@@ -1308,6 +1309,17 @@ func wall_faces_near(inside: Callable, box: Rect2) -> Array:
 				var b := xf * Vector3(cos(a1) * rr, 0.0, sin(a1) * rr)
 				var mid := (a + b) * 0.5
 				out.append([a, b, (mid - xf.origin).normalized()])
+	# the wall graph: the outlines of its walls' feet (each runs with the wall on its left, so out is to its right)
+	for loop: Dictionary in wall_plan.get("loops", []):
+		var pts: PackedVector2Array = loop.pts
+		var n := pts.size()
+		for i in (n if loop.closed else n - 1):
+			var a := pts[i]
+			var b := pts[(i + 1) % n]
+			var mid := (a + b) * 0.5
+			if not inside.call(Vector3(mid.x, 0.0, mid.y)) and not box.grow(CELL).has_point(mid): continue
+			var d := (b - a).normalized()
+			out.append([Vector3(a.x, 0.0, a.y), Vector3(b.x, 0.0, b.y), Vector3(d.y, 0.0, -d.x)])
 	return out
 
 # Decorative clutter (levels/object_types.json entries with a "model" key): one imported mesh each, no
@@ -1426,6 +1438,94 @@ func _build_shaped_walls(list: Array) -> void:
 				oi.transform = seg * Transform3D(Basis(), Vector3(0, h * 0.5, 0))
 				add_child(oi)
 	add_child(body)
+
+# The floor's wall graph (level_data.gd wall_graph): every wall's plan cut against the walls it meets
+# (walls/wall_joints.gd: mitred corners, a bevel where a corner would spike, a hub where three or more meet), stood up
+# to its height and papered round the outlines of the walls unbroken (walls/wall_mesh.gd). A wall `h` 0 goes up to
+# the ceiling of the room it stands in, as a wall object did. One mesh per material per chunk (no visibility range,
+# as the maze's own walls), a convex collider per piece of plan, occluders over the full-height faces.
+const WallJoints := preload("res://scripts/World/level/walls/wall_joints.gd")
+const WallMesh := preload("res://scripts/World/level/walls/wall_mesh.gd")
+const WallGeom := preload("res://scripts/World/level/walls/wall_geom.gd")
+const WALL_CHUNK := 8                # cells a side: the wall graph's meshes are cut into chunks this big
+## What wall_mesh.gd built of the floor's wall graph (not its meshes): the outlines of the walls' feet ("loops",
+## for the skirting) and their plans ("solids", for the trim to keep clear of). World metres, x / z.
+var wall_plan := {}
+
+func _build_wall_graph() -> void:
+	wall_plan = {}
+	if wall_graph == null or wall_graph.edges.is_empty(): return
+	var spans := {}
+	var keys := {}
+	var full_of := {}
+	for e in wall_graph.edges:
+		var ed: Dictionary = wall_graph.edges[e]
+		var mid: Vector2 = WallGeom.point(wall_graph.curve_of(e), 0.5)
+		var full := _object_wall_h({"pos_x": mid.x, "pos_y": mid.y})
+		var top := minf(float(ed.h), full) if float(ed.h) > 0.0 else full
+		var base := clampf(float(ed.base), 0.0, maxf(top - 0.05, 0.0))
+		spans[e] = Vector2(base, top)
+		full_of[e] = full
+		# the wallpaper is drawn to the height of the room the wall stands in (a low wall: the plain room's)
+		var hk := full if top >= full - 0.01 else WALL_H
+		var ch := Vector2i(floori(mid.x / WALL_CHUNK), floori(mid.y / WALL_CHUNK))
+		keys[e] = {"l": "%s|%s|%d,%d" % [ed.mat_l, hk, ch.x, ch.y], "r": "%s|%s|%d,%d" % [ed.mat_r, hk, ch.x, ch.y],
+			"cap": "|%s|%d,%d" % [hk, ch.x, ch.y]}
+	var res := WallMesh.build(WallJoints.solve(wall_graph, CELL), spans, keys, _wall_repeat())
+	wall_plan = {"loops": res.loops, "solids": res.solids}
+	for key: String in res.meshes:
+		var mi := MeshInstance3D.new()
+		mi.mesh = res.meshes[key]
+		mi.material_override = _graph_wall_mat(key.get_slice("|", 0), float(key.get_slice("|", 1)))
+		add_child(mi)
+	if not shell:
+		var body := StaticBody3D.new()             # filled before it joins the tree, as _build_shaped_walls
+		for s: Dictionary in res.solids:
+			var parts: Array = Geometry2D.decompose_polygon_in_convex(s.poly)
+			if parts.is_empty():                   # (a plan the decomposition can't take: its triangles)
+				var idx := Geometry2D.triangulate_polygon(s.poly)
+				for i in range(0, idx.size(), 3):
+					parts.append(PackedVector2Array([s.poly[idx[i]], s.poly[idx[i + 1]], s.poly[idx[i + 2]]]))
+			for part: PackedVector2Array in parts:
+				var pts := PackedVector3Array()
+				for p in part:
+					pts.append(Vector3(p.x, s.base, p.y))
+					pts.append(Vector3(p.x, s.top, p.y))
+				var shape := ConvexPolygonShape3D.new()
+				shape.points = pts
+				var cs := CollisionShape3D.new()
+				cs.shape = shape
+				body.add_child(cs)
+		add_child(body)
+	# occluders: the faces of the walls that go right up to the ceiling
+	var verts := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for pc: Dictionary in res.pieces:
+		if pc.own < 0 or pc.y0 > 0.01 or pc.y1 < float(full_of[pc.own]) - 0.01: continue
+		var p: Vector2 = pc.p
+		var q: Vector2 = pc.q
+		var k := verts.size()
+		verts.append_array([Vector3(p.x, 0.0, p.y), Vector3(q.x, 0.0, q.y), Vector3(q.x, pc.y1, q.y), Vector3(p.x, pc.y1, p.y)])
+		idx.append_array([k, k + 1, k + 2, k, k + 2, k + 3])
+	if not verts.is_empty():
+		var occ := ArrayOccluder3D.new()
+		occ.set_arrays(verts, idx)
+		var oi := OccluderInstance3D.new()
+		oi.occluder = occ
+		add_child(oi)
+
+## The material of a wall-graph face: `id` a textures/pbr material ("" the level's walls), unrolled along the wall
+## in metres (its UVs, not a world projection, so it runs on round a curve); `h` the room height it's drawn for
+var _graph_mats := {}
+func _graph_wall_mat(id: String, h: float) -> StandardMaterial3D:
+	if id == "" or not ResourceLoader.exists("res://textures/pbr/%s/%s.tres" % [id, id]): return _wall_uv_mat(h)
+	if not _graph_mats.has(id):
+		var m := _pbr_by_id(id)
+		m.uv1_triplanar = false
+		m.uv1_world_triplanar = false
+		m.uv1_scale = Vector3(PBR_PER_M, -PBR_PER_M, 1.0)
+		_graph_mats[id] = m
+	return _graph_mats[id]
 
 ## A wall `t` thick and `h` tall along `path` (object space, cells): both faces offset from the centre line
 ## with mitred joints, a top, and end caps unless the path closes on itself. The faces shade smoothly

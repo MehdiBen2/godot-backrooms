@@ -37,6 +37,11 @@ var size := 0
 var walls := {}       # Vector2i -> true
 var pits := {}
 var objects: Array = []   # {type, pos_x, pos_y, rotation, scale, <its type's params>}, see object_types()
+## The floor's walls as a graph ("walls" in the .lvl): straight and curved walls joined at shared nodes, built by
+## level_geometry.gd _build_wall_graph. A file from before it had its walls as objects: those are joined into it as
+## the floor loads (walls/wall_graph.gd absorb), so old levels build the new way without being saved again.
+const WallGraph := preload("res://scripts/World/level/walls/wall_graph.gd")
+var wall_graph: RefCounted = WallGraph.new()
 var waters: Array = []    # the "water" and "pool" objects among them (water_depth_at)
 var pool_cells := {}      # Vector2i -> true: cells a pool takes (nothing paths into it)
 const PoolPiece := preload("res://scripts/World/props/pool.gd")
@@ -333,7 +338,7 @@ static func seen_over(o: Dictionary) -> bool:
 ## One floor of a level as a plain level: floor 0 is the file itself, any other its "floors" entry laid over
 ## it (grid, zones, paint, objects and markers are per floor; size, materials and the look are shared).
 ## A floor that doesn't exist falls back to the ground floor.
-const FLOOR_KEYS := ["grid", "zones", "paint", "objects", "spawn", "exit", "entity", "tv"]
+const FLOOR_KEYS := ["grid", "zones", "paint", "objects", "walls", "spawn", "exit", "entity", "tv"]
 static func floor_data(d: Dictionary, f: int) -> Dictionary:
 	if f == 0: return d
 	var fl = d.get("floors", {}).get(str(f))
@@ -345,6 +350,7 @@ static func floor_data(d: Dictionary, f: int) -> Dictionary:
 	for k in ["zones", "paint"]:
 		if out[k] == null: out[k] = {}
 	if out["objects"] == null: out["objects"] = []
+	if out["walls"] == null: out["walls"] = {}
 	return out
 
 static var _level_cache := {}
@@ -617,6 +623,9 @@ func _parse(d: Dictionary) -> void:
 	for o in d.get("objects", []):
 		if o is Dictionary and object_types().has(str(o.get("type", ""))):
 			objects.append(load_object(o))
+	wall_graph = WallGraph.new()
+	wall_graph.load_dict(d.get("walls", {}))
+	objects = wall_graph.absorb(objects, object_types(), size)
 	# An object sitting square in an interior cell takes it over (its type's on_cell): a door / thin wall
 	# stands in for the wall block there (still a wall to nav), an arch punches an opening through it.
 	# Off-centre (or low enough to see over), a blocks_nav piece cuts the cell links it crosses; the grid
@@ -654,6 +663,17 @@ func _parse(d: Dictionary) -> void:
 			arch_cells[c] = true
 		elif info.get("blocks_nav", false):
 			_block_span(o, half_t, low)
+	# the wall graph: a wall square on a cell takes the cell over as a thin wall object did (its edges' "cells"),
+	# and every wall cuts the cell links it crosses
+	for e in wall_graph.edges:
+		var ed: Dictionary = wall_graph.edges[e]
+		if float(ed.h) > 0.0 and float(ed.h) < SEE_OVER_H: continue
+		for cc in ed.get("cells", []):
+			var v := Vector2i(int(cc[0]), int(cc[1]))
+			if v.x > 0 and v.y > 0 and v.x < size - 1 and v.y < size - 1:
+				walls[v] = true
+				carved[v] = true
+	for sp: Array in wall_graph.nav_spans(): _block_segment(sp[0], sp[1], sp[2], sp[3])
 	for o: Dictionary in objects:
 		if o.type == "water": waters.append(o)
 		elif str(object_info(o.type).get("shape", "")) == "pool":
@@ -679,6 +699,7 @@ func _parse(d: Dictionary) -> void:
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
 	_hotel_faces_load()
+	_build_sight()
 	# Noclip on plain floor: no hole, you clip straight through the floor (noclip_slip.gd); on a pit it is the
 	# bottomless fall (pit_fall.gd). Both end in the floor's Noclip destination.
 	for c: Vector2i in noclip.keys():
@@ -830,6 +851,36 @@ func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 	for s: Array in wall_segments:
 		if s[3]: continue
 		if Geometry2D.segment_intersects_segment(a, b, s[0], s[1]) != null: return true
+	return false
+
+## The walls off the grid that stop light and sight, filed by cell: every full-height wall of the wall graph
+## (one square on a cell too: its cell counts as open to the grid's own sight lines, which see past doors and
+## thin walls) and every other span in wall_segments not seen over. [a, b] in cells. The grid walk the light
+## pool and the fixtures use (level_light_pool.gd _line_clear) only knows the grid; without these a tube behind a
+## thin wall counted as in view, and its shadowless light shone through the wall.
+var _sight := {}                      # Vector2i -> Array of [a, b]
+
+func _build_sight() -> void:
+	_sight.clear()
+	var spans: Array = []
+	for s: Array in wall_segments:
+		if not s[3] and (s[0] as Vector2).distance_to(s[1]) > 1e-4: spans.append([s[0], s[1]])
+	for s: Array in wall_graph.nav_spans(true):
+		if not s[3]: spans.append([s[0], s[1]])
+	for sp: Array in spans:
+		var a: Vector2 = sp[0]
+		var b: Vector2 = sp[1]
+		for x in range(floori(minf(a.x, b.x)), floori(maxf(a.x, b.x)) + 1):
+			for z in range(floori(minf(a.y, b.y)), floori(maxf(a.y, b.y)) + 1):
+				_sight.get_or_add(Vector2i(x, z), []).append(sp)
+
+## Does a full-height wall off the grid (a thin wall, a wall of the graph) stand between points `a` and `b` (cells)?
+func sight_blocked(a: Vector2, b: Vector2) -> bool:
+	if _sight.is_empty(): return false
+	for x in range(floori(minf(a.x, b.x)), floori(maxf(a.x, b.x)) + 1):
+		for z in range(floori(minf(a.y, b.y)), floori(maxf(a.y, b.y)) + 1):
+			for sp: Array in _sight.get(Vector2i(x, z), []):
+				if Geometry2D.segment_intersects_segment(a, b, sp[0], sp[1]) != null: return true
 	return false
 
 ## How deep the water stands over world point `p`: metres from it up to the surface, 0 out of the water. A Water

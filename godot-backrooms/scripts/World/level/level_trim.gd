@@ -58,6 +58,7 @@ var _obstacle_grid := {}             # Vector2i -> Array of _obstacles entries
 func _gather_obstacles() -> void:
 	_obstacles.clear()
 	_obstacle_grid.clear()
+	var plans: Array = []                 # [world outline, solid]
 	for o: Dictionary in objects:
 		var outlines := _object_outlines(o)
 		var xf := object_transform(o)
@@ -66,17 +67,22 @@ func _gather_obstacles() -> void:
 			for p: Vector2 in outline[0]:
 				var w := xf * Vector3(p.x, 0.0, p.y)
 				poly.append(Vector2(w.x, w.z))
-			if poly.is_empty(): continue
-			var ob := [poly, outlines.size() == 1]
-			_obstacles.append(ob)
-			var box := Rect2(poly[0], Vector2.ZERO)
-			for v in poly: box = box.expand(v)
-			box = box.grow(OBSTACLE_REACH)
-			for gx in range(floori(box.position.x / CELL), floori(box.end.x / CELL) + 1):
-				for gz in range(floori(box.position.y / CELL), floori(box.end.y / CELL) + 1):
-					var k := Vector2i(gx, gz)
-					if not _obstacle_grid.has(k): _obstacle_grid[k] = []
-					(_obstacle_grid[k] as Array).append(ob)
+			plans.append([poly, outlines.size() == 1])
+	# the wall graph's walls and hubs (level_geometry.gd wall_plan), each a solid plan of its own
+	for s: Dictionary in wall_plan.get("solids", []):
+		if float(s.base) < 0.05: plans.append([s.poly, true])
+	for ob: Array in plans:
+		var poly: PackedVector2Array = ob[0]
+		if poly.is_empty(): continue
+		_obstacles.append(ob)
+		var box := Rect2(poly[0], Vector2.ZERO)
+		for v in poly: box = box.expand(v)
+		box = box.grow(OBSTACLE_REACH)
+		for gx in range(floori(box.position.x / CELL), floori(box.end.x / CELL) + 1):
+			for gz in range(floori(box.position.y / CELL), floori(box.end.y / CELL) + 1):
+				var k := Vector2i(gx, gz)
+				if not _obstacle_grid.has(k): _obstacle_grid[k] = []
+				(_obstacle_grid[k] as Array).append(ob)
 
 ## True when floor-plan point `p` (world) is at least `margin` metres (at most OBSTACLE_REACH) clear of every
 ## placed wall, pillar and column
@@ -137,6 +143,13 @@ func _build_skirting() -> void:
 		var xf := object_transform(o)
 		for outline: Array in _object_outlines(o):
 			_skirt_loop(_chunk_st(sts, xf.origin), outline[0], xf, outline[1])
+	# the wall graph: right round the outline of its walls' feet, unbroken round every corner, curve and junction
+	# (level_geometry.gd wall_plan; a hole in the outline, a room the walls close in, is skirted from inside)
+	for loop: Dictionary in wall_plan.get("loops", []):
+		if not loop.closed or (loop.pts as PackedVector2Array).size() < 3: continue
+		var pts: Array = Array(loop.pts)
+		var at: Vector2 = pts[0]
+		_skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward)
 	if sts.is_empty(): return
 	var mat := _skirt_material()
 	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:

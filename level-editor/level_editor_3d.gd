@@ -511,8 +511,32 @@ func _rebuild() -> void:
 		world.add_child(holder)
 		obj_nodes.append(holder)
 		_object(o, unit, holder)
+	_graph_walls()
 	_shown_sel = -2                                    # the marks and the ghost go by the walls' heights too
 	_aim_stale = true
+
+## The floor's wall graph, built by the game's own code (walls/wall_joints.gd, walls/wall_mesh.gd) in metres and
+## scaled to this view: cells across, its squashed heights up. A wall `h` 0 is as tall as the room it stands in.
+func _graph_walls() -> void:
+	var g = ed.wall_graph
+	if g == null or g.edges.is_empty(): return
+	var spans := {}
+	var keys := {}
+	for e in g.edges:
+		var w: Dictionary = g.edges[e]
+		var mid: Vector2 = ed.WallGeom.point(g.curve_of(e), 0.5)
+		var full := _wall_height(Vector2i(roundi(mid.x), roundi(mid.y))) * 9.0 / vscale
+		var top := minf(float(w.h), full) if float(w.h) > 0.0 else full
+		spans[e] = Vector2(clampf(float(w.base), 0.0, maxf(top - 0.05, 0.0)), top)
+		keys[e] = {"l": str(w.mat_l), "r": str(w.mat_r), "cap": ""}
+	var res: Dictionary = ed.WallMesh.build(ed.WallJoints.solve(g, 4.5), spans, keys, 2.25)
+	var level_wall: String = ed._surface_key("wall", Vector2i(-1, -1))
+	for key: String in res.meshes:
+		var mi := MeshInstance3D.new()
+		mi.mesh = res.meshes[key]
+		mi.transform = Transform3D(Basis.from_scale(Vector3(1.0 / 4.5, vscale / 9.0, 1.0 / 4.5)), Vector3.ZERO)
+		mi.material_override = _pbr(key if key != "" else level_wall)
+		world.add_child(mi)
 
 ## One object's meshes, added to `parent` (its holder in the level, or the ghost)
 func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:

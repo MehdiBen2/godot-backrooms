@@ -1,92 +1,105 @@
 {
-  "_about": "T.S.R.A. mission briefings: the screen between PLAY and the loading bar (scripts/UI/menu/mission_briefing.gd), one block per levels/levels.json entry, keyed by its \"id\". Written from the agency's side and deliberately thin: hearsay, partial logs and open questions, never the entity names or how to beat them (that is what the dossier and the field scanner are for). Fields: file_no (shown as MISSION FILE), assignment (the ASSIGNMENT line), objective, situation, reports ([{source, reliability, text}]: field chatter that hints at what lives there), investigate (anomalies the contractor is asked to find and log with the scanner; leave out when the level has none), orders (short standing orders), sign_off, and optionally ambience (a res:// path for the briefing's sound bed; the hollow drone when absent). \"_default\" is used for any level id not listed here.",
+  "_about": "T.S.R.A. deployment notices: the screen between PLAY and the loading bar (scripts/UI/menu/mission_briefing.gd), one block per levels/levels.json entry, keyed by its \"id\". Voice: a cold contractor-services department. Personnel are line items, losses are figures, nothing is explained. The 'reports' are the only human voices, and they stay plain and understated: no entity names, no how-to, no monsters described outright, just one ordinary detail that is wrong. Fields: file_no (DEPLOYMENT FILE), assignment, objective, situation, terms (TERMS OF DEPLOYMENT), reports ([{source, reliability, text}]: PRIOR MATERIAL), investigate (DATA REQUIREMENTS; leave out when there are none), orders (CONDUCT POLICY), sign_off, and optionally ambience (a res:// path for the sound bed; the hollow drone when absent). \"_default\" is used for any level id not listed here.",
   "_default": {
-    "file_no": "SR-0000",
-    "assignment": "UNSCHEDULED SURVEY",
-    "objective": "Survey the sector. Document anything that does not match the baseline. Locate a way out.",
-    "situation": "No prior survey on file. Treat every reading as unconfirmed.",
+    "file_no": "DF-0000",
+    "assignment": "UNSCHEDULED SURVEY // TIER 1 CONTRACT",
+    "objective": "Survey the sector. Record any deviation from baseline. Locate an exit.",
+    "situation": "No prior deployments on file for this sector.",
+    "terms": [
+      "Readings are accepted in the event of non-return.",
+      "Recovery of personnel is not a contracted service."
+    ],
     "reports": [
       {
-        "source": "AUTOMATED BEACON",
-        "reliability": "NO RESPONSE",
-        "text": "no wanderer activity recorded on this level. no wanderer has come back to record any."
+        "source": "ARCHIVE QUERY",
+        "reliability": "0 RESULTS",
+        "text": "No material on file."
       }
     ],
     "orders": [
-      "Log before you touch.",
-      "Do not follow anything that is not following you."
+      "Do not follow other personnel. No other personnel are assigned to this sector."
     ],
-    "sign_off": "Good luck, contractor."
+    "sign_off": "Thank you for your continued cooperation."
   },
   "level0": {
-    "file_no": "SR-0000-A",
-    "assignment": "ROUTINE BASELINE SURVEY",
-    "objective": "Establish a baseline reading of the entry stratum. Find the exit marker and document the route to it. Filing comes before heroics.",
-    "situation": "Level 0 is the most common point of entry and is rated stable. Every surveyor who has worked it has also filed one report that contradicts that rating. The reports do not agree with each other.",
+    "file_no": "DF-0000-A",
+    "assignment": "BASELINE SURVEY // TIER 1 CONTRACT",
+    "objective": "Record baseline readings across the entry stratum. Locate the exit. Document the route to it.",
+    "situation": "Level 0 is rated stable. Fourteen contractors have been deployed under this file. Nine returns are on record. Two of the returning contractors do not appear on the original deployment roster.",
+    "terms": [
+      "Equipment remains T.S.R.A. property. Losses are deducted from settlement.",
+      "Readings are accepted in the event of non-return.",
+      "Recovery of personnel is not a contracted service."
+    ],
     "reports": [
       {
-        "source": "WANDERER JOURNAL",
-        "reliability": "RECOVERED PAGE",
-        "text": "day 11. maybe 12. the hum gets louder when i stop walking so i don't stop. found a room full of store dummies. counted them twice, got two different numbers. didn't go in."
+        "source": "CONTRACTOR 0-07 // AUDIO TRANSCRIPT",
+        "reliability": "UNREVIEWED",
+        "text": "Room here's set up like a shop floor. Display figures, maybe thirty. They all face the door except one. I'm going to go around."
       },
       {
-        "source": "RADIO // BASE ONE // 03:12",
-        "reliability": "PARTIAL",
-        "text": "...anyone on this channel. if you see eyes at the end of a hallway, don't walk to them. the hallway's longer than it looks. it's always longer than it l— [SIGNAL LOST]"
+        "source": "CONTRACTOR 0-11 // FIELD LOG, DAY 3",
+        "reliability": "UNREVIEWED",
+        "text": "Someone is standing at the far end of the corridor. I have been walking toward them for forty minutes. They have not gotten any bigger."
       },
       {
-        "source": "NOTE // TAPED TO A DOORFRAME",
-        "reliability": "UNSIGNED",
-        "text": "keep the lights on over you. if the tube above you goes dark, don't look up. just keep walking."
+        "source": "RECOVERED ITEM // UNDERSIDE OF A CEILING TILE",
+        "reliability": "AUTHOR UNKNOWN",
+        "text": "don't walk under the dark parts. go around. it's longer. go around."
       }
     ],
     "investigate": [
-      "The light that blinks on a count. Do not count it. Log that it blinks.",
-      "Any room where the furniture is too evenly arranged.",
-      "Any sound with no source. Note the time, not the direction.",
-      "A corridor that is longer on the return."
+      "Rooms whose occupant count changes between observations.",
+      "Figures that hold a fixed distance regardless of approach.",
+      "Unpowered ceiling sections. Record from a distance. Do not pass beneath.",
+      "Corridors whose measured length differs on return."
     ],
     "orders": [
-      "Stay near working lights.",
-      "Walk. Running is noticed.",
-      "Do not trust the count of anything."
+      "Maintain walking pace. Running voids medical coverage.",
+      "Do not follow other personnel. No other personnel are assigned to this sector.",
+      "Do not respond to your name."
     ],
-    "sign_off": "Come back with readings, contractor."
+    "sign_off": "Thank you for your continued cooperation."
   },
   "level_2_yellow_halls": {
-    "file_no": "SR-0002-C",
-    "assignment": "DEEP SURVEY // SOUND DISCIPLINE ADVISED",
-    "objective": "Re-map the service corridors below Level 0. Confirm whether the layout is still growing. Recover any equipment left by Survey Team WREN.",
-    "situation": "Older, wetter and darker than the stratum above. Maps expire within days. Two teams have gone down; one has come back.",
+    "file_no": "DF-0002-C",
+    "assignment": "DEEP SURVEY // TIER 3 CONTRACT // RECOVERY CLAUSE",
+    "objective": "Re-map the service corridors beneath Level 0. Recover equipment issued to Survey Team WREN. Serial numbers are on file.",
+    "situation": "Maps of this level expire within days. Team WREN deployed with four contractors. Their beacon has reported four contractors in motion for eleven days. Last voice contact was on day two.",
+    "terms": [
+      "WREN equipment recovered intact qualifies for a completion bonus.",
+      "Personnel recovery is not in scope.",
+      "Readings are accepted in the event of non-return."
+    ],
     "reports": [
       {
-        "source": "WANDERER JOURNAL",
-        "reliability": "WATER DAMAGED",
-        "text": "the pipes knock in threes down here. something knocked back in fours. haven't heard it since. but when the lights start buzzing i can hear it breathing."
+        "source": "WREN-2 // AUDIO TRANSCRIPT",
+        "reliability": "UNREVIEWED",
+        "text": "Hale's ahead of me, I can see her light. She's going back the way we came in. She stopped where I stopped. She's doing it in the same order."
       },
       {
-        "source": "RADIO // TEAM WREN // LAST CONTACT",
-        "reliability": "PARTIAL",
-        "text": "Hale's up ahead, I can see her torch. Hale, wait up. ...Hale, why are you behind m— [SIGNAL LOST]"
+        "source": "WREN-4 // FIELD LOG, DAY 2",
+        "reliability": "UNREVIEWED",
+        "text": "Man standing at the junction. He was there on the way in. Hasn't moved. He was facing the wall before."
       },
       {
-        "source": "NOTE // SCRATCHED INTO WALLPAPER",
-        "reliability": "UNSIGNED",
-        "text": "IF IT IS STANDING STILL LET IT STAND STILL"
+        "source": "WREN BEACON // AUTOMATED",
+        "reliability": "MACHINE GENERATED",
+        "text": "AUDIO EVENT 03:41. DURATION 6 S. CLASSIFICATION: VOCAL, HUMAN. NO WREN PERSONNEL REGISTERED AS SPEAKING."
       }
     ],
     "investigate": [
-      "Anything standing perfectly still in a corridor. Log it from range. Leave.",
-      "Anyone in a T.S.R.A. suit you did not arrive with.",
-      "A sound that gets closer without a direction.",
-      "Wall junctions where the carpet is wetter than the hall."
+      "Personnel in T.S.R.A. equipment not listed on your deployment.",
+      "Stationary figures at junctions. Record orientation on each pass.",
+      "Audio events with no visible source. Record duration only.",
+      "Wet carpet at wall junctions. Sample. Do not remain."
     ],
     "orders": [
-      "Listen before you move.",
-      "Do not linger at junctions.",
-      "Abort if the sensory erosion index reads SEVERE."
+      "Sound discipline is mandatory.",
+      "Do not stop at junctions.",
+      "If you encounter Team WREN, do not engage. Report their position."
     ],
-    "sign_off": "We would like WREN's equipment back.",
+    "sign_off": "Thank you for your continued cooperation.",
     "ambience": "res://audio/ambients/mleckert82-spooky-ambience-212885.mp3"
   }
 }

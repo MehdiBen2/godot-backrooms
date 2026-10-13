@@ -40,6 +40,13 @@ Headless smoke test (loads the main scene, fires a few events and summons the en
 godot --path godot-backrooms --headless --fixed-fps 60 --script res://tools/smoke.gd
 ```
 
+Wall graph checks (every junction test scene: no gaps, no overlaps, watertight; snapping; old levels' walls
+converted the same): `godot --path godot-backrooms --headless --script res://tools/test_walls.gd`. Photos of the
+scenes: `tools/shot_walls.gd` (needs a window); a level of them to walk round: `tools/make_wall_test_level.gd`.
+The editor's wall tools (drawing, handles, typed values, locks, multi-select) driven headless:
+`godot --path level-editor --headless --script res://tools/test_wall_editor.gd`. Ceiling light coverage of a
+level: `tools/probe_light.gd` (env LEVEL).
+
 ## Controls
 
 | Key | Action |
@@ -95,8 +102,13 @@ editor: open `level-editor/` in Godot and run it (set `BACKROOMS_GAME_DIR` if th
 sibling `godot-backrooms/`).
 
 Maps go up to 256 x 256 cells (about 1.15 km a side) and any number of floors joined by stairs and shafts. Besides grid
-walls, the OBJECTS panel places free walls of any shape: thin walls and half walls (per-object Thickness and
-Height; under 1.8 m you see over them), L corners, curved walls up to a full round room, square pillars and
+walls, free walls are a graph per floor ("walls" in the .lvl, `scripts/World/level/walls/`): straight and curved
+walls joined at shared nodes, mitred where they meet (T, X and more, different thicknesses and heights), so
+moving a node moves every wall on it. The Thin wall and Half wall tools draw them click to click (A: an arc next),
+snapping onto nodes, onto walls (a T), onto crossings, straight on out of an arc, square / in line with walls
+nearby, to angle steps and the grid (Alt: no snapping; F3 shows the graph). With Select, drag a node or a wall,
+or a picked wall's diamond to bend it. L corners and curved wall pieces join the graph as they are placed, and
+the wall objects of older levels join it as they load. The OBJECTS panel also has square pillars and
 round columns. An **Event trigger** (key 9) is an invisible box that runs an event when the player walks in:
 a caption, the tubes over it dying or stuttering, silence, a thump, a drone, or any director event (knocking,
 breathing, preacher, power cut). The Liminal atmosphere / zone and the "Liminal halls" generator style give

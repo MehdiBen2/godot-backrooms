@@ -83,6 +83,9 @@ func _crop_to(holes: Array) -> void:
 		elif is_stairs(o.type):
 			for c in stair_footprint(o): stair_cells.erase(c)      # plain wall again
 	objects = kept
+	for e in wall_graph.edges.keys():                # the walls whose middle is outside go too
+		var m: Vector2 = WallGeom.point(wall_graph.curve_of(e), 0.5)
+		if not crop.has(Vector2i(roundi(m.x), roundi(m.y))): wall_graph.edges.erase(e)
 	fx = fx.filter(func(f: Dictionary) -> bool: return crop.has(cell_of(f.pos)))
 	lit.clear()
 	for i in fx.size():
