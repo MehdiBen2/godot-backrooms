@@ -1453,7 +1453,8 @@ const WallOpenings := preload("res://scripts/World/level/walls/wall_openings.gd"
 const OpeningTrim := preload("res://scripts/World/props/opening_trim.gd")
 const WALL_CHUNK := 8                # cells a side: the wall graph's meshes are cut into chunks this big
 ## What wall_mesh.gd built of the floor's wall graph (not its meshes): the outlines of the walls' feet ("loops",
-## for the skirting) and their plans ("solids", for the trim to keep clear of). World metres, x / z.
+## for the skirting), their plans ("solids", for the trim to keep clear of) and their faces ("pieces", for the
+## drop ceiling's wall angle along their tops). World metres, x / z.
 var wall_plan := {}
 
 func _build_wall_graph() -> void:
@@ -1477,7 +1478,7 @@ func _build_wall_graph() -> void:
 			"cap": "|%s|%d,%d" % [hk, ch.x, ch.y]}
 	var sol := WallJoints.solve(wall_graph, CELL)
 	var res := WallMesh.build(sol, spans, keys, _wall_repeat(), true, WallOpenings.holes_of(wall_graph, spans))
-	wall_plan = {"loops": res.loops, "solids": res.solids, "holes": res.holes}
+	wall_plan = {"loops": res.loops, "solids": res.solids, "holes": res.holes, "pieces": res.pieces}
 	_build_openings(sol, res.holes)
 	for key: String in res.meshes:
 		var mi := MeshInstance3D.new()
@@ -1563,13 +1564,19 @@ func _build_wall_door(op: Dictionary, h: Dictionary, xf: Transform3D, clear: flo
 	var each := leaf_w / leaves
 	for k in leaves:
 		var d := Door.new()
-		d.leaf = str(op.get("style", "wood"))
+		d.leaf = door_style(str(op.get("style", "wood")))
 		# a single leaf hangs on its hinge jamb (b: turned round to hang on the other); a pair, one on each
 		var flip: bool = hinge_b if leaves == 1 else k == 1
 		var off := 0.0 if leaves == 1 else -each * 0.5
 		d.transform = xf * Transform3D(Basis(Vector3.UP, PI) if flip else Basis.IDENTITY, Vector3.ZERO) * Transform3D(Basis.IDENTITY, Vector3(0, 0, off))
 		add_child(d)
 		d.build_leaf(each - (0.004 if leaves == 2 else 0.0), leaf_h, door_leaf_mat, door_hw_mat)
+
+## A door's leaf: its own style, or ("level") the one the level's doors are ("doors" in the .lvl, the editor's
+## Doors pick): an office's, a hotel's, a warehouse's doors all alike, changed in one place
+func door_style(style: String) -> String:
+	if style == "level" or style == "": return str(level_data.get("doors", "wood"))
+	return style
 
 ## A window in its hole: its own frame (props/window.gd) +x into the room; a window onto the sky stands at the back
 ## of the hole (against the face that isn't cut), one you see through in the middle of the wall

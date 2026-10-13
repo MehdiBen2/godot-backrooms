@@ -1174,7 +1174,6 @@ func _op_press(mb: InputEventMouseButton) -> bool:
 		return true
 	_push_undo()
 	var settings := {"w": g.w, "side": g.side}
-	if _op_kind() == "door": settings["style"] = str(_info("door").get("params", {}).get("leaf", "wood"))
 	var ops: Array = wall_graph.edges[g.e].ops
 	ops.append(WallGraph.new_opening(_op_kind(), g.u, settings))
 	wsel_op = {"e": g.e, "i": ops.size() - 1}
@@ -1210,8 +1209,11 @@ func _op_handles() -> Dictionary:
 
 func _op_handle_at(px: Vector2) -> String:
 	var hs := _op_handles()
+	if hs.is_empty(): return ""
+	# (a narrow one zoomed out: its jambs only near their ends, so its middle still grabs the whole opening)
+	var reach := minf(8.0, (hs.op_a as Vector2).distance_to(hs.op_b) * 0.3)
 	for k in hs:
-		if (hs[k] as Vector2).distance_to(px) <= 8.0: return k
+		if (hs[k] as Vector2).distance_to(px) <= reach: return k
 	return ""
 
 func _op_drag_start(kind: String, px: Vector2) -> void:
@@ -1394,8 +1396,8 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 	var t0 := clampf(sp.x, 0.0, 1.0)
 	var t1 := clampf(sp.y, 0.0, 1.0)
 	var n := 1 if cv.kind == WallGeom.LINE else 8
-	var lf := WallGeom.offset(cv, float(ed.tl) / CELL_M)
-	var rf := WallGeom.offset(cv, -float(ed.tr) / CELL_M)
+	var lf: Dictionary = WallGeom.offset(cv, float(ed.tl) / CELL_M)
+	var rf: Dictionary = WallGeom.offset(cv, -float(ed.tr) / CELL_M)
 	var ls := PackedVector2Array()
 	var rs := PackedVector2Array()
 	var cs := PackedVector2Array()
@@ -1415,8 +1417,8 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 		if ghost: canvas.draw_colored_polygon(poly, Color(col, 0.35))
 	# the jambs
 	for k: int in [0, n]: canvas.draw_line(ls[k], rs[k], Color(CREAM, 0.9), 1.5)
-	var side_n := WallGeom.normal(cv, float(op.u)) * (1.0 if str(op.get("side", "l")) == "l" else -1.0)
-	var screen_n := side_n          # (cells and screen run the same way; only the scale differs)
+	var side_n: Vector2 = WallGeom.normal(cv, float(op.u)) * (1.0 if str(op.get("side", "l")) == "l" else -1.0)
+	var screen_n: Vector2 = side_n          # (cells and screen run the same way; only the scale differs)
 	match kind:
 		"door":
 			var leaves := clampi(int(op.get("leaves", 1)), 1, 2)

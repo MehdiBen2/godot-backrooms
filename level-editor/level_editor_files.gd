@@ -4,6 +4,8 @@ extends "res://level_editor_gen.gd"
 ## and launches the game on the current level. level_editor.gd builds the window around it.
 
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
+const LEVEL_DOORS := ["wood", "old_wood", "metal", "office", "glass", "security"]   # "doors" in the .lvl
+const DOORS_HELP := "What the level's doors are: every door in a wall left on \"Level's\" style hangs this leaf (an office's, a hotel's doors all alike). A door given its own style keeps it"
 const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 ## The ceiling lights ("lights" in the .lvl, level_geometry.gd lights_mode()): the ceiling's own light panels (its
 ## tiles lit where it has none), hanging troffers with their ballasts, hanging fluorescent tubes (the new model), or none at all. Unset: panels.
@@ -18,6 +20,7 @@ var level_list: ItemList
 var size_spin: SpinBox
 var gi_pick: OptionButton
 var atmo_pick: OptionButton
+var door_pick: OptionButton
 var endless_check: CheckBox          # the .lvl's "endless": the lowest and highest floors repeat for ever (level_data.gd endless())
 var wrap_check: CheckBox             # the .lvl's "wrap": opposite map edges joined, the halls never end (level_data.gd wrap)
 var lights_pick: OptionButton        # the .lvl's "lights" (LIGHTS)
@@ -79,6 +82,7 @@ func _open(i: int) -> void:
 	spawn_rot = float(data.get("spawn_rot", 270.0))
 	gi_pick.select(0 if not data.has("sdfgi") else (1 if data["sdfgi"] else 2))
 	atmo_pick.select(maxi(0, ATMOS.find(str(data.get("atmosphere", "dim")))))
+	door_pick.select(maxi(0, LEVEL_DOORS.find(str(data.get("doors", "wood")))))
 	endless_check.set_pressed_no_signal(bool(data.get("endless", false)))
 	wrap_check.set_pressed_no_signal(bool(data.get("wrap", false)))
 	var lm := str(data.get("lights", "panels"))
@@ -396,6 +400,8 @@ func _current_payload() -> Dictionary:
 		1: out["sdfgi"] = true
 		2: out["sdfgi"] = false
 		_: out.erase("sdfgi")
+	if door_pick.selected <= 0: out.erase("doors")
+	else: out["doors"] = LEVEL_DOORS[door_pick.selected]
 	if atmo_pick.selected <= 0: out.erase("atmosphere")
 	else: out["atmosphere"] = ATMOS[atmo_pick.selected]
 	if endless_check.button_pressed: out["endless"] = true

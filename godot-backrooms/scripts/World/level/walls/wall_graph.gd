@@ -25,7 +25,7 @@ const Geom := preload("wall_geom.gd")
 const CELL_M := 4.5                  # metres a cell (level_data.gd CELL): the openings are sized in metres
 ## Each kind of opening: its defaults, and whether you can walk through it (nav) / see and light through it
 const OPENINGS := {
-	"door": {"w": 1.12, "h": 2.19, "sill": 0.0, "style": "wood", "leaves": 1, "walk": false, "see": true},
+	"door": {"w": 1.12, "h": 2.19, "sill": 0.0, "style": "level", "leaves": 1, "walk": false, "see": true},
 	"doorway": {"w": 1.2, "h": 2.4, "sill": 0.0, "walk": true, "see": true},
 	"arch": {"w": 1.8, "h": 3.0, "sill": 0.0, "walk": true, "see": true},
 	"window": {"w": 1.6, "h": 1.5, "sill": 0.9, "style": "pane", "glass": "sky", "panes": 3, "sky": "noon", "sun": 8.0,

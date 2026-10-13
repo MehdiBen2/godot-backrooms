@@ -120,6 +120,20 @@ func _ready() -> void:
 			await process_frame
 		await shoot.call("grope_after")
 		print("stopped in the dark: base ", torch._base, "  left hand hidden: ", torch._hands.hidden(0))
+	if OS.get_environment("FLINCH") == "1":           # (env FLINCH=1: a scare flinch, not caught: player.flinch())
+		var t0 := Time.get_ticks_msec()
+		while Time.get_ticks_msec() - t0 < 1500:
+			step.call()
+			await process_frame
+		torch.flinch()
+		t0 = Time.get_ticks_msec()
+		for at in [0.05, 0.15, 0.3, 0.8, 1.6, 3.0]:
+			while Time.get_ticks_msec() - t0 < at * 1000.0:
+				torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
+				torch.update(get_process_delta_time(), on, false, false, 0.0)
+				await process_frame
+			await shoot.call("flinch_%0.2f" % at)
+		print("flinch: over ", not torch._flinching, ", left hand back to ", torch._base)
 	if OS.get_environment("BRACE") == "1":
 		var t0 := Time.get_ticks_msec()
 		while Time.get_ticks_msec() - t0 < 1500:     # back to standing about first
@@ -152,8 +166,10 @@ func _ready() -> void:
 		torch.catch_scene(kind, body, show_for)
 		torch.caught = true
 		t0 = Time.get_ticks_msec()
-		var times := [0.06, 0.16, 0.3, 0.6, 1.2, 2.0, show_for + 0.2] if kind == "bacteria" else [0.06, 0.12, 0.2, 0.4, 1.0, 2.1, show_for + 0.2]
-		for at in times:
+		var catch_times := [0.06, 0.16, 0.3, 0.6, 1.2, 2.0, show_for + 0.2] if kind == "bacteria" else [0.06, 0.12, 0.2, 0.4, 1.0, 2.1, show_for + 0.2]
+		if OS.get_environment("CATCH_TIMES") != "":     # (env CATCH_TIMES: a comma list of seconds instead)
+			catch_times = Array(OS.get_environment("CATCH_TIMES").split(",")).map(func(x): return float(x))
+		for at in catch_times:
 			while Time.get_ticks_msec() - t0 < at * 1000.0:
 				torch.set_peek(0, false, Vector3.ZERO, Vector3.ZERO, Vector3.ZERO, 0.0, false, false)
 				torch.update(get_process_delta_time(), false, false, false, 0.0)

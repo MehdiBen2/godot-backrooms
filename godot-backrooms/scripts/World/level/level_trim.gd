@@ -3,6 +3,7 @@ extends "res://scripts/World/level/level_geometry.gd"
 ## and the placed walls when the floor loads (_build_trim, after the walls and objects):
 ##   - skirting: a vinyl cove base along the foot of every wall, pillar and thin wall (the dark rubber strip
 ##     every commercial building has), mitred round the corners;
+##   - a drop ceiling's wall angle: the steel strip its cut edge tiles rest on, along the top of every wall;
 ##   - outlets and light switches: a socket low on the odd wall, a switch beside the odd way through;
 ##   - wear: rubber scuffs and kick marks low on the walls, grey hand marks round the switches and on the
 ##     corners people round.
@@ -104,6 +105,7 @@ func _build_trim() -> void:
 	_faces = _wall_faces()
 	_gather_obstacles()
 	_build_skirting()
+	_build_wall_angle()
 	var switches := _build_fittings()
 	_build_wall_wear(switches)
 	_build_damp()
@@ -117,13 +119,19 @@ const SKIRT := [Vector2(0.0, 0.102), Vector2(0.0025, 0.1015), Vector2(0.0041, 0.
 var _skirt_normals: Array[Vector2] = []
 const MITRE := [0.0, -1.0, 1.0]     # by end (END_ON, END_IN, END_OUT): how far along the wall a vertex at depth d moves, times d
 
-func _build_skirting() -> void:
-	_skirt_normals.clear()
-	for i in SKIRT.size():
-		var a: Vector2 = SKIRT[maxi(i - 1, 0)]
-		var b: Vector2 = SKIRT[mini(i + 1, SKIRT.size() - 1)]
+## A cross-section's vertex normals: square to the profile, on the left of the way it runs (SKIRT runs top to
+## toe: out of the wall and up)
+static func _profile_normals(prof: Array) -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	for i in prof.size():
+		var a: Vector2 = prof[maxi(i - 1, 0)]
+		var b: Vector2 = prof[mini(i + 1, prof.size() - 1)]
 		var d := (b - a).normalized()
-		_skirt_normals.append(Vector2(-d.y, d.x))      # (out of the wall and up: the profile runs top to toe)
+		out.append(Vector2(-d.y, d.x))
+	return out
+
+func _build_skirting() -> void:
+	_skirt_normals = _profile_normals(SKIRT)
 	# one mesh per chunk (_chunk_st): every wall face of the level in one mesh was drawn whole whenever any of it showed
 	var sts := {}
 	# the maze's walls, a face at a time: its ends cut square where the wall runs straight on, mitred into an
@@ -162,7 +170,10 @@ func _build_skirting() -> void:
 ## One strip of skirting along `pts` (world, on the floor at the wall's face). `miter[i]`: where a vertex at
 ## depth d sits, as pts[i] + miter[i] * d. `face_in[i]` / `face_out[i]`: the wall's outward normal at pts[i] for
 ## the run arriving there / leaving it (the same on a curve, the two faces' own at a corner: no smeared shading).
-func _skirt_run(st: SurfaceTool, pts: Array, miter: Array, face_in: Array, face_out: Array, closed: bool) -> void:
+## `prof` / `nrms`: the cross-section swept (the skirting's, or the ceiling's wall angle: ANGLE / _angle_normals).
+func _skirt_run(st: SurfaceTool, pts: Array, miter: Array, face_in: Array, face_out: Array, closed: bool,
+		prof: Array = SKIRT, nrms: Array = []) -> void:
+	if nrms.is_empty(): nrms = _skirt_normals
 	var n := pts.size()
 	var segs := n if closed else n - 1
 	for i in segs:
@@ -173,11 +184,11 @@ func _skirt_run(st: SurfaceTool, pts: Array, miter: Array, face_in: Array, face_
 		var pj: Vector3 = pts[j]
 		var mi: Vector3 = miter[i]
 		var mj: Vector3 = miter[j]
-		for k in SKIRT.size() - 1:
-			var p0: Vector2 = SKIRT[k]
-			var p1: Vector2 = SKIRT[k + 1]
-			var n0: Vector2 = _skirt_normals[k]
-			var n1: Vector2 = _skirt_normals[k + 1]
+		for k in prof.size() - 1:
+			var p0: Vector2 = prof[k]
+			var p1: Vector2 = prof[k + 1]
+			var n0: Vector2 = nrms[k]
+			var n1: Vector2 = nrms[k + 1]
 			var v := [pi + mi * p0.x + Vector3(0, p0.y, 0), pj + mj * p0.x + Vector3(0, p0.y, 0),
 				pj + mj * p1.x + Vector3(0, p1.y, 0), pi + mi * p1.x + Vector3(0, p1.y, 0)]
 			var nm := [fi * n0.x + Vector3.UP * n0.y, fj * n0.x + Vector3.UP * n0.y,
@@ -185,8 +196,10 @@ func _skirt_run(st: SurfaceTool, pts: Array, miter: Array, face_in: Array, face_
 			_quad(st, v, nm, ((nm[0] as Vector3) + (nm[2] as Vector3)).normalized())
 
 ## Skirting right round a closed outline `pts` (object space, on the floor, wound either way): outside it, or
-## inside it (`inward`: the inner face of a round room's wall)
-func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool) -> void:
+## inside it (`inward`: the inner face of a round room's wall). `y`, `prof`, `nrms`: up the wall, and another
+## cross-section (_build_wall_angle).
+func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool, y := 0.0, prof: Array = SKIRT,
+		nrms: Array = []) -> void:
 	var n := pts.size()
 	if n < 3: return
 	var area := 0.0
@@ -211,22 +224,23 @@ func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool) -> 
 		var m := (before + after).normalized()
 		var off := m / maxf(m.dot(after), 0.3)
 		var p: Vector2 = pts[i]
-		at.append(xf * Vector3(p.x, 0.0, p.y))
+		at.append(xf * Vector3(p.x, y, p.y))
 		miter.append(xf.basis * Vector3(off.x, 0.0, off.y))
 		var smooth := before.dot(after) > 0.85            # under ~30 degrees: part of a curve
 		face_in.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(before.x, 0.0, before.y))
 		face_out.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(after.x, 0.0, after.y))
-	_skirt_run(st, at, miter, face_in, face_out, true)
+	_skirt_run(st, at, miter, face_in, face_out, true, prof, nrms)
 
 ## Skirting along a run of the wall graph's feet that stops at a doorway each end (wall_mesh.gd breaks the chain
 ## there): out from the faces the way they face (the right of the way the run goes), butting up to the door's
 ## casing (SKIRT_STOP short of the opening's edge)
+## (`y`, `prof`, `nrms`, `stop`: up the wall, another cross-section, and how far short of the ends it stops)
 const SKIRT_STOP := 0.09                  # m: the casing's width (level_geometry.gd CASING_W)
-func _skirt_open(st: SurfaceTool, pts: Array) -> void:
+func _skirt_open(st: SurfaceTool, pts: Array, y := 0.0, prof: Array = SKIRT, nrms: Array = [], stop := SKIRT_STOP) -> void:
 	var p: Array = pts.duplicate()
-	if (p[0] as Vector2).distance_to(p[1]) > SKIRT_STOP * 2.0: p[0] = (p[0] as Vector2).move_toward(p[1], SKIRT_STOP)
+	if (p[0] as Vector2).distance_to(p[1]) > stop * 2.0: p[0] = (p[0] as Vector2).move_toward(p[1], stop)
 	var n := p.size()
-	if (p[n - 1] as Vector2).distance_to(p[n - 2]) > SKIRT_STOP * 2.0: p[n - 1] = (p[n - 1] as Vector2).move_toward(p[n - 2], SKIRT_STOP)
+	if (p[n - 1] as Vector2).distance_to(p[n - 2]) > stop * 2.0: p[n - 1] = (p[n - 1] as Vector2).move_toward(p[n - 2], stop)
 	var side: Array[Vector2] = []
 	for i in n - 1:
 		var d: Vector2 = ((p[i + 1] as Vector2) - (p[i] as Vector2)).normalized()
@@ -241,12 +255,12 @@ func _skirt_open(st: SurfaceTool, pts: Array) -> void:
 		var m := (before + after).normalized()
 		var off := m / maxf(m.dot(after), 0.3)
 		var q: Vector2 = p[i]
-		at.append(Vector3(q.x, 0.0, q.y))
+		at.append(Vector3(q.x, y, q.y))
 		miter.append(Vector3(off.x, 0.0, off.y))
 		var smooth := before.dot(after) > 0.85
 		face_in.append(Vector3(m.x, 0.0, m.y) if smooth else Vector3(before.x, 0.0, before.y))
 		face_out.append(Vector3(m.x, 0.0, m.y) if smooth else Vector3(after.x, 0.0, after.y))
-	_skirt_run(st, at, miter, face_in, face_out, false)
+	_skirt_run(st, at, miter, face_in, face_out, false, prof, nrms)
 
 ## The plan outlines (object space, metres) a placed wall, pillar or column stands on, as [points, inward]: what
 ## its skirting runs round. Doors, arches and everything else: none (a door's frame meets the floor itself).
@@ -350,6 +364,118 @@ func _skirt_material() -> StandardMaterial3D:
 	m.uv1_world_triplanar = true
 	m.uv1_scale = Vector3.ONE * 2.5
 	return m
+
+# ---------------------------------------------------------------- the drop ceiling's wall angle
+# A suspended ceiling's grid doesn't keep to the walls: the tiles round a room's edge are cut to fit, and their cut
+# edges rest on a wall angle, an L of painted steel screwed along the top of the wall. Without it a wall off the
+# tile grid (every cell edge is the middle of a tile, drop_ceiling.gdshader, and a drawn wall can stand anywhere)
+# cut the grid off bare: a sliver of tile and a T-bar running straight into the wallpaper. Its cross-section, from
+# the flange's front edge in to the wall (x: out from the wall, y: from the ceiling; metres), wound so its normals
+# face out and down: the lip, a rounded edge, the underside.
+const ANGLE := [Vector2(0.03, 0.0), Vector2(0.03, -0.004), Vector2(0.0296, -0.0048), Vector2(0.0288, -0.0052),
+	Vector2(0.0, -0.0052)]
+
+func _build_wall_angle() -> void:
+	var nrms := _profile_normals(ANGLE)
+	var sts := {}
+	# the maze's walls, a face at a time, mitred as the skirting is
+	for f: Dictionary in _faces:
+		var c: Vector2i = f.c
+		if not _drop_at(c): continue
+		var fr := _face_frame(f)
+		var mid: Vector3 = fr[0] + Vector3(0.0, ceiling_height(c), 0.0)
+		var out: Vector3 = fr[1]
+		var along: Vector3 = fr[2]
+		var sa: float = MITRE[f.ends[0]]
+		var sb: float = MITRE[f.ends[1]]
+		_skirt_run(_chunk_st(sts, mid), [mid - along * (CELL * 0.5), mid + along * (CELL * 0.5)],
+			[out - along * sa, out + along * sb], [out, out], [out, out], false, ANGLE, nrms)
+	# placed walls, pillars and columns that go right up to the ceiling: round the outline of each (a door's
+	# partition and a squeeze gap's jambs have a lintel over the way through: round the whole of them)
+	for o: Dictionary in objects:
+		var outlines := _object_outlines(o)
+		if outlines.is_empty(): continue
+		var full := _object_wall_h(o)
+		var h := float(o.get("height", 0.0))
+		if h > 0.0 and h < full - 0.01: continue
+		if not _drop_at(Vector2i(roundi(o.pos_x), roundi(o.pos_y))): continue
+		if o.type == "door":
+			var t := float(object_info("door").get("thickness", 0.3)) * 0.5
+			var span := CELL * float(o.scale) * 0.5
+			outlines = [[[Vector2(-t, -span), Vector2(t, -span), Vector2(t, span), Vector2(-t, span)], false]]
+		elif o.type == "squeeze_gap":
+			var half := CELL * 0.5
+			outlines = [[[Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)], false]]
+		var xf := object_transform(o)
+		for outline: Array in outlines:
+			_skirt_loop(_chunk_st(sts, xf.origin + Vector3(0.0, full, 0.0)), outline[0], xf, outline[1], full, ANGLE, nrms)
+	# the wall graph: along the tops of its faces that reach the ceiling, chained round its corners and curves (and
+	# over its doorways, the wall over them going on up to the ceiling)
+	var by_start := {}
+	for pc: Dictionary in wall_plan.get("pieces", []):
+		var p: Vector2 = pc.p
+		var q: Vector2 = pc.q
+		if p.distance_to(q) < 1e-4: continue
+		var d := (q - p).normalized()
+		var room: Vector2 = (p + q) * 0.5 + Vector2(d.y, -d.x) * 0.1       # (a face looks out to its right)
+		var c := Vector2i(roundi(room.x / CELL), roundi(room.y / CELL))
+		var y := ceiling_height(c)
+		if minf(float(pc.y1), float(pc.y1q)) < y - 0.02 or not _drop_at(c): continue
+		by_start[_angle_key(p, y)] = [p, q, y]
+	var has_pred := {}
+	for k: Vector3i in by_start:
+		var nk := _angle_key(by_start[k][1], by_start[k][2])
+		if by_start.has(nk) and nk != k: has_pred[nk] = true
+	var order: Array = by_start.keys().filter(func(k): return not has_pred.has(k))
+	order.append_array(by_start.keys().filter(func(k): return has_pred.has(k)))
+	var seen := {}
+	for k0: Vector3i in order:
+		if seen.has(k0): continue
+		var pts: Array = []
+		var k = k0
+		var tail := k0
+		while k != null and not seen.has(k):
+			seen[k] = true
+			tail = k
+			pts.append(by_start[k][0])
+			var nk := _angle_key(by_start[k][1], by_start[k][2])
+			if by_start.has(nk): k = nk
+			else: k = null
+		var y: float = by_start[k0][2]
+		var at: Vector2 = pts[0]
+		var st := _chunk_st(sts, Vector3(at.x, y, at.y))
+		if k == k0 and pts.size() >= 3:
+			var area := 0.0
+			for i in pts.size():
+				var a: Vector2 = pts[i]
+				var b: Vector2 = pts[(i + 1) % pts.size()]
+				area += a.x * b.y - b.x * a.y
+			_skirt_loop(st, pts, Transform3D.IDENTITY, area < 0.0, y, ANGLE, nrms)
+		else:
+			pts.append(by_start[tail][1])
+			_skirt_open(st, pts, y, ANGLE, nrms, 0.0)
+	if sts.is_empty(): return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.86, 0.84, 0.78)        # white-painted steel, as yellowed as the tiles round it
+	mat.roughness = 0.5
+	mat.metallic_specular = 0.3
+	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+
+static func _angle_key(p: Vector2, y: float) -> Vector3i:
+	return Vector3i(roundi(p.x * 2000.0), roundi(p.y * 2000.0), roundi(y * 100.0))
+
+## True when cell c's ceiling is a drop ceiling (a textures/pbr material whose .tres says "metadata/drop_ceiling":
+## the level's, or one painted on the cell) and there is a ceiling there at all
+var _drop_ids := {}
+func _drop_at(c: Vector2i) -> bool:
+	if open_above.has(c): return false
+	var id := str(painted("ceiling").get(c, _mat_id("ceiling")))
+	if not _drop_ids.has(id):
+		var path := "res://textures/pbr/%s/%s.tres" % [id, id]
+		_drop_ids[id] = ResourceLoader.exists(path) and bool(load(path).get_meta("drop_ceiling", false))
+	return _drop_ids[id]
 
 # ---------------------------------------------------------------- outlets and switches
 ## A duplex socket and a rocker switch (light_switch_and_wall_socket.glb, "Light Switch And Wall Socket" by

@@ -27,6 +27,11 @@ down (torch_model.gd picks one at random, wall_hand.gd eases the hand in and out
                    of the view, palms out, then flailing and clawing at it, out of step, until the bite
     CatchStartle   (both arms) THE MANNEQUIN has you from behind: the hands jerk up in fright, the right one
                    flinging the torch away, then held up open and shaking until the neck snap
+    DoorKnob       one pose, the fingers' shape only (wall_hand.gd reads it and puts the arm on the door itself,
+                   the knob moving with the leaf): closed round a door knob, the fingers wrapped over the ball and
+                   the thumb across the front of it
+    DoorLever      likewise: the fingers hooked over a lever's grip, the thumb tucked along under it
+    DoorPush       likewise: the palm flat to push a leaf, the fingers straight and a little spread, the thumb out
     IdleSprint     a loop, one stride: the arm swings with the run, small. The loosely closed hand rises to
                    about the rest's place at the bottom edge (only its back peeking in) and dips out of view. torch_model.gd scrubs it by the head bob's phase,
                    so it keeps time with your feet at any pace (forward at one footfall, back at the next)
@@ -76,6 +81,9 @@ GROPE = "IdleGrope"               # feeling your way in the dark (a loop)
 BRACE = "IdleBrace"               # caught: the hand thrown up to shield the face, the last thing seen of it
 LIFT = "CatchLift"                # THE BACTERIA hauls you up: both arms thrown up, flailing (both arms)
 STARTLE = "CatchStartle"          # THE MANNEQUIN: a fright, the torch flung away, hands up shaking (both arms)
+DOOR_KNOB = "DoorKnob"            # the door poses: only their fingers and thumb are read (wall_hand.gd)
+DOOR_LEVER = "DoorLever"
+DOOR_PUSH = "DoorPush"
 GROPE_LENGTH = 3.0                # s: one slow sweep
 GROPE_AT = dict(at=(-0.215, -0.205, -0.36), f=(0.05, 1.0, -0.40), n=(0.15, 0.15, -1.0))  # out ahead, palm forward
 SPRINT_SHIFT = Vector((-0.03, -0.03, 0.0))  # torch_model.gd update(): sprinting, the whole rig drops and moves in
@@ -284,9 +292,13 @@ def brace():
 
 
 def lift():
-    """CatchLift (THE BACTERIA has you and hauls you up): both arms thrown up as the body is hoisted, hands
-    up at the top corners of the view, palms out at it, fingers spread; then they flail and claw at it, the
-    two out of step, higher as you're lifted. torch_model.gd shows it until the bite"""
+    """CatchLift (THE BACTERIA has you and hauls you up), in step with bacteria_grab.gd's beats:
+      0 - 0.42   both arms thrown up as the body is hoisted, hands at the top corners, palms out, fingers spread
+      to 1.9     thrashing: they flail and claw at its arms, the two out of step, higher as you're lifted
+      1.9 - 2.55 it holds still and looks you over: both hands come in and push at its face, palms flat,
+                 weaker and weaker, trembling
+      2.55 on    it rears back roaring: the hands snap up over your face, fingers spread (you still see it)
+    torch_model.gd shows it until the bite (2.85)"""
     up = dict(f=(-0.35, 1.0, -0.15), n=(0.3, -0.1, -1.0))         # fingers up and out, palm away
     opened = dict(curl=(-12.0, -40.0, -15.0), spread=18.0, thumb=(-20.0, 18.0))
     claw = dict(curl=(35.0, 45.0, 35.0), spread=6.0, thumb=(20.0, 0.0))
@@ -294,15 +306,34 @@ def lift():
             K(0.16, (-0.19, -0.24, -0.30), f=(-0.2, 1.0, -0.4), n=(0.3, 0.0, -1.0), curl=(5.0, 5.0, 0.0), spread=10.0),
             K(0.42, (-0.25, -0.05, -0.33), **up, **opened)]
     t, k = 0.42, 0
-    while t < 2.9:                                                # struggling: a reach, a claw, a little higher each time
-        t += 0.27 + 0.05 * (k % 3)
-        rise = min(1.0, t / 2.6) * 0.05
-        jit = ((0.03, 0.01, -0.02), (-0.02, 0.03, 0.01), (0.01, -0.02, 0.02))[k % 3]
+    while t < 1.6:                                                # thrashing: a reach, a claw, a little higher each time
+        t += 0.24 + 0.05 * (k % 3)
+        rise = min(1.0, t / 1.9) * 0.05
+        jit = ((0.035, 0.012, -0.025), (-0.025, 0.035, 0.012), (0.012, -0.025, 0.025))[k % 3]
         keys.append(K(t, (-0.25 + jit[0], -0.05 + rise + jit[1], -0.33 + jit[2]),
                       f=(-0.35 + 0.25 * (k % 2), 1.0, -0.15), n=(0.3 - 0.2 * (k % 2), -0.1, -1.0),
                       **(claw if k % 2 else opened)))
         k += 1
-    return 3.0, keys
+    # the hold: in at its face, palms flat against it, pushing; each push weaker, the hands shaking
+    push = dict(f=(0.15, 1.0, -0.35), n=(0.1, -0.05, -1.0))
+    flat = dict(curl=(-8.0, -38.0, -15.0), spread=12.0, thumb=(-15.0, 15.0))
+    for i, at in enumerate((1.95, 2.12, 2.28, 2.42)):
+        give = 0.012 * i                                          # it isn't moved: the arms give, a little more each time
+        keys.append(K(at, (-0.12 + 0.004 * (-1) ** i, -0.07 - give, -0.40 + 0.03 * (i % 2) + give), **push, **flat))
+    # the rear: snapped up over the face, fingers spread, peering through them
+    cover = dict(f=(0.25, 1.0, 0.05), n=(-0.05, -0.15, 1.0))       # palm to you
+    peer = dict(curl=(-5.0, -25.0, -10.0), spread=22.0, thumb=(-10.0, 10.0))
+    keys += [K(2.68, (-0.065, -0.10, -0.22), **cover, **peer),
+             K(2.8, (-0.06, -0.095, -0.215), **cover, **peer),
+             K(2.95, (-0.065, -0.10, -0.22), **cover, **peer)]
+    # the right hand has the torch in it: turned palm-in it would point the lens at you, so that arm comes up
+    # across the face instead, back of the fist to you, the torch lying across the view
+    right = mirrored(keys, late=0.13)
+    across = dict(f=(-0.45, 1.0, -0.2), n=(-0.05, -0.15, -1.0))
+    right[-3:] = [K(2.68 + 0.05, (0.05, -0.085, -0.25), **across, **peer),
+                  K(2.82, (0.045, -0.08, -0.245), **across, **peer),
+                  K(2.95, (0.05, -0.085, -0.25), **across, **peer)]
+    return 2.95, keys, right
 
 
 def startle():
@@ -383,6 +414,31 @@ def groping():
     return out
 
 
+def door_poses():
+    """DoorKnob / DoorLever / DoorPush: one pose each (two frames, held), the hand up in front of you with the
+    palm turned to the right so the shape reads in a check render. Only the fingers and thumb are used.
+      knob   a 6 cm ball in the palm: the knuckles bent a little, the middle joints most, the tips over the
+             far side of it; the thumb comes across the front, opposed to the fingers
+      lever  a 2 cm bar under the fingers: a tighter hook, the thumb along under it
+      push   flat: the fingers straight, a touch back at the middle joints so the pads lie on the leaf,
+             spread a little; the thumb out beside the palm"""
+    at = (-0.08, -0.12, -0.34)
+    side = dict(f=(0.0, 1.0, -0.35), n=(1.0, 0.0, 0.0))
+    shapes = {
+        DOOR_KNOB: K(0.0, at, **side, curl=(24.0, 44.0, 30.0), spread=6.0, thumb=(30.0, -18.0), each=None),
+        DOOR_LEVER: K(0.0, at, **side, curl=(58.0, 82.0, 52.0), spread=0.0, thumb=(18.0, -4.0), each=None),
+        DOOR_PUSH: K(0.0, at, **side, curl=(-3.0, -14.0, -6.0), spread=6.0, thumb=(-8.0, 12.0), each=None),
+    }
+    out = {}
+    for name, k in shapes.items():
+        curls = [list(k["curl"]) for _ in range(4)]
+        if name == DOOR_KNOB:                                     # round a ball: the outer fingers close a little more
+            curls = [[c + d for c in k["curl"]] for d in (-3.0, 0.0, 4.0, 8.0)]
+        pose = (Vector(at), k["q"], curls, k["spread"], k["thumb"])
+        out[name] = [pose, pose]
+    return out
+
+
 def build(arm_obj):
     arm = arm_obj.data
     rest = {}
@@ -402,12 +458,13 @@ def build(arm_obj):
     clips[SPRINT] = pumping(held)
     clips[GROPE] = groping()
     clips[BRACE] = solve(*brace(), snap=2.5, land=False)
-    length, keys = lift()
+    length, keys, right = lift()
     clips[LIFT] = {"Left": solve(length, keys, snap=1.6, land=False),
-                   "Right": solve(length, mirrored(keys, late=0.13), snap=1.6, land=False)}
+                   "Right": solve(length, right, snap=1.6, land=False)}
     length, left, right = startle()
     clips[STARTLE] = {"Left": solve(length, left, snap=2.2, land=False),
                       "Right": solve(length, right, snap=2.2, land=False)}
+    clips.update(door_poses())
     pbs = arm_obj.pose.bones
     for name, sides in clips.items():
         old = bpy.data.actions.get(name)
@@ -454,7 +511,7 @@ def build(arm_obj):
 
 
 def export(arm_obj, out):
-    keep = set(CLIP_NAMES) | {REST, SPRINT, GROPE, BRACE, LIFT, STARTLE}
+    keep = set(CLIP_NAMES) | {REST, SPRINT, GROPE, BRACE, LIFT, STARTLE, DOOR_KNOB, DOOR_LEVER, DOOR_PUSH}
     for a in list(bpy.data.actions):
         if a.name not in keep:
             bpy.data.actions.remove(a)

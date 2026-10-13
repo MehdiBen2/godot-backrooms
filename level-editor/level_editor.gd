@@ -667,6 +667,15 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	atmo_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	atmo_pick.item_selected.connect(func(_i): _mark_dirty())
 	g.add_child(atmo_pick)
+	g.add_child(_label("Doors", 13, UI_DIM))
+	door_pick = OptionButton.new()
+	for d: String in LEVEL_DOORS: door_pick.add_item(d.replace("_", " ").capitalize())
+	door_pick.tooltip_text = DOORS_HELP
+	door_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	door_pick.item_selected.connect(func(_i):
+		_mark_dirty()
+		_op_insp_sync())
+	g.add_child(door_pick)
 	g.add_child(_label("Lights", 13, UI_DIM))
 	lights_pick = OptionButton.new()
 	for l: Array in LIGHTS: lights_pick.add_item(l[1])
@@ -1766,7 +1775,7 @@ func _wall_insp_sync() -> void:
 var op_insp: PanelContainer
 var _oi := {}
 var _oi_rows := {}
-const DOOR_STYLES := ["wood", "old_wood", "metal", "office", "glass"]
+const DOOR_STYLES := ["level", "wood", "old_wood", "metal", "office", "glass", "security"]
 const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_sash"]
 const GLASSES := ["sky", "clear", "frosted"]
 const SKIES := ["noon", "golden", "overcast"]
@@ -1854,10 +1863,12 @@ func _op_insp_sync() -> void:
 	var fill := func(pick: OptionButton, list: Array, cur: String) -> void:
 		pick.clear()
 		for i in list.size():
-			pick.add_item(str(list[i]).replace("_", " ").capitalize())
+			var nm := str(list[i]).replace("_", " ").capitalize()
+			if list[i] == "level": nm = "Level's (%s)" % LEVEL_DOORS[maxi(door_pick.selected, 0)].replace("_", " ").capitalize()
+			pick.add_item(nm)
 			pick.set_item_metadata(i, list[i])
 		pick.select(maxi(list.find(cur), 0))
-	fill.call(_oi.style, DOOR_STYLES if kind == "door" else WINDOW_STYLES, str(op.get("style", "wood" if kind == "door" else "pane")))
+	fill.call(_oi.style, DOOR_STYLES if kind == "door" else WINDOW_STYLES, str(op.get("style", "level" if kind == "door" else "pane")))
 	fill.call(_oi.glass, GLASSES, str(op.get("glass", "sky")))
 	fill.call(_oi.sky, SKIES, str(op.get("sky", "noon")))
 	(_oi.btn_hinge as Button).visible = kind == "door"

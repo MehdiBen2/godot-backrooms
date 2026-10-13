@@ -87,6 +87,7 @@ var staring := 0.0
 var stun_timer := 0.0
 var lunge := 0.0
 var lunge_windup := 0.0
+var grab_hold := 0.0             # 0..1, set by bacteria_grab.gd: it has you up and holds still to look you over
 var since_encounter := 0.0
 
 func set_state(s: String) -> void:

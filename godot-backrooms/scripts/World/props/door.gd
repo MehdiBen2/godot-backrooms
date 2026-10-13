@@ -35,11 +35,14 @@ const WAIT := 1e9            # _delay: waiting on the scene's turn_knob / pull
 const LEAF_MODEL := "res://models/props/door/wood_door.glb"
 # the leaf models a door can hang ("leaf" in object_types.json's door params); the asset pack's doors have the same
 # layout as wood_door.glb: X wide, Y tall from the floor, Z thick
-# ("nodes": the part of the file that is the leaf: the metal door file holds two frames and two leaves)
+# ("nodes": the part of the file that is the leaf: the metal door file holds two frames and two leaves;
+# "local": the leaf is measured and hung by its own mesh, not where its file puts it: the security booth's door
+# stands ajar in its booth; "turn": turned round about its height first, so its hinges come to -X)
 const LEAF_MODELS := {
 	"wood": {"path": "res://models/props/door/wood_door.glb"},
 	"old_wood": {"path": "res://models/props/asset_pack/door_wooden_old-18mb.glb"},
 	"metal": {"path": "res://models/props/asset_pack/door_metal-_20mb.glb", "nodes": ["door_2"]},
+	"security": {"path": "res://models/props/asset_pack/security_room__parking_19_mb.glb", "nodes": ["_1_3__0"], "local": true, "turn": true},
 }
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
 const InteractTooltip := preload("res://scripts/World/props/interact_tooltip.gd")
@@ -68,6 +71,10 @@ var audio_close: AudioStreamPlayer3D
 var _moving := false
 var swing_dir := 1.0
 var is_open := false
+var pace := 1.0              # the scene's push: the swing takes this many times its usual time (a shove < 1 < a careful one)
+var ajar := 0.0              # s the leaf hangs ajar before the push (the scene's hand going from the handle to the leaf)
+var _ajar_left := 0.0
+var scene_body: Object = null  # the player whose door scene is working it: the leaf passes them (the scene keeps them clear)
 
 func _ready() -> void:
 	add_to_group("doors")
@@ -181,6 +188,9 @@ func _hang_leaf(leaf_mat: Material, hw_mat: Material) -> void:
 	elif not _model_leaf(leaf_size, leaf_pos):
 		_plain_leaf(leaf_size, leaf_pos, leaf_mat, hw_mat)
 	leaf_body = AnimatableBody3D.new()
+	# moved by the pivot turning, not by itself: synced to physics it never followed (an open door stayed shut to
+	# anything walking into the doorway); unsynced it goes where the pivot puts it each tick
+	leaf_body.sync_to_physics = false
 	leaf_body.collision_layer = 1
 	leaf_body.collision_mask = 1
 	leaf_body.set_meta("door", self)
@@ -208,9 +218,23 @@ func _model_leaf(leaf_size: Vector3, leaf_pos: Vector3) -> bool:
 	if packed == null:
 		return false
 	var model: Node3D = packed.instantiate()
+	var kept := Prop.kept_meshes(model, spec.get("nodes", []), [])
+	if spec.get("local", false):
+		# the leaf's own meshes, as they were modelled (their parents' placing dropped)
+		var own := Node3D.new()
+		for mi in kept:
+			var copy := MeshInstance3D.new()
+			copy.mesh = mi.mesh
+			for s in mi.get_surface_override_material_count():
+				copy.set_surface_override_material(s, mi.get_surface_override_material(s))
+			own.add_child(copy)
+		model.free()
+		model = own
+		kept.clear()
+		for c in own.get_children(): kept.append(c as MeshInstance3D)
 	var box := AABB()
 	var first := true
-	for mi in Prop.kept_meshes(model, spec.get("nodes", []), []):
+	for mi in kept:
 		var xf := Transform3D.IDENTITY
 		var p: Node = mi
 		while p != null and p != model:
@@ -225,6 +249,7 @@ func _model_leaf(leaf_size: Vector3, leaf_pos: Vector3) -> bool:
 		return false
 	var sy := leaf_size.y / box.size.y
 	var fit := Basis(Vector3.UP, -PI / 2.0) * Basis.from_scale(Vector3(leaf_size.z / box.size.x, sy, sy))
+	if spec.get("turn", false): fit = fit * Basis(Vector3.UP, PI)
 	model.transform = Transform3D(fit, leaf_pos - fit * box.get_center())
 	pivot.add_child(model)
 	return true
@@ -433,6 +458,10 @@ func _physics_process(delta: float) -> void:
 		if _delay > 0.0:
 			return
 	var t := minf(1.0, _t + delta / _move_time())
+	# hanging ajar, the push not come yet
+	if _opening and _ajar_left > 0.0 and _t <= CREEP_END and t > CREEP_END and _from_shut():
+		_ajar_left -= delta
+		t = CREEP_END
 	var a := _curve(t)
 	# the leaf is solid the whole way. Shutting, it stops against anyone standing in the doorway and waits;
 	# opening it swings away from you, so nothing holds it back
@@ -479,11 +508,40 @@ func _from_shut() -> bool:
 func _move_time() -> float:
 	if not _opening:
 		return CLOSE_TIME
-	return OPEN_TIME if _from_shut() else OPEN_TIME * (1.0 - CREEP_END)
+	return (OPEN_TIME if _from_shut() else OPEN_TIME * (1.0 - CREEP_END)) * pace
 
 ## Seconds after the knob turns that the push comes (the swing proper): what the scene times its walk through by
 func push_after() -> float:
-	return LATCH_AFTER + (OPEN_TIME * CREEP_END if _from_shut() else 0.0)
+	return LATCH_AFTER + (OPEN_TIME * CREEP_END * pace + ajar if _from_shut() else 0.0)
+
+## Shut and latched (opening it takes the handle first), or already ajar (a push is enough)
+func latched() -> bool:
+	return _from_shut()
+
+## What a hand takes hold of on this leaf: "knob" (a ball on a stalk), "lever" (a grip running back towards
+## the hinge, pressed down to open) or "bar" (the glass door's long pull bar: no latch, it's pushed)
+func handle_kind() -> String:
+	match leaf:
+		"glass", "security": return "bar"
+		"office", "metal", "old_wood": return "lever"
+	return "knob"                     # wood_door.glb's own hardware, and the plain leaf's
+
+## Where the hand closes on the handle on face `side` (world): the knob's ball, the middle of the lever's grip,
+## the pull bar at knob height
+func grip_at(side: float) -> Vector3:
+	if pivot == null:
+		return knob_at(side)
+	match handle_kind():
+		"bar": return pivot.to_global(Vector3(side * (LEAF_T * 0.5 + 0.06), KNOB_H, door_w - 0.12))
+		"lever": return pivot.to_global(Vector3(side * (LEAF_T * 0.5 + 0.055), KNOB_H, door_w - 0.13))
+	return pivot.to_global(Vector3(side * (LEAF_T * 0.5 + 0.062), KNOB_H, door_w - 0.075))
+
+## A point on face `side` of the leaf (world), `up` m from the floor and `in_from` m in from its free edge:
+## where a palm goes to push it
+func face_at(side: float, up: float, in_from: float) -> Vector3:
+	if pivot == null:
+		return global_position + Vector3(0.0, up, 0.0)
+	return pivot.to_global(Vector3(side * LEAF_T * 0.5, up, door_w - in_from))
 
 ## The scene's hand has turned the knob: the open sound starts, and the latch gives LATCH_AFTER into it
 func turn_knob() -> void:
@@ -491,7 +549,8 @@ func turn_knob() -> void:
 	if not _moving or not _opening or _delay < WAIT * 0.5:      # only while it waits on the hand
 		return
 	_delay = LATCH_AFTER
-	_play(audio_open, randf_range(0.97, 1.03))
+	_ajar_left = ajar
+	_play(audio_open, randf_range(0.97, 1.03) / sqrt(pace))     # (a slow push drags the creak out a little)
 
 ## The scene's hand has hold of it: the pull starts now
 func pull() -> void:
@@ -525,7 +584,7 @@ func _leaf_hits_body(a: float) -> bool:
 	q.collision_mask = leaf_body.collision_mask
 	q.exclude = [leaf_body.get_rid(), frame_body.get_rid()]
 	for hit in get_world_3d().direct_space_state.intersect_shape(q, 8):
-		if hit.collider is CharacterBody3D or hit.collider is RigidBody3D:
+		if (hit.collider is CharacterBody3D or hit.collider is RigidBody3D) and hit.collider != scene_body:
 			return true
 	return false
 
@@ -551,6 +610,7 @@ func interact(player: Node3D) -> bool:
 	_moving = true
 	blocked = false
 	if player != null and player.has_method("trigger_door_camera_animation"):
+		scene_body = player
 		player.trigger_door_camera_animation(self, will_open, swing_dir)
 	return true
 

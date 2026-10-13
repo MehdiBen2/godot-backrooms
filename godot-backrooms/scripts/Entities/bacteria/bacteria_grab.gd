@@ -3,20 +3,30 @@ extends RefCounted
 ## eats you, and the camera is yours to watch it happen, helpless. Driven by bacteria.gd each physics
 ## frame while active(); owns the entity, the player's camera and the screen effects until it ends.
 ##
-##   0.0 - 0.4s  snatch  it snaps onto you; violent downward jolt, camera whips to its FEET, FOV punch
-##   0.4 - 2.6s  haul    it hoists you high into the air until you are eye-to-eye at the very top;
-##                       the view slowly climbs up its body (legs -> chest -> neck -> head);
-##                       arms wrap from the sides, claws clutching and digging into your neck/shoulders;
-##                       dangling sway, Dutch tilt roll, terror tremors; its breath and a snarl in your
-##                       face, your heart racing faster and faster; the torch tracks the creature
-##   2.6 - 2.9s  rear    it rears back with jaws wide open and roars into your face
+##   0.0 - 0.4s  snatch  it snaps onto you; violent downward jolt, camera whips to its FEET, FOV punch;
+##                       your arms are thrown up (torch_model.gd catch_scene, the CatchLift clip)
+##   0.4 - 1.9s  haul    it hoists you high into the air until you are eye-to-eye at the very top;
+##                       the view climbs up its body (legs -> chest -> neck -> head); arms wrap from the
+##                       sides, claws digging in; you dangle and thrash, your hands clawing at its arms
+##   1.9 - 2.55s hold    then it stops. Everything goes still: it draws you in close and looks you over,
+##                       its head slowly laid over on its side (and your view with it), sniffing; the
+##                       shake dies away to nothing but your heart; your hands push weakly at its face
+##   2.55 - 2.9s rear    it rears back with jaws wide open and roars; the view narrows onto the maw and
+##                       your hands come up over your face
 ##   2.9 - 3.4s  bite    it lunges; jaws and claws tear into the victim, camera dragged into its mouth;
 ##                       bones crunch, 3D blood spray bursts, fine red mist, flesh chunks, violent shake
 ##   3.4 - 5.0s  fade    two last weak beats, then the heart stops (flatline at 4.4s); edges close in
 ##   5.0s        death   death camera takes over smoothly from the final position
+## The shake is smooth noise (the trauma model, Eiserloh GDC 2016), never a new random number every frame.
 
 const CLIMB_START := 0.35
-const CLIMB_END := 2.5
+const CLIMB_END := 1.85
+const HAUL_END := 1.9            # you're up: from here it holds still and looks you over
+const HOLD_IN := 0.3             # s the stillness takes to settle
+const HOLD_CLOSE := 0.3          # share of the way to it you're drawn in while it looks
+const HOLD_ROLL := 0.3           # rad your view tips over with its head
+const HOLD_TRAUMA := 0.03        # what's left of the shake while it holds still
+const REAR_ZOOM := 12.0          # deg the view narrows onto its maw as it rears
 const BITE_AT := 2.9
 const REAR_AT := BITE_AT - 0.35
 const LAST_BEATS := [0.45, 1.1]  # seconds after the bite: the heart's last two, weak and late
@@ -61,6 +71,10 @@ func active() -> bool:
 func _smooth(x: float) -> float:
 	var c := clampf(x, 0.0, 1.0)
 	return c * c * (3.0 - 2.0 * c)
+
+# Smooth pseudo-noise in about -1..1 (a sum of sines, as mannequin_snap.gd), for the shake
+func _noise(seed_v: float, time: float) -> float:
+	return sin(time * 13.1 + seed_v * 4.7) * 0.5 + sin(time * 7.3 + seed_v * 8.1) * 0.3 + sin(time * 23.7 + seed_v * 2.9) * 0.2
 
 func _ceiling_y(p: Vector3) -> float:
 	if e != null and e.level != null and is_instance_valid(e.level) and e.level.has_method("ceiling_height"):
@@ -168,26 +182,37 @@ func update(delta: float) -> void:
 	var snatch_dip := 0.22 * exp(-t * 7.0) * sin(t * 22.0)
 
 	# The Haul Up: you are lifted high off the ground to the very top, eye-to-eye with its head!
-	var rise := _smooth((t - 0.35) / 2.15)
+	var rise := _smooth((t - 0.35) / (HAUL_END - 0.35))
 	var target_eye_y := minf(head_pos.y - 0.05, max_y)
 	var lift_y := lerpf(_start_pos.y, target_eye_y, rise) - snatch_dip
 
-	# Helpless dangling / struggling suspension (natural pendular motion)
-	var dangle_y := sin(t * 3.4) * 0.045 * rise
-	var dangle_x := sin(t * 1.8) * 0.04 * rise
-	var dangle_z := cos(t * 1.8) * 0.04 * rise
+	# The hold: up at its face it stops and looks you over. `held` stays on through the rear, `hold` (the
+	# stillness itself) gives way to it; the rig reads it as e.grab_hold
+	var held := _smooth((t - HAUL_END) / HOLD_IN)
+	var rear := _smooth((t - REAR_AT) / 0.3) * (1.0 - _smooth((t - BITE_AT) / 0.05))
+	var hold := held * (1.0 - _smooth((t - REAR_AT) / 0.12))
+	e.grab_hold = hold
 
-	# Horizontal pull toward its chest / mouth
+	# Helpless dangling / thrashing suspension (natural pendular motion), stilled while it holds you
+	var thrash := rise * (1.0 - 0.85 * hold)
+	var dangle_y := sin(t * 3.4) * 0.05 * thrash
+	var dangle_x := sin(t * 1.8) * 0.045 * thrash
+	var dangle_z := cos(t * 1.8) * 0.045 * thrash
+
+	# Horizontal pull toward its chest / mouth; drawn in close while it looks you over
 	var bite := _smooth((t - BITE_AT) / 0.35)
-	var pull := 0.25 * rise + 0.55 * bite
+	var pull := 0.25 * rise + HOLD_CLOSE * held * (1.0 - bite) + 0.55 * bite
 
-	# Screen Shake & Trauma Decay
+	# Screen Shake & Trauma Decay: hard while you're hauled up, dying to almost nothing in the hold (the quiet
+	# is the scare), back with the roar, everything at the bite
 	if t >= BITE_AT and t < FADE_AT:
 		trauma = maxf(trauma, 0.85)
 	elif t >= FADE_AT:
 		trauma = move_toward(trauma, 0.0, delta * 0.65)
+	elif hold > 0.0:
+		trauma = move_toward(trauma, lerpf(0.12 + 0.18 * rise, HOLD_TRAUMA, hold), delta * 2.5)
 	else:
-		trauma = move_toward(trauma, 0.08 + 0.14 * rise, delta * 0.4)
+		trauma = move_toward(trauma, 0.12 + 0.18 * rise, delta * 0.6)
 
 	impulse_pitch = move_toward(impulse_pitch, 0.0, delta * 3.8)
 	impulse_yaw = move_toward(impulse_yaw, 0.0, delta * 3.8)
@@ -223,14 +248,15 @@ func update(delta: float) -> void:
 	var cur_quat := _start_rot.slerp(target_quat, whip)
 	var b := Basis(cur_quat)
 
-	# Multi-axis rotational screen trauma shake: high-frequency shudder + directional impulses
-	var s_pitch := (sin(t * 54.0) * 0.14 + sin(t * 112.0) * 0.07 + (randf() - 0.5) * 0.12) * shake + impulse_pitch
-	var s_yaw := (cos(t * 46.0) * 0.12 + sin(t * 94.0) * 0.06 + (randf() - 0.5) * 0.10) * shake + impulse_yaw
-	var s_roll := (sin(t * 38.0) * 0.16 + cos(t * 78.0) * 0.08 + (randf() - 0.5) * 0.14) * shake + impulse_roll
+	# Multi-axis rotational screen trauma shake: smooth noise, fast, plus directional impulses
+	var s_pitch := _noise(1.0, t * 4.0) * 0.16 * shake + impulse_pitch
+	var s_yaw := _noise(2.0, t * 3.6) * 0.13 * shake + impulse_yaw
+	var s_roll := _noise(3.0, t * 3.2) * 0.18 * shake + impulse_roll
 
-	# Dangling tilt
-	var roll := (sin(t * 3.6) * 0.045 + sin(t * 7.2) * 0.018) * _smooth((t - 0.4) / 0.8) \
-		+ 0.28 * _smooth((t - 0.8) / 2.0)
+	# Dangling tilt; in the hold your head is laid over with its own (it has you by the neck and shoulders),
+	# slowly, with a little tremor of its grip
+	var roll := (sin(t * 3.6) * 0.045 + sin(t * 7.2) * 0.018) * _smooth((t - 0.4) / 0.8) * (1.0 - hold) \
+		+ 0.28 * _smooth((t - 0.8) / 1.6) + HOLD_ROLL * held * (1.0 - bite) + _noise(7.0, t * 2.0) * 0.012 * hold
 
 	b = b.rotated(b.x.normalized(), s_pitch)
 	b = b.rotated(b.y.normalized(), s_yaw)
@@ -238,21 +264,20 @@ func update(delta: float) -> void:
 	b = b.orthonormalized()
 
 	# Positional camera shake displacement in camera space
-	var shake_pos := (
-		b.x * ((randf() - 0.5) * 0.35) +
-		b.y * ((randf() - 0.5) * 0.30) +
-		b.z * ((randf() - 0.5) * 0.24)
-	) * shake
+	var shake_pos := (b.x * _noise(4.0, t * 3.8) * 0.18 + b.y * _noise(5.0, t * 4.2) * 0.15
+		+ b.z * _noise(6.0, t * 3.4) * 0.12) * shake
 
 	cam.global_transform = Transform3D(b, cam_pos + shake_pos)
 
-	# FOV: initial whip punch, slow dread dilation, heartbeat throb, bite surge, and trauma shake
+	# FOV: initial whip punch, dread dilation, heartbeat throb (loudest in the quiet of the hold), the view
+	# narrowing onto its maw as it rears, the bite surge, and the shake
 	var fov_kick := 18.0 * exp(-t * 6.0)
-	var fov_dread := 18.0 * _smooth((t - 0.5) / 2.2)
-	var fov_pulse := sin(t * 7.5) * 2.2 * _smooth((t - 0.5) / 1.0)
+	var fov_dread := 18.0 * _smooth((t - 0.5) / 1.6)
+	var fov_pulse := sin(t * 7.5) * (2.2 + 1.8 * hold) * _smooth((t - 0.5) / 1.0)
+	var fov_rear := -REAR_ZOOM * rear
 	var fov_bite := 16.0 * bite
-	var fov_shake := (randf() - 0.5) * 10.0 * shake
-	cam.fov = _start_fov + fov_kick + fov_dread + fov_pulse + fov_bite + fov_shake
+	var fov_shake := _noise(8.0, t * 5.0) * 5.0 * shake
+	cam.fov = _start_fov + fov_kick + fov_dread + fov_pulse + fov_rear + fov_bite + fov_shake
 
 	# Flashlight actively tracks look_target so the monster is brightly illuminated
 	var player: Node3D = e.player
@@ -360,5 +385,6 @@ func _end() -> void:
 	t = -1.0
 	e.lunge = 0.0
 	e.lunge_windup = 0.0
+	e.grab_hold = 0.0
 	Game.kill_player("THE BACTERIA", Game.DeathType.BITE)
 	e.run_away()   # it has fed: it bolts away from the body (it keeps running while you lie there)

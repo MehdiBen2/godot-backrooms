@@ -63,6 +63,7 @@ const GROPE_BLEND := 0.6          # s into and out of it from another loop
 const IDLE_BRACE := "IdleBrace"   # caught: the left hand thrown up to shield the face (the torch arm flinches)
 const BRACE_TIME := 0.25          # s the hands are seen doing that before they're gone
 const BRACE_PACE := 2.5           # the hands get there this much faster than a hand usually moves
+const BRACE_SHAKE := 0.24         # s at the end of IDLE_BRACE (its tremble) played over while the flinch lasts
 const CATCH_LIFT := "CatchLift"   # THE BACTERIA hauls you up: both arms thrown up, flailing (catch_scene)
 const CATCH_STARTLE := "CatchStartle"   # THE MANNEQUIN: a fright, the torch flung away, both hands up shaking
 const CATCHES := {"bacteria": CATCH_LIFT, "mannequin": CATCH_STARTLE}
@@ -128,6 +129,8 @@ var _grab_side := 1
 var _grab_point := Vector3.ZERO
 var _grab_normal := Vector3.ZERO
 var _grab_out := Vector3.ZERO
+var _door := false                # the left hand working a door (set_door: player.gd's door scene)
+var _door_args: Array = []        # what wall_hand.gd's door() takes, after the hand
 var _hug := false                 # both hands on the wall in front (set_hug)
 var _hug_point := Vector3.ZERO
 var _hug_normal := Vector3.ZERO
@@ -287,7 +290,7 @@ func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
 	var found := src.find_children("*", "AnimationPlayer", true, false)
 	var lib := AnimationLibrary.new()
 	var to_skel := String(arms.get_path_to(skel))
-	for clip in IDLE_CLIPS + [IDLE_REST, IDLE_SPRINT, IDLE_GROPE, IDLE_BRACE, CATCH_LIFT, CATCH_STARTLE]:
+	for clip in IDLE_CLIPS + [IDLE_REST, IDLE_SPRINT, IDLE_GROPE, IDLE_BRACE, CATCH_LIFT, CATCH_STARTLE] + WallHand.DOOR_POSES:
 		if found.is_empty() or not (found[0] as AnimationPlayer).has_animation(clip):
 			continue
 		var a := (found[0] as AnimationPlayer).get_animation(clip).duplicate(true) as Animation
@@ -295,7 +298,7 @@ func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
 			var bone := String(a.track_get_path(i).get_concatenated_subnames())
 			# the catches move both arms; the right hand's fingers only when it lets go of the torch (else
 			# they stay closed on it, as the arms' own clips have them)
-			var right := clip in [CATCH_LIFT, CATCH_STARTLE] and bone.begins_with("Right") \
+			var right: bool = clip in [CATCH_LIFT, CATCH_STARTLE] and bone.begins_with("Right") \
 				and (clip == CATCH_STARTLE or bone in ["RightLowerArm", "RightHand", "RightUpperArm"])
 			if not (bone.begins_with("Left") or right) or skel.find_bone(bone) < 0:
 				a.remove_track(i)
@@ -317,6 +320,7 @@ func _build_idle(arms: Node3D, skel: Skeleton3D) -> void:
 	_anim.add_sibling(_idle)
 	_idle.root_node = _idle.get_path_to(arms)
 	_idle.add_animation_library("", lib)
+	_hands.read_door_poses(_idle)     # (never played: wall_hand.gd reads the fingers' shapes off them)
 	_idle_in = randf_range(IDLE_EVERY.x * 0.5, IDLE_EVERY.y * 0.5)   # the first one comes a little sooner
 
 ## Where the beam leaves from: LENGTH ahead of the torch's middle, along the torch
@@ -450,13 +454,24 @@ func set_peek(side: int, leaning: bool, edge: Vector3, normal: Vector3, out: Vec
 	if _flinching:
 		_hand_torch(right)
 		_hands.set_mode(right, WallHand.Mode.ANIM)
-		_hands.set_mode(left, WallHand.Mode.HIDE)
+		_hands.set_mode(left, WallHand.Mode.ANIM if _base == IDLE_BRACE else WallHand.Mode.HIDE)   # (up with it: flinch())
 		return
 	if _swap == 2:                    # both hands are on the torch, and the animation's
 		_hands.set_mode(right, WallHand.Mode.ANIM)
 		_hands.set_mode(left, WallHand.Mode.ANIM)
 		return
 	var busy := _anim.current_animation == PICKUP and _anim.is_playing()
+	if _door and not busy and _swap == 0:            # a door: the left hand on it, the torch kept up in the right
+		_hands.callv("door", [left] + _door_args)
+		if _on and _torch_in == left:
+			_hands.set_mode(left, WallHand.Mode.HIDE)
+			_hands.set_mode(right, WallHand.Mode.HIDE)
+			if _hands.hidden(left) and _hands.hidden(right):
+				_hand_torch(right)
+		else:
+			_hands.set_mode(left, WallHand.Mode.DOOR)
+			_hands.set_mode(right, WallHand.Mode.ANIM)
+		return
 	if _sq_on and not busy and _swap == 0:          # (no peeking in a slit: the hands just slide along its walls)
 		_hands.aim(right, _sq_r[0], _sq_r[1], _sq_out, true, crouching)
 		_hands.aim(left, _sq_l[0], _sq_l[1], _sq_out, true, crouching)
@@ -522,6 +537,18 @@ func set_grab(on: bool, side: int, point: Vector3, normal: Vector3, out: Vector3
 	_grab_normal = normal
 	_grab_out = out
 
+## The door scene's left hand (wall_hand.gd door()): `on` while it's on the door. `grip` the handle, `push` where
+## the palm goes on the leaf, `normal` its face towards you, `latch` along it to the free edge, `kind` a
+## WallHand.Grip; `palm` 0 on the handle .. 1 flat on the leaf, `turn` 0..1 the handle turned, `press` 0..1 the push
+func set_door(on: bool, grip := Vector3.ZERO, push := Vector3.ZERO, normal := Vector3.BACK, latch := Vector3.FORWARD,
+		kind := 0, palm := 0.0, turn := 0.0, press := 0.0) -> void:
+	_door = on
+	_door_args = [grip, push, normal, latch, kind, palm, turn, press]
+
+## The left hand is on the door, closed on the handle (or flat on the leaf): the scene can turn it
+func door_ready() -> bool:
+	return _door and _hands != null and _hands.door_ready(WallHand.LEFT)
+
 ## `wall` hand on the edge, the other low; with the torch up in the wall's hand it's passed over first,
 ## both hands out of view
 func _take_wall(wall: int, free: int, edge: Vector3, normal: Vector3, out: Vector3, holding: bool, crouching: bool) -> void:
@@ -559,12 +586,7 @@ func _brace() -> void:
 	_scene_age = 0.0
 	if _swap != 0:
 		end_swap()
-	flinch()
-	if _idle != null and _idle.has_animation(IDLE_BRACE):
-		_idle.play(IDLE_BRACE, 0.05)
-		_idle_on = true
-		_gesture = ""
-		_base = IDLE_BRACE
+	flinch()                          # (the left hand comes up with it)
 	_hand_torch(WallHand.RIGHT)
 	_hands.set_mode(WallHand.RIGHT, WallHand.Mode.ANIM)
 	_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM, BRACE_PACE)
@@ -595,8 +617,9 @@ func catch_scene(kind: String, player: Node, show_for: float) -> void:
 		_hands.set_mode(i, WallHand.Mode.ANIM, BRACE_PACE)      # even one already left to the animation)
 	visible = true
 
-## The torch flung out of the right hand: a copy of it tumbles off into the world (a body that lands and rolls,
-## and shines on where it ends up if it was on); the one in the hand is gone, and the player's light with it
+## The torch flung out of the right hand: a copy of it tumbles off into the world (a body that lands and rolls;
+## if it was on it shines as it flies, and the light dies as it hits the floor); the one in the hand is gone,
+## and the player's light with it
 func _throw_torch() -> void:
 	_thrown = true
 	var cam := get_parent() as Node3D
@@ -630,6 +653,19 @@ func _throw_torch() -> void:
 		var beam := (flash as SpotLight3D).duplicate(0) as SpotLight3D
 		beam.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -LENGTH * 0.5))
 		copy.add_child(beam)
+		# it shines as it flies; hitting the floor knocks the bulb out: a stutter, then dark
+		body.contact_monitor = true
+		body.max_contacts_reported = 1
+		body.body_entered.connect(func(_hit: Node) -> void:
+			if not is_instance_valid(beam) or beam.has_meta("dying"):
+				return
+			beam.set_meta("dying", true)
+			var energy := beam.light_energy
+			var tw := beam.create_tween()
+			for k in [0.0, 0.7, 0.0, 0.35, 0.0, 0.12]:
+				tw.tween_callback(func() -> void: beam.light_energy = energy * k)
+				tw.tween_interval(randf_range(0.03, 0.08))
+			tw.tween_callback(func() -> void: beam.visible = false))
 		(flash as SpotLight3D).visible = false
 		var spill = _player.get("flash_spill")
 		if spill is Light3D:
@@ -713,6 +749,13 @@ func _idle_tick(dt: float, sprinting: bool, moving: bool, bob: float) -> void:
 	if _idle == null or caught:       # (caught: the brace has the hand, then it's gone)
 		return
 	_still = 0.0 if moving else _still + dt
+	if _flinching and _base == IDLE_BRACE:
+		# the free hand stays up with the torch arm until the flinch is over, shaking: the end of the brace
+		# (its tremble) over and over, or the flinch clip's own left arm would take it
+		if not _idle.is_playing():
+			var len := _idle.get_animation(IDLE_BRACE).length
+			_idle.play_section(IDLE_BRACE, len - BRACE_SHAKE, len)
+		return
 	if _idle_on and (_hands.mode_of(WallHand.LEFT) != WallHand.Mode.ANIM or _swap != 0 or _flinching
 			or _torch_in != WallHand.RIGHT or _no_hands()):
 		_idle_stop()
@@ -880,6 +923,14 @@ func flinch() -> void:
 	visible = not _no_hands()
 	_anim.clear_queue()
 	_anim.play(FLINCH, 0.06)
+	# and the free hand comes up with it, palm out, fingers spread (IDLE_BRACE), from wherever it was; it
+	# stays up while the torch arm does and then goes back to what it was doing (_idle_tick)
+	if _idle != null and _idle.has_animation(IDLE_BRACE) and _hands != null:
+		_idle.play(IDLE_BRACE, 0.05)
+		_idle_on = true
+		_gesture = ""
+		_base = IDLE_BRACE
+		_hands.set_mode(WallHand.LEFT, WallHand.Mode.ANIM, BRACE_PACE)
 
 ## Switching on plays the pickup, switching off plays it backwards; a switch mid-way turns it round
 ## where it is. `raise` follows the pickup (0 lowered .. 1 up). A switch during a flinch waits for it.

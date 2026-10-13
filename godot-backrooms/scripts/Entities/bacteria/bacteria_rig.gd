@@ -149,8 +149,10 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 			P.hunch = 0.65; P.crouch = 0.35; P.neck = 0.2; P.head_pitch = -0.3; P.claw = 1.6
 			P.reach_a = 1.5; P.reach_b = 1.5; P.out_a = 0.38; P.out_b = 0.38; P.elbow_a = 0.75; P.elbow_b = 0.75
 		elif rearing:
-			P.hunch = -0.2; P.crouch = 0.25; P.neck = 0.45; P.head_pitch = 0.45; P.claw = 1.8
+			# the head thrown right back, jaws gaping, the whole back bowed: drawing in to strike
+			P.hunch = -0.45; P.crouch = 0.3; P.neck = 0.6; P.head_pitch = 0.85; P.claw = 2.0
 			P.reach_a = 1.1; P.reach_b = 1.1; P.out_a = 0.8; P.out_b = 0.8; P.elbow_a = 1.05; P.elbow_b = 1.05
+			P.finger_splay = 1.0
 		elif lunging:
 			# Violent rip: claws drive straight forward, each on its own side, tearing through the victim
 			P.hunch = 1.45; P.crouch = 0.08; P.neck = 0.2; P.head_pitch = -0.2; P.claw = 2.4
@@ -159,6 +161,15 @@ func _pose_targets(st: String, run: float, moving: bool) -> void:
 			# hoisted in the air: arms bracket the camera from the sides, claws digging in and clutching
 			P.hunch = 0.55; P.crouch = 0.15; P.neck = 0.25; P.head_pitch = -0.1; P.claw = 1.7
 			P.reach_a = 1.85; P.reach_b = 1.85; P.out_a = 0.24; P.out_b = 0.24; P.elbow_a = 0.62; P.elbow_b = 0.62
+			# then it holds still and looks you over (bacteria_grab.gd: e.grab_hold): the head thrust right up to
+			# your face and slowly laid over on its side, sniffing in short jerks, the claws closing tighter
+			var h: float = e.grab_hold
+			if h > 0.0:
+				P.still = 0.7 * h
+				P.hunch = lerpf(P.hunch, 0.3, h); P.neck = lerpf(P.neck, 0.6, h)
+				P.head_pitch = lerpf(P.head_pitch, -0.05, h) + sin(anim_time * 15.0) * maxf(0.0, sin(anim_time * 2.3)) * 0.06 * h
+				P.head_roll = 0.75 * h
+				P.claw = lerpf(P.claw, 2.1, h); P.out_a = lerpf(P.out_a, 0.16, h); P.out_b = lerpf(P.out_b, 0.16, h)
 	elif st == "flee":
 		P.hunch = 1.1; P.crouch = 0.4; P.neck = 0.35; P.head_pitch = 0.1; P.look = 0.0; P.claw = 0.2
 		P.reach_a = -0.55; P.reach_b = -0.55; P.out_a = 0.25; P.out_b = 0.25; P.elbow_a = 0.8; P.elbow_b = 0.8
@@ -248,6 +259,8 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 			pose_t.duck_reach = fold
 	# heavy: it eases between poses, only the scream, the hit and the grab snap
 	var rate := 14.0 if (st == "screech" or st == "stunned" or st == "grab") else (9.0 if st == "chase" else (2.2 if quiet else 3.5))
+	if st == "grab":
+		rate = lerpf(rate, 3.0, e.grab_hold)    # looking you over: slow, deliberate
 	for k in pose:
 		pose[k] = lerpf(pose[k], pose_t[k], 1.0 - exp(-rate * delta))
 	skel.reset_bone_poses()
@@ -268,6 +281,8 @@ func animate(delta: float, move_speed: float, st: String) -> void:
 			twitch = 0.15
 	if e.staring > 0.0:
 		twitch = 0.08
+	if st == "grab":
+		twitch = lerpf(twitch, 0.15, e.grab_hold)   # it goes quiet while it looks you over
 	var tj := clock * 9.0
 
 	# glitches: now and then one limb or the head twists to a wrong angle for a moment

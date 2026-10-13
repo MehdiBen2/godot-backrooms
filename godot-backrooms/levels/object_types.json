@@ -40,7 +40,7 @@
     "category": "openings",
     "opening_kind": "door",
     "params": {"leaf": "wood"},
-    "choices": {"leaf": {"wood": "The framed wood door (the default)", "old_wood": "An old wooden door leaf", "metal": "A metal door leaf", "office": "A flush office door with a narrow glass panel", "glass": "A glass door in an aluminium frame"}}
+    "choices": {"leaf": {"wood": "The framed wood door (the default)", "old_wood": "An old wooden door leaf", "metal": "A metal door leaf", "office": "A flush office door with a narrow glass panel", "glass": "A glass door in an aluminium frame", "security": "A white steel door with wired glass and a push bar"}}
   },
   "doorway": {
     "label": "Doorway",
