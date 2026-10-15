@@ -15,6 +15,7 @@ uniform float rot_from = 100000000.0;
 uniform float rot_to = 200000000.0;
 uniform float fade_from = 100000000.0;
 uniform float fade_to = 200000000.0;
+uniform vec3 high_tint : source_color = vec3(1.0);   // pit_shaft.gdshader: the tubes' colour turning with the rot
 uniform vec3 haze_color : source_color = vec3(0.0);
 uniform float haze_k = 0.0;
 uniform float haze_y = 0.0;
@@ -31,8 +32,8 @@ void fragment() {
 	float row = floor(wpos.y / seg_h);
 	vec2 tp = round(wpos.xz / (0.5 * cell)) * 0.5 * cell;
 	float lv = tube_level(tp, row, TIME);
-	vec3 col = tube_color * tube_col(tp);
 	float rot = smoothstep(rot_from, rot_to, wpos.y);
+	vec3 col = tube_color * tube_col(tp) * mix(vec3(1.0), high_tint, rot);
 	ALBEDO = albedo_col;
 	ROUGHNESS = 0.55;
 	METALLIC = 0.2;

@@ -322,6 +322,8 @@ func _process_timed(dt: float) -> void:
 	track_stillness(dt)
 	if Net.is_online() and not Net.hosting:
 		return                        # co-op: the host decides when something happens; we only play what it sends
+	if Game.level != null and Game.level.has_method("is_hub") and Game.level.is_hub():
+		return                        # a T.S.R.A. hub (tsra_launch_bay.gd) is a safe place: nothing is sent at you there
 	if not director_calm():
 		return
 	if recovery > 0.0:

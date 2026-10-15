@@ -22,7 +22,8 @@ func send(delta: float) -> void:
 		return
 	_t = SEND_INTERVAL
 	var p: Vector3 = e.global_position
-	Net.send_burnt([p.x, p.y, p.z, e.yaw, maxi(0, e.STATES.find(e.state)), e.t, e._walk, e.present])
+	Net.send_burnt([p.x, p.y, p.z, e.yaw, maxi(0, e.STATES.find(e.state)), e.t, e._walk, e.present,
+			e._peek_side, maxi(0, e.PEEK_PHASES.find(e._peek_phase)), e._is_seen])
 
 ## Guest: the host's latest snapshot (Net._world)
 func apply(t: float, m: Array) -> void:
@@ -56,3 +57,7 @@ func step(delta: float) -> void:
 	e._walk = float(m[6])
 	# (the skid isn't sent: a charge whose _walk has fallen off a full run past the crouch is braking)
 	e._braking = s == "charge" and e.t > e.CHARGE_PREP and e._walk < 0.97
+	if m.size() >= 11:                                # the peek: which edge, how far into it, and held still by a look
+		e._peek_side = int(m[8])
+		e._peek_phase = e.PEEK_PHASES[clampi(int(m[9]), 0, e.PEEK_PHASES.size() - 1)] if s == "peek" else ""
+		e._is_seen = bool(m[10])

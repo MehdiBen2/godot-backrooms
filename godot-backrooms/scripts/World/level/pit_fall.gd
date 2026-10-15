@@ -98,6 +98,7 @@ var _fog_col_from := Color.BLACK
 var _sick := Color.BLACK
 var _wind: AudioStreamPlayer
 var _hum: AudioStreamPlayer
+var _scream: AudioStreamPlayer      # your own voice as you drop (scares.fall_scream); cut if the fall ends in a wake
 var _gust := FastNoiseLite.new()
 
 static var _wind_stream: AudioStreamWAV
@@ -211,12 +212,40 @@ func _cap_mesh(cells: Dictionary) -> ArrayMesh:
 ## The walls round a set of cells, as straight runs: {from, to (at y 0), n (facing into the shaft), cells}
 func _runs(cells: Dictionary) -> Array:
 	var lines := {}
+	var outside := outside_of(cells)
 	for c: Vector2i in cells:
 		for d: Vector2i in DIRS:
 			if cells.has(c + d): continue
+			if not outside.has(c + d): continue       # a pillar or floor island standing in the shaft: it is not a wall all the way down
 			var key := Vector3i(0, d.x, c.x) if d.x != 0 else Vector3i(1, d.y, c.y)
 			if not lines.has(key): lines[key] = []
 			lines[key].append(c.y if d.x != 0 else c.x)
+	return _join_runs(lines, cell)
+
+## The cells round a set of cells reachable from beyond its bounding box: what is left over is enclosed by it
+## (a pillar, a floor island), and a shaft's walls (here and endless_shaft.gd) leave those out
+static func outside_of(cells: Dictionary) -> Dictionary:
+	var lo := Vector2i(1 << 30, 1 << 30)
+	var hi := Vector2i(-(1 << 30), -(1 << 30))
+	for c: Vector2i in cells:
+		lo = Vector2i(mini(lo.x, c.x), mini(lo.y, c.y))
+		hi = Vector2i(maxi(hi.x, c.x), maxi(hi.y, c.y))
+	lo -= Vector2i.ONE
+	hi += Vector2i.ONE
+	var seen := {lo: true}
+	var queue: Array = [lo]
+	while not queue.is_empty():
+		var p: Vector2i = queue.pop_back()
+		for d: Vector2i in DIRS:
+			var q: Vector2i = p + d
+			if q.x < lo.x or q.y < lo.y or q.x > hi.x or q.y > hi.y: continue
+			if seen.has(q) or cells.has(q): continue
+			seen[q] = true
+			queue.append(q)
+	return seen
+
+## Edges of wall (from `_runs`) joined into straight runs
+static func _join_runs(lines: Dictionary, cell: float) -> Array:
 	var out: Array = []
 	for key: Vector3i in lines:
 		var list: Array = lines[key]
@@ -285,22 +314,55 @@ static func _wall(st: SurfaceTool, a: Vector3, dir: Vector3, ln: float, n: Vecto
 		piece.call(c0, m - OPEN_HALF, 0.0, seg_h)
 		piece.call(m + OPEN_HALF, c1, 0.0, seg_h)
 		piece.call(m - OPEN_HALF, m + OPEN_HALF, OPEN_H, seg_h)
-		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)), depth)
+		# it turns at the far end (toward the next cell along, so it never meets that cell's own turn), so you never
+		# see where it stops: not on the last cell of the run (the turn would go past the corner), nor into the shaft
+		var reach := cell - 2.0 * OPEN_HALF - 0.05
+		var turn := 0.0 if i == cells - 1 else 1.0
+		var back_d := depth - OPEN_HALF
+		for lat: float in [OPEN_HALF + reach * 0.5, OPEN_HALF + reach]:
+			var p := a + dir * (m + lat) - n * back_d
+			if shaft.has(Vector2i(roundi(p.x / cell), roundi(p.z / cell))): turn = 0.0
+		_corridor(st, a + dir * m, dir, n, float(posmod(h / 100, 1000)), depth, turn, reach)
 
-## The corridor behind a doorway: floor, ceiling, two walls and a far end, marked for the shader by a grey vertex
-## colour. UV: how far in it is, and which corridor this is.
-static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float, depth: float) -> void:
-	var out := -n * depth
-	var s := dir * OPEN_HALF
-	var up := Vector3(0.0, OPEN_H, 0.0)
+## The corridor behind a doorway, marked for the shader by a grey vertex colour. UV: how far in it is, and which
+## corridor this is. With `turn` it does not end in a wall facing you: at the far end it turns off to one side (along
+## `dir`) for `reach` metres, round a corner you cannot see past; without it, a plain dead end.
+static func _corridor(st: SurfaceTool, mid: Vector3, dir: Vector3, n: Vector3, id: float, depth: float, turn := 0.0, reach := 1.85) -> void:
 	var col := Color(0.5, 0.5, 0.5, 1.0)
-	var d0 := Vector2(0.0, id)
-	var d1 := Vector2(depth, id)
-	_quad(st, [mid - s, mid + s, mid + s + out, mid - s + out], Vector3.UP, col, [d0, d0, d1, d1])
-	_quad(st, [mid - s + up, mid + s + up, mid + s + out + up, mid - s + out + up], Vector3.DOWN, col, [d0, d0, d1, d1])
-	_quad(st, [mid - s, mid - s + out, mid - s + out + up, mid - s + up], dir, col, [d0, d1, d1, d0])
-	_quad(st, [mid + s, mid + s + out, mid + s + out + up, mid + s + up], -dir, col, [d0, d1, d1, d0])
-	_quad(st, [mid - s + out, mid + s + out, mid + s + out + up, mid - s + out + up], n, col, [d1, d1, d1, d1])
+	var back := -n
+	var w := OPEN_HALF
+	var up := Vector3(0.0, OPEN_H, 0.0)
+	var at := func(lat: float, dep: float) -> Vector3: return mid + dir * lat + back * dep
+	var uv := func(u: float) -> Vector2: return Vector2(u, id)
+	# floor and ceiling over lateral l0..l1, depth e0..e1 (u: the UV at each corner, in the same order)
+	var flat := func(l0: float, l1: float, e0: float, e1: float, u: Array) -> void:
+		var v: Array = [at.call(l0, e0), at.call(l1, e0), at.call(l1, e1), at.call(l0, e1)]
+		var t: Array = [uv.call(u[0]), uv.call(u[1]), uv.call(u[2]), uv.call(u[3])]
+		_quad(st, v, Vector3.UP, col, t)
+		_quad(st, [v[0] + up, v[1] + up, v[2] + up, v[3] + up], Vector3.DOWN, col, t)
+	# a wall from (l0, e0) to (l1, e1), facing `nrm`
+	var side := func(l0: float, e0: float, l1: float, e1: float, u0: float, u1: float, nrm: Vector3) -> void:
+		var p0: Vector3 = at.call(l0, e0)
+		var p1: Vector3 = at.call(l1, e1)
+		_quad(st, [p0, p1, p1 + up, p0 + up], nrm, col, [uv.call(u0), uv.call(u1), uv.call(u1), uv.call(u0)])
+	if turn == 0.0 or depth < 2.0 * w + 1.0:
+		flat.call(-w, w, 0.0, depth, [0.0, 0.0, depth, depth])
+		side.call(-w, 0.0, -w, depth, 0.0, depth, dir)
+		side.call(w, 0.0, w, depth, 0.0, depth, -dir)
+		side.call(-w, depth, w, depth, depth, depth, n)
+		return
+	# UV past the corner: depth plus how far round it, so the light runs on with no seam where the two meet
+	var d := depth - 2.0 * w
+	var e := depth
+	var l := reach
+	flat.call(-w, w, 0.0, e, [0.0, 0.0, e, e])
+	flat.call(w, w + l, d, e, [d, d + l, e + l, e])
+	side.call(-w, 0.0, -w, e, 0.0, e, dir)                  # the far side, unbroken
+	side.call(w, 0.0, w, d, 0.0, d, -dir)                   # the near side, up to the turn
+	side.call(w, d, w + l, d, d, d + l, back)               # ...and on round the corner
+	side.call(-w, e, w, e, e, e, n)                         # the end of the corridor
+	side.call(w, e, w + l, e, e, e + l, n)                  # ...and of the turning
+	side.call(w + l, d, w + l, e, d + l, e + l, -dir)       # where the turning goes out of sight
 
 ## A quad facing `n`, wound clockwise seen from that side (Godot's front face)
 static func _quad(st: SurfaceTool, v: Array, n: Vector3, col: Color, uv: Array) -> void:
@@ -566,6 +628,10 @@ func _begin(i: int) -> void:
 	_hum.volume_db = -80.0
 	add_child(_hum)
 	_hum.play()
+	if not _noclip:
+		var sc: Node = level.get_parent().get_node_or_null("Scares") if level.get_parent() != null else null
+		if sc != null and sc.has_method("fall_scream"):
+			_scream = sc.fall_scream()
 
 ## `wake`: the fall is over, the player comes to at the spawn point (behind the black, which then lifts)
 ## `die`: the fall is over and so are you: the black stays and the recording-ended screen comes up over it
@@ -619,6 +685,8 @@ func _end(wake: bool, die := false, hold := false) -> void:
 		if a != null and is_instance_valid(a): a.queue_free()
 	_wind = null
 	_hum = null
+	if wake and _scream != null and is_instance_valid(_scream): _scream.queue_free()
+	_scream = null
 	active = -1
 	_ending = false
 	_fade = 0.0

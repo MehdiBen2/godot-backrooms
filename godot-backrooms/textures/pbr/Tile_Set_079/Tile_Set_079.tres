@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" load_steps=6 format=3]
+
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_Set_079/Tile_Set_079_Color.jpg" id="Color"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_Set_079/Tile_Set_079_Displacement.jpg" id="Displacement"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_Set_079/Tile_Set_079_NormalGL.jpg" id="NormalGL"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Tile_Set_079/Tile_Set_079_Roughness.jpg" id="Roughness"]
+
+[resource]
+albedo_texture = ExtResource("Color")
+roughness_texture = ExtResource("Roughness")
+roughness_texture_channel = 4
+normal_enabled = true
+normal_texture = ExtResource("NormalGL")

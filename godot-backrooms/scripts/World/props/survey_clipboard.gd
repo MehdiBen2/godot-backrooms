@@ -3,8 +3,8 @@ extends Node3D
 ## Scannable with the Field Scanner (hold Q) to extract lost surveyor notes and earn Research Yield (+40 YLD).
 ## Built with distance-based visibility culling.
 
-const ArchiveScript := preload("res://scripts/GameLogicEngine/asra_archive.gd")
-const ASRA_ID := "survey_clipboard"
+const ArchiveScript := preload("res://scripts/GameLogicEngine/tsra_archive.gd")
+const TSRA_ID := "survey_clipboard"
 const YIELD_AMOUNT := 40
 const SCAN_RANGE := 3.5
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
@@ -21,7 +21,7 @@ var mesh_root: Node3D
 
 func _ready() -> void:
 	add_to_group(Archive.SCANNABLE)
-	set_meta("asra_id", ASRA_ID)
+	set_meta("tsra_id", TSRA_ID)
 	_build_mesh()
 
 func _build_mesh() -> void:

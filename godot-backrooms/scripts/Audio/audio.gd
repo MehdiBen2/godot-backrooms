@@ -54,6 +54,7 @@ var world_rev: AudioEffectReverb
 var nav: GridNav
 var room_timer := 0.0
 var outdoor_mix := 0.0         # 0 = the backrooms .. 1 = the open-air hills level (Game.outdoors), eased
+var hub_mix := 0.0             # 0 = the backrooms .. 1 = the T.S.R.A. hub (dead quiet, dry: no hum, drone, beds or echo), eased
 var room_size := 0.35          # smoothed measurements of the space around the listener
 var room_target := 0.35
 var room_goal := {}            # level_data.gd acoustic_profile() where the listener stands ({}: the old grid measure)
@@ -279,7 +280,7 @@ func _update_hum(dt: float) -> void:
 	hum_mix += (target - hum_mix) * (1.0 - exp(-dt / 0.35))
 	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
 	hum_event += (hum_event_target - hum_event) * (1.0 - exp(-dt / 0.8))
-	var mix: float = hum_mix * HUM_VOLUME * hum_user * hum_event * vol.hum * (1.0 - outdoor_mix)     # no fluorescent hum under the sky
+	var mix: float = hum_mix * HUM_VOLUME * hum_user * hum_event * vol.hum * (1.0 - outdoor_mix) * (1.0 - hub_mix)     # no fluorescent hum under the sky or in the hub
 	var comp := 1.0 / float(scales["world/lights/hum_voice.wav"])
 	for i in voices.size():
 		var lvl: float = level.slot_level(i)
@@ -293,11 +294,11 @@ func _update_hum(dt: float) -> void:
 	# dread drone: swells with the entity's presence and the run's overall fear, up to 3x
 	var swell := clampf(maxf(Game.presence, Game.fear * 0.7), 0.0, 1.0)
 	drone_swell += (swell - drone_swell) * (1.0 - exp(-dt / 1.2))
-	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) * (1.0 - outdoor_mix) / float(scales.get("ambients/drone.wav", 1.0))
+	drone.volume_linear = DRONE_BASE * (1.0 + 2.0 * drone_swell) * (1.0 - outdoor_mix) * (1.0 - hub_mix) / float(scales.get("ambients/drone.wav", 1.0))
 
 # ---------------------------------------------------------------- tube pops
 func _on_fixture_event(f: Dictionary, restrike: bool) -> void:
-	if Game.outdoors or not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
+	if Game.outdoors or in_hub() or not pops_enabled or f.slot < 0 or not (restrike or randf() < 0.5): return
 	# Only a tube you can see, or one right by you. A quarter of the tubes flicker on and off for good, and every
 	# one within the light pool's reach (26 m, round corners and behind walls too) used to pop: the same click
 	# over and over with no light to be seen doing it.
@@ -393,6 +394,7 @@ func _process_timed(dt: float) -> void:
 		focus_gain = move_toward(focus_gain, goal, dt / (0.15 if goal < focus_gain else 0.4))
 		AudioServer.set_bus_volume_linear(0, vol.master * focus_gain)
 	outdoor_mix += ((1.0 if Game.outdoors else 0.0) - outdoor_mix) * (1.0 - exp(-dt / 1.0))
+	hub_mix += ((1.0 if in_hub() else 0.0) - hub_mix) * (1.0 - exp(-dt / 1.0))
 	world_cutoff_target = _world_cutoff_goal()
 	world_cutoff += (world_cutoff_target - world_cutoff) * (1.0 - exp(-dt / world_tc))
 	# the duck: a little quieter while held, a little more once dead (never below 60%)
@@ -467,6 +469,10 @@ func _measure_room() -> float:
 	var ceil_h: float = level.ceiling_height(Vector2i(GridNav.cell(p.x), GridNav.cell(p.z)))
 	return clampf(0.15 + mean / 45.0 + (ceil_h - level.WALL_H) / 40.0, 0.15, 0.95)
 
+## True in the T.S.R.A. hub level (level_builder.gd is_hub())
+func in_hub() -> bool:
+	return is_instance_valid(Game.level) and Game.level.has_method("is_hub") and Game.level.is_hub()
+
 func _update_room(dt: float) -> void:
 	room_timer -= dt
 	if room_timer <= 0.0:
@@ -498,13 +504,17 @@ func _update_room(dt: float) -> void:
 	# an Echo zone (painted in the level editor): a huge, hard, wet space whatever the room measures
 	var pp: Vector3 = player.global_position
 	var zone = level.get("echo")
-	var in_echo: bool = not Game.outdoors and zone is Dictionary and zone.has(Vector2i(GridNav.cell(pp.x), GridNav.cell(pp.z)))
+	var in_echo: bool = not Game.outdoors and not in_hub() and zone is Dictionary and zone.has(Vector2i(GridNav.cell(pp.x), GridNav.cell(pp.z)))
 	echo_mix += ((1.0 if in_echo else 0.0) - echo_mix) * (1.0 - exp(-dt / 0.7))
 	rs = lerpf(rs, 0.97, echo_mix)
 	world_wet = lerpf(world_wet, 0.5, echo_mix)
 	world_damp = lerpf(world_damp, 0.3, echo_mix)
 	steps_wet = lerpf(steps_wet, 0.42, echo_mix)
 	steps_damp = lerpf(steps_damp, 0.3, echo_mix)
+	# the T.S.R.A. hub: a dead, dry room, no tail at all
+	rs = lerpf(rs, 0.1, hub_mix)
+	world_wet = lerpf(world_wet, 0.0, hub_mix)
+	steps_wet = lerpf(steps_wet, 0.0, hub_mix)
 	# only write when it has moved: re-setting reverb parameters every frame can zipper
 	if absf(world_rev.room_size - rs) > 0.01 or absf(world_rev.wet - world_wet) > 0.004:
 		world_rev.room_size = rs

@@ -37,6 +37,8 @@ const GASPS := [
 	"res://audio/player/gasp/gasp_4.mp3", "res://audio/player/gasp/gasp_5.mp3",
 	"res://audio/player/gasp/gasp_6.mp3",
 	"res://audio/player/gasp/gasp_short_1.mp3", "res://audio/player/gasp/gasp_short_2.mp3",
+	"res://audio/player/gasp/gasp_7.mp3", "res://audio/player/gasp/gasp_8.mp3", "res://audio/player/gasp/gasp_9.mp3",
+	"res://audio/player/gasp/gasp_10.mp3", "res://audio/player/gasp/gasp_11.mp3",
 ]
 const GASP_RMS := -20.0
 const GASP_PEAK := -6.0
@@ -59,6 +61,16 @@ const BITE_DEATH := "res://audio/player/death/bite/bitedeathsound.mp3"
 # The mannequin's neck snap: its own recording, replacing the synthesized crack (synth("neck_snap"),
 # kept only as a fallback if this one is ever missing)
 const NECK_SNAP_SOUND := "res://audio/player/death/neck_snap/floraphonic-necksnap-10-218514.mp3"
+# The player's own voice as the neck breaks (one of three takes, on top of the crack), and the scream of a
+# fall into the void (pit_fall.gd)
+const NECK_SNAP_VOICES := [
+	"res://audio/player/death/neck_snap/neck_snap_voice_1.mp3",
+	"res://audio/player/death/neck_snap/neck_snap_voice_2.mp3",
+	"res://audio/player/death/neck_snap/neck_snap_voice_3.mp3",
+]
+const FALL_SCREAM := "res://audio/player/death/fall/fall_scream.mp3"
+const VOICE_RMS := -20.0
+const VOICE_PEAK := -6.0
 const GRID_OFF := "res://audio/events/gridoff.mp3"
 const TUBE_RESTRIKE := "res://audio/world/lights/tube_restrike.wav"
 # A recorded single lub-dub dropped at one of these paths replaces the synthesized one
@@ -105,7 +117,7 @@ func _ready() -> void:
 	steps = CreatureSteps.new(self)
 	preacher_fx = Preacher.new(self)
 	# every scare clip goes into the buffer pool now, on worker threads, so none of them hits the disk mid-scare
-	SfxPool.warm(GASPS + [BODY_FALL, DEATH_VOICE, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, GRID_OFF, TUBE_RESTRIKE] + SfxPool.scare_paths())
+	SfxPool.warm(GASPS + [BODY_FALL, DEATH_VOICE, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, FALL_SCREAM, GRID_OFF, TUBE_RESTRIKE] + NECK_SNAP_VOICES + SfxPool.scare_paths())
 	for path in HEART_SAMPLES:
 		if ResourceLoader.exists(path):
 			_heart_sample = load(path)
@@ -266,6 +278,17 @@ func neck_snap() -> void:
 	else:
 		spawn_flat(synth("neck_snap"), 1.1, "Body", rng.randf_range(0.94, 1.04))
 	spawn_flat(synth("splat"), 0.35, "Body", 0.8)
+	var v: String = NECK_SNAP_VOICES[rng.randi() % NECK_SNAP_VOICES.size()]
+	var vs := _stream(v)
+	if vs != null:
+		spawn_flat(vs, ClipLevels.gain(v, VOICE_RMS, VOICE_PEAK), "Voice")
+
+## The scream of falling down a bottomless pit; returns the player so the fall can cut it off
+func fall_scream() -> AudioStreamPlayer:
+	var s := _stream(FALL_SCREAM)
+	if s == null:
+		return null
+	return spawn_flat(s, ClipLevels.gain(FALL_SCREAM, VOICE_RMS, VOICE_PEAK), "Voice")
 
 ## THE BACTERIA's jaws closing: the blood-scream splat plus its own bite recording, on top of it
 func bite_death() -> void:

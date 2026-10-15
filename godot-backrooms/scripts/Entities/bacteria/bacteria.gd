@@ -769,7 +769,7 @@ func _unhandled_input(e: InputEvent) -> void:
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
-	set_meta("asra_id", "bacteria")
+	set_meta("tsra_id", "bacteria")
 
 ## Where the scanner can take a reading off it right now; empty while it is away
 func scan_points() -> Array:

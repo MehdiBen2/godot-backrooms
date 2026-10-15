@@ -2,7 +2,7 @@ extends "res://scripts/UI/inventory/terminal_page.gd"
 ## SITE: the current level's threshold dossier in full (zone, threat, every reading, the mandates, the
 ## classified annex), then the phenomena catalogued there: a line each, with its protocol once it is
 ## logged. A click on one opens its entry on ARCHIVE. New levels / entities register in
-## levels/asra_dossiers.json / levels/asra_entities.json (see the top of asra_archive.gd).
+## levels/tsra_dossiers.json / levels/tsra_entities.json (see the top of tsra_archive.gd).
 
 const METRICS := {
 	"spatial_reliability": "SPATIAL RELIABILITY",

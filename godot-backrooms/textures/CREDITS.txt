@@ -32,3 +32,6 @@ Textures under CC0 (https://creativecommons.org/publicdomain/zero/1.0/):
       .. -9png), CC0. Pack files 1, 2, 3, 6, 7 and 8 became lens_dirt_1 .. 6: scaled from 3870 x 2177 to
       2560 x 1440, and the dark ones (3, 6, 7) brightened (x1.35, x3.3, x3.65) so they read through
       camera.gdshader's dirt threshold like lens_dirt.png does.
+
+Textures under CC0 (ambientCG, https://ambientcg.com), supplied in asetsuimprot/texturesnew/, regrouped into pbr/ (old ids in pbr/RENAMES.txt):
+- pbr/Asphalt_Worn_Patched, Brick_Weathered_Wall, Carpet_Patterned, Metal_Corrugated_Steel, Fabric_Woven, Paving_Stones_A/B, Road_Lines_A/B, Tile_Set_012/079/134A

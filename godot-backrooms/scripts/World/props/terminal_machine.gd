@@ -271,6 +271,7 @@ func interact(p: Node3D) -> bool:
 	p.frozen = true
 	hud_was = Game.hide_hud
 	Game.hide_hud = true
+	Gfx.hold_temporal(true)        # TAA / FSR 2 would smear the moving picture on the glass into trails
 	var pc: Camera3D = p.cam
 	cam.fov = pc.fov
 	cam.far = pc.far
@@ -347,6 +348,7 @@ func _end_session() -> void:
 			player.frozen = false
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	Game.hide_hud = hud_was
+	Gfx.hold_temporal(false)
 	session = false
 	busy = false
 	player = null

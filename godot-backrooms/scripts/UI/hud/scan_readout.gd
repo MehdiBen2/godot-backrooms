@@ -9,7 +9,7 @@ extends Control
 ##   status over its left end. While searching, a band on it marks roughly how far the signal is
 ##   (scanner.signal_dist), narrowing as the signal firms up; on a lock a plain needle marks the
 ##   exact range, its figure over it. The band and the signal's bearing come with clearance C-3 (the
-##   range-finder, asra_clearance.gd), along with chevrons by the focus box pointing the way to turn
+##   range-finder, tsra_clearance.gd), along with chevrons by the focus box pointing the way to turn
 ## - on a lock, corner marks travel out of the focus box onto the target, the way autofocus snaps
 ##   to a subject. Under them the reading fills a hairline as wide as the box, over the name and how
 ##   far through it is; a new entry blinks them twice. From C-4 a DEEP SCAN line follows: what the

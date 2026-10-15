@@ -1,4 +1,14 @@
 {
+ "res://audio/player/body/jump.wav": {
+  "peak": -11.84,
+  "rms": -26.74,
+  "length": 0.18
+ },
+ "res://audio/player/body/land_thud.wav": {
+  "peak": -13.79,
+  "rms": -24.68,
+  "length": 0.22
+ },
  "res://audio/player/breath/breath_01_calm.wav": {
   "peak": -14.41,
   "rms": -32.18,
@@ -29,6 +39,461 @@
   "rms": -32.64,
   "length": 8.381
  },
+ "res://audio/player/breath/breath_in_0_0_0.wav": {
+  "peak": -0.1,
+  "rms": -11.92,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_0_0_1.wav": {
+  "peak": -0.06,
+  "rms": -12.48,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_0_1_0.wav": {
+  "peak": -0.08,
+  "rms": -11.56,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_0_1_1.wav": {
+  "peak": -0.13,
+  "rms": -14.16,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_0_2_0.wav": {
+  "peak": 0.0,
+  "rms": -13.68,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_0_2_1.wav": {
+  "peak": -0.07,
+  "rms": -13.45,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_0_3_0.wav": {
+  "peak": -0.05,
+  "rms": -13.37,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_0_3_1.wav": {
+  "peak": -0.0,
+  "rms": -14.73,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_0_4_0.wav": {
+  "peak": 0.05,
+  "rms": -14.78,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_0_4_1.wav": {
+  "peak": -0.01,
+  "rms": -14.07,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_0_5_0.wav": {
+  "peak": -0.09,
+  "rms": -13.38,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_0_5_1.wav": {
+  "peak": -0.16,
+  "rms": -13.62,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_0_6_0.wav": {
+  "peak": -0.11,
+  "rms": -13.45,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_in_0_6_1.wav": {
+  "peak": -0.14,
+  "rms": -14.32,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_in_1_0_0.wav": {
+  "peak": -0.17,
+  "rms": -12.68,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_1_0_1.wav": {
+  "peak": 0.2,
+  "rms": -12.25,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_1_1_0.wav": {
+  "peak": -0.22,
+  "rms": -11.59,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_1_1_1.wav": {
+  "peak": -0.39,
+  "rms": -14.22,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_1_2_0.wav": {
+  "peak": -0.16,
+  "rms": -12.02,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_1_2_1.wav": {
+  "peak": 0.21,
+  "rms": -13.1,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_1_3_0.wav": {
+  "peak": -0.24,
+  "rms": -13.11,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_1_3_1.wav": {
+  "peak": 0.14,
+  "rms": -13.54,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_1_4_0.wav": {
+  "peak": -0.05,
+  "rms": -13.9,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_1_4_1.wav": {
+  "peak": -0.3,
+  "rms": -13.67,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_1_5_0.wav": {
+  "peak": -0.29,
+  "rms": -12.99,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_1_5_1.wav": {
+  "peak": 0.17,
+  "rms": -14.67,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_1_6_0.wav": {
+  "peak": -0.11,
+  "rms": -12.64,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_in_1_6_1.wav": {
+  "peak": -0.12,
+  "rms": -13.61,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_in_2_0_0.wav": {
+  "peak": -0.01,
+  "rms": -12.37,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_2_0_1.wav": {
+  "peak": -0.24,
+  "rms": -14.53,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_in_2_1_0.wav": {
+  "peak": -0.33,
+  "rms": -11.87,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_2_1_1.wav": {
+  "peak": 0.1,
+  "rms": -13.63,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_in_2_2_0.wav": {
+  "peak": -0.59,
+  "rms": -12.29,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_2_2_1.wav": {
+  "peak": -0.14,
+  "rms": -13.82,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_in_2_3_0.wav": {
+  "peak": -0.47,
+  "rms": -12.54,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_2_3_1.wav": {
+  "peak": -0.5,
+  "rms": -14.6,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_in_2_4_0.wav": {
+  "peak": -0.02,
+  "rms": -12.19,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_2_4_1.wav": {
+  "peak": -0.32,
+  "rms": -14.48,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_in_2_5_0.wav": {
+  "peak": -0.33,
+  "rms": -12.53,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_2_5_1.wav": {
+  "peak": -0.26,
+  "rms": -14.19,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_in_2_6_0.wav": {
+  "peak": -0.27,
+  "rms": -13.18,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_in_2_6_1.wav": {
+  "peak": -0.36,
+  "rms": -14.18,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_0_0_0.wav": {
+  "peak": -0.06,
+  "rms": -13.11,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_0_0_1.wav": {
+  "peak": -0.02,
+  "rms": -13.57,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_0_1_0.wav": {
+  "peak": -0.04,
+  "rms": -13.84,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_0_1_1.wav": {
+  "peak": 0.02,
+  "rms": -13.53,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_0_2_0.wav": {
+  "peak": 0.04,
+  "rms": -13.02,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_0_2_1.wav": {
+  "peak": -0.03,
+  "rms": -14.32,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_0_3_0.wav": {
+  "peak": -0.03,
+  "rms": -14.31,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_0_3_1.wav": {
+  "peak": -0.07,
+  "rms": -13.69,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_0_4_0.wav": {
+  "peak": -0.07,
+  "rms": -12.94,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_0_4_1.wav": {
+  "peak": -0.06,
+  "rms": -13.82,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_0_5_0.wav": {
+  "peak": -0.1,
+  "rms": -14.21,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_0_5_1.wav": {
+  "peak": -0.09,
+  "rms": -15.32,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_0_6_0.wav": {
+  "peak": -0.05,
+  "rms": -14.42,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_0_6_1.wav": {
+  "peak": -0.04,
+  "rms": -15.7,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_1_0_0.wav": {
+  "peak": -0.04,
+  "rms": -13.45,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_1_0_1.wav": {
+  "peak": -0.02,
+  "rms": -12.96,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_1_1_0.wav": {
+  "peak": -0.05,
+  "rms": -12.66,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_1_1_1.wav": {
+  "peak": 0.0,
+  "rms": -13.49,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_1_2_0.wav": {
+  "peak": -0.12,
+  "rms": -13.56,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_1_2_1.wav": {
+  "peak": -0.08,
+  "rms": -16.26,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_1_3_0.wav": {
+  "peak": -0.09,
+  "rms": -13.52,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_1_3_1.wav": {
+  "peak": -0.03,
+  "rms": -14.7,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_1_4_0.wav": {
+  "peak": -0.06,
+  "rms": -12.87,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_1_4_1.wav": {
+  "peak": 0.0,
+  "rms": -14.77,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_1_5_0.wav": {
+  "peak": -0.22,
+  "rms": -13.87,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_1_5_1.wav": {
+  "peak": -0.15,
+  "rms": -15.71,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_1_6_0.wav": {
+  "peak": -0.0,
+  "rms": -14.65,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_1_6_1.wav": {
+  "peak": -0.09,
+  "rms": -14.93,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_2_0_0.wav": {
+  "peak": -0.17,
+  "rms": -13.71,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_2_0_1.wav": {
+  "peak": -0.04,
+  "rms": -13.45,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_out_2_1_0.wav": {
+  "peak": 0.04,
+  "rms": -12.38,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_2_1_1.wav": {
+  "peak": -0.03,
+  "rms": -13.6,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_out_2_2_0.wav": {
+  "peak": -0.02,
+  "rms": -12.75,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_2_2_1.wav": {
+  "peak": -0.18,
+  "rms": -13.7,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_out_2_3_0.wav": {
+  "peak": -0.07,
+  "rms": -13.74,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_2_3_1.wav": {
+  "peak": -0.2,
+  "rms": -14.12,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_out_2_4_0.wav": {
+  "peak": -0.05,
+  "rms": -13.74,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_2_4_1.wav": {
+  "peak": -0.22,
+  "rms": -14.82,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_out_2_5_0.wav": {
+  "peak": -0.0,
+  "rms": -13.65,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_2_5_1.wav": {
+  "peak": -0.02,
+  "rms": -14.1,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_out_2_6_0.wav": {
+  "peak": -0.03,
+  "rms": -14.31,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_out_2_6_1.wav": {
+  "peak": -0.08,
+  "rms": -15.27,
+  "length": 1.65
+ },
+ "res://audio/player/breath/breath_outv_0.wav": {
+  "peak": -0.08,
+  "rms": -12.21,
+  "length": 0.27
+ },
+ "res://audio/player/breath/breath_outv_1.wav": {
+  "peak": -0.03,
+  "rms": -12.6,
+  "length": 0.39
+ },
+ "res://audio/player/breath/breath_outv_2.wav": {
+  "peak": -0.17,
+  "rms": -12.64,
+  "length": 0.55
+ },
+ "res://audio/player/breath/breath_outv_3.wav": {
+  "peak": -0.05,
+  "rms": -13.65,
+  "length": 0.75
+ },
+ "res://audio/player/breath/breath_outv_4.wav": {
+  "peak": -0.16,
+  "rms": -13.43,
+  "length": 0.95
+ },
+ "res://audio/player/breath/breath_outv_5.wav": {
+  "peak": -0.21,
+  "rms": -13.9,
+  "length": 1.35
+ },
+ "res://audio/player/breath/breath_outv_6.wav": {
+  "peak": 0.05,
+  "rms": -14.0,
+  "length": 1.65
+ },
  "res://audio/player/caught/bacteria_snactched_voice.mp3": {
   "peak": -4.62,
   "rms": -19.26,
@@ -54,10 +519,40 @@
   "rms": -17.94,
   "length": 0.936
  },
+ "res://audio/player/death/fall/fall_scream.mp3": {
+  "peak": -12.11,
+  "rms": -25.77,
+  "length": 0.912
+ },
  "res://audio/player/death/neck_snap/floraphonic-necksnap-10-218514.mp3": {
   "peak": -0.43,
   "rms": -13.77,
   "length": 0.432
+ },
+ "res://audio/player/death/neck_snap/neck_snap_voice_1.mp3": {
+  "peak": -13.66,
+  "rms": -27.2,
+  "length": 0.336
+ },
+ "res://audio/player/death/neck_snap/neck_snap_voice_2.mp3": {
+  "peak": -7.28,
+  "rms": -19.28,
+  "length": 0.312
+ },
+ "res://audio/player/death/neck_snap/neck_snap_voice_3.mp3": {
+  "peak": -8.49,
+  "rms": -23.63,
+  "length": 2.448
+ },
+ "res://audio/player/gasp/gasp_10.mp3": {
+  "peak": -5.95,
+  "rms": -16.17,
+  "length": 0.312
+ },
+ "res://audio/player/gasp/gasp_11.mp3": {
+  "peak": -8.4,
+  "rms": -21.71,
+  "length": 1.344
  },
  "res://audio/player/gasp/gasp_2.mp3": {
   "peak": -11.08,
@@ -83,6 +578,21 @@
   "peak": -7.25,
   "rms": -23.25,
   "length": 2.712
+ },
+ "res://audio/player/gasp/gasp_7.mp3": {
+  "peak": -8.99,
+  "rms": -20.07,
+  "length": 0.504
+ },
+ "res://audio/player/gasp/gasp_8.mp3": {
+  "peak": -7.53,
+  "rms": -18.6,
+  "length": 0.288
+ },
+ "res://audio/player/gasp/gasp_9.mp3": {
+  "peak": -4.6,
+  "rms": -13.49,
+  "length": 0.288
  },
  "res://audio/player/gasp/gasp_short_1.mp3": {
   "peak": -30.0,
@@ -259,10 +769,35 @@
   "rms": -8.29,
   "length": 8.49
  },
+ "res://audio/events/doorbell.wav": {
+  "peak": -1.93,
+  "rms": -14.32,
+  "length": 3.2
+ },
+ "res://audio/events/footsteps_walls.mp3": {
+  "peak": -3.73,
+  "rms": -17.39,
+  "length": 5.112
+ },
  "res://audio/events/gridoff.mp3": {
   "peak": -0.26,
   "rms": -24.07,
   "length": 2.038
+ },
+ "res://audio/events/hum_loop.wav": {
+  "peak": -2.44,
+  "rms": -8.45,
+  "length": 4.0
+ },
+ "res://audio/events/party_muffled.wav": {
+  "peak": -1.94,
+  "rms": -14.94,
+  "length": 24.0
+ },
+ "res://audio/events/phone_ring.wav": {
+  "peak": -2.35,
+  "rms": -17.17,
+  "length": 2.2
  },
  "res://audio/events/preacher.mp3": {
   "peak": -8.56,
@@ -294,6 +829,11 @@
   "rms": -16.49,
   "length": 21.72
  },
+ "res://audio/ambients/drone.wav": {
+  "peak": -0.01,
+  "rms": -3.01,
+  "length": 2.0
+ },
  "res://audio/ambients/haunted-ambience_A#_major.wav": {
   "peak": -2.62,
   "rms": -17.98,
@@ -303,6 +843,11 @@
   "peak": -1.25,
   "rms": -14.63,
   "length": 4.056
+ },
+ "res://audio/ambients/menu_intro.mp3": {
+  "peak": -0.17,
+  "rms": -13.72,
+  "length": 21.72
  },
  "res://audio/ambients/mleckert82-spooky-ambience-212885.mp3": {
   "peak": -1.85,

@@ -1,5 +1,5 @@
 extends "res://scripts/UI/inventory/terminal_page.gd"
-## RECORD: the player's T.S.R.A. personnel file (asra_clearance.gd): the clearance held and the bar to
+## RECORD: the player's T.S.R.A. personnel file (tsra_clearance.gd): the clearance held and the bar to
 ## the next tier, the ladder, the privileges, the field record and the last few filings, all as leader
 ## lines. inventory.gd refreshes it on every filing and when it is opened.
 

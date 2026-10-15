@@ -11,7 +11,7 @@ const REACH := 70.0                # m: past this a lamp is not drawn (the wall'
 const LampShader := preload("res://shaders/pit_lamp.gdshader")
 const LensShader := preload("res://shaders/pit_lamp_lens.gdshader")
 ## what the lamps take from the shaft's own material, so that they are lit, faded and hazed with it
-const SHARED := ["rows", "period", "seg_h", "cell", "tube_color", "rot_from", "rot_to", "fade_from", "fade_to", "haze_color", "haze_k", "haze_y"]
+const SHARED := ["rows", "period", "seg_h", "cell", "tube_color", "rot_from", "rot_to", "high_tint", "fade_from", "fade_to", "haze_color", "haze_k", "haze_y"]
 
 static var _parts: Array = []      # [{mesh, xf, id}] housing, tray, tubes, lens
 

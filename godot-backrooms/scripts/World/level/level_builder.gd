@@ -28,6 +28,7 @@ const TAPE_PER_CELLS := 300          # rare: one roll lasts a long while
 const FlashPickup := preload("res://scripts/World/props/flash_pickup.gd")
 const FLASH_PER_CELLS := 250         # rare: a flash is a way out of one chase
 const SurveyClipboard := preload("res://scripts/World/props/survey_clipboard.gd")
+const LaunchBay := preload("res://scripts/World/props/tsra_launch_bay.gd")
 const LOOT_WEIGHT := 6               # how many ordinary cells a Loot zone cell is worth when things are scattered
 const CLIPBOARD_PER_CELLS := 90
 
@@ -390,18 +391,31 @@ func _exit_floor(c: Vector2i) -> bool:
 # ---------------------------------------------------------------- battery packs
 # Scattered at random open floor cells each load (own RNG: the level's rng is fixed-seeded).
 func _spawn_batteries() -> void:
+	if is_hub(): return
 	_scatter(func(): return BatteryPickup.new(), BATTERY_PER_CELLS, 2, 12)
 
 # ---------------------------------------------------------------- hazard tape
 func _spawn_tape() -> void:
+	if is_hub(): return
 	_scatter(func(): return TapePickup.new(), TAPE_PER_CELLS, 1, 2)
 
 # ---------------------------------------------------------------- camera flashes
 func _spawn_flashes() -> void:
+	if is_hub(): return
 	_scatter(func(): return FlashPickup.new(), FLASH_PER_CELLS, 1, 2)
 
 # ---------------------------------------------------------------- interactive survey props
 func _spawn_survey_props() -> void:
+	if is_hub():
+		# the T.S.R.A. hub (levels/tsra_hub.lvl): the launch bay brings the terminal, the lever and the gate
+		var bay := LaunchBay.new()
+		bay.name = "LaunchBay"
+		add_child(bay)
+		bay.setup(level_data.get("hub"))
+		var first_notebook := SurveyClipboard.new()
+		first_notebook.position = spawn_pos + Vector3(0.6, 0.0, -1.2)
+		add_child(first_notebook)
+		return
 	if level_index == 0 and built_floor == 0:
 		var first_notebook := SurveyClipboard.new()
 		first_notebook.position = spawn_pos + Vector3(0.5, 0.0, 0.8)
@@ -412,6 +426,10 @@ func _spawn_survey_props() -> void:
 		add_child(term)
 	
 	_scatter(func(): return SurveyClipboard.new(), CLIPBOARD_PER_CELLS, 2, 6)
+
+## A T.S.R.A. hub rather than a level of the Backrooms: its .lvl has a "hub" block (tools/gen_tsra_hub.py)
+func is_hub() -> bool:
+	return level_data.get("hub") is Dictionary
 
 ## Each floor's own layout of burnt and flickering tubes and stains, the same every time you come back to it
 func _floor_seed() -> int:
@@ -772,14 +790,29 @@ func _floor_ready() -> void:
 			mm.on_floor_changed()
 
 ## Seamless in-place level transition: changes to playlist entry `idx` without a loading screen.
+## A floor still being built in stages (the stairs, a fall) is let finish first: switching level_meta and dropping
+## the shells under it, then being turned away by rebuild_floor_seamless, left that build carrying on with half of
+## the old level and half of the new. Only the newest of several asks goes ahead (the host can send two in a row).
+var _level_ask := 0
+
 func load_level_seamless(idx: int) -> void:
+	_level_ask += 1
+	var ask := _level_ask
+	while rebuilding:
+		await get_tree().process_frame
+		if ask != _level_ask or not is_inside_tree():
+			return
 	var levels := read_index()
+	if levels.is_empty():
+		return
+	Stability.trace("level: switching to level %d in place" % idx)
 	Game.level_count = levels.size()
 	level_index = clampi(idx, 0, levels.size() - 1)
 	level_meta = levels[level_index]
 	fired_triggers.clear()
 	for k: int in shells.keys(): _drop_shell(k)
 	rebuild_floor_seamless(0, {}, true)
+	Stability.trace("level: level %d is up" % level_index)
 
 ## `make` a pickup at about one per `per_cells` open floor cells (between lo and hi of them),
 ## none right at the spawn point

@@ -65,3 +65,15 @@ WoodFloor043       -> Wood_Floor_Dark_Strips
 WoodFloor070       -> Wood_Floor_Parquet_Dark
 WoodFloor040       -> Wood_Floor_Planks
 Wood095            -> Wood_Light_Planks
+CorrugatedSteel007A -> Metal_Corrugated_Steel
+PavingStones136 -> Paving_Stones_B
+Tiles079 -> Tile_Set_079
+Bricks066 -> Brick_Weathered_Wall
+Asphalt029B -> Asphalt_Worn_Patched
+RoadLines022A -> Road_Lines_A
+RoadLines022B -> Road_Lines_B
+Tiles134A -> Tile_Set_134A
+Fabric031 -> Fabric_Woven
+Carpet016 -> Carpet_Patterned
+PavingStones111 -> Paving_Stones_A
+Tiles012 -> Tile_Set_012

@@ -1,0 +1,17 @@
+Third-party models (see also textures/CREDITS.txt)
+
+props/tsra/tsra_emergency_panel.glb
+  "Emergency Panel with Lever" by Da-Luna
+  https://sketchfab.com/3d-models/emergency-panel-with-lever-cdbf3b958e68458f8579d089f02db2dc
+  License: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+  Modified: retextured by tools/make_tsra_branding.py ("ONLY USE IN AN EMERGENCY" replaced by "T.S.R.A.",
+  the screen's "Helix Protection System" replaced by the T.S.R.A. emblem).
+
+props/tsra/tsra_sign.glb, tsra_console.glb, tsra_gate.glb (the gate's base: platform, coils, orbit ring)
+  Made for this game (tools/blender/build_tsra_*.py).
+
+props/tsra/tsra_portal_frame.glb
+  "Futuristic Cyberpunk Portal Frame" by fdehell
+  https://sketchfab.com/3d-models/futuristic-cyberpunk-portal-frame-1937ec8c5ab14a13a09a3cfa9877fa3c
+  License: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+  Modified: decimated to about a tenth, scaled up 2.25x, collision added (tools/blender/build_tsra_portal_frame.py).

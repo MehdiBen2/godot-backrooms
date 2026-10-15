@@ -26,6 +26,7 @@ uniform float seg_h = 9.0;          // one storey (level_data.gd STOREY_H)
 uniform float band_h = 5.4;         // its room-height band of wall (WALL_H); the slab is the rest
 uniform float tube_y = 5.05;        // height of the tubes in their storey
 uniform float tube_half = 0.6;
+uniform float open_h = 2.9;         // a fake corridor's height (pit_fall.gd OPEN_H)
 uniform float cell = 4.5;
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
@@ -53,6 +54,11 @@ uniform float rot_from = 100000000.0;
 uniform float rot_to = 200000000.0;
 uniform float fade_from = 100000000.0;
 uniform float fade_to = 200000000.0;
+// ...the tubes' light turning (sickly, cold) with it, whole stretches of wall gone dark under it, and more of the
+// fake corridors dead. The defaults leave a pit as it was.
+uniform vec3 high_tint : source_color = vec3(1.0);
+uniform float patchy = 0.0;         // 0..1: how dark a cell of wall a storey can be next to its neighbours
+uniform float corridor_dead = 0.22; // the share of fake corridors with no light in them
 
 // The rows of tubes, one a storey, PERIOD of them, then the same again (pit_fall.gd WRAP_SEGS):
 // 0 dead, 1 steady, 2 failing. 16 is the most there can be.
@@ -83,13 +89,13 @@ void fragment() {
 		float lv = row_level(row, TIME);
 		ALBEDO = vec3(0.85);
 		ROUGHNESS = 0.4;
-		EMISSION = tube_color * tube_glow * lv * (0.75 + 0.25 * COLOR.r) * (1.0 - 0.5 * rot);
+		EMISSION = tube_color * mix(vec3(1.0), high_tint, rot) * tube_glow * lv * (0.75 + 0.25 * COLOR.r) * (1.0 - 0.5 * rot);
 	} else if (COLOR.r < 0.9) {
 		// a fake corridor behind a doorway (pit_fall.gd _corridor): carpet, ceiling tiles, the level's wallpaper, and
 		// a pool of light under every ceiling light, dying away down its length. Some of them are dark.
 		float depth = UV.x;
 		float id = UV.y + row * 3.1;
-		float lv = hash11(id) < 0.22 ? 0.1 : 1.0;
+		float lv = hash11(id) < corridor_dead + (1.0 - corridor_dead) * 0.5 * rot ? 0.1 : 1.0;
 		vec3 base;
 		if (n.y > 0.5) {
 			base = texture(floor_tex, wpos.xz * floor_scale).rgb * floor_tint;
@@ -99,11 +105,18 @@ void fragment() {
 			vec2 uv = vec2(depth * wall_scale.x, (wall_flip > 0.5 ? 1.0 - h / band_h : h / band_h) * wall_scale.y);
 			base = texture(wall_tex, uv).rgb * wall_tint;
 		}
-		float pools = 0.25 + 0.75 * pow(0.5 + 0.5 * cos(depth * 6.2832 / cell + 1.2), 3.0);
-		float reach = exp(-depth / 12.0);
+		// the doorway's frame: a darker reveal where the corridor meets the shaft's wall
+		base *= mix(0.45, 1.0, smoothstep(0.08, 0.2, depth));
+		if (abs(n.y) < 0.5) {
+			base *= mix(0.4, 1.0, smoothstep(0.06, 0.11, h));                    // a baseboard
+			base *= mix(0.55, 1.0, smoothstep(0.0, 0.5, open_h - h));             // the ceiling's shadow down the walls
+		}
+		// pools of light under the ceiling lights, black between, and the light dying the further in
+		float pools = 0.08 + 0.92 * pow(0.5 + 0.5 * cos(depth * 6.2832 / cell + 1.2), 4.0);
+		float reach = exp(-depth / 6.5);
 		ALBEDO = base;
 		ROUGHNESS = 0.95;
-		EMISSION = base * tube_color * lv * pools * reach * 2.2 * (1.0 - 0.55 * rot);
+		EMISSION = base * tube_color * mix(vec3(1.0), high_tint, rot) * lv * pools * reach * 3.2 * (1.0 - 0.55 * rot);
 	} else {
 		vec3 base;
 		float rough;
@@ -123,6 +136,9 @@ void fragment() {
 		base *= 1.0 - min(grime + 0.45 * rot, 0.95) * wet;
 		// rot: big blotches of damp, whole stretches of wall gone dark with it
 		base *= 1.0 - 0.6 * rot * vnoise1(along * 0.31 + k * 4.7) * vnoise1(h * 0.55 + along * 0.13 + k * 1.9);
+		// patchy: a cell's width of storey stained darker than the next, so no two storeys read alike
+		float patch_v = vnoise1(along / cell * 1.3 + k * 5.9 + (x_wall ? 0.0 : 31.0));
+		base *= 1.0 - patchy * smoothstep(0.35, 0.85, patch_v) * (0.6 + 0.4 * rot);
 		// the joint between wall and slab, and the slab's own seam at the storey line
 		base *= mix(0.55, 1.0, smoothstep(0.0, 0.05, abs(h - band_h)));
 		base *= mix(0.7, 1.0, smoothstep(0.0, 0.04, min(h, seg_h - h)));
@@ -153,7 +169,7 @@ void fragment() {
 		}
 		ALBEDO = base;
 		ROUGHNESS = rough;
-		EMISSION = base * tube_color * light * ao * (1.0 - 0.45 * rot);
+		EMISSION = base * tube_color * mix(vec3(1.0), high_tint, rot) * light * ao * (1.0 - 0.45 * rot);
 	}
 	float lit = 1.0 - smoothstep(fade_from, mix(fade_from, fade_to, 0.4), wpos.y);
 	ALBEDO *= lit;

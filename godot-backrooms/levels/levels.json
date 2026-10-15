@@ -1,12 +1,12 @@
 [
   {
+    "file": "tsra_hub.lvl",
+    "id": "tsra_hub",
+    "name": "T.S.R.A. Hub: Launch Bay 1"
+  },
+  {
     "file": "level0.lvl",
     "id": "level0",
     "name": "Level 0: Floor Zero"
-  },
-  {
-    "file": "level_1_the_lobby.lvl",
-    "id": "level_1_the_lobby",
-    "name": "Level 1: The Lobby"
   }
 ]

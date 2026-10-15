@@ -143,7 +143,7 @@ func _process(delta: float) -> void:
 		return
 	if local.x > 0.0 and local.x < TRIGGER_DEPTH and absf(local.z) < DOOR_W * 0.5 + 0.2:
 		used = true
-		# a taped trail all the way here documents the route (asra_clearance.gd file_route)
+		# a taped trail all the way here documents the route (tsra_clearance.gd file_route)
 		Clearance.file_route(TapeMarks.mine_on(TapeMarks.MarkStore.key()), global_position)
 		# the swap frees this very door with the rest of the old level: not from inside its own _process
 		Game.next_level.call_deferred()

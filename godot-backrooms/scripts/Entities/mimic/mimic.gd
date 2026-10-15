@@ -413,7 +413,7 @@ func on_floor_changed() -> void:
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
-	set_meta("asra_id", "mimic")
+	set_meta("tsra_id", "mimic")
 
 ## Where the scanner can take a reading off it right now; empty while it is away
 func scan_points() -> Array:

@@ -8,14 +8,19 @@ extends "res://scripts/Entities/model_entity.gd"
 ##   stare    held there, closer and closer, while its head tilts
 ##   corrupt  the tape can't take it: the picture tears, warps and breaks up into static
 ## and then you are dead, and the camera's own error screen comes up instead of the picture (burnt_error.gd).
-## The model has a skeleton but no animations: its stalking gait, the twitch, the head tilt and the arms
-## reaching out are all posed here, bone by bone. `spawn burnt` in the debug console stands it in front of you.
+## Stalking, it also hides at the corners of the walls: it goes to stand behind one, curls a hand round its edge
+## and leans its head out, laid over on its side, to watch you (peek).
+## Its clips are baked in theburnt_animated.glb (tools/blender/animate_burnt.py): idle, walk, run, crouch, skid,
+## heave, windup, peek_r/peek_l (+ _hold) and kill. They are played here, by hand (_animate), and only its head
+## (turned on to you, the twitch) and the hug's arms are posed on top of them. `spawn burnt` in the debug console
+## stands it in front of you.
 
 const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const LURK_WAKE := 14.0             # metres: a Burnt placed to lurk starts to stalk when you come this close
 const BurntError := preload("res://scripts/Entities/burnt/burnt_error.gd")
 const BurntNet := preload("res://scripts/Entities/burnt/burnt_net.gd")
-const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug"]
+const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug", "peek"]
+const PEEK_PHASES := ["", "go", "set", "in", "hold", "out"]
 const HELD_MAX := 40.0              # co-op host: seconds it waits on the victim's machine before it lets go
 const CELL := 4.5
 const RADIUS := 0.6
@@ -28,6 +33,7 @@ const LAMP_HOLD := 1.4              # seconds a tube stays out after it has move
 const HUG_REACH := 1.4              # its arms coming round you from behind...
 const HUG_TIME := 2.8               # ...holding you, and the view going black over the end of it
 const HUG_FADE := 0.8
+const HUG_HEAD_BACK := 0.45         # metres the middle of its skull is kept behind your eyes in the hug (_hug_place)
 const FADE_IN := 0.9                # back out of the black, facing it
 const WINDUP_TIME := 0.45           # seconds it coils before it takes you: the tell (you can still back off)
 const GRAB_TIME := 0.7
@@ -35,12 +41,27 @@ const LIFT_TIME := 6.0
 const STARE_TIME := 3.4
 const CORRUPT_TIME := 2.4
 
-@export var leg_swing := 0.3        # radians the thighs swing fore and aft at a full stride
-@export var knee_bend := 0.35       # radians a knee folds as its leg comes through
-@export var hip_twist := 0.05       # radians the pelvis turns against the shoulders each step
-@export var coil_lean := 0.45       # radians the spine has folded forward by the end of the wind-up
+# its clips (tools/blender/animate_burnt.py): how fast each one's feet go by at speed 1, in the model's own units
+# (times body.scale for metres), and where in each a foot comes down
+const WALK_CLIP_SPEED := 0.2855
+const RUN_CLIP_SPEED := 1.9
+const WALK_FALLS := [0.0, 1.378]
+const RUN_FALLS := [0.0, 0.433]
+const LOOPED := ["idle", "walk", "run", "heave", "peek_r_hold", "peek_l_hold"]
+const FREEZE_HOLD := 1.2            # seconds caught mid-stride, held there, before it settles into its stance
+const KILL_AT := {"grab": 0.0, "lift": 0.7, "stare": 6.7, "corrupt": 10.1}   # where each beat starts in the kill clip
+const KILL_EYE := 0.06              # model units from its grip (the wrists) up to your eyes, held in it
 
-@export var arm_swing := 0.0        # radians the arms swing against the legs when it walks (they hang loose, so they lag)
+# the peek: the corner of a wall block, its hand round the edge, its head out past it
+const PEEK_EDGE := Vector2(0.16, 0.15)  # model units: the edge it grips, off its midline / ahead of it (the wall's face)
+const PEEK_HEAD := Vector2(0.075, 0.065) # ...and where its head comes out: past the edge / short of the face
+const PEEK_MIN := 7.0               # metres from you it will hide and watch from
+const PEEK_MAX := 26.0
+const PEEK_IN := 1.6                # the peek_r / peek_l clips
+const PEEK_OUT := 1.3               # (the same, backwards and a little faster)
+const PEEK_LOST := 2.0              # seconds you are out of its sight before it lets go of the edge
+const PEEK_COOLDOWN := 14.0
+
 @export var charge_watch := 4.0     # seconds of being stared at, from afar, before it stops waiting and runs at you
 @export var charge_min := 9.0       # metres: nearer than this it simply stalks
 @export var charge_max := 42.0
@@ -59,26 +80,28 @@ var state := "off"                  # off, stalk, windup, charge, grab, lift, st
 var t := 0.0
 var yaw := 0.0
 var _walk := 0.0                    # 0..1 how much it is walking (eased)
-var _gait := 0.0
 var _watch_t := 0.0                 # how long it has been stared at, from afar (decays when you look away)
 var _charge_cd := 0.0
-var _run := 0.0                     # 0..1 how far into a run it is (eased)
-var _crouch := 0.0                  # 0..1 the crouch it drops into before it runs
-var _sp := 0.0                      # 0..1 its speed as a fraction of a full run (what _run and the cadence follow)
+var _sp := 0.0                      # 0..1 its speed as a fraction of a full run (what the run clip's speed follows)
 var _braking := false               # the charge has seen you in front of it and is skidding to a halt short of you
 var _brake_t := 0.0                 # seconds spent standing at the end of the skid
-var _skid := 0.0                    # 0..1 how far it is thrown back on its heels
 var _rush := 0.0                    # 0..1 the high the player is on while it runs at them (and for a while after)
 var _rush_sat := 0.0                # what the rush has added to Game.fx_sat / fx_contrast, to take back out again
 var _rush_con := 0.0
 var _head_yaw := 0.0                # radians the head is turned off the body to keep its eyes on you
-var _hitch_t := 0.0                 # a dropped-frame stutter in the run: the gait holds for a beat
+var _hitch_t := 0.0                 # a dropped-frame stutter in the walk or the run: clip and feet hold for a beat
 var _hitch_next := 0.6
-var _last_step := 0
-var _arm := [0.0, 0.0]              # R, L upper arm angle and speed: sprung, so they hang loose and lag
-var _arm_v := [0.0, 0.0]
-var _stride := 0.0                 # 0..1 how much its legs swing: holds while it is watched, settles when it stops stalking
-var _step_t := 0.0
+var _is_seen := false               # someone has their eyes on it (this physics frame): a peek holds still
+var _peek_side := 1                 # the edge it holds: +1 on its right (peek_r), -1 on its left (peek_l)
+var _peek_phase := ""               # go (to the spot), set (turned to the wall), in, hold, out (back behind it)
+var _peek_t := 0.0
+var _peek_at := Vector3.ZERO        # where it stands behind the wall
+var _peek_yaw := 0.0                # facing the wall
+var _peek_head := Vector3.ZERO      # where its head comes out past the edge (what it sees you from)
+var _peek_hold := 4.0               # seconds it hangs there watching
+var _peek_lost := 0.0               # seconds you have been out of its sight from the edge
+var _peek_cd := 4.0
+var _peek_scan := 0.0
 var _lamp_t := 0.0
 var _fwd := Vector3.FORWARD         # its facing when it took you
 var _from := Transform3D.IDENTITY   # your view when it took you
@@ -103,8 +126,12 @@ var scares                          # (untyped: the Scares node's own methods)
 var _pl                             # the player, untyped (player.gd's own fields: cam, dead, frozen...)
 var _lv                             # the level, untyped (its fixture methods)
 
-# its skeleton, posed by hand
+# its skeleton and its clips
 var skel: Skeleton3D
+var _ap: AnimationPlayer            # advanced by hand in _animate (its head is posed on top, after)
+var _clip := ""                     # what _animate last started (a peek played backwards ends in "<")
+var _still_t := 0.0                 # seconds it has stood still, stalking
+var _clip_pos := 0.0                # the clip's time last frame (a foot comes down as it passes a footfall)
 var _bone := {}                     # name -> index (the ones it moves)
 var _rest := {}                     # index -> rest rotation
 var _tw_axis := Vector3.RIGHT       # the head's twitch: a jerk to one side and back
@@ -161,6 +188,14 @@ func _build() -> bool:
 			if i >= 0:
 				_bone[n] = i
 				_rest[i] = skel.get_bone_rest(i).basis.get_rotation_quaternion()
+	var aps := body.find_children("*", "AnimationPlayer", true, false)
+	_ap = aps[0] as AnimationPlayer if not aps.is_empty() else null
+	if _ap != null:
+		_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		for a in LOOPED:
+			if _ap.has_animation(a): _ap.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+	else:
+		push_warning("Burnt: %s has no clips (theburnt_animated.glb?): it will stand at rest" % model)
 	# A skinned mesh is culled by its rest-pose box: arms posed reaching round the camera, metres in front of a body
 	# standing behind it, would be culled away. A wide margin keeps them drawn (one entity: it costs nothing).
 	for mi: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
@@ -191,11 +226,16 @@ func _physics_process_timed(delta: float) -> void:
 		if _held_t > HELD_MAX: _despawn_quietly()
 		return
 	_charge_cd = maxf(0.0, _charge_cd - delta)
+	_peek_cd = maxf(0.0, _peek_cd - delta)
+	_is_seen = false
 	if state == "windup":
 		_windup(delta)
 		return
 	if state == "charge":
 		_charge(delta)
+		return
+	if state == "peek":
+		_peek(delta)
 		return
 	if state != "stalk": return
 	var tgt := _target()
@@ -210,7 +250,8 @@ func _physics_process_timed(delta: float) -> void:
 		state = "windup"
 		t = 0.0
 		return
-	if _seen():
+	_is_seen = _seen()
+	if _is_seen:
 		_walk = move_toward(_walk, 0.0, delta * 8.0)      # caught moving: it stops dead
 		# ...but hold its eye long enough, from far enough off, and it stops waiting: it runs
 		_watch_t += delta
@@ -219,15 +260,140 @@ func _physics_process_timed(delta: float) -> void:
 			return
 	else:
 		_watch_t = maxf(0.0, _watch_t - delta * 0.6)
+		# out of your sight, near enough, a wall corner to hand: it goes and hides behind it, and watches
+		_peek_scan -= delta
+		if _peek_cd <= 0.0 and _peek_scan <= 0.0 and d >= PEEK_MIN and d <= PEEK_MAX:
+			_peek_scan = 0.5
+			if not nav.clear_line(p.x, p.z, pp.x, pp.z) and _find_peek(pp):
+				_begin_peek()
+				return
 		_walk = move_toward(_walk, 1.0, delta * 2.5)
-		_move_toward(pp, STALK_SPEED * _walk, delta)
-		# its steps: slow, heavy and soft (a big weight set down on carpet over concrete), felt more than heard
-		_step_t -= delta * _walk
-		if _step_t <= 0.0:
-			_step_t = 1.3
-			if scares != null:
-				scares.spawn3d(scares.synth("thump"), global_position, 0.32, "Scares", 3.0, randf_range(0.9, 1.0))
+		_move_toward(pp, STALK_SPEED * _walk * (0.0 if _hitch_t > 0.0 else 1.0), delta)
 	rotation.y = yaw
+
+# ---------------------------------------------------------------- the peek
+## A corner to hide behind and watch you from, near it: the end of a wall block's face, with you beyond that face.
+## It stands behind the face, square to it, the edge just off its shoulder, where you can't see it; leaning out, its
+## head comes past the edge to where it can. The nearest that works. Sets _peek_at / _peek_yaw / _peek_side / _peek_head.
+func _find_peek(pp: Vector3) -> bool:
+	if body == null: return false
+	var k := body.scale.x
+	var p := global_position
+	var cx := GridNav.cell(p.x)
+	var cz := GridNav.cell(p.z)
+	var h := CELL * 0.5
+	var best := INF
+	for ox in range(-2, 3):
+		for oz in range(-2, 3):
+			var w := Vector2i(cx + ox, cz + oz)
+			if not nav.is_wall(w.x, w.y): continue
+			for n: Vector2i in GridNav.NEIGHBOURS:              # the face it would stand before (n: out of the block)
+				if nav.blocked(w.x + n.x, w.y + n.y): continue   # buried
+				for e: Vector2i in [Vector2i(n.y, -n.x), Vector2i(-n.y, n.x)]:   # ...and the end of that face it holds
+					if nav.blocked(w.x + e.x, w.y + e.y) or nav.blocked(w.x + e.x + n.x, w.y + e.y + n.y):
+						continue                                   # the wall goes on (no edge there), or an inside corner
+					var n3 := Vector3(n.x, 0.0, n.y)
+					var e3 := Vector3(e.x, 0.0, e.y)
+					var fwd := -n3
+					var corner := Vector3(w.x * CELL, p.y, w.y * CELL) + (n3 + e3) * h
+					var at := corner - e3 * PEEK_EDGE.x * k - fwd * PEEK_EDGE.y * k
+					var head := corner + e3 * PEEK_HEAD.x * k + n3 * PEEK_HEAD.y * k
+					var dsq := at.distance_squared_to(p)
+					if dsq >= best or dsq > 100.0: continue
+					if (pp - corner).dot(fwd) < 1.0: continue    # you are on its side of the wall, not beyond it
+					if not nav.open_at(at.x, at.z) or nav.resolve(at, RADIUS).distance_to(at) > 0.05: continue
+					if nav.clear_line(at.x, at.z, pp.x, pp.z): continue           # it would be stood in plain sight
+					if not nav.clear_line(head.x, head.z, pp.x, pp.z): continue   # and could not see you from the edge
+					if not nav.clear_line(p.x, p.z, at.x, at.z): continue         # (it walks there straight)
+					best = dsq
+					_peek_at = at
+					_peek_yaw = atan2(fwd.x, fwd.z)
+					_peek_head = head
+					_peek_side = 1 if fwd.cross(Vector3.UP).dot(e3) > 0.0 else -1
+	return best < INF
+
+func _begin_peek() -> void:
+	state = "peek"
+	_peek_phase = "go"
+	_peek_t = 0.0
+	_peek_lost = 0.0
+	_peek_hold = randf_range(3.5, 7.0)
+
+func _end_peek() -> void:
+	state = "stalk"
+	_peek_phase = ""
+	_peek_cd = PEEK_COOLDOWN * randf_range(0.8, 1.5)
+	_walk = 0.0
+
+## Goes to the spot, turns square to the wall, reaches round the edge and leans out (in), hangs there watching you
+## (hold), and pulls back behind the wall (out) once it has watched long enough, or you have gone from its sight.
+## Like everything else it does, it only moves unwatched: caught at it, it holds where it is, even half out.
+func _peek(delta: float) -> void:
+	_peek_t += delta
+	var tgt := _target()
+	if tgt.is_empty():
+		_end_peek()
+		return
+	var pp: Vector3 = tgt.pos
+	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
+	if d < GRAB_DIST and _can_take(tgt):
+		_peek_phase = ""
+		state = "windup"
+		t = 0.0
+		return
+	_is_seen = _seen()
+	if _is_seen:
+		# stared at, hanging off the edge: the same as anywhere, it gives up waiting and runs at you
+		_watch_t += delta
+		if _peek_phase != "go" and _watch_t >= charge_watch and _charge_cd <= 0.0 and d >= charge_min and d <= charge_max and _can_take(tgt):
+			_peek_phase = ""
+			_begin_charge()
+			return
+	else:
+		_watch_t = maxf(0.0, _watch_t - delta * 0.6)
+	match _peek_phase:
+		"go":
+			if _is_seen:
+				_walk = move_toward(_walk, 0.0, delta * 8.0)
+				_end_peek()                                    # seen getting there: the hiding place is no good
+				return
+			_walk = move_toward(_walk, 1.0, delta * 2.5)
+			_move_toward(_peek_at, STALK_SPEED * _walk * (0.0 if _hitch_t > 0.0 else 1.0), delta)
+			if Vector2(_peek_at.x - global_position.x, _peek_at.z - global_position.z).length() < 0.35:
+				_peek_phase = "set"
+				_peek_t = 0.0
+			elif _peek_t > 10.0:
+				_end_peek()
+		"set":
+			_walk = move_toward(_walk, 0.0, delta * 4.0)
+			if _is_seen: return
+			global_position = global_position.lerp(Vector3(_peek_at.x, global_position.y, _peek_at.z), 1.0 - exp(-8.0 * delta))
+			yaw = lerp_angle(yaw, _peek_yaw, 1.0 - exp(-6.0 * delta))
+			if _peek_t > 0.7:
+				global_position = Vector3(_peek_at.x, global_position.y, _peek_at.z)
+				yaw = _peek_yaw
+				_peek_phase = "in"
+				_peek_t = 0.0
+				if scares != null:                         # its nails finding the edge
+					scares.spawn3d(scares.synth("creak"), _peek_head + Vector3.UP * 3.0, 0.35, "Scares", 3.0, randf_range(0.8, 0.95))
+		"in":
+			if _is_seen: _peek_t -= delta
+			elif _peek_t >= PEEK_IN:
+				_peek_phase = "hold"
+				_peek_t = 0.0
+		"hold":
+			_peek_lost = 0.0 if nav.clear_line(_peek_head.x, _peek_head.z, pp.x, pp.z) else _peek_lost + delta
+			if not _is_seen and (_peek_t > _peek_hold or _peek_lost > PEEK_LOST):
+				_peek_phase = "out"
+				_peek_t = 0.0
+		"out":
+			if _is_seen: _peek_t -= delta
+			elif _peek_t >= PEEK_OUT: _end_peek()
+	rotation.y = yaw
+
+## Hanging off a corner, what shows is its face: that is what you see it by, not its middle (behind the wall)
+func _peeking() -> bool:
+	return state == "peek" and (_peek_phase == "in" or _peek_phase == "hold" or _peek_phase == "out")
 
 ## It has been looked at too long. It drops into a crouch, turns to you and breathes in (the tell), then runs.
 func _begin_charge() -> void:
@@ -359,7 +525,7 @@ func _seen_by(s: Dictionary) -> bool:
 		var cam: Camera3D = _pl.cam
 		eye = cam.global_position
 		look = -cam.global_transform.basis.z
-	var mid := global_position + Vector3.UP * height * 0.55
+	var mid := _face() if _peeking() else global_position + Vector3.UP * height * 0.55
 	var to := mid - eye
 	if to.length() > 60.0: return false
 	var dir := to.normalized() if s.local else Vector3(to.x, 0.0, to.z).normalized()
@@ -444,7 +610,7 @@ func _flow_dir(to: Vector3) -> Vector3:
 			break
 	return Vector3(bx - p.x, 0.0, bz - p.z)
 
-# ---------------------------------------------------------------- its body, posed
+# ---------------------------------------------------------------- its body: the clips, its head on top
 func _process(delta: float) -> void:
 	var _pt := Time.get_ticks_usec()
 	_process_timed(delta)
@@ -457,48 +623,123 @@ func _process_timed(delta: float) -> void:
 	if body.visible == asleep:
 		body.visible = not asleep
 	if asleep: return
-	# the gait: a slow, heavy sway as it walks, leaning into it
-	_gait += delta * 3.2 * _walk
-	var charging := state == "charge"
 	if puppet:                          # (the guest is told how fast it goes by _walk, and that it is skidding by its drop)
 		_sp = _walk
-	_run = lerpf(_run, _sp if charging and t > CHARGE_PREP else 0.0, 1.0 - exp(-10.0 * delta))
-	_crouch = lerpf(_crouch, 1.0 if charging and t < CHARGE_PREP else 0.0, 1.0 - exp(-9.0 * delta))
-	_skid = lerpf(_skid, minf(1.0, _sp * 2.5) if charging and _braking and _sp > 0.02 else 0.0, 1.0 - exp(-14.0 * delta))
-	# the run is uneven: the cadence wanders, and every second or so the gait drops a beat and catches up
-	# walking: slow and lurching, it lingers at each footfall then snaps through the step
-	var cadence := lerpf(2.4 * (1.0 + 0.6 * sin(2.0 * _gait + 1.0)), 12.0, _run) * (1.0 + _run * (0.1 * sin(Game.time * 4.7) + 0.05 * sin(Game.time * 11.3)))
-	_hitch_t = maxf(0.0, _hitch_t - delta)
-	if charging and _run > 0.5:
-		_hitch_next -= delta
-		if _hitch_next <= 0.0:
-			_hitch_t = randf_range(0.1, 0.18)
-			_hitch_next = randf_range(0.5, 1.2)
-			if scares != null: scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 1.5, 0.35, "Scares", 6.0, randf_range(0.9, 1.2))
-	_gait += delta * cadence * _walk * (0.0 if _hitch_t > 0.0 else 1.0)
-	# a heavy footfall as each foot comes down in the run (the walk's are timed in _physics_process)
-	var step := int(floorf(_gait / PI))
-	if step != _last_step:
-		_last_step = step
-		if charging and _run > 0.5:
-			if scares != null: scares.spawn3d(scares.synth("thump"), global_position, 0.6, "Scares", 7.0, randf_range(0.72, 0.9))
-			# each stride lands in the player's own view: the floor shudders, the picture punches in with the beat
-			var near := clampf(1.0 - global_position.distance_to(_pl.global_position) / 22.0, 0.0, 1.0)
-			_pl.jolt(0.9 * near)
-			Game.fx_shock = maxf(Game.fx_shock, 0.12 * near)
-	# highest as the legs pass, lowest as a foot comes down: the weight lands on each step. In the run it is
-	# nearly airborne between strides, thrown forward off the toes
-	body.position = Vector3(0.0, (1.0 - absf(sin(_gait))) * lerpf(0.03, 0.18, _run) * _walk - 0.2 * _crouch, 0.0)
-	body.rotation = Vector3(0.04 * _walk + _lean + 0.45 * _run - 0.4 * _skid, deg_to_rad(yaw_offset), sin(_gait) * lerpf(0.015, 0.08, _run) * _walk)
-	var stride_to := 0.0
-	if state == "stalk": stride_to = 1.0 if _walk > 0.3 else 0.5   # caught mid-step it holds, then sinks into a wide stance
-	elif charging: stride_to = 1.0 if (t > CHARGE_PREP and _sp > 0.05) else (0.0 if t <= CHARGE_PREP else 0.3)
-	_stride = lerpf(_stride, stride_to, 1.0 - exp(-2.5 * delta))
-	_pose(delta)
+	_hitches(delta)
+	# (the clips carry its weight, bob and lean; the body is only tipped over you in the hug from behind)
+	body.position = Vector3.ZERO
+	body.rotation = Vector3(_lean, deg_to_rad(yaw_offset), 0.0)
+	_animate(delta)
+	_pose_head(delta)
+	if state == "hug" and (not puppet or _net_taken):
+		_hug_place()
+		_hug_arms()
 	if state in ["hug", "grab", "lift", "stare", "corrupt"] and (not puppet or _net_taken):
 		_sequence(delta)
 
-## Turn bone `name` by `angle` about a world axis, from its rest pose
+## Broken rhythm: every few seconds of the walk (every second or so of the run) the clip and its feet hold for a
+## beat, a dropped frame, then go on. In the run a joint cracks with it.
+func _hitches(delta: float) -> void:
+	_hitch_t = maxf(0.0, _hitch_t - delta)
+	var walking := (state == "stalk" or (state == "peek" and _peek_phase == "go")) and _walk > 0.6
+	var running := state == "charge" and t > CHARGE_PREP and not _braking and _sp > 0.5
+	if not (walking or running): return
+	_hitch_next -= delta
+	if _hitch_next > 0.0: return
+	_hitch_t = randf_range(0.1, 0.18) if running else randf_range(0.12, 0.22)
+	_hitch_next = randf_range(0.5, 1.2) if running else randf_range(2.5, 6.0)
+	if running and scares != null:
+		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 1.5, 0.35, "Scares", 6.0, randf_range(0.9, 1.2))
+
+## Which clip, how fast and how it blends in, from what it is doing; then the clip is advanced by hand and a foot
+## that comes down in it is heard (and in the run, felt).
+func _animate(delta: float) -> void:
+	if _ap == null: return
+	var k := body.scale.x
+	var clip := "idle"
+	var speed := 1.0
+	var fade := 0.4
+	var back := false
+	_still_t = 0.0 if _walk > 0.02 else _still_t + delta
+	var walk_speed := _walk * STALK_SPEED / (WALK_CLIP_SPEED * k)
+	match state:
+		"stalk":
+			# caught mid-stride it holds the stride, dead still; only after a while does it settle into its stance
+			if _walk > 0.02 or (_clip == "walk" and _still_t < FREEZE_HOLD):
+				clip = "walk"
+				speed = walk_speed
+				fade = 0.3
+			else:
+				fade = 1.2 if _clip == "walk" else 0.4
+		"windup":
+			clip = "windup"
+			fade = 0.1
+		"charge":
+			if t < CHARGE_PREP:
+				clip = "crouch"
+				fade = 0.15
+			elif _braking:
+				clip = "skid" if _sp > 0.0 else "heave"
+				fade = 0.1 if clip == "skid" else 0.5
+			else:
+				clip = "run"
+				speed = maxf(0.6, _sp * charge_speed / (RUN_CLIP_SPEED * k))
+				fade = 0.2
+		"peek":
+			var c := "peek_r" if _peek_side > 0 else "peek_l"
+			match _peek_phase:
+				"go":
+					clip = "walk"
+					speed = walk_speed
+					fade = 0.3
+				"in":
+					clip = c
+					fade = 0.25
+				"hold":
+					clip = c + "_hold"
+					fade = 0.3
+				"out":
+					clip = c
+					back = true
+					speed = PEEK_IN / PEEK_OUT
+					fade = 0.2
+			if _is_seen and _peek_phase != "go": speed = 0.0          # caught at it: frozen where it is
+		"hug":
+			fade = 0.3                                               # (stood, its arms posed round you on top)
+		"grab", "lift", "stare", "corrupt":
+			clip = "kill"
+			fade = 0.0 if _from_hug else 0.08                        # (out of the black: no blend to see)
+	if _hitch_t > 0.0: speed = 0.0
+	var key := clip + ("<" if back else "")
+	if key != _clip:
+		if not _ap.has_animation(clip): return
+		if back: _ap.play_backwards(clip, fade)
+		else: _ap.play(clip, fade)
+		if clip == "kill" and KILL_AT.has(state): _ap.seek(KILL_AT[state] + t, true)
+		_clip = key
+		_clip_pos = _ap.current_animation_position
+	_ap.speed_scale = speed
+	_ap.advance(delta)
+	var at := _ap.current_animation_position
+	if clip == "walk" or clip == "run":
+		for f: float in (WALK_FALLS if clip == "walk" else RUN_FALLS):
+			if (_clip_pos < f and f <= at) or (at < _clip_pos and (f > _clip_pos or f <= at)):
+				_footfall(clip == "run")
+	_clip_pos = at
+
+## A foot coming down. Walking: slow, heavy and soft (a big weight set down on carpet over concrete), felt more than
+## heard. Running: each stride lands in the player's own view, the floor shudders, the picture punches in on the beat.
+func _footfall(running: bool) -> void:
+	if scares == null: return
+	if not running:
+		scares.spawn3d(scares.synth("thump"), global_position, 0.32, "Scares", 3.0, randf_range(0.9, 1.0))
+		return
+	scares.spawn3d(scares.synth("thump"), global_position, 0.6, "Scares", 7.0, randf_range(0.72, 0.9))
+	var near := clampf(1.0 - global_position.distance_to(_pl.global_position) / 22.0, 0.0, 1.0)
+	_pl.jolt(0.9 * near)
+	Game.fx_shock = maxf(Game.fx_shock, 0.12 * near)
+
+## Turn bone `name` by `angle` about a world axis, on top of the pose the clip has given it
 func _turn(name: String, world_axis: Vector3, angle: float) -> void:
 	if skel == null or not _bone.has(name): return
 	var i: int = _bone[name]
@@ -507,119 +748,51 @@ func _turn(name: String, world_axis: Vector3, angle: float) -> void:
 	if parent >= 0: pb = pb * skel.get_bone_global_pose(parent).basis
 	var pq := pb.orthonormalized().get_rotation_quaternion()
 	var q := pq.inverse() * Quaternion(world_axis.normalized(), angle) * pq
-	skel.set_bone_pose_rotation(i, q * (_rest[i] as Quaternion))
+	skel.set_bone_pose_rotation(i, q * skel.get_bone_pose_rotation(i))
 
-func _pose(delta: float) -> void:
+## Its head, over the clip: kept on you whichever way the body turns (stalking, running, hanging off an edge), and
+## the twitch. Stillness is what's wrong with it. Now and then (not often) the head gives one small, sharp tick, a
+## few degrees round or over, never up and down (that read as nodding), holds it, and eases back very slowly. It
+## ticks faster the longer it is stared at; in the run it will not keep its head still at all. (Holding you, the
+## kill clip has its own.)
+func _pose_head(delta: float) -> void:
 	if skel == null: return
 	var fwd := Vector3(sin(rotation.y), 0.0, cos(rotation.y))
-	var side := Vector3.UP.cross(fwd)
-	# the wind-up of the grab: k runs 0..1 over it. Spine and arms draw back first (anticipation), then fold
-	# forward over you, ease-in, the arms coming back down to hang so the reach starts from rest
-	var coil := 0.0
-	var draw := 0.0
-	if state == "windup":
-		var k := clampf(t / WINDUP_TIME, 0.0, 1.0)
-		var go := pow(smoothstep(0.4, 1.0, k), 2.0)
-		var back := smoothstep(0.0, 0.4, k)
-		coil = lerpf(-0.25, 1.0, go) * coil_lean if k >= 0.4 else -0.25 * coil_lean * back
-		draw = lerpf(0.45, 0.0, go) if k >= 0.4 else 0.45 * back
-	# the crouch before the run: folded over, arms drawn back, like a sprinter's set
-	coil += _crouch * coil_lean * 1.3
-	draw += _crouch * 0.6
-	_pose_gait(side, coil)
-	# Stillness is what's wrong with it. Now and then (not often) the head gives one small, sharp tick, a few
-	# degrees round or over, never up and down (that read as nodding), holds it, and eases back very slowly.
-	# Holding you it doesn't twitch at all until the very end of the stare.
 	_tw_next -= delta
-	# (it ticks faster the longer it is stared at, and in the run it will not keep its head still at all; held, the
-	# one tick comes just as the camera has stopped closing in)
-	var may_tick := state == "stalk" or state == "charge" or (state == "stare" and t > 1.9)
+	var may_tick := state == "stalk" or state == "charge" or (state == "peek" and _peek_phase == "hold")
 	if _tw_next <= 0.0 and may_tick:
 		if state == "charge": _tw_next = randf_range(0.12, 0.35)
-		elif state == "stalk": _tw_next = randf_range(0.8, 1.6) if _watch_t > charge_watch * 0.5 else randf_range(4.0, 9.0)
-		else: _tw_next = 99.0
+		elif _watch_t > charge_watch * 0.5: _tw_next = randf_range(0.8, 1.6)
+		else: _tw_next = randf_range(4.0, 9.0) if state == "stalk" else randf_range(1.5, 3.5)
 		_tw_axis = fwd if randf() < 0.6 else Vector3.UP       # a tilt over, or a turn: nothing else
 		_tw_goal = randf_range(0.07, 0.13) * (1.0 if randf() < 0.5 else -1.0) * (2.2 if state == "charge" else 1.0)
+	elif not may_tick:
+		_tw_goal = 0.0
 	_tw_amt = move_toward(_tw_amt, _tw_goal, delta * 14.0)      # snaps...
 	_tw_goal = move_toward(_tw_goal, 0.0, delta * 0.05)         # ...and creeps back over seconds
-	# while it holds you: dead still at first, then the head tilts over, slowly, as it studies you
-	var tilt := 0.0
-	if state == "stare": tilt = 0.38 * smoothstep(1.2, STARE_TIME, t)
-	elif state == "corrupt": tilt = 0.38
-	if state == "stalk": tilt += 0.1 * _stride
-	tilt += 0.4 * _run                                               # the head hangs over to one side as the body runs under it
-	# its head stays on you whichever way the body turns to go round a wall
 	var look_at := 0.0
-	if (state == "stalk" or state == "charge") and player != null:
-		look_at = clampf(wrapf(_yaw_to(player.global_position) - rotation.y, -PI, PI), -1.0, 1.0)
+	var tracking := state == "stalk" or state == "charge" or (state == "peek" and _peek_phase != "set")
+	if tracking and player != null and not (state == "peek" and _is_seen and _peek_phase != "go"):
+		var aim := player.global_position
+		var from := _peek_head if _peeking() else global_position
+		look_at = clampf(wrapf(atan2(aim.x - from.x, aim.z - from.z) - rotation.y, -PI, PI), -1.0, 1.0)
+	elif state == "peek" and _is_seen:
+		look_at = _head_yaw                                      # (caught: it doesn't move, not even its eyes)
 	_head_yaw = lerpf(_head_yaw, look_at, 1.0 - exp(-4.0 * delta))
-	var q_tw := Quaternion(_tw_axis, _tw_amt)
-	var q_tilt := Quaternion(fwd, tilt)
-	var head := Quaternion(Vector3.UP, _head_yaw) * q_tilt * q_tw * Quaternion(side, coil * 0.5)      # (the head dips with the fold)
-	_turn("Head", head.get_axis() if head.get_angle() > 0.0001 else Vector3.UP, head.get_angle())
-	if state == "hug":
-		_hug_arms()
-		return
-	# its arms come up to hold you
-	# the arms snap up (ease-out with a little overshoot, 0.3 s), then tighten as it lifts you, a tremor in the grip
-	var reach := 0.0
-	var grip := 0.0
-	match state:
-		"grab":
-			var x := clampf(t / 0.3, 0.0, 1.0) - 1.0
-			reach = 1.0 + 2.70158 * x * x * x + 1.70158 * x * x
-		"lift":
-			reach = 1.0 + 0.15 * smoothstep(0.0, LIFT_TIME, t)
-			grip = 0.03
-		"stare": reach = 1.15; grip = 0.03 + 0.03 * smoothstep(0.0, STARE_TIME, t)
-		"corrupt": reach = 1.15; grip = 0.08
-	reach += grip * sin(Game.time * 31.0)
-	# arms hanging loose otherwise: each swings against the opposite leg on a spring (k 45, c 4: underdamped), so it
-	# lags the stride and keeps swinging when the legs stop. In the run they are flung back and flail.
-	var wild := 1.0
-	var held := 1.0 - clampf(reach, 0.0, 1.0)
-	var sway := 0.04 * sin(Game.time * 0.8)
-	# (in the run they pump hard against the legs, and swing back wide as it skids)
-	var pump := 0.85 * _run * _stride
-	var goal := [
-		-(arm_swing + pump) * wild * _stride * sin(_gait + PI * 1.08) + 0.3 * _run + 0.04 * _crouch + sway - 0.06 + 0.7 * _skid,
-		-(arm_swing + pump) * wild * _stride * sin(_gait) + 0.3 * _run + 0.04 * _crouch - sway - 0.06 + 0.7 * _skid,
-	]
-	var stiff := lerpf(45.0, 170.0, _run)       # a stiffer spring in the run, so the arms keep up with the legs
-	for i in 2:
-		_arm_v[i] += ((goal[i] - _arm[i]) * stiff - _arm_v[i] * lerpf(4.0, 12.0, _run)) * delta
-		_arm[i] = clampf(_arm[i] + _arm_v[i] * delta, -1.1, 1.1)
-	for s in ["R_Forearm", "L_Forearm", "R_Hand", "L_Hand"]:
-		if _bone.has(s): skel.set_bone_pose_rotation(_bone[s], _rest[_bone[s]])
-	_turn("R_Upperarm", side, -1.2 * reach + draw + _arm[0] * held)
-	_turn("L_Upperarm", side, -1.2 * reach + draw + _arm[1] * held)
-	# the elbows give as an arm swings forward, and pump in the run (after the upper arms: _turn reads the parent)
-	_turn("R_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[0]) - 0.7 * _run) * held)
-	_turn("L_Forearm", side, (-0.15 - 0.5 * maxf(0.0, -_arm[1]) - 0.7 * _run) * held)
+	var head := Quaternion(Vector3.UP, _head_yaw) * Quaternion(_tw_axis, _tw_amt)
+	if head.get_angle() > 0.0001:
+		_turn("Head", head.get_axis(), head.get_angle())
 
-## Legs, hips and spine: a heavy lurching walk off the gait phase. Forward is negative about `side` for a limb
-## hanging down, and positive for the spine standing up. Parents first (_turn reads the parent's current pose).
-func _pose_gait(side: Vector3, coil: float) -> void:
-	if skel == null or not _bone.has("Pelvis"): return
-	var a := _stride
-	var legs := [["R", _gait, 1.0], ["L", _gait + PI * 1.08, 0.86]]       # not quite opposite, one a little short
-	# which side of it the left hip is on, so the hips turn the right way whichever way the model is built
-	var lr := skel.global_transform.basis * (skel.get_bone_global_pose(_bone["L_Thigh"]).origin - skel.get_bone_global_pose(_bone["R_Thigh"]).origin)
-	var twist := -signf(lr.dot(side)) * hip_twist * (1.0 + _run) * a * (sin(legs[1][1]) - sin(legs[0][1])) * 0.5
-	_turn("Pelvis", Vector3.UP, twist)
-	for leg in legs:
-		var ph: float = leg[1]
-		var amp: float = leg[2] * a
-		# the sprint: long reaching strides and high knees; the skid throws the feet out in front of it
-		var thigh := -leg_swing * (1.0 + 1.1 * _run) * amp * sin(ph) - 0.45 * _crouch - 0.7 * _skid
-		var knee := knee_bend * (1.0 + 1.2 * _run) * amp * maxf(0.0, cos(ph)) + 0.8 * _crouch + 0.35 * _skid   # folds as the leg swings through
-		_turn(leg[0] + "_Thigh", side, thigh)
-		_turn(leg[0] + "_Calf", side, knee)
-		_turn(leg[0] + "_Foot", side, -(thigh + knee) * 0.8)                # the foot stays near flat
-	# shoulders turn against the hips; the spine folds forward in the wind-up
-	var spine := Quaternion(Vector3.UP, -twist * 0.75) * Quaternion(side, coil * 0.5)
-	_turn("Spine01", spine.get_axis() if spine.get_angle() > 0.0001 else Vector3.UP, spine.get_angle())
-	_turn("Spine02", spine.get_axis() if spine.get_angle() > 0.0001 else Vector3.UP, spine.get_angle())
+## Taken from behind, its head has to stay behind yours: the clip's stoop carries it forward over you, and the
+## camera would be inside it. Every frame of the hug the body is slid back along the way you face until the middle
+## of its skull is HUG_HEAD_BACK behind your eyes (it is behind you: nothing sees it go; the arms are aimed after).
+func _hug_place() -> void:
+	if skel == null or not _bone.has("Head"): return
+	var c: Vector3 = (_pl.cam as Camera3D).global_position
+	var skull := (skel.global_transform * skel.get_bone_global_pose(_bone["Head"]).origin + _face()) * 0.5
+	var ahead := (skull - c).dot(_hug_dir) + HUG_HEAD_BACK
+	if ahead > 0.0:
+		global_position -= _hug_dir * ahead
 
 ## The hug from behind: each arm aimed bone by bone (works whatever pose the model rests its arms in). The upper
 ## arm aims its elbow out beside your head, the forearm aims its hand across in front of your chest, the two
@@ -775,6 +948,15 @@ func _body_at(s: float) -> Vector3:
 			return pts[i - 1].lerp(pts[i], (at - lens[i - 1]) / maxf(lens[i] - lens[i - 1], 0.0001))
 	return pts[-1]
 
+## Where your eyes are while it holds you, face on: between its wrists and KILL_EYE above (the kill clip holds you
+## by the chest, palms in, so this follows its grip, its breathing and its lunge)
+func _held() -> Vector3:
+	if skel == null or not (_bone.has("R_Hand") and _bone.has("L_Hand")):
+		return _face() + _fwd * 0.6
+	var a := skel.global_transform * skel.get_bone_global_pose(_bone["R_Hand"]).origin
+	var b := skel.global_transform * skel.get_bone_global_pose(_bone["L_Hand"]).origin
+	return (a + b) * 0.5 + skel.global_transform.basis * Vector3(0.0, KILL_EYE, 0.0)
+
 ## Between its eyes (the head, a little up, if the model has no eye bones)
 func _face() -> Vector3:
 	if skel != null and _bone.has("R_Eye") and _bone.has("L_Eye"):
@@ -797,15 +979,9 @@ func _sequence(delta: float) -> void:
 	var fov := _from_fov
 	var shake := 0.0
 	var roll := 0.0
-	# it stoops over you: a lunge on the grab that settles into a hunch, then leans in as it studies you
-	var lean_to := 0.0
-	match state:
-		"grab": lean_to = 0.32 if t < 0.25 else 0.12
-		"lift": lean_to = 0.12
-		"stare": lean_to = 0.12 + 0.12 * smoothstep(0.0, STARE_TIME, t)
-		"corrupt": lean_to = 0.24
-	if state != "hug":                  # (the hug's lean is set by _behind)
-		_lean = lerpf(_lean, lean_to, 1.0 - exp(-(14.0 if state == "grab" and t < 0.25 else 4.0) * delta))
+	# (face on, the kill clip stoops it over you, lunges and leans in; the hug's lean is set by _behind)
+	if state != "hug": _lean = 0.0
+	# You are where its hands hold you (_held): the camera rides the clip, its grip, its breathing heaving you
 	match state:
 		"hug":
 			# your own view, held still and trembling, its arms coming round you and closing; then black
@@ -824,7 +1000,7 @@ func _sequence(delta: float) -> void:
 			var k := smoothstep(0.0, GRAB_TIME, t)
 			var x := clampf(t / GRAB_TIME, 0.0, 1.0) - 1.0
 			var slam := 1.0 + 2.70158 * x * x * x + 1.70158 * x * x           # ease-out-back: it pulls you a little past, and you rebound
-			pos = _from.origin.lerp(_body_at(0.0) + _fwd * 1.1, slam)
+			pos = _from.origin.lerp(_held(), slam)
 			look = (_from.origin - _from.basis.z * 3.0).lerp(_body_at(0.06), k)
 			# the hit: trauma that falls off as its square, a FOV kick that eases back, the view thrown over
 			shake = 0.07 * pow(1.0 - clampf(t / GRAB_TIME, 0.0, 1.0), 2.0) + 0.01
@@ -835,8 +1011,8 @@ func _sequence(delta: float) -> void:
 		"lift":
 			# raised up the length of it, your light on it all the way, until you are level with its face
 			var k := t / LIFT_TIME
-			var s := k * k * k * (k * (k * 6.0 - 15.0) + 10.0)
-			pos = _body_at(s) + _fwd * lerpf(1.1, 0.9, s) + Vector3.UP * 0.012 * sin(t * 2.2)     # its breathing, heaving you
+			var s := k * k * k * (k * (k * 6.0 - 15.0) + 10.0)                # (the clip raises you on the same curve)
+			pos = _held()
 			look = _body_at(minf(1.0, s + 0.1)).lerp(face, smoothstep(0.7, 1.0, s))
 			fov = lerpf(_from_fov, 58.0, s)
 			shake = 0.008 + 0.004 * sin(t * 1.7)
@@ -855,10 +1031,10 @@ func _sequence(delta: float) -> void:
 			if t >= LIFT_TIME: _next("stare")
 		"stare":
 			# held there, drawn in closer while its head tilts over
-			# (it stops closing in for 0.4 s at 2.0 s, the head ticks, then it comes on: the hold is the beat)
+			# (it stops closing in for 0.4 s at 2.0 s, the head ticks, then it comes on: the hold is the beat, in the clip)
 			var tt := t if t < 2.0 else (2.0 if t < 2.4 else t - 0.4)
 			var k := smoothstep(0.0, STARE_TIME - 0.4, tt)
-			pos = face + _fwd * (lerpf(0.9, 0.42, k) + 0.012 * sin(t * 2.4))
+			pos = _held()
 			look = face
 			fov = lerpf(58.0, 48.0, k)
 			shake = 0.004
@@ -878,8 +1054,8 @@ func _sequence(delta: float) -> void:
 		"corrupt":
 			# the tape can't hold it: tearing, warping, static, the frame jumping closer to its face
 			var k := clampf(t / CORRUPT_TIME, 0.0, 1.0)
-			var jump := 0.42 - 0.25 * floorf(k * 4.0) / 4.0 if randf() < 0.2 + 0.6 * k else 0.42 - 0.12 * k
-			pos = face + _fwd * jump
+			var jump := 0.35 * floorf(k * 4.0) / 4.0 if randf() < 0.2 + 0.6 * k else 0.1 * k
+			pos = _held().lerp(face, jump)
 			look = face + Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 0.06 * k
 			fov = 48.0 - 10.0 * k
 			shake = 0.01 + 0.04 * k
@@ -968,17 +1144,16 @@ func _despawn_quietly() -> void:
 	visible = false
 	_walk = 0.0
 	_lean = 0.0
-	_run = 0.0
-	_crouch = 0.0
 	_watch_t = 0.0
 	_hitch_t = 0.0
 	_braking = false
 	_sp = 0.0
-	_skid = 0.0
+	_peek_phase = ""
+	_is_seen = false
 	_rush_clear()
 	if _black != null: _set_black(0.0)
-	if skel != null:
-		for i: int in _rest: skel.set_bone_pose_rotation(i, _rest[i])
+	_clip = ""
+	if _ap != null: _ap.stop()
 
 ## The player died some other way in the middle of it: let go
 func _finish() -> void:
@@ -994,6 +1169,9 @@ func debug_spawn() -> bool:
 	state = "stalk"
 	_walk = 0.0
 	_lamp_t = 0.0
+	_peek_phase = ""
+	_peek_cd = 4.0
+	_clip = ""
 	return true
 
 func debug_despawn() -> void:
@@ -1011,13 +1189,7 @@ func _physics_puppet(delta: float) -> void:
 	_snub = maxf(0.0, _snub - delta)
 	if not _net_taken and _snub <= 0.0: net.step(delta)
 	if not present or body == null: return
-	_burn_lamps(delta)
-	if _net_taken: return
-	_step_t -= delta * _walk
-	if _step_t <= 0.0 and state == "stalk":
-		_step_t = 1.3
-		if scares != null:
-			scares.spawn3d(scares.synth("thump"), global_position, 0.32, "Scares", 3.0, randf_range(0.9, 1.0))
+	_burn_lamps(delta)                    # (its footfalls come off the clips, in _animate, here as on the host)
 
 func net_apply(t_: float, m: Array) -> void:
 	net.apply(t_, m)

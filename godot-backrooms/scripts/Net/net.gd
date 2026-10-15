@@ -177,6 +177,7 @@ func join(address: String) -> void:
 		_connect_url(url)
 
 func _connect_url(url: String) -> void:
+	Stability.trace("net: connecting to the host")
 	var peer := _new_peer()
 	if peer.create_client(url) != OK:
 		_set_status("BAD ROOM CODE")
@@ -398,6 +399,7 @@ func _on_peer_disconnected(id: int) -> void:
 	_update_count()
 
 func _on_connected() -> void:
+	Stability.trace("net: connected to the host")
 	_online_since = Time.get_ticks_msec() / 1000.0
 	_hello_wait = HELLO_TIMEOUT
 	_set_status("CONNECTED // %d SURVIVOR(S)" % (multiplayer.get_peers().size() + 1))
@@ -443,6 +445,12 @@ func _hello(callsign: String, protocol: int, their_build: String) -> void:
 func _level(idx: int) -> void:
 	if idx < 0 or idx >= 64:       # Game.level_count may not be loaded yet on a guest; change_level wraps it anyway
 		return
+	Stability.trace("net: the host is on level %d (we are on %d)" % [idx, Game.level_index])
+	# Not from in here: this runs while SceneMultiplayer is polling the peer, and a level change frees and rebuilds
+	# the whole level in this same call. The end of the frame is outside the poll (as _drop is).
+	_follow_level.call_deferred(idx)
+
+func _follow_level(idx: int) -> void:
 	if idx != Game.level_index:
 		Game.change_level(idx)
 

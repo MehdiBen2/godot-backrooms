@@ -923,6 +923,11 @@ func _build_entities_tab() -> Control:
 		if m and m.has_method("warp_to_room"): m.warp_to_room()
 	))
 	man_box.add_child(_action_btn("DESPAWN", func(): _apply("mannequin", false)))
+	man_box.add_child(_action_btn("SNAP MY NECK NOW", func():
+		var m = root.get_node_or_null("Mannequin")
+		if m == null or not m.has_method("debug_snap_now"): return
+		if not m.debug_snap_now(): _print("Mannequin: no mannequin in this level to snap with")
+	))
 
 	# Mimic Row
 	var mim_box := HBoxContainer.new()
@@ -1583,6 +1588,10 @@ func _submit(line: String) -> void:
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 			_print("Models (no AI): " + ", ".join(EntityRoster.ROSTER.keys()))
+			_print("Crash reports: crash (takes the game down on purpose, to see the crash window)")
+		"crash":
+			_print("[color=red]crashing on purpose...[/color]")
+			Crash.test_crash.call_deferred()
 		"noclip":
 			Game.noclip = not Game.noclip
 			_sync_quick_buttons()

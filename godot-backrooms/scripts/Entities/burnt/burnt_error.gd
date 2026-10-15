@@ -105,6 +105,13 @@ func _rot(text: String, shown: float, step: float, line: int) -> String:
 	return out
 
 func _process(dt: float) -> void:
+	# It lives on the root (above the level, which a respawn reloads): respawned (or gone back to the title)
+	# before it is done, it goes at once; the respawn's own static starting, it breaks up into it now
+	if not Game.dead:
+		queue_free()
+		return
+	if Death.respawn_busy and t < HOLD:
+		t = HOLD + BREAK * 0.5
 	t += dt
 	var step := floorf(t * 24.0)
 	# the static: a burst as the picture dies, a low snow under the text, a burst again as it breaks up

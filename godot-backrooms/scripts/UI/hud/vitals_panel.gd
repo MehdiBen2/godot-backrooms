@@ -34,13 +34,12 @@ const FAST := 4.0                    # %/s: rising faster than this counts as re
 const LIGHT_BELOW := 50.0            # %: at or under this a row stays up
 const GLOW := 0.6                    # of the terminal's phosphor glow: less bloom in the corner of your eye
 # it rides with the camera like a display on your kit: it lags a turn, bounces with a step or a
-# crouch, and tilts with a lean (_sway)
+# crouch (_sway); it never tilts with the camera's roll
 const SWAY_K := 4.5                  # px per rad/s of turn
 const SWAY_MAX := Vector2(10.0, 7.0)
 const BOB_K := 35.0                  # px per metre the eye moves off its eased height
 const HEART_REST := 0.06             # how hard the HEALTH icon swells on a beat at rest ...
 const HEART_SCARED := 0.3            # ... and when the heart is racing (heart.gd stress 1)
-const ROLL_K := 0.3                  # of the camera's roll
 const SHAKE_PX := 3.0                # shaky hands: the most the picture trembles, scared stiff or winded
 # damage trail: a sudden loss stays on the bar as dim cells, then drains away (_trail)
 const SUDDEN := 2.0                  # % lost in one frame that counts as a hit, not a drain
@@ -175,6 +174,13 @@ func _sway_update(dt: float) -> void:
 	var cam: Camera3D = player.get("cam")
 	if cam == null or dt <= 0.0:
 		return
+	if bool(player.get("dead")):         # the death fall / spin is the body's, not the head's: settle and ignore it
+		_prev_f = Vector3.ZERO
+		_eye = -1.0
+		_sway = _sway.lerp(Vector2.ZERO, minf(1.0, dt * 10.0))
+		screen.position = _sway
+		screen.rotation = 0.0
+		return
 	var f := -cam.global_transform.basis.z
 	var target := Vector2.ZERO
 	if _prev_f != Vector3.ZERO:
@@ -195,7 +201,7 @@ func _sway_update(dt: float) -> void:
 	var tremor := Vector2(sin(_t * 47.0) + 0.6 * sin(_t * 73.0 + 1.3), sin(_t * 53.0 + 0.7) + 0.6 * sin(_t * 67.0 + 2.1))
 	screen.position = _sway + tremor * 0.6 * SHAKE_PX * shake
 	screen.pivot_offset = screen.size * 0.5
-	screen.rotation = cam.global_rotation.z * ROLL_K + sin(_t * 41.0) * 0.004 * shake
+	screen.rotation = sin(_t * 41.0) * 0.004 * shake
 
 ## Low sanity wears the little screen down: more scanlines, grain and colour drift, a tear across it
 ## now and then, a row slipping sideways for a moment, a cell going dead, and at the very bottom

@@ -13,6 +13,7 @@ config_version=5
 config/name="The Backrooms: Nullspace"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
+run/flush_stdout_on_print=true
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/image="res://splash.png"
 config/icon="res://icon.png"
@@ -26,6 +27,7 @@ driver/enable_input=true
 
 [autoload]
 
+Crash="*res://scripts/GameLogicEngine/crash_guard.gd"
 Game="*res://scripts/GameLogicEngine/game_state.gd"
 Keybinds="*res://scripts/GameLogicEngine/keybinds.gd"
 Death="*res://scripts/UI/death/death.gd"
@@ -37,9 +39,13 @@ EntityLOD="*res://scripts/Entities/entity_lod.gd"
 Perf="*res://scripts/GameLogicEngine/perf.gd"
 Voice="*res://scripts/Voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
-Archive="*res://scripts/GameLogicEngine/asra_archive.gd"
-Clearance="*res://scripts/GameLogicEngine/asra_clearance.gd"
+Archive="*res://scripts/GameLogicEngine/tsra_archive.gd"
+Clearance="*res://scripts/GameLogicEngine/tsra_clearance.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
+
+[debug]
+
+settings/gdscript/always_track_call_stacks=true
 
 [display]
 

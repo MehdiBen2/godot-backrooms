@@ -871,7 +871,7 @@ func _present(delta: float) -> void:
 # ================================================================= T.S.R.A.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
-	set_meta("asra_id", "grabber")
+	set_meta("tsra_id", "grabber")
 
 ## Where the scanner can take a reading off it right now; empty while it is away
 func scan_points() -> Array:

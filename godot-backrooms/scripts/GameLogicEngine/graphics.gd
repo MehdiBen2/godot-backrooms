@@ -74,6 +74,21 @@ var _phys_n := 0
 var phys_capped := false        # physics fell back to 60 Hz (see PHYS_FALLBACK)
 ## The render-buffer settings as last written (see apply): a write only happens when the value differs
 var _applied := {}
+## Temporal AA (TAA, FSR 2) held off while something on screen changes without moving (the field terminal's
+## glass, terminal_machine.gd): it rebuilds each frame from the frames before it along the motion vectors, and a
+## picture that changes in place has none, so the old frames trail behind the cursor and the text. FXAA stands in.
+var _no_temporal := 0
+
+func hold_temporal(on: bool) -> void:
+	_no_temporal = maxi(_no_temporal + (1 if on else -1), 0)
+	_apply_aa()
+
+## The anti-aliasing in effect: the setting, less temporal AA while it is held off
+func _aa() -> int:
+	var aa := int(s.get("aa", 1))
+	if aa == 3 and compat: aa = 1               # (no FSR 2 on the compatibility renderer: FXAA)
+	if aa >= 2 and _no_temporal > 0: aa = 1
+	return aa
 
 func _ready() -> void:
 	compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
@@ -260,21 +275,12 @@ func _put(key: String, value: Variant, setter: Callable) -> void:
 
 func apply() -> void:
 	var vp := get_viewport()
-	var aa := int(s.get("aa", 1))
-	if aa == 3 and compat: aa = 1               # (no FSR 2 on the compatibility renderer: FXAA)
-	var taa := aa == 2
 	var shadows := clampi(int(s.get("shadows", 1)), 0, 3)
 	var ssao := clampi(int(s.get("ssao", 1)), 0, 3)
-	_render_scale()
+	_apply_aa()
 	_put("occlusion", not bisect("noocc"), func(v): vp.use_occlusion_culling = v)
-	_put("taa", taa, func(v): vp.use_taa = v)
 	_put("msaa", Viewport.MSAA_DISABLED, func(v): vp.msaa_3d = v)
-	_put("fxaa", Viewport.SCREEN_SPACE_AA_FXAA if aa == 1 else Viewport.SCREEN_SPACE_AA_DISABLED, func(v): vp.screen_space_aa = v)
 	_put("debanding", true, func(v): vp.use_debanding = v)
-	# slightly sharper mips keep the wallpaper and carpet readable down a long hall, but only TAA can afford them:
-	# without it the sharper mips crawl and shimmer on the far ceiling grid
-	# (FSR 2 sets its own, from the render scale)
-	_put("mip_bias", -0.35 if taa else 0.0, func(v): vp.texture_mipmap_bias = v)
 	_put("mesh_lod", [3.0, 2.0, 1.5, 1.0][shadows], func(v): vp.mesh_lod_threshold = v)
 	var aniso: int = {2: Viewport.ANISOTROPY_2X, 4: Viewport.ANISOTROPY_4X, 8: Viewport.ANISOTROPY_8X,
 		16: Viewport.ANISOTROPY_16X}.get(int(s.get("aniso", 16)), Viewport.ANISOTROPY_16X)
@@ -293,6 +299,19 @@ func apply() -> void:
 	_phys_n = 0
 	apply_scene()
 	changed.emit()
+
+## Anti-aliasing and the 3D render size (FSR 2 is both)
+func _apply_aa() -> void:
+	var vp := get_viewport()
+	var aa := _aa()
+	var taa := aa == 2
+	_render_scale()
+	_put("taa", taa, func(v): vp.use_taa = v)
+	_put("fxaa", Viewport.SCREEN_SPACE_AA_FXAA if aa == 1 else Viewport.SCREEN_SPACE_AA_DISABLED, func(v): vp.screen_space_aa = v)
+	# slightly sharper mips keep the wallpaper and carpet readable down a long hall, but only TAA can afford them:
+	# without it the sharper mips crawl and shimmer on the far ceiling grid
+	# (FSR 2 sets its own, from the render scale)
+	_put("mip_bias", -0.35 if taa else 0.0, func(v): vp.texture_mipmap_bias = v)
 
 static func _set_shadow_filter(q: int) -> void:
 	RenderingServer.positional_soft_shadow_filter_set_quality(q)
@@ -318,7 +337,7 @@ func _render_scale() -> void:
 	var live := clampf(float(s.get("scale", 100)) / 100.0, 0.5, 1.0)
 	var mode := Viewport.SCALING_3D_MODE_BILINEAR
 	if compat: pass
-	elif int(s.get("aa", 1)) == 3: mode = Viewport.SCALING_3D_MODE_FSR2
+	elif _aa() == 3: mode = Viewport.SCALING_3D_MODE_FSR2
 	elif live < 1.0: mode = Viewport.SCALING_3D_MODE_FSR
 	_put("scale_mode", mode, func(v): vp.scaling_3d_mode = v)
 	_put("scale", live, func(v): vp.scaling_3d_scale = v)

@@ -145,6 +145,6 @@ source_height = 4.456
 
 [node name="Burnt" type="Node3D" parent="."]
 script = ExtResource("18_burnt")
-model = "res://models/entities/burnt/theburnt.glb"
+model = "res://models/entities/burnt/theburnt_animated.glb"
 height = 4.5
 source_height = 0.978

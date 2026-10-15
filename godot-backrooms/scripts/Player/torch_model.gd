@@ -69,6 +69,9 @@ const CATCH_STARTLE := "CatchStartle"   # THE MANNEQUIN: a fright, the torch flu
 const CATCHES := {"bacteria": CATCH_LIFT, "mannequin": CATCH_STARTLE}
 const THROW_AT := 0.15            # s into CATCH_STARTLE the right hand lets go of the torch
 const THROW_SPEED := Vector3(0.4, 1.6, -3.2)   # m/s, camera space: the way the torch flies off (right, up, ahead)
+const THROW_SPIN := 9.0           # rad/s at most it tumbles end over end as it flies
+const THROWN_RADIUS := 0.036      # m: the flung torch's barrel, for its collision
+const THROWN_SETTLE := 2.5        # s after it first hits something it's left lying where it is
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
 const HUG_SPREAD := 0.12          # m: each hand's fingertips are this far off the middle of the wall in front
 const HUG_LOWER := 0.12           # m below eye height the hands go
@@ -630,32 +633,49 @@ func _throw_torch() -> void:
 	body.name = "FlungTorch"
 	body.mass = 0.35
 	body.continuous_cd = true
+	var mat := PhysicsMaterial.new()
+	mat.friction = 0.9
+	mat.bounce = 0.15
+	body.physics_material_override = mat
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.025
+	capsule.radius = THROWN_RADIUS
 	capsule.height = LENGTH
 	shape.shape = capsule
 	shape.rotation.x = PI / 2.0       # the torch lies along -Z, its head that way
 	body.add_child(shape)
+	# _torch's own turn (from _hang) is what lays the model down -Z; the copy keeps it, so the body's -Z is
+	# the torch's long axis, the way the capsule and the beam lie
+	var turn := _torch.basis.orthonormalized()
 	var copy := _torch.duplicate() as Node3D
-	copy.transform = Transform3D.IDENTITY
+	copy.transform = Transform3D(turn, Vector3.ZERO)
 	copy.visible = true
 	body.add_child(copy)
 	world.add_child(body)
-	body.global_transform = Transform3D(_torch.global_basis.orthonormalized(), _torch.global_position)
+	body.global_transform = Transform3D((_torch.global_basis.orthonormalized() * turn.inverse()).orthonormalized(), _torch.global_position)
 	if _player is PhysicsBody3D:
 		body.add_collision_exception_with(_player)
 	var b := cam.global_basis.orthonormalized()
 	body.linear_velocity = b * THROW_SPEED
-	body.angular_velocity = Vector3(randf_range(-14.0, 14.0), randf_range(-6.0, 6.0), randf_range(-14.0, 14.0))
+	body.angular_velocity = b * Vector3(randf_range(-THROW_SPIN, THROW_SPIN), randf_range(-2.0, 2.0), 0.0)
+	# once it's down it skids and rolls a little, then lies still (a capsule on its own would roll forever)
+	body.contact_monitor = true
+	body.max_contacts_reported = 1
+	body.body_entered.connect(func(_hit: Node) -> void:
+		if body.has_meta("landed"):
+			return
+		body.set_meta("landed", true)
+		body.linear_damp = 2.0
+		body.angular_damp = 5.0
+		get_tree().create_timer(THROWN_SETTLE).timeout.connect(func() -> void:
+			if is_instance_valid(body):
+				body.freeze = true))
 	var flash = _player.get("flash")
 	if _player.get("flash_on") and flash is SpotLight3D and (flash as SpotLight3D).visible:
 		var beam := (flash as SpotLight3D).duplicate(0) as SpotLight3D
 		beam.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, 0.0, -LENGTH * 0.5))
-		copy.add_child(beam)
+		body.add_child(beam)
 		# it shines as it flies; hitting the floor knocks the bulb out: a stutter, then dark
-		body.contact_monitor = true
-		body.max_contacts_reported = 1
 		body.body_entered.connect(func(_hit: Node) -> void:
 			if not is_instance_valid(beam) or beam.has_meta("dying"):
 				return

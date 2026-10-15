@@ -169,13 +169,13 @@ to the fog, the level hidden once it is out of reach, and the player moved back 
 patterns past a depth, speed and view kept, so the drop never ends and never reaches floating-point trouble.
 
 Each level's page in the TAB terminal ([F2] THRESHOLD DOSSIER: zone, threat, metrics, mandates, and which
-entities appear there) comes from `levels/asra_dossiers.json`, keyed by the level's `id` in `levels.json`;
-the fields are described in that file's `_about`. Entity entries live in `levels/asra_entities.json` and
+entities appear there) comes from `levels/tsra_dossiers.json`, keyed by the level's `id` in `levels.json`;
+the fields are described in that file's `_about`. Entity entries live in `levels/tsra_entities.json` and
 unlock once the player scans the entity with the field scanner; they are read on the terminal's [F3] ENTRIES page
 (debug console: `archive list` / `archive reset`).
 
-Scanning also earns Research Yield toward the player's T.S.R.A. clearance tier (`levels/asra_clearance.json`;
-yield rules in `scripts/GameLogicEngine/asra_clearance.gd`). Tiers unlock the dossiers' classified annexes (C-2),
+Scanning also earns Research Yield toward the player's T.S.R.A. clearance tier (`levels/tsra_clearance.json`;
+yield rules in `scripts/GameLogicEngine/tsra_clearance.gd`). Tiers unlock the dossiers' classified annexes (C-2),
 the scanner's range-finder (C-3) and its deep scan (C-4). The terminal's [F5] CLEARANCE page is the player's
 service record: tier ladder, privileges, yield by source and by entity, and the filing log (debug console:
 `clearance`, `clearance add <n>`, `clearance reset`).

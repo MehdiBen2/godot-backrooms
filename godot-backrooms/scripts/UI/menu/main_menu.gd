@@ -147,6 +147,7 @@ var crt_bottom: ColorRect
 var crt_line: ColorRect
 
 func _ready() -> void:
+	LoadManifest.install(get_tree())         # before the first threaded load (_preload_game), see load_manifest.gd
 	_menu_fps()
 	Gfx.changed.connect(_menu_fps)           # Gfx.apply() writes the in-game FPS cap on every settings change
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

@@ -3,15 +3,15 @@ extends Node
 ## facing one. A reading needs the target near the middle of the view (CONE_COS), within RANGE and
 ## in plain line of sight for SCAN_TIME seconds; a complete one calls Archive.discover(), and the
 ## HUD toast (scripts/UI/hud/terminal_toast.gd) announces the new entry. Every complete reading
-## also goes to Clearance.file() for its Research Yield (asra_clearance.gd): new sites and repeat
+## also goes to Clearance.file() for its Research Yield (tsra_clearance.gd): new sites and repeat
 ## readings of logged entities still pay, a little.
-## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "asra_id" meta and lists
+## Targets are the nodes in Archive.SCANNABLE: each carries its id in the "tsra_id" meta and lists
 ## the points it can be read from in scan_points() (see the entity scripts). Entities read from
 ## anywhere in RANGE; props (survey_clipboard.gd) give a short scan_range(), so
 ## the signal meter still leads to them from afar but the reading only starts up close.
 ## Built by hud.gd, which also hands the player the scanner item; scan_readout.gd draws the reticle
 ## off `state` / `progress` / `target_id` / `target_pos` / `signal_strength` / `signal_dist`, and,
-## by clearance (asra_clearance.gd), `signal_bearing` (C-3 range-finder) and `target_node` (C-4 deep scan).
+## by clearance (tsra_clearance.gd), `signal_bearing` (C-3 range-finder) and `target_node` (C-4 deep scan).
 ## With no anomaly in the sights it also reads hazard tape (tape_marks.gd) under the crosshair:
 ## `tape_info` says how long ago the strip went down and who stuck it, so you can tell whether the
 ## corridor you're in is one you've already walked.
@@ -200,7 +200,7 @@ func _best_target() -> Dictionary:
 	for n in get_tree().get_nodes_in_group(Archive.SCANNABLE):
 		if not n.has_method("scan_points"):
 			continue
-		var id := str(n.get_meta("asra_id", ""))
+		var id := str(n.get_meta("tsra_id", ""))
 		if id == "":
 			continue
 		# entities read from anywhere in RANGE; a prop that has scan_range() only from up close

@@ -17,11 +17,13 @@ const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 const STOREYS := 12                # drawn: past FADE_TO nothing shows, so the top of the last is never seen
 const FADE_FROM := 7.0             # m over the ceiling
-const FADE_TO := 95.0
-const ROT_FROM := 6.0              # m over the ceiling: the damp and the dying tubes start...
-const ROT_TO := 60.0               # ...and are at their worst
+const FADE_TO := 75.0
+const ROT_FROM := 4.0              # m over the ceiling: the damp and the dying tubes start...
+const ROT_TO := 45.0               # ...and are at their worst
 const HAZE_FROM := 5.0             # m over the ceiling: the haze starts
-const HAZE_K := 0.04               # per metre: 95 % haze 75 m further up
+const HAZE_K := 0.05               # per metre: 95 % haze 60 m further up
+## what the tubes turn to up there, by the level's look: sick green, cold blue-white, burnt amber
+const HIGH_TINT := {"dim": Color(0.72, 0.95, 0.5), "liminal": Color(0.7, 0.88, 1.0), "classic": Color(1.0, 0.62, 0.32)}
 
 var level: Node3D
 var cells := {}                    # the cells it rises from
@@ -80,9 +82,11 @@ func _add_cap(cells: Dictionary) -> void:
 ## The walls round a set of cells, as straight runs: {from, to (at y 0), n (facing into the shaft), cells}
 func _runs(cells: Dictionary) -> Array:
 	var lines := {}
+	var outside := PitFall.outside_of(cells)
 	for c: Vector2i in cells:
 		for d: Vector2i in DIRS:
 			if cells.has(c + d): continue
+			if not outside.has(c + d): continue       # a pillar or wall island standing in the zone: it ends at its own height, not up the shaft
 			var key := Vector3i(0, d.x, c.x) if d.x != 0 else Vector3i(1, d.y, c.y)
 			if not lines.has(key): lines[key] = []
 			lines[key].append(c.y if d.x != 0 else c.x)
@@ -197,12 +201,21 @@ func _material() -> ShaderMaterial:
 	var rows := PackedFloat32Array()
 	rows.resize(16)
 	for k in 16:
+		# dead, failing, steady: the higher, the more of it dead, so the shaft goes dark in fits and not evenly
 		var v := r.randf()
-		rows[k] = 0.0 if v < 0.2 else (2.0 if v < 0.42 else 1.0)       # dead, failing, steady: more of it failing than in the abyss
-	rows[0] = 1.0                       # (the rows over the ceiling are lit: it is what you see of the shaft from below)
-	rows[1] = 1.0
-	# the abyss's own light (the shader's defaults), dirtier walls, and the higher the more run down
+		var dead := clampf(0.15 + 0.05 * k, 0.0, 0.7)
+		rows[k] = 0.0 if v < dead else (2.0 if v < dead + 0.25 else 1.0)
+	rows[0] = 1.0                       # (the row over the ceiling is lit: it is what you see of the shaft from below)
+	rows[1] = 2.0 if r.randf() < 0.4 else 1.0   # the next one up sometimes stutters
+	if rows[2] == 0.0 and rows[3] == 0.0: rows[3] = 1.0   # never a black gap straight over the room: one lit storey further up
+	# dimmer than the abyss, black between rows, dirtier walls, and the higher the more run down
+	m.set_shader_parameter("near_light", 1.25)
+	m.set_shader_parameter("far_light", 0.32)
+	m.set_shader_parameter("base_light", 0.012)
 	m.set_shader_parameter("grime", 0.6)
+	m.set_shader_parameter("patchy", 0.55)
+	m.set_shader_parameter("corridor_dead", 0.5)
+	m.set_shader_parameter("high_tint", HIGH_TINT.get(look, HIGH_TINT.dim))
 	m.set_shader_parameter("rot_from", wall_h + ROT_FROM)
 	m.set_shader_parameter("rot_to", wall_h + ROT_TO)
 	# it sinks into the abyss's sickly haze, not into black

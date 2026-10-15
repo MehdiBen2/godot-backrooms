@@ -1,6 +1,6 @@
 extends Control
 ## T.S.R.A. mission briefing: the screen between PLAY and the loading bar (main_menu.gd _on_play).
-## Reads the current level's block of levels/asra_briefings.json ("_default" when it has none). A secure uplink
+## Reads the current level's block of levels/tsra_briefings.json ("_default" when it has none). A secure uplink
 ## boots and decrypts the file, then the page types out like a terminal: assignment, objective, hearsay from the
 ## field, anomalies to look into, standing orders. All of it is seen through shaders/briefing_crt.gdshader (curve,
 ## scanlines, light grain, tracking tears) over a low ambience bed and key ticks.
@@ -9,7 +9,7 @@ extends Control
 
 signal accepted
 
-const DATA_PATH := "res://levels/asra_briefings.json"
+const DATA_PATH := "res://levels/tsra_briefings.json"
 const CRT_SHADER := preload("res://shaders/briefing_crt.gdshader")
 const BED_DEFAULT := "res://audio/ambients/creepy-ambience-long-hollow-loop_130bpm.wav"
 const SND_ON := "res://audio/terminal/terminal_on.wav"

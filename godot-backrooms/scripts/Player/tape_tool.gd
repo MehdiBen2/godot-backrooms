@@ -13,7 +13,7 @@ extends Node
 ## end, it comes away and its length goes back on the roll (a roll comes back into the inventory
 ## if you had none left). Let go early and it presses back down.
 ## Each strip also maps the level: the grid cells it marks go to Clearance.file_survey() and pay
-## Research Yield the first time (asra_clearance.gd).
+## Research Yield the first time (tsra_clearance.gd).
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")

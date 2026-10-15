@@ -88,7 +88,7 @@ func empty_state(into: VBoxContainer, what: String, hint: String) -> void:
 		para(into, hint, TEXT_DIM, 16, 26.0)
 
 ## The CLASSIFIED ANNEX of a dossier or an entry: its sections in full once the player's clearance
-## unlocks "classified" (asra_clearance.gd); until then a red rule and one line saying what clearance
+## unlocks "classified" (tsra_clearance.gd); until then a red rule and one line saying what clearance
 ## releases it. sections: [[title, text or Array of paragraphs]]; an Array under a title with
 ## "PROTOCOL" / "GUIDANCE" in it is numbered. Empty sections are left out.
 func annex(into: VBoxContainer, _key: String, sections: Array, px: int) -> void:

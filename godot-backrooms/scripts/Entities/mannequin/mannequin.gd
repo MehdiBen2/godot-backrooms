@@ -960,7 +960,7 @@ func _unhandled_input(e: InputEvent) -> void:
 # Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
 func _enter_tree() -> void:
 	add_to_group(Archive.SCANNABLE)
-	set_meta("asra_id", "mannequin")
+	set_meta("tsra_id", "mannequin")
 
 ## Where the scanner can take a reading off it right now; empty while it is away
 func scan_points() -> Array:
@@ -1000,4 +1000,19 @@ func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT
 	visible = true
 	reset()
+	return true
+
+## Debug: summon it and run the kill right now (it appears behind you, as in the real thing), to test the
+## gasp / neck snap / voice without waiting for it to hunt you. False if this level has no mannequin.
+func debug_snap_now() -> bool:
+	if player.frozen or snap.active:
+		return false
+	process_mode = Node.PROCESS_MODE_INHERIT
+	visible = true
+	summoned = true
+	reset()
+	if real_node == null:
+		return false
+	killed = true
+	start_snap()
 	return true

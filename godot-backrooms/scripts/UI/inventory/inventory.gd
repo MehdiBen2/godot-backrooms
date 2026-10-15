@@ -9,8 +9,8 @@ extends Control
 ## the right, the sheet under its slanted folder tabs, with the PG UP / PG DN scroll rail beside it. Each
 ## page is a script of its own in scripts/UI/inventory/pages/ (terminal_page.gd): ITEMS (the selected
 ## item), SITE (the level's threshold dossier and the phenomena logged there, from Archive,
-## scripts/GameLogicEngine/asra_archive.gd), ARCHIVE (every catalogued entity; new ones are marked until
-## opened), FILES (recovered lore), RECORD (the player's clearance, asra_clearance.gd) and CREW (co-op
+## scripts/GameLogicEngine/tsra_archive.gd), ARCHIVE (every catalogued entity; new ones are marked until
+## opened), FILES (recovered lore), RECORD (the player's clearance, tsra_clearance.gd) and CREW (co-op
 ## only: hidden when you are on your own). This file is the terminal around them.
 ## The palette and widget helpers they all use are in terminal_kit.gd.
 ## Everything is drawn into a SubViewport and composited through shaders/ui_vhs_overlay.gdshader
@@ -120,7 +120,7 @@ var clickables: Array = []           # fixed controls in the viewport that take 
 var stats := {}                      # key -> {value, cells, shown} (POWER: + extra, the torch line)
 var link_label: Label
 var clock_label: Label
-var clearance_label: Label           # header: T.S.R.A. clearance tier's code (asra_clearance.gd)
+var clearance_label: Label           # header: T.S.R.A. clearance tier's code (tsra_clearance.gd)
 var clearance_cells: Control
 var link_state := ""
 
