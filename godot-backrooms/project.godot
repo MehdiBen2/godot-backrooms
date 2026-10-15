@@ -57,7 +57,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/godot_mcp/plugin.cfg")
+enabled=PackedStringArray("res://addons/blendkit/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/godot_mcp/plugin.cfg")
 
 [physics]
 

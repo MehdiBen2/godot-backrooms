@@ -1,0 +1,121 @@
+{
+  "name": "bk_client",
+  "version": "1.13.6",
+  "binaries": [
+    {
+      "os": "windows",
+      "arch": "amd64",
+      "filename": "bk_client-windows-x86_64.exe",
+      "size": 8991864,
+      "sha256": "287486287f72c14af5d50068d3e5547f094ea6cf6192dea317972d49c9fc7931"
+    },
+    {
+      "os": "windows",
+      "arch": "arm64",
+      "filename": "bk_client-windows-arm64.exe",
+      "size": 8216696,
+      "sha256": "b91ec28f861e3699c4f1ed9a4edd340dba00df02a75f60bdfdc1b7a50ae21d2c"
+    },
+    {
+      "os": "darwin",
+      "arch": "amd64",
+      "filename": "bk_client-macos-x86_64",
+      "size": 8712256,
+      "sha256": "d2c809f05e80ac23f7ab558c9973b878b0ecf664b5a717869aec405d890fa64f"
+    },
+    {
+      "os": "darwin",
+      "arch": "arm64",
+      "filename": "bk_client-macos-arm64",
+      "size": 8038784,
+      "sha256": "c13004adf2cd501e1ab8abf74f98afa8a4c088b03b6f158f3bb1354eb6f0caff"
+    },
+    {
+      "os": "linux",
+      "arch": "amd64",
+      "filename": "bk_client-linux-x86_64",
+      "size": 10547465,
+      "sha256": "68b6b8133724ae450d84684425caa2ef44d02b5858abaef81e93b2ebac7af438"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64",
+      "filename": "bk_client-linux-arm64",
+      "size": 9830665,
+      "sha256": "0644544e0cb28ec41262df4568fc56ba7d7a2393bd4299b208a030554cdbad09"
+    },
+    {
+      "os": "windows",
+      "arch": "amd64",
+      "filename": "bk_client-windows7-x86_64.exe",
+      "size": 7442040,
+      "sha256": "0fba1325512bee07fd3b9a27024bbee96d314f42a39bb14a2c286f7728eff74b"
+    }
+  ],
+  "tools": [
+    {
+      "id": "export_glb",
+      "name": "Export glTF/GLB",
+      "description": "Re-exports the active scene to a self-contained .glb file. Enables the bundled glTF add-on if needed.",
+      "software": "blender",
+      "params": [
+        {
+          "name": "output_path",
+          "type": "string",
+          "required": true,
+          "description": "Destination .glb path."
+        },
+        {
+          "name": "yup",
+          "type": "boolean",
+          "default": true,
+          "description": "Export using +Y up (glTF convention)."
+        },
+        {
+          "name": "draco",
+          "type": "boolean",
+          "default": false,
+          "description": "Apply Draco mesh compression."
+        },
+        {
+          "name": "export_apply",
+          "type": "boolean",
+          "default": true,
+          "description": "Apply modifiers before exporting."
+        }
+      ]
+    },
+    {
+      "id": "export_usd",
+      "name": "Export USD",
+      "description": "Opens a downloaded Blendkit .blend, unpacks its packed textures, flattens shader node groups and exports a self-contained UsdPreviewSurface .usd file. Optionally also emits standalone MaterialX (.mtlx) materials plus a name-keyed mapping JSON alongside the .usd.",
+      "software": "blender",
+      "params": [
+        {
+          "name": "blend_path",
+          "type": "string",
+          "required": true,
+          "description": "Input .blend file to open."
+        },
+        {
+          "name": "out_usd",
+          "type": "string",
+          "required": true,
+          "description": "Destination .usd path."
+        },
+        {
+          "name": "max_resolution",
+          "type": "string",
+          "default": "ORIGINAL",
+          "description": "Texture resolution cap: 512/1024/2048/4096/8192/ORIGINAL. Picks the textures subfolder suffix."
+        },
+        {
+          "name": "export_mtlx",
+          "type": "bool",
+          "default": true,
+          "description": "Also export one standalone .mtlx per material into <stem>_mtlx/ and write <stem>.materials.json mapping material names to their .mtlx files (for high-fidelity material binding in Maya/USD). Requires the MaterialX Python module bundled with Blender 4.1+; skipped gracefully if unavailable."
+        }
+      ]
+    }
+  ]
+}

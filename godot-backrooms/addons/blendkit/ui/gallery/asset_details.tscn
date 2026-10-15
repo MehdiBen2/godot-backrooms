@@ -1,0 +1,145 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://addons/blendkit/ui/gallery/asset_details.gd" id="1_details"]
+
+[node name="AssetDetails" type="AcceptDialog"]
+title = "Asset"
+size = Vector2i(960, 480)
+script = ExtResource("1_details")
+
+[node name="Content" type="VBoxContainer" parent="."]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 952.0
+offset_bottom = 431.0
+theme_override_constants/separation = 12
+
+[node name="Panes" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="Left" type="VBoxContainer" parent="Content/Panes"]
+layout_mode = 2
+
+[node name="PreviewFrame" type="PanelContainer" parent="Content/Panes/Left"]
+unique_name_in_owner = true
+clip_children = 1
+layout_mode = 2
+
+[node name="Preview" type="TextureRect" parent="Content/Panes/Left/PreviewFrame"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 400)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Plan" type="Label" parent="Content/Panes/Left/PreviewFrame/Preview"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Free"
+
+[node name="PreviewStrip" type="HBoxContainer" parent="Content/Panes/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+
+[node name="Description" type="RichTextLabel" parent="Content/Panes/Left"]
+unique_name_in_owner = true
+layout_mode = 2
+fit_content = true
+selection_enabled = true
+
+[node name="Right" type="VBoxContainer" parent="Content/Panes"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Heading" type="VBoxContainer" parent="Content/Panes/Right"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="AssetType" type="Label" parent="Content/Panes/Right/Heading"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Model"
+
+[node name="Title" type="Label" parent="Content/Panes/Right/Heading"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeaderMedium"
+text = "Asset"
+autowrap_mode = 3
+
+[node name="Params" type="GridContainer" parent="Content/Panes/Right"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 0
+columns = 2
+
+[node name="TagsRow" type="HBoxContainer" parent="Content/Panes/Right"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TagsKey" type="Label" parent="Content/Panes/Right/TagsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 0
+text = "Tags"
+
+[node name="Tags" type="RichTextLabel" parent="Content/Panes/Right/TagsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+meta_underlined = false
+
+[node name="Note" type="Label" parent="Content"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Footer" type="HBoxContainer" parent="Content"]
+layout_mode = 2
+
+[node name="FooterLeft" type="Control" parent="Content/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FileOption" type="OptionButton" parent="Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "File to download, or to show when it's marked as downloaded. The default follows the Model Format and Resolution in Blendkit Settings."
+
+[node name="ActionButton" type="Button" parent="Content/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Download"
+
+[node name="LogIn" type="Button" parent="Content/Footer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Log In…"
+
+[node name="FooterRight" type="HBoxContainer" parent="Content/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 2
+
+[node name="WebButton" type="Button" parent="Content/Footer/FooterRight"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "View on blendkit.com"

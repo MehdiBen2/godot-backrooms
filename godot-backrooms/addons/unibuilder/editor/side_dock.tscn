@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://bytx4nj8u5yel"]
+
+[node name="UBSideDock" type="ScrollContainer"]
+visible = false
+horizontal_scroll_mode = 0
+
+[node name="Dock" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3

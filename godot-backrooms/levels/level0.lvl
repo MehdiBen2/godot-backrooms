@@ -118,7 +118,7 @@
     0
   ],
   "materials": {
-    "ceiling": "Ceiling_Drop_Square"
+    "ceiling": "Ceiling_Office_Lit"
   },
   "name": "Level 0: Floor Zero",
   "objects": [
@@ -651,6 +651,15 @@
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_water_cooler"
+    },
+    {
+      "behavior": "roam",
+      "kind": "bacteria",
+      "pos_x": 51.0,
+      "pos_y": 46.0,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "entity"
     },
     {
       "behavior": "roam",

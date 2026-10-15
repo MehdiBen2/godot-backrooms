@@ -29,6 +29,11 @@ var _t := 0.0
 ## `resident`: {mark: Vector3, spawn_dist: float, arrive_after: float}; empty for a monster that comes to you
 func register(e: Node3D, resident := {}) -> void:
 	if e in entities:
+		_resident.erase(e)
+		_tier[e] = FULL
+		if not resident.is_empty() and not Net.is_online():
+			_resident[e] = resident
+			_tier[e] = UNSPAWNED
 		return
 	entities.append(e)
 	_tier[e] = FULL
@@ -52,6 +57,8 @@ func tier_name(e: Node3D) -> String:
 	return NAMES[tier(e)]
 
 func is_spawned(e: Node3D) -> bool:
+	if is_instance_valid(e) and e.has_method("lod_spawned"):
+		return e.lod_spawned()
 	return tier(e) != UNSPAWNED
 
 ## The point the monster is measured from: its body (lod_position() when it isn't its node's origin)

@@ -780,9 +780,12 @@ func _floor_ready() -> void:
 	var root := get_parent()
 	if root != null:
 		var ent: Node = root.get_node_or_null("Entity")
-		if ent != null and ent.has_method("_setup_nav"):
-			ent._setup_nav()
-			if ent.has_method("relocate"):
+		if ent != null:
+			if ent.has_method("_setup_nav"):
+				ent._setup_nav()
+			if ent.has_method("on_floor_changed"):
+				ent.on_floor_changed()
+			elif ent.has_method("relocate"):
 				ent.relocate()                 # onto this floor's bacteria mark, with its behavior
 		# the Mimic's grid (a new level can be another size) and the routes it remembers
 		var mm: Node = root.get_node_or_null("Mimic")

@@ -1,0 +1,241 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://brrh21hp3pvh2" path="res://addons/unibuilder/editor/paint_panel.gd" id="1_script"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_jyt02"]
+resource_local_to_scene = true
+
+[node name="PaintPanel" type="PanelContainer"]
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Body" type="VBoxContainer" parent="Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="PanelContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Margin/Body/Header"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="HeaderIcon" type="TextureRect" parent="Margin/Body/Header/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+stretch_mode = 3
+
+[node name="HeaderTitle" type="Label" parent="Margin/Body/Header/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Vertex Paint"
+
+[node name="ApplyRow" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+
+[node name="BrushButton" type="Button" parent="Margin/Body/ApplyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Falloff brush: blends vertices toward the color inside the radius"
+focus_mode = 0
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_jyt02")
+text = "Brush"
+
+[node name="FillButton" type="Button" parent="Margin/Body/ApplyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Hard per-face fill: click or drag across faces to color-code them"
+focus_mode = 0
+toggle_mode = true
+button_group = SubResource("ButtonGroup_jyt02")
+text = "Fill"
+
+[node name="Picker" type="ColorPickerButton" parent="Margin/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+color = Color(1, 1, 1, 1)
+
+[node name="Mode" type="OptionButton" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Alpha only paints the blend mask for dual-texture materials without touching the color."
+selected = 0
+item_count = 3
+popup/item_0/text = "Color + Alpha"
+popup/item_0/id = 0
+popup/item_1/text = "Color only"
+popup/item_1/id = 1
+popup/item_2/text = "Alpha only"
+popup/item_2/id = 2
+
+[node name="AlphaRow" type="HBoxContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/Body/AlphaRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Alpha"
+
+[node name="Alpha" type="HSlider" parent="Margin/Body/AlphaRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="BrushGap" type="Control" parent="Margin/Body"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+
+[node name="BrushSection" type="Label" parent="Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.369, 0.918, 0.831, 1)
+text = "BRUSH"
+
+[node name="RadiusRow" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/Body/RadiusRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Radius"
+
+[node name="Radius" type="SpinBox" parent="Margin/Body/RadiusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Brush radius in world units"
+min_value = 0.05
+step = 0.05
+value = 0.5
+
+[node name="StrengthRow" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/Body/StrengthRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Strength"
+
+[node name="Strength" type="HSlider" parent="Margin/Body/StrengthRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "How strongly one dab blends toward the paint color"
+max_value = 1.0
+step = 0.01
+value = 1.0
+
+[node name="SoftRow" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="Margin/Body/SoftRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Soft"
+
+[node name="Softness" type="HSlider" parent="Margin/Body/SoftRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Falloff: 0 paints the full radius evenly, 1 fades from the center"
+max_value = 1.0
+step = 0.01
+value = 0.5
+
+[node name="SwatchesGap" type="Control" parent="Margin/Body"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+
+[node name="SwatchesSection" type="Label" parent="Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.369, 0.918, 0.831, 1)
+text = "SWATCHES"
+
+[node name="SwatchRow" type="HBoxContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Swatch1" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch2" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch3" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch4" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch5" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch6" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch7" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="Swatch8" type="Button" parent="Margin/Body/SwatchRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+tooltip_text = "Click: use this color. Ctrl/Cmd+Click: store the current color here."
+focus_mode = 0
+
+[node name="BlendButton" type="Button" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Assign a two-texture material blended by painted alpha to the selected faces"
+text = "New Blend Material"
+
+[node name="InvertButton" type="Button" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Flip the painted alpha of the selected faces (whole mesh with no face selection), swapping which blend layer shows"
+focus_mode = 0
+text = "Invert Alpha"

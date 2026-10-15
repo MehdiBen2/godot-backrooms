@@ -1,0 +1,5 @@
+[gd_scene format=3 uid="uid://dlro34hi46800"]
+
+[node name="UBDemoDialog" type="AcceptDialog"]
+title = "Unibuilder Demo"
+ok_button_text = "Not now"

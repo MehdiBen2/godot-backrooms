@@ -77,3 +77,5 @@ Fabric031 -> Fabric_Woven
 Carpet016 -> Carpet_Patterned
 PavingStones111 -> Paving_Stones_A
 Tiles012 -> Tile_Set_012
+Concrete034 -> Concrete_Grey_034
+OfficeCeiling002 -> Ceiling_Office_Lit

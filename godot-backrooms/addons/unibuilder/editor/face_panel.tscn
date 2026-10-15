@@ -1,0 +1,281 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://d2caveu0aysqn" path="res://addons/unibuilder/editor/face_panel.gd" id="1_script"]
+
+[node name="FacePanel" type="PanelContainer"]
+script = ExtResource("1_script")
+custom_minimum_size = Vector2(240, 0)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Body" type="VBoxContainer" parent="Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="PanelContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="Row" type="HBoxContainer" parent="Margin/Body/Header"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="HeaderIcon" type="TextureRect" parent="Margin/Body/Header/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+stretch_mode = 3
+
+[node name="HeaderTitle" type="Label" parent="Margin/Body/Header/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Face"
+
+[node name="MaterialGap" type="Control" parent="Margin/Body"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+
+[node name="MaterialSection" type="Label" parent="Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.369, 0.918, 0.831, 1)
+text = "MATERIAL"
+
+[node name="SlotRow" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+
+[node name="SlotOption" type="OptionButton" parent="Margin/Body/SlotRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Material slot (one mesh surface per used slot)"
+
+[node name="AddSlot" type="Button" parent="Margin/Body/SlotRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Add a material slot"
+text = "+"
+
+[node name="Picker" type="EditorResourcePicker" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+base_type = "Material"
+
+[node name="ApplyMaterial" type="Button" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Assign the chosen slot to the selected faces"
+text = "Apply to Selection"
+
+[node name="UVGap" type="Control" parent="Margin/Body"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+
+[node name="UVSection" type="Label" parent="Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.369, 0.918, 0.831, 1)
+text = "AUTO-UV"
+
+[node name="UVGrid" type="GridContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+columns = 3
+
+[node name="OffsetLabel" type="Label" parent="Margin/Body/UVGrid"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Offset"
+
+[node name="OffsetCell" type="HBoxContainer" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="OffsetU" type="SpinBox" parent="Margin/Body/UVGrid/OffsetCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -64.0
+max_value = 64.0
+step = 1e-09
+custom_arrow_step = 0.01
+prefix = "U"
+
+[node name="OffsetV" type="SpinBox" parent="Margin/Body/UVGrid/OffsetCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -64.0
+max_value = 64.0
+step = 1e-09
+custom_arrow_step = 0.01
+prefix = "V"
+
+[node name="OffsetEnd" type="Control" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+
+[node name="RotationLabel" type="Label" parent="Margin/Body/UVGrid"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Rotation"
+
+[node name="RotationCell" type="HBoxContainer" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Rotation" type="SpinBox" parent="Margin/Body/UVGrid/RotationCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -360.0
+max_value = 360.0
+suffix = "°"
+
+[node name="RotationEnd" type="Control" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+
+[node name="TilingLabel" type="Label" parent="Margin/Body/UVGrid"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Tiling"
+
+[node name="TilingCell" type="HBoxContainer" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ScaleU" type="SpinBox" parent="Margin/Body/UVGrid/TilingCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.001953125
+max_value = 64.0
+step = 1e-09
+value = 0.001953125
+custom_arrow_step = 0.01
+prefix = "U"
+
+[node name="ScaleV" type="SpinBox" parent="Margin/Body/UVGrid/TilingCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.001953125
+max_value = 64.0
+step = 1e-09
+value = 0.001953125
+custom_arrow_step = 0.01
+prefix = "V"
+
+[node name="ScaleLink" type="Button" parent="Margin/Body/UVGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Link: keep Tiling U and V equal (editing either sets both)"
+focus_mode = 0
+toggle_mode = true
+text = "="
+
+[node name="TileStart" type="Control" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+
+[node name="TileButtons" type="HBoxContainer" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TileHalve" type="Button" parent="Margin/Body/UVGrid/TileButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Halve the tiling on both axes"
+focus_mode = 0
+text = "÷2"
+
+[node name="TileDouble" type="Button" parent="Margin/Body/UVGrid/TileButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Double the tiling on both axes"
+focus_mode = 0
+text = "×2"
+
+[node name="TileEnd" type="Control" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+
+[node name="ProjectLabel" type="Label" parent="Margin/Body/UVGrid"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Project"
+
+[node name="ProjectCell" type="HBoxContainer" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Projection" type="OptionButton" parent="Margin/Body/UVGrid/ProjectCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Direction the texture projects from. Face Normal maps each face on its own plane. Along an axis maps every selected face from one side, so the texture runs unbroken across a sculpted surface (Along Y for terrain)."
+focus_mode = 0
+selected = 0
+item_count = 5
+popup/item_0/text = "Face Normal"
+popup/item_0/id = 0
+popup/item_1/text = "Along X"
+popup/item_1/id = 1
+popup/item_2/text = "Along Y"
+popup/item_2/id = 2
+popup/item_3/text = "Along Z"
+popup/item_3/id = 3
+popup/item_4/text = "Custom"
+popup/item_4/id = 4
+popup/item_4/disabled = true
+
+[node name="ProjectEnd" type="Control" parent="Margin/Body/UVGrid"]
+layout_mode = 2
+
+[node name="WorldSpace" type="CheckBox" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Texture stays put in the world while the face moves"
+text = "World Space"
+
+[node name="ColorGap" type="Control" parent="Margin/Body"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+
+[node name="ColorSection" type="Label" parent="Margin/Body"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.369, 0.918, 0.831, 1)
+text = "COLOR / SMOOTHING"
+
+[node name="Color" type="ColorPickerButton" parent="Margin/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+tooltip_text = "Face vertex color (materials need 'Vertex Color -> Use as Albedo' to show it)"
+
+[node name="SmoothGrid" type="GridContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+columns = 2
+
+[node name="GroupLabel" type="Label" parent="Margin/Body/SmoothGrid"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Group"
+
+[node name="GroupCell" type="HBoxContainer" parent="Margin/Body/SmoothGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Smoothing" type="SpinBox" parent="Margin/Body/SmoothGrid/GroupCell"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Smoothing group (0 = hard edges)"
+max_value = 64.0

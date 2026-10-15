@@ -15,12 +15,15 @@ extends "res://scripts/Entities/bacteria/bacteria_stalk.gd"
 const BacteriaRig := preload("res://scripts/Entities/bacteria/bacteria_rig.gd")
 const BacteriaGrab := preload("res://scripts/Entities/bacteria/bacteria_grab.gd")
 const BacteriaNet := preload("res://scripts/Entities/bacteria/bacteria_net.gd")
+const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const BREATH_RANGE := 16.0            # metres: how far off you can hear it breathing
 const DISTURB_RADIUS := 8.0           # the tubes within this of it stutter while it hunts
 
 var puppet := false                   # co-op: this copy only follows the host
 var net: BacteriaNet
 var grab: BacteriaGrab                # the grab-and-eat kill sequence
+var summoned := false                 # manually called in via event / console / dev key
+var spawned := false                  # active and present in the level
 var search_left := 0.0
 var stare_cooldown := 5.0
 var last_pos := Vector3.ZERO
@@ -49,17 +52,26 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	scares = get_parent().get_node("Scares")
 	_setup_nav()
-	var sp := _spawn_cell()
-	global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
 	_build_model()
 	grab = BacteriaGrab.new(self)
 	net = BacteriaNet.new(self)
-	set_goal(global_position.x, global_position.z)
-	pick_spot(3, 18)
-	# not out yet: EntityLOD brings it in when you come near its mark, or after a while (lod_spawn)
-	EntityLOD.register(self, {"mark": global_position, "spawn_dist": SPAWN_DIST, "arrive_after": ARRIVE_AFTER})
-	if not EntityLOD.is_spawned(self):
+	if has_mark():
+		var sp := _spawn_cell()
+		global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
+		set_goal(global_position.x, global_position.z)
+		pick_spot(3, 18)
+		# not out yet: EntityLOD brings it in when you come near its mark, or after a while (lod_spawn)
+		EntityLOD.register(self, {"mark": global_position, "spawn_dist": SPAWN_DIST, "arrive_after": ARRIVE_AFTER})
+		if Net.is_online():
+			spawned = true
+			visible = true
+		else:
+			spawned = false
+			visible = false
+	else:
+		spawned = false
 		visible = false
+		EntityLOD.register(self, {})
 
 # ================================================================= model
 # The body and its procedural animation live in bacteria_rig.gd; its footfalls come back here as sound
@@ -431,7 +443,9 @@ func _physics_process_timed(delta: float) -> void:
 	# in co-op it keeps hunting even while this player has the menu open: the others are still in the game
 	if not Game.playing and not online:
 		return
-	if not visible and not online:
+	if not spawned and not puppet:
+		return                            # not spawned (no mark in level and not summoned)
+	if not visible and not puppet:
 		return                            # not out yet (lod_spawn) or despawned
 	if online and not puppet:
 		net.send(delta)
@@ -492,18 +506,25 @@ var _anim_acc := 0.0
 var _anim_odd := false
 
 func lod_spawned() -> bool:
-	return visible
+	return spawned and visible
 
 func lod_engaged() -> bool:
-	return not (state == "roam" or state == "lurk") or stun_timer > 0.0 or grab.active()
+	return spawned and (not (state == "roam" or state == "lurk") or stun_timer > 0.0 or grab.active())
 
 func lod_spawn(at_mark: bool) -> void:
+	if not has_mark() and not summoned:
+		visible = false
+		spawned = false
+		return
+	spawned = true
 	visible = true
 	if at_mark or not _arrive_unseen():
 		relocate()                        # onto its mark, with the mark's behavior (roam / lurk)
 
 ## Somewhere ARRIVE_NEAR..ARRIVE_FAR from you that you can't see, on open floor; false when there is none
 func _arrive_unseen() -> bool:
+	if not has_mark() and not summoned:
+		return false
 	var pp: Vector3 = player.global_position
 	for i in 48:
 		var a := rng.randf() * TAU
@@ -564,6 +585,8 @@ func _puppet_step(delta: float) -> void:
 		_breathe()
 		return
 	net.step(delta)
+	if not visible:
+		return
 	rotation.y = yaw
 	speed_now = net.speed
 	if net.state != state:
@@ -632,24 +655,34 @@ func net_apply(t: float, m: Array) -> void:
 	net.apply(t, m)
 
 ## The bacteria's mark on this floor: the first Entity object (object_types.json "entity") whose kind is bacteria,
-## or {} when there is none. Levels saved before entity marks were objects keep their single "entity" cell instead.
+## or legacy single "entity" cell, or {} when there is none.
 func _mark() -> Dictionary:
-	var objs = level.level_data.get("objects", [])
-	if objs is Array:
-		for o in objs:
-			if o is Dictionary and o.get("type", "") == "entity" and o.get("kind", "bacteria") == "bacteria":
-				return o
+	if level == null or not ("level_data" in level) or level.level_data == null:
+		return {}
+	var marks := EntityMarks.of_kind(level, "bacteria")
+	if not marks.is_empty():
+		return marks[0]
+	var sp = level.level_data.get("entity")
+	if sp is Array and sp.size() >= 2:
+		return {"pos_x": float(sp[0]), "pos_y": float(sp[1]), "behavior": "roam"}
 	return {}
+
+func has_mark() -> bool:
+	return not _mark().is_empty()
 
 ## The cell it starts on: its mark, else the old "entity" cell (null when none is placed), else near the far end
 func _spawn_cell() -> Array:
 	var m := _mark()
 	if not m.is_empty():
 		return [roundi(float(m.get("pos_x", 0.0))), roundi(float(m.get("pos_y", 0.0)))]
-	var sp = level.level_data.get("entity")
-	return sp if sp is Array and sp.size() >= 2 else [n - 12, 18]
+	return [n - 12, 18]
 
 func relocate() -> void:
+	if not has_mark() and not summoned:
+		spawned = false
+		visible = false
+		scares.entity_breathe(0.0)
+		return
 	var sp := _spawn_cell()
 	global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
 	goal_key = -1
@@ -662,7 +695,25 @@ func relocate() -> void:
 	set_state("roam")
 	pick_spot(3, 18)
 
+func on_floor_changed() -> void:
+	summoned = false
+	if has_mark():
+		var sp := _spawn_cell()
+		global_position = Vector3(sp[0] * CELL, 0.0, sp[1] * CELL)
+		set_goal(global_position.x, global_position.z)
+		EntityLOD.register(self, {"mark": global_position, "spawn_dist": SPAWN_DIST, "arrive_after": ARRIVE_AFTER})
+		spawned = Net.is_online()
+		visible = spawned
+		relocate()
+	else:
+		spawned = false
+		visible = false
+		scares.entity_breathe(0.0)
+		EntityLOD.register(self, {})
+
 func summon(x: float, z: float, tx: float, tz: float) -> void:
+	summoned = true
+	spawned = true
 	visible = true                        # (out now, whether or not EntityLOD had brought it in yet)
 	global_position = Vector3(x, 0.0, z)
 	vel = Vector3.ZERO
@@ -800,16 +851,20 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 
 # ---------------------------------------------------------------- debug console
 func debug_active() -> bool:
-	return process_mode != Node.PROCESS_MODE_DISABLED and visible      # (hidden: not out yet, EntityLOD)
+	return process_mode != Node.PROCESS_MODE_DISABLED and spawned and visible      # (hidden: not out yet, EntityLOD)
 
 func debug_despawn() -> void:
 	process_mode = Node.PROCESS_MODE_DISABLED
+	summoned = false
+	spawned = false
 	visible = false
 	scares.entity_breathe(0.0)
 
 func spawn_stalk(in_pov := true) -> bool:
 	if process_mode == Node.PROCESS_MODE_DISABLED:
 		process_mode = Node.PROCESS_MODE_INHERIT
+	summoned = true
+	spawned = true
 	visible = true
 	gather_target()
 	if tgt.dead:
@@ -832,6 +887,8 @@ func debug_stalk() -> bool:
 
 func debug_spawn() -> bool:
 	process_mode = Node.PROCESS_MODE_INHERIT
+	summoned = true
+	spawned = true
 	visible = true
 	var f := -player.global_transform.basis.z
 	var pp := player.global_position

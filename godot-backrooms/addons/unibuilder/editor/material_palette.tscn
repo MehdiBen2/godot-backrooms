@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://dv7suwhk4pxyj"]
+
+[ext_resource type="Script" uid="uid://rxubrcss33w" path="res://addons/unibuilder/editor/material_palette.gd" id="1_script"]
+
+[node name="UBMaterialPalette" type="PanelContainer"]
+custom_minimum_size = Vector2(240, 0)
+tooltip_text = "Project material palette. Click applies, drag in pins, drag out drops onto faces"
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Body" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="PanelContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HeaderRow" type="HBoxContainer" parent="Margin/Body/Header"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="HeaderIcon" type="TextureRect" parent="Margin/Body/Header/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+stretch_mode = 3
+
+[node name="Title" type="Label" parent="Margin/Body/Header/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Palette"
+
+[node name="Flow" type="HFlowContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="AddButton" type="Button" parent="Margin/Body/Flow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(104, 104)
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "Add a material file to the palette (or just drag one in)"
+text = "+"
+
+[node name="Hint" type="Label" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.4)
+text = "Drag materials here"

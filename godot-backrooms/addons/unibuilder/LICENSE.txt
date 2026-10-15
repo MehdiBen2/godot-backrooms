@@ -1,0 +1,183 @@
+UNIBUILDER — END USER LICENSE AGREEMENT
+Version 1.0 — 20 August 2026
+
+This End User License Agreement (the "Agreement") is between Leafshade
+Consulting Ltd, a company registered in England and Wales (the
+"Licensor"), and the individual or entity that purchases or otherwise
+lawfully obtains a copy of the Unibuilder plugin for the Godot Engine
+(the "Licensee"). By purchasing, downloading, installing, or using the
+Software, the Licensee agrees to be bound by this Agreement. If you do
+not agree, do not install or use the Software.
+
+1. DEFINITIONS
+
+1.1 "Software" means the Unibuilder editor plugin for the Godot Engine,
+	comprising its scripts, shaders, icons, images, and documentation,
+	in the form delivered by the Licensor, together with any Updates.
+
+1.2 "Project" means a game or application developed by the Licensee
+	using the Godot Engine.
+
+1.3 "Build" means a compiled or exported executable form of a Project
+	intended for end users, in which any included Software files exist
+	only as embedded components of the exported package.
+
+1.4 "Update" means any patch, bug fix, or new version of the Software
+	that the Licensor makes available to the Licensee.
+
+2. LICENSE GRANT
+
+2.1 Subject to payment and to this Agreement, the Licensor grants the
+	Licensee a non-exclusive, worldwide, perpetual, non-transferable,
+	non-sublicensable license to use the Software.
+
+2.2 The license is granted PER SEAT: one purchased license permits ONE
+	individual to use the Software in the Godot editor. That individual
+	may install the Software on any number of machines they personally
+	use. Additional team members who use the Software in the editor
+	each require their own license.
+
+2.3 DEMO VERSION. The Licensor may make available a free demo version
+	of the Software with certain functionality disabled. The demo
+	version is licensed at no charge, for evaluation only, under all
+	terms of this Agreement except those conditioned on payment. It
+	carries no right to Updates or support. Content created with the
+	demo version remains the Licensee's under Section 6.
+
+3. PERMITTED USES
+
+The Licensee may:
+
+(a) use the Software to create, edit, and process content in any number
+    of Projects, commercial or non-commercial, without royalties or
+    further fees;
+
+(b) modify the Software for the Licensee's own use in their own
+	Projects;
+
+(c) distribute Builds of Projects on any platform, in any quantity,
+	royalty-free, including any Software files the Godot export process
+	embeds in the Build (for example the runtime mesh/collision
+	script), provided the Build is a game or application and does not
+	function as a modeling or level-editing tool exposing the
+	Software's functionality to end users, and does not make the
+    Software extractable for development use;
+
+(d) store the Software, including modified copies, in a private version
+	control repository or private backup accessible to the Licensee's
+	team, provided only licensed individuals use the Software in the
+	editor.
+
+4. RESTRICTIONS
+
+Except as expressly permitted in Section 3, the Licensee must not:
+
+(a) redistribute, sell, rent, lease, sublicense, or otherwise make the
+	Software (or any modified version or substantial portion of it)
+	available to any third party, whether for payment or free of
+	charge, including as part of another asset, plugin, template, tool,
+	or source code distribution;
+
+(b) publish the Software or any modified version in a public repository
+	or other publicly accessible location;
+
+(c) use the Software to provide a competing product or service;
+
+(d) remove or alter proprietary notices in the Software;
+
+(e) use the Licensor's names, logos, or trademarks except to factually
+    state that the Licensee uses the Software.
+
+5. SOURCE FORM AND OWNERSHIP
+
+5.1 The Software is written in GDScript and is necessarily delivered in
+    human-readable source form. Delivery in source form does NOT make
+    the Software open source and grants no rights beyond this
+    Agreement.
+
+5.2 The Software is licensed, not sold. The Licensor retains all right,
+    title, and interest in and to the Software, including all
+    intellectual property rights. Modifications made by the Licensee
+    are owned by the Licensee but may be used and distributed only as
+    this Agreement permits for the Software itself.
+
+6. LICENSEE CONTENT
+
+All meshes, scenes, levels, and other content the Licensee creates
+using the Software belong entirely to the Licensee. The Licensor claims
+no rights in, and no royalties on, that content or on Builds.
+
+7. UPDATES AND SUPPORT
+
+7.1 The purchased license includes all Updates to the Software that the
+    Licensor makes available for major version 1.x through the original
+    store page. New major versions (2.0 and later) may be offered as
+	separate products at the Licensor's discretion and are not included
+	in this license.
+
+7.2 The Licensor has no obligation to provide Updates, maintenance, or
+	support, though the Licensor may do so at their discretion.
+
+8. REFUNDS
+
+Refunds are handled according to the refund policy of the store through
+which the Software was purchased (for purchases on itch.io, the itch.io
+refund policy and the Licensor's store page terms).
+
+9. WARRANTY DISCLAIMER
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY
+OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NON-INFRINGEMENT. THE LICENSOR DOES NOT WARRANT THAT THE SOFTWARE WILL
+BE ERROR-FREE OR UNINTERRUPTED, OR THAT IT WILL WORK WITH ANY
+PARTICULAR VERSION OF THE GODOT ENGINE OTHER THAN THOSE STATED ON THE
+STORE PAGE. NOTHING IN THIS AGREEMENT LIMITS ANY STATUTORY RIGHTS THAT
+CANNOT BE LIMITED BY CONTRACT, INCLUDING STATUTORY RIGHTS OF CONSUMERS.
+
+10. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR'S TOTAL AGGREGATE
+LIABILITY ARISING OUT OF OR RELATING TO THIS AGREEMENT OR THE SOFTWARE
+IS LIMITED TO THE AMOUNT THE LICENSEE PAID FOR THE SOFTWARE, AND THE
+LICENSOR IS NOT LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, OR
+CONSEQUENTIAL DAMAGES, OR FOR LOSS OF PROFITS, REVENUE, DATA, OR
+PROJECTS, EVEN IF ADVISED OF THE POSSIBILITY. NOTHING IN THIS AGREEMENT
+EXCLUDES LIABILITY FOR DEATH OR PERSONAL INJURY CAUSED BY NEGLIGENCE,
+FRAUD, OR ANY OTHER LIABILITY THAT CANNOT BE EXCLUDED BY LAW.
+
+11. TERMINATION
+
+11.1 This Agreement terminates automatically if the Licensee materially
+	 breaches it and, where the breach is remediable, fails to remedy
+	 it within 14 days of notice.
+
+11.2 On termination, the Licensee must stop using the Software in the
+	 editor and delete all copies under their control, except that
+	 Builds already distributed to end users are unaffected and may
+	 remain available.
+
+12. GENERAL
+
+12.1 This Agreement is the entire agreement between the parties
+	 concerning the Software and supersedes prior communications about
+	 it.
+
+12.2 If any provision is held unenforceable, the remainder stays in
+	 effect.
+
+12.3 The Licensee may not assign this Agreement without the Licensor's
+	 written consent, except as part of a sale of the Licensee's
+	 business or Project, in which case the seat terms in Section 2.2
+	 continue to apply to the assignee.
+
+12.4 This Agreement is governed by the laws of England and Wales, and
+	 the courts of England and Wales have exclusive jurisdiction,
+	 except that either party may seek injunctive relief in any
+	 competent court.
+
+Contact: steve@leafshade.io
+
+Unibuilder is an independent project. Godot and the Godot Engine are
+trademarks of their respective owners. Unibuilder is not affiliated
+with or endorsed by the Godot project.

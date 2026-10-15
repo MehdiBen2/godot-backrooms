@@ -1,0 +1,101 @@
+[gd_scene format=3 uid="uid://4htqf13k6a6m"]
+
+[ext_resource type="Script" uid="uid://d1nuy3afsnslb" path="res://addons/unibuilder/editor/adjust_panel.gd" id="1_script"]
+
+[node name="UBAdjustPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(220, 0)
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="Body" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="PanelContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HeaderRow" type="HBoxContainer" parent="Margin/Body/Header"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="HeaderIcon" type="TextureRect" parent="Margin/Body/Header/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+stretch_mode = 3
+
+[node name="Title" type="Label" parent="Margin/Body/Header/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PresetRow" type="HBoxContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="PresetMenu" type="OptionButton" parent="Margin/Body/PresetRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Presets for this shape or action"
+
+[node name="PresetSave" type="Button" parent="Margin/Body/PresetRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Save the current settings as a named preset"
+text = "Save"
+
+[node name="PresetDelete" type="Button" parent="Margin/Body/PresetRow"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Delete the picked preset"
+disabled = true
+text = "Delete"
+
+[node name="Rows" type="VBoxContainer" parent="Margin/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Buttons" type="HBoxContainer" parent="Margin/Body"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Apply" type="Button" parent="Margin/Body/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Keep the result (one undo entry)"
+text = "Apply"
+
+[node name="Cancel" type="Button" parent="Margin/Body/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Revert the operation (Esc in the viewport)"
+text = "Cancel"
+
+[node name="PresetDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Save Preset"
+ok_button_text = "Save"
+
+[node name="Margin" type="MarginContainer" parent="PresetDialog"]
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="PresetName" type="LineEdit" parent="PresetDialog/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+placeholder_text = "Preset name"

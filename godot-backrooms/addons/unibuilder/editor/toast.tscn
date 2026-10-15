@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dugua8v61yxv8" path="res://addons/unibuilder/editor/toast.gd" id="1_script"]
+
+[node name="Toast" type="PanelContainer"]
+script = ExtResource("1_script")
+visible = false
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="Row" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Mark" type="TextureRect" parent="Margin/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+stretch_mode = 3
+
+[node name="Message" type="Label" parent="Margin/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.96, 1)
+vertical_alignment = 1

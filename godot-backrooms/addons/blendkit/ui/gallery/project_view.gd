@@ -1,0 +1,416 @@
+@tool
+extends VBoxContainer
+## The assets downloaded to the project, shown by the gallery's project
+## toggle: the downloads in progress, then the asset folders, see
+## ProjectAssets. Folders the index doesn't know are looked up on Blendkit
+## for their name and thumbnail.
+
+const GalleryApi = preload("res://addons/blendkit/ui/gallery/gallery_api.gd")
+const ClientTasks = preload("res://addons/blendkit/ui/gallery/client_tasks.gd")
+const ProjectAssets = preload("res://addons/blendkit/ui/gallery/project_assets.gd")
+const gallery_item_scene = preload("res://addons/blendkit/ui/gallery/gallery_item.tscn")
+const GalleryItemScript = preload("res://addons/blendkit/ui/gallery/gallery_item.gd")
+
+const WEB_DOWNLOAD_NAME := "Send to Godot"
+const LOOKUP_TASK := "lookup"
+const DETAILS_LOOKUP_TASK := "details_lookup"
+## Seconds the index waits to be saved after it changes, so the lookups of a
+## project's unknown folders save it once or a few times rather than each.
+const SAVE_DELAY := 5.0
+
+@onready var message: Label = %ProjectMessage
+@onready var grid: GridContainer = %ProjectGrid
+
+var gallery: Node
+var project: ProjectAssets
+## Scanned asset folders with their tiles, see ProjectAssets.scan().
+var entries: Array = []
+## assetBaseId or task_id -> project tile of a download in progress.
+var download_items: Dictionary = {}
+## Asset id -> asset type of unknown folders to look up on Blendkit.
+var _lookup_queue: Dictionary = {}
+var _lookup_id := ""
+var _lookup_type := ""
+## Asset ids not found on Blendkit; not looked up again this session.
+var _lookup_failed: Dictionary = {}
+## Asset id -> asset type of lookups that failed otherwise, e.g. offline;
+## queued again by the next refresh() or reconnect.
+var _lookup_retry: Dictionary = {}
+var _refresh_queued := false
+## Whether the download directory may have changed since the last scan.
+var _dirty := true
+var _save_queued := false
+## The Client request, replaced in the tests: post_lookup(id, asset_type)
+## returns [task_id, error].
+var post_lookup: Callable
+
+
+## Called by the gallery once the plugin is known.
+func setup(new_gallery: Node) -> void:
+	gallery = new_gallery
+	post_lookup = _post_lookup
+	var edscale := EditorInterface.get_editor_scale()
+	add_theme_constant_override("separation", int(20 * edscale))
+	grid.add_theme_constant_override("h_separation", int(GalleryItemScript.GAP * edscale))
+	grid.add_theme_constant_override("v_separation", int(GalleryItemScript.GAP * edscale))
+	project = ProjectAssets.new()
+	gallery.downloads.index = project
+	visibility_changed.connect(_on_visibility_changed)
+	EditorInterface.get_resource_filesystem().filesystem_changed.connect(refresh_if_shown)
+	gallery.downloads.download_changed.connect(_on_download_changed)
+	gallery.downloads.download_finished.connect(_on_download_finished)
+	gallery.downloads.web_download_finished.connect(func(_path): refresh_if_shown())
+	gallery.downloads.web_asset_found.connect(_on_web_asset_found)
+	gallery.downloads.asset_refreshed.connect(_on_asset_refreshed)
+	gallery.plugin.download_dir_changed.connect(refresh_if_shown)
+
+
+func has_pending_work() -> bool:
+	return not _lookup_id.is_empty()
+
+
+func _exit_tree() -> void:
+	if project:
+		_save()
+
+
+## Each refresh rescans the download directory, so it waits until the view
+## shows, also when the Blendkit tab is hidden, and the requests that come in
+## one frame, e.g. a finished download and its import, share one.
+func refresh_if_shown() -> void:
+	_dirty = true
+	if is_visible_in_tree() and not _refresh_queued:
+		_refresh_queued = true
+		_refresh_if_dirty.call_deferred()
+
+
+func _refresh_if_dirty() -> void:
+	_refresh_queued = false
+	if _dirty and is_visible_in_tree():
+		refresh()
+
+
+## Also emitted when the gallery or the Blendkit tab shows.
+func _on_visibility_changed() -> void:
+	if _dirty:
+		refresh_if_shown()
+
+
+## Rescan the download directory and update the tiles by entry id, so a
+## lookup or thumbnail arriving only touches its own tile. Downloads in
+## progress come first.
+func refresh() -> void:
+	_refresh_queued = false
+	_dirty = false
+	var new_entries := _download_entries()
+	new_entries.append_array(project.scan(gallery.plugin.absolute_download_path))
+	var old := {}
+	for entry in entries:
+		old[entry.id] = entry
+	var current := {}
+	var added := false
+	download_items.clear()
+	for entry in new_entries:
+		if current.has(entry.id):
+			continue
+		var previous: Dictionary = old.get(entry.id, {})
+		var item = previous.get("item")
+		if item == null:
+			added = true
+			item = gallery_item_scene.instantiate()
+			grid.add_child(item)
+			item.selected.connect(_on_item_selected.bind(entry.id))
+		_update_item(item, entry, previous)
+		if entry.has("download"):
+			item.set_download(entry.download)
+			download_items[entry.id] = item
+		elif previous.has("download"):
+			item.set_download({})
+		grid.move_child(item, current.size())
+		entry.item = item
+		current[entry.id] = entry
+	for id in old:
+		if not current.has(id):
+			grid.remove_child(old[id].item)
+			old[id].item.queue_free()
+	entries = current.values()
+	if added:
+		gallery.update_columns()
+	filter()
+	for entry in entries:
+		if not entry.has("download") and not entry.known:
+			_queue_lookup(entry.id, entry.asset.assetType)
+	_retry_lookups()
+
+
+## Show the entry's asset and thumbnail on its tile where they differ from
+## the [param previous] entry, or {} for a new tile.
+func _update_item(item: Control, entry: Dictionary, previous: Dictionary) -> void:
+	if previous.is_empty() or previous.asset != entry.asset:
+		item.setup(entry.asset)
+	if previous.is_empty() or previous.thumbnail != entry.thumbnail:
+		if entry.thumbnail.is_empty():
+			item.set_thumbnail_failed()
+		else:
+			item.set_thumbnail(entry.thumbnail)
+
+
+## Show the indexed asset on the tiles of its folder and of a Send to Godot
+## download into it. Only the index changed, so there's nothing to rescan.
+func _show_indexed(id: String) -> void:
+	var asset := project.get_asset(id)
+	var thumbnail := project.thumbnail(id)
+	for entry in entries:
+		if entry.has("download") and not gallery.downloads.web_downloads.has(entry.id):
+			continue
+		if str(entry.asset.get("id", "")) != id:
+			continue
+		var previous: Dictionary = entry.duplicate()
+		entry.asset = asset
+		entry.known = true
+		entry.thumbnail = thumbnail
+		_update_item(entry.item, entry, previous)
+	filter()
+
+
+## Project entries for the downloads in progress, like ProjectAssets.scan()
+## with the download and its staging folder, without files.
+func _download_entries() -> Array:
+	var result: Array = []
+	var downloads = gallery.downloads
+	var staging := GalleryApi.staging_path(gallery.plugin.absolute_download_path)
+	for base_id in downloads.gallery_downloads:
+		var dl: Dictionary = downloads.gallery_downloads[base_id]
+		if dl.status in GalleryApi.ACTIVE_DOWNLOAD:
+			result.append({"id": base_id, "time": -1, "asset": dl.asset, "known": true,
+				"thumbnail": gallery.small_thumbnail(base_id), "download": dl,
+				"folder": GalleryApi.asset_download_dir(staging, dl.asset)})
+	for task_id in downloads.web_downloads:
+		var web: Dictionary = downloads.web_downloads[task_id]
+		var known: bool = not web.id.is_empty() and project.has(web.id)
+		result.append({"id": task_id, "time": -1, "asset": _web_download_asset(web),
+			"known": known, "thumbnail": project.thumbnail(web.id) if known else "", "download": web,
+			"folder": web.folder})
+	return result
+
+
+func _web_download_asset(web: Dictionary) -> Dictionary:
+	if web.id.is_empty():
+		return {"name": WEB_DOWNLOAD_NAME}
+	if project.has(web.id):
+		return project.get_asset(web.id)
+	var file := ProjectAssets.main_file(web.folder)
+	return {"id": web.id, "name": ProjectAssets.placeholder_name(file if file else web.folder),
+		"assetType": web.asset_type}
+
+
+func filter() -> void:
+	var query: String = gallery.search_edit.text
+	var shown := 0
+	for entry in entries:
+		entry.item.visible = ProjectAssets.matches(entry, query)
+		if entry.item.visible:
+			shown += 1
+	message.visible = shown == 0
+	grid.visible = shown > 0
+	# The message and Browse Blendkit sit in the middle, otherwise the button
+	# follows the tiles.
+	alignment = BoxContainer.ALIGNMENT_CENTER if shown == 0 else BoxContainer.ALIGNMENT_BEGIN
+	if entries.is_empty():
+		message.text = "No assets downloaded yet to %s" % gallery.plugin.download_dir
+	elif shown == 0:
+		message.text = "No downloaded assets match \"%s\"." % query.strip_edges()
+
+
+func add_thumbnail(base_id: String, path: String) -> void:
+	var ids := project.add_thumbnail(base_id, path)
+	if ids.is_empty():
+		return
+	_queue_save()
+	for id in ids:
+		_show_indexed(id)
+
+
+## Save the index after SAVE_DELAY, or when the view leaves the tree.
+func _queue_save() -> void:
+	if _save_queued:
+		return
+	_save_queued = true
+	get_tree().create_timer(SAVE_DELAY).timeout.connect(_save)
+
+
+func _save() -> void:
+	_save_queued = false
+	project.save()
+
+
+func _on_item_selected(_asset: Dictionary, id: String) -> void:
+	for entry in entries:
+		if entry.id == id:
+			_open_details(entry)
+			return
+
+
+func _open_details(entry: Dictionary) -> void:
+	if entry.has("download"):
+		# Send to Godot downloads have no details until they finish.
+		if entry.download.has("asset"):
+			gallery.open_details(entry.asset)
+		return
+	var thumbs: Dictionary = gallery.thumb_cache.get(GalleryApi.base_id(entry.asset), {}).duplicate()
+	if entry.thumbnail and not thumbs.has("small"):
+		thumbs.small = entry.thumbnail
+	gallery.details.show_asset(entry.asset, thumbs, entry.folder)
+	look_up_details(entry.id, str(entry.asset.get("assetType", "")))
+
+
+# MARK: downloads
+
+## A download tile comes or goes when the download starts or ends, otherwise
+## only its state changes.
+func _on_download_changed(id: String) -> void:
+	var dl: Dictionary = gallery.downloads.gallery_downloads.get(id, gallery.downloads.web_downloads.get(id, {}))
+	if download_items.has(id) != (dl.get("status", "") in GalleryApi.ACTIVE_DOWNLOAD):
+		refresh_if_shown()
+	elif download_items.has(id):
+		download_items[id].set_download(dl)
+
+
+func _on_download_finished(base_id: String) -> void:
+	project.store(gallery.downloads.get_download(base_id).asset, gallery.small_thumbnail(base_id))
+	_queue_save()
+	refresh_if_shown()
+
+
+## Assets in the project keep their index entry up to date; others are
+## stored once their download finishes.
+func _on_asset_refreshed(asset: Dictionary) -> void:
+	var id := str(asset.get("id", ""))
+	if not project.has(id):
+		return
+	project.store(asset, gallery.small_thumbnail(GalleryApi.base_id(asset)))
+	_queue_save()
+	_show_indexed(id)
+
+
+## Look up the guessed asset for its name and thumbnail.
+func _on_web_asset_found(task_id: String) -> void:
+	var web: Dictionary = gallery.downloads.web_downloads[task_id]
+	_queue_lookup(web.id, web.asset_type)
+	next_lookup()
+	refresh_if_shown()
+
+
+# MARK: lookups
+
+func _queue_lookup(id: String, asset_type: String) -> void:
+	if not project.has(id) and not _lookup_failed.has(id) and id != _lookup_id:
+		_lookup_queue[id] = asset_type
+
+
+## Look up the next unknown asset folder on Blendkit, one at a time. The
+## search task also downloads the thumbnail, see add_thumbnail().
+func next_lookup() -> void:
+	if not _lookup_id.is_empty() or _lookup_queue.is_empty() or not gallery.plugin.connection.is_client_connected():
+		return
+	var id: String = _lookup_queue.keys()[0]
+	var asset_type: String = _lookup_queue[id]
+	_lookup_queue.erase(id)
+	if project.has(id):
+		next_lookup()
+		return
+	_lookup_id = id
+	_lookup_type = asset_type
+	var response: Array = await gallery.tasks.start(LOOKUP_TASK, post_lookup.bind(id, asset_type), _finish_lookup)
+	if response.is_empty():
+		return # reset by a disconnect meanwhile
+	if response[0].is_empty():
+		# The others would likely fail alike, so they wait too.
+		gallery.plugin.log_debug("Asset lookup failed: %s" % response[1])
+		_lookup_id = ""
+		_lookup_retry[id] = asset_type
+		_lookup_retry.merge(_lookup_queue)
+		_lookup_queue.clear()
+
+
+func _finish_lookup(task: Dictionary) -> void:
+	if not task.get("status") in ClientTasks.FINAL:
+		return
+	var id := _lookup_id
+	_lookup_id = ""
+	var asset := GalleryApi.lookup_result(task, id)
+	if not asset.is_empty():
+		project.store(asset, gallery.small_thumbnail(GalleryApi.base_id(asset)))
+		_queue_save()
+		_show_indexed(id)
+	elif task.status == "finished":
+		gallery.plugin.log_verbose("Asset %s not found on Blendkit" % id)
+		_lookup_failed[id] = true
+	else:
+		_lookup_retry[id] = _lookup_type
+	next_lookup()
+
+
+## Queue the lookups that failed for other reasons than not finding the
+## asset, and start them.
+func _retry_lookups() -> void:
+	for id in _lookup_retry:
+		_queue_lookup(id, _lookup_retry[id])
+	_lookup_retry.clear()
+	next_lookup()
+
+
+## Look up the asset shown in the details, whose index entry has neither
+## the files to download nor whether the account can. Offline or not found,
+## the details show only the downloaded files.
+func look_up_details(id: String, asset_type: String) -> void:
+	if _lookup_failed.has(id) or not gallery.plugin.connection.is_client_connected():
+		return
+	var post := post_lookup.bind(id, asset_type)
+	var response: Array = await gallery.tasks.start(DETAILS_LOOKUP_TASK, post, _finish_details_lookup.bind(id))
+	if not response.is_empty() and response[0].is_empty():
+		gallery.plugin.log_debug("Asset lookup failed: %s" % response[1])
+
+
+## Only assets in the project go into the index, not those from the search.
+func _finish_details_lookup(task: Dictionary, id: String) -> void:
+	if not task.get("status") in ClientTasks.FINAL:
+		return
+	var asset := GalleryApi.lookup_result(task, id)
+	if asset.is_empty():
+		if task.status == "finished":
+			_lookup_failed[id] = true
+		return
+	if _in_project(id):
+		project.store(asset, gallery.small_thumbnail(GalleryApi.base_id(asset)))
+		_queue_save()
+		_show_indexed(id)
+	var details = gallery.details
+	if details.visible and str(details.asset.get("id", "")) == id:
+		details.update_asset(asset)
+
+
+## Whether the index or a folder in the project has the asset.
+func _in_project(id: String) -> bool:
+	if project.has(id):
+		return true
+	for entry in entries:
+		if not entry.has("download") and str(entry.asset.get("id", "")) == id:
+			return true
+	return false
+
+
+func _post_lookup(id: String, asset_type: String) -> Array:
+	return await GalleryApi.lookup(self, gallery.plugin, id, asset_type)
+
+
+## A lookup in flight goes back into the queue.
+func on_disconnected() -> void:
+	if not _lookup_id.is_empty():
+		_lookup_queue[_lookup_id] = _lookup_type
+	_lookup_id = ""
+
+
+## Lookups that failed meanwhile are tried again.
+func on_connected() -> void:
+	_retry_lookups()

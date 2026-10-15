@@ -1,0 +1,148 @@
+[gd_scene format=3 uid="uid://c10nl6n2ttkws"]
+
+[ext_resource type="Script" uid="uid://fpy7jiaam85v" path="res://addons/unibuilder/editor/preferences_panel.gd" id="1_script"]
+
+[node name="UBPreferencesPanel" type="PopupPanel"]
+script = ExtResource("1_script")
+
+[node name="Box" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(260, 0)
+
+[node name="VertexRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/VertexRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Vertex size (px)"
+
+[node name="VertexSize" type="SpinBox" parent="Box/VertexRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 4.0
+max_value = 24.0
+value = 4.0
+
+[node name="GrowRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/GrowRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Grow angle limit (°)"
+
+[node name="GrowAngle" type="SpinBox" parent="Box/GrowRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Face-mode Grow skips neighbors whose normal deviates more than this. 180 = unlimited."
+min_value = 1.0
+max_value = 180.0
+value = 1.0
+
+[node name="LightmapRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/LightmapRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Bake lightmap texel"
+
+[node name="LightmapTexel" type="SpinBox" parent="Box/LightmapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Lightmap UV2s are unwrapped at this texel size, on bake and on live meshes. Changing it unwraps live meshes again. 0 = skip."
+max_value = 10.0
+step = 0.01
+
+[node name="LiveUV2Row" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/LiveUV2Row"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Live lightmap UV2"
+
+[node name="LiveUV2" type="CheckBox" parent="Box/LiveUV2Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Set a bake lightmap texel above 0 to enable live UV2. It unwraps at that size."
+disabled = true
+
+[node name="EdgeRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/EdgeRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Edges"
+
+[node name="ColorEdge" type="ColorPickerButton" parent="Box/EdgeRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EdgeSelectedRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/EdgeSelectedRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Selected edges"
+
+[node name="ColorEdgeSelected" type="ColorPickerButton" parent="Box/EdgeSelectedRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VertexColorRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/VertexColorRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Vertices"
+
+[node name="ColorVertex" type="ColorPickerButton" parent="Box/VertexColorRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VertexSelectedRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/VertexSelectedRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Selected vertices"
+
+[node name="ColorVertexSelected" type="ColorPickerButton" parent="Box/VertexSelectedRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FaceSelectedRow" type="HBoxContainer" parent="Box"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Box/FaceSelectedRow"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Selected faces"
+
+[node name="ColorFaceSelected" type="ColorPickerButton" parent="Box/FaceSelectedRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Reset" type="Button" parent="Box"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Reset to Defaults"
