@@ -4,7 +4,8 @@ shader_type spatial;
 // that cell's panel glow: level_lighting.gd sets it per fixture, so burnt cells, flicker, power cuts and
 // event tints reach the panels exactly as they reach the real lights under them.
 // A panel that isn't lit is drawn as a plain ceiling tile: Ceiling_Light_Panels's colour map bakes the lit-panel squares in,
-// so it borrows the tile one to the right, which in Ceiling_Light_Panels's layout is never a panel.
+// so it borrows the tile one to the right, which in Ceiling_Light_Panels's layout is never a panel (unless the material
+// sets dead_lens: then it keeps its lens, switched off).
 // Every tile gets its own slight shade (a few are yellowed with age) so the ceiling isn't one flat colour.
 //
 // No repeat: the texture is laid once per cell, so its own darker / yellowed tiles came back in the same spots
@@ -45,6 +46,27 @@ uniform float lens_edge = 0.78;
 // endless halls (level_builder.gd _build_wrap_copies): a copy of the level drawn one period away sets this to
 // minus its offset, so it samples the world exactly as the level it copies does (no jump in the pattern at the seam)
 uniform vec3 world_shift = vec3(0.0);
+// Per material (a .tres's "metadata/shader_params", level_fixtures.gd _build_panel_ceiling); the defaults are
+// Ceiling_Light_Panels's look. Ceiling_Office_Lit turns them on:
+// dead_lens: 0 = a panel that isn't lit wears a plain tile (Ceiling_Light_Panels's colour map bakes a lit lens in);
+// 1 = a panel of the lit grid (every other cell each way, level_fixtures.gd _place_panel_fixtures) keeps its own
+// lens when off, a dull grey diffuser with nothing behind it, so a flickering panel never swaps between a lens and
+// a tile as its glow crosses half. The cells between, and burnt fixtures, keep plain tiles: no lenses are added.
+uniform float dead_lens = 0.0;
+// Each of a lit fixture's five panels on its own (a share of panels each): off, flickering, dim, or a warmer /
+// cooler white than the rest (an odd tube put in). Picked per panel from where it is, so it never changes.
+uniform float panel_off = 0.0;
+uniform float panel_flicker = 0.0;
+uniform float panel_dim = 0.0;
+uniform float panel_tint = 0.0;
+// a lens is smooth plastic, not a mineral tile: how far it may drop below the tiles' matte floor (the torch glints on it)
+uniform float lens_gloss = 0.0;
+// the tubes behind a lit diffuser showing through it as soft brighter bands (0 = an even glow)
+uniform float tube_bands = 0.0;
+// share of panels with one of their tubes gone: a darker band across the lens
+uniform float tube_out = 0.0;
+// how much one panel's output differs from the others of its fixture (they share one lamp colour)
+uniform float panel_vary = 0.0;
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -117,7 +139,29 @@ void fragment() {
 	// a lit panel keeps its own square (its glow is drawn from it); every other tile, a switched-off panel
 	// included, wears a random plain tile: (1..5, 1..5), never a panel ((2, any) never is), mirrored at random
 	// (Ceiling_Light_Panels's tiles are all alike apart from their speckle: 20 of them alone still showed as a pattern)
-	if (!(is_panel_tile(k) && glow > 0.5)) {
+	vec2 cell_i = round(world / cell);
+	bool on_grid = abs(mod(cell_i.x, 2.0)) < 0.5 && abs(mod(cell_i.y, 2.0)) < 0.5;
+	// (a burnt fixture is written pure black and keeps plain tiles, as before; a lit one never goes below 0.03,
+	// even in a power cut, so its lenses stay put through flicker and blackouts)
+	bool own = is_panel_tile(k) && (glow > 0.5 || (dead_lens > 0.5 && on_grid && glow > 0.001));
+	// this panel's own state (1 / white on everything but a lens)
+	float pm = 1.0;
+	vec3 pt = vec3(1.0);
+	if (own) {
+		float r = hash12(tile + 301.0);
+		if (r < panel_off) pm = 0.0;
+		else if (r < panel_off + panel_flicker) {
+			// a failing tube: mostly on, dropping out in stutters and short blackouts
+			float n = vnoise(vec2(TIME * 7.0 + hash12(tile + 307.0) * 100.0, hash12(tile + 311.0) * 50.0));
+			pm = n < 0.33 ? 0.04 : (n < 0.42 ? 0.45 : 1.0);
+		}
+		else if (r < panel_off + panel_flicker + panel_dim) pm = 0.3 + 0.2 * hash12(tile + 313.0);
+		float w = hash12(tile + 317.0);
+		if (w < panel_tint * 0.5) pt = vec3(1.08, 0.93, 0.76);        // an old, warm tube
+		else if (w < panel_tint) pt = vec3(0.88, 0.98, 1.08);         // a newer, cooler one
+	}
+	float pglow = glow * pm;
+	if (!own) {
 		vec2 src = vec2(1.0) + floor(vec2(hash12(tile + 41.7), hash12(tile + 93.1)) * 4.999);
 		if (is_panel_tile(ivec2(src))) src.x = 2.0;
 		flip = step(vec2(0.5), vec2(hash12(tile + 7.7), hash12(tile + 63.2))) * 2.0 - 1.0;
@@ -147,7 +191,12 @@ void fragment() {
 	float edge = min(em.x, em.y);
 	float recess = 1.0 - 0.32 * (1.0 - smoothstep(0.016, 0.045, edge)) * smoothstep(0.012, 0.018, edge);
 	recess = mix(0.985, recess, keep);
-	ALBEDO = textureGrad(albedo_tex, tuv, gx, gy).rgb * albedo_tint * mix(shade, vec3(1.0), panel * glow) * mix(recess, 1.0, panel * glow);
+	ALBEDO = textureGrad(albedo_tex, tuv, gx, gy).rgb * albedo_tint * mix(shade, vec3(1.0), panel * pglow) * mix(recess, 1.0, panel * pglow);
+	// this tile's own lens (0 on a borrowed plain tile), soft at its edge as the emission map is
+	float lens = own ? panel : 0.0;
+	// a switched-off lens: milky plastic with no light behind it reads a dull grey-green, darker than the tiles
+	float unlit = lens * dead_lens * (1.0 - smoothstep(0.0, 1.0, pglow));
+	ALBEDO = mix(ALBEDO, vec3(dot(ALBEDO, vec3(0.333))) * vec3(0.56, 0.58, 0.56), unlit);
 	vec3 nm = textureGrad(normal_tex, tuv, gx, gy).rgb;
 	// a mirrored tile's bumps lean the other way
 	if (flip.x < 0.0) nm.r = 1.0 - nm.r;
@@ -156,7 +205,7 @@ void fragment() {
 	NORMAL_MAP_DEPTH = normal_depth * mix(0.25, 1.0, keep);
 	AO = orm.r;
 	AO_LIGHT_AFFECT = ao_light_affect;
-	ROUGHNESS = max(orm.g, 0.55);         // painted steel T-bars and mineral tiles: matte, so a torch lights them
+	ROUGHNESS = mix(max(orm.g, 0.55), max(orm.g, 0.28), lens * lens_gloss);   // painted steel T-bars and mineral tiles: matte, so a torch lights them
 	METALLIC = 0.0;                       // (the ORM marks the grid as bare metal, which ignores diffuse light)
 	SPECULAR = specular;
 	// Far away a panel and the tiles round it shrink into a pixel or two, and the texture filter averages them
@@ -173,5 +222,20 @@ void fragment() {
 	vec2 p = world - round(world / cell) * cell;
 	float pd = panel_dist(p, vec2(tile_size * 0.5));
 	emit *= mix(lens_edge, 1.0, smoothstep(0.0, 0.2, -pd));
+	// each panel its own: a little more or less light than its neighbours, three tubes behind the diffuser
+	// (across the cell's x), now and then one of them out. Settled to an even glow far off, where the bands
+	// would only shimmer.
+	emit *= pm * pt;
+	float pv = 1.0 + (hash12(tile + 211.0) - 0.5) * 2.0 * panel_vary;
+	if (tube_bands > 0.0) {
+		int gone = hash12(tile + 223.0) < tube_out ? int(hash12(tile + 227.0) * 2.999) : -1;
+		float sum = 0.0;
+		for (int i = 0; i < 3; i++) {
+			float b = exp(-pow((local.x - (float(i) - 1.0) * 0.27) / 0.11, 2.0));
+			sum += b * (i == gone ? 0.12 : 1.0);
+		}
+		pv *= mix(1.0, mix(1.0, 0.72 + 0.45 * sum, tube_bands), keep);
+	}
+	emit *= pv;
 	EMISSION = emit * COLOR.rgb * mix(1.0, 1.0 / peak, far_k) + ALBEDO * ceiling_fill * mix(fill_between, 1.0, pool);
 }
