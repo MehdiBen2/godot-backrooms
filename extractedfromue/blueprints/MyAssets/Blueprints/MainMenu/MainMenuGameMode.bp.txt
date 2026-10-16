@@ -1,0 +1,26 @@
+// Content\MyAssets\Blueprints\MainMenu\MainMenuGameMode
+
+== class MainMenuGameMode_C : Class'GameMode'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var SettingsSaveGame: Object
+
+== class ExecuteUbergraph_MainMenuGameMode : 
+  var EntryPoint: Int
+  var CallFunc_CreateSaveGameObject_ReturnValue: Object
+  var CallFunc_SaveGameToSlot_ReturnValue: Bool
+  var CallFunc_DoesSaveGameExist_ReturnValue: Bool
+
+function ExecuteUbergraph_MainMenuGameMode  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    CallFunc_CreateSaveGameObject_ReturnValue = GameplayStatics.CreateSaveGameObject(Obj<Settings_SaveGame_C>)
+            CallFunc_SaveGameToSlot_ReturnValue = GameplayStatics.SaveGameToSlot(CallFunc_CreateSaveGameObject_ReturnValue, "Settings", 0)
+            if not (CallFunc_SaveGameToSlot_ReturnValue) goto @151
+            goto @151
+            CallFunc_DoesSaveGameExist_ReturnValue = GameplayStatics.DoesSaveGameExist("Settings", 0)
+            if not (CallFunc_DoesSaveGameExist_ReturnValue) goto @10
+    @151:   return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            MainMenuGameMode_C.ExecuteUbergraph_MainMenuGameMode(102)
+            return

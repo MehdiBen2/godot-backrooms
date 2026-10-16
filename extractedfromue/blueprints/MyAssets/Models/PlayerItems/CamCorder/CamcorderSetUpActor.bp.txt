@@ -1,0 +1,185 @@
+// Content\MyAssets\Models\PlayerItems\CamCorder\CamcorderSetUpActor
+
+== class CamcorderSetUpActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var CamcorderScreen: Object
+  var Box: Object
+  var CamcorderSetUp: Object
+  var DefaultSceneRoot: Object
+  var ScreenOpen_NewTrack_0: Float
+  var ScreenOpen__Direction: Byte
+  var ScreenOpen: Object
+  var ScreenMaterials: Array
+  var ScreenIndex: Int
+  var TooClose: Bool
+  var ValidCameraSetup: Bool
+
+== class ExecuteUbergraph_CamcorderSetUpActor : 
+  var EntryPoint: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Conv_DoubleToVector_ReturnValue: Struct
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var Temp_object_Variable: Array
+  var CallFunc_GetForwardVector_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_Multiply_VectorVector_ReturnValue: Struct
+  var CallFunc_Add_VectorVector_ReturnValue: Struct
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_LineTraceSingle_OutHit: Struct
+  var CallFunc_LineTraceSingle_ReturnValue: Bool
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_NotEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+
+== class GetInteractText : 
+  var Player: Object
+
+== class OnRep_ScreenIndex : 
+  var CallFunc_Array_Get_Item: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_CamcorderSetUpActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2039
+            goto computed(EntryPoint)
+    @15:    OnRep_ScreenIndex()
+    @29:    CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(K2Node_DynamicCast_AsWorld_Game_State.self.TaskSystemRef)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            K2Node_DynamicCast_AsWorld_Game_State.self.TaskSystemRef.UpdateMissionProgress(2)
+            pop_flow  // return to pushed flow
+    @247:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "ScreenIndex")
+            goto @15
+    @281:   Actor.FlushNetDormancy()
+            self.ScreenIndex = 2
+            goto @247
+    @319:   OnRep_ScreenIndex()
+            Actor.FlushNetDormancy()
+            self.ValidCameraSetup = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "ValidCameraSetup")
+            goto @29
+    @388:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "ScreenIndex")
+            goto @319
+    @422:   Actor.FlushNetDormancy()
+            self.ScreenIndex = 3
+            goto @388
+    @460:   OnRep_ScreenIndex()
+            goto @29
+    @479:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "ScreenIndex")
+            goto @460
+    @513:   Actor.FlushNetDormancy()
+            self.ScreenIndex = 1
+            goto @479
+    @551:   push_flow @898
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_NotEqual_ObjectObject_ReturnValue = KismetMathLibrary.NotEqual_ObjectObject(CallFunc_Array_Get_Item, self)
+            if not (CallFunc_NotEqual_ObjectObject_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_K2_GetActorLocation_ReturnValue = CallFunc_Array_Get_Item.Actor.K2_GetActorLocation()
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_Vector_Distance_ReturnValue, 15000.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue) pop_flow
+            self.TooClose = true
+            pop_flow  // return to pushed flow
+    @898:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+    @967:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @1110
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            goto @551
+    @1110:  if not (self.TooClose) goto @1129
+            goto @513
+    @1129:  CallFunc_Conv_DoubleToVector_ReturnValue = KismetMathLibrary.Conv_DoubleToVector(1000.0)
+            CallFunc_GetForwardVector_ReturnValue = self.Box.SceneComponent.GetForwardVector()
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.Box.SceneComponent.K2_GetComponentLocation()
+            CallFunc_Multiply_VectorVector_ReturnValue = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetForwardVector_ReturnValue, CallFunc_Conv_DoubleToVector_ReturnValue)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_Multiply_VectorVector_ReturnValue)
+            CallFunc_LineTraceSingle_ReturnValue = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_Add_VectorVector_ReturnValue, 0, false, Temp_object_Variable, 0, CallFunc_LineTraceSingle_OutHit, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue) goto @422
+            goto @281
+    @1513:  Temp_int_Array_Index_Variable = 0
+            goto @967
+    @1541:  Temp_int_Loop_Counter_Variable = 0
+            goto @1513
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.ScreenOpen_NewTrack_0)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.0, 90.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            self.CamcorderScreen.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player_1.PickupCamcorder(self)
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Pick up Tripod Cam (hold)"})
+            pop_flow  // return to pushed flow
+            CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            self.ScreenOpen.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @1989:  CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CamcorderSetUpActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            goto @1541
+            goto @1989
+    @2039:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            CamcorderSetUpActor_C.ExecuteUbergraph_CamcorderSetUpActor(1820)
+            return
+
+function OnRep_ScreenIndex  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ScreenMaterials, self.ScreenIndex, CallFunc_Array_Get_Item)
+            self.CamcorderScreen.SetMaterial(1, CallFunc_Array_Get_Item)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            CamcorderSetUpActor_C.ExecuteUbergraph_CamcorderSetUpActor(1782)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            CamcorderSetUpActor_C.ExecuteUbergraph_CamcorderSetUpActor(1926)
+            return
+
+function ScreenOpen__FinishedFunc  [FUNC_BlueprintEvent]
+            CamcorderSetUpActor_C.ExecuteUbergraph_CamcorderSetUpActor(2034)
+            return
+
+function ScreenOpen__UpdateFunc  [FUNC_BlueprintEvent]
+            CamcorderSetUpActor_C.ExecuteUbergraph_CamcorderSetUpActor(1569)
+            return

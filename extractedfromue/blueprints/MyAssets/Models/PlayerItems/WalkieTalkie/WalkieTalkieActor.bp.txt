@@ -1,0 +1,32 @@
+// Content\MyAssets\Models\PlayerItems\WalkieTalkie\WalkieTalkieActor
+
+== class WalkieTalkieActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var WalkieTalkie: Object
+  var DefaultSceneRoot: Object
+
+== class ExecuteUbergraph_WalkieTalkieActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+
+== class PlayerInteractRightClick : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+
+function ExecuteUbergraph_WalkieTalkieActor  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            K2Node_Event_Player.UseWalkieTalkie()
+            return
+
+function PlayerInteractRightClick  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            WalkieTalkieActor_C.ExecuteUbergraph_WalkieTalkieActor(10)
+            return

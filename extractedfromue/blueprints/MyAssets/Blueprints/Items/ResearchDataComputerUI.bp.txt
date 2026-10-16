@@ -1,0 +1,40 @@
+// Content\MyAssets\Blueprints\Items\ResearchDataComputerUI
+
+== class ExecuteUbergraph_ResearchDataComputerUI : 
+  var EntryPoint: Int
+  var K2Node_Event_MyGeometry: Struct
+  var K2Node_Event_InDeltaTime: Float
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Conv_IntToText_ReturnValue: Text
+
+== class Tick : Class'UserWidget:Tick'
+  var MyGeometry: Struct
+  var InDeltaTime: Float
+
+== class ResearchDataComputerUI_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var DataAmountText: Object
+  var TopLineText: Object
+  var ResearchDataComputer: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            ResearchDataComputerUI_C.ExecuteUbergraph_ResearchDataComputerUI(131)
+            return
+
+function ExecuteUbergraph_ResearchDataComputerUI  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            CallFunc_Conv_IntToText_ReturnValue = KismetTextLibrary.Conv_IntToText(self.ResearchDataComputer.self.Data, false, true, 1, 324)
+            self.DataAmountText.SetText(CallFunc_Conv_IntToText_ReturnValue)
+            goto @245
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<ResearchDataComputer_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            self.ResearchDataComputer = CallFunc_Array_Get_Item
+    @245:   return
+
+function Tick  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_MyGeometry = MyGeometry
+            frame.K2Node_Event_InDeltaTime = InDeltaTime
+            ResearchDataComputerUI_C.ExecuteUbergraph_ResearchDataComputerUI(10)
+            return

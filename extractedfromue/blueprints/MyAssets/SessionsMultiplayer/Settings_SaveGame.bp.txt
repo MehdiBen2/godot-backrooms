@@ -1,0 +1,5 @@
+// Content\MyAssets\SessionsMultiplayer\Settings_SaveGame
+
+== class Settings_SaveGame_C : Class'SaveGame'
+  var UseMotionBlur: Bool
+  var HeadbobStrength: Double

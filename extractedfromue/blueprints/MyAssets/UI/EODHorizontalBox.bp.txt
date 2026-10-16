@@ -1,0 +1,5 @@
+// Content\MyAssets\UI\EODHorizontalBox
+
+== class EODHorizontalBox_C : Class'UserWidget'
+  var TextFirst: Object
+  var TextSecond: Object

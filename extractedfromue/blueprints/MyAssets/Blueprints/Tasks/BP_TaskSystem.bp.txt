@@ -1,0 +1,417 @@
+// Content\MyAssets\Blueprints\Tasks\BP_TaskSystem
+
+== class BP_TaskSystem_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var ActiveTasks: Array
+  var TaskList: Array
+  var TempIndex: Int
+  var Started: Bool
+  var GameMode: Object
+  var NumTasks: Int
+  var MasterWorldGen: Object
+  var TaskNameList: Array
+  var ActiveTaskNames: Array
+  var TasksChosen: Bool
+  var GameState: Object
+  var Task1Completed: Bool
+  var Task2Completed: Bool
+  var TaskDayNum: Int
+  var HidePlayerTaskPanel: Bool
+  var LoadedFromSave: Bool
+
+== class CalculateMissionRewardsEndLevel : 
+  var EndingContract: Bool
+
+== class CheckTaskIsCompleted : 
+  var Task Enum: Byte
+  var IsCompleted: Bool
+  var Completed: Bool
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_CheckIsCompleted_IsCompleted: Bool
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+
+== class ExecuteUbergraph_BP_TaskSystem : 
+  var EntryPoint: Int
+  var CallFunc_Array_Length_ReturnValue: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Loop_Counter_Variable_2: Int
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var Temp_int_Loop_Counter_Variable_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_3: Int
+  var Temp_int_Array_Index_Variable_2: Int
+  var Temp_int_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue_4: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var Temp_int_Loop_Counter_Variable_4: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue_5: Int
+  var Temp_int_Array_Index_Variable_3: Int
+  var Temp_int_Array_Index_Variable_4: Int
+  var CallFunc_Array_Get_Item: Name
+  var CallFunc_GetDataTableRowFromName_OutRow: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue: Bool
+  var CallFunc_AddComponentByClass_ReturnValue: Object
+  var Temp_int_Array_Index_Variable_5: Int
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Array_Get_Item_1: Object
+  var K2Node_Event_DeltaSeconds: Float
+  var Temp_int_Array_Index_Variable_6: Int
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var Temp_int_Loop_Counter_Variable_5: Int
+  var CallFunc_Array_Get_Item_2: Object
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_Add_IntInt_ReturnValue_6: Int
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var K2Node_CustomEvent_Task_Enum: Byte
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var Temp_int_Loop_Counter_Variable_6: Int
+  var CallFunc_GetDataTableRowNames_OutRowNames: Array
+  var CallFunc_Less_IntInt_ReturnValue_2: Bool
+  var CallFunc_Add_IntInt_ReturnValue_7: Int
+  var CallFunc_Array_Get_Item_3: Name
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_GetDataTableRowFromName_OutRow_1: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue_1: Bool
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_Array_Get_Item_4: Int
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var CallFunc_Array_Get_Item_5: Int
+  var CallFunc_Array_Length_ReturnValue_4: Int
+  var CallFunc_Array_Length_ReturnValue_5: Int
+  var CallFunc_Less_IntInt_ReturnValue_3: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_AddComponentByClass_ReturnValue_1: Object
+  var Temp_int_Variable_1: Int
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_6: Int
+  var CallFunc_Add_IntInt_ReturnValue_8: Int
+  var CallFunc_Array_Get_Item_7: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Length_ReturnValue_6: Int
+  var CallFunc_Less_IntInt_ReturnValue_4: Bool
+  var K2Node_CustomEvent_EndingContract: Bool
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var CallFunc_Array_Get_Item_8: Object
+  var K2Node_DynamicCast_AsBP_First_Person_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_CheckIsCompleted_IsCompleted: Bool
+  var CallFunc_Array_Length_ReturnValue_7: Int
+  var CallFunc_Less_IntInt_ReturnValue_5: Bool
+  var CallFunc_GetDataTableRowNames_OutRowNames_1: Array
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_9: Object
+  var CallFunc_Array_Length_ReturnValue_8: Int
+  var CallFunc_Less_IntInt_ReturnValue_6: Bool
+  var CallFunc_Add_IntInt_ReturnValue_9: Int
+  var K2Node_CustomEvent_LoadedFromSave: Bool
+  var CallFunc_Array_Add_ReturnValue_2: Int
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class StartTaskSystem : 
+  var LoadedFromSave: Bool
+
+== class UpdateMissionProgress : 
+  var Task Enum: Byte
+
+function CalculateMissionRewardsEndLevel  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_EndingContract = EndingContract
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(6319)
+            return
+
+function CheckTaskIsCompleted  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @545
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @51:    CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTasks)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @447
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @471
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(CallFunc_Array_Get_Item.self.TaskEnum, Task Enum)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.CheckIsCompleted(CallFunc_CheckIsCompleted_IsCompleted)
+            Completed = CallFunc_CheckIsCompleted_IsCompleted
+            pop_flow  // return to pushed flow
+    @447:   IsCompleted = Completed
+            goto @545
+    @471:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @51
+    @545:   return
+
+function ExecuteUbergraph_BP_TaskSystem  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @6380
+            goto computed(EntryPoint)
+    @15:    NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 12, "TasksChosen")
+            Actor.FlushNetDormancy()
+            self.HidePlayerTaskPanel = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 16, "HidePlayerTaskPanel")
+            Temp_int_Loop_Counter_Variable_5 = 0
+            Temp_int_Array_Index_Variable_5 = 0
+    @140:   CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTasks)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_5, CallFunc_Array_Length_ReturnValue_1)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) pop_flow
+            Temp_int_Array_Index_Variable_5 = Temp_int_Loop_Counter_Variable_5
+            push_flow @375
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_5, CallFunc_Array_Get_Item_1)
+            CallFunc_Array_Get_Item_1.StartMission()
+            pop_flow  // return to pushed flow
+    @375:   CallFunc_Add_IntInt_ReturnValue_6 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_5, 1)
+            Temp_int_Loop_Counter_Variable_5 = CallFunc_Add_IntInt_ReturnValue_6
+            goto @140
+    @449:   Actor.FlushNetDormancy()
+            self.TasksChosen = true
+            goto @15
+    @475:   CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_GetGameState_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @721
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            self.GameState = K2Node_DynamicCast_AsWorld_Game_State
+            CallFunc_GetDataTableRowNames_OutRowNames = []
+            DataTableFunctionLibrary.GetDataTableRowNames(Obj<TaskDataTable>, CallFunc_GetDataTableRowNames_OutRowNames)
+            self.TaskNameList = CallFunc_GetDataTableRowNames_OutRowNames
+            pop_flow  // return to pushed flow
+    @721:   KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{475, -1852620251, "ExecuteUbergraph_BP_TaskSystem", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode = Cast<BP_FirstPersonGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_First_Person_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode.LoadNextLevel(K2Node_CustomEvent_EndingContract)
+            pop_flow  // return to pushed flow
+    @918:   Actor.FlushNetDormancy()
+            self.Task1Completed = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 13, "Task1Completed")
+            Actor.FlushNetDormancy()
+            self.Task2Completed = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 14, "Task2Completed")
+            Actor.FlushNetDormancy()
+            self.TasksChosen = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 12, "TasksChosen")
+            Temp_int_Loop_Counter_Variable_3 = 0
+            Temp_int_Array_Index_Variable_2 = 0
+    @1114:  CallFunc_Array_Length_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTasks)
+            CallFunc_Less_IntInt_ReturnValue_6 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_3, CallFunc_Array_Length_ReturnValue_8)
+            if not (CallFunc_Less_IntInt_ReturnValue_6) goto @1350
+            Temp_int_Array_Index_Variable_2 = Temp_int_Loop_Counter_Variable_3
+            push_flow @1472
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_9)
+            CallFunc_Array_Get_Item_9.ActorComponent.K2_DestroyComponent(self)
+            pop_flow  // return to pushed flow
+    @1350:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(self.ActiveTasks)
+            CallFunc_GetDataTableRowNames_OutRowNames_1 = []
+            DataTableFunctionLibrary.GetDataTableRowNames(Obj<TaskDataTable>, CallFunc_GetDataTableRowNames_OutRowNames_1)
+            self.TaskNameList = CallFunc_GetDataTableRowNames_OutRowNames_1
+            InitializeTasks()
+            pop_flow  // return to pushed flow
+    @1472:  CallFunc_Add_IntInt_ReturnValue_3 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_3, 1)
+            Temp_int_Loop_Counter_Variable_3 = CallFunc_Add_IntInt_ReturnValue_3
+            goto @1114
+    @1546:  Actor.FlushNetDormancy()
+            CallFunc_Add_IntInt_ReturnValue_9 = KismetMathLibrary.Add_IntInt(self.TaskDayNum, 1)
+            self.TaskDayNum = CallFunc_Add_IntInt_ReturnValue_9
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 15, "TaskDayNum")
+            Temp_int_Variable = 0
+    @1677:  CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(self.NumTasks, 1)
+            CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, CallFunc_Subtract_IntInt_ReturnValue)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) goto @3433
+            push_flow @3359
+            CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.TaskNameList)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_3, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue) pop_flow
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(self.TaskNameList)
+            CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(0, CallFunc_Array_LastIndex_ReturnValue)
+            self.TempIndex = CallFunc_RandomIntegerInRange_ReturnValue
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.TaskNameList, self.TempIndex, CallFunc_Array_Get_Item_3)
+            CallFunc_GetDataTableRowFromName_ReturnValue_1 = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<TaskDataTable>, CallFunc_Array_Get_Item_3, CallFunc_GetDataTableRowFromName_OutRow_1)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue_1) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.TaskNameList, self.TempIndex, CallFunc_Array_Get_Item_3)
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveTaskNames, CallFunc_Array_Get_Item_3)
+            CallFunc_AddComponentByClass_ReturnValue_1 = Actor.AddComponentByClass(CallFunc_GetDataTableRowFromName_OutRow_1.TaskBPComponent_5, false, Transform({"Rotation": {"X": 0.0, "Y": 0.0, "Z": 0.0, "W": 1.0, "IsNormalized": true, "Size": 1.0, "SizeSquared": 1.0}, "Translation": {"X": 0.0, "Y": 0.0, "Z": 0.0}, "Scale3D": {"X": 1.0, "Y": 1.0, "Z": 1.0}, "IsRotationNormalized": true}), false)
+            CallFunc_AddComponentByClass_ReturnValue_1.ActorComponent.SetIsReplicated(true)
+            CallFunc_AddComponentByClass_ReturnValue_1.self.OwningManager = self
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_AddComponentByClass_ReturnValue_1, 3, "OwningManager")
+            CallFunc_AddComponentByClass_ReturnValue_1.self.TaskListIndex = CallFunc_Array_Add_ReturnValue_1
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveTasks, CallFunc_AddComponentByClass_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.TaskNameList, self.TempIndex)
+            CallFunc_Array_Length_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetDataTableRowFromName_OutRow_1.TerminalStockIndexisToAdd_12)
+            CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_5, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_1) pop_flow
+            Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable_6 = 0
+    @2821:  CallFunc_Array_Length_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetDataTableRowFromName_OutRow_1.TerminalStockIndexisToAdd_12)
+            CallFunc_Less_IntInt_ReturnValue_3 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue_4)
+            if not (CallFunc_Less_IntInt_ReturnValue_3) pop_flow
+            Temp_int_Array_Index_Variable_6 = Temp_int_Loop_Counter_Variable_1
+            push_flow @4015
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetDataTableRowFromName_OutRow_1.StockAmountsToAdd_14, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_4)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetDataTableRowFromName_OutRow_1.TerminalStockIndexisToAdd_12, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_5)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.GameState.self.TerminalRef.self.TerminalStock, CallFunc_Array_Get_Item_5, CallFunc_Array_Get_Item_6)
+            CallFunc_Add_IntInt_ReturnValue_8 = KismetMathLibrary.Add_IntInt(CallFunc_Array_Get_Item_6, CallFunc_Array_Get_Item_4)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Set(self.GameState.self.TerminalRef.self.TerminalStock, CallFunc_Array_Get_Item_5, CallFunc_Add_IntInt_ReturnValue_8, false)
+            pop_flow  // return to pushed flow
+    @3359:  CallFunc_Add_IntInt_ReturnValue_4 = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue_4
+            goto @1677
+    @3433:  Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @3479:  CallFunc_Array_Length_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.GameState.self.TerminalRef.self.TerminalStock)
+            CallFunc_Less_IntInt_ReturnValue_4 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_6)
+            if not (CallFunc_Less_IntInt_ReturnValue_4) goto @449
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @3941
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.GameState.self.TerminalRef.self.TerminalStock, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_7)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Get_Item_7, 0)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) pop_flow
+            Temp_int_Variable_1 = -1
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Set(self.GameState.self.TerminalRef.self.TerminalStock, Temp_int_Array_Index_Variable, Temp_int_Variable_1, false)
+            pop_flow  // return to pushed flow
+    @3941:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @3479
+    @4015:  CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @2821
+    @4089:  Actor.FlushNetDormancy()
+            self.HidePlayerTaskPanel = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 16, "HidePlayerTaskPanel")
+            Temp_int_Loop_Counter_Variable_2 = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @4185:  CallFunc_Array_Length_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTasks)
+            CallFunc_Less_IntInt_ReturnValue_5 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_2, CallFunc_Array_Length_ReturnValue_7)
+            if not (CallFunc_Less_IntInt_ReturnValue_5) goto @4612
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable_2
+            push_flow @4538
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Get_Item_8.CheckIsCompleted(CallFunc_CheckIsCompleted_IsCompleted)
+            if not (CallFunc_CheckIsCompleted_IsCompleted) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Get_Item_8.CalculateReward()
+            pop_flow  // return to pushed flow
+    @4538:  CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_2, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Add_IntInt_ReturnValue_2
+            goto @4185
+    @4612:  KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{776, 1581670520, "ExecuteUbergraph_BP_TaskSystem", self})
+            pop_flow  // return to pushed flow
+    @4667:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            self.LoadedFromSave = K2Node_CustomEvent_LoadedFromSave
+            goto @475
+    @4721:  CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTaskNames)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_4, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @449
+            Temp_int_Array_Index_Variable_3 = Temp_int_Loop_Counter_Variable_4
+            push_flow @5344
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTaskNames, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item)
+            CallFunc_GetDataTableRowFromName_ReturnValue = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<TaskDataTable>, CallFunc_Array_Get_Item, CallFunc_GetDataTableRowFromName_OutRow)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue) pop_flow
+            CallFunc_AddComponentByClass_ReturnValue = Actor.AddComponentByClass(CallFunc_GetDataTableRowFromName_OutRow.TaskBPComponent_5, false, Transform({"Rotation": {"X": 0.0, "Y": 0.0, "Z": 0.0, "W": 1.0, "IsNormalized": true, "Size": 1.0, "SizeSquared": 1.0}, "Translation": {"X": 0.0, "Y": 0.0, "Z": 0.0}, "Scale3D": {"X": 1.0, "Y": 1.0, "Z": 1.0}, "IsRotationNormalized": true}), false)
+            CallFunc_AddComponentByClass_ReturnValue.ActorComponent.SetIsReplicated(true)
+            CallFunc_AddComponentByClass_ReturnValue.self.OwningManager = self
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_AddComponentByClass_ReturnValue, 3, "OwningManager")
+            CallFunc_AddComponentByClass_ReturnValue.self.TaskListIndex = Temp_int_Array_Index_Variable_3
+            CallFunc_Array_Add_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveTasks, CallFunc_AddComponentByClass_ReturnValue)
+            pop_flow  // return to pushed flow
+    @5344:  CallFunc_Add_IntInt_ReturnValue_5 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_4, 1)
+            Temp_int_Loop_Counter_Variable_4 = CallFunc_Add_IntInt_ReturnValue_5
+            goto @4721
+    @5418:  Temp_int_Loop_Counter_Variable_4 = 0
+            Temp_int_Array_Index_Variable_3 = 0
+            goto @4721
+    @5469:  Temp_int_Array_Index_Variable_4 = 0
+    @5492:  CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveTasks)
+            CallFunc_Less_IntInt_ReturnValue_2 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_6, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_2) pop_flow
+            Temp_int_Array_Index_Variable_4 = Temp_int_Loop_Counter_Variable_6
+            push_flow @5856
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_2)
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(CallFunc_Array_Get_Item_2.self.TaskEnum, K2Node_CustomEvent_Task_Enum)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveTasks, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_2)
+            CallFunc_Array_Get_Item_2.UpdateProgress()
+            pop_flow  // return to pushed flow
+    @5856:  CallFunc_Add_IntInt_ReturnValue_7 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_6, 1)
+            Temp_int_Loop_Counter_Variable_6 = CallFunc_Add_IntInt_ReturnValue_7
+            goto @5492
+            goto @1546
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(self.GameState)
+            if not (CallFunc_IsValid_ReturnValue_1) pop_flow
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.Started, false)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(self.GameState.self.PlayersReady, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue, true)
+            if not (CallFunc_BooleanAND_ReturnValue_1) pop_flow
+            self.Started = true
+            self.GameState.Actor.FlushNetDormancy()
+            self.GameState.self.TaskSystemRef = self
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.GameState, 23, "TaskSystemRef")
+            if not (self.LoadedFromSave) goto @6276
+            ReinitizalizeTasksOnLoad()
+            pop_flow  // return to pushed flow
+    @6276:  InitializeTasks()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable_6 = 0
+            goto @5469
+            goto @4089
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(self.ActiveTaskNames)
+            goto @918
+            goto @4667
+            goto @5418
+    @6380:  return
+
+function InitializeTasks  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(5930)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(5935)
+            return
+
+function ReinitizalizeTasksOnLoad  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(6375)
+            return
+
+function StartNewTasks  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(6324)
+            return
+
+function StartTaskSystem  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_LoadedFromSave = LoadedFromSave
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(6370)
+            return
+
+function UpdateMissionProgress  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Task_Enum = Task Enum
+            BP_TaskSystem_C.ExecuteUbergraph_BP_TaskSystem(6291)
+            return

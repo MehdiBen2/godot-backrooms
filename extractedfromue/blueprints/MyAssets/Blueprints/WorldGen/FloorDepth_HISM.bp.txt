@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\FloorDepth_HISM
+
+== class FloorDepth_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

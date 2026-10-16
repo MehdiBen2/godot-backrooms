@@ -930,6 +930,8 @@ func _build_entities_tab() -> Control:
 		if not m.debug_snap_now(): _print("Mannequin: no mannequin in this level to snap with")
 	))
 	man_box.add_child(_action_btn("WATCH A FRIEND DIE", func(): _watch_kill()))
+	man_box.add_child(_action_btn("FAR DEATH", func(): _friend_death_sound(true)))
+	man_box.add_child(_action_btn("NEAR DEATH", func(): _friend_death_sound(false)))
 
 	# Mimic Row
 	var mim_box := HBoxContainer.new()
@@ -1584,6 +1586,7 @@ func _submit(line: String) -> void:
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
 			_print("Walker: walker [%s|walk|run|crouch|look [%s]|die|snap|revive|slow|off]" % ["|".join(AnimWalker.MOVES.keys()), "|".join(AnimWalker.LOOKS.keys())])
 			_print("Mannequin kill as a friend sees it: watchkill (a stand-in survivor, the mannequin and your blink)")
+			_print("Friend's death by ear: fardeath (voice echoing and fading), neardeath (gasp + neck crack)")
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("Events: event <name>, event stop (ends them all), events (lists them)")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
@@ -1594,6 +1597,10 @@ func _submit(line: String) -> void:
 			_print("Crash reports: crash (takes the game down on purpose, to see the crash window)")
 		"watchkill":
 			_watch_kill()
+		"fardeath":
+			_friend_death_sound(true)
+		"neardeath":
+			_friend_death_sound(false)
 		"crash":
 			_print("[color=red]crashing on purpose...[/color]")
 			Crash.test_crash.call_deferred()
@@ -2064,6 +2071,23 @@ func _watch_kill() -> void:
 	_print("Mannequin: a stand-in survivor, a few metres ahead. Keep watching it.")
 	if menu_window.visible:
 		_toggle(false)
+
+## What a friend's death sounds like from here, without staging it: a far one (their voice reverbed, repeating
+## and fading) 30 m off, or a near one (gasp and neck crack) 4 m off, ahead of you
+func _friend_death_sound(far: bool) -> void:
+	var sc = root.get_node_or_null("Scares")
+	var p = _get_player()
+	if sc == null or not sc.has_method("friend_death_far") or not p is Node3D:
+		_print("Scares: not available here")
+		return
+	var ahead: Vector3 = -p.global_transform.basis.z
+	ahead.y = 0.0
+	var pos: Vector3 = p.global_position + ahead.normalized() * (30.0 if far else 4.0)
+	if far:
+		sc.friend_death_far(pos)
+	else:
+		sc.friend_death_near(pos)
+	_print("Scares: friend dies %s (%d m off)" % ["far" if far else "near", 30 if far else 4])
 
 ## The walker's neck snap with the mannequin round it and your blink (as a friend sees it); just the clip if
 ## this level has no mannequin to be had

@@ -1,0 +1,8 @@
+// Content\MyAssets\Blueprints\Floor_HISMold
+
+== class Floor_HISMold_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object
+  var StartingLoc: Struct
+  var RandomTexture: Array
+  var RandomRotation: Array

@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\Doorway_HISM
+
+== class Doorway_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\WallWindow_HISM
+
+== class WallWindow_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

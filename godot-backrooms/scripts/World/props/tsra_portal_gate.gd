@@ -15,6 +15,7 @@ const Prop := preload("res://scripts/World/props/industrial_prop.gd")
 const MODEL := "res://models/props/tsra/tsra_gate.glb"
 const FRAME := "res://models/props/tsra/tsra_portal_frame.glb"
 const SHADER := preload("res://shaders/tsra_portal.gdshader")
+const NOISE := preload("res://textures/portal/tiling_noise05.png")
 const AMBER := Color("f0a838")
 
 # the frame's doorway, as build_tsra_portal_frame.py measures it (from the frame's feet). A bare gate (set before
@@ -27,7 +28,7 @@ var SILL := 0.46              # the doorway's floor is raised this far
 var BACK_Z := -0.424          # its closed back
 var FRONT_Z := 1.236          # the frame's front face
 const ORBIT_TILT := deg_to_rad(9.0)
-const OPEN_TIME := 2.4
+const OPEN_TIME := 7.0         # slow and dramatic: the field burns in from the middle
 const WALK_IN := 0.65         # m: this far in from the doorway's back and you are through
 
 var portal: MeshInstance3D
@@ -67,6 +68,7 @@ func _ready() -> void:
 	portal_mat = ShaderMaterial.new()
 	portal_mat.shader = SHADER
 	portal_mat.set_shader_parameter("portal_size", Vector2(OPEN_W, OPEN_H))
+	portal_mat.set_shader_parameter("noise_tex", NOISE)
 	var q := QuadMesh.new()
 	q.size = Vector2(OPEN_W, OPEN_H)
 	portal = MeshInstance3D.new()
@@ -108,7 +110,7 @@ func open_portal() -> void:
 	_used = false
 	if _tw: _tw.kill()
 	_tw = create_tween()
-	_tw.tween_property(self, "open", 1.0, OPEN_TIME).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN_OUT)
+	_tw.tween_property(self, "open", 1.0, OPEN_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 func close_portal() -> void:
 	is_open = false
@@ -142,5 +144,6 @@ func _apply() -> void:
 	portal.visible = open > 0.0 or charge > 0.0
 	var pulse := 0.85 + 0.15 * sin(Time.get_ticks_msec() * 0.001 * (3.0 + 18.0 * charge))
 	if glow_mat:
-		glow_mat.emission_energy_multiplier = (0.6 + 5.0 * charge * pulse) * (1.0 - open) + 4.0 * open
-	light.light_energy = charge * 1.2 * pulse * (1.0 - open) + 6.0 * open
+		glow_mat.emission_energy_multiplier = (0.6 + 5.0 * charge * pulse) * (1.0 - open) + 4.0 * open + 3.0 * sin(PI * open)
+	var flare := sin(PI * open)                       # the burn lights the bay hardest mid-opening
+	light.light_energy = charge * 1.2 * pulse * (1.0 - open) + 6.0 * open + 5.0 * flare

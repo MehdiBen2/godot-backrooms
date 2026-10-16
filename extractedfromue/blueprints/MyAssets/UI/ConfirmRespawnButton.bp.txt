@@ -1,0 +1,104 @@
+// Content\MyAssets\UI\ConfirmRespawnButton
+
+== class ExecuteUbergraph_ConfirmRespawnButton : 
+  var EntryPoint: Int
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+
+== class OnKeyDown : Class'UserWidget:OnKeyDown'
+  var MyGeometry: Struct
+  var InKeyEvent: Struct
+  var ReturnValue: Struct
+  var CallFunc_GetKey_ReturnValue: Struct
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_EqualEqual_KeyKey_ReturnValue: Bool
+  var CallFunc_Handled_ReturnValue: Struct
+
+== class ConfirmRespawnButton_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var BackButton: Object
+  var BackgroundBlur_151: Object
+  var BackText: Object
+  var BlackBG: Object
+  var ConfirmButton: Object
+  var ConfirmText: Object
+  var ExitTo?Text: Object
+  var PreviousWidget: Object
+  var Player: Object
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(343)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(348)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(484)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(620)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_4_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(756)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmRespawnButton_C.ExecuteUbergraph_ConfirmRespawnButton(892)
+            return
+
+function ExecuteUbergraph_ConfirmRespawnButton  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ESCMenu_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue, "Player", self.Player)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue.Widget.SetFocus()
+            RemoveFromParent()
+            goto @933
+    @192:   CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            goto @933
+    @270:   CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            goto @192
+            goto @10
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            goto @933
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @933
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            goto @933
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            goto @933
+            self.Player.ForceKillSpawnBody()
+            goto @270
+    @933:   return
+
+function OnKeyDown  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetKey_ReturnValue = KismetInputLibrary.GetKey(InKeyEvent)
+            CallFunc_EqualEqual_KeyKey_ReturnValue = KismetInputLibrary.EqualEqual_KeyKey(CallFunc_GetKey_ReturnValue, Key{"Escape"})
+            if not (CallFunc_EqualEqual_KeyKey_ReturnValue) goto @303
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            CallFunc_Handled_ReturnValue = WidgetBlueprintLibrary.Handled()
+            ReturnValue = CallFunc_Handled_ReturnValue
+    @303:   return

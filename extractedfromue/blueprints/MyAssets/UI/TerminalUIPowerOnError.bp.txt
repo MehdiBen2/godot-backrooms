@@ -1,0 +1,22 @@
+// Content\MyAssets\UI\TerminalUIPowerOnError
+
+== class ExecuteUbergraph_TerminalUIPowerOnError : 
+  var EntryPoint: Int
+
+== class TerminalUIPowerOnError_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var LoadingText: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUIPowerOnError_C.ExecuteUbergraph_TerminalUIPowerOnError(35)
+            return
+
+function ExecuteUbergraph_TerminalUIPowerOnError  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @90
+            goto computed(EntryPoint)
+    @15:    RemoveFromParent()
+            pop_flow  // return to pushed flow
+            goto @15
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{30, -1414691417, "ExecuteUbergraph_TerminalUIPowerOnError", self})
+            pop_flow  // return to pushed flow
+    @90:    return

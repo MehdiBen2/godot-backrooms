@@ -1,0 +1,263 @@
+// Content\MyAssets\UI\SettingsAppliedWidget
+
+== class ExecuteUbergraph_SettingsAppliedWidget : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var K2Node_MakeStruct_LinearColor: Struct
+  var CallFunc_Create_ReturnValue_3: Object
+  var K2Node_Event_IsDesignTime: Bool
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_Conv_StringToText_ReturnValue_1: Text
+  var CallFunc_Concat_StrStr_ReturnValue_2: Str
+  var CallFunc_Conv_StringToText_ReturnValue_2: Text
+  var CallFunc_Concat_StrStr_ReturnValue_3: Str
+  var CallFunc_Conv_StringToText_ReturnValue_3: Text
+  var CallFunc_GetGameUserSettings_ReturnValue: Object
+  var CallFunc_MakeLiteralByte_ReturnValue: Byte
+  var K2Node_SwitchEnum_CmpSuccess_1: Bool
+  var CallFunc_MakeLiteralByte_ReturnValue_1: Byte
+  var K2Node_SwitchEnum_CmpSuccess_2: Bool
+  var CallFunc_Concat_StrStr_ReturnValue_4: Str
+  var CallFunc_Conv_StringToText_ReturnValue_4: Text
+  var CallFunc_Concat_StrStr_ReturnValue_5: Str
+  var CallFunc_Conv_StringToText_ReturnValue_5: Text
+  var CallFunc_Concat_StrStr_ReturnValue_6: Str
+  var CallFunc_Conv_StringToText_ReturnValue_6: Text
+  var CallFunc_Concat_StrStr_ReturnValue_7: Str
+  var CallFunc_Conv_StringToText_ReturnValue_7: Text
+  var CallFunc_Concat_StrStr_ReturnValue_8: Str
+  var CallFunc_LoadGameFromSlot_ReturnValue: Object
+  var CallFunc_Conv_StringToText_ReturnValue_8: Text
+  var K2Node_DynamicCast_AsSettings_Save_Game: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_SaveGameToSlot_ReturnValue: Bool
+  var K2Node_MakeStruct_PostProcessSettings: Struct
+  var K2Node_SwitchEnum_CmpSuccess_3: Bool
+  var K2Node_MakeStruct_PostProcessSettings_1: Struct
+
+== class PreConstruct : Class'UserWidget:PreConstruct'
+  var IsDesignTime: Bool
+
+== class SettingsAppliedWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var BackgroundBlur_151: Object
+  var BlackBG: Object
+  var BlackBG_1: Object
+  var ConfirmButton: Object
+  var ConfirmText: Object
+  var ExitTo?Text: Object
+  var RevertButton: Object
+  var RevertText: Object
+  var ExitMenuType: Byte
+  var ConfirmedSettings: Bool
+  var PostProcessingQuality: Int
+  var AAQuality: Int
+  var ShadowQuality: Int
+  var GlobalIlluminationQuality: Int
+  var TextureQuality: Int
+  var ShadingQuality: Int
+  var DisplayMode: Byte
+  var Resolution: Struct
+  var HeadBobAmount: Double
+  var MotionBlur: Bool
+  var SettingsSaveGame: Object
+  var Player: Object
+
+function BndEvt__SettingsAppliedWidget_ConfirmButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4493)
+            return
+
+function BndEvt__SettingsAppliedWidget_ConfirmButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4625)
+            return
+
+function BndEvt__SettingsAppliedWidget_ConfirmButton_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4757)
+            return
+
+function BndEvt__SettingsAppliedWidget_RevertButton_K2Node_ComponentBoundEvent_0_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4229)
+            return
+
+function BndEvt__SettingsAppliedWidget_RevertButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4361)
+            return
+
+function BndEvt__SettingsAppliedWidget_RevertButton_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4859)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(4174)
+            return
+
+function ExecuteUbergraph_SettingsAppliedWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @4875
+            goto computed(EntryPoint)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr("Revert ", "(4)")
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{194, 880172255, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr("Revert ", "(3)")
+            CallFunc_Conv_StringToText_ReturnValue_1 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_1)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_1)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{373, 1405214283, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_2 = KismetStringLibrary.Concat_StrStr("Revert ", "(2)")
+            CallFunc_Conv_StringToText_ReturnValue_2 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_2)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_2)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{552, -1858747408, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_3 = KismetStringLibrary.Concat_StrStr("Revert ", "(1)")
+            CallFunc_Conv_StringToText_ReturnValue_3 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_3)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_3)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{731, -170321900, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            if not (self.ConfirmedSettings) goto @746
+            pop_flow  // return to pushed flow
+    @746:   self.SettingsSaveGame.self.UseMotionBlur = self.MotionBlur
+            self.SettingsSaveGame.self.HeadbobStrength = self.HeadBobAmount
+            CallFunc_SaveGameToSlot_ReturnValue = GameplayStatics.SaveGameToSlot(self.SettingsSaveGame, "Settings", 0)
+            self.Player.self.HeadBobAmount = self.HeadBobAmount
+            K2Node_SwitchEnum_CmpSuccess_3 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_3) goto @1020
+            K2Node_SwitchEnum_CmpSuccess_3 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_3) goto @1266
+            pop_flow  // return to pushed flow
+    @1020:  if not (self.MotionBlur) goto @1742
+            K2Node_MakeStruct_PostProcessSettings.? = self.Player.self.FirstPersonCamera.self.?.?
+            K2Node_MakeStruct_PostProcessSettings.? = 0.1
+            K2Node_MakeStruct_PostProcessSettings.? = true
+            K2Node_MakeStruct_PostProcessSettings.? = true
+            self.Player.self.FirstPersonCamera.self.? = K2Node_MakeStruct_PostProcessSettings
+    @1266:  CallFunc_GetGameUserSettings_ReturnValue = GameUserSettings.GetGameUserSettings()
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetPostProcessingQuality(self.PostProcessingQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetAntiAliasingQuality(self.AAQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetShadowQuality(self.ShadowQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetGlobalIlluminationQuality(self.GlobalIlluminationQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetTextureQuality(self.TextureQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetShadingQuality(self.ShadingQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetFullscreenMode(self.DisplayMode)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetScreenResolution(self.Resolution)
+            CallFunc_GetGameUserSettings_ReturnValue.ApplySettings(true)
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @1979
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @2157
+            pop_flow  // return to pushed flow
+    @1742:  K2Node_MakeStruct_PostProcessSettings_1.? = self.Player.self.FirstPersonCamera.self.?.?
+            K2Node_MakeStruct_PostProcessSettings_1.? = 0.0
+            K2Node_MakeStruct_PostProcessSettings_1.? = true
+            K2Node_MakeStruct_PostProcessSettings_1.? = true
+            self.Player.self.FirstPersonCamera.self.? = K2Node_MakeStruct_PostProcessSettings_1
+            goto @1266
+    @1979:  CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_2, "Player", self.Player)
+            CallFunc_Create_ReturnValue_2.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_2.Widget.SetFocus()
+    @2142:  RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @2157:  CallFunc_Create_ReturnValue_3 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            CallFunc_MakeLiteralByte_ReturnValue = KismetSystemLibrary.MakeLiteralByte(1)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue_3, "ExitMenuType", CallFunc_MakeLiteralByte_ReturnValue)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_3, "Player", self.Player)
+            CallFunc_Create_ReturnValue_3.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_3.Widget.SetFocus()
+            goto @2142
+            CallFunc_Concat_StrStr_ReturnValue_4 = KismetStringLibrary.Concat_StrStr("Revert ", "(9)")
+            CallFunc_Conv_StringToText_ReturnValue_4 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_4)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_4)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{2575, 746507667, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_5 = KismetStringLibrary.Concat_StrStr("Revert ", "(8)")
+            CallFunc_Conv_StringToText_ReturnValue_5 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_5)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_5)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{2754, -2007430450, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_6 = KismetStringLibrary.Concat_StrStr("Revert ", "(7)")
+            CallFunc_Conv_StringToText_ReturnValue_6 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_6)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_6)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{2933, -1661990408, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_7 = KismetStringLibrary.Concat_StrStr("Revert ", "(6)")
+            CallFunc_Conv_StringToText_ReturnValue_7 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_7)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_7)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{3112, -182111821, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Concat_StrStr_ReturnValue_8 = KismetStringLibrary.Concat_StrStr("Revert ", "(5)")
+            CallFunc_Conv_StringToText_ReturnValue_8 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_8)
+            self.RevertText.SetText(CallFunc_Conv_StringToText_ReturnValue_8)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{15, 1246289317, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+    @3291:  CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue, "Player", self.Player)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue.Widget.SetFocus()
+    @3454:  RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @3469:  CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            CallFunc_MakeLiteralByte_ReturnValue_1 = KismetSystemLibrary.MakeLiteralByte(1)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue_1, "ExitMenuType", CallFunc_MakeLiteralByte_ReturnValue_1)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_1, "Player", self.Player)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_1.Widget.SetFocus()
+            goto @3454
+            CallFunc_LoadGameFromSlot_ReturnValue = GameplayStatics.LoadGameFromSlot("Settings", 0)
+            K2Node_DynamicCast_AsSettings_Save_Game = Cast<Settings_SaveGame_C>(CallFunc_LoadGameFromSlot_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsSettings_Save_Game)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            self.SettingsSaveGame = K2Node_DynamicCast_AsSettings_Save_Game
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @3883
+            pop_flow  // return to pushed flow
+    @3883:  self.BackgroundBlur_151.Widget.SetRenderOpacity(0.5)
+            self.BlackBG.SetBrushFromTexture(Obj<BlackFadeSidewaysDoubleLarge>, true)
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 1.0
+            self.BlackBG.Image.SetColorAndOpacity(K2Node_MakeStruct_LinearColor)
+            self.BlackBG_1.SetVisibility(3)
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{2396, -587681670, "ExecuteUbergraph_SettingsAppliedWidget", self})
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.RevertText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.RevertText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            pop_flow  // return to pushed flow
+            self.ConfirmedSettings = true
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @3291
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @3469
+            pop_flow  // return to pushed flow
+            self.ConfirmedSettings = true
+            goto @746
+    @4875:  return
+
+function PreConstruct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_IsDesignTime = IsDesignTime
+            SettingsAppliedWidget_C.ExecuteUbergraph_SettingsAppliedWidget(3708)
+            return

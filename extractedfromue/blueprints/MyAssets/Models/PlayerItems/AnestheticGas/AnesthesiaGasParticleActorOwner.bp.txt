@@ -1,0 +1,31 @@
+// Content\MyAssets\Models\PlayerItems\AnestheticGas\AnesthesiaGasParticleActorOwner
+
+== class AnesthesiaGasParticleActorOwner_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Gas: Object
+  var DefaultSceneRoot: Object
+
+== class ExecuteUbergraph_AnesthesiaGasParticleActorOwner : 
+  var EntryPoint: Int
+
+function ExecuteUbergraph_AnesthesiaGasParticleActorOwner  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @146
+            goto computed(EntryPoint)
+    @15:    MULTI: Stop Gas()
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{84, -958275924, "ExecuteUbergraph_AnesthesiaGasParticleActorOwner", self})
+            pop_flow  // return to pushed flow
+            K2_DestroyActor()
+            pop_flow  // return to pushed flow
+            goto @15
+    @104:   self.Gas.Deactivate()
+            pop_flow  // return to pushed flow
+            goto @104
+    @146:   return
+
+function MULTI: Stop Gas  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnesthesiaGasParticleActorOwner_C.ExecuteUbergraph_AnesthesiaGasParticleActorOwner(141)
+            return
+
+function StopGas  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnesthesiaGasParticleActorOwner_C.ExecuteUbergraph_AnesthesiaGasParticleActorOwner(99)
+            return

@@ -1,0 +1,290 @@
+// Content\MyAssets\SessionsMultiplayer\UI\W_FriendList
+
+== class ExecuteUbergraph_W_FriendList : 
+  var EntryPoint: Int
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_struct_Variable: Array
+  var CallFunc_SortFriends_SortedFriends: Array
+  var CallFunc_Array_Get_Item: Struct
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var K2Node_CreateDelegate_OutputDelegate_2: Delegate
+  var CallFunc_GetAndStoreFriendsList_ReturnValue: Object
+  var CallFunc_K2_SetTimerDelegate_ReturnValue: Struct
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var K2Node_CustomEvent_Results: Array
+  var K2Node_CreateDelegate_OutputDelegate_3: Delegate
+  var CallFunc_AddChild_ReturnValue: Object
+  var K2Node_CustomEvent_Results_1: Array
+  var CallFunc_Array_Get_Item_1: Object
+  var K2Node_CreateDelegate_OutputDelegate_4: Delegate
+  var CallFunc_AddChild_ReturnValue_1: Object
+  var CallFunc_GetPlayerController_ReturnValue_1: Object
+  var CallFunc_IsServer_ReturnValue: Bool
+  var K2Node_DynamicCast_AsBP_PC_Lobby: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_GetPlayerController_ReturnValue_2: Object
+  var K2Node_DynamicCast_AsBP_PC_Lobby_1: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_IsHovered_ReturnValue: Bool
+  var CallFunc_IsHovered_ReturnValue_1: Bool
+  var CallFunc_GetPlayerCameraManager_ReturnValue: Object
+  var Temp_struct_Variable_1: Array
+  var CallFunc_UpdateSession_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue_1: Bool
+
+== class OnFailure_FD45F4834448245A31694C91A874DECF : 
+  var Results: Array
+
+== class OnSuccess_FD45F4834448245A31694C91A874DECF : 
+  var Results: Array
+
+== class SortFriends : 
+  var Friends: Array
+  var SortedFriends: Array
+  var OnlineFriends: Array
+  var OfflineFriends: Array
+  var CallFunc_Array_Length_ReturnValue: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Array_Get_Item: Struct
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+
+== class W_FriendList_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var FadeOut: Object
+  var Button_Ready: Object
+  var Button_Start: Object
+  var FriendList: Object
+  var Image_0: Object
+  var Image_45: Object
+  var Text_Ready: Object
+  var Text_Start: Object
+  var Added Friend Widgets: Array
+  var AllPlayersReady: Bool
+
+function BndEvt__W_FriendList_Button_Ready_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1813)
+            return
+
+function BndEvt__W_FriendList_Button_Ready_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2229)
+            return
+
+function BndEvt__W_FriendList_Button_Ready_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2361)
+            return
+
+function BndEvt__W_FriendList_Button_Ready_K2Node_ComponentBoundEvent_4_OnButtonPressedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2493)
+            return
+
+function BndEvt__W_FriendList_Button_Ready_K2Node_ComponentBoundEvent_8_OnButtonReleasedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(3021)
+            return
+
+function BndEvt__W_FriendList_Button_Start_K2Node_ComponentBoundEvent_1_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1941)
+            return
+
+function BndEvt__W_FriendList_Button_Start_K2Node_ComponentBoundEvent_5_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2625)
+            return
+
+function BndEvt__W_FriendList_Button_Start_K2Node_ComponentBoundEvent_6_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2757)
+            return
+
+function BndEvt__W_FriendList_Button_Start_K2Node_ComponentBoundEvent_7_OnButtonPressedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(2889)
+            return
+
+function BndEvt__W_FriendList_Button_Start_K2Node_ComponentBoundEvent_9_OnButtonReleasedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(3086)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1227)
+            return
+
+function ExecuteUbergraph_W_FriendList  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @3151
+            goto computed(EntryPoint)
+    @15:    KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{70, 15429776, "ExecuteUbergraph_W_FriendList", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerController_ReturnValue_2 = GameplayStatics.GetPlayerController(self, 0)
+            K2Node_DynamicCast_AsBP_PC_Lobby_1 = Cast<BP_PC_Lobby_C>(CallFunc_GetPlayerController_ReturnValue_2)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby_1)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsBP_PC_Lobby_1.RequestStartGame()
+            pop_flow  // return to pushed flow
+    @208:   CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<W_Friend_C>, null)
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Added Friend Widgets, CallFunc_Create_ReturnValue)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_SortFriends_SortedFriends, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_Create_ReturnValue.Update(CallFunc_Array_Get_Item)
+            CallFunc_AddChild_ReturnValue = self.FriendList.PanelWidget.AddChild(CallFunc_Create_ReturnValue)
+            pop_flow  // return to pushed flow
+            goto @15
+            goto @15
+    @495:   push_flow @616
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(self.Added Friend Widgets)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(Temp_int_Array_Index_Variable, CallFunc_Array_LastIndex_ReturnValue)
+            if not (CallFunc_Greater_IntInt_ReturnValue) goto @824
+            goto @208
+    @616:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+    @685:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_SortFriends_SortedFriends)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) pop_flow
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            goto @495
+    @824:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_SortFriends_SortedFriends, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Added Friend Widgets, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_1)
+            CallFunc_Array_Get_Item_1.Update(CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Added Friend Widgets, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_1)
+            CallFunc_AddChild_ReturnValue_1 = self.FriendList.PanelWidget.AddChild(CallFunc_Array_Get_Item_1)
+            pop_flow  // return to pushed flow
+    @1098:  Temp_int_Array_Index_Variable = 0
+            goto @685
+    @1126:  Temp_int_Loop_Counter_Variable = 0
+            goto @1098
+    @1154:  SortFriends(Temp_struct_Variable, CallFunc_SortFriends_SortedFriends)
+            self.FriendList.ClearChildren()
+            goto @1126
+            CallFunc_GetPlayerCameraManager_ReturnValue = GameplayStatics.GetPlayerCameraManager(self, 0)
+            CallFunc_GetPlayerCameraManager_ReturnValue.StartCameraFade(1.0, 0.0, 1.0, LinearColor{0.0, 0.0, 0.0, 0.0}, false, true)
+            push_flow @1415
+            CallFunc_IsServer_ReturnValue = KismetSystemLibrary.IsServer(self)
+            if not (CallFunc_IsServer_ReturnValue) pop_flow
+            self.Button_Start.SetVisibility(0)
+            pop_flow  // return to pushed flow
+    @1415:  bind K2Node_CreateDelegate_OutputDelegate_2 -> self.Update Friend List
+            CallFunc_K2_SetTimerDelegate_ReturnValue = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate_2, 5.0, true, false, -5.0, 0.0)
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetAndStoreFriendsList_ReturnValue = GetFriendsCallbackProxy.GetAndStoreFriendsList(self, CallFunc_GetPlayerController_ReturnValue)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_GetAndStoreFriendsList_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_3 -> self.OnSuccess_FD45F4834448245A31694C91A874DECF
+            CallFunc_GetAndStoreFriendsList_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_3
+            bind K2Node_CreateDelegate_OutputDelegate_4 -> self.OnFailure_FD45F4834448245A31694C91A874DECF
+            CallFunc_GetAndStoreFriendsList_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_4
+            CallFunc_GetAndStoreFriendsList_ReturnValue.Activate()
+            pop_flow  // return to pushed flow
+            Temp_struct_Variable = K2Node_CustomEvent_Results
+            goto @1154
+            Temp_struct_Variable = K2Node_CustomEvent_Results_1
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerController_ReturnValue_1 = GameplayStatics.GetPlayerController(self, 0)
+            K2Node_DynamicCast_AsBP_PC_Lobby = Cast<BP_PC_Lobby_C>(CallFunc_GetPlayerController_ReturnValue_1)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby)
+            K2Node_DynamicCast_AsBP_PC_Lobby.ROS_ToggleReadyStatus()
+            pop_flow  // return to pushed flow
+            self.Button_Start.SetVisibility(1)
+            CallFunc_UpdateSession_ReturnValue = UpdateSessionCallbackProxyAdvanced.UpdateSession(self, Temp_struct_Variable_1, 6, 0, false, false, false, true, false, false)
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(CallFunc_UpdateSession_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue_1) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnSuccess_C2CF7E2B43D4DE5C6E01B6B92BC52A65
+            CallFunc_UpdateSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnFailure_C2CF7E2B43D4DE5C6E01B6B92BC52A65
+            CallFunc_UpdateSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            CallFunc_UpdateSession_ReturnValue.Activate()
+            pop_flow  // return to pushed flow
+    @2229:  K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.Text_Ready.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            pop_flow  // return to pushed flow
+    @2361:  K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.Text_Ready.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{0.520833, 0.335667, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.Text_Ready.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            pop_flow  // return to pushed flow
+    @2625:  K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.Text_Start.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            pop_flow  // return to pushed flow
+    @2757:  K2Node_MakeStruct_SlateColor_4.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.Text_Start.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{0.520833, 0.335667, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.Text_Start.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            pop_flow  // return to pushed flow
+            CallFunc_IsHovered_ReturnValue_1 = self.Button_Ready.IsHovered()
+            if not (CallFunc_IsHovered_ReturnValue_1) goto @2361
+            goto @2229
+            CallFunc_IsHovered_ReturnValue = self.Button_Start.IsHovered()
+            if not (CallFunc_IsHovered_ReturnValue) goto @2757
+            goto @2625
+    @3151:  return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(485)
+            return
+
+function OnFailure  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Results_1 = Results
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1785)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(490)
+            return
+
+function OnSuccess  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Results = Results
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1753)
+            return
+
+function SortFriends  [FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @719
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @51:    CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(Friends)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @435
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @517
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(Friends, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(CallFunc_Array_Get_Item.?, 0)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue) goto @591
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(Friends, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(OnlineFriends, CallFunc_Array_Get_Item)
+            pop_flow  // return to pushed flow
+    @435:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Append(OnlineFriends, OfflineFriends)
+            SortedFriends = OnlineFriends
+            goto @719
+    @517:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @51
+    @591:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(Friends, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(OfflineFriends, CallFunc_Array_Get_Item)
+            pop_flow  // return to pushed flow
+    @719:   return
+
+function Update Friend List  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            W_FriendList_C.ExecuteUbergraph_W_FriendList(1493)
+            return

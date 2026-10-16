@@ -1,0 +1,227 @@
+// Content\MyAssets\UI\ESCMenu
+
+== class ExecuteUbergraph_ESCMenu : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_Create_ReturnValue_1: Object
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var K2Node_MakeStruct_SlateColor_6: Struct
+  var CallFunc_Create_ReturnValue_2: Object
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor_7: Struct
+  var K2Node_MakeStruct_SlateColor_8: Struct
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_First_Person_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_GetOwningPlayer_ReturnValue: Object
+  var CallFunc_SaveGame_Saved: Bool
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_MakeStruct_SlateColor_9: Struct
+
+== class OnKeyDown : Class'UserWidget:OnKeyDown'
+  var MyGeometry: Struct
+  var InKeyEvent: Struct
+  var ReturnValue: Struct
+  var CallFunc_GetKey_ReturnValue: Struct
+  var CallFunc_EqualEqual_KeyKey_ReturnValue: Bool
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_Handled_ReturnValue: Struct
+
+== class ESCMenu_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var CanvasPanel_51: Object
+  var Image_0: Object
+  var Image_160: Object
+  var QuitToMenuButton: Object
+  var QuitToMenuText: Object
+  var RespawnButton: Object
+  var RespawnText: Object
+  var ResumeButton: Object
+  var ResumeGameText: Object
+  var SaveGameButton: Object
+  var SaveGameText: Object
+  var SavingGameText: Object
+  var SettingsButton: Object
+  var SettingsText: Object
+  var VerticalBox_59: Object
+  var Player: Object
+  var SavingGame: Bool
+
+function BndEvt__ESCMenu_QuitToMenuButton_K2Node_ComponentBoundEvent_4_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1162)
+            return
+
+function BndEvt__ESCMenu_QuitToMenuButton_K2Node_ComponentBoundEvent_5_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1294)
+            return
+
+function BndEvt__ESCMenu_QuitToMenuButton_K2Node_ComponentBoundEvent_7_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1568)
+            return
+
+function BndEvt__ESCMenu_RespawnButton_K2Node_ComponentBoundEvent_12_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(2335)
+            return
+
+function BndEvt__ESCMenu_RespawnButton_K2Node_ComponentBoundEvent_13_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(2467)
+            return
+
+function BndEvt__ESCMenu_RespawnButton_K2Node_ComponentBoundEvent_14_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(2599)
+            return
+
+function BndEvt__ESCMenu_ResumeButton_K2Node_ComponentBoundEvent_0_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(634)
+            return
+
+function BndEvt__ESCMenu_ResumeButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(766)
+            return
+
+function BndEvt__ESCMenu_ResumeButton_K2Node_ComponentBoundEvent_6_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1426)
+            return
+
+function BndEvt__ESCMenu_SaveGameButton_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1710)
+            return
+
+function BndEvt__ESCMenu_SaveGameButton_K2Node_ComponentBoundEvent_11_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1842)
+            return
+
+function BndEvt__ESCMenu_SaveGameButton_K2Node_ComponentBoundEvent_9_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1578)
+            return
+
+function BndEvt__ESCMenu_SettingsButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(898)
+            return
+
+function BndEvt__ESCMenu_SettingsButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1030)
+            return
+
+function BndEvt__ESCMenu_SettingsButton_K2Node_ComponentBoundEvent_8_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(1573)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            ESCMenu_C.ExecuteUbergraph_ESCMenu(2177)
+            return
+
+function ExecuteUbergraph_ESCMenu  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2604
+            goto computed(EntryPoint)
+            self.VerticalBox_59.SetVisibility(0)
+            self.Image_0.SetVisibility(0)
+            self.SavingGameText.SetVisibility(1)
+            self.SavingGame = false
+            pop_flow  // return to pushed flow
+    @141:   CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ConfirmExitWidget_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue.Widget.SetFocus()
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @278:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_1, "Player", self.Player)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_1.Widget.SetFocus()
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @456:   CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ConfirmRespawnButton_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_2, "Player", self.Player)
+            CallFunc_Create_ReturnValue_2.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_2.Widget.SetFocus()
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.ResumeGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.ResumeGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_9.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_9.? = 0
+            self.SettingsText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_9)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_8.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_8.? = 0
+            self.SettingsText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_8)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_7.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_7.? = 0
+            self.QuitToMenuText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_7)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.QuitToMenuText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+            goto @141
+            goto @278
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.SaveGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.SaveGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            pop_flow  // return to pushed flow
+            self.SavingGame = true
+            self.VerticalBox_59.SetVisibility(1)
+            self.Image_0.SetVisibility(1)
+            self.SavingGameText.SetVisibility(0)
+            CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode = Cast<BP_FirstPersonGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_First_Person_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode.SaveGame(CallFunc_SaveGame_Saved)
+            if not (CallFunc_SaveGame_Saved) goto @2122
+    @2122:  KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{15, 1914844920, "ExecuteUbergraph_ESCMenu", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetOwningPlayer_ReturnValue = GetOwningPlayer()
+            CallFunc_HasAuthority_ReturnValue = CallFunc_GetOwningPlayer_ReturnValue.Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @2258
+            pop_flow  // return to pushed flow
+    @2258:  self.SaveGameText.SetVisibility(1)
+            self.SaveGameButton.SetVisibility(1)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.RespawnText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_6.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_6.? = 0
+            self.RespawnText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_6)
+            pop_flow  // return to pushed flow
+            goto @456
+    @2604:  return
+
+function OnKeyDown  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetKey_ReturnValue = KismetInputLibrary.GetKey(InKeyEvent)
+            CallFunc_EqualEqual_KeyKey_ReturnValue = KismetInputLibrary.EqualEqual_KeyKey(CallFunc_GetKey_ReturnValue, Key{"Escape"})
+            if not (CallFunc_EqualEqual_KeyKey_ReturnValue) goto @322
+            if not (self.SavingGame) goto @126
+            goto @322
+    @126:   CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            CallFunc_Handled_ReturnValue = WidgetBlueprintLibrary.Handled()
+            ReturnValue = CallFunc_Handled_ReturnValue
+    @322:   return

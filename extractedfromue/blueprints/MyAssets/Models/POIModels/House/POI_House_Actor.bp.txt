@@ -1,0 +1,126 @@
+// Content\MyAssets\Models\POIModels\House\POI_House_Actor
+
+== class POI_House_Actor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var CameraCollision: Object
+  var DoorSpawnLoc: Object
+  var Sphere: Object
+  var POI_House_Mesh: Object
+  var DefaultSceneRoot: Object
+  var HousePaintColor: Struct
+  var HouseRoofColor: Struct
+  var RandomSubjectTag: Name
+  var RandomStream: Struct
+
+== class ExecuteUbergraph_POI_House_Actor : 
+  var EntryPoint: Int
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue: Float
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_K2_GetComponentToWorld_ReturnValue: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue_1: Object
+  var CallFunc_FinishSpawningActor_ReturnValue: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_RandomIntegerInRangeFromStream_ReturnValue: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_1: Float
+  var CallFunc_MakeRandomStream_ReturnValue: Struct
+  var CallFunc_HSVToRGB_ReturnValue: Struct
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_2: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_3: Float
+  var CallFunc_HSVToRGB_ReturnValue_1: Struct
+
+== class OnRep_HousePaintColor : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_HouseRoofColor : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_RandomSubjectTag : 
+  var CallFunc_Array_Add_ReturnValue: Int
+
+function ExecuteUbergraph_POI_House_Actor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "HousePaintColor")
+            OnRep_HousePaintColor()
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.POI_House_Mesh.CreateDynamicMaterialInstance(0, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.HousePaintColor)
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.07, 0.12)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_2 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 22.0, 30.0)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_3 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.2, 0.3)
+            CallFunc_HSVToRGB_ReturnValue_1 = KismetMathLibrary.HSVToRGB(CallFunc_RandomFloatInRangeFromStream_ReturnValue_2, CallFunc_RandomFloatInRangeFromStream_ReturnValue_3, CallFunc_RandomFloatInRangeFromStream_ReturnValue, 1.0)
+            self.HouseRoofColor = CallFunc_HSVToRGB_ReturnValue_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "HouseRoofColor")
+            OnRep_HouseRoofColor()
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_1 = self.POI_House_Mesh.CreateDynamicMaterialInstance(1, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_1.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.HouseRoofColor)
+            CallFunc_K2_GetComponentToWorld_ReturnValue = self.DoorSpawnLoc.SceneComponent.K2_GetComponentToWorld()
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<SingleDoorA_C>, CallFunc_K2_GetComponentToWorld_ReturnValue, 0, null, 1)
+            CallFunc_K2_GetComponentToWorld_ReturnValue = self.DoorSpawnLoc.SceneComponent.K2_GetComponentToWorld()
+            CallFunc_FinishSpawningActor_ReturnValue = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, CallFunc_K2_GetComponentToWorld_ReturnValue, 1)
+            goto @1547
+    @777:   Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_1 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.0, 360.0)
+            CallFunc_HSVToRGB_ReturnValue = KismetMathLibrary.HSVToRGB(CallFunc_RandomFloatInRangeFromStream_ReturnValue_1, 0.2, 0.2, 1.0)
+            self.HousePaintColor = CallFunc_HSVToRGB_ReturnValue
+            goto @10
+    @918:   OnRep_RandomSubjectTag()
+            goto @1547
+    @937:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 12, "RandomSubjectTag")
+            goto @918
+    @971:   Actor.FlushNetDormancy()
+            CallFunc_RandomIntegerInRangeFromStream_ReturnValue = KismetMathLibrary.RandomIntegerInRangeFromStream(self.RandomStream, 10000, 10000000)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_RandomIntegerInRangeFromStream_ReturnValue)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            self.RandomSubjectTag = CallFunc_Conv_StringToName_ReturnValue
+            goto @937
+    @1134:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @1547
+            SERVER: SetRandomSubjectTag()
+            goto @777
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X, 8400.0)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(CallFunc_Round_ReturnValue_1, CallFunc_Round_ReturnValue)
+            CallFunc_MakeRandomStream_ReturnValue = KismetMathLibrary.MakeRandomStream(CallFunc_Add_IntInt_ReturnValue)
+            self.RandomStream = CallFunc_MakeRandomStream_ReturnValue
+            goto @1134
+            goto @971
+    @1547:  return
+
+function OnRep_HousePaintColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.POI_House_Mesh.CreateDynamicMaterialInstance(0, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.HousePaintColor)
+            return
+
+function OnRep_HouseRoofColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.POI_House_Mesh.CreateDynamicMaterialInstance(1, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.HouseRoofColor)
+            return
+
+function OnRep_RandomSubjectTag  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Box.self.?, self.RandomSubjectTag)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            POI_House_Actor_C.ExecuteUbergraph_POI_House_Actor(1187)
+            return
+
+function SERVER: SetRandomSubjectTag  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            POI_House_Actor_C.ExecuteUbergraph_POI_House_Actor(1542)
+            return

@@ -1,0 +1,10 @@
+// Content\MyAssets\Models\VHSTest\Blur
+
+== class Blur_C : Class'UserWidget'
+  var BackgroundBlur: Object
+  var PlayStatic: Bool
+  var ImgArray: Array
+  var Index: Int
+  var Index2: Int
+  var ImgArray2: Array
+  var Loops: Int

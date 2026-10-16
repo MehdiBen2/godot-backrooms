@@ -1,0 +1,137 @@
+// Content\MyAssets\Models\Furniture\Terminal\TerminalActor
+
+== class TerminalActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var TerminalStand1: Object
+  var Terminal1: Object
+  var ExitLocation: Object
+  var SitLocation: Object
+  var Box: Object
+  var DefaultSceneRoot: Object
+  var BeingUsed: Bool
+  var GatewayPowered: Bool
+  var DayStarted: Bool
+  var TerminalActivatePower: Object
+  var TerminalPowerLoop: Object
+  var TerminalDeactivatePower: Object
+  var ThresholdCurrentlyTransitioning: Bool
+  var DayOver: Bool
+  var DEV_SkipToEnd: Bool
+  var TerminalStock: Array
+  var BlinkingLight1: Object
+  var BlinkingLight2: Object
+  var BlinkingLight3: Object
+
+== class ExecuteUbergraph_TerminalActor : 
+  var EntryPoint: Int
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_K2_AttachToActor_ReturnValue: Bool
+  var K2Node_CustomEvent_State: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class SetTerminalState : 
+  var State: Struct
+
+function ExecuteUbergraph_TerminalActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1336
+            goto computed(EntryPoint)
+    @15:    SERVER: PlayPowerLoopAudio()
+            pop_flow  // return to pushed flow
+    @30:    Actor.FlushNetDormancy()
+            self.BeingUsed = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "BeingUsed")
+            K2Node_Event_Player.Actor.FlushNetDormancy()
+            K2Node_Event_Player.self.SittingAtTerminal = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_Event_Player, 38, "SittingAtTerminal")
+            K2Node_Event_Player.OnRep_SittingAtTerminal()
+            K2Node_Event_Player.HideTaskPanel()
+            CallFunc_K2_AttachToActor_ReturnValue = K2Node_Event_Player.Actor.K2_AttachToActor(self, "None", 1, 1, 1, true)
+            K2Node_Event_Player.self.?.SetMovementMode(0, 0)
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.SitLocation.SceneComponent.K2_GetComponentLocation()
+            CallFunc_K2_SetActorLocation_ReturnValue = K2Node_Event_Player.Actor.K2_SetActorLocation(CallFunc_K2_GetComponentLocation_ReturnValue, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            K2Node_Event_Player.ROC_CreateTerminalWidget()
+            pop_flow  // return to pushed flow
+    @528:   Actor.FlushNetDormancy()
+            self.DayStarted = K2Node_CustomEvent_State.DayStarted_3
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 12, "DayStarted")
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<DoorControlBoxActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+    @635:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            if not (CallFunc_Array_Get_Item.self.HasLoadedFromSave) goto @886
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_Array_Get_Item.self.ThresholdOpen, false)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(self.GatewayPowered, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            goto @15
+    @886:   KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{941, 188253034, "ExecuteUbergraph_TerminalActor", self})
+            pop_flow  // return to pushed flow
+            goto @635
+    @946:   Actor.FlushNetDormancy()
+            self.GatewayPowered = K2Node_CustomEvent_State.GatewayPowered_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "GatewayPowered")
+            goto @528
+            if not (K2Node_Event_Player_1.self.SittingAsPassenger) goto @1097
+            K2Node_Event_Player_1.self.InteractText = Text("")
+            pop_flow  // return to pushed flow
+    @1097:  K2Node_Event_Player_1.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Use Terminal"})
+            pop_flow  // return to pushed flow
+            if not (self.BeingUsed) goto @30
+            pop_flow  // return to pushed flow
+    @1205:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            goto @946
+            goto @1205
+            MULTI: PlayPowerLoopAudio()
+            pop_flow  // return to pushed flow
+            self.TerminalPowerLoop.self.?.FadeIn(1.0, 1.0, 0.0, 0)
+            pop_flow  // return to pushed flow
+    @1336:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player_1 = Player
+            TerminalActor_C.ExecuteUbergraph_TerminalActor(1018)
+            return
+
+function MULTI: PlayPowerLoopAudio  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            TerminalActor_C.ExecuteUbergraph_TerminalActor(1260)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            TerminalActor_C.ExecuteUbergraph_TerminalActor(1190)
+            return
+
+function SERVER: PlayPowerLoopAudio  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            TerminalActor_C.ExecuteUbergraph_TerminalActor(1245)
+            return
+
+function SetTerminalState  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_State = State
+            TerminalActor_C.ExecuteUbergraph_TerminalActor(1240)
+            return

@@ -1,0 +1,165 @@
+// Content\MyAssets\Models\Architecture\Doors\SpawnDoor
+
+== class SpawnDoor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Plane: Object
+  var SpawnDoorOpenSound: Object
+  var Box: Object
+  var HubDoorFrame: Object
+  var HubDoorFrame2: Object
+  var HubDoor: Object
+  var DefaultSceneRoot: Object
+  var DoorTimeline_OpenCloseDoor: Float
+  var DoorTimeline__Direction: Byte
+  var DoorTimeline: Object
+  var PlayersOverlapping: Int
+
+== class BndEvt__SpawnDoor_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class BndEvt__SpawnDoor_Box_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class ExecuteUbergraph_SpawnDoor : 
+  var EntryPoint: Int
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent_1: Object
+  var K2Node_ComponentBoundEvent_OtherActor_1: Object
+  var K2Node_ComponentBoundEvent_OtherComp_1: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_1: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var CallFunc_ComponentHasTag_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var CallFunc_ComponentHasTag_ReturnValue_1: Bool
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_IsPlaying_ReturnValue: Bool
+  var CallFunc_IsReversing_ReturnValue: Bool
+  var CallFunc_IsPlaying_ReturnValue_1: Bool
+  var CallFunc_IsReversing_ReturnValue_1: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+
+function BndEvt__SpawnDoor_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_1 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_1 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_1 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_1 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(103)
+            return
+
+function BndEvt__SpawnDoor_Box_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(509)
+            return
+
+function DoorTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1102)
+            return
+
+function DoorTimeline__NewTrack_0__EventFunc  [FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(294)
+            return
+
+function DoorTimeline__NewTrack_1__EventFunc  [FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(700)
+            return
+
+function DoorTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1097)
+            return
+
+function ExecuteUbergraph_SpawnDoor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    SERVER: FadeInDoorSound()
+            goto @1251
+    @29:    self.DoorTimeline.TimelineComponent.Reverse()
+            goto @1251
+    @66:    self.DoorTimeline.TimelineComponent.Play()
+            goto @1251
+            CallFunc_ComponentHasTag_ReturnValue = K2Node_ComponentBoundEvent_OtherComp_1.ActorComponent.ComponentHasTag("Player")
+            if not (CallFunc_ComponentHasTag_ReturnValue) goto @1251
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(self.PlayersOverlapping, 1)
+            self.PlayersOverlapping = CallFunc_Add_IntInt_ReturnValue
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(self.PlayersOverlapping, 1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @1251
+            goto @66
+            CallFunc_IsPlaying_ReturnValue = self.SpawnDoorOpenSound.IsPlaying()
+            if not (CallFunc_IsPlaying_ReturnValue) goto @429
+            CallFunc_IsReversing_ReturnValue = self.DoorTimeline.TimelineComponent.IsReversing()
+            if not (CallFunc_IsReversing_ReturnValue) goto @1251
+            SERVER: FadeOutDoorSound()
+            goto @1251
+    @429:   CallFunc_IsReversing_ReturnValue = self.DoorTimeline.TimelineComponent.IsReversing()
+            if not (CallFunc_IsReversing_ReturnValue) goto @490
+            goto @1251
+    @490:   SERVER: FadeInDoorSound()
+            goto @1251
+            CallFunc_ComponentHasTag_ReturnValue_1 = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("Player")
+            if not (CallFunc_ComponentHasTag_ReturnValue_1) goto @1251
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(self.PlayersOverlapping, 1)
+            self.PlayersOverlapping = CallFunc_Subtract_IntInt_ReturnValue
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(self.PlayersOverlapping, 0)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_1) goto @1251
+            goto @29
+            CallFunc_IsPlaying_ReturnValue_1 = self.SpawnDoorOpenSound.IsPlaying()
+            if not (CallFunc_IsPlaying_ReturnValue_1) goto @821
+            CallFunc_IsReversing_ReturnValue_1 = self.DoorTimeline.TimelineComponent.IsReversing()
+            if not (CallFunc_IsReversing_ReturnValue_1) goto @882
+            goto @1251
+    @821:   CallFunc_IsReversing_ReturnValue_1 = self.DoorTimeline.TimelineComponent.IsReversing()
+            if not (CallFunc_IsReversing_ReturnValue_1) goto @1251
+            goto @10
+    @882:   SERVER: FadeOutDoorSound()
+            goto @1251
+    @901:   CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.DoorTimeline_OpenCloseDoor)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.0, 350.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(0.0, 0.0, CallFunc_Lerp_ReturnValue)
+            self.HubDoor.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue, false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+            goto @1251
+            goto @901
+            goto @1251
+            MULTI: FadeInDoorSound()
+            goto @1251
+            self.SpawnDoorOpenSound.FadeIn(0.5, 1.0, 0.0, 0)
+            goto @1251
+            MULTI: FadeOutDoorSound()
+            goto @1251
+            self.SpawnDoorOpenSound.FadeOut(0.5, 0.0, 0)
+    @1251:  return
+
+function MULTI: FadeInDoorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1126)
+            return
+
+function MULTI: FadeOutDoorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1203)
+            return
+
+function SERVER: FadeInDoorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1107)
+            return
+
+function SERVER: FadeOutDoorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SpawnDoor_C.ExecuteUbergraph_SpawnDoor(1184)
+            return

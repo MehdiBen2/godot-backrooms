@@ -1,0 +1,7 @@
+// Content\MyAssets\Blueprints\InteractTextInterface
+
+== class GetInteractText : 
+  var Player: Object
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return

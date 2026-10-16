@@ -1,0 +1,410 @@
+// Content\MyAssets\UI\TerminalUIWidget
+
+== class ExecuteUbergraph_TerminalUIWidget : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var CallFunc_Create_ReturnValue_3: Object
+  var CallFunc_Create_ReturnValue_4: Object
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var CallFunc_RemoveChild_ReturnValue: Bool
+  var CallFunc_SpawnSound2D_ReturnValue: Object
+  var CallFunc_Create_ReturnValue_5: Object
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_AddChildToOverlay_ReturnValue: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_1: Array
+  var K2Node_MakeStruct_SlateColor_6: Struct
+  var CallFunc_Array_Get_Item_1: Object
+  var CallFunc_Create_ReturnValue_6: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_1: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_2: Array
+  var K2Node_MakeStruct_SlateColor_7: Struct
+  var CallFunc_Array_Get_Item_2: Object
+  var K2Node_MakeStruct_SlateColor_8: Struct
+  var K2Node_MakeStruct_SlateColor_9: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors_3: Array
+  var K2Node_MakeStruct_SlateColor_10: Struct
+  var CallFunc_Array_Get_Item_3: Object
+  var CallFunc_Create_ReturnValue_7: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_2: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_4: Array
+  var CallFunc_Create_ReturnValue_8: Object
+  var CallFunc_Array_Get_Item_4: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_3: Object
+  var CallFunc_Create_ReturnValue_9: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_4: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_5: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_5: Array
+  var CallFunc_Create_ReturnValue_10: Object
+  var CallFunc_Array_Get_Item_5: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_6: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_7: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_8: Object
+  var K2Node_MakeStruct_SlateColor_11: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_9: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_6: Array
+  var CallFunc_Create_ReturnValue_11: Object
+  var CallFunc_Array_Get_Item_6: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_10: Object
+  var K2Node_Event_IsDesignTime: Bool
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_GetGameState_ReturnValue_1: Object
+  var K2Node_DynamicCast_AsWorld_Game_State_1: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var K2Node_MakeStruct_SlateColor_12: Struct
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var K2Node_MakeStruct_SlateColor_13: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_11: Object
+
+== class PreConstruct : Class'UserWidget:PreConstruct'
+  var IsDesignTime: Bool
+
+== class TerminalUIWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var ActivatePowerButton: Object
+  var ActivatePowerButtonText: Object
+  var BackButton: Object
+  var BackButtonText: Object
+  var EndContractButton: Object
+  var EndContractText: Object
+  var ExitButton: Object
+  var ExitButtonText: Object
+  var Image_199: Object
+  var MenuTitle: Object
+  var Overlay: Object
+  var PowerDownEndButton: Object
+  var PowerDownEndButtonText: Object
+  var PurchaseButton: Object
+  var PurchaseButtonText: Object
+  var RequestTaskUtilitiesButton: Object
+  var RequestTaskUtilitiesText: Object
+  var PlayerBP: Object
+  var ChildMenuWidget: Object
+  var HumSound: Object
+
+function BndEvt__TerminalUIWidget_ActivatePowerButton_K2Node_ComponentBoundEvent_11_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(2830)
+            return
+
+function BndEvt__TerminalUIWidget_ActivatePowerButton_K2Node_ComponentBoundEvent_5_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5735)
+            return
+
+function BndEvt__TerminalUIWidget_ActivatePowerButton_K2Node_ComponentBoundEvent_6_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6481)
+            return
+
+function BndEvt__TerminalUIWidget_BackButton_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(2632)
+            return
+
+function BndEvt__TerminalUIWidget_BackButton_K2Node_ComponentBoundEvent_8_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(2047)
+            return
+
+function BndEvt__TerminalUIWidget_BackButton_K2Node_ComponentBoundEvent_9_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(2434)
+            return
+
+function BndEvt__TerminalUIWidget_EndContractButton_K2Node_ComponentBoundEvent_18_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6557)
+            return
+
+function BndEvt__TerminalUIWidget_EndContractButton_K2Node_ComponentBoundEvent_19_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6755)
+            return
+
+function BndEvt__TerminalUIWidget_EndContractButton_K2Node_ComponentBoundEvent_20_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6953)
+            return
+
+function BndEvt__TerminalUIWidget_ExitButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5745)
+            return
+
+function BndEvt__TerminalUIWidget_ExitButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6344)
+            return
+
+function BndEvt__TerminalUIWidget_ExitButton_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5740)
+            return
+
+function BndEvt__TerminalUIWidget_NextButton_K2Node_ComponentBoundEvent_0_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6486)
+            return
+
+function BndEvt__TerminalUIWidget_NextButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(6146)
+            return
+
+function BndEvt__TerminalUIWidget_PowerDownEndButton_K2Node_ComponentBoundEvent_12_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(3672)
+            return
+
+function BndEvt__TerminalUIWidget_PowerDownEndButton_K2Node_ComponentBoundEvent_13_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(3870)
+            return
+
+function BndEvt__TerminalUIWidget_PowerDownEndButton_K2Node_ComponentBoundEvent_14_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(4068)
+            return
+
+function BndEvt__TerminalUIWidget_PurchaseButton_K2Node_ComponentBoundEvent_7_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(1440)
+            return
+
+function BndEvt__TerminalUIWidget_RequestTaskUtilitiesButton_K2Node_ComponentBoundEvent_15_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5338)
+            return
+
+function BndEvt__TerminalUIWidget_RequestTaskUtilitiesButton_K2Node_ComponentBoundEvent_16_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5536)
+            return
+
+function BndEvt__TerminalUIWidget_RequestTaskUtilitiesButton_K2Node_ComponentBoundEvent_17_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(5734)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(3440)
+            return
+
+function ExecuteUbergraph_TerminalUIWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @7995
+            goto computed(EntryPoint)
+            if not (self.PlayerBP.self.LoadingNextLevel) pop_flow
+            self.PlayerBP.SERVER: ExitTheTerminal()
+            pop_flow  // return to pushed flow
+            if not (self.PlayerBP.self.LoadingNextLevel) pop_flow
+            self.PlayerBP.SERVER: ExitTheTerminal()
+            pop_flow  // return to pushed flow
+    @153:   CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDownError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_4 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @318:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDownCloseThresholdError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_7 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_1)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @483:   CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIGatewayTransitioningError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_8 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_2)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @648:   CallFunc_Create_ReturnValue_3 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDown_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_9 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_3)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            self.PlayerBP.SERVER: PowerDownTerminal()
+            self.PlayerBP.SERVER: EndContract()
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{84, -2027046090, "ExecuteUbergraph_TerminalUIWidget", self})
+            pop_flow  // return to pushed flow
+    @939:   CallFunc_Create_ReturnValue_4 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_11 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_4)
+            pop_flow  // return to pushed flow
+    @1044:  self.ActivatePowerButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_11.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_11.? = 0
+            self.ActivatePowerButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_11)
+            pop_flow  // return to pushed flow
+    @1242:  self.ActivatePowerButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_13.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_13.? = 0
+            self.ActivatePowerButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_13)
+            pop_flow  // return to pushed flow
+            CallFunc_Create_ReturnValue_9 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPurchase_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_9, "PlayerBP", self.PlayerBP)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_9, "TerminalUIWidget", self)
+            CallFunc_AddChildToOverlay_ReturnValue_5 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_9)
+            self.ChildMenuWidget = CallFunc_Create_ReturnValue_9
+            self.ActivatePowerButton.SetVisibility(2)
+            self.PurchaseButton.SetVisibility(2)
+            self.PowerDownEndButton.SetVisibility(2)
+            self.RequestTaskUtilitiesButton.SetVisibility(2)
+            self.EndContractButton.SetVisibility(2)
+            self.BackButton.SetVisibility(0)
+            self.MenuTitle.SetText(Text({"Token": "EX_StringConst", "Value": "PURCHASE"}))
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @2010:  self.PlayerBP.SERVER: ExitTheTerminal()
+            pop_flow  // return to pushed flow
+            CallFunc_RemoveChild_ReturnValue = self.Overlay.PanelWidget.RemoveChild(self.ChildMenuWidget)
+            self.ActivatePowerButton.SetVisibility(0)
+            self.PurchaseButton.SetVisibility(0)
+            self.PowerDownEndButton.SetVisibility(0)
+            self.EndContractButton.SetVisibility(0)
+            self.BackButton.SetVisibility(2)
+            self.MenuTitle.SetText(Text({"Token": "EX_StringConst", "Value": "MAIN MENU"}))
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+            self.BackButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_9.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_9.? = 0
+            self.BackButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_9)
+            pop_flow  // return to pushed flow
+            self.BackButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_8.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_8.? = 0
+            self.BackButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_8)
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            if not (CallFunc_Array_Get_Item.self.GatewayPowered) goto @3126
+            CallFunc_Create_ReturnValue_5 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerOnError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_5)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @3126:  self.PlayerBP.SERVER: PowerTerminal()
+            CallFunc_Create_ReturnValue_6 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerOn_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_1 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_6)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @3327:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            self.HumSound.FadeOut(0.3, 0.0, 0)
+            goto @2010
+            GameplayStatics.PlaySoundAtLocation(self, Obj<TerminalTurnOn>, Vec(890.30237, -5118.3164, 143.36124), Rot(0.0, 0.0, 0.0), 1.0, 1.0, 0.0, null, null, null, null)
+            CallFunc_SpawnSound2D_ReturnValue = Obj<Default__GameplayStatics>.GameplayStatics.SpawnSound2D(self, Obj<TerminalHum>, 1.0, 1.0, 0.0, null, false, true)
+            self.HumSound = CallFunc_SpawnSound2D_ReturnValue
+            self.HumSound.FadeIn(1.0, 1.0, 0.0, 0)
+            pop_flow  // return to pushed flow
+            self.PowerDownEndButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.PowerDownEndButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            pop_flow  // return to pushed flow
+            self.PowerDownEndButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_12.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_12.? = 0
+            self.PowerDownEndButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_12)
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors_3 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors_3)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, 0, CallFunc_Array_Get_Item_3)
+            if not (CallFunc_Array_Get_Item_3.self.DEV_SkipToEnd) goto @4490
+    @4199:  CallFunc_Create_ReturnValue_7 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDown_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_2 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_7)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            self.PlayerBP.SERVER: PowerDownTerminal()
+            self.PlayerBP.SERVER: Load Next Level()
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{15, 1641176132, "ExecuteUbergraph_TerminalUIWidget", self})
+            pop_flow  // return to pushed flow
+    @4490:  CallFunc_GetAllActorsOfClass_OutActors_1 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_1)
+            if not (CallFunc_Array_Get_Item_1.self.ThresholdCurrentlyTransitioning) goto @4786
+            CallFunc_Create_ReturnValue_8 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIGatewayTransitioningError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_3 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_8)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @4786:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_1)
+            if not (CallFunc_Array_Get_Item_1.self.DayStarted) goto @5173
+            CallFunc_GetAllActorsOfClass_OutActors_2 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<DoorControlBoxActor_C>, CallFunc_GetAllActorsOfClass_OutActors_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_2)
+            if not (CallFunc_Array_Get_Item_2.self.ThresholdOpen) goto @4199
+            CallFunc_Create_ReturnValue_10 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDownCloseThresholdError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_6 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_10)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+    @5173:  CallFunc_Create_ReturnValue_11 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUIPowerDownError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_10 = self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_11)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            pop_flow  // return to pushed flow
+            self.RequestTaskUtilitiesButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_10.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_10.? = 0
+            self.RequestTaskUtilitiesText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_10)
+            pop_flow  // return to pushed flow
+            self.RequestTaskUtilitiesButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_7.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_7.? = 0
+            self.RequestTaskUtilitiesText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_7)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            goto @1242
+            goto @3327
+            self.ExitButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.ExitButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            pop_flow  // return to pushed flow
+    @5943:  K2Node_MakeStruct_SlateColor_5.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.ExitButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            pop_flow  // return to pushed flow
+    @6075:  self.ExitButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            goto @5943
+            self.PurchaseButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_6.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_6.? = 0
+            self.PurchaseButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_6)
+            pop_flow  // return to pushed flow
+            goto @6075
+    @6349:  K2Node_MakeStruct_SlateColor.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.PurchaseButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            pop_flow  // return to pushed flow
+            goto @1044
+            self.PurchaseButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            goto @6349
+            self.EndContractButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.EndContractText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            pop_flow  // return to pushed flow
+            self.EndContractButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.EndContractText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors_6 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors_6)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_6, 0, CallFunc_Array_Get_Item_6)
+            if not (CallFunc_Array_Get_Item_6.self.DEV_SkipToEnd) goto @7191
+    @7084:  self.PlayerBP.SERVER: UpdateFunding(0, true)
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<PurchaseLoading>, 1.0, 1.0, 0.0, null, null, true)
+            goto @648
+    @7191:  CallFunc_GetAllActorsOfClass_OutActors_4 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors_4)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, 0, CallFunc_Array_Get_Item_4)
+            if not (CallFunc_Array_Get_Item_4.self.ThresholdCurrentlyTransitioning) goto @7327
+            goto @483
+    @7327:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, 0, CallFunc_Array_Get_Item_4)
+            if not (CallFunc_Array_Get_Item_4.self.DayStarted) goto @153
+            CallFunc_GetAllActorsOfClass_OutActors_5 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<DoorControlBoxActor_C>, CallFunc_GetAllActorsOfClass_OutActors_5)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_5, 0, CallFunc_Array_Get_Item_5)
+            if not (CallFunc_Array_Get_Item_5.self.ThresholdOpen) goto @7554
+            goto @318
+    @7554:  CallFunc_GetGameState_ReturnValue_1 = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State_1 = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue_1)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State_1)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(K2Node_DynamicCast_AsWorld_Game_State_1.self.Funding, 10000)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue) goto @7725
+            goto @7084
+    @7725:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @939
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            if not (K2Node_DynamicCast_AsWorld_Game_State.self.HasEndedContract) pop_flow
+            self.EndContractButton.SetVisibility(1)
+            self.EndContractText.SetVisibility(1)
+            pop_flow  // return to pushed flow
+    @7995:  return
+
+function PreConstruct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_IsDesignTime = IsDesignTime
+            TerminalUIWidget_C.ExecuteUbergraph_TerminalUIWidget(7790)
+            return

@@ -1,0 +1,5 @@
+// Content\MyAssets\Models\PlayerItems\Camera\CameraImageHandler
+
+== class CameraImageHandler_C : Class'Actor'
+  var DefaultSceneRoot: Object
+  var CameraImages: Array

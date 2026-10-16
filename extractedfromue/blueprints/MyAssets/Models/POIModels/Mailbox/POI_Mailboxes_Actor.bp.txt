@@ -1,0 +1,114 @@
+// Content\MyAssets\Models\POIModels\Mailbox\POI_Mailboxes_Actor
+
+== class POI_Mailboxes_Actor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var CameraCollision: Object
+  var Sphere: Object
+  var Swingset: Object
+  var DefaultSceneRoot: Object
+  var Color1: Struct
+  var Color2: Struct
+  var Color3: Struct
+  var RandomSubjectTag: Name
+  var RandomStream: Struct
+
+== class ExecuteUbergraph_POI_Mailboxes_Actor : 
+  var EntryPoint: Int
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue: Float
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_RandomIntegerInRangeFromStream_ReturnValue: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_1: Float
+  var CallFunc_MakeRandomStream_ReturnValue: Struct
+  var CallFunc_HSVToRGB_ReturnValue: Struct
+
+== class OnRep_Color1 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_Color2 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_Color3 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_RandomSubjectTag : 
+  var CallFunc_Array_Add_ReturnValue: Int
+
+function ExecuteUbergraph_POI_Mailboxes_Actor  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "Color1")
+            OnRep_Color1()
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(0, Obj<Traditional_Mailbox_Traditional_MailboxColored_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color1)
+            goto @1006
+    @185:   Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.4, 0.6)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_1 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.0, 360.0)
+            CallFunc_HSVToRGB_ReturnValue = KismetMathLibrary.HSVToRGB(CallFunc_RandomFloatInRangeFromStream_ReturnValue_1, CallFunc_RandomFloatInRangeFromStream_ReturnValue, 1.0, 1.0)
+            self.Color1 = CallFunc_HSVToRGB_ReturnValue
+            goto @10
+    @377:   OnRep_RandomSubjectTag()
+            goto @1006
+    @396:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 13, "RandomSubjectTag")
+            goto @377
+    @430:   Actor.FlushNetDormancy()
+            CallFunc_RandomIntegerInRangeFromStream_ReturnValue = KismetMathLibrary.RandomIntegerInRangeFromStream(self.RandomStream, 10000, 10000000)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_RandomIntegerInRangeFromStream_ReturnValue)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            self.RandomSubjectTag = CallFunc_Conv_StringToName_ReturnValue
+            goto @396
+    @593:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @1006
+            SERVER: SetRandomSubjectTag()
+            goto @185
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X, 8400.0)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(CallFunc_Round_ReturnValue_1, CallFunc_Round_ReturnValue)
+            CallFunc_MakeRandomStream_ReturnValue = KismetMathLibrary.MakeRandomStream(CallFunc_Add_IntInt_ReturnValue)
+            self.RandomStream = CallFunc_MakeRandomStream_ReturnValue
+            goto @593
+            goto @430
+    @1006:  return
+
+function OnRep_Color1  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(0, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color1)
+            return
+
+function OnRep_Color2  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(1, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color2)
+            return
+
+function OnRep_Color3  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(2, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color3)
+            return
+
+function OnRep_RandomSubjectTag  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Box.self.?, self.RandomSubjectTag)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            POI_Mailboxes_Actor_C.ExecuteUbergraph_POI_Mailboxes_Actor(646)
+            return
+
+function SERVER: SetRandomSubjectTag  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            POI_Mailboxes_Actor_C.ExecuteUbergraph_POI_Mailboxes_Actor(1001)
+            return

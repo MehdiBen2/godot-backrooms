@@ -1,0 +1,38 @@
+// Content\MyAssets\Models\WallSpeaker\WallSpeakerActorLobby
+
+== class WallSpeakerActorLobby_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Audio: Object
+  var WallSpeaker: Object
+  var DefaultSceneRoot: Object
+  var AudioToPlay: Int
+  var SongToPlay: Array
+
+== class ExecuteUbergraph_WallSpeakerActorLobby : 
+  var EntryPoint: Int
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var CallFunc_Array_Get_Item: Object
+
+== class OnRep_AudioToPlay : 
+  var CallFunc_Array_Get_Item: Object
+
+function ExecuteUbergraph_WallSpeakerActorLobby  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    self.Audio.Activate(false)
+            goto @258
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(self.SongToPlay)
+            CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(0, CallFunc_Array_LastIndex_ReturnValue)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SongToPlay, CallFunc_RandomIntegerInRange_ReturnValue, CallFunc_Array_Get_Item)
+            self.Audio.AudioComponent.SetSound(CallFunc_Array_Get_Item)
+            goto @10
+    @258:   return
+
+function OnRep_AudioToPlay  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SongToPlay, self.AudioToPlay, CallFunc_Array_Get_Item)
+            self.Audio.AudioComponent.SetSound(CallFunc_Array_Get_Item)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            WallSpeakerActorLobby_C.ExecuteUbergraph_WallSpeakerActorLobby(52)
+            return

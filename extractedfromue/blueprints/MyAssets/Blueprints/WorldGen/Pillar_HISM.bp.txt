@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\Pillar_HISM
+
+== class Pillar_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

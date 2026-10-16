@@ -1,0 +1,885 @@
+// Content\MyAssets\Models\UtilityVehichle\UtilityVehichle
+
+== class UtilityVehichle_C : Class'Character'
+  var UberGraphFrame: Struct
+  var SeatDriver: Object
+  var Seat4: Object
+  var Seat2: Object
+  var UtilityVehichleTire: Object
+  var UtilityVehichleTire3: Object
+  var SteeringRoot: Object
+  var UtilityVehichleTire1: Object
+  var UtilityVehichleTire2: Object
+  var Seat3: Object
+  var Scene: Object
+  var UtilityVehichleSteeringWheel: Object
+  var VehicleHum: Object
+  var Camera: Object
+  var TraceBackLoc: Object
+  var TraceFrontLoc: Object
+  var Box: Object
+  var Arrow4: Object
+  var PassengerSeat3: Object
+  var Arrow3: Object
+  var PassengerSeat2: Object
+  var Arrow2: Object
+  var PassengerSeat1: Object
+  var Arrow1: Object
+  var DriverSpot: Object
+  var UtilityVehichleBody: Object
+  var SeatsFilled: Array
+  var Player: Object
+  var CachedVelocity: Struct
+  var MovingForward: Bool
+  var TurnSpeed: Double
+  var ForwardVelocityMultiplier: Double
+  var BackwardsVelocityMultiplier: Double
+  var DrivingController: Object
+  var IsCoasting: Bool
+  var DragStrength: Double
+  var Speed: Double
+  var TireRotation: Double
+  var LookSensitivity: Double
+  var CameraPitch: Double
+  var CameraYaw: Double
+  var GasPedalAxis: Double
+  var CoastStrength: Double
+  var ActiveCoasting: Bool
+  var TurnSpeedMultiplier: Double
+  var CurrentTurnDirection: Double
+  var VolumeSpeed: Double
+  var FinalTireRotation: Double
+  var FinalFinalTireRotation: Double
+  var FinalCartRotation: Double
+  var LastDirectionTurned: Bool
+
+== class CheckCollisions : 
+  var Temp_object_Variable: Array
+  var Temp_object_Variable_1: Array
+  var CallFunc_K2_GetActorRotation_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_1: Struct
+  var CallFunc_BoxTraceSingle_OutHit: Struct
+  var CallFunc_BoxTraceSingle_ReturnValue: Bool
+  var CallFunc_BoxTraceSingle_OutHit_1: Struct
+  var CallFunc_BoxTraceSingle_ReturnValue_1: Bool
+
+== class ExecuteUbergraph_UtilityVehichle : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_SwitchInteger_CmpSuccess: Bool
+  var K2Node_Event_OldController: Object
+  var CallFunc_GetActorForwardVector_ReturnValue: Struct
+  var K2Node_InputAxisEvent_AxisValue_3: Float
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_NotEqual_DoubleDouble_ReturnValue: Bool
+  var CallFunc_NotEqual_DoubleDouble_ReturnValue_1: Bool
+  var K2Node_InputAxisEvent_AxisValue_2: Float
+  var CallFunc_NotEqual_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_K2_GetComponentToWorld_ReturnValue: Struct
+  var CallFunc_Greater_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_K2_GetComponentToWorld_ReturnValue_1: Struct
+  var CallFunc_K2_GetComponentToWorld_ReturnValue_2: Struct
+  var CallFunc_K2_GetComponentToWorld_ReturnValue_3: Struct
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_GetController_ReturnValue: Object
+  var K2Node_DynamicCast_AsPlayer_Controller: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var Temp_bool_Variable: Bool
+  var CallFunc_VSize_ReturnValue: Double
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue_1: Bool
+  var CallFunc_Multiply_DoubleDouble_ReturnValue: Double
+  var CallFunc_GetActorForwardVector_ReturnValue_1: Struct
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_2: Double
+  var CallFunc_IsLocallyControlled_ReturnValue: Bool
+  var CallFunc_IsLocallyControlled_ReturnValue_1: Bool
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_Array_Get_Item: Bool
+  var CallFunc_GetController_ReturnValue_1: Object
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var K2Node_InputActionEvent_Key: Struct
+  var CallFunc_IsLocallyControlled_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue: Double
+  var CallFunc_FInterpTo_ReturnValue: Double
+  var CallFunc_Normal_ReturnValue: Struct
+  var CallFunc_Conv_DoubleToVector_ReturnValue: Struct
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_1: Double
+  var CallFunc_Multiply_VectorVector_ReturnValue: Struct
+  var CallFunc_Conv_DoubleToVector_ReturnValue_1: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_SwitchName_CmpSuccess: Bool
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_2: Double
+  var CallFunc_BreakRotator_Roll: Float
+  var CallFunc_BreakRotator_Pitch: Float
+  var CallFunc_BreakRotator_Yaw: Float
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_VSize_ReturnValue_1: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_4: Bool
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue_5: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var K2Node_InputAxisEvent_AxisValue_1: Float
+  var K2Node_InputAxisEvent_AxisValue: Float
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_3: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_4: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_5: Double
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_3: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_6: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_7: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_FClamp_ReturnValue: Double
+  var CallFunc_FClamp_ReturnValue_1: Double
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_Subtract_DoubleDouble_ReturnValue: Double
+  var CallFunc_Abs_ReturnValue: Double
+  var CallFunc_GetActorForwardVector_ReturnValue_2: Struct
+  var CallFunc_Greater_DoubleDouble_ReturnValue_3: Bool
+  var K2Node_CustomEvent_CurrentThrottle: Double
+  var CallFunc_VSize_ReturnValue_2: Double
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_4: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_4: Bool
+  var CallFunc_FInterpTo_ReturnValue_1: Double
+  var CallFunc_BooleanAND_ReturnValue_6: Bool
+  var CallFunc_GetActorForwardVector_ReturnValue_3: Struct
+  var CallFunc_Multiply_VectorVector_ReturnValue_1: Struct
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_8: Double
+  var CallFunc_VSize_ReturnValue_3: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_9: Double
+  var CallFunc_NormalizeToRange_ReturnValue: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_10: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_11: Double
+  var K2Node_CustomEvent_Turn: Double
+  var CallFunc_Multiply_VectorVector_ReturnValue_2: Struct
+  var CallFunc_K2_AddActorWorldOffset_SweepHitResult: Struct
+  var CallFunc_Subtract_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Abs_ReturnValue_1: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_5: Bool
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_5: Double
+  var CallFunc_FInterpTo_ReturnValue_2: Double
+  var CallFunc_VSize_ReturnValue_4: Double
+  var CallFunc_NormalizeToRange_ReturnValue_1: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_12: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_13: Double
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var K2Node_CustomEvent_FinalRotation: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_14: Double
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue_2: Bool
+  var CallFunc_FInterpTo_ReturnValue_3: Double
+  var CallFunc_MakeRotator_ReturnValue_1: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_1: Struct
+  var CallFunc_BreakRotator_Roll_1: Float
+  var CallFunc_BreakRotator_Pitch_1: Float
+  var CallFunc_BreakRotator_Yaw_1: Float
+  var CallFunc_FInterpTo_ReturnValue_4: Double
+  var CallFunc_K2_GetComponentRotation_ReturnValue: Struct
+  var CallFunc_MakeRotator_ReturnValue_2: Struct
+  var CallFunc_BreakRotator_Roll_2: Float
+  var CallFunc_BreakRotator_Pitch_2: Float
+  var CallFunc_BreakRotator_Yaw_2: Float
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_2: Struct
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_6: Double
+  var CallFunc_K2_GetActorRotation_ReturnValue: Struct
+  var CallFunc_BreakRotator_Roll_3: Float
+  var CallFunc_BreakRotator_Pitch_3: Float
+  var CallFunc_BreakRotator_Yaw_3: Float
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_MakeRotator_ReturnValue_3: Struct
+  var CallFunc_K2_SetWorldLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetWorldRotation_SweepHitResult: Struct
+  var CallFunc_FInterpTo_ReturnValue_5: Double
+  var CallFunc_MakeRotator_ReturnValue_4: Struct
+  var CallFunc_K2_SetWorldRotation_SweepHitResult_1: Struct
+  var CallFunc_GetController_ReturnValue_2: Object
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue_1: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue_6: Bool
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue_3: Bool
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue_7: Double
+  var CallFunc_FInterpTo_ReturnValue_6: Double
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue_4: Bool
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_15: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_16: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_17: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_18: Double
+  var CallFunc_VSize_ReturnValue_5: Double
+  var CallFunc_NormalizeToRange_ReturnValue_2: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_19: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_20: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_21: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_22: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_23: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_24: Double
+  var CallFunc_UpdateThrottle_CurrentThrottle_ImplicitCast: Double
+  var CallFunc_Subtract_DoubleDouble_B_ImplicitCast: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast_1: Double
+  var CallFunc_NotEqual_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_1: Double
+  var CallFunc_Greater_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast_2: Double
+  var CallFunc_UpdateTurn_Turn_ImplicitCast: Double
+  var CallFunc_Subtract_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_Greater_DoubleDouble_A_ImplicitCast_1: Double
+  var CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_2: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3: Double
+  var CallFunc_AddMovementInput_ScaleValue_ImplicitCast: Float
+  var CallFunc_AddMovementInput_ScaleValue_ImplicitCast_1: Float
+  var CallFunc_FInterpTo_Current_ImplicitCast: Double
+  var CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast_4: Double
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast_5: Double
+  var CallFunc_MakeRotator_Pitch_ImplicitCast: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+  var CallFunc_AddMovementInput_ScaleValue_ImplicitCast_2: Float
+  var CallFunc_AddMovementInput_ScaleValue_ImplicitCast_3: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_1: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_2: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_1: Float
+  var CallFunc_FInterpTo_Current_ImplicitCast_1: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_2: Float
+  var CallFunc_FInterpTo_Current_ImplicitCast_2: Double
+  var CallFunc_FInterpTo_Target_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_3: Float
+  var CallFunc_NormalizeToRange_RangeMax_ImplicitCast: Double
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_3: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_4: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_5: Float
+  var CallFunc_AddControllerYawInput_Val_ImplicitCast_6: Float
+
+== class GetInteractText : 
+  var Player: Object
+
+== class InpActEvt_Interact_K2Node_InputActionEvent_0 : 
+  var Key: Struct
+
+== class InpAxisEvt_Look Up / Down Mouse_K2Node_InputAxisEvent_3 : 
+  var AxisValue: Float
+
+== class InpAxisEvt_Move Forward / Backward_K2Node_InputAxisEvent_4 : 
+  var AxisValue: Float
+
+== class InpAxisEvt_Move Right / Left_K2Node_InputAxisEvent_5 : 
+  var AxisValue: Float
+
+== class InpAxisEvt_Turn Right / Left Mouse_K2Node_InputAxisEvent_2 : 
+  var AxisValue: Float
+
+== class OnRep_VolumeSpeed : 
+  var CallFunc_SetVolumeMultiplier_NewVolumeMultiplier_ImplicitCast: Float
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class ReceiveUnpossessed : Class'Pawn:ReceiveUnpossessed'
+  var OldController: Object
+
+== class SERVER: Update Tire Rotation : 
+  var FinalRotation: Double
+
+== class SetTurnSpeed : 
+  var CallFunc_VSize_ReturnValue: Double
+  var CallFunc_NormalizeToRange_ReturnValue: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue: Double
+
+== class UpdateThrottle : 
+  var CurrentThrottle: Double
+
+== class UpdateTurn : 
+  var Turn: Double
+
+function CheckCollisions  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            if not (self.MovingForward) goto @308
+            CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            CallFunc_K2_GetComponentLocation_ReturnValue_1 = self.TraceFrontLoc.SceneComponent.K2_GetComponentLocation()
+            CallFunc_BoxTraceSingle_ReturnValue_1 = KismetSystemLibrary.BoxTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue_1, CallFunc_K2_GetComponentLocation_ReturnValue_1, Vec(10.0, 75.0, 30.0), CallFunc_K2_GetActorRotation_ReturnValue, 0, false, Temp_object_Variable_1, 0, CallFunc_BoxTraceSingle_OutHit_1, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_BoxTraceSingle_ReturnValue_1) goto @597
+            self.ForwardVelocityMultiplier = 0.0
+            goto @597
+    @308:   CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.TraceBackLoc.SceneComponent.K2_GetComponentLocation()
+            CallFunc_BoxTraceSingle_ReturnValue = KismetSystemLibrary.BoxTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_K2_GetComponentLocation_ReturnValue, Vec(10.0, 75.0, 30.0), CallFunc_K2_GetActorRotation_ReturnValue, 0, false, Temp_object_Variable, 0, CallFunc_BoxTraceSingle_OutHit, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_BoxTraceSingle_ReturnValue) goto @597
+            self.BackwardsVelocityMultiplier = 0.0
+    @597:   return
+
+function CheckThrottleForCoast  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(7535)
+            return
+
+function Coast  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(5381)
+            return
+
+function ExecuteUbergraph_UtilityVehichle  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @11857
+            goto computed(EntryPoint)
+    @15:    GetVolume()
+            pop_flow  // return to pushed flow
+    @30:    Actor.FlushNetDormancy()
+            self.DrivingController = null
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "DrivingController")
+            self.?.StopMovementImmediately()
+            self.?.DisableMovement()
+            Actor.FlushNetDormancy()
+            self.IsCoasting = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "IsCoasting")
+            pop_flow  // return to pushed flow
+    @203:   Actor.FlushNetDormancy()
+            self.IsCoasting = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "IsCoasting")
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+    @319:   OnRep_VolumeSpeed()
+            pop_flow  // return to pushed flow
+    @334:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 27, "VolumeSpeed")
+            goto @319
+    @368:   Actor.FlushNetDormancy()
+            CallFunc_VSize_ReturnValue_4 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue_1 = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_4, 0.0, 400.0)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_12 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_NormalizeToRange_ReturnValue_1, 1.0)
+            self.VolumeSpeed = CallFunc_Multiply_DoubleDouble_ReturnValue_12
+            goto @334
+    @570:   Actor.FlushNetDormancy()
+            self.FinalTireRotation = K2Node_CustomEvent_FinalRotation
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 28, "FinalTireRotation")
+            pop_flow  // return to pushed flow
+            if not (K2Node_Event_Player_1.self.SittingAsPassenger) goto @720
+            K2Node_Event_Player_1.SERVER: PossessCharacter(K2Node_Event_CurrentSelectedSeat, self)
+            pop_flow  // return to pushed flow
+    @720:   K2Node_Event_Player_1.self.? = false
+            K2Node_Event_Player_1.Actor.FlushNetDormancy()
+            K2Node_Event_Player_1.self.Vehicle = self
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_Event_Player_1, 35, "Vehicle")
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_Event_CurrentSelectedSeat, 1)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1048
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_Event_CurrentSelectedSeat, 2)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1154
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_Event_CurrentSelectedSeat, 3)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1260
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_Event_CurrentSelectedSeat, 4)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1366
+            pop_flow  // return to pushed flow
+    @1048:  CallFunc_K2_GetComponentToWorld_ReturnValue = self.DriverSpot.SceneComponent.K2_GetComponentToWorld()
+            K2Node_Event_Player_1.SERVER: PossessVehicle(CallFunc_K2_GetComponentToWorld_ReturnValue, K2Node_Event_CurrentSelectedSeat, self)
+            pop_flow  // return to pushed flow
+    @1154:  CallFunc_K2_GetComponentToWorld_ReturnValue_1 = self.PassengerSeat1.SceneComponent.K2_GetComponentToWorld()
+            K2Node_Event_Player_1.SERVER: PossessVehicle(CallFunc_K2_GetComponentToWorld_ReturnValue_1, K2Node_Event_CurrentSelectedSeat, self)
+            pop_flow  // return to pushed flow
+    @1260:  CallFunc_K2_GetComponentToWorld_ReturnValue_2 = self.PassengerSeat2.SceneComponent.K2_GetComponentToWorld()
+            K2Node_Event_Player_1.SERVER: PossessVehicle(CallFunc_K2_GetComponentToWorld_ReturnValue_2, K2Node_Event_CurrentSelectedSeat, self)
+            pop_flow  // return to pushed flow
+    @1366:  CallFunc_K2_GetComponentToWorld_ReturnValue_3 = self.PassengerSeat3.SceneComponent.K2_GetComponentToWorld()
+            K2Node_Event_Player_1.SERVER: PossessVehicle(CallFunc_K2_GetComponentToWorld_ReturnValue_3, K2Node_Event_CurrentSelectedSeat, self)
+            pop_flow  // return to pushed flow
+            SERVER: Remove Driving Controller()
+            pop_flow  // return to pushed flow
+            CallFunc_Subtract_DoubleDouble_B_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_Subtract_DoubleDouble_ReturnValue = KismetMathLibrary.Subtract_DoubleDouble(self.GasPedalAxis, CallFunc_Subtract_DoubleDouble_B_ImplicitCast)
+            CallFunc_Abs_ReturnValue = KismetMathLibrary.Abs(CallFunc_Subtract_DoubleDouble_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Abs_ReturnValue, 0.01)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_3) goto @1703
+            CallFunc_UpdateThrottle_CurrentThrottle_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            UpdateThrottle(CallFunc_UpdateThrottle_CurrentThrottle_ImplicitCast)
+    @1703:  CallFunc_IsLocallyControlled_ReturnValue = IsLocallyControlled()
+            if not (CallFunc_IsLocallyControlled_ReturnValue) pop_flow
+            CallFunc_NotEqual_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_NotEqual_DoubleDouble_ReturnValue_1 = KismetMathLibrary.NotEqual_DoubleDouble(CallFunc_NotEqual_DoubleDouble_A_ImplicitCast, 0.0)
+            if not (CallFunc_NotEqual_DoubleDouble_ReturnValue_1) pop_flow
+            CallFunc_Greater_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Greater_DoubleDouble_A_ImplicitCast, 0.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue) goto @2099
+            self.MovingForward = true
+            CallFunc_GetActorForwardVector_ReturnValue = Actor.GetActorForwardVector()
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_1 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_1, self.ForwardVelocityMultiplier)
+            CallFunc_AddMovementInput_ScaleValue_ImplicitCast = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_1)
+            AddMovementInput(CallFunc_GetActorForwardVector_ReturnValue, CallFunc_AddMovementInput_ScaleValue_ImplicitCast, false)
+            self.BackwardsVelocityMultiplier = 1.0
+            pop_flow  // return to pushed flow
+    @2099:  self.MovingForward = false
+            CallFunc_GetActorForwardVector_ReturnValue_1 = Actor.GetActorForwardVector()
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast, self.BackwardsVelocityMultiplier)
+            CallFunc_AddMovementInput_ScaleValue_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_2)
+            AddMovementInput(CallFunc_GetActorForwardVector_ReturnValue_1, CallFunc_AddMovementInput_ScaleValue_ImplicitCast_1, false)
+            self.ForwardVelocityMultiplier = 1.0
+            pop_flow  // return to pushed flow
+    @2303:  CallFunc_NearlyEqual_FloatFloat_ReturnValue = KismetMathLibrary.NearlyEqual_FloatFloat(self.CurrentTurnDirection, 0.0, 0.1)
+            if not (CallFunc_NearlyEqual_FloatFloat_ReturnValue) goto @2365
+            pop_flow  // return to pushed flow
+    @2365:  self.TurnSpeedMultiplier = 0.0
+            CallFunc_NearlyEqual_FloatFloat_ReturnValue_4 = KismetMathLibrary.NearlyEqual_FloatFloat(self.CurrentTurnDirection, 1.0, 0.1)
+            if not (CallFunc_NearlyEqual_FloatFloat_ReturnValue_4) goto @2465
+            self.LastDirectionTurned = true
+            pop_flow  // return to pushed flow
+    @2465:  self.LastDirectionTurned = false
+            pop_flow  // return to pushed flow
+    @2477:  CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_1 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_NotEqual_DoubleDouble_ReturnValue = KismetMathLibrary.NotEqual_DoubleDouble(CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_1, 0.0)
+            if not (CallFunc_NotEqual_DoubleDouble_ReturnValue) goto @3052
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3, self.TurnSpeed)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_8 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.TurnSpeedMultiplier)
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_2 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_3)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_9 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_2, CallFunc_Multiply_DoubleDouble_ReturnValue_8)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_9)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_1)
+    @2806:  CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_2 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_NotEqual_DoubleDouble_ReturnValue_2 = KismetMathLibrary.NotEqual_DoubleDouble(CallFunc_NotEqual_DoubleDouble_A_ImplicitCast_2, 0.0)
+            if not (CallFunc_NotEqual_DoubleDouble_ReturnValue_2) goto @3024
+            CallFunc_Greater_DoubleDouble_A_ImplicitCast_1 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_Greater_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Greater_DoubleDouble_A_ImplicitCast_1, 0.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_1) goto @2996
+            self.TireRotation = 30.0
+            pop_flow  // return to pushed flow
+    @2996:  self.TireRotation = -30.0
+            pop_flow  // return to pushed flow
+    @3024:  self.TireRotation = 0.0
+            pop_flow  // return to pushed flow
+    @3052:  if not (self.MovingForward) goto @3244
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3, self.TurnSpeed)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_8 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.TurnSpeedMultiplier)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_8)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast)
+            goto @2806
+    @3244:  CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_3, self.TurnSpeed)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_8 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.TurnSpeedMultiplier)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_11 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_8, -1.0)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_11)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_2)
+            goto @2806
+            CallFunc_IsLocallyControlled_ReturnValue_1 = IsLocallyControlled()
+            if not (CallFunc_IsLocallyControlled_ReturnValue_1) pop_flow
+            CallFunc_Subtract_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            CallFunc_Subtract_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_Subtract_DoubleDouble_A_ImplicitCast, self.CurrentTurnDirection)
+            CallFunc_Abs_ReturnValue_1 = KismetMathLibrary.Abs(CallFunc_Subtract_DoubleDouble_ReturnValue_1)
+            CallFunc_Greater_DoubleDouble_ReturnValue_5 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Abs_ReturnValue_1, 0.1)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_5) goto @2477
+            CallFunc_UpdateTurn_Turn_ImplicitCast = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_2)
+            UpdateTurn(CallFunc_UpdateTurn_Turn_ImplicitCast)
+            goto @2477
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.Player)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            MULTI: Set Seat Empty()
+            self.CachedVelocity = self.?.self.?
+            CallFunc_GetController_ReturnValue = Pawn.GetController()
+            K2Node_DynamicCast_AsPlayer_Controller = Cast<PlayerController>(CallFunc_GetController_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_Controller)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsPlayer_Controller.Controller.UnPossess()
+            K2Node_DynamicCast_AsPlayer_Controller.Controller.Possess(self.Player)
+            self.Player.SERVER: PossessCharacter(1, null)
+            pop_flow  // return to pushed flow
+    @4036:  SERVER: UnpossessVehicle()
+            pop_flow  // return to pushed flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Set(self.SeatsFilled, 0, Temp_bool_Variable, false)
+            pop_flow  // return to pushed flow
+    @4108:  CallFunc_VSize_ReturnValue = KismetMathLibrary.VSize(self.CachedVelocity)
+            self.Speed = CallFunc_VSize_ReturnValue
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(self.Speed, 5.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue) goto @4229
+            goto @203
+    @4229:  CallFunc_GetWorldDeltaSeconds_ReturnValue = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_FInterpTo_ReturnValue = KismetMathLibrary.FInterpTo(self.Speed, 0.0, CallFunc_GetWorldDeltaSeconds_ReturnValue, self.DragStrength)
+            CallFunc_Normal_ReturnValue = KismetMathLibrary.Normal(self.CachedVelocity, 0.0001)
+            CallFunc_Conv_DoubleToVector_ReturnValue = KismetMathLibrary.Conv_DoubleToVector(CallFunc_FInterpTo_ReturnValue)
+            CallFunc_Multiply_VectorVector_ReturnValue = KismetMathLibrary.Multiply_VectorVector(CallFunc_Normal_ReturnValue, CallFunc_Conv_DoubleToVector_ReturnValue)
+            self.CachedVelocity = CallFunc_Multiply_VectorVector_ReturnValue
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_1 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_Conv_DoubleToVector_ReturnValue_1 = KismetMathLibrary.Conv_DoubleToVector(CallFunc_GetWorldDeltaSeconds_ReturnValue_1)
+            CallFunc_Multiply_VectorVector_ReturnValue_2 = KismetMathLibrary.Multiply_VectorVector(self.CachedVelocity, CallFunc_Conv_DoubleToVector_ReturnValue_1)
+            Actor.K2_AddActorWorldOffset(CallFunc_Multiply_VectorVector_ReturnValue_2, true, CallFunc_K2_AddActorWorldOffset_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @4617:  CallFunc_NearlyEqual_FloatFloat_ReturnValue_1 = KismetMathLibrary.NearlyEqual_FloatFloat(self.GasPedalAxis, 0.0, 1e-06)
+            if not (CallFunc_NearlyEqual_FloatFloat_ReturnValue_1) goto @4877
+            CallFunc_VSize_ReturnValue_3 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_3, 0.0, 400.0)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_10 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_NormalizeToRange_ReturnValue, 0.8)
+            self.CoastStrength = CallFunc_Multiply_DoubleDouble_ReturnValue_10
+            self.ActiveCoasting = true
+            pop_flow  // return to pushed flow
+    @4877:  self.ActiveCoasting = false
+            pop_flow  // return to pushed flow
+            push_flow @4927
+            RotateTires()
+            RotateCart()
+            goto @15
+    @4927:  CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(self.DrivingController)
+            if not (CallFunc_IsValid_ReturnValue_1) goto @5301
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SeatsFilled, 0, CallFunc_Array_Get_Item)
+            CallFunc_GetController_ReturnValue_1 = Pawn.GetController()
+            CallFunc_EqualEqual_ObjectObject_ReturnValue = KismetMathLibrary.EqualEqual_ObjectObject(self.DrivingController, CallFunc_GetController_ReturnValue_1)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_ObjectObject_ReturnValue, CallFunc_Array_Get_Item)
+            CallFunc_IsLocallyControlled_ReturnValue_2 = IsLocallyControlled()
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue, CallFunc_IsLocallyControlled_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_1) pop_flow
+            push_flow @5356
+            push_flow @5256
+            push_flow @5271
+            push_flow @5286
+            SetTurnSpeed()
+            CheckCollisions()
+            UpdateTireRotation()
+            pop_flow  // return to pushed flow
+    @5256:  CheckThrottleForCoast()
+            pop_flow  // return to pushed flow
+    @5271:  SetCameraRotation()
+            pop_flow  // return to pushed flow
+    @5286:  StopIfColliding()
+            pop_flow  // return to pushed flow
+    @5301:  if not (self.IsCoasting) pop_flow
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            Coast()
+            pop_flow  // return to pushed flow
+    @5356:  InterpTurnSpeed()
+            pop_flow  // return to pushed flow
+            goto @30
+            goto @4036
+            goto @4108
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(K2Node_Event_Player.self.InteractObjectTag, "1")
+            if not (K2Node_SwitchName_CmpSuccess) goto @6137
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(K2Node_Event_Player.self.InteractObjectTag, "2")
+            if not (K2Node_SwitchName_CmpSuccess) goto @5991
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(K2Node_Event_Player.self.InteractObjectTag, "3")
+            if not (K2Node_SwitchName_CmpSuccess) goto @5845
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(K2Node_Event_Player.self.InteractObjectTag, "4")
+            if not (K2Node_SwitchName_CmpSuccess) goto @5699
+            pop_flow  // return to pushed flow
+    @5699:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Enter Passenger Seat"})
+            K2Node_Event_Player.self.CurrentSelectedSeat = 4
+            pop_flow  // return to pushed flow
+    @5845:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Enter Passenger Seat"})
+            K2Node_Event_Player.self.CurrentSelectedSeat = 3
+            pop_flow  // return to pushed flow
+    @5991:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Enter Passenger Seat"})
+            K2Node_Event_Player.self.CurrentSelectedSeat = 2
+            pop_flow  // return to pushed flow
+    @6137:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Enter Driver Seat"})
+            K2Node_Event_Player.self.CurrentSelectedSeat = 1
+            pop_flow  // return to pushed flow
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.MovingForward, false)
+            CallFunc_VSize_ReturnValue_1 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_Greater_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_VSize_ReturnValue_1, 0.0)
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue = KismetMathLibrary.EqualEqual_DoubleDouble(self.ForwardVelocityMultiplier, 0.0)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_Greater_DoubleDouble_ReturnValue_2, self.MovingForward)
+            CallFunc_BooleanAND_ReturnValue_3 = KismetMathLibrary.BooleanAND(CallFunc_Greater_DoubleDouble_ReturnValue_2, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            CallFunc_BooleanAND_ReturnValue_4 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue_2, CallFunc_EqualEqual_DoubleDouble_ReturnValue)
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue_1 = KismetMathLibrary.EqualEqual_DoubleDouble(self.BackwardsVelocityMultiplier, 0.0)
+            CallFunc_BooleanAND_ReturnValue_5 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue_3, CallFunc_EqualEqual_DoubleDouble_ReturnValue_1)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_BooleanAND_ReturnValue_4, CallFunc_BooleanAND_ReturnValue_5)
+            if not (CallFunc_BooleanOR_ReturnValue) pop_flow
+            SERVER: Stop Velocity()
+            pop_flow  // return to pushed flow
+    @6698:  self.?.self.? = Vec(0.0, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+            goto @6698
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_4 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue_1)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_4 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_4, self.LookSensitivity)
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_3 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_6 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_4, CallFunc_GetWorldDeltaSeconds_ReturnValue_3)
+            CallFunc_Add_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Add_DoubleDouble(self.CameraYaw, CallFunc_Multiply_DoubleDouble_ReturnValue_6)
+            CallFunc_FClamp_ReturnValue_1 = KismetMathLibrary.FClamp(CallFunc_Add_DoubleDouble_ReturnValue_1, -120.0, 120.0)
+            self.CameraYaw = CallFunc_FClamp_ReturnValue_1
+            pop_flow  // return to pushed flow
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast_5 = CST_FloatToDouble(K2Node_InputAxisEvent_AxisValue)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast_5, -1.0)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_5 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_3, self.LookSensitivity)
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_3 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_7 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_5, CallFunc_GetWorldDeltaSeconds_ReturnValue_3)
+            CallFunc_Add_DoubleDouble_ReturnValue = KismetMathLibrary.Add_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_7, self.CameraPitch)
+            CallFunc_FClamp_ReturnValue = KismetMathLibrary.FClamp(CallFunc_Add_DoubleDouble_ReturnValue, -30.0, 60.0)
+            self.CameraPitch = CallFunc_FClamp_ReturnValue
+            pop_flow  // return to pushed flow
+            CallFunc_MakeRotator_Pitch_ImplicitCast = CST_DoubleToFloat(self.CameraPitch)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(self.CameraYaw)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, CallFunc_MakeRotator_Pitch_ImplicitCast, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            self.Camera.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+            push_flow @7969
+            CallFunc_VSize_ReturnValue_2 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_Greater_DoubleDouble_ReturnValue_4 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_VSize_ReturnValue_2, 0.0)
+            CallFunc_BooleanAND_ReturnValue_6 = KismetMathLibrary.BooleanAND(self.ActiveCoasting, CallFunc_Greater_DoubleDouble_ReturnValue_4)
+            if not (CallFunc_BooleanAND_ReturnValue_6) goto @7947
+            if not (self.MovingForward) goto @7794
+            CallFunc_GetActorForwardVector_ReturnValue_2 = Actor.GetActorForwardVector()
+            CallFunc_AddMovementInput_ScaleValue_ImplicitCast_2 = CST_DoubleToFloat(self.CoastStrength)
+            AddMovementInput(CallFunc_GetActorForwardVector_ReturnValue_2, CallFunc_AddMovementInput_ScaleValue_ImplicitCast_2, false)
+            pop_flow  // return to pushed flow
+    @7794:  CallFunc_GetActorForwardVector_ReturnValue_3 = Actor.GetActorForwardVector()
+            CallFunc_Multiply_VectorVector_ReturnValue_1 = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetActorForwardVector_ReturnValue_3, Vec(-1.0, -1.0, -1.0))
+            CallFunc_AddMovementInput_ScaleValue_ImplicitCast_3 = CST_DoubleToFloat(self.CoastStrength)
+            AddMovementInput(CallFunc_Multiply_VectorVector_ReturnValue_1, CallFunc_AddMovementInput_ScaleValue_ImplicitCast_3, false)
+            pop_flow  // return to pushed flow
+    @7947:  if not (self.ActiveCoasting) pop_flow
+            self.ActiveCoasting = false
+            pop_flow  // return to pushed flow
+    @7969:  CallFunc_GetWorldDeltaSeconds_ReturnValue_4 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_FInterpTo_ReturnValue_1 = KismetMathLibrary.FInterpTo(self.CoastStrength, 0.0, CallFunc_GetWorldDeltaSeconds_ReturnValue_4, 1.0)
+            self.CoastStrength = CallFunc_FInterpTo_ReturnValue_1
+            pop_flow  // return to pushed flow
+            self.GasPedalAxis = K2Node_CustomEvent_CurrentThrottle
+            goto @4617
+    @8122:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            goto @368
+            self.CurrentTurnDirection = K2Node_CustomEvent_Turn
+            goto @2303
+            CallFunc_NearlyEqual_FloatFloat_ReturnValue_3 = KismetMathLibrary.NearlyEqual_FloatFloat(self.CurrentTurnDirection, 0.0, 0.1)
+            if not (CallFunc_NearlyEqual_FloatFloat_ReturnValue_3) goto @9792
+            CallFunc_Greater_DoubleDouble_ReturnValue_6 = KismetMathLibrary.Greater_DoubleDouble(self.TurnSpeedMultiplier, 0.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_6) pop_flow
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_7 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_FInterpTo_ReturnValue_6 = KismetMathLibrary.FInterpTo(self.TurnSpeedMultiplier, 0.0, CallFunc_GetWorldDeltaSeconds_ReturnValue_7, 1.5)
+            self.TurnSpeedMultiplier = CallFunc_FInterpTo_ReturnValue_6
+            if not (self.LastDirectionTurned) goto @9112
+            if not (self.MovingForward) goto @8756
+            CallFunc_Multiply_DoubleDouble_ReturnValue_15 = KismetMathLibrary.Multiply_DoubleDouble(self.TurnSpeedMultiplier, 0.11)
+            CallFunc_VSize_ReturnValue_5 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_RangeMax_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue_2 = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_5, 0.0, CallFunc_NormalizeToRange_RangeMax_ImplicitCast)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_20 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_15, CallFunc_NormalizeToRange_ReturnValue_2)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_4 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_20)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_4)
+            pop_flow  // return to pushed flow
+    @8756:  CallFunc_Multiply_DoubleDouble_ReturnValue_17 = KismetMathLibrary.Multiply_DoubleDouble(self.TurnSpeedMultiplier, 0.11)
+            CallFunc_VSize_ReturnValue_5 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_RangeMax_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue_2 = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_5, 0.0, CallFunc_NormalizeToRange_RangeMax_ImplicitCast)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_22 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_17, CallFunc_NormalizeToRange_ReturnValue_2)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_24 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_22, -1.0)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_6 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_24)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_6)
+            pop_flow  // return to pushed flow
+    @9112:  if not (self.MovingForward) goto @9482
+            CallFunc_Multiply_DoubleDouble_ReturnValue_16 = KismetMathLibrary.Multiply_DoubleDouble(self.TurnSpeedMultiplier, 0.11)
+            CallFunc_VSize_ReturnValue_5 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_RangeMax_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue_2 = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_5, 0.0, CallFunc_NormalizeToRange_RangeMax_ImplicitCast)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_21 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_16, CallFunc_NormalizeToRange_ReturnValue_2)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_23 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_21, -1.0)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_5 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_23)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_5)
+            pop_flow  // return to pushed flow
+    @9482:  CallFunc_Multiply_DoubleDouble_ReturnValue_18 = KismetMathLibrary.Multiply_DoubleDouble(self.TurnSpeedMultiplier, 0.11)
+            CallFunc_VSize_ReturnValue_5 = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_RangeMax_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue_2 = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue_5, 0.0, CallFunc_NormalizeToRange_RangeMax_ImplicitCast)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_19 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_18, CallFunc_NormalizeToRange_ReturnValue_2)
+            CallFunc_AddControllerYawInput_Val_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_19)
+            AddControllerYawInput(CallFunc_AddControllerYawInput_Val_ImplicitCast_3)
+            pop_flow  // return to pushed flow
+    @9792:  CallFunc_GetWorldDeltaSeconds_ReturnValue_5 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_FInterpTo_ReturnValue_2 = KismetMathLibrary.FInterpTo(self.TurnSpeedMultiplier, 1.0, CallFunc_GetWorldDeltaSeconds_ReturnValue_5, 1.0)
+            self.TurnSpeedMultiplier = CallFunc_FInterpTo_ReturnValue_2
+            pop_flow  // return to pushed flow
+            goto @8122
+            CallFunc_Multiply_DoubleDouble_ReturnValue_13 = KismetMathLibrary.Multiply_DoubleDouble(self.TireRotation, self.TurnSpeedMultiplier)
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue_2 = KismetMathLibrary.EqualEqual_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_13, self.FinalTireRotation)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_EqualEqual_DoubleDouble_ReturnValue_2, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue_1) pop_flow
+            CallFunc_Multiply_DoubleDouble_ReturnValue_13 = KismetMathLibrary.Multiply_DoubleDouble(self.TireRotation, self.TurnSpeedMultiplier)
+            SERVER: Update Tire Rotation(CallFunc_Multiply_DoubleDouble_ReturnValue_13)
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakRotator(self.UtilityVehichleTire.self.?, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_NearlyEqual_FloatFloat_ReturnValue_2 = KismetMathLibrary.NearlyEqual_FloatFloat(CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast, self.FinalTireRotation, 1.0)
+            if not (CallFunc_NearlyEqual_FloatFloat_ReturnValue_2) goto @10271
+            pop_flow  // return to pushed flow
+    @10271: CallFunc_GetWorldDeltaSeconds_ReturnValue_2 = GameplayStatics.GetWorldDeltaSeconds(self)
+            KismetMathLibrary.BreakRotator(self.UtilityVehichleTire.self.?, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            CallFunc_FInterpTo_Current_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_FInterpTo_ReturnValue_3 = KismetMathLibrary.FInterpTo(CallFunc_FInterpTo_Current_ImplicitCast, self.FinalTireRotation, CallFunc_GetWorldDeltaSeconds_ReturnValue_2, 4.0)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_FInterpTo_ReturnValue_3)
+            CallFunc_MakeRotator_ReturnValue_1 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast_1)
+            self.UtilityVehichleTire1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_1, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_1, false)
+            self.UtilityVehichleTire.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_1, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_1, false)
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_2 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_14 = KismetMathLibrary.Multiply_DoubleDouble(self.FinalTireRotation, 4.0)
+            KismetMathLibrary.BreakRotator(self.UtilityVehichleSteeringWheel.self.?, CallFunc_BreakRotator_Roll_1, CallFunc_BreakRotator_Pitch_1, CallFunc_BreakRotator_Yaw_1)
+            CallFunc_FInterpTo_Current_ImplicitCast_1 = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_1)
+            CallFunc_FInterpTo_ReturnValue_4 = KismetMathLibrary.FInterpTo(CallFunc_FInterpTo_Current_ImplicitCast_1, CallFunc_Multiply_DoubleDouble_ReturnValue_14, CallFunc_GetWorldDeltaSeconds_ReturnValue_2, 6.0)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_FInterpTo_ReturnValue_4)
+            CallFunc_MakeRotator_ReturnValue_2 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast_2)
+            self.UtilityVehichleSteeringWheel.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_2, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_2, false)
+            pop_flow  // return to pushed flow
+            goto @570
+            CallFunc_GetController_ReturnValue_2 = Pawn.GetController()
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_EqualEqual_ObjectObject_ReturnValue_1 = KismetMathLibrary.EqualEqual_ObjectObject(CallFunc_GetController_ReturnValue_2, CallFunc_GetPlayerController_ReturnValue)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue_1) goto @11363
+            CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            KismetMathLibrary.BreakRotator(CallFunc_K2_GetActorRotation_ReturnValue, CallFunc_BreakRotator_Roll_3, CallFunc_BreakRotator_Pitch_3, CallFunc_BreakRotator_Yaw_3)
+            CallFunc_MakeRotator_ReturnValue_3 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_BreakRotator_Yaw_3)
+            self.UtilityVehichleBody.SceneComponent.K2_SetWorldRotation(CallFunc_MakeRotator_ReturnValue_3, false, CallFunc_K2_SetWorldRotation_SweepHitResult, false)
+    @11282: CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            self.UtilityVehichleBody.SceneComponent.K2_SetWorldLocation(CallFunc_K2_GetActorLocation_ReturnValue, false, CallFunc_K2_SetWorldLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @11363: CallFunc_K2_GetComponentRotation_ReturnValue = self.UtilityVehichleBody.SceneComponent.K2_GetComponentRotation()
+            KismetMathLibrary.BreakRotator(CallFunc_K2_GetComponentRotation_ReturnValue, CallFunc_BreakRotator_Roll_2, CallFunc_BreakRotator_Pitch_2, CallFunc_BreakRotator_Yaw_2)
+            CallFunc_GetWorldDeltaSeconds_ReturnValue_6 = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            KismetMathLibrary.BreakRotator(CallFunc_K2_GetActorRotation_ReturnValue, CallFunc_BreakRotator_Roll_3, CallFunc_BreakRotator_Pitch_3, CallFunc_BreakRotator_Yaw_3)
+            CallFunc_FInterpTo_Current_ImplicitCast_2 = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_2)
+            CallFunc_FInterpTo_Target_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_3)
+            CallFunc_FInterpTo_ReturnValue_5 = KismetMathLibrary.FInterpTo(CallFunc_FInterpTo_Current_ImplicitCast_2, CallFunc_FInterpTo_Target_ImplicitCast, CallFunc_GetWorldDeltaSeconds_ReturnValue_6, 4.0)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_FInterpTo_ReturnValue_5)
+            CallFunc_MakeRotator_ReturnValue_4 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast_3)
+            self.UtilityVehichleBody.SceneComponent.K2_SetWorldRotation(CallFunc_MakeRotator_ReturnValue_4, false, CallFunc_K2_SetWorldRotation_SweepHitResult_1, false)
+            goto @11282
+            self.UtilityVehichleBody.SceneComponent.K2_DetachFromComponent(1, 1, 1, true)
+            pop_flow  // return to pushed flow
+    @11857: return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(5386)
+            return
+
+function GetVolume  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(9913)
+            return
+
+function InpActEvt_Interact_K2Node_InputActionEvent_0  [FUNC_BlueprintEvent]
+            frame.K2Node_InputActionEvent_Key = Key
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(5376)
+            return
+
+function InpAxisEvt_Look Up / Down Mouse_K2Node_InputAxisEvent_3  [FUNC_BlueprintEvent]
+            frame.K2Node_InputAxisEvent_AxisValue = AxisValue
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(7048)
+            return
+
+function InpAxisEvt_Move Forward / Backward_K2Node_InputAxisEvent_4  [FUNC_BlueprintEvent]
+            frame.K2Node_InputAxisEvent_AxisValue_3 = AxisValue
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(1487)
+            return
+
+function InpAxisEvt_Move Right / Left_K2Node_InputAxisEvent_5  [FUNC_BlueprintEvent]
+            frame.K2Node_InputAxisEvent_AxisValue_2 = AxisValue
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(3468)
+            return
+
+function InpAxisEvt_Turn Right / Left Mouse_K2Node_InputAxisEvent_2  [FUNC_BlueprintEvent]
+            frame.K2Node_InputAxisEvent_AxisValue_1 = AxisValue
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(6769)
+            return
+
+function InterpTurnSpeed  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(8189)
+            return
+
+function MULTI: Set Seat Empty  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(4051)
+            return
+
+function OnRep_VolumeSpeed  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_SetVolumeMultiplier_NewVolumeMultiplier_ImplicitCast = CST_DoubleToFloat(self.VolumeSpeed)
+            self.VehicleHum.AudioComponent.SetVolumeMultiplier(CallFunc_SetVolumeMultiplier_NewVolumeMultiplier_ImplicitCast)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(637)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(11817)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(4889)
+            return
+
+function ReceiveUnpossessed  [FUNC_BlueprintAuthorityOnly | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_OldController = OldController
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(1472)
+            return
+
+function RotateCart  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(11011)
+            return
+
+function RotateTires  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(10112)
+            return
+
+function SERVER: Remove Driving Controller  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(5371)
+            return
+
+function SERVER: Stop Velocity  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(6764)
+            return
+
+function SERVER: UnpossessVehicle  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(3723)
+            return
+
+function SERVER: Update Tire Rotation  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_FinalRotation = FinalRotation
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(11006)
+            return
+
+function SetCameraRotation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(7373)
+            return
+
+function SetTurnSpeed  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_VSize_ReturnValue = KismetMathLibrary.VSize(self.?.self.?)
+            CallFunc_NormalizeToRange_ReturnValue = KismetMathLibrary.NormalizeToRange(CallFunc_VSize_ReturnValue, 0.0, 400.0)
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_NormalizeToRange_ReturnValue, 0.2)
+            self.TurnSpeed = CallFunc_Multiply_DoubleDouble_ReturnValue
+            return
+
+function StopIfColliding  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(6280)
+            return
+
+function UpdateThrottle  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_CurrentThrottle = CurrentThrottle
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(8090)
+            return
+
+function UpdateTireRotation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(9918)
+            return
+
+function UpdateTurn  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Turn = Turn
+            UtilityVehichle_C.ExecuteUbergraph_UtilityVehichle(8157)
+            return

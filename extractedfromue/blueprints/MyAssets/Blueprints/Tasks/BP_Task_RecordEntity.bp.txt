@@ -1,0 +1,47 @@
+// Content\MyAssets\Blueprints\Tasks\BP_Task_RecordEntity
+
+== class BP_Task_RecordEntity_C : 
+  var UberGraphFrame: Struct
+
+== class CalculateReward : 
+  var Temp_int_Variable: Int
+  var Temp_text_Variable: Text
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+
+== class ExecuteUbergraph_BP_Task_RecordEntity : 
+  var EntryPoint: Int
+
+function CalculateReward  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CalculateReward()
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @399
+            Temp_text_Variable = Text({"Token": "EX_StringConst", "Value": "Record entity for 10 seconds"})
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedText, Temp_text_Variable)
+            Temp_int_Variable = 1000
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedFunding, Temp_int_Variable)
+    @399:   return
+
+function CompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CompleteMission()
+            return
+
+function ExecuteUbergraph_BP_Task_RecordEntity  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    self.TaskEnum = 3
+            goto @40
+            goto @10
+    @40:    return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            BP_Task_RecordEntity_C.ExecuteUbergraph_BP_Task_RecordEntity(35)
+            return
+
+function UpdateProgress  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CompleteMission()
+            return

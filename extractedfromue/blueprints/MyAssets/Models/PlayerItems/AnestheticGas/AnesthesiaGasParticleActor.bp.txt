@@ -1,0 +1,35 @@
+// Content\MyAssets\Models\PlayerItems\AnestheticGas\AnesthesiaGasParticleActor
+
+== class AnesthesiaGasParticleActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var GasOverlapPlayers: Object
+  var GasOverlap: Object
+  var AnestheticGasLoopSound: Object
+  var Gas: Object
+  var DefaultSceneRoot: Object
+
+== class ExecuteUbergraph_AnesthesiaGasParticleActor : 
+  var EntryPoint: Int
+
+function ExecuteUbergraph_AnesthesiaGasParticleActor  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @222
+            goto computed(EntryPoint)
+            K2_DestroyActor()
+            pop_flow  // return to pushed flow
+    @30:    self.GasOverlapPlayers.PrimitiveComponent.SetGenerateOverlapEvents(false)
+            self.Gas.Deactivate()
+            self.AnestheticGasLoopSound.FadeOut(0.25, 0.0, 0)
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{15, 1334704643, "ExecuteUbergraph_AnesthesiaGasParticleActor", self})
+            pop_flow  // return to pushed flow
+            MULTI: Stop Gas()
+            pop_flow  // return to pushed flow
+            goto @30
+    @222:   return
+
+function MULTI: Stop Gas  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnesthesiaGasParticleActor_C.ExecuteUbergraph_AnesthesiaGasParticleActor(217)
+            return
+
+function StopGas  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnesthesiaGasParticleActor_C.ExecuteUbergraph_AnesthesiaGasParticleActor(202)
+            return

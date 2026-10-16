@@ -1,0 +1,33 @@
+// Content\MyAssets\Models\PlayerItems\Camera\CameraFlashActor
+
+== class CameraFlashActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var CameraTakePicture: Object
+  var Plane: Object
+  var CameraFlash: Object
+  var DefaultSceneRoot: Object
+
+== class ExecuteUbergraph_CameraFlashActor : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+
+function ExecuteUbergraph_CameraFlashActor  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @248
+            goto computed(EntryPoint)
+    @15:    KismetSystemLibrary.Delay(self, 1.4, LatentActionInfo{70, 1135514687, "ExecuteUbergraph_CameraFlashActor", self})
+            pop_flow  // return to pushed flow
+            K2_DestroyActor()
+            pop_flow  // return to pushed flow
+            self.CameraFlash.SceneComponent.SetVisibility(false, false)
+            self.Plane.SceneComponent.SetVisibility(false, false)
+            goto @15
+    @158:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            KismetSystemLibrary.Delay(self, 0.05, LatentActionInfo{85, -401625417, "ExecuteUbergraph_CameraFlashActor", self})
+            pop_flow  // return to pushed flow
+            goto @158
+    @248:   return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            CameraFlashActor_C.ExecuteUbergraph_CameraFlashActor(243)
+            return

@@ -1,0 +1,332 @@
+// Content\MyAssets\Models\Furniture\ControlPanels\LabDoor
+
+== class LabDoor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var DoorGateOpen: Object
+  var DoorGateClose: Object
+  var LabDoorGate1: Object
+  var LabDoorGate2: Object
+  var SpotLight: Object
+  var DissolveSound: Object
+  var PlaneCollision: Object
+  var Plane: Object
+  var HubDoorFrame2: Object
+  var HubDoorFrame: Object
+  var Door: Object
+  var DefaultSceneRoot: Object
+  var Timeline_LightIntensity: Float
+  var Timeline_NewTrack_0: Float
+  var Timeline__Direction: Byte
+  var Timeline: Object
+  var DisolveTimeline_LightIntensity: Float
+  var DisolveTimeline_NewTrack_0: Float
+  var DisolveTimeline__Direction: Byte
+  var DisolveTimeline: Object
+  var DisolveMaterial: Object
+  var DevDoorOpen: Bool
+  var DoorStateClosed: Bool
+
+== class BndEvt__LabDoor_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class CLIENT: ForceKill : 
+  var Player: Object
+
+== class ExecuteUbergraph_LabDoor : 
+  var EntryPoint: Int
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_Lerp_ReturnValue_2: Double
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_Lerp_ReturnValue_3: Double
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_1: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_2: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_3: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var K2Node_CustomEvent_Player: Object
+  var CallFunc_ComponentHasTag_ReturnValue: Bool
+  var CallFunc_GetTransform_ReturnValue: Struct
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_BreakTransform_Location: Struct
+  var CallFunc_BreakTransform_Rotation: Struct
+  var CallFunc_BreakTransform_Scale: Struct
+  var CallFunc_BreakRotator_Roll: Float
+  var CallFunc_BreakRotator_Pitch: Float
+  var CallFunc_BreakRotator_Yaw: Float
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Subtract_DoubleDouble_ReturnValue: Double
+  var CallFunc_Subtract_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeVector_ReturnValue_1: Struct
+  var CallFunc_HasAuthority_ReturnValue_2: Bool
+  var CallFunc_MakeTransform_ReturnValue: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue: Object
+  var CallFunc_FinishSpawningActor_ReturnValue: Object
+  var CallFunc_MakeVector_ReturnValue_2: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_4: Struct
+  var CallFunc_MakeVector_ReturnValue_3: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_5: Struct
+  var CallFunc_MakeVector_ReturnValue_4: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_6: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_7: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_8: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_9: Struct
+  var CallFunc_MakeVector_ReturnValue_5: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_10: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_11: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_12: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_13: Struct
+  var K2Node_CustomEvent_State: Bool
+  var CallFunc_MakeVector_ReturnValue_6: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_14: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_15: Struct
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast: Float
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_2: Double
+  var CallFunc_SetScalarParameterValue_Value_ImplicitCast: Float
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast_1: Float
+  var CallFunc_Lerp_Alpha_ImplicitCast_3: Double
+  var CallFunc_SetScalarParameterValue_Value_ImplicitCast_1: Float
+  var CallFunc_Subtract_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+
+== class SetLabDoorState : 
+  var State: Bool
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_1: Struct
+
+function BndEvt__LabDoor_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            LabDoor_C.ExecuteUbergraph_LabDoor(1809)
+            return
+
+function CLIENT: ForceKill  [FUNC_Net | FUNC_NetReliable | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Player = Player
+            LabDoor_C.ExecuteUbergraph_LabDoor(3141)
+            return
+
+function DisolveTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3872)
+            return
+
+function DisolveTimeline__MoveKillBoxDown__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(842)
+            return
+
+function DisolveTimeline__MoveKillBoxUp__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(730)
+            return
+
+function DisolveTimeline__OpenCollision__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3187)
+            return
+
+function DisolveTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3182)
+            return
+
+function ExecuteUbergraph_LabDoor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            goto @3877
+    @15:    self.DisolveTimeline.TimelineComponent.PlayFromStart()
+            goto @3877
+            CallFunc_Lerp_Alpha_ImplicitCast_3 = CST_FloatToDouble(self.Timeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_3 = KismetMathLibrary.Lerp(-0.41, 0.7, CallFunc_Lerp_Alpha_ImplicitCast_3)
+            CallFunc_SetScalarParameterValue_Value_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_3)
+            self.DisolveMaterial.MaterialInstanceDynamic.SetScalarParameterValue("Disolve", CallFunc_SetScalarParameterValue_Value_ImplicitCast_1)
+            CallFunc_Lerp_Alpha_ImplicitCast_2 = CST_FloatToDouble(self.Timeline_LightIntensity)
+            CallFunc_Lerp_ReturnValue_2 = KismetMathLibrary.Lerp(0.0, 120000.0, CallFunc_Lerp_Alpha_ImplicitCast_2)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_2)
+            self.SpotLight.LightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast_1)
+            goto @3877
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(0.0, 0.0, -245.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_15, false)
+            goto @3877
+            CallFunc_MakeVector_ReturnValue_6 = KismetMathLibrary.MakeVector(0.0, 0.0, 165.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_6, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_14, false)
+            goto @3877
+            goto @3877
+    @607:   self.Timeline.TimelineComponent.PlayFromStart()
+            goto @3877
+    @644:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @3877
+            if not (self.DoorStateClosed) goto @711
+            SERVER: Set Door Closed()
+            goto @3877
+    @711:   SERVER: Set Door Open()
+            goto @3877
+            CallFunc_MakeVector_ReturnValue_2 = KismetMathLibrary.MakeVector(0.0, 0.0, 165.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_2, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_4, false)
+            goto @3877
+            CallFunc_MakeVector_ReturnValue_3 = KismetMathLibrary.MakeVector(0.0, 0.0, -245.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_3, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_5, false)
+            goto @3877
+    @954:   CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) goto @3877
+            self.DoorStateClosed = K2Node_CustomEvent_State
+            goto @644
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Plane.CreateDynamicMaterialInstance(0, Obj<DisolveMat_Inst>, "None")
+            self.DisolveMaterial = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            goto @3877
+    @1109:  CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.DisolveTimeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(-0.41, 0.7, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            CallFunc_SetScalarParameterValue_Value_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_1)
+            self.DisolveMaterial.MaterialInstanceDynamic.SetScalarParameterValue("Disolve", CallFunc_SetScalarParameterValue_Value_ImplicitCast)
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.DisolveTimeline_LightIntensity)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.0, 120000.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue)
+            self.SpotLight.LightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast)
+            goto @3877
+            self.DissolveSound.Play(0.0)
+            goto @15
+    @1481:  self.Plane.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+            goto @3877
+    @1554:  self.PlaneCollision.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            goto @3877
+            self.DissolveSound.Play(0.0)
+            self.PlaneCollision.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 200.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_3, false)
+            self.Plane.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 19.0, 200.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_2, false)
+            goto @607
+            CallFunc_HasAuthority_ReturnValue_2 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_2) goto @3877
+            CallFunc_ComponentHasTag_ReturnValue = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("Player")
+            if not (CallFunc_ComponentHasTag_ReturnValue) goto @3877
+            CallFunc_GetTransform_ReturnValue = K2Node_ComponentBoundEvent_OtherActor.Actor.GetTransform()
+            KismetMathLibrary.BreakTransform(CallFunc_GetTransform_ReturnValue, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            KismetMathLibrary.BreakRotator(CallFunc_BreakTransform_Rotation, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            KismetMathLibrary.BreakVector(CallFunc_BreakTransform_Location, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Subtract_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_Subtract_DoubleDouble_ReturnValue = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_Subtract_DoubleDouble_A_ImplicitCast, 90.0)
+            CallFunc_Subtract_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_BreakVector_Z, 95.0)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Subtract_DoubleDouble_ReturnValue)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue_1 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_Subtract_DoubleDouble_ReturnValue_1)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_1, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<Hazmat2_DoorDeathActor_C>, CallFunc_MakeTransform_ReturnValue, 0, null, 1)
+            CallFunc_GetTransform_ReturnValue = K2Node_ComponentBoundEvent_OtherActor.Actor.GetTransform()
+            KismetMathLibrary.BreakTransform(CallFunc_GetTransform_ReturnValue, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            KismetMathLibrary.BreakRotator(CallFunc_BreakTransform_Rotation, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            KismetMathLibrary.BreakVector(CallFunc_BreakTransform_Location, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Subtract_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_Subtract_DoubleDouble_ReturnValue = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_Subtract_DoubleDouble_A_ImplicitCast, 90.0)
+            CallFunc_Subtract_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_BreakVector_Z, 95.0)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Subtract_DoubleDouble_ReturnValue)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue_1 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_Subtract_DoubleDouble_ReturnValue_1)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_1, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, CallFunc_MakeTransform_ReturnValue, 1)
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(K2Node_ComponentBoundEvent_OtherActor)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess) goto @3877
+            CLIENT: ForceKill(K2Node_DynamicCast_AsPlayer_BP)
+            goto @3877
+            K2Node_CustomEvent_Player.ForceKill()
+            goto @3877
+            goto @1109
+            goto @1554
+    @3192:  CallFunc_MakeVector_ReturnValue_4 = KismetMathLibrary.MakeVector(0.0, 0.0, -245.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_4, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_6, false)
+            self.PlaneCollision.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 200.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_8, false)
+            self.Plane.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 200.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_7, false)
+            self.Door.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 0.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_9, false)
+            goto @3877
+            MULTI: Set Door Closed()
+            goto @3877
+            goto @3192
+            MULTI: Set Door Open()
+            goto @3877
+            CallFunc_MakeVector_ReturnValue_5 = KismetMathLibrary.MakeVector(0.0, 0.0, -245.0)
+            self.Box.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_5, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_10, false)
+            self.PlaneCollision.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_12, false)
+            self.Plane.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_11, false)
+            self.Door.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 320.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_13, false)
+            goto @3877
+            goto @954
+            goto @1481
+    @3877:  return
+
+function MULTI: Set Door Closed  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3527)
+            return
+
+function MULTI: Set Door Open  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3551)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(1012)
+            return
+
+function ReverseDissolve  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(1627)
+            return
+
+function SERVER: Set Door Closed  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3508)
+            return
+
+function SERVER: Set Door Open  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(3532)
+            return
+
+function SetLabDoorState  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_State = State
+            LabDoor_C.ExecuteUbergraph_LabDoor(3867)
+            return
+
+function StartDissolve  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(1435)
+            return
+
+function Timeline__CloseCollision__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(602)
+            return
+
+function Timeline__FinishedFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(10)
+            return
+
+function Timeline__MoveKillBoxDown__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(378)
+            return
+
+function Timeline__MoveKillBoxUp__EventFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(490)
+            return
+
+function Timeline__UpdateFunc  [FUNC_BlueprintEvent]
+            LabDoor_C.ExecuteUbergraph_LabDoor(52)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            if not (self.DevDoorOpen) goto @218
+            self.PlaneCollision.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            self.Plane.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, -400.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            self.Door.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 300.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+    @218:   return

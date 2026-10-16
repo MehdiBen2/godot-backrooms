@@ -1,0 +1,6 @@
+// Content\MyAssets\Models\ModularArchitecture\Lights\TileLight
+
+== class TileLight_C : Class'Actor'
+  var PointLight: Object
+  var Cube: Object
+  var DefaultSceneRoot: Object

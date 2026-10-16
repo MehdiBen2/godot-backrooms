@@ -1,0 +1,147 @@
+// Content\MyAssets\Models\PlayerItems\CardboardCutout\CardboardCutoutExplodeActor
+
+== class CardboardCutoutExplodeActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var CardboardDebris13: Object
+  var CardboardDebris12: Object
+  var CardboardDebris5: Object
+  var CardboardDebris11: Object
+  var CardboardDebris10: Object
+  var CardboardDebris9: Object
+  var CardboardDebris8: Object
+  var CardboardDebris7: Object
+  var RadialForce: Object
+  var CardboardDebris6: Object
+  var CardboardDebris4: Object
+  var CardboardDebris3: Object
+  var CardboardDebris2: Object
+  var CardboardDebris1: Object
+  var Overlapper: Object
+  var Box: Object
+  var DefaultSceneRoot: Object
+  var TookDamage: Bool
+  var ResetLocation: Struct
+  var DebrisLocations: Array
+
+== class ExecuteUbergraph_CardboardCutoutExplodeActor : 
+  var EntryPoint: Int
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_1: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_2: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_3: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_4: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_5: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_6: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_7: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_8: Struct
+  var CallFunc_GetRelativeTransform_ReturnValue_9: Struct
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+  var CallFunc_Array_Add_ReturnValue_2: Int
+  var CallFunc_Array_Add_ReturnValue_3: Int
+  var CallFunc_Array_Add_ReturnValue_4: Int
+  var CallFunc_Array_Add_ReturnValue_5: Int
+  var CallFunc_Array_Add_ReturnValue_6: Int
+  var CallFunc_Array_Add_ReturnValue_7: Int
+  var CallFunc_Array_Add_ReturnValue_8: Int
+  var CallFunc_Array_Add_ReturnValue_9: Int
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_CardboardCutoutExplodeActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    Actor.FlushNetDormancy()
+            self.TookDamage = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "TookDamage")
+            self.CardboardDebris6.SetSimulatePhysics(true)
+            self.CardboardDebris2.SetSimulatePhysics(true)
+            self.CardboardDebris4.SetSimulatePhysics(true)
+            self.CardboardDebris3.SetSimulatePhysics(true)
+            self.CardboardDebris1.SetSimulatePhysics(true)
+            self.CardboardDebris8.SetSimulatePhysics(true)
+            self.CardboardDebris9.SetSimulatePhysics(true)
+            self.CardboardDebris10.SetSimulatePhysics(true)
+            self.CardboardDebris7.SetSimulatePhysics(true)
+            self.CardboardDebris12.SetSimulatePhysics(true)
+            self.CardboardDebris11.SetSimulatePhysics(true)
+            self.CardboardDebris13.SetSimulatePhysics(true)
+            self.RadialForce.Activate(true)
+            self.CardboardDebris1.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(500.0, 1000.0, 0.0), "None", true)
+            self.CardboardDebris12.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(500.0, 1000.0, 0.0), "None", true)
+            self.CardboardDebris2.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-1000.0, 2000.0, 0.0), "None", true)
+            self.CardboardDebris13.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-1000.0, 2000.0, 0.0), "None", true)
+            self.CardboardDebris3.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(800.0, 1000.0, 500.0), "None", true)
+            self.CardboardDebris7.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(800.0, 1000.0, 500.0), "None", true)
+            self.CardboardDebris4.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-1500.0, 1500.0, 2000.0), "None", true)
+            self.CardboardDebris10.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-1500.0, 1500.0, 2000.0), "None", true)
+            self.CardboardDebris9.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(800.0, 1500.0, 3000.0), "None", true)
+            self.CardboardDebris11.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(800.0, 1500.0, 3000.0), "None", true)
+            self.CardboardDebris6.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-600.0, 100.0, 500.0), "None", true)
+            self.CardboardDebris8.PrimitiveComponent.AddAngularImpulseInDegrees(Vec(-600.0, 100.0, 500.0), "None", true)
+            goto @2771
+    @1398:  if not (self.TookDamage) goto @10
+            K2_DestroyActor()
+            goto @2771
+            K2Node_Event_Player_1.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Pick up Cardboard Cutout"})
+            goto @2771
+            K2Node_Event_Player.PickUpCardboardCutout()
+            goto @2771
+            CallFunc_GetRelativeTransform_ReturnValue = self.CardboardDebris1.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue)
+            CallFunc_GetRelativeTransform_ReturnValue_1 = self.CardboardDebris10.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_1)
+            CallFunc_GetRelativeTransform_ReturnValue_2 = self.CardboardDebris3.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_2)
+            CallFunc_GetRelativeTransform_ReturnValue_3 = self.CardboardDebris2.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_3)
+            CallFunc_GetRelativeTransform_ReturnValue_4 = self.CardboardDebris1.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_4)
+            CallFunc_GetRelativeTransform_ReturnValue_5 = self.CardboardDebris4.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_5)
+            CallFunc_GetRelativeTransform_ReturnValue_6 = self.CardboardDebris9.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_6)
+            CallFunc_GetRelativeTransform_ReturnValue_7 = self.CardboardDebris8.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_7)
+            CallFunc_GetRelativeTransform_ReturnValue_8 = self.CardboardDebris7.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_8)
+            CallFunc_GetRelativeTransform_ReturnValue_9 = self.CardboardDebris6.SceneComponent.GetRelativeTransform()
+            CallFunc_Array_Add_ReturnValue_9 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DebrisLocations, CallFunc_GetRelativeTransform_ReturnValue_9)
+            goto @2771
+            goto @1398
+    @2771:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player_1 = Player
+            CardboardCutoutExplodeActor_C.ExecuteUbergraph_CardboardCutoutExplodeActor(1431)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            CardboardCutoutExplodeActor_C.ExecuteUbergraph_CardboardCutoutExplodeActor(1540)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            CardboardCutoutExplodeActor_C.ExecuteUbergraph_CardboardCutoutExplodeActor(1581)
+            return
+
+function TakeDamage  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CardboardCutoutExplodeActor_C.ExecuteUbergraph_CardboardCutoutExplodeActor(2766)
+            return

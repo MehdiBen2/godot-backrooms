@@ -1,0 +1,68 @@
+// Content\MyAssets\Models\Furniture\HazardLight\BlinkingLight
+
+== class BlinkingLight_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var RotatingMovement: Object
+  var HazardLightBase: Object
+  var DefaultSceneRoot: Object
+  var EmissiveColor: Object
+  var KeepFlashing: Bool
+
+== class ExecuteUbergraph_BlinkingLight : 
+  var EntryPoint: Int
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+function ExecuteUbergraph_BlinkingLight  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @769
+            goto computed(EntryPoint)
+    @15:    SERVER: ActivateFlashing()
+            pop_flow  // return to pushed flow
+    @30:    Actor.FlushNetDormancy()
+            self.KeepFlashing = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "KeepFlashing")
+            MULTI:ActivateFlashing()
+            pop_flow  // return to pushed flow
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.208333, 0.118683, 0.0, 1.0})
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{229, -993941704, "ExecuteUbergraph_BlinkingLight", self})
+            pop_flow  // return to pushed flow
+    @229:   if not (self.KeepFlashing) pop_flow
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{1.0, 0.569677, 0.0, 1.0})
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{95, 1935212630, "ExecuteUbergraph_BlinkingLight", self})
+            pop_flow  // return to pushed flow
+    @373:   Actor.FlushNetDormancy()
+            self.KeepFlashing = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "KeepFlashing")
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.083333, 0.047473, 0.0, 1.0})
+            pop_flow  // return to pushed flow
+            MULTI:DeactivateFlashing()
+            pop_flow  // return to pushed flow
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.HazardLightBase.CreateDynamicMaterialInstance(1, Obj<EmissiveColor_Inst>, "None")
+            self.EmissiveColor = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetScalarParameterValue("Emissive", 0.0)
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.208333, 0.118683, 0.0, 1.0})
+            if not (self.KeepFlashing) pop_flow
+            goto @15
+            goto @229
+            goto @373
+            goto @30
+    @769:   return
+
+function MULTI:ActivateFlashing  [FUNC_Net | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BlinkingLight_C.ExecuteUbergraph_BlinkingLight(754)
+            return
+
+function MULTI:DeactivateFlashing  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BlinkingLight_C.ExecuteUbergraph_BlinkingLight(759)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            BlinkingLight_C.ExecuteUbergraph_BlinkingLight(518)
+            return
+
+function SERVER: ActivateFlashing  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BlinkingLight_C.ExecuteUbergraph_BlinkingLight(764)
+            return
+
+function SERVER: DeactivateFlashing  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BlinkingLight_C.ExecuteUbergraph_BlinkingLight(503)
+            return

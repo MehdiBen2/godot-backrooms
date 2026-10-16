@@ -1,0 +1,790 @@
+// Content\MyAssets\Characters\Hazmat\HazmatEmployee
+
+== class HazmatEmployee_C : Class'Character'
+  var UberGraphFrame: Struct
+  var NavigationInvoker: Object
+  var Hazmat_Head: Object
+  var PlayerCollider: Object
+  var LookLocCrouch: Object
+  var CrouchChecker: Object
+  var LookLocPH: Object
+  var LookLoc: Object
+  var HeadInterpSpeedRampUp_NewTrack_0: Float
+  var HeadInterpSpeedRampUp__Direction: Byte
+  var HeadInterpSpeedRampUp: Object
+  var UncrouchTimeline_NewTrack_0: Float
+  var UncrouchTimeline__Direction: Byte
+  var UncrouchTimeline: Object
+  var CrouchTimeline_NewTrack_0: Float
+  var CrouchTimeline__Direction: Byte
+  var CrouchTimeline: Object
+  var TransitionToStop_NewTrack_0: Float
+  var TransitionToStop__Direction: Byte
+  var TransitionToStop: Object
+  var TransitionToWalk_NewTrack_0: Float
+  var TransitionToWalk__Direction: Byte
+  var TransitionToWalk: Object
+  var TransitionToRun_NewTrack_0: Float
+  var TransitionToRun__Direction: Byte
+  var TransitionToRun: Object
+  var Player: Object
+  var FollowingPlayer: Bool
+  var TransitioningToRun: Bool
+  var TransitioningToWalk: Bool
+  var TransitioningToStop: Bool
+  var CurrentMoveSpeed: Double
+  var HazmatAnimBP: Object
+  var TargetLoc: Struct
+  var CurrentLookLoc: Struct
+  var CurrentCrouchHeight: Double
+  var Crouching: Bool
+  var HeadTurnInterpSpeed: Double
+  var LookingAtPlayer: Bool
+  var HazmatState: Byte
+  var ChoseFleeLocation: Bool
+  var TempTargetLoc: Struct
+  var CurrentWalkSpeed: Double
+  var FinishedTask: Bool
+  var MoveToEndLoc: Bool
+  var HasBeenPlaced: Bool
+  var TaskSystem: Object
+  var HasSetTaskLocation: Bool
+
+== class BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class ExecuteUbergraph_HazmatEmployee : 
+  var EntryPoint: Int
+  var K2Node_CustomEvent_MovementResult_1: Byte
+  var K2Node_CustomEvent_MovementResult: Byte
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var Temp_byte_Variable: Byte
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation: Struct
+  var CallFunc_K2_GetRandomReachablePointInRadius_ReturnValue: Bool
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Conv_IntToDouble_ReturnValue: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_NotEqual_IntInt_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_Lerp_ReturnValue_2: Double
+  var CallFunc_Round_ReturnValue_2: Int
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_2: Bool
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+  var CallFunc_Lerp_ReturnValue_3: Double
+  var CallFunc_GetAnimInstance_ReturnValue: Object
+  var K2Node_DynamicCast_AsHazmat_Idle_Skeleton_Anim_Blueprint: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_CreateMoveToProxyObject_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_Round_ReturnValue_3: Int
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_2: Struct
+  var CallFunc_Vector_Distance_ReturnValue_1: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_K2_GetComponentLocation_ReturnValue_1: Struct
+  var CallFunc_GetWorldDeltaSeconds_ReturnValue: Double
+  var CallFunc_K2_GetComponentLocation_ReturnValue_2: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_3: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent_1: Object
+  var K2Node_ComponentBoundEvent_OtherActor_1: Object
+  var K2Node_ComponentBoundEvent_OtherComp_1: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_1: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_4: Struct
+  var CallFunc_Array_Get_Item: Name
+  var K2Node_SwitchName_CmpSuccess: Bool
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var CallFunc_Array_Get_Item_1: Name
+  var K2Node_SwitchName_CmpSuccess_1: Bool
+  var CallFunc_Lerp_ReturnValue_4: Double
+  var CallFunc_Lerp_ReturnValue_5: Double
+  var CallFunc_K2_GetComponentLocation_ReturnValue_5: Struct
+  var CallFunc_VInterpTo_ReturnValue: Struct
+  var CallFunc_K2_SetWorldLocation_SweepHitResult: Struct
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_3: Struct
+  var CallFunc_Vector_Distance_ReturnValue_2: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_4: Struct
+  var CallFunc_Vector_Distance_ReturnValue_3: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_3: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_5: Struct
+  var CallFunc_Vector_Distance_ReturnValue_4: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_4: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_NotEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_5: Bool
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue_1: Bool
+  var CallFunc_IsValid_ReturnValue_2: Bool
+  var CallFunc_IsValid_ReturnValue_3: Bool
+  var CallFunc_IsValid_ReturnValue_4: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_1: Struct
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_HasAuthority_ReturnValue_2: Bool
+  var CallFunc_HasAuthority_ReturnValue_3: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_6: Struct
+  var CallFunc_MakeVector_ReturnValue_1: Struct
+  var CallFunc_Vector_Distance_ReturnValue_5: Double
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_3: Bool
+  var CallFunc_LessEqual_DoubleDouble_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_6: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_7: Struct
+  var CallFunc_Vector_Distance_ReturnValue_6: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue_3: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_2: Bool
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue_8: Struct
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation: Struct
+  var CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue: Bool
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue: Double
+  var CallFunc_MakeVector_ReturnValue_2: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var K2Node_CustomEvent_Location: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult_1: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue_1: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_2: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_3: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_4: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_5: Double
+  var CallFunc_Round_A_ImplicitCast: Double
+  var K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast: Double
+  var K2Node_VariableSet_MaxWalkSpeed_ImplicitCast: Float
+  var CallFunc_Round_A_ImplicitCast_1: Double
+  var K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_1: Double
+  var K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_1: Float
+  var CallFunc_Round_A_ImplicitCast_2: Double
+  var K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_2: Double
+  var K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_2: Float
+  var K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast: Double
+  var CallFunc_Round_A_ImplicitCast_3: Double
+  var CallFunc_VInterpTo_DeltaTime_ImplicitCast: Float
+  var CallFunc_VInterpTo_InterpSpeed_ImplicitCast: Float
+  var K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_1: Double
+  var K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_2: Double
+
+== class GetInteractText : 
+  var Player: Object
+
+== class OnFail_D685F36149D76F0B8FD7E48052C0D3E2 : 
+  var MovementResult: Byte
+
+== class OnSuccess_D685F36149D76F0B8FD7E48052C0D3E2 : 
+  var MovementResult: Byte
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class SetHazmatEmployeeLocation : 
+  var Location: Struct
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_K2_AttachToComponent_ReturnValue: Bool
+
+function BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_1 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_1 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_1 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_1 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6695)
+            return
+
+function BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6993)
+            return
+
+function CheckDistanceFromLabTask  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8698)
+            return
+
+function CrouchTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8412)
+            return
+
+function CrouchTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8407)
+            return
+
+function ExecuteUbergraph_HazmatEmployee  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @9242
+            goto computed(EntryPoint)
+    @15:    self.?.self.? = Vec(0.0, 0.0, 0.0)
+            CallFunc_GetAnimInstance_ReturnValue = self.?.SkeletalMeshComponent.GetAnimInstance()
+            K2Node_DynamicCast_AsHazmat_Idle_Skeleton_Anim_Blueprint = Cast<Hazmat_Idle_Skeleton_AnimBlueprint_C>(CallFunc_GetAnimInstance_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsHazmat_Idle_Skeleton_Anim_Blueprint)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            self.HazmatAnimBP = K2Node_DynamicCast_AsHazmat_Idle_Skeleton_Anim_Blueprint
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{271, -1448318966, "ExecuteUbergraph_HazmatEmployee", self})
+            pop_flow  // return to pushed flow
+            SERVER: ResetHeadLoc()
+            pop_flow  // return to pushed flow
+    @286:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 24, "Player")
+            K2Node_Event_Player_1.Actor.FlushNetDormancy()
+            K2Node_Event_Player_1.self.ActorFollowing = self
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_Event_Player_1, 25, "ActorFollowing")
+            Actor.FlushNetDormancy()
+            self.HazmatState = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "HazmatState")
+            pop_flow  // return to pushed flow
+    @477:   self.?.SetMovementMode(5, 0)
+            goto @15
+    @522:   Actor.FlushNetDormancy()
+            self.Player = K2Node_Event_Player_1
+            goto @286
+    @556:   Actor.FlushNetDormancy()
+            self.HazmatState = 2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "HazmatState")
+            Actor.FlushNetDormancy()
+            self.Player = null
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 24, "Player")
+            pop_flow  // return to pushed flow
+    @666:   Actor.FlushNetDormancy()
+            K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            self.CurrentWalkSpeed = K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "CurrentWalkSpeed")
+            pop_flow  // return to pushed flow
+            self.LookLocPH.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 52.574154, 62.21784), false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @853:   Actor.FlushNetDormancy()
+            self.HazmatState = 3
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "HazmatState")
+            SERVER: InLabUpdateTask()
+            pop_flow  // return to pushed flow
+    @927:   Actor.FlushNetDormancy()
+            K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_1 = CST_FloatToDouble(self.?.self.?)
+            self.CurrentWalkSpeed = K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "CurrentWalkSpeed")
+            pop_flow  // return to pushed flow
+    @1045:  Actor.FlushNetDormancy()
+            K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_2 = CST_FloatToDouble(self.?.self.?)
+            self.CurrentWalkSpeed = K2Node_VariableSet_CurrentWalkSpeed_ImplicitCast_2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "CurrentWalkSpeed")
+            self.TargetLoc = Vec(-800.0, -4800.0, 0.0)
+            CallFunc_K2_GetActorLocation_ReturnValue_7 = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_6 = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetActorLocation_ReturnValue_7, self.TargetLoc)
+            CallFunc_Less_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Less_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_6, 200.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue_3) pop_flow
+            self.MoveToEndLoc = false
+            ForceTransitionToStop()
+            pop_flow  // return to pushed flow
+    @1353:  CallFunc_K2_GetActorLocation_ReturnValue_8 = Actor.K2_GetActorLocation()
+            CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue = NavigationSystemV1.K2_GetRandomLocationInNavigableRadius(self, CallFunc_K2_GetActorLocation_ReturnValue_8, CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation, 10000.0, null, null)
+            if not (CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue) goto @1827
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Add_DoubleDouble_ReturnValue = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z, 90.0)
+            CallFunc_MakeVector_ReturnValue_2 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_Add_DoubleDouble_ReturnValue)
+            CallFunc_K2_SetActorLocation_ReturnValue = Actor.K2_SetActorLocation(CallFunc_MakeVector_ReturnValue_2, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            self.?.SetMovementMode(1, 0)
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+            KismetSystemLibrary.PrintString(self, "Hazmat Employee Touch Down", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @1827:  KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{1353, -980325874, "ExecuteUbergraph_HazmatEmployee", self})
+            pop_flow  // return to pushed flow
+            Temp_byte_Variable = K2Node_CustomEvent_MovementResult_1
+            pop_flow  // return to pushed flow
+            Temp_byte_Variable = K2Node_CustomEvent_MovementResult
+            pop_flow  // return to pushed flow
+    @1938:  CallFunc_Lerp_Alpha_ImplicitCast_5 = CST_FloatToDouble(self.HeadInterpSpeedRampUp_NewTrack_0)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.5, 3.0, CallFunc_Lerp_Alpha_ImplicitCast_5)
+            self.HeadTurnInterpSpeed = CallFunc_Lerp_ReturnValue
+            pop_flow  // return to pushed flow
+    @2050:  CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(0.0, 0.0, 0.0)
+            CallFunc_K2_GetRandomReachablePointInRadius_ReturnValue = NavigationSystemV1.K2_GetRandomReachablePointInRadius(self, CallFunc_MakeVector_ReturnValue, CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation, 50000.0, null, null)
+            self.TempTargetLoc = CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation
+            CallFunc_K2_GetActorLocation_ReturnValue_3 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_2 = KismetMathLibrary.Vector_Distance(self.TempTargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_3)
+            CallFunc_Greater_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_2, 5000.0)
+            CallFunc_K2_GetActorLocation_ReturnValue_4 = self.Player.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_3 = KismetMathLibrary.Vector_Distance(self.TempTargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_4)
+            CallFunc_Greater_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_3, 5000.0)
+            CallFunc_BooleanAND_ReturnValue_3 = KismetMathLibrary.BooleanAND(CallFunc_Greater_DoubleDouble_ReturnValue_2, CallFunc_Greater_DoubleDouble_ReturnValue_3)
+            if not (CallFunc_BooleanAND_ReturnValue_3) pop_flow
+            self.TargetLoc = self.TempTargetLoc
+            self.ChoseFleeLocation = true
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.TransitionToWalk_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_2 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 180.0, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_2)
+            self.?.self.? = K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_1
+            pop_flow  // return to pushed flow
+    @2688:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            CheckDistanceFromLabTask()
+            pop_flow  // return to pushed flow
+            goto @477
+            self.TransitioningToWalk = false
+            pop_flow  // return to pushed flow
+            push_flow @2688
+            push_flow @4354
+            push_flow @4001
+            push_flow @3378
+            push_flow @2941
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.HazmatState, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @4404
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.HazmatState, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @6045
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.HazmatState, 3)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @6060
+            pop_flow  // return to pushed flow
+    @2941:  CallFunc_HasAuthority_ReturnValue_3 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_3) pop_flow
+            CallFunc_Round_A_ImplicitCast_3 = CST_FloatToDouble(self.?.self.?)
+            CallFunc_Round_ReturnValue_3 = KismetMathLibrary.Round(CallFunc_Round_A_ImplicitCast_3)
+            CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue_3, 0)
+            CallFunc_NotEqual_ByteByte_ReturnValue = KismetMathLibrary.NotEqual_ByteByte(self.HazmatState, 2)
+            CallFunc_BooleanAND_ReturnValue_5 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_1, CallFunc_NotEqual_ByteByte_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue_5) pop_flow
+            CallFunc_CreateMoveToProxyObject_ReturnValue = AIBlueprintHelperLibrary.CreateMoveToProxyObject(self, self, self.TargetLoc, null, 0.0, false)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_CreateMoveToProxyObject_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnSuccess_D685F36149D76F0B8FD7E48052C0D3E2
+            CallFunc_CreateMoveToProxyObject_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnFail_D685F36149D76F0B8FD7E48052C0D3E2
+            CallFunc_CreateMoveToProxyObject_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            pop_flow  // return to pushed flow
+    @3378:  if not (self.Crouching) goto @3470
+            CallFunc_K2_GetComponentLocation_ReturnValue_5 = self.LookLocCrouch.SceneComponent.K2_GetComponentLocation()
+            self.CurrentLookLoc = CallFunc_K2_GetComponentLocation_ReturnValue_5
+            pop_flow  // return to pushed flow
+    @3470:  CallFunc_EqualEqual_ByteByte_ReturnValue_2 = KismetMathLibrary.EqualEqual_ByteByte(self.HazmatState, 3)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue_2) goto @3628
+    @3515:  CallFunc_K2_GetComponentLocation_ReturnValue_4 = self.LookLocPH.SceneComponent.K2_GetComponentLocation()
+            self.CurrentLookLoc = CallFunc_K2_GetComponentLocation_ReturnValue_4
+            if not (self.LookingAtPlayer) pop_flow
+            self.LookingAtPlayer = false
+            LerpHeadTurn()
+            pop_flow  // return to pushed flow
+    @3628:  CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(self.Player)
+            if not (CallFunc_IsValid_ReturnValue_1) goto @3515
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = self.Actor.K2_GetActorLocation()
+            CallFunc_K2_GetActorLocation_ReturnValue_2 = self.Player.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_1 = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetActorLocation_ReturnValue_2, CallFunc_K2_GetActorLocation_ReturnValue_1)
+            CallFunc_Less_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Less_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_1, 300.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue_1) goto @3515
+            CallFunc_K2_GetComponentLocation_ReturnValue_2 = self.Player.self.FirstPersonCamera.SceneComponent.K2_GetComponentLocation()
+            self.CurrentLookLoc = CallFunc_K2_GetComponentLocation_ReturnValue_2
+            if not (self.LookingAtPlayer) goto @3975
+            pop_flow  // return to pushed flow
+    @3975:  self.LookingAtPlayer = true
+            LerpHeadTurn()
+            pop_flow  // return to pushed flow
+    @4001:  CallFunc_K2_GetComponentLocation_ReturnValue_1 = self.LookLoc.SceneComponent.K2_GetComponentLocation()
+            self.HazmatAnimBP.self.LookAtPos = CallFunc_K2_GetComponentLocation_ReturnValue_1
+            CallFunc_GetWorldDeltaSeconds_ReturnValue = GameplayStatics.GetWorldDeltaSeconds(self)
+            CallFunc_K2_GetComponentLocation_ReturnValue_3 = self.LookLoc.SceneComponent.K2_GetComponentLocation()
+            CallFunc_VInterpTo_DeltaTime_ImplicitCast = CST_DoubleToFloat(CallFunc_GetWorldDeltaSeconds_ReturnValue)
+            CallFunc_VInterpTo_InterpSpeed_ImplicitCast = CST_DoubleToFloat(self.HeadTurnInterpSpeed)
+            CallFunc_VInterpTo_ReturnValue = KismetMathLibrary.VInterpTo(CallFunc_K2_GetComponentLocation_ReturnValue_3, self.CurrentLookLoc, CallFunc_VInterpTo_DeltaTime_ImplicitCast, CallFunc_VInterpTo_InterpSpeed_ImplicitCast)
+            self.LookLoc.SceneComponent.K2_SetWorldLocation(CallFunc_VInterpTo_ReturnValue, false, CallFunc_K2_SetWorldLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @4354:  self.HazmatAnimBP.self.CurrentVelocity = self.CurrentWalkSpeed
+            pop_flow  // return to pushed flow
+    @4404:  self.?.self.? = Rot(0.0, 150.0, 0.0)
+            self.PlayerCollider.SetCollisionEnabled(3)
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.Player.self.FollowSpot.SceneComponent.K2_GetComponentLocation()
+            self.TargetLoc = CallFunc_K2_GetComponentLocation_ReturnValue
+    @4606:  push_flow @666
+            CallFunc_HasAuthority_ReturnValue_2 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_2) pop_flow
+            CallFunc_K2_GetActorLocation_ReturnValue = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue, 600.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue) goto @5172
+            CallFunc_Round_A_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Round_A_ImplicitCast)
+            CallFunc_Conv_IntToDouble_ReturnValue = KismetMathLibrary.Conv_IntToDouble(CallFunc_Round_ReturnValue)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_Conv_IntToDouble_ReturnValue, 550.0)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToRun, false)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_Less_DoubleDouble_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            StopTransitionToWalk()
+            StopTransitionToStop()
+            self.TransitioningToRun = true
+            K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            self.CurrentMoveSpeed = K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast
+            self.TransitionToRun.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @5172:  CallFunc_K2_GetActorLocation_ReturnValue = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue, 300.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_1) goto @5662
+            CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToWalk, false)
+            CallFunc_Round_A_ImplicitCast_1 = CST_FloatToDouble(self.?.self.?)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Round_A_ImplicitCast_1)
+            CallFunc_NotEqual_IntInt_ReturnValue = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_1, 180)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue_1) pop_flow
+            StopTransitionToRun()
+            StopTransitionToStop()
+            self.TransitioningToWalk = true
+            K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_1 = CST_FloatToDouble(self.?.self.?)
+            self.CurrentMoveSpeed = K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_1
+            self.TransitionToWalk.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @5662:  CallFunc_Round_A_ImplicitCast_2 = CST_FloatToDouble(self.?.self.?)
+            CallFunc_Round_ReturnValue_2 = KismetMathLibrary.Round(CallFunc_Round_A_ImplicitCast_2)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_2 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToStop, false)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue_2, 0)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_2) pop_flow
+            StopTransitionToRun()
+            StopTransitionToWalk()
+            self.TransitioningToStop = true
+            self.Player.self.SwapFollowSide = false
+    @5934:  K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_2 = CST_FloatToDouble(self.?.self.?)
+            self.CurrentMoveSpeed = K2Node_VariableSet_CurrentMoveSpeed_ImplicitCast_2
+            self.TransitionToStop.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @6045:  FindFleeLocation()
+            pop_flow  // return to pushed flow
+    @6060:  FindEndLocation()
+            pop_flow  // return to pushed flow
+    @6075:  self.HeadInterpSpeedRampUp.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @6108:  self.HeadInterpSpeedRampUp.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @6141:  self.TransitioningToRun = false
+            pop_flow  // return to pushed flow
+    @6153:  CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.TransitionToRun_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 550.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            K2Node_VariableSet_MaxWalkSpeed_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_1)
+            self.?.self.? = K2Node_VariableSet_MaxWalkSpeed_ImplicitCast
+            pop_flow  // return to pushed flow
+            self.TransitioningToRun = false
+            self.TransitionToRun.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @1938
+            self.TransitioningToWalk = false
+            self.TransitionToWalk.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @6410:  self.UncrouchTimeline.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @6443:  self.UncrouchTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.TransitioningToStop = false
+            self.TransitionToStop.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @6520:  CallFunc_Lerp_Alpha_ImplicitCast_2 = CST_FloatToDouble(self.TransitionToStop_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_3 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_2)
+            K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_3)
+            self.?.self.? = K2Node_VariableSet_MaxWalkSpeed_ImplicitCast_2
+            pop_flow  // return to pushed flow
+    @6683:  self.TransitioningToStop = false
+            pop_flow  // return to pushed flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(K2Node_ComponentBoundEvent_OtherComp_1.self.?, 0, CallFunc_Array_Get_Item)
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item, "Crouch")
+            if not (K2Node_SwitchName_CmpSuccess) goto @6829
+            pop_flow  // return to pushed flow
+    @6829:  StopUncrouch()
+            StopHeadInterp()
+            self.Crouching = true
+            self.HeadTurnInterpSpeed = 3.0
+            self.CurrentCrouchHeight = self.HazmatAnimBP.self.CurrentCrouchHeight
+            self.CrouchTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.Crouching = false
+            goto @6108
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(K2Node_ComponentBoundEvent_OtherComp.self.?, 0, CallFunc_Array_Get_Item_1)
+            K2Node_SwitchName_CmpSuccess_1 = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item_1, "Crouch")
+            if not (K2Node_SwitchName_CmpSuccess_1) goto @7127
+            pop_flow  // return to pushed flow
+    @7127:  StopCrouch()
+            self.CurrentCrouchHeight = self.HazmatAnimBP.self.CurrentCrouchHeight
+            goto @6443
+            CallFunc_Lerp_Alpha_ImplicitCast_4 = CST_FloatToDouble(self.UncrouchTimeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_5 = KismetMathLibrary.Lerp(self.CurrentCrouchHeight, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_4)
+            self.HazmatAnimBP.self.CurrentCrouchHeight = CallFunc_Lerp_ReturnValue_5
+            pop_flow  // return to pushed flow
+    @7329:  CallFunc_Lerp_Alpha_ImplicitCast_3 = CST_FloatToDouble(self.CrouchTimeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_4 = KismetMathLibrary.Lerp(self.CurrentCrouchHeight, 100.0, CallFunc_Lerp_Alpha_ImplicitCast_3)
+            self.HazmatAnimBP.self.CurrentCrouchHeight = CallFunc_Lerp_ReturnValue_4
+            pop_flow  // return to pushed flow
+            self.CrouchTimeline.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @6410
+            goto @6075
+            goto @6108
+            self.PlayerCollider.SetCollisionEnabled(0)
+            self.?.self.? = Rot(0.0, 200.0, 0.0)
+            push_flow @7648
+            if not (self.ChoseFleeLocation) goto @2050
+            MoveToTargetLocation()
+            pop_flow  // return to pushed flow
+    @7648:  CallFunc_K2_GetActorLocation_ReturnValue_5 = self.Player.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_4 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_5)
+            CallFunc_Less_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Less_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_4, 4000.0)
+            CallFunc_BooleanAND_ReturnValue_4 = KismetMathLibrary.BooleanAND(CallFunc_Less_DoubleDouble_ReturnValue_2, self.ChoseFleeLocation)
+            if not (CallFunc_BooleanAND_ReturnValue_4) pop_flow
+            self.ChoseFleeLocation = false
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            goto @4606
+            CallFunc_IsValid_ReturnValue_2 = KismetSystemLibrary.IsValid(self.Player)
+            if not (CallFunc_IsValid_ReturnValue_2) goto @522
+            CallFunc_EqualEqual_ObjectObject_ReturnValue_1 = KismetMathLibrary.EqualEqual_ObjectObject(K2Node_Event_Player_1, self.Player)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue_1) goto @522
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(self.HazmatState, 0)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue) pop_flow
+            goto @556
+            CallFunc_EqualEqual_ByteByte_ReturnValue_1 = KismetMathLibrary.EqualEqual_ByteByte(self.HazmatState, 3)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue_1) goto @8116
+            CallFunc_IsValid_ReturnValue_4 = KismetSystemLibrary.IsValid(self.Player)
+            if not (CallFunc_IsValid_ReturnValue_4) pop_flow
+            self.Player.self.InteractText = Text("")
+            pop_flow  // return to pushed flow
+    @8116:  CallFunc_IsValid_ReturnValue_3 = KismetSystemLibrary.IsValid(self.Player)
+            if not (CallFunc_IsValid_ReturnValue_3) goto @8308
+            CallFunc_EqualEqual_ObjectObject_ReturnValue = KismetMathLibrary.EqualEqual_ObjectObject(K2Node_Event_Player, self.Player)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue) goto @8308
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "INSTRUCT TO STAY"})
+            pop_flow  // return to pushed flow
+    @8308:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "INSTRUCT TO FOLLOW"})
+            pop_flow  // return to pushed flow
+            goto @7329
+            pop_flow  // return to pushed flow
+            self.LookLocPH.SceneComponent.K2_SetRelativeLocation(Vec(0.0, 0.0, 0.0), false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{784, 1918178206, "ExecuteUbergraph_HazmatEmployee", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsWorld_Game_State.self.TaskSystemRef.UpdateMissionProgress(1)
+            pop_flow  // return to pushed flow
+            goto @6153
+            CallFunc_K2_GetActorLocation_ReturnValue_6 = Actor.K2_GetActorLocation()
+            CallFunc_MakeVector_ReturnValue_1 = KismetMathLibrary.MakeVector(0.0, -4400.0, 0.0)
+            CallFunc_Vector_Distance_ReturnValue_5 = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetActorLocation_ReturnValue_6, CallFunc_MakeVector_ReturnValue_1)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_3 = KismetMathLibrary.EqualEqual_BoolBool(self.FinishedTask, false)
+            CallFunc_LessEqual_DoubleDouble_ReturnValue = KismetMathLibrary.LessEqual_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_5, 300.0)
+            CallFunc_BooleanAND_ReturnValue_6 = KismetMathLibrary.BooleanAND(CallFunc_LessEqual_DoubleDouble_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue_3)
+            if not (CallFunc_BooleanAND_ReturnValue_6) pop_flow
+            self.FinishedTask = true
+            goto @853
+    @8959:  self.?.self.? = 180.0
+            goto @1045
+    @9009:  if not (self.MoveToEndLoc) goto @927
+            goto @8959
+            goto @6520
+            StopTransitionToRun()
+            StopTransitionToWalk()
+            self.TransitioningToStop = true
+            goto @5934
+            goto @9009
+            goto @6683
+            goto @6141
+            self.?.SetMovementMode(5, 0)
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+            CallFunc_K2_SetActorLocation_ReturnValue_1 = Actor.K2_SetActorLocation(K2Node_CustomEvent_Location, false, CallFunc_K2_SetActorLocation_SweepHitResult_1, false)
+            goto @1353
+    @9242:  return
+
+function FindEndLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9077)
+            return
+
+function FindFleeLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7511)
+            return
+
+function ForceTransitionToStop  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9033)
+            return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7989)
+            return
+
+function HeadInterpSpeedRampUp__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6409)
+            return
+
+function HeadInterpSpeedRampUp__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6360)
+            return
+
+function LerpHeadTurn  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7506)
+            return
+
+function MoveToTargetLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7843)
+            return
+
+function OnFail  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_MovementResult_1 = MovementResult
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(1882)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_MovementResult = MovementResult
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(1910)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7848)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(2733)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(2750)
+            return
+
+function SERVER: InLabUpdateTask  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8536)
+            return
+
+function SERVER: ResetHeadLoc  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8413)
+            return
+
+function SetHazmatEmployeeLocation  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Location = Location
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9092)
+            return
+
+function StopCrouch  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7463)
+            return
+
+function StopHeadInterp  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7501)
+            return
+
+function StopTransitionToRun  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6316)
+            return
+
+function StopTransitionToStop  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6476)
+            return
+
+function StopTransitionToWalk  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6365)
+            return
+
+function StopUncrouch  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7496)
+            return
+
+function TransitionToRun__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9087)
+            return
+
+function TransitionToRun__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(8693)
+            return
+
+function TransitionToStop__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9082)
+            return
+
+function TransitionToStop__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(9028)
+            return
+
+function TransitionToWalk__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(2738)
+            return
+
+function TransitionToWalk__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(2525)
+            return
+
+function UncrouchTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7842)
+            return
+
+function UncrouchTimeline__LookUpAgain__EventFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(6977)
+            return
+
+function UncrouchTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            HazmatEmployee_C.ExecuteUbergraph_HazmatEmployee(7195)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_K2_AttachToComponent_ReturnValue = self.Hazmat_Head.SceneComponent.K2_AttachToComponent(self.?, "Head", 2, 2, 2, true)
+            CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @210
+            self.?.SetMovementMode(5, 0)
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+    @210:   return

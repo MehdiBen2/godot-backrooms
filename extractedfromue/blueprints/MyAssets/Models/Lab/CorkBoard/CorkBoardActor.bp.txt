@@ -1,0 +1,420 @@
+// Content\MyAssets\Models\Lab\CorkBoard\CorkBoardActor
+
+== class CorkBoardActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var PictureSign: Object
+  var CorkCollision: Object
+  var CorkBoard1: Object
+  var DefaultSceneRoot: Object
+  var ImagesOnBoard: Struct
+  var AllPictureTags: Array
+  var LastLength: Int
+
+== class DetermineImagesTotalValue : 
+  var ImagesValue: Int
+  var AllSubjectTypes: Array
+  var TempAllSubjectTypes: Array
+  var StartingImagesOnBoard: Struct
+  var FinalImagesOfValue: Struct
+  var CheckingIndexMinus: Int
+  var RedudantImage: Bool
+  var CurrentIndexChecking: Int
+  var FirstRoundImagesOfValue: Struct
+  var Loops: Int
+  var HigestValueIndex: Int
+  var HighestValue: Int
+  var ImagesHighToLowValue: Struct
+  var TotalValue: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var Temp_int_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var Temp_int_Loop_Counter_Variable_2: Int
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var Temp_int_Array_Index_Variable_2: Int
+  var Temp_int_Variable_1: Int
+  var Temp_int_Array_Index_Variable_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_3: Int
+  var Temp_int_Loop_Counter_Variable_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_4: Int
+  var Temp_int_Array_Index_Variable_4: Int
+  var Temp_int_Array_Index_Variable_5: Int
+  var Temp_int_Loop_Counter_Variable_4: Int
+  var CallFunc_Add_IntInt_ReturnValue_5: Int
+  var Temp_int_Array_Index_Variable_6: Int
+  var CallFunc_Array_Get_Item: Int
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_1: Int
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Array_Get_Item_2: Struct
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_Array_Get_Item_3: Int
+  var CallFunc_Array_Length_ReturnValue_4: Int
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_4: Struct
+  var CallFunc_Array_Get_Item_5: Struct
+  var CallFunc_Array_Get_Item_6: Struct
+  var CallFunc_Array_Get_Item_7: Int
+  var CallFunc_Array_Get_Item_8: Object
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_AddUnique_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+  var CallFunc_Array_Add_ReturnValue_2: Int
+  var CallFunc_Array_Add_ReturnValue_3: Int
+  var Temp_int_Loop_Counter_Variable_5: Int
+  var CallFunc_Add_IntInt_ReturnValue_6: Int
+  var CallFunc_Less_IntInt_ReturnValue_2: Bool
+  var CallFunc_Add_IntInt_ReturnValue_7: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_1: Int
+  var CallFunc_Array_Get_Item_9: Struct
+  var CallFunc_Array_Get_Item_10: Struct
+  var CallFunc_Array_Length_ReturnValue_5: Int
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_Array_Length_ReturnValue_6: Int
+  var CallFunc_Array_Get_Item_11: Struct
+  var CallFunc_Greater_IntInt_ReturnValue_2: Bool
+  var CallFunc_BreakTransform_Location: Struct
+  var CallFunc_BreakTransform_Rotation: Struct
+  var CallFunc_BreakTransform_Scale: Struct
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_12: Struct
+  var CallFunc_BreakTransform_Location_1: Struct
+  var CallFunc_BreakTransform_Rotation_1: Struct
+  var CallFunc_BreakTransform_Scale_1: Struct
+  var CallFunc_Array_Length_ReturnValue_7: Int
+  var CallFunc_NormalizedDeltaRotator_ReturnValue: Struct
+  var CallFunc_Less_IntInt_ReturnValue_3: Bool
+  var CallFunc_BreakRotator_Roll: Float
+  var CallFunc_BreakRotator_Pitch: Float
+  var CallFunc_BreakRotator_Yaw: Float
+  var CallFunc_Abs_ReturnValue: Double
+  var CallFunc_Abs_ReturnValue_1: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_Abs_ReturnValue_2: Double
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var CallFunc_BooleanOR_ReturnValue_1: Bool
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var CallFunc_LessEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_13: Struct
+  var CallFunc_Array_Get_Item_14: Struct
+  var CallFunc_Array_Add_ReturnValue_4: Int
+  var CallFunc_Array_Add_ReturnValue_5: Int
+  var CallFunc_Array_Get_Item_15: Struct
+  var CallFunc_Array_Get_Item_16: Int
+  var CallFunc_Array_Add_ReturnValue_6: Int
+  var CallFunc_Array_Add_ReturnValue_7: Int
+  var CallFunc_Array_Get_Item_17: Object
+  var CallFunc_Array_Add_ReturnValue_8: Int
+  var Temp_int_Loop_Counter_Variable_6: Int
+  var CallFunc_Less_IntInt_ReturnValue_4: Bool
+  var CallFunc_Add_IntInt_ReturnValue_8: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_2: Int
+  var CallFunc_Greater_IntInt_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_18: Struct
+  var CallFunc_Array_Get_Item_19: Struct
+  var CallFunc_Array_Length_ReturnValue_8: Int
+  var CallFunc_Array_Get_Item_20: Name
+  var CallFunc_Subtract_IntInt_ReturnValue_3: Int
+  var CallFunc_Array_Find_ReturnValue: Int
+  var CallFunc_Max_ReturnValue: Int
+  var CallFunc_Greater_IntInt_ReturnValue_4: Bool
+  var CallFunc_Array_Length_ReturnValue_9: Int
+  var CallFunc_Less_IntInt_ReturnValue_5: Bool
+  var CallFunc_Array_Get_Item_21: Struct
+  var CallFunc_Array_Get_Item_22: Struct
+  var CallFunc_Array_Add_ReturnValue_9: Int
+  var CallFunc_Array_Add_ReturnValue_10: Int
+  var CallFunc_Array_Get_Item_23: Struct
+  var CallFunc_Array_Get_Item_24: Int
+  var CallFunc_Array_Add_ReturnValue_11: Int
+  var CallFunc_Array_Add_ReturnValue_12: Int
+  var CallFunc_Array_Get_Item_25: Object
+  var CallFunc_Array_Add_ReturnValue_13: Int
+  var CallFunc_Greater_IntInt_ReturnValue_5: Bool
+  var CallFunc_Add_IntInt_ReturnValue_9: Int
+  var CallFunc_Abs_A_ImplicitCast: Double
+  var CallFunc_Abs_A_ImplicitCast_1: Double
+  var CallFunc_Abs_A_ImplicitCast_2: Double
+
+== class ExecuteUbergraph_CorkBoardActor : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+function DetermineImagesTotalValue  [FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @8157
+            CheckingIndexMinus = 1
+            StartingImagesOnBoard = self.ImagesOnBoard
+            Loops = 1000
+    @78:    CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(StartingImagesOnBoard.Value_7)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue, 0)
+            CallFunc_Greater_IntInt_ReturnValue_3 = KismetMathLibrary.Greater_IntInt(Loops, 0)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue, CallFunc_Greater_IntInt_ReturnValue_3)
+            if not (CallFunc_BooleanAND_ReturnValue_1) goto @708
+            push_flow @78
+            Temp_int_Loop_Counter_Variable_3 = 0
+            Temp_int_Array_Index_Variable_4 = 0
+    @317:   CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(StartingImagesOnBoard.Value_7)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_3, CallFunc_Array_Length_ReturnValue_1)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @4468
+            Temp_int_Array_Index_Variable_4 = Temp_int_Loop_Counter_Variable_3
+            push_flow @5604
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.Value_7, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item)
+            CallFunc_Greater_IntInt_ReturnValue_5 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Get_Item, HighestValue)
+            if not (CallFunc_Greater_IntInt_ReturnValue_5) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.Value_7, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item)
+            HighestValue = CallFunc_Array_Get_Item
+            HigestValueIndex = Temp_int_Array_Index_Variable_4
+            pop_flow  // return to pushed flow
+    @708:   CallFunc_Array_Length_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(ImagesHighToLowValue.SubjectsTags_11)
+            CallFunc_Subtract_IntInt_ReturnValue_3 = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Length_ReturnValue_8, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Subtract_IntInt_ReturnValue_3
+            CallFunc_Array_Length_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(ImagesHighToLowValue.SubjectsTags_11)
+            CallFunc_Subtract_IntInt_ReturnValue_3 = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Length_ReturnValue_8, 1)
+            CallFunc_Max_ReturnValue = KismetMathLibrary.Max(0, CallFunc_Subtract_IntInt_ReturnValue_3)
+            Temp_int_Array_Index_Variable_2 = CallFunc_Max_ReturnValue
+    @1024:  CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(Temp_int_Loop_Counter_Variable_2, 0)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue) goto @1890
+            Temp_int_Array_Index_Variable_2 = Temp_int_Loop_Counter_Variable_2
+            push_flow @5678
+            CurrentIndexChecking = Temp_int_Array_Index_Variable_2
+            CallFunc_Subtract_IntInt_ReturnValue_1 = KismetMathLibrary.Subtract_IntInt(CurrentIndexChecking, 1)
+            CheckingIndexMinus = CallFunc_Subtract_IntInt_ReturnValue_1
+            RedudantImage = false
+            Temp_int_Variable = 0
+    @1234:  CallFunc_LessEqual_IntInt_ReturnValue_1 = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, CheckingIndexMinus)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue_1) goto @5752
+            push_flow @6493
+            Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable = 0
+    @1337:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.SubjectsTags_11, Temp_int_Variable, CallFunc_Array_Get_Item_19)
+            CallFunc_Array_Length_ReturnValue_9 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item_19.Tags_3)
+            CallFunc_Less_IntInt_ReturnValue_5 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue_9)
+            if not (CallFunc_Less_IntInt_ReturnValue_5) pop_flow
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable_1
+            push_flow @6567
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.SubjectsTags_11, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_18)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.SubjectsTags_11, Temp_int_Variable, CallFunc_Array_Get_Item_19)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item_19.Tags_3, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_20)
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(CallFunc_Array_Get_Item_18.Tags_3, CallFunc_Array_Get_Item_20)
+            CallFunc_Greater_IntInt_ReturnValue_4 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Find_ReturnValue, -1)
+            if not (CallFunc_Greater_IntInt_ReturnValue_4) pop_flow
+            RedudantImage = true
+            pop_flow  // return to pushed flow
+    @1890:  Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable_3 = 0
+    @1936:  CallFunc_Array_Length_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(FirstRoundImagesOfValue.CameraPictureTransform_16)
+            CallFunc_Less_IntInt_ReturnValue_3 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_7)
+            if not (CallFunc_Less_IntInt_ReturnValue_3) goto @3365
+            Temp_int_Array_Index_Variable_3 = Temp_int_Loop_Counter_Variable
+            push_flow @6641
+            CurrentIndexChecking = Temp_int_Array_Index_Variable_3
+            RedudantImage = false
+            CallFunc_Add_IntInt_ReturnValue_6 = KismetMathLibrary.Add_IntInt(CurrentIndexChecking, 1)
+            Temp_int_Variable_1 = CallFunc_Add_IntInt_ReturnValue_6
+    @2195:  CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(FirstRoundImagesOfValue.CameraPictureTransform_16)
+            CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable_1, CallFunc_Array_LastIndex_ReturnValue)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) goto @6715
+            push_flow @7456
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.CameraPictureTransform_16, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_11)
+            KismetMathLibrary.BreakTransform(CallFunc_Array_Get_Item_11, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.CameraPictureTransform_16, Temp_int_Variable_1, CallFunc_Array_Get_Item_12)
+            KismetMathLibrary.BreakTransform(CallFunc_Array_Get_Item_12, CallFunc_BreakTransform_Location_1, CallFunc_BreakTransform_Rotation_1, CallFunc_BreakTransform_Scale_1)
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Location_1)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_Vector_Distance_ReturnValue, 3000.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.CameraPictureTransform_16, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_11)
+            KismetMathLibrary.BreakTransform(CallFunc_Array_Get_Item_11, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.CameraPictureTransform_16, Temp_int_Variable_1, CallFunc_Array_Get_Item_12)
+            KismetMathLibrary.BreakTransform(CallFunc_Array_Get_Item_12, CallFunc_BreakTransform_Location_1, CallFunc_BreakTransform_Rotation_1, CallFunc_BreakTransform_Scale_1)
+            CallFunc_NormalizedDeltaRotator_ReturnValue = KismetMathLibrary.NormalizedDeltaRotator(CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Rotation_1)
+            KismetMathLibrary.BreakRotator(CallFunc_NormalizedDeltaRotator_ReturnValue, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            CallFunc_Abs_A_ImplicitCast_2 = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_Abs_ReturnValue = KismetMathLibrary.Abs(CallFunc_Abs_A_ImplicitCast_2)
+            CallFunc_Abs_A_ImplicitCast_1 = CST_FloatToDouble(CallFunc_BreakRotator_Pitch)
+            CallFunc_Abs_ReturnValue_1 = KismetMathLibrary.Abs(CallFunc_Abs_A_ImplicitCast_1)
+            CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Abs_ReturnValue, 60.0)
+            CallFunc_Greater_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Abs_ReturnValue_1, 60.0)
+            CallFunc_Abs_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Roll)
+            CallFunc_Abs_ReturnValue_2 = KismetMathLibrary.Abs(CallFunc_Abs_A_ImplicitCast)
+            CallFunc_Greater_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Abs_ReturnValue_2, 60.0)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_Greater_DoubleDouble_ReturnValue_2, CallFunc_Greater_DoubleDouble_ReturnValue_1)
+            CallFunc_BooleanOR_ReturnValue_1 = KismetMathLibrary.BooleanOR(CallFunc_BooleanOR_ReturnValue, CallFunc_Greater_DoubleDouble_ReturnValue)
+            if not (CallFunc_BooleanOR_ReturnValue_1) goto @7530
+            pop_flow  // return to pushed flow
+    @3365:  Temp_int_Loop_Counter_Variable_6 = 0
+            Temp_int_Array_Index_Variable_5 = 0
+    @3411:  CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(FinalImagesOfValue.Value_7)
+            CallFunc_Less_IntInt_ReturnValue_4 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_6, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_4) goto @3743
+            Temp_int_Array_Index_Variable_5 = Temp_int_Loop_Counter_Variable_6
+            push_flow @7935
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FinalImagesOfValue.Value_7, Temp_int_Array_Index_Variable_5, CallFunc_Array_Get_Item_1)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_Array_Get_Item_1)
+            KismetSystemLibrary.PrintString(self, CallFunc_Conv_IntToString_ReturnValue, true, true, LinearColor{1.0, 0.75, 0.0, 1.0}, 4.0, "None")
+            pop_flow  // return to pushed flow
+    @3743:  Temp_int_Loop_Counter_Variable_4 = 0
+            Temp_int_Array_Index_Variable_6 = 0
+    @3789:  CallFunc_Array_Length_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(FinalImagesOfValue.Value_7)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_4, CallFunc_Array_Length_ReturnValue_4)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) goto @4083
+            Temp_int_Array_Index_Variable_6 = Temp_int_Loop_Counter_Variable_4
+            push_flow @8009
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FinalImagesOfValue.Value_7, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_3)
+            CallFunc_Add_IntInt_ReturnValue_9 = KismetMathLibrary.Add_IntInt(TotalValue, CallFunc_Array_Get_Item_3)
+            TotalValue = CallFunc_Add_IntInt_ReturnValue_9
+            pop_flow  // return to pushed flow
+    @4083:  Temp_int_Loop_Counter_Variable_5 = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @4129:  CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(FinalImagesOfValue.SubjectTypeTags_20)
+            CallFunc_Less_IntInt_ReturnValue_2 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_5, CallFunc_Array_Length_ReturnValue_3)
+            if not (CallFunc_Less_IntInt_ReturnValue_2) goto @4409
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable_5
+            push_flow @8083
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FinalImagesOfValue.SubjectTypeTags_20, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Append(TempAllSubjectTypes, CallFunc_Array_Get_Item_2.Tags_3)
+            pop_flow  // return to pushed flow
+    @4409:  ImagesValue = TotalValue
+            AllSubjectTypes = TempAllSubjectTypes
+            goto @8157
+    @4468:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.Image_3, HigestValueIndex, CallFunc_Array_Get_Item_25)
+            CallFunc_Array_Add_ReturnValue_13 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(ImagesHighToLowValue.Image_3, CallFunc_Array_Get_Item_25)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.Value_7, HigestValueIndex, CallFunc_Array_Get_Item_24)
+            CallFunc_Array_Add_ReturnValue_12 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(ImagesHighToLowValue.Value_7, CallFunc_Array_Get_Item_24)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.CameraPictureTransform_16, HigestValueIndex, CallFunc_Array_Get_Item_23)
+            CallFunc_Array_Add_ReturnValue_11 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(ImagesHighToLowValue.CameraPictureTransform_16, CallFunc_Array_Get_Item_23)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.SubjectsTags_11, HigestValueIndex, CallFunc_Array_Get_Item_22)
+            CallFunc_Array_Add_ReturnValue_10 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(ImagesHighToLowValue.SubjectsTags_11, CallFunc_Array_Get_Item_22)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(StartingImagesOnBoard.SubjectTypeTags_20, HigestValueIndex, CallFunc_Array_Get_Item_21)
+            CallFunc_Array_Add_ReturnValue_9 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(ImagesHighToLowValue.SubjectTypeTags_20, CallFunc_Array_Get_Item_21)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(StartingImagesOnBoard.Image_3, HigestValueIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(StartingImagesOnBoard.Value_7, HigestValueIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(StartingImagesOnBoard.CameraPictureTransform_16, HigestValueIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(StartingImagesOnBoard.SubjectsTags_11, HigestValueIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(StartingImagesOnBoard.SubjectTypeTags_20, HigestValueIndex)
+            HighestValue = 0
+            HigestValueIndex = 0
+            CallFunc_Subtract_IntInt_ReturnValue_2 = KismetMathLibrary.Subtract_IntInt(Loops, 1)
+            Loops = CallFunc_Subtract_IntInt_ReturnValue_2
+            pop_flow  // return to pushed flow
+    @5604:  CallFunc_Add_IntInt_ReturnValue_4 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_3, 1)
+            Temp_int_Loop_Counter_Variable_3 = CallFunc_Add_IntInt_ReturnValue_4
+            goto @317
+    @5678:  CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(Temp_int_Loop_Counter_Variable_2, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Subtract_IntInt_ReturnValue
+            goto @1024
+    @5752:  if not (RedudantImage) goto @5767
+            pop_flow  // return to pushed flow
+    @5767:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.Image_3, CurrentIndexChecking, CallFunc_Array_Get_Item_17)
+            CallFunc_Array_Add_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FirstRoundImagesOfValue.Image_3, CallFunc_Array_Get_Item_17)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.Value_7, CurrentIndexChecking, CallFunc_Array_Get_Item_16)
+            CallFunc_Array_Add_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FirstRoundImagesOfValue.Value_7, CallFunc_Array_Get_Item_16)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.CameraPictureTransform_16, CurrentIndexChecking, CallFunc_Array_Get_Item_15)
+            CallFunc_Array_Add_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FirstRoundImagesOfValue.CameraPictureTransform_16, CallFunc_Array_Get_Item_15)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.SubjectsTags_11, CurrentIndexChecking, CallFunc_Array_Get_Item_14)
+            CallFunc_Array_Add_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FirstRoundImagesOfValue.SubjectsTags_11, CallFunc_Array_Get_Item_14)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(ImagesHighToLowValue.SubjectTypeTags_20, CurrentIndexChecking, CallFunc_Array_Get_Item_13)
+            CallFunc_Array_Add_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FirstRoundImagesOfValue.SubjectTypeTags_20, CallFunc_Array_Get_Item_13)
+            pop_flow  // return to pushed flow
+    @6493:  CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue_2
+            goto @1234
+    @6567:  CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @1337
+    @6641:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @1936
+    @6715:  if not (RedudantImage) goto @6730
+            pop_flow  // return to pushed flow
+    @6730:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.Image_3, CurrentIndexChecking, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Add_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FinalImagesOfValue.Image_3, CallFunc_Array_Get_Item_8)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.Value_7, CurrentIndexChecking, CallFunc_Array_Get_Item_7)
+            CallFunc_Array_Add_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FinalImagesOfValue.Value_7, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.CameraPictureTransform_16, CurrentIndexChecking, CallFunc_Array_Get_Item_6)
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FinalImagesOfValue.CameraPictureTransform_16, CallFunc_Array_Get_Item_6)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.SubjectsTags_11, CurrentIndexChecking, CallFunc_Array_Get_Item_5)
+            CallFunc_Array_AddUnique_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(FinalImagesOfValue.SubjectsTags_11, CallFunc_Array_Get_Item_5)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.SubjectTypeTags_20, CurrentIndexChecking, CallFunc_Array_Get_Item_4)
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(FinalImagesOfValue.SubjectTypeTags_20, CallFunc_Array_Get_Item_4)
+            pop_flow  // return to pushed flow
+    @7456:  CallFunc_Add_IntInt_ReturnValue_3 = KismetMathLibrary.Add_IntInt(Temp_int_Variable_1, 1)
+            Temp_int_Variable_1 = CallFunc_Add_IntInt_ReturnValue_3
+            goto @2195
+    @7530:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.SubjectsTags_11, Temp_int_Variable_1, CallFunc_Array_Get_Item_9)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(FirstRoundImagesOfValue.SubjectsTags_11, CurrentIndexChecking, CallFunc_Array_Get_Item_10)
+            CallFunc_Array_Length_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item_9.Tags_3)
+            CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_5, 0)
+            CallFunc_Array_Length_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item_10.Tags_3)
+            CallFunc_Greater_IntInt_ReturnValue_2 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_6, 0)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_2, CallFunc_Greater_IntInt_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue) goto @7923
+            pop_flow  // return to pushed flow
+    @7923:  RedudantImage = true
+            pop_flow  // return to pushed flow
+    @7935:  CallFunc_Add_IntInt_ReturnValue_8 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_6, 1)
+            Temp_int_Loop_Counter_Variable_6 = CallFunc_Add_IntInt_ReturnValue_8
+            goto @3411
+    @8009:  CallFunc_Add_IntInt_ReturnValue_5 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_4, 1)
+            Temp_int_Loop_Counter_Variable_4 = CallFunc_Add_IntInt_ReturnValue_5
+            goto @3789
+    @8083:  CallFunc_Add_IntInt_ReturnValue_7 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_5, 1)
+            Temp_int_Loop_Counter_Variable_5 = CallFunc_Add_IntInt_ReturnValue_7
+            goto @4129
+    @8157:  return
+
+function ExecuteUbergraph_CorkBoardActor  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    SERVER: UpdateImageMissions()
+            goto @523
+    @29:    CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @523
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ImagesOnBoard.Image_3)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Length_ReturnValue, self.LastLength)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @188
+            goto @523
+    @188:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ImagesOnBoard.Image_3)
+            self.LastLength = CallFunc_Array_Length_ReturnValue
+            goto @10
+            goto @29
+    @293:   CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @523
+            K2Node_DynamicCast_AsWorld_Game_State.self.TaskSystemRef.UpdateMissionProgress(4)
+            K2Node_DynamicCast_AsWorld_Game_State.self.TaskSystemRef.UpdateMissionProgress(5)
+            goto @523
+            goto @293
+    @523:   return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            CorkBoardActor_C.ExecuteUbergraph_CorkBoardActor(288)
+            return
+
+function SERVER: UpdateImageMissions  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CorkBoardActor_C.ExecuteUbergraph_CorkBoardActor(518)
+            return

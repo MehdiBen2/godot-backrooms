@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\Pillar_HISMOLD
+
+== class Pillar_HISMOLD_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

@@ -1,0 +1,137 @@
+// Content\MyAssets\Models\SpatialAnomalyObjects\SpatialAnomalyFloor
+
+== class SpatialAnomalyFloor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Cube: Object
+  var Box: Object
+  var CameraCollision: Object
+  var DefaultSceneRoot: Object
+  var FloorObjects: Array
+  var NumToSpawn: Int
+  var RandomStream: Struct
+
+== class ExecuteUbergraph_SpatialAnomalyFloor : 
+  var EntryPoint: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var Temp_int_Variable: Int
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_BreakVector_X_1: Double
+  var CallFunc_BreakVector_Y_1: Double
+  var CallFunc_BreakVector_Z_1: Double
+  var CallFunc_RandomIntegerInRangeFromStream_ReturnValue: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue: Float
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var CallFunc_Add_DoubleDouble_ReturnValue: Double
+  var CallFunc_MakeRandomStream_ReturnValue: Struct
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_1: Float
+  var CallFunc_Add_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_2: Float
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_3: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_4: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_5: Float
+  var CallFunc_GetDataTableRowNames_OutRowNames: Array
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_Array_RandomFromStream_OutItem: Name
+  var CallFunc_Array_RandomFromStream_OutIndex: Int
+  var CallFunc_MakeTransform_ReturnValue: Struct
+  var CallFunc_GetDataTableRowFromName_OutRow: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue: Bool
+  var CallFunc_AddComponent_ReturnValue: Object
+  var CallFunc_GetMaterial_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_6: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_7: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_8: Float
+  var CallFunc_HSVToRGB_ReturnValue: Struct
+  var CallFunc_Add_DoubleDouble_B_ImplicitCast: Double
+  var CallFunc_Add_DoubleDouble_B_ImplicitCast_1: Double
+  var CallFunc_MakeVector_Z_ImplicitCast: Double
+  var CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast: Float
+  var CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast: Float
+  var CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_1: Float
+  var CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_1: Float
+  var CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_2: Float
+  var CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_2: Float
+
+function ExecuteUbergraph_SpatialAnomalyFloor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2370
+            goto computed(EntryPoint)
+    @15:    Temp_int_Variable = 0
+    @38:    CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, self.NumToSpawn)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) pop_flow
+            push_flow @1832
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -200.0, 200.0)
+            CallFunc_Add_DoubleDouble_B_ImplicitCast = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue)
+            CallFunc_Add_DoubleDouble_ReturnValue = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_X, CallFunc_Add_DoubleDouble_B_ImplicitCast)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_1 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -200.0, 200.0)
+            CallFunc_Add_DoubleDouble_B_ImplicitCast_1 = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue_1)
+            CallFunc_Add_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Y, CallFunc_Add_DoubleDouble_B_ImplicitCast_1)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_2 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -20.0, 0.0)
+            CallFunc_MakeVector_Z_ImplicitCast = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue_2)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Add_DoubleDouble_ReturnValue, CallFunc_Add_DoubleDouble_ReturnValue_1, CallFunc_MakeVector_Z_ImplicitCast)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_3 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -90.0, 90.0)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_4 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -90.0, 90.0)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_5 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.0, 360.0)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(CallFunc_RandomFloatInRangeFromStream_ReturnValue_3, CallFunc_RandomFloatInRangeFromStream_ReturnValue_4, CallFunc_RandomFloatInRangeFromStream_ReturnValue_5)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_AddComponent_ReturnValue = Actor.AddComponent("NODE_AddStaticMeshComponent-0", true, CallFunc_MakeTransform_ReturnValue, self, false)
+            CallFunc_AddComponent_ReturnValue.SetMobility(2)
+            CallFunc_GetDataTableRowNames_OutRowNames = []
+            DataTableFunctionLibrary.GetDataTableRowNames(Obj<SpatialAnomalyFloorProps>, CallFunc_GetDataTableRowNames_OutRowNames)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_RandomFromStream(CallFunc_GetDataTableRowNames_OutRowNames, self.RandomStream, CallFunc_Array_RandomFromStream_OutItem, CallFunc_Array_RandomFromStream_OutIndex)
+            CallFunc_GetDataTableRowFromName_ReturnValue = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<SpatialAnomalyFloorProps>, CallFunc_Array_RandomFromStream_OutItem, CallFunc_GetDataTableRowFromName_OutRow)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue) pop_flow
+            CallFunc_SetStaticMesh_ReturnValue = CallFunc_AddComponent_ReturnValue.SetStaticMesh(CallFunc_GetDataTableRowFromName_OutRow.StaticMesh_2)
+            CallFunc_GetMaterial_ReturnValue = CallFunc_AddComponent_ReturnValue.GetMaterial(0)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, CallFunc_GetMaterial_ReturnValue, "None", 0)
+            CallFunc_AddComponent_ReturnValue.SetMaterial(0, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.HueMin_15)
+            CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.HueMax_17)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_6 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast, CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast)
+            CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.SatMin_19)
+            CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.SatMax_21)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_7 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_1, CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_1)
+            CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.VibMin_23)
+            CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_GetDataTableRowFromName_OutRow.VibMax_25)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_8 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, CallFunc_RandomFloatInRangeFromStream_Min_ImplicitCast_2, CallFunc_RandomFloatInRangeFromStream_Max_ImplicitCast_2)
+            CallFunc_HSVToRGB_ReturnValue = KismetMathLibrary.HSVToRGB(CallFunc_RandomFloatInRangeFromStream_ReturnValue_6, CallFunc_RandomFloatInRangeFromStream_ReturnValue_7, CallFunc_RandomFloatInRangeFromStream_ReturnValue_8, 1.0)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", CallFunc_HSVToRGB_ReturnValue)
+            CallFunc_AddComponent_ReturnValue.SetMobility(0)
+            pop_flow  // return to pushed flow
+    @1832:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @38
+    @1906:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            CallFunc_RandomIntegerInRangeFromStream_ReturnValue = KismetMathLibrary.RandomIntegerInRangeFromStream(self.RandomStream, 1, 4)
+            self.NumToSpawn = CallFunc_RandomIntegerInRangeFromStream_ReturnValue
+            goto @15
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_BreakVector_Z_1)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y_1, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X_1, 8400.0)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(CallFunc_Round_ReturnValue_1, CallFunc_Round_ReturnValue)
+            CallFunc_MakeRandomStream_ReturnValue = KismetMathLibrary.MakeRandomStream(CallFunc_Add_IntInt_ReturnValue_1)
+            self.RandomStream = CallFunc_MakeRandomStream_ReturnValue
+            goto @1906
+    @2370:  return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            SpatialAnomalyFloor_C.ExecuteUbergraph_SpatialAnomalyFloor(2015)
+            return

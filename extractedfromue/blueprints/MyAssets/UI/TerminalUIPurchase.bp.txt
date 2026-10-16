@@ -1,0 +1,570 @@
+// Content\MyAssets\UI\TerminalUIPurchase
+
+== class ExecuteUbergraph_TerminalUIPurchase : 
+  var EntryPoint: Int
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var CallFunc_Create_ReturnValue_3: Object
+  var CallFunc_Create_ReturnValue_4: Object
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var CallFunc_Create_ReturnValue_5: Object
+  var CallFunc_Create_ReturnValue_6: Object
+  var K2Node_MakeStruct_SlateColor_6: Struct
+  var K2Node_MakeStruct_SlateColor_7: Struct
+  var CallFunc_Create_ReturnValue_7: Object
+  var CallFunc_Create_ReturnValue_8: Object
+  var K2Node_CustomEvent_FundingToRemove: Int
+  var CallFunc_Create_ReturnValue_9: Object
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Create_ReturnValue_10: Object
+  var CallFunc_Create_ReturnValue_11: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Create_ReturnValue_12: Object
+  var K2Node_MakeStruct_SlateColor_8: Struct
+  var CallFunc_Create_ReturnValue_13: Object
+  var K2Node_MakeStruct_SlateColor_9: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue: Object
+  var CallFunc_Create_ReturnValue_14: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_1: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_2: Object
+  var CallFunc_Create_ReturnValue_15: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_3: Object
+  var K2Node_MakeStruct_SlateColor_10: Struct
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_2: Bool
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_3: Bool
+  var K2Node_MakeStruct_SlateColor_11: Struct
+  var CallFunc_Create_ReturnValue_16: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_4: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_5: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_4: Bool
+  var CallFunc_AddChildToOverlay_ReturnValue_6: Object
+  var K2Node_MakeStruct_SlateColor_12: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_7: Object
+  var CallFunc_Create_ReturnValue_17: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_8: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_9: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_5: Bool
+  var K2Node_MakeStruct_SlateColor_13: Struct
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_6: Bool
+  var K2Node_MakeStruct_SlateColor_14: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_10: Object
+  var K2Node_MakeStruct_SlateColor_15: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_11: Object
+  var CallFunc_Create_ReturnValue_18: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_12: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_7: Bool
+  var K2Node_MakeStruct_SlateColor_16: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_13: Object
+  var K2Node_MakeStruct_SlateColor_17: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_14: Object
+  var CallFunc_Create_ReturnValue_19: Object
+  var CallFunc_AddChildToOverlay_ReturnValue_15: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_8: Bool
+  var CallFunc_Conv_IntToString_ReturnValue_1: Str
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_AddChildToOverlay_ReturnValue_16: Object
+  var CallFunc_Conv_StringToText_ReturnValue_1: Text
+  var CallFunc_AddChildToOverlay_ReturnValue_17: Object
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_9: Bool
+  var K2Node_MakeStruct_SlateColor_18: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_18: Object
+  var K2Node_MakeStruct_SlateColor_19: Struct
+  var CallFunc_AddChildToOverlay_ReturnValue_19: Object
+
+== class UpdateFunding : 
+  var FundingToRemove: Int
+
+== class TerminalUIPurchase_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var AnestheticGasButton: Object
+  var AnestheticGasButtonText: Object
+  var AnestheticGasButtonText_1: Object
+  var CamcorderButton: Object
+  var CamcorderButtonText: Object
+  var CamcorderButtonText2: Object
+  var CameraButton: Object
+  var CameraButtonText: Object
+  var CameraButtonText2: Object
+  var CardboardCutoutButton: Object
+  var CardboardCutoutButtonText: Object
+  var CardboardCutoutButtonText_2: Object
+  var DescriptionText: Object
+  var DirectionalTapeButton: Object
+  var DirectionalTapeButtonText_1: Object
+  var DirectionalTapeButtonText_2: Object
+  var FundingText: Object
+  var HandheldCamButton: Object
+  var HandheldCamButtonText_1: Object
+  var HandheldCamButtonText2_1: Object
+  var MedKitButton: Object
+  var MedkitButtonText: Object
+  var MedkitButtonText_1: Object
+  var MedSyringeButton: Object
+  var MedSyringeButtonText: Object
+  var MedSyringeButtonText_1: Object
+  var RDFButton: Object
+  var RDFButtonText: Object
+  var RDFButtonText_2: Object
+  var WalkieTalkieButton: Object
+  var WalkieTalkieButtonText_1: Object
+  var WalkieTalkieButtonText2_1: Object
+  var PlayerBP: Object
+  var Funding: Int
+  var MedKitPrice: Int
+  var ConveyorBelt: Object
+  var TerminalUIWidget: Object
+  var RDFPrice: Int
+  var MedSyringePrice: Int
+  var AnestheticGasPrice: Int
+  var CardboardCutoutPrice: Int
+  var DirectionalTapePrice: Int
+  var CameraPrice: Int
+  var HandheldCamPrice: Int
+  var TripodCamPrice: Int
+  var WalkieTalkiePrice: Int
+
+function BndEvt__TerminalUIPurchase_CamcorderButton_K2Node_ComponentBoundEvent_24_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(10791)
+            return
+
+function BndEvt__TerminalUIPurchase_CamcorderButton_K2Node_ComponentBoundEvent_25_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(11142)
+            return
+
+function BndEvt__TerminalUIPurchase_CamcorderButton_K2Node_ComponentBoundEvent_26_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(11423)
+            return
+
+function BndEvt__TerminalUIPurchase_CameraButton_K2Node_ComponentBoundEvent_18_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(8641)
+            return
+
+function BndEvt__TerminalUIPurchase_CameraButton_K2Node_ComponentBoundEvent_19_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(8895)
+            return
+
+function BndEvt__TerminalUIPurchase_CameraButton_K2Node_ComponentBoundEvent_20_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(9375)
+            return
+
+function BndEvt__TerminalUIPurchase_CardboardCutoutButton_K2Node_ComponentBoundEvent_14_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(6535)
+            return
+
+function BndEvt__TerminalUIPurchase_CardboardCutoutButton_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(6816)
+            return
+
+function BndEvt__TerminalUIPurchase_CardboardCutoutButton_K2Node_ComponentBoundEvent_6_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(6113)
+            return
+
+function BndEvt__TerminalUIPurchase_DirectionalTapeButton_K2Node_ComponentBoundEvent_15_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(7462)
+            return
+
+function BndEvt__TerminalUIPurchase_DirectionalTapeButton_K2Node_ComponentBoundEvent_16_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(7854)
+            return
+
+function BndEvt__TerminalUIPurchase_DirectionalTapeButton_K2Node_ComponentBoundEvent_17_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(8135)
+            return
+
+function BndEvt__TerminalUIPurchase_HandheldCamButton_K2Node_ComponentBoundEvent_21_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(9795)
+            return
+
+function BndEvt__TerminalUIPurchase_HandheldCamButton_K2Node_ComponentBoundEvent_22_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(10178)
+            return
+
+function BndEvt__TerminalUIPurchase_HandheldCamButton_K2Node_ComponentBoundEvent_23_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(10459)
+            return
+
+function BndEvt__TerminalUIPurchase_LockpickButton_K2Node_ComponentBoundEvent_12_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(4111)
+            return
+
+function BndEvt__TerminalUIPurchase_LockpickButton_K2Node_ComponentBoundEvent_13_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(4507)
+            return
+
+function BndEvt__TerminalUIPurchase_LockpickButton_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(5595)
+            return
+
+function BndEvt__TerminalUIPurchase_MedKitButton_K2Node_ComponentBoundEvent_9_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(1549)
+            return
+
+function BndEvt__TerminalUIPurchase_MedSyringeButton_K2Node_ComponentBoundEvent_2_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(5080)
+            return
+
+function BndEvt__TerminalUIPurchase_MedSyringeButton_K2Node_ComponentBoundEvent_7_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(3394)
+            return
+
+function BndEvt__TerminalUIPurchase_MedSyringeButton_K2Node_ComponentBoundEvent_8_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(2881)
+            return
+
+function BndEvt__TerminalUIPurchase_RDFButton_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(3399)
+            return
+
+function BndEvt__TerminalUIPurchase_RDFButton_K2Node_ComponentBoundEvent_11_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(3830)
+            return
+
+function BndEvt__TerminalUIPurchase_RDFButton_K2Node_ComponentBoundEvent_3_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(5590)
+            return
+
+function BndEvt__TerminalUIPurchase_WalkieTalkieButton_K2Node_ComponentBoundEvent_27_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(11685)
+            return
+
+function BndEvt__TerminalUIPurchase_WalkieTalkieButton_K2Node_ComponentBoundEvent_28_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(12088)
+            return
+
+function BndEvt__TerminalUIPurchase_WalkieTalkieButton_K2Node_ComponentBoundEvent_29_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(12369)
+            return
+
+function BndEvt__TerminalUIWidget_NextButton_K2Node_ComponentBoundEvent_0_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(11680)
+            return
+
+function BndEvt__TerminalUIWidget_NextButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(8398)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(1189)
+            return
+
+function ExecuteUbergraph_TerminalUIPurchase  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_9 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue)
+            goto @12629
+    @141:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_10 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_1)
+            goto @12629
+    @272:   CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_11 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_2)
+            goto @12629
+    @403:   CallFunc_Create_ReturnValue_3 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_13 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_3)
+            goto @12629
+    @534:   CallFunc_Create_ReturnValue_4 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_14 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_4)
+            goto @12629
+    @665:   CallFunc_Create_ReturnValue_5 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_16 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_5)
+            goto @12629
+    @796:   CallFunc_Create_ReturnValue_6 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_17 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_6)
+            goto @12629
+    @927:   CallFunc_Create_ReturnValue_7 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_18 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_7)
+            goto @12629
+    @1058:  CallFunc_Create_ReturnValue_8 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_19 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_8)
+            goto @12629
+            self.DescriptionText.SetText(Text(""))
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @12629
+            self.Funding = K2Node_DynamicCast_AsWorld_Game_State.self.Funding
+            CallFunc_Conv_IntToString_ReturnValue_1 = KismetStringLibrary.Conv_IntToString(self.Funding)
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr("FUNDING: $", CallFunc_Conv_IntToString_ReturnValue_1)
+            CallFunc_Conv_StringToText_ReturnValue_1 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_1)
+            self.FundingText.SetText(CallFunc_Conv_StringToText_ReturnValue_1)
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_5 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.MedKitPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_5) goto @1738
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.MedKitPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("MedKit", 0)
+            goto @10
+    @1738:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            CallFunc_Create_ReturnValue_9 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_7 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_9)
+            goto @12629
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(self.Funding, K2Node_CustomEvent_FundingToRemove)
+            self.Funding = CallFunc_Subtract_IntInt_ReturnValue
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(self.Funding)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr("FUNDING: $", CallFunc_Conv_IntToString_ReturnValue)
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue)
+            self.FundingText.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            self.PlayerBP.SERVER: UpdateFunding(self.Funding, false)
+            goto @12629
+    @2221:  self.MedSyringeButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_18.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_18.? = 0
+            self.MedSyringeButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_18)
+            self.MedSyringeButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_18)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+    @2502:  self.MedSyringeButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_19.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_19.? = 0
+            self.MedSyringeButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_19)
+            self.MedSyringeButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_19)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "USE TO HEAL YOURSELF OR REVIVE OTHER EMPLOYEES IN THE FIELD."}))
+            goto @12629
+            goto @2221
+    @2886:  UpdateFunding(self.RDFPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("RDF", 0)
+            CallFunc_Create_ReturnValue_17 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_8 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_17)
+            goto @12629
+    @3086:  CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.RDFPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue) goto @3203
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            goto @2886
+    @3203:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            CallFunc_Create_ReturnValue_15 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_3 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_15)
+            goto @12629
+            goto @2502
+            self.RDFButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_17.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_17.? = 0
+            self.RDFButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_17)
+            self.RDFButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_17)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "RADIO DIRECTION FINDER. POINTS EMPLOYEE TOWARDS SYNCED DIRECTION. USE TO SYNC BETWEEN GATEWAY OR LOST EMPLOYEES."}))
+            goto @12629
+            self.RDFButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_16.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_16.? = 0
+            self.RDFButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_16)
+            self.RDFButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_16)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            self.AnestheticGasButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_15.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_15.? = 0
+            self.AnestheticGasButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_15)
+            self.AnestheticGasButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_15)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "USE TO EMIT AN ANESTHETIC GAS WHICH MAY HINDER OR SLOW DOWN DANGEROUS BEINGS."}))
+            goto @12629
+            self.AnestheticGasButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_14.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_14.? = 0
+            self.AnestheticGasButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_14)
+            self.AnestheticGasButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_14)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+    @4788:  self.DescriptionText.SetText(Text(""))
+            goto @12629
+    @4831:  self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "USE TO REVIVE YOUR SELF IN THE FIELD."}))
+            goto @12629
+    @4949:  CallFunc_Create_ReturnValue_10 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_2 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_10)
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_1 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.MedSyringePrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_1) goto @5399
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.MedSyringePrice)
+            self.PlayerBP.SERVER: SpawnConveyor("MedSyringe", 0)
+            CallFunc_Create_ReturnValue_16 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_4 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_16)
+            goto @12629
+    @5399:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            CallFunc_Create_ReturnValue_14 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_1 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_14)
+            goto @12629
+            goto @3086
+            CallFunc_GreaterEqual_IntInt_ReturnValue_3 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.AnestheticGasPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_3) goto @5791
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.AnestheticGasPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("AnestheticGas", 50)
+            goto @4949
+    @5791:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            CallFunc_Create_ReturnValue_12 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_12)
+            goto @12629
+    @5982:  CallFunc_Create_ReturnValue_11 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_6 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_11)
+            goto @12629
+            self.CardboardCutoutButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_9.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_9.? = 0
+            self.CardboardCutoutButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_9)
+            self.CardboardCutoutButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_9)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "A HAZMAT CARDBOARD CUTOUT WITH CASSETTE TAPE. CAN BE USED AS A DISTRACTION OR POSSIBLE LURE FOR BEINGS."}))
+            goto @12629
+            self.CardboardCutoutButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_8.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_8.? = 0
+            self.CardboardCutoutButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_8)
+            self.CardboardCutoutButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_8)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_2 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.CardboardCutoutPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_2) goto @7140
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.CardboardCutoutPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("CardboardCutout", 0)
+            CallFunc_Create_ReturnValue_18 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUILoading_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_12 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_18)
+            goto @12629
+    @7140:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            CallFunc_Create_ReturnValue_19 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_15 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_19)
+            goto @12629
+    @7331:  CallFunc_Create_ReturnValue_13 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<TerminalUINotEnoughFundingError_C>, null)
+            CallFunc_AddChildToOverlay_ReturnValue_5 = self.TerminalUIWidget.self.Overlay.Overlay.AddChildToOverlay(CallFunc_Create_ReturnValue_13)
+            goto @12629
+            self.DirectionalTapeButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_12.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_12.? = 0
+            self.DirectionalTapeButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_12)
+            self.DirectionalTapeButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_12)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "TAPE THAT CAN BE APPLIED TO THE GROUND TO SERVE AS DIRECTIONAL MARKINGS. "}))
+            goto @12629
+            self.DirectionalTapeButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_11.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_11.? = 0
+            self.DirectionalTapeButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_11)
+            self.DirectionalTapeButtonText_2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_11)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_4 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.DirectionalTapePrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_4) goto @8333
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.DirectionalTapePrice)
+            self.PlayerBP.SERVER: SpawnConveyor("DirectionalTape", 20000)
+            goto @5982
+    @8333:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @7331
+            self.MedKitButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_10.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_10.? = 0
+            self.MedkitButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_10)
+            self.MedkitButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_10)
+            goto @4788
+            CallFunc_GreaterEqual_IntInt_ReturnValue_6 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.CameraPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_6) goto @8830
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.CameraPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("Camera", -1)
+            goto @272
+    @8830:  Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @141
+            self.CameraButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.CameraButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            self.CameraButtonText2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "CAN BE USED TO TAKE PICTURES TO PLACE ON IMAGE BOARD. BETTER PICTURES ARE WORTH MORE. REDUNDANT PICTURES ARE WORTHLESS"}))
+            goto @12629
+    @9332:  self.DescriptionText.SetText(Text(""))
+            goto @12629
+            self.CameraButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.CameraButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            self.CameraButtonText2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @9332
+    @9618:  K2Node_MakeStruct_SlateColor_13.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_13.? = 0
+            self.MedkitButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_13)
+            self.MedkitButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_13)
+            goto @4831
+            self.HandheldCamButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.HandheldCamButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            self.HandheldCamButtonText2_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "CAN BE USED TO RECORD ENTITIES. DEPOSIT VALID FOOTAGE IN DROPBOX"}))
+            goto @12629
+            self.HandheldCamButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.HandheldCamButtonText2_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            self.HandheldCamButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_7 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.HandheldCamPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_7) goto @10655
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.HandheldCamPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("CamcorderHeld", 0)
+            goto @534
+    @10655: Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @403
+    @10720: self.MedKitButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            goto @9618
+            self.CamcorderButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.CamcorderButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            self.CamcorderButtonText2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "FOR TASK USE ONLY. CAN BE PLACED"}))
+            goto @12629
+            self.CamcorderButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.CamcorderButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            self.CamcorderButtonText2.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_8 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.TripodCamPrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_8) goto @11615
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.TripodCamPrice)
+            self.PlayerBP.SERVER: SpawnConveyor("Camcorder", 0)
+            goto @796
+    @11615: Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @665
+            goto @10720
+            self.WalkieTalkieButton.Button.SetBackgroundColor(LinearColor{0.432292, 0.14842, 0.0, 1.0})
+            K2Node_MakeStruct_SlateColor_6.? = LinearColor{0.0, 0.0, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_6.? = 0
+            self.WalkieTalkieButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_6)
+            self.WalkieTalkieButtonText2_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_6)
+            self.DescriptionText.SetText(Text({"Token": "EX_StringConst", "Value": "USE TO TO TRANSMIT YOUR VOICE TO OTHER EMPLOYEE WALKIE TALKES ACROSS LARGE DISTANCES"}))
+            goto @12629
+            self.WalkieTalkieButton.Button.SetBackgroundColor(LinearColor{0.0, 0.0, 0.0, 0.0})
+            K2Node_MakeStruct_SlateColor_7.? = LinearColor{0.432292, 0.14842, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_7.? = 0
+            self.WalkieTalkieButtonText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_7)
+            self.WalkieTalkieButtonText2_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_7)
+            self.DescriptionText.SetText(Text(""))
+            goto @12629
+            CallFunc_GreaterEqual_IntInt_ReturnValue_9 = KismetMathLibrary.GreaterEqual_IntInt(self.Funding, self.WalkieTalkiePrice)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue_9) goto @12564
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            UpdateFunding(self.WalkieTalkiePrice)
+            self.PlayerBP.SERVER: SpawnConveyor("WalkieTalkie", 0)
+            goto @1058
+    @12564: Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonError>, 1.0, 1.0, 0.0, null, null, true)
+            goto @927
+    @12629: return
+
+function UpdateFunding  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_FundingToRemove = FundingToRemove
+            TerminalUIPurchase_C.ExecuteUbergraph_TerminalUIPurchase(1929)
+            return

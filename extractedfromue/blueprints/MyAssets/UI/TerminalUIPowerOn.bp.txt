@@ -1,0 +1,31 @@
+// Content\MyAssets\UI\TerminalUIPowerOn
+
+== class ExecuteUbergraph_TerminalUIPowerOn : 
+  var EntryPoint: Int
+
+== class TerminalUIPowerOn_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var LoadingText: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUIPowerOn_C.ExecuteUbergraph_TerminalUIPowerOn(482)
+            return
+
+function ExecuteUbergraph_TerminalUIPowerOn  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @537
+            goto computed(EntryPoint)
+    @15:    RemoveFromParent()
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "POWERING GATEWAY."}))
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{178, 523258495, "ExecuteUbergraph_TerminalUIPowerOn", self})
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "POWERING GATEWAY.."}))
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{327, -339343410, "ExecuteUbergraph_TerminalUIPowerOn", self})
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "POWERING GATEWAY..."}))
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{477, -1105924790, "ExecuteUbergraph_TerminalUIPowerOn", self})
+            pop_flow  // return to pushed flow
+            goto @15
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{30, -430036642, "ExecuteUbergraph_TerminalUIPowerOn", self})
+            pop_flow  // return to pushed flow
+    @537:   return

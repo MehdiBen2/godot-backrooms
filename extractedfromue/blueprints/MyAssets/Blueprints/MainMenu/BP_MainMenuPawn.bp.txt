@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\MainMenu\BP_MainMenuPawn
+
+== class BP_MainMenuPawn_C : Class'Pawn'
+  var Camera: Object
+  var DefaultSceneRoot: Object

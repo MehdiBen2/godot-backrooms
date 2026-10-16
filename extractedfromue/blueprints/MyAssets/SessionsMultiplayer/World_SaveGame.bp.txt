@@ -1,0 +1,26 @@
+// Content\MyAssets\SessionsMultiplayer\World_SaveGame
+
+== class World_SaveGame_C : Class'SaveGame'
+  var JustStartedGame: Bool
+  var WorldSeed: Int
+  var ItemPickups: Array
+  var CurrentSavedPlayers: Map
+  var CardboardCutoutT: Array
+  var TapePlacedT: Array
+  var VehicleT: Struct
+  var RDOsPickedUpMap: Map
+  var LabDoorState: Bool
+  var LeversPulled: Int
+  var ControlBoxState: Bool
+  var StartSwitchStates: Array
+  var TerminalState: Struct
+  var Funding: Int
+  var CurrentDay: Int
+  var TaskSystemInfo: Struct
+  var CamcordersSetUp: Array
+  var CameraImageHandlerLength: Int
+  var TotalFundingEarned: Int
+  var TotalDeaths: Int
+  var FurthestDistanceTraveled: Int
+  var HasEndedContract: Bool
+  var LostEmployeeLocation: Struct

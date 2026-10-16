@@ -1,0 +1,57 @@
+// Content\MyAssets\Models\Lab\ConveyorBelt\ConveyorBeltA
+
+== class ConveyorBeltA_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var ConveyorStop: Object
+  var ConveyorStart: Object
+  var ConveyorBeltSound: Object
+  var StopLoc: Object
+  var StartLoc: Object
+  var StopItemCollision: Object
+  var ItemSpawnLoc: Object
+  var ConveyorBelt: Object
+  var DefaultSceneRoot: Object
+  var ConveyorBeltRunning: Bool
+
+== class ExecuteUbergraph_ConveyorBeltA : 
+  var EntryPoint: Int
+
+function ExecuteUbergraph_ConveyorBeltA  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @468
+            goto computed(EntryPoint)
+    @15:    KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{70, 108776423, "ExecuteUbergraph_ConveyorBeltA", self})
+            pop_flow  // return to pushed flow
+            self.ConveyorStart.Play(0.0)
+            self.ConveyorBeltSound.FadeIn(1.0, 1.0, 0.0, 0)
+            pop_flow  // return to pushed flow
+            Actor.FlushNetDormancy()
+            self.ConveyorBeltRunning = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "ConveyorBeltRunning")
+            MULTI: FadeOutConveyorSound()
+            pop_flow  // return to pushed flow
+    @230:   Actor.FlushNetDormancy()
+            self.ConveyorBeltRunning = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "ConveyorBeltRunning")
+            MULTI: FadeInConveyorSound()
+    @294:   KismetSystemLibrary.RetriggerableDelay(self, 8.0, LatentActionInfo{165, -112721147, "ExecuteUbergraph_ConveyorBeltA", self})
+            pop_flow  // return to pushed flow
+            goto @15
+            self.ConveyorStop.Play(0.0)
+            self.ConveyorBeltSound.FadeOut(0.5, 0.0, 0)
+            pop_flow  // return to pushed flow
+    @444:   if not (self.ConveyorBeltRunning) goto @230
+            goto @294
+            goto @444
+    @468:   return
+
+function MULTI: FadeInConveyorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ConveyorBeltA_C.ExecuteUbergraph_ConveyorBeltA(349)
+            return
+
+function MULTI: FadeOutConveyorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ConveyorBeltA_C.ExecuteUbergraph_ConveyorBeltA(354)
+            return
+
+function RunConveyorSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ConveyorBeltA_C.ExecuteUbergraph_ConveyorBeltA(463)
+            return

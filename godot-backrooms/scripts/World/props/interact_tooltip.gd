@@ -95,7 +95,7 @@ func _build_prompt() -> void:
 	key_label = _label3d("", 64, 0.00042, CREAM)
 	prompt.add_child(key_label)
 	name_label = _label3d("", 40, 0.00042, Color(GLOW, 0.85))
-	name_label.position = Vector3(0, -0.055, 0)
+	name_label.offset = Vector2(0, -50)     # in label pixels, so the gap holds at any distance (a world-unit offset doesn't scale with fixed_size)
 	prompt.add_child(name_label)
 
 func _process(delta: float) -> void:

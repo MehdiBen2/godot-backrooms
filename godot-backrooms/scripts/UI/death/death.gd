@@ -51,7 +51,9 @@ var _player: Node3D   = null
 # Blood-screen overlay
 var _blood_overlay: CanvasLayer = null
 var _blood_rect:    TextureRect = null
+var _blood_edge:    ColorRect   = null
 var _blood_tween:   Tween       = null
+const BLOOD_EDGE := preload("res://shaders/blood_vignette.gdshader")
 var _blood_tex:     Texture2D   = null
 
 var _fx: Node = null
@@ -72,15 +74,11 @@ var _body_light: OmniLight3D = null
 var _caught := false            # something attacked you: the last breath already went out at the bite/snap
 
 func _ready() -> void:
+	_blood_tex = load("res://textures/blood/PsoSI8.png") if ResourceLoader.exists("res://textures/blood/PsoSI8.png") else null
 	_fx = DeathFx.new()
 	add_child(_fx)
 	_fade = RespawnFade.new()
 	add_child(_fade)
-	# Preload blood texture — Godot will import it on first editor open
-	if ResourceLoader.exists("res://textures/blood/PsoSI8.png"):
-		_blood_tex = load("res://textures/blood/PsoSI8.png")
-	if _blood_tex == null:
-		push_warning("Death: blood texture failed to load")
 
 # Autoloads only leave the tree when the game quits: drop the synth cache that outlives scene reloads
 func _exit_tree() -> void:
@@ -164,6 +162,17 @@ func bite(mouth: Vector3, victim: Vector3, cam_pos: Vector3) -> void:
 func bite_burst(origin: Vector3, dir: Vector3, count: float, force: float) -> void:
 	_fx.burst(origin, dir, count, force)
 
+## A friend's neck goes (remote_player.gd, the mannequin's snap): blood sprays from it, thrown the way they face.
+func friend_spray(neck: Vector3, dir: Vector3) -> void:
+	_fx.floor_y = neck.y - 1.65
+	_fx.spray(neck, dir)
+	for i in 6:
+		_fx.drop(neck, dir * randf_range(0.5, 2.0) + Vector3(randf_range(-0.8, 0.8), randf_range(0.5, 1.8), randf_range(-0.8, 0.8)), randf_range(0.02, 0.05))
+
+## A friend's body hits the floor (or they simply die): the pool under them and the spatter thrown around it.
+func friend_pool(body: Vector3, dir: Vector3) -> void:
+	_fx.feast(body + Vector3(0.0, 0.3, 0.0) + dir * 0.4, body)
+
 ## The grab begins: clear last run's blood
 func grab_begin() -> void:
 	_fx.clear()
@@ -186,11 +195,10 @@ func stop() -> void:
 	_scares = null
 
 # ──────────────────────────────────────── blood-screen overlay ─────────────────
-# Web equivalent: endGrab(dying=true) → blood image fades in 0.7s and slides from
-# translateY(-8%) to translateY(0) over 9s, opacity 0 -> 0.55.
+# The blood image fades in and slides down once, then holds still. It is scaled past the screen all the way
+# through (pivot at the top centre), so its edges are never in view, even at rest. A faint red stain
+# (shaders/blood_vignette.gdshader) creeps in along the borders.
 func _show_blood_screen() -> void:
-	if _blood_tex == null:
-		return
 	if _blood_overlay != null:
 		_blood_overlay.queue_free()
 
@@ -198,32 +206,37 @@ func _show_blood_screen() -> void:
 	_blood_overlay.layer = 20          # above the 3D scene, below the SIGNAL LOST overlay (30)
 	add_child(_blood_overlay)
 
-	_blood_rect = TextureRect.new()
-	_blood_rect.texture = _blood_tex
-	_blood_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_blood_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_blood_rect.stretch_mode = TextureRect.STRETCH_SCALE
-	_blood_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_blood_rect.modulate.a = 0.0
-	_blood_overlay.add_child(_blood_rect)
-	# Start offset: slide down from -8% of screen height (web: translateY(-8%)).
-	# Set after add_child so the anchor layout doesn't overwrite it.
-	# Web: transform-origin 50% 0, translateY(-8%) scale(1.1) -> translateY(0) scale(1.04); the scale keeps
-	# the bottom edge covered while it slides down, so no gap shows below the image.
-	var vs := get_viewport().get_visible_rect().size
-	_blood_rect.pivot_offset = Vector2(vs.x * 0.5, 0.0)
-	_blood_rect.scale = Vector2(1.1, 1.1)
-	_blood_rect.position = Vector2(0.0, -vs.y * 0.08)
+	if _blood_tex != null:
+		_blood_rect = TextureRect.new()
+		_blood_rect.texture = _blood_tex
+		_blood_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_blood_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_blood_rect.stretch_mode = TextureRect.STRETCH_SCALE
+		_blood_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_blood_rect.modulate.a = 0.0
+		_blood_overlay.add_child(_blood_rect)
+		var vs := get_viewport().get_visible_rect().size
+		_blood_rect.pivot_offset = Vector2(vs.x * 0.5, 0.0)
+		_blood_rect.scale = Vector2(1.14, 1.14)
+		_blood_rect.position = Vector2(0.0, -vs.y * 0.10)
 
-	# Kill any previous tween
+	var mat := ShaderMaterial.new()
+	mat.shader = BLOOD_EDGE
+	_blood_edge = ColorRect.new()
+	_blood_edge.material = mat
+	_blood_edge.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_blood_edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_blood_overlay.add_child(_blood_edge)
+
 	if _blood_tween != null and _blood_tween.is_valid():
 		_blood_tween.kill()
 	_blood_tween = create_tween().set_parallel(true)
-	# Fade in: opacity 0 -> 0.55 over 0.7s (web: transition: opacity 0.7s ease-out)
-	_blood_tween.tween_property(_blood_rect, "modulate:a", 0.55, 0.7).set_ease(Tween.EASE_OUT)
-	# Slide down: -8% Y -> 0 over 9s (web: transform 9s cubic-bezier(0.2,0.6,0.3,1))
-	_blood_tween.tween_property(_blood_rect, "position:y", 0.0, 9.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	_blood_tween.tween_property(_blood_rect, "scale", Vector2(1.04, 1.04), 9.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	_blood_tween.tween_method(func(v: float) -> void: mat.set_shader_parameter("amount", v), 0.0, 1.0, 4.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
+	if _blood_rect != null:
+		# the slide ends with the image still larger than the screen (scale 1.08, nudged up): no edge shows
+		_blood_tween.tween_property(_blood_rect, "modulate:a", 0.5, 0.7).set_ease(Tween.EASE_OUT)
+		_blood_tween.tween_property(_blood_rect, "position:y", 0.0, 7.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		_blood_tween.tween_property(_blood_rect, "scale", Vector2(1.08, 1.08), 7.0).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 
 func _hide_blood_screen() -> void:
 	if _blood_tween != null and _blood_tween.is_valid():
@@ -232,6 +245,7 @@ func _hide_blood_screen() -> void:
 		_blood_overlay.queue_free()
 		_blood_overlay = null
 		_blood_rect = null
+		_blood_edge = null
 
 # ──────────────────────────────────────── camera orbit ─────────────────────────
 func _process(delta: float) -> void:

@@ -1,0 +1,172 @@
+// Content\MyAssets\UI\ConfirmExitWidget
+
+== class ExecuteUbergraph_ConfirmExitWidget : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var K2Node_MakeStruct_LinearColor: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_SwitchEnum_CmpSuccess_1: Bool
+  var CallFunc_Create_ReturnValue_1: Object
+  var K2Node_SwitchEnum_CmpSuccess_2: Bool
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_DestroySession_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_GetPlayerController_ReturnValue_1: Object
+  var K2Node_Event_IsDesignTime: Bool
+
+== class OnKeyDown : Class'UserWidget:OnKeyDown'
+  var MyGeometry: Struct
+  var InKeyEvent: Struct
+  var ReturnValue: Struct
+  var CallFunc_GetKey_ReturnValue: Struct
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_EqualEqual_KeyKey_ReturnValue: Bool
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_Handled_ReturnValue: Struct
+
+== class PreConstruct : Class'UserWidget:PreConstruct'
+  var IsDesignTime: Bool
+
+== class ConfirmExitWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var BackButton: Object
+  var BackgroundBlur_151: Object
+  var BackText: Object
+  var BlackBG: Object
+  var ConfirmButton: Object
+  var ConfirmText: Object
+  var ExitTo?Text: Object
+  var PreviousWidget: Object
+  var ExitMenuType: Byte
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(331)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(974)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(1110)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(1246)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_4_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(1382)
+            return
+
+function BndEvt__ConfirmExitWidget_ConfirmButton_K2Node_ComponentBoundEvent_5_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(1518)
+            return
+
+function ExecuteUbergraph_ConfirmExitWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    self.BackgroundBlur_151.Widget.SetRenderOpacity(0.0)
+            self.BlackBG.SetBrushFromTexture(Obj<BlackFadeSidewaysDoubleLarge>, true)
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 1.0
+            self.BlackBG.Image.SetColorAndOpacity(K2Node_MakeStruct_LinearColor)
+            goto @1940
+            GameplayStatics.OpenLevel(self, "MainMenu", true, "")
+            goto @1940
+            GameplayStatics.OpenLevel(self, "MainMenu", true, "")
+            goto @1940
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @426
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @535
+            goto @1940
+    @426:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ESCMenu_C>, null)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            RemoveFromParent()
+            goto @1940
+    @535:   CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SessionsWidget_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            RemoveFromParent()
+            goto @1940
+    @644:   K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @855
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @739
+            goto @1940
+    @739:   self.ExitTo?Text.SetText(Text({"Token": "EX_StringConst", "Value": "Are you sure you want to exit game?"}))
+            goto @10
+    @855:   self.ExitTo?Text.SetText(Text({"Token": "EX_StringConst", "Value": "Are you sure you want to exit to menu?"}))
+            goto @1940
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            goto @1940
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            goto @1940
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @1940
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.ConfirmText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            goto @1940
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @1667
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @1613
+            goto @1940
+    @1613:  CallFunc_GetPlayerController_ReturnValue_1 = GameplayStatics.GetPlayerController(self, 0)
+            KismetSystemLibrary.QuitGame(self, CallFunc_GetPlayerController_ReturnValue_1, 0, false)
+            goto @1940
+    @1667:  CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_DestroySession_ReturnValue = DestroySessionCallbackProxy.DestroySession(self, CallFunc_GetPlayerController_ReturnValue)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_DestroySession_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @1940
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnSuccess_05F84E8E429EE2F1CA702895CF115185
+            CallFunc_DestroySession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnFailure_05F84E8E429EE2F1CA702895CF115185
+            CallFunc_DestroySession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            CallFunc_DestroySession_ReturnValue.Activate()
+            goto @1940
+            goto @644
+    @1940:  return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(267)
+            return
+
+function OnKeyDown  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @50
+            goto @353
+    @50:    CallFunc_GetKey_ReturnValue = KismetInputLibrary.GetKey(InKeyEvent)
+            CallFunc_EqualEqual_KeyKey_ReturnValue = KismetInputLibrary.EqualEqual_KeyKey(CallFunc_GetKey_ReturnValue, Key{"Escape"})
+            if not (CallFunc_EqualEqual_KeyKey_ReturnValue) goto @353
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            CallFunc_Handled_ReturnValue = WidgetBlueprintLibrary.Handled()
+            ReturnValue = CallFunc_Handled_ReturnValue
+    @353:   return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(299)
+            return
+
+function PreConstruct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_IsDesignTime = IsDesignTime
+            ConfirmExitWidget_C.ExecuteUbergraph_ConfirmExitWidget(1935)
+            return

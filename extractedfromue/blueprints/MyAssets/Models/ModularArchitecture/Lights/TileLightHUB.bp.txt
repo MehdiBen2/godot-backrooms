@@ -1,0 +1,71 @@
+// Content\MyAssets\Models\ModularArchitecture\Lights\TileLightHUB
+
+== class TileLightHUB_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Cube1: Object
+  var PointLight: Object
+  var DefaultSceneRoot: Object
+  var LowerLights_NewTrack_0: Float
+  var LowerLights__Direction: Byte
+  var LowerLights: Object
+  var DynamicGlow: Object
+  var CastShadow: Bool
+
+== class ExecuteUbergraph_TileLightHUB : 
+  var EntryPoint: Int
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_SetScalarParameterValue_Value_ImplicitCast: Float
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast: Float
+
+function ExecuteUbergraph_TileLightHUB  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            goto @564
+    @15:    CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Cube1.CreateDynamicMaterialInstance(1, Obj<LightGlow_Inst>, "None")
+            self.DynamicGlow = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            goto @564
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.LowerLights_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(2000.0, 100.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_1)
+            self.PointLight.LightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast)
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.LowerLights_NewTrack_0)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(1.0, 0.1, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            CallFunc_SetScalarParameterValue_Value_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue)
+            self.DynamicGlow.MaterialInstanceDynamic.SetScalarParameterValue("Emissive", CallFunc_SetScalarParameterValue_Value_ImplicitCast)
+            goto @564
+    @438:   self.LowerLights.TimelineComponent.ReverseFromEnd()
+            goto @564
+    @475:   self.LowerLights.TimelineComponent.PlayFromStart()
+            goto @564
+            goto @475
+            goto @15
+            self.LowerLights.TimelineComponent.SetPlayRate(0.25)
+            goto @438
+    @564:   return
+
+function LowerLights__FinishedFunc  [FUNC_BlueprintEvent]
+            TileLightHUB_C.ExecuteUbergraph_TileLightHUB(10)
+            return
+
+function LowerLights__UpdateFunc  [FUNC_BlueprintEvent]
+            TileLightHUB_C.ExecuteUbergraph_TileLightHUB(112)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            TileLightHUB_C.ExecuteUbergraph_TileLightHUB(517)
+            return
+
+function StartSequenceLights  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            TileLightHUB_C.ExecuteUbergraph_TileLightHUB(512)
+            return
+
+function StopSequenceLights  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            TileLightHUB_C.ExecuteUbergraph_TileLightHUB(522)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            self.PointLight.LightComponentBase.SetCastShadows(self.CastShadow)
+            return

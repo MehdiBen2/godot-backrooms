@@ -1,0 +1,119 @@
+// Content\MyAssets\Models\PlayerItems\DirectionalTape\DirectionalTapeActor
+
+== class DirectionalTapeActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var RotatingMovement: Object
+  var DirectionalTapeSpool: Object
+  var DefaultSceneRoot: Object
+  var PlayerMovingTape: Object
+  var SetTapeMaterialEmpty: Bool
+
+== class ExecuteUbergraph_DirectionalTapeActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation_1: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling_1: Bool
+  var K2Node_Event_CurrentSelectedSeat_1: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_IsActive_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_IsActive_ReturnValue_1: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_VSize_ReturnValue: Double
+  var CallFunc_VSize_ReturnValue_1: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class PlayerInteractRightClick : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+function ExecuteUbergraph_DirectionalTapeActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    self.RotatingMovement.Deactivate()
+            if not (self.SetTapeMaterialEmpty) goto @65
+            goto @1230
+    @65:    self.SetTapeMaterialEmpty = true
+            self.DirectionalTapeSpool.SetMaterial(1, Obj<BlackTrim>)
+            goto @1230
+            K2Node_Event_Player_1.UseDirectionalTape()
+            self.PlayerMovingTape = K2Node_Event_Player_1
+            goto @1230
+            self.RotatingMovement.SetUpdatedComponent(self.DirectionalTapeSpool)
+            goto @1230
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.PlayerMovingTape)
+            if not (CallFunc_IsValid_ReturnValue) goto @1230
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(self.PlayerMovingTape.self.CurrentItemInfo.Quantity_45, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue) goto @10
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(self.PlayerMovingTape.self.CurrentItemInfo.Quantity_45)
+            KismetSystemLibrary.PrintString(self, CallFunc_Conv_IntToString_ReturnValue, true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            CallFunc_IsActive_ReturnValue = self.RotatingMovement.ActorComponent.IsActive()
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_IsActive_ReturnValue, false)
+            CallFunc_VSize_ReturnValue_1 = KismetMathLibrary.VSize(self.PlayerMovingTape.self.?.self.?)
+            CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(CallFunc_VSize_ReturnValue_1, 5.0)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_BoolBool_ReturnValue, CallFunc_Greater_DoubleDouble_ReturnValue)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue, self.PlayerMovingTape.self.ApplyingDirectionalTape)
+            if not (CallFunc_BooleanAND_ReturnValue_2) goto @850
+            self.RotatingMovement.Activate(false)
+            goto @1230
+    @850:   CallFunc_IsActive_ReturnValue_1 = self.RotatingMovement.ActorComponent.IsActive()
+            CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(self.PlayerMovingTape.self.ApplyingDirectionalTape, false)
+            CallFunc_VSize_ReturnValue = KismetMathLibrary.VSize(self.PlayerMovingTape.self.?.self.?)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_VSize_ReturnValue, 5.0)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_Less_DoubleDouble_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue_1)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_IsActive_ReturnValue_1, CallFunc_BooleanOR_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue_1) goto @1230
+            self.RotatingMovement.Deactivate()
+            goto @1230
+            K2Node_Event_Player.RemoveTape()
+    @1230:  return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation_1 = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling_1 = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat_1 = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            DirectionalTapeActor_C.ExecuteUbergraph_DirectionalTapeActor(131)
+            return
+
+function PlayerInteractRightClick  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            DirectionalTapeActor_C.ExecuteUbergraph_DirectionalTapeActor(1194)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            DirectionalTapeActor_C.ExecuteUbergraph_DirectionalTapeActor(191)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            DirectionalTapeActor_C.ExecuteUbergraph_DirectionalTapeActor(241)
+            return

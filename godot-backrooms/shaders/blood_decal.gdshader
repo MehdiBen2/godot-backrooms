@@ -7,6 +7,7 @@ uniform float seed = 0.0;
 uniform vec3 splat_normal = vec3(0.0, 1.0, 0.0);
 uniform vec2 impact_dir = vec2(0.0);   // in the card's plane; its length is how hard it hit (0 = a pool)
 uniform vec2 link_to = vec2(0.0);      // a second pool centre (bp-space, 0,0 = none): bridged into one puddle
+uniform float extent = 1.2;            // card size / pool size (see fragment)
 varying vec3 wpos;
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -96,9 +97,13 @@ float field(vec2 p) {
 	return f;
 }
 void fragment() {
-	vec2 p = (UV - 0.5) * 2.0;
+	vec2 pu = (UV - 0.5) * 2.0;
+	// the card is `extent` times bigger than the pool it holds, so no lobe, finger or linked pool ever reaches the
+	// quad's edge (where the field used to be sliced off in a straight line); a last soft fade covers the warp
+	vec2 p = pu * extent;
 	const float TH = 0.3;
 	float f = field(p);
+	f *= 1.0 - smoothstep(0.82, 1.0, max(abs(pu.x), abs(pu.y)));
 	float aa = max(fwidth(f), 1e-4);
 	float m = smoothstep(TH - aa, TH + aa, f);
 	if (m < 0.01) { discard; }

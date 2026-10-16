@@ -1,0 +1,56 @@
+// Content\MyAssets\Models\POIModels\CRTTV\POI_TV_Actor
+
+== class POI_TV_Actor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var CameraCollision: Object
+  var Sphere: Object
+  var Audio: Object
+  var Sosy_CRT_TV2: Object
+  var Sosy_CRT_TV1: Object
+  var Sosy_CRT_TV: Object
+  var DefaultSceneRoot: Object
+  var RandomSubjectTag: Name
+
+== class ExecuteUbergraph_POI_TV_Actor : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+
+== class OnRep_RandomSubjectTag : 
+  var CallFunc_Array_Add_ReturnValue: Int
+
+function ExecuteUbergraph_POI_TV_Actor  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    SERVER: SetRandomSubjectTag()
+            goto @285
+    @29:    OnRep_RandomSubjectTag()
+            goto @285
+    @48:    NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "RandomSubjectTag")
+            goto @29
+    @82:    Actor.FlushNetDormancy()
+            CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(10000, 10000000)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_RandomIntegerInRange_ReturnValue)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            self.RandomSubjectTag = CallFunc_Conv_StringToName_ReturnValue
+            goto @48
+    @236:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @285
+            goto @10
+            goto @236
+            goto @82
+    @285:   return
+
+function OnRep_RandomSubjectTag  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Box.self.?, self.RandomSubjectTag)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            POI_TV_Actor_C.ExecuteUbergraph_POI_TV_Actor(275)
+            return
+
+function SERVER: SetRandomSubjectTag  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            POI_TV_Actor_C.ExecuteUbergraph_POI_TV_Actor(280)
+            return

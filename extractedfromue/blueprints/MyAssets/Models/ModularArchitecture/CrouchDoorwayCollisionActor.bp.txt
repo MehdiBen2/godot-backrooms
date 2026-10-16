@@ -1,0 +1,5 @@
+// Content\MyAssets\Models\ModularArchitecture\CrouchDoorwayCollisionActor
+
+== class CrouchDoorwayCollisionActor_C : Class'Actor'
+  var CrouchAI: Object
+  var DefaultSceneRoot: Object

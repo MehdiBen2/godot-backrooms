@@ -1,0 +1,110 @@
+// Content\MyAssets\UI\Player_HUD
+
+== class ChangedSlotSelected : 
+  var SlotSelected: Int
+
+== class ExecuteUbergraph_Player_HUD : 
+  var EntryPoint: Int
+  var K2Node_CustomEvent_SlotSelected: Int
+  var K2Node_SwitchInteger_CmpSuccess: Bool
+  var K2Node_InputActionEvent_Key: Struct
+  var CallFunc_PlayAnimationReverse_ReturnValue: Object
+  var CallFunc_PlayAnimationForward_ReturnValue: Object
+
+== class InpActEvt_Tasks_K2Node_InputActionEvent_0 : 
+  var Key: Struct
+
+== class Player_HUD_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var TasksFadeIn: Object
+  var ControlsText: Object
+  var Crosshair: Object
+  var FoggyBlur: Object
+  var FoggyImg: Object
+  var HitVignetteImgBottom: Object
+  var HitVignetteImgLeft: Object
+  var HitVignetteImgRight: Object
+  var HitVignetteImgTop: Object
+  var InteractText: Object
+  var MicrophoneIcon: Object
+  var ReviveProgressBar: Object
+  var RevivingText: Object
+  var Slot1Text: Object
+  var Slot2Text: Object
+  var Slot3Text: Object
+  var Slot4Text: Object
+  var Task1Text: Object
+  var Task2Text: Object
+  var TaskPanel: Object
+  var TasksButtonText: Object
+  var Task1Completed: Bool
+  var Task2Completed: Bool
+  var TasksOpen: Bool
+
+function ChangedSlotSelected  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_SlotSelected = SlotSelected
+            Player_HUD_C.ExecuteUbergraph_Player_HUD(607)
+            return
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            Player_HUD_C.ExecuteUbergraph_Player_HUD(266)
+            return
+
+function ExecuteUbergraph_Player_HUD  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    self.TasksButtonText.SetText(Text({"Token": "EX_StringConst", "Value": "[T] Close Tasks"}))
+            CallFunc_PlayAnimationForward_ReturnValue = UserWidget.PlayAnimationForward(self.TasksFadeIn, 1.0, false)
+            goto @1462
+    @141:   self.TasksButtonText.SetText(Text({"Token": "EX_StringConst", "Value": "[T] Tasks"}))
+            CallFunc_PlayAnimationReverse_ReturnValue = UserWidget.PlayAnimationReverse(self.TasksFadeIn, 1.0, false)
+            goto @1462
+            self.MicrophoneIcon.SetVisibility(2)
+            self.ReviveProgressBar.SetVisibility(2)
+            self.RevivingText.SetVisibility(2)
+            self.Slot1Text.Widget.SetRenderOpacity(0.0)
+            self.Slot2Text.Widget.SetRenderOpacity(0.0)
+            self.Slot3Text.Widget.SetRenderOpacity(0.0)
+            self.Slot4Text.Widget.SetRenderOpacity(0.0)
+            self.Task1Text.Widget.SetRenderOpacity(0.0)
+            self.Task2Text.Widget.SetRenderOpacity(0.0)
+            goto @1462
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_CustomEvent_SlotSelected, 1)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @804
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_CustomEvent_SlotSelected, 2)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @957
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_CustomEvent_SlotSelected, 3)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1110
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(K2Node_CustomEvent_SlotSelected, 4)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1263
+            goto @1462
+    @804:   self.Slot1Text.TextBlock.SetOpacity(0.8)
+            self.Slot2Text.TextBlock.SetOpacity(0.4)
+            self.Slot3Text.TextBlock.SetOpacity(0.4)
+            self.Slot4Text.TextBlock.SetOpacity(0.4)
+            goto @1462
+    @957:   self.Slot2Text.TextBlock.SetOpacity(0.8)
+            self.Slot1Text.TextBlock.SetOpacity(0.4)
+            self.Slot3Text.TextBlock.SetOpacity(0.4)
+            self.Slot4Text.TextBlock.SetOpacity(0.4)
+            goto @1462
+    @1110:  self.Slot3Text.TextBlock.SetOpacity(0.8)
+            self.Slot1Text.TextBlock.SetOpacity(0.4)
+            self.Slot2Text.TextBlock.SetOpacity(0.4)
+            self.Slot4Text.TextBlock.SetOpacity(0.4)
+            goto @1462
+    @1263:  self.Slot4Text.TextBlock.SetOpacity(0.8)
+            self.Slot1Text.TextBlock.SetOpacity(0.4)
+            self.Slot2Text.TextBlock.SetOpacity(0.4)
+            self.Slot3Text.TextBlock.SetOpacity(0.4)
+            goto @1462
+            if not (self.TasksOpen) goto @1446
+            self.TasksOpen = false
+            goto @141
+    @1446:  self.TasksOpen = true
+            goto @10
+    @1462:  return
+
+function InpActEvt_Tasks_K2Node_InputActionEvent_0  [FUNC_BlueprintEvent]
+            frame.K2Node_InputActionEvent_Key = Key
+            Player_HUD_C.ExecuteUbergraph_Player_HUD(1416)
+            return

@@ -1,0 +1,87 @@
+// Content\MyAssets\Blueprints\Tasks\BP_Task_PlaceCamcorders
+
+== class BP_Task_PlaceCamcorders_C : 
+  var UberGraphFrame: Struct
+
+== class CalculateReward : 
+  var Temp_int_Variable: Int
+  var Temp_text_Variable: Text
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+
+== class ExecuteUbergraph_BP_Task_PlaceCamcorders : 
+  var EntryPoint: Int
+
+== class UpdateProgress : 
+  var ValidCameras: Int
+  var Temp_int_Array_Index_Variable: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+
+function CalculateReward  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CalculateReward()
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @394
+            Temp_text_Variable = Text({"Token": "EX_StringConst", "Value": "Set up three camcorders"})
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedText, Temp_text_Variable)
+            Temp_int_Variable = 500
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedFunding, Temp_int_Variable)
+    @394:   return
+
+function CompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CompleteMission()
+            return
+
+function ExecuteUbergraph_BP_Task_PlaceCamcorders  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    self.TaskEnum = 2
+            goto @40
+            goto @10
+    @40:    return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            BP_Task_PlaceCamcorders_C.ExecuteUbergraph_BP_Task_PlaceCamcorders(35)
+            return
+
+function UncompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.UncompleteMission()
+            return
+
+function UpdateProgress  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @570
+            ValidCameras = 0
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CamcorderSetUpActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @114:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @418
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @496
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            if not (CallFunc_Array_Get_Item.self.ValidCameraSetup) pop_flow
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(ValidCameras, 1)
+            ValidCameras = CallFunc_Add_IntInt_ReturnValue
+            pop_flow  // return to pushed flow
+    @418:   CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(ValidCameras, 3)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @481
+            CompleteMission()
+            pop_flow  // return to pushed flow
+    @481:   UncompleteMission()
+            pop_flow  // return to pushed flow
+    @496:   CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue_1
+            goto @114
+    @570:   return

@@ -1,0 +1,126 @@
+// Content\MyAssets\Blueprints\WorldGameState
+
+== class WorldGameState_C : Class'GameStateBase'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var Funding: Int
+  var EmployeeLastLocation: Struct
+  var PlayersReady: Bool
+  var EODTaskCompletedText: Array
+  var EODTaskCompletedFunding: Array
+  var ResearchDataCredits: Int
+  var FundingEarnedThisDay: Int
+  var GameInstance: Object
+  var NumPlayersReady: Int
+  var TaskSystemRef: Object
+  var TerminalRef: Object
+  var CurrentDay: Int
+  var PhotosTotalValue: Int
+  var LostEmployeeLocation: Struct
+  var TotalFundingEarned: Int
+  var TotalDeaths: Int
+  var FurthestDistanceTraveled: Int
+  var HasEndedContract: Bool
+
+== class ExecuteUbergraph_WorldGameState : 
+  var EntryPoint: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_GetGameInstance_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue: Bool
+  var K2Node_DynamicCast_AsBP_Game_Instance: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_First_Person_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+function ExecuteUbergraph_WorldGameState  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1448
+            goto computed(EntryPoint)
+    @15:    CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TerminalActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            self.TerminalRef = CallFunc_Array_Get_Item
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 24, "TerminalRef")
+            pop_flow  // return to pushed flow
+    @169:   CallFunc_GetGameInstance_ReturnValue = GameplayStatics.GetGameInstance(self)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_GetGameInstance_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @939
+            CallFunc_GetGameInstance_ReturnValue = GameplayStatics.GetGameInstance(self)
+            K2Node_DynamicCast_AsBP_Game_Instance = Cast<BP_GameInstance_C>(CallFunc_GetGameInstance_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Game_Instance)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(K2Node_DynamicCast_AsBP_Game_Instance.self.CurrentDay, -1)
+            if not (CallFunc_Greater_IntInt_ReturnValue) pop_flow
+            self.GameInstance = K2Node_DynamicCast_AsBP_Game_Instance
+            Actor.FlushNetDormancy()
+            self.Funding = self.GameInstance.self.Funding
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 15, "Funding")
+            Actor.FlushNetDormancy()
+            self.CurrentDay = K2Node_DynamicCast_AsBP_Game_Instance.self.CurrentDay
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "CurrentDay")
+            Actor.FlushNetDormancy()
+            self.TotalFundingEarned = K2Node_DynamicCast_AsBP_Game_Instance.self.TotalFundingEarned
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 28, "TotalFundingEarned")
+            Actor.FlushNetDormancy()
+            self.TotalDeaths = K2Node_DynamicCast_AsBP_Game_Instance.self.TotalDeaths
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 29, "TotalDeaths")
+            Actor.FlushNetDormancy()
+            self.FurthestDistanceTraveled = K2Node_DynamicCast_AsBP_Game_Instance.self.FurthestDistanceTraveled
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 30, "FurthestDistanceTraveled")
+            Actor.FlushNetDormancy()
+            self.HasEndedContract = K2Node_DynamicCast_AsBP_Game_Instance.self.HasEndedContract
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 31, "HasEndedContract")
+            goto @15
+    @939:   KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{169, -2055985455, "ExecuteUbergraph_WorldGameState", self})
+            pop_flow  // return to pushed flow
+    @994:   NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 17, "PlayersReady")
+            CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode = Cast<BP_FirstPersonGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_First_Person_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.PlayersReady = true
+            pop_flow  // return to pushed flow
+    @1153:  Actor.FlushNetDormancy()
+            self.PlayersReady = true
+            goto @994
+    @1179:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            if not (self.PlayersReady) goto @1224
+            pop_flow  // return to pushed flow
+    @1224:  CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(self.GameInstance.self.CurrentDay, -1)
+            CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(self.NumPlayersReady, self.GameInstance.self.ExpectedPlayers)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_GreaterEqual_IntInt_ReturnValue, CallFunc_Greater_IntInt_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            goto @1153
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            SERVER: InitializeGameState()
+            pop_flow  // return to pushed flow
+            goto @1179
+            goto @169
+    @1448:  return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            WorldGameState_C.ExecuteUbergraph_WorldGameState(1393)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            WorldGameState_C.ExecuteUbergraph_WorldGameState(1438)
+            return
+
+function SERVER: InitializeGameState  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldGameState_C.ExecuteUbergraph_WorldGameState(1443)
+            return

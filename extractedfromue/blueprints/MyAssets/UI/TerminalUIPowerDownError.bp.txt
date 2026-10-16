@@ -1,0 +1,22 @@
+// Content\MyAssets\UI\TerminalUIPowerDownError
+
+== class ExecuteUbergraph_TerminalUIPowerDownError : 
+  var EntryPoint: Int
+
+== class TerminalUIPowerDownError_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var LoadingText: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUIPowerDownError_C.ExecuteUbergraph_TerminalUIPowerDownError(35)
+            return
+
+function ExecuteUbergraph_TerminalUIPowerDownError  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @90
+            goto computed(EntryPoint)
+    @15:    RemoveFromParent()
+            pop_flow  // return to pushed flow
+            goto @15
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{30, -917557900, "ExecuteUbergraph_TerminalUIPowerDownError", self})
+            pop_flow  // return to pushed flow
+    @90:    return

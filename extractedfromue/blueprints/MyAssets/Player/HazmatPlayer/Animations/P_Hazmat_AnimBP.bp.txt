@@ -1,0 +1,180 @@
+// Content\MyAssets\Player\HazmatPlayer\Animations\P_Hazmat_AnimBP
+
+== class P_Hazmat_AnimBP_C : Class'AnimInstance'
+  var UberGraphFrame: Struct
+  var __AnimBlueprintMutables: Struct
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_LookAt: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_TransitionResult_5: Struct
+  var AnimGraphNode_TransitionResult_4: Struct
+  var AnimGraphNode_TransitionResult_3: Struct
+  var AnimGraphNode_TransitionResult_2: Struct
+  var AnimGraphNode_TransitionResult_1: Struct
+  var AnimGraphNode_TransitionResult: Struct
+  var AnimGraphNode_SequencePlayer: Struct
+  var AnimGraphNode_StateResult_2: Struct
+  var AnimGraphNode_BlendSpacePlayer_1: Struct
+  var AnimGraphNode_StateResult_1: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+  var AnimGraphNode_StateResult: Struct
+  var AnimGraphNode_StateMachine: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_SaveCachedPose: Struct
+  var AnimGraphNode_LayeredBoneBlend: Struct
+  var AnimGraphNode_Slot_2: Struct
+  var AnimGraphNode_UseCachedPose_2: Struct
+  var AnimGraphNode_UseCachedPose_1: Struct
+  var AnimGraphNode_UseCachedPose: Struct
+  var AnimGraphNode_Slot_1: Struct
+  var AnimGraphNode_Slot: Struct
+  var LookAtPos: Struct
+  var Direction: Float
+  var Speed: Float
+  var Crouching: Bool
+  var InjuredState: Bool
+
+== class AnimGraph : 
+  var AnimGraph: Struct
+
+== class BlueprintUpdateAnimation : Class'AnimInstance:BlueprintUpdateAnimation'
+  var DeltaTimeX: Float
+
+== class ExecuteUbergraph_P_Hazmat_AnimBP : 
+  var EntryPoint: Int
+  var CallFunc_TryGetPawnOwner_ReturnValue: Object
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_K2_GetActorRotation_ReturnValue: Struct
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var CallFunc_CalculateDirection_ReturnValue: Float
+  var CallFunc_VSize_ReturnValue: Double
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_3: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_4: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+  var K2Node_Event_DeltaTimeX: Float
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_5: Bool
+  var CallFunc_BooleanAND_ReturnValue_3: Bool
+  var K2Node_VariableSet_Speed_ImplicitCast: Float
+
+== class AnimBlueprintGeneratedConstantData : Class'AnimBlueprintConstantData'
+  var __NameProperty_106: Name
+  var __StructProperty_107: Struct
+  var __NameProperty_108: Name
+  var __IntProperty_109: Int
+  var __NameProperty_110: Name
+  var __IntProperty_111: Int
+  var __FloatProperty_112: Float
+  var __BoolProperty_113: Bool
+  var __FloatProperty_114: Float
+  var __BoolProperty_115: Bool
+  var __EnumProperty_116: Enum
+  var __ByteProperty_117: Byte
+  var __NameProperty_118: Name
+  var __NameProperty_119: Name
+  var __NameProperty_120: Name
+  var __IntProperty_121: Int
+  var __StructProperty_122: Struct
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_LookAt: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_TransitionResult_5: Struct
+  var AnimGraphNode_TransitionResult_4: Struct
+  var AnimGraphNode_TransitionResult_3: Struct
+  var AnimGraphNode_TransitionResult_2: Struct
+  var AnimGraphNode_TransitionResult_1: Struct
+  var AnimGraphNode_TransitionResult: Struct
+  var AnimGraphNode_SequencePlayer: Struct
+  var AnimGraphNode_StateResult_2: Struct
+  var AnimGraphNode_BlendSpacePlayer_1: Struct
+  var AnimGraphNode_StateResult_1: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+  var AnimGraphNode_StateResult: Struct
+  var AnimGraphNode_StateMachine: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_SaveCachedPose: Struct
+  var AnimGraphNode_LayeredBoneBlend: Struct
+  var AnimGraphNode_Slot_2: Struct
+  var AnimGraphNode_UseCachedPose_2: Struct
+  var AnimGraphNode_UseCachedPose_1: Struct
+  var AnimGraphNode_UseCachedPose: Struct
+  var AnimGraphNode_Slot_1: Struct
+  var AnimGraphNode_Slot: Struct
+
+== class AnimBlueprintGeneratedMutableData : Class'AnimBlueprintMutableData'
+  var __FloatProperty: Float
+  var __FloatProperty_0: Float
+  var __FloatProperty_1: Float
+  var __FloatProperty_2: Float
+
+function AnimGraph  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnimGraph = PoseLink{-1}
+            return
+
+function BlueprintUpdateAnimation  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaTimeX = DeltaTimeX
+            P_Hazmat_AnimBP_C.ExecuteUbergraph_P_Hazmat_AnimBP(1027)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_P_Hazmat_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            P_Hazmat_AnimBP_C.ExecuteUbergraph_P_Hazmat_AnimBP(891)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_P_Hazmat_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            P_Hazmat_AnimBP_C.ExecuteUbergraph_P_Hazmat_AnimBP(755)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_P_Hazmat_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            P_Hazmat_AnimBP_C.ExecuteUbergraph_P_Hazmat_AnimBP(760)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_P_Hazmat_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            P_Hazmat_AnimBP_C.ExecuteUbergraph_P_Hazmat_AnimBP(1022)
+            return
+
+function ExecuteUbergraph_P_Hazmat_AnimBP  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    CallFunc_TryGetPawnOwner_ReturnValue = TryGetPawnOwner()
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(CallFunc_TryGetPawnOwner_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess) goto @1032
+            self.LookAtPos = K2Node_DynamicCast_AsPlayer_BP.self.CurrentLookRotation
+            CallFunc_VSize_ReturnValue = KismetMathLibrary.VSize(K2Node_DynamicCast_AsPlayer_BP.self.?.self.?)
+            K2Node_VariableSet_Speed_ImplicitCast = CST_DoubleToFloat(CallFunc_VSize_ReturnValue)
+            self.Speed = K2Node_VariableSet_Speed_ImplicitCast
+            CallFunc_K2_GetActorRotation_ReturnValue = K2Node_DynamicCast_AsPlayer_BP.Actor.K2_GetActorRotation()
+            CallFunc_CalculateDirection_ReturnValue = KismetAnimationLibrary.CalculateDirection(K2Node_DynamicCast_AsPlayer_BP.self.?.self.?, CallFunc_K2_GetActorRotation_ReturnValue)
+            self.Direction = CallFunc_CalculateDirection_ReturnValue
+            self.Crouching = K2Node_DynamicCast_AsPlayer_BP.self.Crouching
+            self.InjuredState = K2Node_DynamicCast_AsPlayer_BP.self.IsInjured
+            goto @1032
+    @553:   CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(self.InjuredState, false)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(self.Crouching, CallFunc_EqualEqual_BoolBool_ReturnValue_1)
+            self.AnimGraphNode_TransitionResult_4.? = CallFunc_BooleanAND_ReturnValue
+            goto @1032
+    @654:   CallFunc_EqualEqual_BoolBool_ReturnValue_2 = KismetMathLibrary.EqualEqual_BoolBool(self.InjuredState, false)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(self.Crouching, CallFunc_EqualEqual_BoolBool_ReturnValue_2)
+            self.AnimGraphNode_TransitionResult_1.? = CallFunc_BooleanAND_ReturnValue_1
+            goto @1032
+            goto @654
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.InjuredState, false)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_4 = KismetMathLibrary.EqualEqual_BoolBool(self.Crouching, false)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_BoolBool_ReturnValue_4, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            self.AnimGraphNode_TransitionResult_5.? = CallFunc_BooleanAND_ReturnValue_2
+            goto @1032
+            CallFunc_EqualEqual_BoolBool_ReturnValue_3 = KismetMathLibrary.EqualEqual_BoolBool(self.Crouching, false)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_5 = KismetMathLibrary.EqualEqual_BoolBool(self.InjuredState, false)
+            CallFunc_BooleanAND_ReturnValue_3 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_BoolBool_ReturnValue_3, CallFunc_EqualEqual_BoolBool_ReturnValue_5)
+            self.AnimGraphNode_TransitionResult_3.? = CallFunc_BooleanAND_ReturnValue_3
+            goto @1032
+            goto @553
+            goto @10
+    @1032:  return

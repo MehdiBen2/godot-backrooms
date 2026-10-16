@@ -1,12 +1,18 @@
 // The threshold standing open in the T.S.R.A. gate (scripts/World/props/tsra_portal_gate.gd): the same fluid
 // amber field as the drawn wall portals (portal_marks.gd), on a quad filling the split between the pylons.
-// `open` 0 -> 1 is the opening: a hot hairline down the middle that tears wide into the field, the edge burning.
+// `open` 0 -> 1 is the opening, after the original game's yellow gate: a hot hairline flickers in while it charges, then
+// the field burns into being from the middle outward through TilingNoise05, a white-yellow HDR edge (it blooms) eating
+// the dark. At open = 1 the whole field stands complete.
 shader_type spatial;
 render_mode unshaded, cull_disabled, blend_mix, depth_draw_never, shadows_disabled;
 
 uniform vec2 portal_size = vec2(2.6, 4.3);
 uniform float open : hint_range(0.0, 1.0) = 0.0;
 uniform float charge : hint_range(0.0, 1.0) = 0.0;   // before it opens: the hairline flickers in, faster as it charges
+uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
+uniform float edge_width = 0.32;                     // the burning band, in reveal units
+uniform float edge_energy = 1.8;                     // HDR: well past the glow threshold so it blooms
+uniform vec3 col_edge : source_color = vec3(1.0, 0.78, 0.18);
 uniform float time_scale = 0.22;
 uniform vec3 col_core : source_color = vec3(1.2, 1.15, 0.95);
 uniform vec3 col_radiant : source_color = vec3(1.0, 0.88, 0.32);
@@ -46,18 +52,24 @@ void fragment() {
 	vec2 uv = (UV - 0.5) * portal_size;
 	float t = TIME * time_scale;
 
-	// ---- the tear: half its width at each height, in UV (0.5 = the whole split), soft at the top and bottom
+	// ---- the hairline: only while it charges (it stays, hidden, inside the opening)
 	float v = UV.y;
 	float profile = pow(clamp(sin(3.14159 * v), 0.0, 1.0), 0.35);
-	float wob = fbm(vec2(v * 6.0, t * 3.0)) * 0.025 * open;
-	float half_w = (0.004 + 0.5 * smoothstep(0.0, 1.0, open)) * profile + wob;
+	float half_w = 0.004 * profile;
 	float dx = abs(UV.x - 0.5);
 	float inside = smoothstep(half_w + 0.006, half_w - 0.006, dx);
 	float rim = smoothstep(0.035, 0.0, abs(dx - half_w)) * profile;
-
-	// before it opens the hairline only flickers, faster as the charge builds
 	float flick = step(0.5, fract(TIME * (2.0 + 14.0 * charge) + sin(TIME * 7.1) * 0.3));
 	float pre = (open > 0.0) ? 1.0 : charge * (0.45 + 0.55 * flick);
+
+	// ---- the burn: a pixel appears once the front p passes its threshold (centre and bright noise first)
+	float n = texture(noise_tex, UV * vec2(1.0, portal_size.y / portal_size.x) * 1.5 + vec2(t * 0.05, 0.0)).r;
+	float dist = length(vec2(UV.x - 0.5, (UV.y - 0.5) * 0.7));
+	float thresh = dist * 0.7 + (1.0 - n) * 0.85;
+	float p = smoothstep(0.0, 1.0, open) * 1.6 - 0.2;
+	float e = p - thresh;                             // > 0: burnt through
+	float burnt = smoothstep(0.0, 0.02, e);
+	float edge = (1.0 - smoothstep(0.0, edge_width, e)) * burnt;
 
 	// ---- the field (portal_marks.gd), with a parallax depth
 	vec2 view_offset = VIEW.xy * 0.45;
@@ -79,10 +91,11 @@ void fragment() {
 		col += vec3(1.4, 1.35, 1.1) * smoothstep(0.65, 0.95, f) * 2.4;
 	}
 
-	// a narrow tear is all hot light; the field shows through as it widens
-	col = mix(col_core * 3.0, col, smoothstep(0.02, 0.18, half_w));
-	col += col_core * rim * (2.5 + 2.0 * (1.0 - open));
+	vec3 hair = col_core * 3.0 + col_core * rim * 4.5;
+	vec3 field = col + col_edge * edge * edge_energy;
+	field += col_core * pow(edge, 4.0) * edge_energy * 0.8;     // the hottest line goes white
 
-	ALBEDO = col;
-	ALPHA = clamp(max(inside, rim) * pre, 0.0, 1.0);
+	vec3 outc = mix(hair, field, burnt);
+	ALBEDO = outc;
+	ALPHA = clamp(max(max(inside, rim) * pre, burnt), 0.0, 1.0);
 }

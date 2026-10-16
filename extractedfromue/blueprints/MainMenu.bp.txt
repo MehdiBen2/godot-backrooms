@@ -1,0 +1,23 @@
+// Content\MainMenu
+
+== class MainMenu_C : Class'LevelScriptActor'
+  var UberGraphFrame: Struct
+
+== class ExecuteUbergraph_MainMenu : 
+  var EntryPoint: Int
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_GetPlayerController_ReturnValue: Object
+
+function ExecuteUbergraph_MainMenu  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SessionsWidget_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(1)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_UIOnlyEx(CallFunc_GetPlayerController_ReturnValue, CallFunc_Create_ReturnValue, 0, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = true
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            MainMenu_C.ExecuteUbergraph_MainMenu(10)
+            return

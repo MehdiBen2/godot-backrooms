@@ -1,0 +1,31 @@
+// Content\MyAssets\UI\TerminalUILoading
+
+== class ExecuteUbergraph_TerminalUILoading : 
+  var EntryPoint: Int
+
+== class TerminalUILoading_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var LoadingText: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            TerminalUILoading_C.ExecuteUbergraph_TerminalUILoading(479)
+            return
+
+function ExecuteUbergraph_TerminalUILoading  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @534
+            goto computed(EntryPoint)
+    @15:    RemoveFromParent()
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "LOADING REQUEST."}))
+            KismetSystemLibrary.Delay(self, 0.3, LatentActionInfo{177, -2097979110, "ExecuteUbergraph_TerminalUILoading", self})
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "LOADING REQUEST.."}))
+            KismetSystemLibrary.Delay(self, 0.3, LatentActionInfo{325, 1558765515, "ExecuteUbergraph_TerminalUILoading", self})
+            pop_flow  // return to pushed flow
+            self.LoadingText.SetText(Text({"Token": "EX_StringConst", "Value": "LOADING REQUEST..."}))
+            KismetSystemLibrary.Delay(self, 0.3, LatentActionInfo{474, 495106111, "ExecuteUbergraph_TerminalUILoading", self})
+            pop_flow  // return to pushed flow
+            goto @15
+            KismetSystemLibrary.Delay(self, 0.3, LatentActionInfo{30, -240075619, "ExecuteUbergraph_TerminalUILoading", self})
+            pop_flow  // return to pushed flow
+    @534:   return

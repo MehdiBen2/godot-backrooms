@@ -1,0 +1,22 @@
+// Content\MainWorld
+
+== class MainWorld_C : Class'LevelScriptActor'
+  var UberGraphFrame: Struct
+  var AmbientSound_6_ExecuteUbergraph_MainWorld_RefProperty: Object
+
+== class ExecuteUbergraph_MainWorld : 
+  var EntryPoint: Int
+  var CallFunc_GetPlayerController_ReturnValue: Object
+
+function ExecuteUbergraph_MainWorld  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            self.AmbientSound_6_ExecuteUbergraph_MainWorld_RefProperty.self.?.FadeIn(2.0, 1.0, 0.0, 0)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            MainWorld_C.ExecuteUbergraph_MainWorld(10)
+            return

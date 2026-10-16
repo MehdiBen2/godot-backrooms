@@ -1,0 +1,39 @@
+// Content\MyAssets\Player\HazmatPlayer\HazmatStandingStatic
+
+== class HazmatStandingStatic_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Hazmat_Head: Object
+  var P_Hazmat_Idle_Stand: Object
+  var DefaultSceneRoot: Object
+  var Run: Bool
+  var AnimationToPlay: Object
+
+== class ExecuteUbergraph_HazmatStandingStatic : 
+  var EntryPoint: Int
+  var K2Node_Event_DeltaSeconds: Float
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_K2_AttachToComponent_ReturnValue: Bool
+
+function ExecuteUbergraph_HazmatStandingStatic  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            if not (self.Run) goto @71
+            self.P_Hazmat_Idle_Stand.SkeletalMeshComponent.PlayAnimation(self.AnimationToPlay, true)
+            goto @71
+    @71:    return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            HazmatStandingStatic_C.ExecuteUbergraph_HazmatStandingStatic(10)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            HazmatStandingStatic_C.ExecuteUbergraph_HazmatStandingStatic(71)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_K2_AttachToComponent_ReturnValue = self.Hazmat_Head.SceneComponent.K2_AttachToComponent(self.P_Hazmat_Idle_Stand, "Head", 0, 0, 1, true)
+            return

@@ -1,0 +1,10 @@
+// Content\MyAssets\Blueprints\BPI_InteractableRightClick
+
+== class PlayerInteractRightClick : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+
+function PlayerInteractRightClick  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return

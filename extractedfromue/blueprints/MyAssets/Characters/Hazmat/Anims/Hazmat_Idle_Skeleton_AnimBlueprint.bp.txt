@@ -1,0 +1,66 @@
+// Content\MyAssets\Characters\Hazmat\Anims\Hazmat_Idle_Skeleton_AnimBlueprint
+
+== class Hazmat_Idle_Skeleton_AnimBlueprint_C : Class'AnimInstance'
+  var UberGraphFrame: Struct
+  var __AnimBlueprintMutables: Struct
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_LookAt: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+  var CurrentVelocity: Double
+  var CurrentCrouchHeight: Double
+  var LookAtPos: Struct
+  var Player: Object
+
+== class AnimGraph : 
+  var AnimGraph: Struct
+
+== class BlueprintUpdateAnimation : Class'AnimInstance:BlueprintUpdateAnimation'
+  var DeltaTimeX: Float
+
+== class ExecuteUbergraph_Hazmat_Idle_Skeleton_AnimBlueprint : 
+  var EntryPoint: Int
+  var K2Node_Event_DeltaTimeX: Float
+
+== class AnimBlueprintGeneratedConstantData : Class'AnimBlueprintConstantData'
+  var __NameProperty_15: Name
+  var __StructProperty_16: Struct
+  var __FloatProperty_17: Float
+  var __BoolProperty_18: Bool
+  var __FloatProperty_19: Float
+  var __BoolProperty_20: Bool
+  var __EnumProperty_21: Enum
+  var __ByteProperty_22: Byte
+  var __NameProperty_23: Name
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_LookAt: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+
+== class AnimBlueprintGeneratedMutableData : Class'AnimBlueprintMutableData'
+  var __FloatProperty: Float
+  var __FloatProperty_0: Float
+
+function AnimGraph  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnimGraph = PoseLink{-1}
+            return
+
+function BlueprintBeginPlay  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            Hazmat_Idle_Skeleton_AnimBlueprint_C.ExecuteUbergraph_Hazmat_Idle_Skeleton_AnimBlueprint(10)
+            return
+
+function BlueprintUpdateAnimation  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaTimeX = DeltaTimeX
+            Hazmat_Idle_Skeleton_AnimBlueprint_C.ExecuteUbergraph_Hazmat_Idle_Skeleton_AnimBlueprint(15)
+            return
+
+function ExecuteUbergraph_Hazmat_Idle_Skeleton_AnimBlueprint  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            goto @15
+    @15:    return

@@ -1,0 +1,114 @@
+// Content\MyAssets\UI\SessionsWidget
+
+== class ExecuteUbergraph_SessionsWidget : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_MakeLiteralByte_ReturnValue: Byte
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var CallFunc_MakeLiteralByte_ReturnValue_1: Byte
+
+== class SessionsWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var Fade: Object
+  var CreateLobbyText: Object
+  var CreateSessionButton: Object
+  var ExitButton: Object
+  var ExitText: Object
+  var Image_0: Object
+  var Image_87: Object
+  var SettingsButton: Object
+  var SettingsText: Object
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(558)
+            return
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(563)
+            return
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(699)
+            return
+
+function BndEvt__SessionsWidget_ExitButton_K2Node_ComponentBoundEvent_5_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(1107)
+            return
+
+function BndEvt__SessionsWidget_ExitButton_K2Node_ComponentBoundEvent_6_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(1243)
+            return
+
+function BndEvt__SessionsWidget_ExitButton_K2Node_ComponentBoundEvent_7_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(1379)
+            return
+
+function BndEvt__SessionsWidget_SettingsButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(835)
+            return
+
+function BndEvt__SessionsWidget_SettingsButton_K2Node_ComponentBoundEvent_4_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(971)
+            return
+
+function BndEvt__SessionsWidget_SettingsButton_K2Node_ComponentBoundEvent_8_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SessionsWidget_C.ExecuteUbergraph_SessionsWidget(1384)
+            return
+
+function ExecuteUbergraph_SessionsWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    Widget.SetFocus()
+            RemoveFromParent()
+            goto @1389
+    @39:    CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ConfirmExitWidget_C>, null)
+            CallFunc_MakeLiteralByte_ReturnValue_1 = KismetSystemLibrary.MakeLiteralByte(1)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue, "ExitMenuType", CallFunc_MakeLiteralByte_ReturnValue_1)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue.Widget.SetFocus()
+            RemoveFromParent()
+            goto @1389
+    @251:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsWidget_C>, null)
+            CallFunc_MakeLiteralByte_ReturnValue = KismetSystemLibrary.MakeLiteralByte(1)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue_1, "ExitMenuType", CallFunc_MakeLiteralByte_ReturnValue)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_1.Widget.SetFocus()
+            RemoveFromParent()
+            goto @1389
+    @463:   CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<NewOrLoadGame_C>, null)
+            CallFunc_Create_ReturnValue_2.UserWidget.AddToViewport(100)
+            goto @10
+            goto @463
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.CreateLobbyText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            goto @1389
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.CreateLobbyText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            goto @1389
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.SettingsText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @1389
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.SettingsText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            goto @1389
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.ExitText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            goto @1389
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.ExitText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            goto @1389
+            goto @39
+            goto @251
+    @1389:  return

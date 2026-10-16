@@ -1,0 +1,48 @@
+// Content\MyAssets\Models\PlayerItems\RDObjectActor
+
+== class RDObjectActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Object: Object
+  var DefaultSceneRoot: Object
+  var ItemType: Str
+
+== class ExecuteUbergraph_RDObjectActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_GetDataTableRowFromName_OutRow: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue: Bool
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_RDObjectActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            goto @199
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(self.ItemType)
+            CallFunc_GetDataTableRowFromName_ReturnValue = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<ResearchDataObjectsTable>, CallFunc_Conv_StringToName_ReturnValue, CallFunc_GetDataTableRowFromName_OutRow)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue) goto @199
+            CallFunc_SetStaticMesh_ReturnValue = self.Object.SetStaticMesh(CallFunc_GetDataTableRowFromName_OutRow.HeldMesh_39)
+    @199:   return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            RDObjectActor_C.ExecuteUbergraph_RDObjectActor(10)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            RDObjectActor_C.ExecuteUbergraph_RDObjectActor(15)
+            return

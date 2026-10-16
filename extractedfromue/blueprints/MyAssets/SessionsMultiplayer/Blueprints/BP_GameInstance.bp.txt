@@ -1,0 +1,136 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\BP_GameInstance
+
+== class BP_GameInstance_C : Class'AdvancedFriendsGameInstance'
+  var UberGraphFrame: Struct
+  var ExpectedPlayers: Int
+  var Funding: Int
+  var PCs: Array
+  var CurrentDay: Int
+  var TotalFundingEarned: Int
+  var TotalDeaths: Int
+  var FurthestDistanceTraveled: Int
+  var HasEndedContract: Bool
+
+== class ExecuteUbergraph_BP_GameInstance : 
+  var EntryPoint: Int
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_DestroySession_ReturnValue: Object
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var CallFunc_IsValid_ReturnValue: Bool
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_2: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_3: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_4: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_5: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_6: Delegate
+  var K2Node_CreateDelegate_OutputDelegate_7: Delegate
+  var K2Node_Event_LocalPlayerNum: Int
+  var K2Node_Event_PersonInvited: Struct
+  var K2Node_Event_SessionToJoin: Struct
+  var CallFunc_GetPlayerController_ReturnValue_1: Object
+  var Temp_struct_Variable: Array
+  var CallFunc_DestroySession_ReturnValue_1: Object
+  var CallFunc_CreateAdvancedSession_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_IsValid_ReturnValue_2: Bool
+  var CallFunc_JoinSession_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue_3: Bool
+
+== class OnSessionInviteAccepted : Class'AdvancedFriendsGameInstance:OnSessionInviteAccepted'
+  var LocalPlayerNum: Int
+  var PersonInvited: Struct
+  var SessionToJoin: Struct
+
+function Create Session  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(928)
+            return
+
+function ExecuteUbergraph_BP_GameInstance  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_DestroySession_ReturnValue = DestroySessionCallbackProxy.DestroySession(self, CallFunc_GetPlayerController_ReturnValue)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_DestroySession_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @1201
+            bind K2Node_CreateDelegate_OutputDelegate_6 -> self.OnSuccess_31E270AB4EAF05AEFD8B42B496060E80
+            CallFunc_DestroySession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_6
+            bind K2Node_CreateDelegate_OutputDelegate_5 -> self.OnFailure_31E270AB4EAF05AEFD8B42B496060E80
+            CallFunc_DestroySession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_5
+            CallFunc_DestroySession_ReturnValue.Activate()
+            goto @1201
+            GameplayStatics.OpenLevelBySoftObjectPtr(self, Obj<?>, true, "listen")
+            goto @1201
+    @333:   CallFunc_GetPlayerController_ReturnValue_1 = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_JoinSession_ReturnValue = JoinSessionCallbackProxy.JoinSession(self, CallFunc_GetPlayerController_ReturnValue_1, K2Node_Event_SessionToJoin)
+            CallFunc_IsValid_ReturnValue_3 = KismetSystemLibrary.IsValid(CallFunc_JoinSession_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue_3) goto @1201
+            bind K2Node_CreateDelegate_OutputDelegate_4 -> self.OnSuccess_8357A6AE403BB2ACC6F1D3826ED2A40C
+            CallFunc_JoinSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_4
+            bind K2Node_CreateDelegate_OutputDelegate_3 -> self.OnFailure_8357A6AE403BB2ACC6F1D3826ED2A40C
+            CallFunc_JoinSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_3
+            CallFunc_JoinSession_ReturnValue.Activate()
+            goto @1201
+            goto @333
+            goto @1201
+            goto @1201
+    @625:   CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_CreateAdvancedSession_ReturnValue = CreateSessionCallbackProxyAdvanced.CreateAdvancedSession(self, Temp_struct_Variable, CallFunc_GetPlayerController_ReturnValue, 6, 0, false, true, false, true, true, false, false, false, true, false, true)
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(CallFunc_CreateAdvancedSession_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue_1) goto @1201
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnSuccess_25E45C324CD83F329F1C2C9759E5CC09
+            CallFunc_CreateAdvancedSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            bind K2Node_CreateDelegate_OutputDelegate_7 -> self.OnFailure_25E45C324CD83F329F1C2C9759E5CC09
+            CallFunc_CreateAdvancedSession_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_7
+            CallFunc_CreateAdvancedSession_ReturnValue.Activate()
+            goto @1201
+            goto @625
+            goto @10
+            CallFunc_GetPlayerController_ReturnValue_1 = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_DestroySession_ReturnValue_1 = DestroySessionCallbackProxy.DestroySession(self, CallFunc_GetPlayerController_ReturnValue_1)
+            CallFunc_IsValid_ReturnValue_2 = KismetSystemLibrary.IsValid(CallFunc_DestroySession_ReturnValue_1)
+            if not (CallFunc_IsValid_ReturnValue_2) goto @1201
+            bind K2Node_CreateDelegate_OutputDelegate_2 -> self.OnSuccess_0AD5BDE746F10A581FE5809EED2BB3F4
+            CallFunc_DestroySession_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_2
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnFailure_0AD5BDE746F10A581FE5809EED2BB3F4
+            CallFunc_DestroySession_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            CallFunc_DestroySession_ReturnValue_1.Activate()
+            goto @1201
+    @1201:  return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(333)
+            return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(1201)
+            return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(625)
+            return
+
+function OnFailure  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(615)
+            return
+
+function OnSessionInviteAccepted  [FUNC_Event | FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_Event_LocalPlayerNum = LocalPlayerNum
+            frame.K2Node_Event_PersonInvited = PersonInvited
+            frame.K2Node_Event_SessionToJoin = SessionToJoin
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(933)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(610)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(278)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(923)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_GameInstance_C.ExecuteUbergraph_BP_GameInstance(620)
+            return

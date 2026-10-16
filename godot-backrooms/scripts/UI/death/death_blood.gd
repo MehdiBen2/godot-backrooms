@@ -202,14 +202,18 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	# a glancing, fast hit stretches the splat and throws fingers; a straight drop leaves a round pool
 	var along := Vector2(impact.dot(t), -impact.dot(b))
 	m.set_shader_parameter("impact_dir", along.normalized() * clampf(along.length() / 5.0, 0.0, 1.0) if along.length() > 0.01 else Vector2.ZERO)
+	# the card is `extent` times the pool: room for the pool's whole field (and the linked pool, however far),
+	# so the shader never cuts it off at the quad's edge
+	var extent := 1.2
 	if link_world != Vector3.ZERO:
 		var rel := link_world - point
-		var half_w := size * sx * 0.5
-		var half_h := size * sy * 0.5
-		m.set_shader_parameter("link_to", Vector2(rel.dot(t) / half_w, -rel.dot(b) / half_h))
+		var lt := Vector2(rel.dot(t) / (size * sx * 0.5), -rel.dot(b) / (size * sy * 0.5))
+		m.set_shader_parameter("link_to", lt)
+		extent += lt.length()
+	m.set_shader_parameter("extent", extent)
 	var mi := MeshInstance3D.new()
 	var q := QuadMesh.new()               # a single flush card: a box's back face and side banding show through
-	q.size = Vector2(size * sx, size * sy)
+	q.size = Vector2(size * sx, size * sy) * extent
 	mi.mesh = q
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -251,7 +255,10 @@ func _grow_decal(m: ShaderMaterial, delay: float) -> void:
 		if is_instance_valid(m):
 			m.set_shader_parameter("wet", v)
 	var tw := create_tween().set_parallel(true)
-	tw.tween_method(set_grow, 0.06, 1.0, randf_range(0.5, 1.0)).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	# a quick spread, then a slow ooze that carries on while it dries, so the pool never visibly stops growing
+	var rush := randf_range(0.6, 1.0)
+	tw.tween_method(set_grow, 0.06, 0.92, rush).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_method(set_grow, 0.92, 1.06, randf_range(14.0, 20.0)).set_delay(delay + rush).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	tw.tween_method(set_wet, 1.0, 0.25, randf_range(9.0, 16.0)).set_delay(delay + 1.2)
 	_decal_tweens = _decal_tweens.filter(func(t: Tween) -> bool: return t.is_valid())
 	_decal_tweens.append(tw)

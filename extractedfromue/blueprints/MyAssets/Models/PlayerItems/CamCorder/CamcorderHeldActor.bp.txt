@@ -1,0 +1,36 @@
+// Content\MyAssets\Models\PlayerItems\CamCorder\CamcorderHeldActor
+
+== class CamcorderHeldActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Camcorder: Object
+  var DefaultSceneRoot: Object
+  var Placing: Bool
+
+== class ExecuteUbergraph_CamcorderHeldActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_CamcorderHeldActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            K2Node_Event_Player.PlaceCamera()
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            CamcorderHeldActor_C.ExecuteUbergraph_CamcorderHeldActor(10)
+            return

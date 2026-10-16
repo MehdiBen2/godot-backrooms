@@ -1,0 +1,228 @@
+// Content\MyAssets\Models\Furniture\Switch\StartSwitchA
+
+== class StartSwitchA_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var PowerSwitch: Object
+  var HazardLightBase: Object
+  var SwitchHandle: Object
+  var SwitchBase: Object
+  var DefaultSceneRoot: Object
+  var Timeline_LeverRotation: Float
+  var Timeline__Direction: Byte
+  var Timeline: Object
+  var Switch_Timeline_LeverRotation: Float
+  var Switch_Timeline__Direction: Byte
+  var Switch Timeline: Object
+  var DoorLeverActor: Object
+  var EmissiveColor: Object
+  var CanPullLever: Bool
+  var Terminal: Object
+  var LeverPartialOn: Bool
+  var SwitchStateOff: Bool
+
+== class ExecuteUbergraph_StartSwitchA : 
+  var EntryPoint: Int
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeRotator_ReturnValue_1: Struct
+  var CallFunc_MakeRotator_ReturnValue_2: Struct
+  var CallFunc_MakeRotator_ReturnValue_3: Struct
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_1: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var K2Node_CustomEvent_State: Bool
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_2: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_3: Struct
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class SetStartSwitchState : 
+  var State: Bool
+
+function ExecuteUbergraph_StartSwitchA  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    SERVER:SetSwitchStateOff()
+            goto @2696
+    @29:    Actor.FlushNetDormancy()
+            self.CanPullLever = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "CanPullLever")
+            Actor.FlushNetDormancy()
+            self.LeverPartialOn = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "LeverPartialOn")
+            if not (self.DoorLeverActor.self.ThresholdOpen) goto @184
+            MULTI: Reverse Lever()
+            goto @2696
+    @184:   MULTI:Pull Lever()
+            goto @2696
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.692708, 0.0, 0.0, 1.0})
+            self.SwitchStateOff = true
+            self.DoorLeverActor.Actor.FlushNetDormancy()
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(self.DoorLeverActor.self.LeversPulled, 1)
+            self.DoorLeverActor.self.LeversPulled = CallFunc_Subtract_IntInt_ReturnValue
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.DoorLeverActor, 10, "LeversPulled")
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(self.DoorLeverActor.self.LeversPulled, 0)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_1) goto @2696
+            self.DoorLeverActor.ReverseSequence()
+            goto @2696
+            CallFunc_MakeRotator_ReturnValue_2 = KismetMathLibrary.MakeRotator(self.Timeline_LeverRotation, 0.0, 0.0)
+            self.SwitchHandle.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_2, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_1, false)
+            goto @2696
+            goto @2696
+    @695:   self.Timeline.TimelineComponent.PlayFromStart()
+            goto @2696
+    @732:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @2696
+            self.SwitchStateOff = K2Node_CustomEvent_State
+            if not (self.SwitchStateOff) goto @804
+            goto @10
+    @804:   SERVER:SetSwitchStateOn()
+            goto @2696
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(self.CanPullLever, self.Terminal.self.GatewayPowered)
+            if not (CallFunc_BooleanAND_ReturnValue) goto @2696
+            goto @29
+            if not (self.LeverPartialOn) goto @963
+    @916:   K2Node_Event_Player.self.InteractText = Text("")
+            goto @2696
+    @963:   if not (self.CanPullLever) goto @1115
+            if not (self.DoorLeverActor.self.ThresholdOpen) goto @1302
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Deactivate Switch"})
+            goto @2696
+    @1115:  if not (self.Terminal.self.GatewayPowered) goto @1192
+            if not (self.Terminal.self.ThresholdCurrentlyTransitioning) goto @1338
+            goto @916
+    @1192:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Needs Power from Terminal"})
+            goto @2696
+    @1302:  if not (self.Terminal.self.GatewayPowered) goto @1192
+    @1338:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Activate Switch"})
+            goto @2696
+            self.PowerSwitch.Play(0.0)
+            self.Switch Timeline.TimelineComponent.PlayFromStart()
+            goto @2696
+    @1516:  CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(self.Switch_Timeline_LeverRotation, 0.0, 0.0)
+            self.SwitchHandle.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            goto @2696
+    @1620:  NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.DoorLeverActor, 10, "LeversPulled")
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(self.DoorLeverActor.self.LeversPulled, 6)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @2696
+            self.DoorLeverActor.StartSequence()
+            goto @2696
+    @1768:  self.DoorLeverActor.Actor.FlushNetDormancy()
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(self.DoorLeverActor.self.LeversPulled, 1)
+            self.DoorLeverActor.self.LeversPulled = CallFunc_Add_IntInt_ReturnValue
+            goto @1620
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.HazardLightBase.CreateDynamicMaterialInstance(1, Obj<EmissiveColor_Inst>, "None")
+            self.EmissiveColor = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetScalarParameterValue("Emissive", 0.0)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.21875, 0.0, 0.0, 1.0})
+            goto @2696
+    @2144:  self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.0, 1.0, 0.0, 1.0})
+            self.SwitchStateOff = false
+            goto @1768
+            self.PowerSwitch.Play(0.0)
+            goto @695
+            goto @2696
+            goto @1516
+            goto @732
+            goto @2144
+            MULTI:SetSwitchStateOn()
+            goto @2696
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.0, 1.0, 0.0, 1.0})
+            CallFunc_MakeRotator_ReturnValue_1 = KismetMathLibrary.MakeRotator(0.0, 0.0, 0.0)
+            self.SwitchHandle.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_1, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_2, false)
+            goto @2696
+            MULTI: SetSwitchStateOff()
+            goto @2696
+            self.EmissiveColor.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.692708, 0.0, 0.0, 1.0})
+            CallFunc_MakeRotator_ReturnValue_3 = KismetMathLibrary.MakeRotator(180.0, 0.0, 0.0)
+            self.SwitchHandle.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_3, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_3, false)
+    @2696:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(902)
+            return
+
+function MULTI: Reverse Lever  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2239)
+            return
+
+function MULTI: SetSwitchStateOff  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2522)
+            return
+
+function MULTI:Pull Lever  [FUNC_Net | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(1438)
+            return
+
+function MULTI:SetSwitchStateOn  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2324)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(823)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(1918)
+            return
+
+function SERVER:SetSwitchStateOff  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2503)
+            return
+
+function SERVER:SetSwitchStateOn  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2305)
+            return
+
+function SetStartSwitchState  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_State = State
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2295)
+            return
+
+function Switch Timeline__ActivateDoor__EventFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2285)
+            return
+
+function Switch Timeline__FinishedFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2300)
+            return
+
+function Switch Timeline__UpdateFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(2290)
+            return
+
+function Timeline__ActivateDoor__EventFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(690)
+            return
+
+function Timeline__FinishedFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(203)
+            return
+
+function Timeline__UpdateFunc  [FUNC_BlueprintEvent]
+            StartSwitchA_C.ExecuteUbergraph_StartSwitchA(586)
+            return

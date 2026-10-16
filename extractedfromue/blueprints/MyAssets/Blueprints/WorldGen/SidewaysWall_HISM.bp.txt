@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\SidewaysWall_HISM
+
+== class SidewaysWall_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

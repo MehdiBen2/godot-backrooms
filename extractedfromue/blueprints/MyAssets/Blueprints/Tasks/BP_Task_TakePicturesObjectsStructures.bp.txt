@@ -1,0 +1,101 @@
+// Content\MyAssets\Blueprints\Tasks\BP_Task_TakePicturesObjectsStructures
+
+== class BP_Task_TakePicturesObjectsStructures_C : 
+  var UberGraphFrame: Struct
+  var ValidPictures: Int
+
+== class CalculateReward : 
+  var Temp_int_Variable: Int
+  var Temp_text_Variable: Text
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+
+== class ExecuteUbergraph_BP_Task_TakePicturesObjectsStructures : 
+  var EntryPoint: Int
+
+== class UpdateProgress : 
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_DetermineImagesTotalValue_ImagesValue: Int
+  var CallFunc_DetermineImagesTotalValue_AllSubjectTypes: Array
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Array_Get_Item_1: Name
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_NameName_ReturnValue: Bool
+
+function CalculateReward  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CalculateReward()
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @421
+            Temp_text_Variable = Text({"Token": "EX_StringConst", "Value": "Take three images of strange objects or structures"})
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedText, Temp_text_Variable)
+            Temp_int_Variable = 500
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(K2Node_DynamicCast_AsWorld_Game_State.self.EODTaskCompletedFunding, Temp_int_Variable)
+    @421:   return
+
+function CompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.CompleteMission()
+            return
+
+function ExecuteUbergraph_BP_Task_TakePicturesObjectsStructures  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    self.TaskEnum = 4
+            goto @40
+            goto @10
+    @40:    return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            BP_Task_TakePicturesObjectsStructures_C.ExecuteUbergraph_BP_Task_TakePicturesObjectsStructures(35)
+            return
+
+function StartMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.StartMission()
+            return
+
+function UncompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_TaskComponentBase_C.UncompleteMission()
+            return
+
+function UpdateProgress  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @767
+            BP_TaskComponentBase_C.UpdateProgress()
+            self.ValidPictures = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 4, "ValidPictures")
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CorkBoardActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.DetermineImagesTotalValue(CallFunc_DetermineImagesTotalValue_ImagesValue, CallFunc_DetermineImagesTotalValue_AllSubjectTypes)
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @262:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_DetermineImagesTotalValue_AllSubjectTypes)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @615
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @693
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_DetermineImagesTotalValue_AllSubjectTypes, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_1)
+            CallFunc_EqualEqual_NameName_ReturnValue = KismetMathLibrary.EqualEqual_NameName(CallFunc_Array_Get_Item_1, "POI")
+            if not (CallFunc_EqualEqual_NameName_ReturnValue) pop_flow
+            CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(self.ValidPictures, 1)
+            self.ValidPictures = CallFunc_Add_IntInt_ReturnValue_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 4, "ValidPictures")
+            pop_flow  // return to pushed flow
+    @615:   CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(self.ValidPictures, 3)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue) goto @678
+            CompleteMission()
+            pop_flow  // return to pushed flow
+    @678:   UncompleteMission()
+            pop_flow  // return to pushed flow
+    @693:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @262
+    @767:   return

@@ -1,0 +1,46 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\Lobby\LobbyCharacterActor
+
+== class LobbyCharacterActor_C : Class'Actor'
+  var Hazmat_Head: Object
+  var PlayerInfoWidget: Object
+  var SkeletalMesh: Object
+  var DefaultSceneRoot: Object
+  var PlayerInfo: Struct
+
+== class OnRep_PlayerInfo : 
+  var CallFunc_K2_SetTimer_ReturnValue: Struct
+  var CallFunc_GetWidget_ReturnValue: Object
+  var K2Node_DynamicCast_AsW_Player_Info: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+
+== class Update Player Info : 
+  var PlayerInfo: Struct
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_K2_AttachToComponent_ReturnValue: Bool
+
+function OnRep_PlayerInfo  [FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetWidget_ReturnValue = self.PlayerInfoWidget.GetWidget()
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_GetWidget_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @298
+            CallFunc_GetWidget_ReturnValue = self.PlayerInfoWidget.GetWidget()
+            K2Node_DynamicCast_AsW_Player_Info = Cast<W_PlayerInfo_C>(CallFunc_GetWidget_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsW_Player_Info)
+            if not (K2Node_DynamicCast_bSuccess) goto @362
+            K2Node_DynamicCast_AsW_Player_Info.UpdatePlayerInfo(self.PlayerInfo)
+            self.PlayerInfoWidget.SceneComponent.SetVisibility(true, false)
+            goto @362
+    @298:   CallFunc_K2_SetTimer_ReturnValue = KismetSystemLibrary.K2_SetTimer(self, "OnRep_PlayerInfo", 0.1, false, false, 0.0, 0.0)
+    @362:   return
+
+function Update Player Info  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Actor.FlushNetDormancy()
+            self.PlayerInfo = PlayerInfo
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "PlayerInfo")
+            OnRep_PlayerInfo()
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_K2_AttachToComponent_ReturnValue = self.Hazmat_Head.SceneComponent.K2_AttachToComponent(self.SkeletalMesh, "Head", 0, 0, 0, true)
+            return

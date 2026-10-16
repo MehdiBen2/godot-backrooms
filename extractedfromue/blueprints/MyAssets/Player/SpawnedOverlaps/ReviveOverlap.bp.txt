@@ -1,0 +1,79 @@
+// Content\MyAssets\Player\SpawnedOverlaps\ReviveOverlap
+
+== class ReviveOverlap_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var DefaultSceneRoot: Object
+  var OwningPlayer: Object
+
+== class BndEvt__PunchOverlap_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class ExecuteUbergraph_ReviveOverlap : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_ComponentHasTag_ReturnValue: Bool
+  var CallFunc_NotEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+
+function BndEvt__PunchOverlap_Box_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            ReviveOverlap_C.ExecuteUbergraph_ReviveOverlap(409)
+            return
+
+function ExecuteUbergraph_ReviveOverlap  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @414
+            goto computed(EntryPoint)
+            SERVER: Destroy Self()
+            pop_flow  // return to pushed flow
+    @30:    CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(K2Node_ComponentBoundEvent_OtherActor)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            CallFunc_ComponentHasTag_ReturnValue = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("Player")
+            if not (CallFunc_ComponentHasTag_ReturnValue) pop_flow
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(K2Node_ComponentBoundEvent_OtherActor)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_NotEqual_ObjectObject_ReturnValue = KismetMathLibrary.NotEqual_ObjectObject(K2Node_DynamicCast_AsPlayer_BP, self.OwningPlayer)
+            if not (CallFunc_NotEqual_ObjectObject_ReturnValue) pop_flow
+            K2Node_DynamicCast_AsPlayer_BP.ReviveSettings()
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.Delay(self, 0.3, LatentActionInfo{15, -1707979197, "ExecuteUbergraph_ReviveOverlap", self})
+            pop_flow  // return to pushed flow
+            MULTI: Destroy Self()
+            pop_flow  // return to pushed flow
+            K2_DestroyActor()
+            pop_flow  // return to pushed flow
+            goto @30
+    @414:   return
+
+function MULTI: Destroy Self  [FUNC_Net | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ReviveOverlap_C.ExecuteUbergraph_ReviveOverlap(394)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            ReviveOverlap_C.ExecuteUbergraph_ReviveOverlap(324)
+            return
+
+function SERVER: Destroy Self  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ReviveOverlap_C.ExecuteUbergraph_ReviveOverlap(379)
+            return

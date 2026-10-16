@@ -1,0 +1,4 @@
+// Content\MyAssets\Models\PlayerItems\RDF\RDFDistanceWidget
+
+== class RDFDistanceWidget_C : Class'UserWidget'
+  var DistanceText: Object

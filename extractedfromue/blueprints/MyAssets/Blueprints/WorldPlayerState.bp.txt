@@ -1,0 +1,30 @@
+// Content\MyAssets\Blueprints\WorldPlayerState
+
+== class WorldPlayerState_C : Class'PlayerState'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var Inventory Items: Array
+
+== class ExecuteUbergraph_WorldPlayerState : 
+  var EntryPoint: Int
+  var K2Node_Event_NewPlayerState: Object
+  var K2Node_DynamicCast_AsWorld_Player_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+
+== class ReceiveCopyProperties : Class'PlayerState:ReceiveCopyProperties'
+  var NewPlayerState: Object
+
+function ExecuteUbergraph_WorldPlayerState  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            K2Node_DynamicCast_AsWorld_Player_State = Cast<WorldPlayerState_C>(K2Node_Event_NewPlayerState)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Player_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @207
+            K2Node_DynamicCast_AsWorld_Player_State.Actor.FlushNetDormancy()
+            K2Node_DynamicCast_AsWorld_Player_State.self.Inventory Items = self.Inventory Items
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_DynamicCast_AsWorld_Player_State, 21, "Inventory Items")
+    @207:   return
+
+function ReceiveCopyProperties  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            frame.K2Node_Event_NewPlayerState = NewPlayerState
+            WorldPlayerState_C.ExecuteUbergraph_WorldPlayerState(10)
+            return

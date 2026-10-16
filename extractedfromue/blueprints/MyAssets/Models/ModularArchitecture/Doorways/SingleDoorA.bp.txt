@@ -1,0 +1,320 @@
+// Content\MyAssets\Models\ModularArchitecture\Doorways\SingleDoorA
+
+== class SingleDoorA_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var DoorCloseStartCue: Object
+  var DoorCloseCue: Object
+  var DoorOpenCue: Object
+  var SingleDoorTrim: Object
+  var BlockNav2: Object
+  var AIOpenDoor: Object
+  var BlockNav: Object
+  var BlockNav1: Object
+  var EmptyDetectSide: Object
+  var Door1: Object
+  var DefaultSceneRoot: Object
+  var Timeline_4_DoorRotation: Float
+  var Timeline_4__Direction: Byte
+  var Timeline_4: Object
+  var Timeline_3_DoorRotation: Float
+  var Timeline_3__Direction: Byte
+  var Timeline_3: Object
+  var Timeline_2_DoorRotation: Float
+  var Timeline_2__Direction: Byte
+  var Timeline_2: Object
+  var Timeline_1_DoorRotation: Float
+  var Timeline_1__Direction: Byte
+  var Timeline_1: Object
+  var Timeline_0_DoorRotation: Float
+  var Timeline_0__Direction: Byte
+  var Timeline_0: Object
+  var CanOpenClose: Bool
+  var DoorOpen: Bool
+  var DoorOneRotation: Struct
+  var DoorPos: Double
+  var Closing: Bool
+
+== class BndEvt__Con_SingleDoor_AIOpenDoor_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class BndEvt__Con_SingleDoorTall_AIOpenDoor_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class ExecuteUbergraph_SingleDoorA : 
+  var EntryPoint: Int
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeRotator_ReturnValue_1: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_RLerp_ReturnValue: Struct
+  var CallFunc_BreakRotator_Roll: Float
+  var CallFunc_BreakRotator_Pitch: Float
+  var CallFunc_BreakRotator_Yaw: Float
+  var CallFunc_MakeRotator_ReturnValue_2: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_1: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent_1: Object
+  var K2Node_ComponentBoundEvent_OtherActor_1: Object
+  var K2Node_ComponentBoundEvent_OtherComp_1: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_1: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_2: Struct
+  var CallFunc_ComponentHasTag_ReturnValue: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var CallFunc_ComponentHasTag_ReturnValue_1: Bool
+  var CallFunc_BreakRotator_Roll_1: Float
+  var CallFunc_BreakRotator_Pitch_1: Float
+  var CallFunc_BreakRotator_Yaw_1: Float
+  var CallFunc_NearlyEqual_FloatFloat_ReturnValue: Bool
+  var CallFunc_BreakRotator_Roll_2: Float
+  var CallFunc_BreakRotator_Pitch_2: Float
+  var CallFunc_BreakRotator_Yaw_2: Float
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_MakeRotator_ReturnValue_3: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_1: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_3: Struct
+  var CallFunc_Vector_Distance_ReturnValue_1: Double
+  var CallFunc_K2_GetActorLocation_ReturnValue_2: Struct
+  var CallFunc_Vector_Distance_ReturnValue_2: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_MakeRotator_ReturnValue_4: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_4: Struct
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var K2Node_CustomEvent_PlayerLoc: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_Vector_Distance_ReturnValue_3: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast: Double
+  var K2Node_VariableSet_DoorPos_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_1: Float
+
+== class GetInteractText : 
+  var Player: Object
+
+== class MULTI: Interact : 
+  var PlayerLoc: Struct
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function BndEvt__Con_SingleDoor_AIOpenDoor_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2375)
+            return
+
+function BndEvt__Con_SingleDoorTall_AIOpenDoor_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_1 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_1 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_1 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_1 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(1653)
+            return
+
+function ExecuteUbergraph_SingleDoorA  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2696
+            goto computed(EntryPoint)
+    @15:    self.DoorCloseStartCue.Play(0.0)
+            self.Closing = true
+            self.DoorOneRotation = self.Door1.self.?
+            self.Timeline_2.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @149:   self.Timeline_0.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @182:   self.Timeline_0.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @215:   self.CanOpenClose = true
+            pop_flow  // return to pushed flow
+            CallFunc_MakeRotator_ReturnValue_1 = KismetMathLibrary.MakeRotator(0.0, 0.0, self.Timeline_1_DoorRotation)
+            self.Door1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_1, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_1, false)
+            pop_flow  // return to pushed flow
+            self.DoorOpen = false
+            self.Closing = false
+            self.CanOpenClose = true
+            pop_flow  // return to pushed flow
+    @361:   self.Timeline_1.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @394:   self.Timeline_1.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            CallFunc_RLerp_ReturnValue = KismetMathLibrary.RLerp(self.DoorOneRotation, Rot(0.0, 0.0, 0.0), self.Timeline_2_DoorRotation, true)
+            KismetMathLibrary.BreakRotator(CallFunc_RLerp_ReturnValue, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            CallFunc_MakeRotator_ReturnValue_2 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_BreakRotator_Yaw)
+            self.Door1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_2, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_2, false)
+            pop_flow  // return to pushed flow
+            self.DoorCloseCue.Play(0.0)
+            pop_flow  // return to pushed flow
+    @687:   self.DoorOpen = true
+            pop_flow  // return to pushed flow
+    @699:   self.Timeline_2.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.Timeline_3_DoorRotation)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(self.DoorPos, 87.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue)
+            CallFunc_MakeRotator_ReturnValue_3 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            self.Door1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_3, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_3, false)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @946:   self.Timeline_3.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.Timeline_4_DoorRotation)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(self.DoorPos, -87.0, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_1)
+            CallFunc_MakeRotator_ReturnValue_4 = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast_1)
+            self.Door1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_4, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_4, false)
+            goto @687
+    @1196:  self.Timeline_4.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @1229:  self.CanOpenClose = false
+            if not (self.DoorOpen) goto @1259
+            goto @15
+    @1259:  self.DoorOpenCue.Play(0.0)
+            self.DoorOpen = true
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.EmptyDetectSide.SceneComponent.K2_GetComponentLocation()
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Vector_Distance_ReturnValue_3 = KismetMathLibrary.Vector_Distance(K2Node_CustomEvent_PlayerLoc, CallFunc_K2_GetComponentLocation_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_3, CallFunc_Vector_Distance_ReturnValue)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_1) goto @394
+            goto @182
+    @1538:  if not (self.CanOpenClose) pop_flow
+            goto @1229
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, self.Timeline_0_DoorRotation)
+            self.Door1.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+            CallFunc_ComponentHasTag_ReturnValue = K2Node_ComponentBoundEvent_OtherComp_1.ActorComponent.ComponentHasTag("AI")
+            KismetMathLibrary.BreakRotator(self.Door1.self.?, CallFunc_BreakRotator_Roll_1, CallFunc_BreakRotator_Pitch_1, CallFunc_BreakRotator_Yaw_1)
+            CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_1)
+            CallFunc_NearlyEqual_FloatFloat_ReturnValue = KismetMathLibrary.NearlyEqual_FloatFloat(CallFunc_NearlyEqual_FloatFloat_A_ImplicitCast, 0.0, 1.0)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_NearlyEqual_FloatFloat_ReturnValue, self.Closing)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_ComponentHasTag_ReturnValue, CallFunc_BooleanOR_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            self.Closing = false
+            self.CanOpenClose = false
+            StopDoorAnim()
+            KismetMathLibrary.BreakRotator(self.Door1.self.?, CallFunc_BreakRotator_Roll_2, CallFunc_BreakRotator_Pitch_2, CallFunc_BreakRotator_Yaw_2)
+            K2Node_VariableSet_DoorPos_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_2)
+            self.DoorPos = K2Node_VariableSet_DoorPos_ImplicitCast
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = K2Node_ComponentBoundEvent_OtherActor_1.Actor.K2_GetActorLocation()
+            CallFunc_K2_GetComponentLocation_ReturnValue_1 = self.EmptyDetectSide.SceneComponent.K2_GetComponentLocation()
+            CallFunc_Vector_Distance_ReturnValue_1 = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_K2_GetComponentLocation_ReturnValue_1)
+            CallFunc_K2_GetActorLocation_ReturnValue_2 = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_2 = KismetMathLibrary.Vector_Distance(CallFunc_K2_GetComponentLocation_ReturnValue_1, CallFunc_K2_GetActorLocation_ReturnValue_2)
+            CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_1, CallFunc_Vector_Distance_ReturnValue_2)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue) goto @1196
+            goto @946
+            CallFunc_ComponentHasTag_ReturnValue_1 = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("AI")
+            if not (CallFunc_ComponentHasTag_ReturnValue_1) pop_flow
+            self.CanOpenClose = true
+            pop_flow  // return to pushed flow
+            push_flow @361
+            push_flow @149
+            goto @699
+            goto @215
+            MULTI: Interact(K2Node_Event_PlayerLocation)
+            pop_flow  // return to pushed flow
+            goto @1538
+            if not (self.DoorOpen) goto @2606
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Close Door"})
+            pop_flow  // return to pushed flow
+    @2606:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Open Door"})
+            pop_flow  // return to pushed flow
+    @2696:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2501)
+            return
+
+function MULTI: Interact  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_PlayerLoc = PlayerLoc
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2496)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2472)
+            return
+
+function StopDoorAnim  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2452)
+            return
+
+function Timeline_0__FinishedFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(2467)
+            return
+
+function Timeline_0__UpdateFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(1553)
+            return
+
+function Timeline_1__FinishedFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(215)
+            return
+
+function Timeline_1__UpdateFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(227)
+            return
+
+function Timeline_2__DoorCloseSound__EventFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(645)
+            return
+
+function Timeline_2__FinishedFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(327)
+            return
+
+function Timeline_2__UpdateFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(427)
+            return
+
+function Timeline_3__FinishedFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(687)
+            return
+
+function Timeline_3__UpdateFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(732)
+            return
+
+function Timeline_4__FinishedFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(945)
+            return
+
+function Timeline_4__UpdateFunc  [FUNC_BlueprintEvent]
+            SingleDoorA_C.ExecuteUbergraph_SingleDoorA(979)
+            return

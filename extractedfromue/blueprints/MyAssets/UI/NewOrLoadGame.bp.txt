@@ -1,0 +1,127 @@
+// Content\MyAssets\UI\NewOrLoadGame
+
+== class ExecuteUbergraph_NewOrLoadGame : 
+  var EntryPoint: Int
+  var CallFunc_PlayAnimation_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_Create_ReturnValue_1: Object
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var CallFunc_DoesSaveGameExist_ReturnValue: Bool
+  var CallFunc_GetPlayerCameraManager_ReturnValue: Object
+  var CallFunc_GetGameInstance_ReturnValue: Object
+  var CallFunc_PlayAnimationForward_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_Game_Instance: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var K2Node_MakeStruct_SlateColor_5: Struct
+
+== class NewOrLoadGame_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var NoSavedGamesFade: Object
+  var Fade: Object
+  var BackButton: Object
+  var BackgroundBlur_151: Object
+  var BackText: Object
+  var BlackBG: Object
+  var Image_87: Object
+  var LoadGameButton: Object
+  var LoadGameText: Object
+  var NewGameButton: Object
+  var NewGameButtonText: Object
+  var NoSavedGamesText: Object
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(959)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(1091)
+            return
+
+function BndEvt__NewOrLoadGame_BackButton_K2Node_ComponentBoundEvent_11_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(1223)
+            return
+
+function BndEvt__NewOrLoadGame_LoadGameButton_K2Node_ComponentBoundEvent_12_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(1228)
+            return
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(426)
+            return
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(431)
+            return
+
+function BndEvt__SessionsWidget_CreateSessionButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(563)
+            return
+
+function BndEvt__SessionsWidget_SettingsButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(695)
+            return
+
+function BndEvt__SessionsWidget_SettingsButton_K2Node_ComponentBoundEvent_4_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            NewOrLoadGame_C.ExecuteUbergraph_NewOrLoadGame(827)
+            return
+
+function ExecuteUbergraph_NewOrLoadGame  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1519
+            goto computed(EntryPoint)
+            CallFunc_GetGameInstance_ReturnValue = GameplayStatics.GetGameInstance(self)
+            K2Node_DynamicCast_AsBP_Game_Instance = Cast<BP_GameInstance_C>(CallFunc_GetGameInstance_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Game_Instance)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsBP_Game_Instance.Create Session()
+            pop_flow  // return to pushed flow
+    @148:   CallFunc_PlayAnimation_ReturnValue = UserWidget.PlayAnimation(self.NoSavedGamesFade, 0.0, 1, 0, 1.0, false)
+            pop_flow  // return to pushed flow
+    @196:   CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SessionsWidget_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            Widget.SetFocus()
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @311:   CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ConfirmNewGame_C>, null)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            Widget.SetFocus()
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+            goto @311
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.NewGameButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.NewGameButtonText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.LoadGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.LoadGameText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            pop_flow  // return to pushed flow
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            pop_flow  // return to pushed flow
+            goto @196
+            CallFunc_DoesSaveGameExist_ReturnValue = GameplayStatics.DoesSaveGameExist("WorldSave", 0)
+            if not (CallFunc_DoesSaveGameExist_ReturnValue) goto @148
+            self.NewGameButton.SetVisibility(4)
+            CallFunc_GetPlayerCameraManager_ReturnValue = GameplayStatics.GetPlayerCameraManager(self, 0)
+            CallFunc_GetPlayerCameraManager_ReturnValue.StartCameraFade(0.0, 1.0, 0.5, LinearColor{0.0, 0.0, 0.0, 0.0}, false, true)
+            CallFunc_PlayAnimationForward_ReturnValue = UserWidget.PlayAnimationForward(self.Fade, 1.0, false)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{15, 955541700, "ExecuteUbergraph_NewOrLoadGame", self})
+            pop_flow  // return to pushed flow
+    @1519:  return

@@ -24,11 +24,11 @@ var _open := OPEN
 var _from := 0.0                 # how shut the lids were when this blink started (a double blink)
 var _again := false
 
-func blink(slow := 1.0) -> void:
+func blink(slow := 1.0, single := false) -> void:
 	if _t >= 0.0:
 		return
 	_start(maxf(0.2, slow), 0.0)
-	_again = _slow > 1.3 and randf() < DOUBLE_CHANCE
+	_again = not single and _slow > 1.3 and randf() < DOUBLE_CHANCE
 
 func blinking() -> bool:
 	return _t >= 0.0

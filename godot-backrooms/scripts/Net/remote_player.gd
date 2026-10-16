@@ -164,15 +164,31 @@ func play_kill() -> void:
 		_kill_dead = false
 
 # Heard from where it happens: the crack as the head goes round, the body dropping once it lets go
-# (the clip's beats: tools/blender/add_survivor_neck_snap.py)
+# (the clip's beats: tools/blender/add_survivor_neck_snap.py).
+# Near: you hear their gasp and the bone crack raw. Far: their voice echoes down the corridors,
+# reverbed and repeating like a fighting-game death cry, and fades away.
 func _kill_sounds(was: float) -> void:
 	if not visible:
 		return
+	var fwd := Vector3(-sin(rotation.y), 0.0, -cos(rotation.y))
+	if was < KILL_SNAP_AT and _kill_t >= KILL_SNAP_AT:
+		Death.friend_spray(global_position + Vector3(0.0, 1.65, 0.0), fwd)
+	if was < KILL_DROP_AT and _kill_t >= KILL_DROP_AT:
+		Death.friend_pool(global_position, fwd)
 	var scares: Node = Game.main.get_node_or_null("Scares") if Game.main != null and is_instance_valid(Game.main) else null
 	if scares == null:
 		return
 	if was < KILL_SNAP_AT and _kill_t >= KILL_SNAP_AT:
 		scares.neck_snap_at(global_position + Vector3(0.0, 1.65, 0.0))
+		# distance-based reaction: the near friend hears the raw gasp + crack,
+		# the far friend hears the voice echo through the corridors and die away
+		var player_node: Node3D = scares.player if scares.player != null else null
+		if player_node != null:
+			var d := player_node.global_position.distance_to(global_position)
+			if d < scares.FAR_THRESH:
+				scares.friend_death_near(global_position)
+			else:
+				scares.friend_death_far(global_position)
 	if was < KILL_DROP_AT and _kill_t >= KILL_DROP_AT:
 		scares.body_fall_at(global_position + Vector3(0.0, 0.3, 0.0))
 
@@ -192,7 +208,10 @@ func _process(dt: float) -> void:
 	var flags: int = st.flags
 	crouching = flags & 1 != 0
 	torch_on = flags & 2 != 0
+	var was_dead := dead
 	dead = flags & 4 != 0
+	if dead and not was_dead and _kill_t < 0.0 and visible and seen:      # any other death: a pool under them
+		Death.friend_pool(global_position, Vector3(-sin(rotation.y), 0.0, -cos(rotation.y)))
 	playing = flags & 8 != 0
 	# a survivor still loading another level (level change, respawn), or up or down the stairs on another
 	# floor of it, isn't in our world: hidden, out of earshot, and out of net.survivors() (no monster here

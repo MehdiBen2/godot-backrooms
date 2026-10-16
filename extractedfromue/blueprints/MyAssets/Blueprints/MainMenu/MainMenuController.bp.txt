@@ -1,0 +1,24 @@
+// Content\MyAssets\Blueprints\MainMenu\MainMenuController
+
+== class MainMenuController_C : Class'PlayerController'
+  var UberGraphFrame: Struct
+
+== class ExecuteUbergraph_MainMenuController : 
+  var EntryPoint: Int
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_IsLocalController_ReturnValue: Bool
+
+function ExecuteUbergraph_MainMenuController  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<Blur_C>, self)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(0)
+            CallFunc_Create_ReturnValue.self.BackgroundBlur.SetBlurStrength(1.5)
+            goto @211
+            CallFunc_IsLocalController_ReturnValue = IsLocalController()
+            if not (CallFunc_IsLocalController_ReturnValue) goto @211
+            goto @10
+    @211:   return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            MainMenuController_C.ExecuteUbergraph_MainMenuController(168)
+            return

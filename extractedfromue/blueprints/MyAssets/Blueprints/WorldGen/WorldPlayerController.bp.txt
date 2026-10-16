@@ -1,0 +1,174 @@
+// Content\MyAssets\Blueprints\WorldGen\WorldPlayerController
+
+== class WorldPlayerController_C : Class'PlayerController'
+  var UberGraphFrame: Struct
+  var StartingLevel: Bool
+  var InventoryItems: Array
+  var PhotosLength: Int
+
+== class CLIENT: FadeCameraToBlack : 
+  var EndingContract: Bool
+
+== class ExecuteUbergraph_WorldPlayerController : 
+  var EntryPoint: Int
+  var CallFunc_GetLocalPlayerSubsystem_ReturnValue: Object
+  var CallFunc_ToggleVoiceCapture_ReturnValue: Bool
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_First_Person_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var K2Node_CustomEvent_EndingContract: Bool
+  var CallFunc_GetPlayerCameraManager_ReturnValue: Object
+  var K2Node_CustomEvent_InventoryItems: Array
+  var CallFunc_GetPlayerState_ReturnValue: Object
+  var K2Node_DynamicCast_AsWorld_Player_State: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_GetPlayerCameraManager_ReturnValue_1: Object
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_K2_GetPawn_ReturnValue: Object
+  var CallFunc_Array_Get_Item: Object
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess_2: Bool
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_IsLocalPlayerController_ReturnValue: Bool
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_K2_GetPawn_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var K2Node_DynamicCast_AsPlayer_BP_1: Object
+  var K2Node_DynamicCast_bSuccess_3: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+
+== class SERVER: Save Player State : 
+  var InventoryItems: Array
+
+function CLIENT: ClearPhotos  [FUNC_Net | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(1226)
+            return
+
+function CLIENT: FadeCameraToBlack  [FUNC_Net | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_EndingContract = EndingContract
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(603)
+            return
+
+function CLIENT: FadeFromBlack  [FUNC_Net | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(1015)
+            return
+
+function CLIENT: KillPlayerOutsideDoor  [FUNC_Net | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(1856)
+            return
+
+function CLIENT: SaveVariables  [FUNC_Net | FUNC_NetReliable | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(771)
+            return
+
+function ExecuteUbergraph_WorldPlayerController  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2396
+            goto computed(EntryPoint)
+            CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EODReportWidget_C>, null)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(0)
+            if not (K2Node_CustomEvent_EndingContract) pop_flow
+            KismetSystemLibrary.Delay(self, 15.0, LatentActionInfo{170, -441605729, "ExecuteUbergraph_WorldPlayerController", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EndContractWidget_C>, null)
+            CallFunc_Create_ReturnValue_2.UserWidget.AddToViewport(0)
+            pop_flow  // return to pushed flow
+    @261:   CallFunc_GetLocalPlayerSubsystem_ReturnValue = SubsystemBlueprintLibrary.GetLocalPlayerSubsystem(self, Obj<OnsetVoipLocalPlayerSubsystem>)
+            CallFunc_ToggleVoiceCapture_ReturnValue = CallFunc_GetLocalPlayerSubsystem_ReturnValue.OnsetVoipLocalPlayerSubsystem.ToggleVoiceCapture(true)
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerCameraManager_ReturnValue_1 = GameplayStatics.GetPlayerCameraManager(self, 0)
+            CallFunc_GetPlayerCameraManager_ReturnValue_1.StartCameraFade(1.0, 0.0, 2.0, LinearColor{0.0, 0.0, 0.0, 0.0}, false, true)
+            pop_flow  // return to pushed flow
+    @449:   CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode = Cast<BP_FirstPersonGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_First_Person_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode.SpawnPlayer(self)
+            pop_flow  // return to pushed flow
+            goto @449
+    @588:   SR_SpawnPlayer()
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerCameraManager_ReturnValue = GameplayStatics.GetPlayerCameraManager(self, 0)
+            CallFunc_GetPlayerCameraManager_ReturnValue.StartCameraFade(0.0, 1.0, 2.0, LinearColor{0.0, 0.0, 0.0, 0.0}, false, true)
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{15, 3367579, "ExecuteUbergraph_WorldPlayerController", self})
+            pop_flow  // return to pushed flow
+            SERVER: Save Player State(self.InventoryItems)
+            pop_flow  // return to pushed flow
+            CallFunc_GetPlayerState_ReturnValue = GameplayStatics.GetPlayerState(self, 0)
+            K2Node_DynamicCast_AsWorld_Player_State = Cast<WorldPlayerState_C>(CallFunc_GetPlayerState_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Player_State)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsWorld_Player_State.Actor.FlushNetDormancy()
+            K2Node_DynamicCast_AsWorld_Player_State.self.Inventory Items = K2Node_CustomEvent_InventoryItems
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_DynamicCast_AsWorld_Player_State, 21, "Inventory Items")
+            pop_flow  // return to pushed flow
+            CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<CurrentDayWidget_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(0)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, 90.0)
+            SetControlRotation(CallFunc_MakeRotator_ReturnValue)
+            KismetSystemLibrary.Delay(self, 6.0, LatentActionInfo{335, 1763037675, "ExecuteUbergraph_WorldPlayerController", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CameraImageHandler_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item.self.CameraImages)
+            self.PhotosLength = CallFunc_Array_Length_ReturnValue
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(CallFunc_Array_Get_Item.self.CameraImages)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Resize(CallFunc_Array_Get_Item.self.CameraImages, self.PhotosLength)
+            CallFunc_K2_GetPawn_ReturnValue = Controller.K2_GetPawn()
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(CallFunc_K2_GetPawn_ReturnValue)
+            K2Node_DynamicCast_bSuccess_2 = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess_2) pop_flow
+            K2Node_DynamicCast_AsPlayer_BP.UnequipItem()
+            pop_flow  // return to pushed flow
+    @1806:  push_flow @1816
+            goto @261
+    @1816:  CallFunc_IsLocalPlayerController_ReturnValue = Controller.IsLocalPlayerController()
+            if not (CallFunc_IsLocalPlayerController_ReturnValue) pop_flow
+            goto @588
+            goto @1806
+            CallFunc_K2_GetPawn_ReturnValue_1 = Controller.K2_GetPawn()
+            K2Node_DynamicCast_AsPlayer_BP_1 = Cast<PlayerBP_C>(CallFunc_K2_GetPawn_ReturnValue_1)
+            K2Node_DynamicCast_bSuccess_3 = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP_1)
+            if not (K2Node_DynamicCast_bSuccess_3) pop_flow
+            CallFunc_K2_GetActorLocation_ReturnValue = K2Node_DynamicCast_AsPlayer_BP_1.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X, 8400.0)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue, 0)
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue_1, -1)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue, CallFunc_EqualEqual_IntInt_ReturnValue_1)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_BooleanAND_ReturnValue, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue) pop_flow
+            K2Node_DynamicCast_AsPlayer_BP_1.ForceKillSpawnBody()
+            pop_flow  // return to pushed flow
+    @2396:  return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(1851)
+            return
+
+function SERVER: Save Player State  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_InventoryItems = InventoryItems
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(795)
+            return
+
+function SR_SpawnPlayer  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldPlayerController_C.ExecuteUbergraph_WorldPlayerController(583)
+            return

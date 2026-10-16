@@ -1,0 +1,35 @@
+// Content\MyAssets\SessionsMultiplayer\UI\W_PlayerInfo
+
+== class UpdatePlayerInfo : 
+  var PlayerInfo: Struct
+  var CallFunc_SelectFloat_ReturnValue: Double
+  var CallFunc_SelectText_ReturnValue: Text
+  var K2Node_MakeStruct_LinearColor: Struct
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_MakeStruct_R_ImplicitCast: Float
+  var K2Node_MakeStruct_G_ImplicitCast: Float
+  var K2Node_MakeStruct_B_ImplicitCast: Float
+
+== class W_PlayerInfo_C : Class'UserWidget'
+  var RetainerBox_0: Object
+  var Text_PlayerName: Object
+  var Text_ReadyStatus: Object
+  var PlayerInfo: Struct
+
+function UpdatePlayerInfo  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            self.PlayerInfo = PlayerInfo
+            self.Text_PlayerName.SetText(self.PlayerInfo.PlayerName_7)
+            CallFunc_SelectText_ReturnValue = KismetMathLibrary.SelectText(Text({"Token": "EX_StringConst", "Value": "Ready"}), Text({"Token": "EX_StringConst", "Value": "Not Ready"}), self.PlayerInfo.Ready_9)
+            self.Text_ReadyStatus.SetText(CallFunc_SelectText_ReturnValue)
+            CallFunc_SelectFloat_ReturnValue = KismetMathLibrary.SelectFloat(1.0, 0.3, self.PlayerInfo.Ready_9)
+            K2Node_MakeStruct_R_ImplicitCast = CST_DoubleToFloat(CallFunc_SelectFloat_ReturnValue)
+            K2Node_MakeStruct_LinearColor.? = K2Node_MakeStruct_R_ImplicitCast
+            K2Node_MakeStruct_G_ImplicitCast = CST_DoubleToFloat(CallFunc_SelectFloat_ReturnValue)
+            K2Node_MakeStruct_LinearColor.? = K2Node_MakeStruct_G_ImplicitCast
+            K2Node_MakeStruct_B_ImplicitCast = CST_DoubleToFloat(CallFunc_SelectFloat_ReturnValue)
+            K2Node_MakeStruct_LinearColor.? = K2Node_MakeStruct_B_ImplicitCast
+            K2Node_MakeStruct_LinearColor.? = 1.0
+            K2Node_MakeStruct_SlateColor.? = K2Node_MakeStruct_LinearColor
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.Text_ReadyStatus.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            return

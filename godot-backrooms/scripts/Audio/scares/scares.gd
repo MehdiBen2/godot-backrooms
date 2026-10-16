@@ -294,6 +294,121 @@ func body_fall_at(pos: Vector3) -> void:
 	if s != null:
 		spawn3d(s, pos, 0.9, "Scares", 3.0)
 
+# ------------------------------------------------------------------ friend dying (co-op)
+# What you hear when another survivor is killed by THE MANNEQUIN, from where you are standing.
+# NEAR (< FAR_THRESH m): their gasp right where it happens, the dry bone crack at their neck,
+#   raw and close, the way it sounds when you are in the room with it.
+# FAR  (>= FAR_THRESH m): their voice carries through the corridors, reverbed and repeating
+#   like a fighting-game death echo: the cry rings out two or three times, each one quieter
+#   and more washed-out than the last, then it is gone. Heavy reverb, low-passed through the
+#   walls, with tapped delays that decay into silence.
+const FAR_THRESH := 14.0               # metres: closer than this you hear it raw
+
+## Close enough to see it happen: the gasp and the crack, right where the neck goes round
+func friend_death_near(pos: Vector3) -> void:
+	# their gasp — a random take, 3D at the body so it has direction and distance
+	var gi := rng.randi() % GASPS.size()
+	var gs := _stream(GASPS[gi])
+	if gs != null:
+		var g := ClipLevels.gain(GASPS[gi], GASP_RMS, GASP_PEAK) * GASP_GAIN * 0.8
+		var gp := spawn3d(gs, pos + Vector3(0.0, 1.6, 0.0), g, "Scares", 3.5, rng.randf_range(0.96, 1.04))
+		var skip: float = GASP_SKIP.get(GASPS[gi], 0.0)
+		if skip > 0.0:
+			gp.play(skip)
+	# the crack at their neck
+	neck_snap_at(pos + Vector3(0.0, 1.65, 0.0))
+
+## Far off: their voice echoes down the corridors and fades, like a fighting-game KO cry that repeats and
+## decays into nothing. Each echo is a separate 3D player, progressively quieter, lower-pitched and delayed,
+## Reverb and low-pass sit on the FarDeath bus so it reads as distance swallowing the sound.
+const FAR_ECHO_COUNT := 3              # how many repeats (the original + this many echoes)
+const FAR_ECHO_DELAY := 0.38           # seconds between each repeat
+const FAR_ECHO_PREDELAY := 0.3         # seconds of near-silence after the hit before the first echo
+const FAR_ECHO_DECAY := 0.45           # each echo is this fraction of the previous one's volume
+const FAR_ECHO_PITCH_DROP := 0.04      # pitch drops by this much per echo
+const FAR_REVERB_WET := 0.55           # reverb wetness on the echo bus
+const FAR_REVERB_ROOM := 0.85          # reverb room size (big corridors)
+const FAR_LP_CUTOFF := 1800.0          # low-pass: the walls eat the highs
+const FAR_ECHO_CUTOFFS := [1400.0, 700.0, 350.0]   # each echo through a darker filter than the last, into FarDeath
+
+func friend_death_far(pos: Vector3) -> void:
+	var voice_pos := pos + Vector3(0.0, 1.6, 0.0)
+	var v: String = NECK_SNAP_VOICES[rng.randi() % NECK_SNAP_VOICES.size()]
+	var vs := _stream(v)
+	if vs == null:
+		return
+	var base_gain := ClipLevels.gain(v, VOICE_RMS, VOICE_PEAK) * 0.6
+	_ensure_far_death_bus()
+	# the original hit: raw, up the middle, but already on the FarDeath bus so it has the room tail
+	var p0 := spawn3d(vs, voice_pos, base_gain, "FarDeath", 6.0, rng.randf_range(0.97, 1.03), false)
+	p0.max_distance = 120.0
+	# a faint snap behind it: far away the crack is more felt than heard
+	var snap_s := _stream(NECK_SNAP_SOUND)
+	if snap_s != null:
+		var sp := spawn3d(snap_s, voice_pos, 0.35, "Scares", 5.0, rng.randf_range(0.92, 1.0))
+		sp.max_distance = 80.0
+	# the echoes: each one delayed, quieter, lower
+	var vol := base_gain
+	var pitch := p0.pitch_scale
+	for i in FAR_ECHO_COUNT:
+		vol *= FAR_ECHO_DECAY
+		pitch -= FAR_ECHO_PITCH_DROP
+		var delay_s := FAR_ECHO_PREDELAY + FAR_ECHO_DELAY * (i + 1)
+		var ev := vs
+		var fv := vol
+		var fp := pitch
+		var drift := Vector3(rng.randf_range(-1.5, 1.5), 0.0, rng.randf_range(-1.5, 1.5))
+		var echo_pos := voice_pos + drift * float(i + 1) * 0.6
+		get_tree().create_timer(delay_s, false).timeout.connect(func():
+			if not is_inside_tree():
+				return
+			var ep := spawn3d(ev, echo_pos, fv, "FarDeathEcho%d" % i, 8.0 + i * 2.0, fp, false)
+			ep.max_distance = 120.0
+			var tw := ep.create_tween()
+			tw.tween_property(ep, "volume_db", ep.volume_db - 18.0, 2.5 + i * 0.8)
+		)
+
+## FarDeath: low-pass, reverb and a feedback delay, routed to Scares. Set up once and left alone.
+func _ensure_far_death_bus() -> void:
+	if AudioServer.get_bus_index("FarDeath") >= 0:
+		return
+	var idx := AudioServer.bus_count
+	AudioServer.add_bus(idx)
+	AudioServer.set_bus_name(idx, "FarDeath")
+	AudioServer.set_bus_send(idx, "Scares")
+	var lp := AudioEffectLowPassFilter.new()
+	lp.cutoff_hz = FAR_LP_CUTOFF
+	lp.db = AudioEffectFilter.FILTER_12DB
+	AudioServer.add_bus_effect(idx, lp)
+	var rev := AudioEffectReverb.new()
+	rev.room_size = FAR_REVERB_ROOM
+	rev.damping = 0.65
+	rev.dry = 1.0 - FAR_REVERB_WET
+	rev.wet = FAR_REVERB_WET
+	rev.spread = 0.8
+	AudioServer.add_bus_effect(idx, rev)
+	var delay := AudioEffectDelay.new()
+	delay.tap1_active = true
+	delay.tap1_delay_ms = FAR_ECHO_DELAY * 1000.0 * 0.7
+	delay.tap1_level_db = -9.0
+	delay.tap2_active = true
+	delay.tap2_delay_ms = FAR_ECHO_DELAY * 1000.0 * 1.5
+	delay.tap2_level_db = -15.0
+	delay.feedback_active = true
+	delay.feedback_delay_ms = FAR_ECHO_DELAY * 1000.0
+	delay.feedback_level_db = -12.0
+	delay.feedback_lowpass = FAR_LP_CUTOFF * 0.7
+	AudioServer.add_bus_effect(idx, delay)
+	for i in FAR_ECHO_CUTOFFS.size():
+		var ei := AudioServer.bus_count
+		AudioServer.add_bus(ei)
+		AudioServer.set_bus_name(ei, "FarDeathEcho%d" % i)
+		AudioServer.set_bus_send(ei, "FarDeath")
+		var dark := AudioEffectLowPassFilter.new()
+		dark.cutoff_hz = FAR_ECHO_CUTOFFS[i]
+		dark.db = AudioEffectFilter.FILTER_12DB
+		AudioServer.add_bus_effect(ei, dark)
+
 ## The scream of falling down a bottomless pit; returns the player so the fall can cut it off
 func fall_scream() -> AudioStreamPlayer:
 	var s := _stream(FALL_SCREAM)

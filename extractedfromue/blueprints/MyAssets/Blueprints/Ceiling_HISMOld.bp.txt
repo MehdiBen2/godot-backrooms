@@ -1,0 +1,8 @@
+// Content\MyAssets\Blueprints\Ceiling_HISMOld
+
+== class Ceiling_HISMOld_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object
+  var StartingLoc: Struct
+  var RandomTexture: Array
+  var RandomRotation: Array

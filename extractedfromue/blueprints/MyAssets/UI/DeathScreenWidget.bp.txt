@@ -1,0 +1,23 @@
+// Content\MyAssets\UI\DeathScreenWidget
+
+== class ExecuteUbergraph_DeathScreenWidget : 
+  var EntryPoint: Int
+
+== class DeathScreenWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var Image_166: Object
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            DeathScreenWidget_C.ExecuteUbergraph_DeathScreenWidget(35)
+            return
+
+function ExecuteUbergraph_DeathScreenWidget  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @150
+            goto computed(EntryPoint)
+    @15:    RemoveFromParent()
+            pop_flow  // return to pushed flow
+            goto @15
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<YouAreDeadScreenAudio>, 1.0, 1.0, 0.0, null, null, true)
+            KismetSystemLibrary.Delay(self, 4.0, LatentActionInfo{30, 2016210873, "ExecuteUbergraph_DeathScreenWidget", self})
+            pop_flow  // return to pushed flow
+    @150:   return

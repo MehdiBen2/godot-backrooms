@@ -1,0 +1,1232 @@
+// Content\MyAssets\Blueprints\WorldGen\WorldChunkHandler
+
+== class WorldChunkHandler_C : Class'WorldGenerator'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var ChunkSpacing: Double
+  var LoadRadius: Int
+  var UnloadRadius: Int
+  var ChunksPerFrame: Int
+  var PlayerCheckInterval: Double
+  var LoadedChunks: Map
+  var SpawnQueue: Array
+  var DespawnQueue: Array
+  var DesiredChunks: Array
+  var PreviousPlayerChunks: Map
+  var KeepChunk: Bool
+  var MainSeed: Int
+  var HazmatEmployee: Object
+  var SpawnMonsterInterval: Double
+  var Lifeforms: Array
+  var PossibleMonsterSpawnLocations: Array
+  var LocationStillValid: Bool
+  var ValidDirection: Int
+  var XValid: Bool
+  var YValid: Bool
+  var ActiveChunksForPlayerLoad: Array
+  var AllChunksLoadedForPlayerLoad: Bool
+  var PlayerHasTheirChunk: Bool
+  var HasStartedChunkHandler: Bool
+  var LoadedFromSave: Bool
+  var RDOsPickedUp: Map
+  var HazmatLocation: Bool
+  var EmployeeSpawned: Bool
+  var TaskSystem: Object
+  var ActiveDoorActors: Array
+  var ActiveDoorActorLocations: Array
+  var DoorCheckDirection: Array
+  var CheckChunkDirection: Array
+  var DoorAddRotation: Array
+  var CurrentFurthestDistance: Int
+  var GameState: Object
+
+== class ExecuteUbergraph_WorldChunkHandler : 
+  var EntryPoint: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Loop_Counter_Variable_2: Int
+  var Temp_int_Loop_Counter_Variable_3: Int
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var CallFunc_GreaterEqual_IntInt_ReturnValue: Bool
+  var Temp_int_Array_Index_Variable_2: Int
+  var Temp_int_Array_Index_Variable_3: Int
+  var Temp_int_Loop_Counter_Variable_4: Int
+  var Temp_int_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue_3: Int
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue_4: Int
+  var Temp_int_Variable_1: Int
+  var CallFunc_LessEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Add_IntInt_ReturnValue_5: Int
+  var Temp_int_Loop_Counter_Variable_5: Int
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var CallFunc_Add_IntInt_ReturnValue_6: Int
+  var CallFunc_K2_SetTimerDelegate_ReturnValue: Struct
+  var Temp_int_Array_Index_Variable_4: Int
+  var Temp_int_Array_Index_Variable_5: Int
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_GetGameState_ReturnValue_1: Object
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var Temp_int_Array_Index_Variable_6: Int
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Array_Get_Item: Struct
+  var CallFunc_Map_Contains_ReturnValue: Bool
+  var CallFunc_Array_Contains_ReturnValue: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Map_Keys_Keys: Array
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_GetGameState_ReturnValue_2: Object
+  var Temp_int_Loop_Counter_Variable_6: Int
+  var CallFunc_Array_Length_ReturnValue_4: Int
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_Add_IntInt_ReturnValue_7: Int
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var CallFunc_Array_Length_ReturnValue_5: Int
+  var CallFunc_Array_Get_Item_1: Struct
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_GetChunkWorldLocation_Location: Struct
+  var CallFunc_MakeTransform_ReturnValue: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue: Object
+  var CallFunc_FinishSpawningActor_ReturnValue: Object
+  var CallFunc_Array_Get_Item_2: Struct
+  var CallFunc_Array_Length_ReturnValue_6: Int
+  var CallFunc_Array_Get_Item_3: Struct
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_Map_Find_Value: Object
+  var CallFunc_Map_Find_ReturnValue: Bool
+  var CallFunc_Map_Remove_ReturnValue: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var K2Node_CreateDelegate_OutputDelegate_2: Delegate
+  var CallFunc_K2_SetTimerDelegate_ReturnValue_1: Struct
+  var K2Node_MakeStruct_ChunkCoordinate: Struct
+  var CallFunc_Array_Find_ReturnValue: Int
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_GetPlayerCoordinate_Coordinate: Struct
+  var CallFunc_K2_SetTimerDelegate_ReturnValue_2: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_2: Bool
+  var CallFunc_Array_AddUnique_ReturnValue: Int
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_GetGameState_ReturnValue_3: Object
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_Array_Length_ReturnValue_7: Int
+  var Temp_int_Loop_Counter_Variable_7: Int
+  var Temp_int_Array_Index_Variable_7: Int
+  var CallFunc_Less_IntInt_ReturnValue_2: Bool
+  var CallFunc_Add_IntInt_ReturnValue_8: Int
+  var Temp_int_Loop_Counter_Variable_8: Int
+  var Temp_int_Loop_Counter_Variable_9: Int
+  var CallFunc_Add_IntInt_ReturnValue_9: Int
+  var CallFunc_Add_IntInt_ReturnValue_10: Int
+  var CallFunc_Array_Length_ReturnValue_8: Int
+  var CallFunc_Less_IntInt_ReturnValue_3: Bool
+  var CallFunc_Array_Length_ReturnValue_9: Int
+  var CallFunc_Array_Length_ReturnValue_10: Int
+  var CallFunc_Greater_IntInt_ReturnValue_2: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_4: Object
+  var CallFunc_Array_Length_ReturnValue_11: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue_2: Struct
+  var CallFunc_Less_IntInt_ReturnValue_4: Bool
+  var CallFunc_GetPlayerCoordinate_Coordinate_1: Struct
+  var Temp_int_Array_Index_Variable_8: Int
+  var Temp_int_Array_Index_Variable_9: Int
+  var CallFunc_Array_Get_Item_5: Object
+  var CallFunc_Array_Get_Item_6: Struct
+  var CallFunc_GetPawn_ReturnValue: Object
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_Subtract_IntInt_ReturnValue_1: Int
+  var CallFunc_Abs_Int_ReturnValue: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_2: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue_3: Struct
+  var CallFunc_Abs_Int_ReturnValue_1: Int
+  var CallFunc_GetPlayerCoordinate_Coordinate_2: Struct
+  var CallFunc_Add_IntInt_ReturnValue_11: Int
+  var CallFunc_Less_IntInt_ReturnValue_5: Bool
+  var K2Node_CreateDelegate_OutputDelegate_3: Delegate
+  var Temp_int_Array_Index_Variable_10: Int
+  var CallFunc_K2_SetTimerDelegate_ReturnValue_3: Struct
+  var CallFunc_Array_Get_Item_7: Object
+  var CallFunc_GetPawn_ReturnValue_1: Object
+  var CallFunc_IsValid_ReturnValue_2: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_4: Struct
+  var CallFunc_GetPlayerCoordinate_Coordinate_3: Struct
+  var CallFunc_Array_AddUnique_ReturnValue_1: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_12: Int
+  var K2Node_MakeStruct_ChunkCoordinate_1: Struct
+  var K2Node_MakeStruct_ChunkCoordinate_2: Struct
+  var CallFunc_Array_AddUnique_ReturnValue_2: Int
+  var CallFunc_Array_AddUnique_ReturnValue_3: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_4: Int
+  var CallFunc_Add_IntInt_ReturnValue_13: Int
+  var K2Node_MakeStruct_ChunkCoordinate_3: Struct
+  var K2Node_MakeStruct_ChunkCoordinate_4: Struct
+  var CallFunc_Array_AddUnique_ReturnValue_4: Int
+  var CallFunc_Array_AddUnique_ReturnValue_5: Int
+  var CallFunc_Array_Length_ReturnValue_12: Int
+  var CallFunc_Array_Get_Item_8: Object
+  var CallFunc_Greater_IntInt_ReturnValue_4: Bool
+  var CallFunc_IsValid_ReturnValue_3: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_5: Struct
+  var CallFunc_Array_Length_ReturnValue_13: Int
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Subtract_IntInt_ReturnValue_5: Int
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Max_ReturnValue: Int
+  var CallFunc_GetPlayerCoordinate_Coordinate_4: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue_3: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_4: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var Temp_bool_True_if_break_was_hit_Variable: Bool
+  var Temp_int_Loop_Counter_Variable_10: Int
+  var CallFunc_Less_IntInt_ReturnValue_6: Bool
+  var CallFunc_Add_IntInt_ReturnValue_14: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var Temp_int_Array_Index_Variable_11: Int
+  var Temp_int_Loop_Counter_Variable_11: Int
+  var K2Node_CreateDelegate_OutputDelegate_4: Delegate
+  var CallFunc_K2_SetTimerDelegate_ReturnValue_4: Struct
+  var CallFunc_Add_IntInt_ReturnValue_15: Int
+  var Temp_int_Array_Index_Variable_12: Int
+  var CallFunc_Array_Get_Item_9: Struct
+  var CallFunc_Array_Contains_ReturnValue_1: Bool
+  var CallFunc_Subtract_IntInt_ReturnValue_6: Int
+  var CallFunc_Abs_Int_ReturnValue_2: Int
+  var CallFunc_Subtract_IntInt_ReturnValue_7: Int
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Abs_Int_ReturnValue_3: Int
+  var CallFunc_Array_Add_ReturnValue_1: Int
+  var CallFunc_GreaterEqual_IntInt_ReturnValue_2: Bool
+  var CallFunc_Array_Contains_ReturnValue_2: Bool
+  var CallFunc_BooleanOR_ReturnValue_1: Bool
+  var Temp_int_Array_Index_Variable_13: Int
+  var CallFunc_RandomBoolWithWeight_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_10: Object
+  var CallFunc_Map_Find_Value_1: Struct
+  var CallFunc_Map_Find_ReturnValue_1: Bool
+  var CallFunc_GetPawn_ReturnValue_2: Object
+  var CallFunc_IsValid_ReturnValue_4: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_6: Struct
+  var CallFunc_GetPlayerCoordinate_Coordinate_5: Struct
+  var K2Node_CustomEvent_LoadedFromSave: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_5: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_6: Bool
+  var CallFunc_GetGameState_ReturnValue_4: Object
+  var CallFunc_BooleanAND_ReturnValue_3: Bool
+  var CallFunc_Array_Get_Item_11: Object
+  var CallFunc_Array_Length_ReturnValue_14: Int
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_Less_IntInt_ReturnValue_7: Bool
+  var K2Node_DynamicCast_AsWorld_Player_Controller: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_GetPawn_ReturnValue_3: Object
+  var CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId: Struct
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_UniqueNetIdToString_String: Str
+  var CallFunc_GetGameState_ReturnValue_5: Object
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess_2: Bool
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_IsValid_ReturnValue_5: Bool
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_First_Person_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess_3: Bool
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Get_Item_12: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue_7: Struct
+  var CallFunc_Map_Length_ReturnValue: Int
+  var CallFunc_Map_Find_Value_2: Struct
+  var CallFunc_Map_Find_ReturnValue_2: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_5: Bool
+  var CallFunc_Array_Length_ReturnValue_15: Int
+  var CallFunc_Less_IntInt_ReturnValue_8: Bool
+  var CallFunc_BreakTransform_Location: Struct
+  var CallFunc_BreakTransform_Rotation: Struct
+  var CallFunc_BreakTransform_Scale: Struct
+  var CallFunc_Array_Add_ReturnValue_2: Int
+  var CallFunc_BreakVector_X_1: Double
+  var CallFunc_BreakVector_Y_1: Double
+  var CallFunc_BreakVector_Z_1: Double
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Conv_IntToString_ReturnValue_1: Str
+  var CallFunc_Conv_IntToString_ReturnValue_2: Str
+  var CallFunc_GetGameState_ReturnValue_6: Object
+  var CallFunc_Concat_StrStr_ReturnValue_2: Str
+  var CallFunc_Concat_StrStr_ReturnValue_3: Str
+  var CallFunc_Array_Get_Item_13: Object
+  var CallFunc_Concat_StrStr_ReturnValue_4: Str
+  var CallFunc_GetPawn_ReturnValue_4: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue_8: Struct
+  var CallFunc_Array_Length_ReturnValue_16: Int
+  var CallFunc_BreakVector_X_2: Double
+  var CallFunc_BreakVector_Y_2: Double
+  var CallFunc_BreakVector_Z_2: Double
+  var CallFunc_Less_IntInt_ReturnValue_9: Bool
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Round_ReturnValue_2: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_EqualEqual_IntInt_ReturnValue_7: Bool
+  var CallFunc_Round_ReturnValue_3: Int
+  var CallFunc_BreakVector_X_3: Double
+  var CallFunc_BreakVector_Y_3: Double
+  var CallFunc_BreakVector_Z_3: Double
+  var CallFunc_EqualEqual_IntInt_ReturnValue_8: Bool
+  var CallFunc_Divide_DoubleDouble_ReturnValue_2: Double
+  var CallFunc_BooleanAND_ReturnValue_4: Bool
+  var CallFunc_Round_ReturnValue_4: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue_3: Double
+  var CallFunc_Round_ReturnValue_5: Int
+  var CallFunc_Array_Get_Item_14: Struct
+  var CallFunc_Array_Length_ReturnValue_17: Int
+  var CallFunc_BreakVector_X_4: Double
+  var CallFunc_BreakVector_Y_4: Double
+  var CallFunc_BreakVector_Z_4: Double
+  var CallFunc_Less_IntInt_ReturnValue_10: Bool
+  var CallFunc_Divide_DoubleDouble_ReturnValue_4: Double
+  var CallFunc_Round_ReturnValue_6: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue_5: Double
+  var CallFunc_EqualEqual_IntInt_ReturnValue_9: Bool
+  var CallFunc_Round_ReturnValue_7: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue_10: Bool
+  var CallFunc_BooleanAND_ReturnValue_5: Bool
+  var CallFunc_GetGameState_ReturnValue_7: Object
+  var Temp_int_Loop_Counter_Variable_12: Int
+  var CallFunc_Array_Get_Item_15: Object
+  var CallFunc_GetPawn_ReturnValue_5: Object
+  var CallFunc_Less_IntInt_ReturnValue_11: Bool
+  var K2Node_DynamicCast_AsPlayer_BP_1: Object
+  var K2Node_DynamicCast_bSuccess_4: Bool
+  var CallFunc_Add_IntInt_ReturnValue_16: Int
+  var CallFunc_Array_Length_ReturnValue_18: Int
+  var CallFunc_Less_IntInt_ReturnValue_12: Bool
+  var Temp_int_Array_Index_Variable_14: Int
+  var CallFunc_Array_Get_Item_16: Object
+  var CallFunc_GetPawn_ReturnValue_6: Object
+  var CallFunc_IsValid_ReturnValue_6: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_9: Struct
+  var CallFunc_GetPlayerCoordinate_Coordinate_6: Struct
+  var CallFunc_Array_Add_ReturnValue_3: Int
+  var CallFunc_Greater_IntInt_ReturnValue_6: Bool
+  var CallFunc_Less_IntInt_ReturnValue_13: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_7: Bool
+  var CallFunc_BooleanOR_ReturnValue_2: Bool
+  var CallFunc_Less_IntInt_ReturnValue_14: Bool
+  var CallFunc_BooleanOR_ReturnValue_3: Bool
+  var CallFunc_BooleanOR_ReturnValue_4: Bool
+  var K2Node_Event_DeltaSeconds: Float
+  var Temp_int_Loop_Counter_Variable_13: Int
+  var CallFunc_Array_Get_Item_17: Struct
+  var CallFunc_Less_IntInt_ReturnValue_15: Bool
+  var CallFunc_Add_VectorVector_ReturnValue: Struct
+  var CallFunc_Add_IntInt_ReturnValue_17: Int
+  var CallFunc_Array_Find_ReturnValue_1: Int
+  var CallFunc_Array_Get_Item_18: Double
+  var CallFunc_EqualEqual_IntInt_ReturnValue_11: Bool
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeTransform_ReturnValue_1: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1: Object
+  var CallFunc_Array_Add_ReturnValue_4: Int
+  var CallFunc_FinishSpawningActor_ReturnValue_1: Object
+  var CallFunc_Array_Add_ReturnValue_5: Int
+  var CallFunc_Array_Get_Item_19: Struct
+  var CallFunc_Add_VectorVector_ReturnValue_1: Struct
+  var CallFunc_Array_Find_ReturnValue_2: Int
+  var CallFunc_NotEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_20: Object
+  var CallFunc_Array_Get_Item_21: Struct
+  var CallFunc_Array_Random_OutItem: Struct
+  var CallFunc_Array_Random_OutIndex: Int
+  var CallFunc_Add_VectorVector_ReturnValue_2: Struct
+  var CallFunc_EqualExactly_VectorVector_ReturnValue: Bool
+  var CallFunc_Multiply_IntInt_ReturnValue: Int
+  var CallFunc_Conv_IntToDouble_ReturnValue: Double
+  var CallFunc_Multiply_IntInt_ReturnValue_1: Int
+  var CallFunc_Conv_IntToDouble_ReturnValue_1: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_MakeTransform_ReturnValue_2: Struct
+  var CallFunc_GetGameState_ReturnValue_8: Object
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_2: Object
+  var CallFunc_Array_Get_Item_22: Object
+  var CallFunc_Array_Length_ReturnValue_19: Int
+  var CallFunc_GetPawn_ReturnValue_7: Object
+  var CallFunc_Less_IntInt_ReturnValue_16: Bool
+  var CallFunc_IsValid_ReturnValue_7: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_10: Struct
+  var CallFunc_FinishSpawningActor_ReturnValue_2: Object
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_Array_Add_ReturnValue_6: Int
+  var CallFunc_Round_ReturnValue_8: Int
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_Divide_IntInt_ReturnValue: Int
+  var CallFunc_Greater_IntInt_ReturnValue_8: Bool
+  var CallFunc_K2_SetTimerDelegate_Time_ImplicitCast: Float
+  var CallFunc_K2_SetTimerDelegate_Time_ImplicitCast_1: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+
+== class GetChunkCoordinate : 
+  var ChunkLocation: Struct
+  var ChunkCoordinate: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_FFloor_ReturnValue: Int
+  var CallFunc_FFloor_ReturnValue_1: Int
+  var K2Node_MakeStruct_ChunkCoordinate: Struct
+
+== class GetChunkWorldLocation : 
+  var ChunkCoordinate: Struct
+  var Location: Struct
+  var CallFunc_Multiply_IntInt_ReturnValue: Int
+  var CallFunc_Multiply_IntInt_ReturnValue_1: Int
+  var CallFunc_Conv_IntToDouble_ReturnValue: Double
+  var CallFunc_Conv_IntToDouble_ReturnValue_1: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+
+== class GetPlayerCoordinate : 
+  var Location: Struct
+  var Coordinate: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Round_ReturnValue_1: Int
+  var K2Node_MakeStruct_ChunkCoordinate: Struct
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class SpawnLostEmployeeChunk : 
+  var SpawnLocation: Struct
+  var TempYValue: Int
+  var TempXValue: Int
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var K2Node_MakeStruct_ChunkCoordinate: Struct
+  var CallFunc_RandomIntegerInRange_ReturnValue_1: Int
+  var CallFunc_RandomIntegerInRange_ReturnValue_2: Int
+  var CallFunc_RandomBool_ReturnValue: Bool
+  var CallFunc_RandomBool_ReturnValue_1: Bool
+  var CallFunc_RandomIntegerInRange_ReturnValue_3: Int
+
+== class StartChunkHandler : 
+  var LoadedFromSave: Bool
+
+function BreakLifeformSpawnLoop  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(25002)
+            return
+
+function CheckPlayerFurthestDistance  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(25120)
+            return
+
+function CheckSpawnMonster  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(23364)
+            return
+
+function ExecuteUbergraph_WorldChunkHandler  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @25125
+            goto computed(EntryPoint)
+    @15:    if not (K2Node_DynamicCast_AsWorld_Game_State.self.PlayersReady) goto @3619
+            CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_First_Person_Game_Mode = Cast<BP_FirstPersonGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess_3 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_First_Person_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess_3) pop_flow
+            CallFunc_Map_Length_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Length(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers)
+            CallFunc_Greater_IntInt_ReturnValue_5 = KismetMathLibrary.Greater_IntInt(CallFunc_Map_Length_ReturnValue, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_5) goto @3674
+            Temp_int_Loop_Counter_Variable_11 = 0
+            Temp_int_Array_Index_Variable_11 = 0
+    @344:   CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_14 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_4.self.?)
+            CallFunc_Less_IntInt_ReturnValue_7 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_11, CallFunc_Array_Length_ReturnValue_14)
+            if not (CallFunc_Less_IntInt_ReturnValue_7) goto @4329
+            Temp_int_Array_Index_Variable_11 = Temp_int_Loop_Counter_Variable_11
+            push_flow @6989
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            if not (CallFunc_Map_Find_ReturnValue_2) pop_flow
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            CallFunc_GetPawn_ReturnValue_3 = CallFunc_Array_Get_Item_11.PlayerState.GetPawn()
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(CallFunc_GetPawn_ReturnValue_3)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            CallFunc_GetPlayerController_ReturnValue = CallFunc_Array_Get_Item_11.PlayerState.GetPlayerController()
+            K2Node_DynamicCast_AsWorld_Player_Controller = Cast<WorldPlayerController_C>(CallFunc_GetPlayerController_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Player_Controller)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            KismetMathLibrary.BreakTransform(CallFunc_Map_Find_Value_2.Location_2, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            CallFunc_K2_SetActorLocation_ReturnValue = K2Node_DynamicCast_AsPlayer_BP.Actor.K2_SetActorLocation(CallFunc_BreakTransform_Location, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            CallFunc_GetPlayerController_ReturnValue = CallFunc_Array_Get_Item_11.PlayerState.GetPlayerController()
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            KismetMathLibrary.BreakTransform(CallFunc_Map_Find_Value_2.Location_2, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            CallFunc_GetPlayerController_ReturnValue.SetControlRotation(CallFunc_BreakTransform_Rotation)
+            K2Node_DynamicCast_AsWorld_Player_Controller.Actor.FlushNetDormancy()
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            K2Node_DynamicCast_AsWorld_Player_Controller.self.InventoryItems = CallFunc_Map_Find_Value_2.Inventory_9
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(K2Node_DynamicCast_AsWorld_Player_Controller, 14, "InventoryItems")
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            K2Node_DynamicCast_AsPlayer_BP.LoadPlayerState(CallFunc_Map_Find_Value_2.Health_16, CallFunc_Map_Find_Value_2.isGrabbed_15)
+            CallFunc_GetGameState_ReturnValue_4 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_4.self.?, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_11)
+            AdvancedSessionsLibrary.GetUniqueNetIDFromPlayerState(CallFunc_Array_Get_Item_11, CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId)
+            AdvancedSessionsLibrary.UniqueNetIdToString(CallFunc_GetUniqueNetIDFromPlayerState_UniqueNetId, CallFunc_UniqueNetIdToString_String)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr("Loaded NetID:   ", CallFunc_UniqueNetIdToString_String)
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue, "X: ")
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(K2Node_DynamicCast_AsBP_First_Person_Game_Mode.self.CurrentSaveGame.self.CurrentSavedPlayers, CallFunc_UniqueNetIdToString_String, CallFunc_Map_Find_Value_2)
+            KismetMathLibrary.BreakTransform(CallFunc_Map_Find_Value_2.Location_2, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            KismetMathLibrary.BreakVector(CallFunc_BreakTransform_Location, CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_BreakVector_Z_1)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_BreakVector_Y_1)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_BreakVector_X_1)
+            CallFunc_Conv_IntToString_ReturnValue_1 = KismetStringLibrary.Conv_IntToString(CallFunc_Round_ReturnValue)
+            CallFunc_Conv_IntToString_ReturnValue_2 = KismetStringLibrary.Conv_IntToString(CallFunc_Round_ReturnValue_1)
+            CallFunc_Concat_StrStr_ReturnValue_2 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue_1, CallFunc_Conv_IntToString_ReturnValue_2)
+            CallFunc_Concat_StrStr_ReturnValue_3 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue_2, "  Y: ")
+            CallFunc_Concat_StrStr_ReturnValue_4 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue_3, CallFunc_Conv_IntToString_ReturnValue_1)
+            KismetSystemLibrary.PrintString(self, CallFunc_Concat_StrStr_ReturnValue_4, true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @3619:  KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{15, -753863370, "ExecuteUbergraph_WorldChunkHandler", self})
+            pop_flow  // return to pushed flow
+    @3674:  if not (self.HasStartedChunkHandler) goto @4269
+            Temp_int_Loop_Counter_Variable_3 = 0
+            Temp_int_Array_Index_Variable_2 = 0
+    @3734:  CallFunc_GetGameState_ReturnValue_7 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_18 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_7.self.?)
+            CallFunc_Less_IntInt_ReturnValue_12 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_3, CallFunc_Array_Length_ReturnValue_18)
+            if not (CallFunc_Less_IntInt_ReturnValue_12) goto @4185
+            Temp_int_Array_Index_Variable_2 = Temp_int_Loop_Counter_Variable_3
+            push_flow @7063
+            CallFunc_GetGameState_ReturnValue_7 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_7.self.?, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_15)
+            CallFunc_GetPawn_ReturnValue_5 = CallFunc_Array_Get_Item_15.PlayerState.GetPawn()
+            K2Node_DynamicCast_AsPlayer_BP_1 = Cast<PlayerBP_C>(CallFunc_GetPawn_ReturnValue_5)
+            K2Node_DynamicCast_bSuccess_4 = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP_1)
+            if not (K2Node_DynamicCast_bSuccess_4) pop_flow
+            K2Node_DynamicCast_AsPlayer_BP_1.StartPlayer(self.LoadedFromSave)
+            pop_flow  // return to pushed flow
+    @4185:  KismetSystemLibrary.PrintString(self, "All Chunks Ready", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @4269:  KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{4324, -683253428, "ExecuteUbergraph_WorldChunkHandler", self})
+            pop_flow  // return to pushed flow
+            goto @3674
+    @4329:  CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<Chunk_Actor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(self.ActiveChunksForPlayerLoad)
+            Temp_int_Loop_Counter_Variable_9 = 0
+            Temp_int_Array_Index_Variable_7 = 0
+    @4456:  CallFunc_Array_Length_ReturnValue_15 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_Less_IntInt_ReturnValue_8 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_9, CallFunc_Array_Length_ReturnValue_15)
+            if not (CallFunc_Less_IntInt_ReturnValue_8) goto @4851
+            Temp_int_Array_Index_Variable_7 = Temp_int_Loop_Counter_Variable_9
+            push_flow @4777
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable_7, CallFunc_Array_Get_Item_12)
+            CallFunc_K2_GetActorLocation_ReturnValue_7 = CallFunc_Array_Get_Item_12.Actor.K2_GetActorLocation()
+            CallFunc_Array_Add_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveChunksForPlayerLoad, CallFunc_K2_GetActorLocation_ReturnValue_7)
+            pop_flow  // return to pushed flow
+    @4777:  CallFunc_Add_IntInt_ReturnValue_9 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_9, 1)
+            Temp_int_Loop_Counter_Variable_9 = CallFunc_Add_IntInt_ReturnValue_9
+            goto @4456
+    @4851:  self.AllChunksLoadedForPlayerLoad = true
+            Temp_int_Loop_Counter_Variable_6 = 0
+            Temp_int_Array_Index_Variable_3 = 0
+    @4908:  CallFunc_GetGameState_ReturnValue_6 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_16 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_6.self.?)
+            CallFunc_Less_IntInt_ReturnValue_9 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_6, CallFunc_Array_Length_ReturnValue_16)
+            if not (CallFunc_Less_IntInt_ReturnValue_9) goto @6823
+            Temp_int_Array_Index_Variable_3 = Temp_int_Loop_Counter_Variable_6
+            push_flow @6749
+            self.PlayerHasTheirChunk = false
+            CallFunc_GetGameState_ReturnValue_6 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_6.self.?, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_13)
+            CallFunc_GetPawn_ReturnValue_4 = CallFunc_Array_Get_Item_13.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_8 = CallFunc_GetPawn_ReturnValue_4.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_8, CallFunc_BreakVector_X_2, CallFunc_BreakVector_Y_2, CallFunc_BreakVector_Z_2)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y_2, 8400.0)
+            CallFunc_Round_ReturnValue_2 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X_2, 8400.0)
+            CallFunc_EqualEqual_IntInt_ReturnValue_7 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue_2, -1)
+            CallFunc_Round_ReturnValue_3 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_EqualEqual_IntInt_ReturnValue_8 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue_3, 0)
+            CallFunc_BooleanAND_ReturnValue_4 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue_8, CallFunc_EqualEqual_IntInt_ReturnValue_7)
+            if not (CallFunc_BooleanAND_ReturnValue_4) goto @5720
+            KismetSystemLibrary.PrintString(self, "Player was in the lab", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @5720:  Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @5766:  CallFunc_Array_Length_ReturnValue_17 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.ActiveChunksForPlayerLoad)
+            CallFunc_Less_IntInt_ReturnValue_10 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_17)
+            if not (CallFunc_Less_IntInt_ReturnValue_10) goto @6722
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable
+            push_flow @7137
+            CallFunc_GetGameState_ReturnValue_6 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_6.self.?, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_13)
+            CallFunc_GetPawn_ReturnValue_4 = CallFunc_Array_Get_Item_13.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_8 = CallFunc_GetPawn_ReturnValue_4.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_8, CallFunc_BreakVector_X_3, CallFunc_BreakVector_Y_3, CallFunc_BreakVector_Z_3)
+            CallFunc_Divide_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y_3, 8400.0)
+            CallFunc_Round_ReturnValue_4 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_2)
+            CallFunc_Divide_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X_3, 8400.0)
+            CallFunc_Round_ReturnValue_5 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_3)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveChunksForPlayerLoad, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_14)
+            KismetMathLibrary.BreakVector(CallFunc_Array_Get_Item_14, CallFunc_BreakVector_X_4, CallFunc_BreakVector_Y_4, CallFunc_BreakVector_Z_4)
+            CallFunc_Divide_DoubleDouble_ReturnValue_4 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y_4, 8400.0)
+            CallFunc_Round_ReturnValue_6 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_4)
+            CallFunc_Divide_DoubleDouble_ReturnValue_5 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X_4, 8400.0)
+            CallFunc_EqualEqual_IntInt_ReturnValue_9 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue_6, CallFunc_Round_ReturnValue_4)
+            CallFunc_Round_ReturnValue_7 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_5)
+            CallFunc_EqualEqual_IntInt_ReturnValue_10 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Round_ReturnValue_7, CallFunc_Round_ReturnValue_5)
+            CallFunc_BooleanAND_ReturnValue_5 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue_10, CallFunc_EqualEqual_IntInt_ReturnValue_9)
+            if not (CallFunc_BooleanAND_ReturnValue_5) pop_flow
+            self.PlayerHasTheirChunk = true
+            pop_flow  // return to pushed flow
+    @6722:  if not (self.PlayerHasTheirChunk) goto @6737
+            pop_flow  // return to pushed flow
+    @6737:  self.AllChunksLoadedForPlayerLoad = false
+            pop_flow  // return to pushed flow
+    @6749:  CallFunc_Add_IntInt_ReturnValue_7 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_6, 1)
+            Temp_int_Loop_Counter_Variable_6 = CallFunc_Add_IntInt_ReturnValue_7
+            goto @4908
+    @6823:  if not (self.AllChunksLoadedForPlayerLoad) goto @6842
+            goto @3674
+    @6842:  KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{6897, -726902315, "ExecuteUbergraph_WorldChunkHandler", self})
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.PrintString(self, "Chunks NOT Ready Yet", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            goto @4329
+    @6989:  CallFunc_Add_IntInt_ReturnValue_15 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_11, 1)
+            Temp_int_Loop_Counter_Variable_11 = CallFunc_Add_IntInt_ReturnValue_15
+            goto @344
+    @7063:  CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_3, 1)
+            Temp_int_Loop_Counter_Variable_3 = CallFunc_Add_IntInt_ReturnValue_2
+            goto @3734
+    @7137:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @5766
+    @7211:  CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(self.CurrentFurthestDistance)
+            KismetSystemLibrary.PrintString(self, CallFunc_Conv_IntToString_ReturnValue, true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @7323:  CallFunc_GetGameState_ReturnValue_5 = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue_5)
+            K2Node_DynamicCast_bSuccess_2 = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess_2) pop_flow
+            CallFunc_IsValid_ReturnValue_5 = KismetSystemLibrary.IsValid(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (CallFunc_IsValid_ReturnValue_5) goto @7486
+            self.GameState = K2Node_DynamicCast_AsWorld_Game_State
+            goto @15
+    @7486:  KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{7323, 384756522, "ExecuteUbergraph_WorldChunkHandler", self})
+            pop_flow  // return to pushed flow
+    @7541:  push_flow @8535
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Lifeforms, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_8)
+            CallFunc_IsValid_ReturnValue_3 = KismetSystemLibrary.IsValid(CallFunc_Array_Get_Item_8)
+            if not (CallFunc_IsValid_ReturnValue_3) goto @8484
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Lifeforms, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_8)
+            CallFunc_K2_GetActorLocation_ReturnValue_5 = CallFunc_Array_Get_Item_8.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_5, CallFunc_GetPlayerCoordinate_Coordinate_4)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Lifeforms, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_8)
+            CallFunc_K2_GetActorLocation_ReturnValue_5 = CallFunc_Array_Get_Item_8.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_5, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_BreakVector_Z, -1000.0)
+            CallFunc_EqualEqual_IntInt_ReturnValue_3 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_4.YValue_5, CallFunc_Array_Get_Item_3.YValue_5)
+            CallFunc_EqualEqual_IntInt_ReturnValue_4 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_4.XValue_4, CallFunc_Array_Get_Item_3.XValue_4)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue_4, CallFunc_EqualEqual_IntInt_ReturnValue_3)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_BooleanAND_ReturnValue_2, CallFunc_Less_DoubleDouble_ReturnValue)
+            if not (CallFunc_BooleanOR_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Lifeforms, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Get_Item_8.K2_DestroyActor()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.Lifeforms, Temp_int_Array_Index_Variable)
+            KismetSystemLibrary.PrintString(self, "Destroyed Lifeform - Far from player", true, true, LinearColor{1.0, 0.129726, 0.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @8484:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.Lifeforms, Temp_int_Array_Index_Variable)
+            pop_flow  // return to pushed flow
+    @8535:  CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(Temp_int_Loop_Counter_Variable_2, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Subtract_IntInt_ReturnValue
+    @8604:  CallFunc_GreaterEqual_IntInt_ReturnValue = KismetMathLibrary.GreaterEqual_IntInt(Temp_int_Loop_Counter_Variable_2, 0)
+            if not (CallFunc_GreaterEqual_IntInt_ReturnValue) goto @8684
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable_2
+            goto @7541
+    @8684:  Temp_int_Variable_1 = 0
+    @8707:  CallFunc_LessEqual_IntInt_ReturnValue_1 = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable_1, 3)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue_1) goto @10462
+            push_flow @10388
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.LoadedChunks, CallFunc_Array_Get_Item_3, CallFunc_Map_Find_Value)
+            CallFunc_K2_GetActorLocation_ReturnValue = CallFunc_Map_Find_Value.Actor.K2_GetActorLocation()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable_1, CallFunc_Array_Get_Item_19)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_Array_Get_Item_19)
+            CallFunc_Array_Find_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue_1)
+            CallFunc_NotEqual_IntInt_ReturnValue = KismetMathLibrary.NotEqual_IntInt(CallFunc_Array_Find_ReturnValue_2, -1)
+            if not (CallFunc_NotEqual_IntInt_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.LoadedChunks, CallFunc_Array_Get_Item_3, CallFunc_Map_Find_Value)
+            CallFunc_K2_GetActorLocation_ReturnValue = CallFunc_Map_Find_Value.Actor.K2_GetActorLocation()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable_1, CallFunc_Array_Get_Item_19)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_Array_Get_Item_19)
+            CallFunc_Array_Find_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ActiveDoorActors, CallFunc_Array_Find_ReturnValue_2, CallFunc_Array_Get_Item_20)
+            CallFunc_Array_Get_Item_20.K2_DestroyActor()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.LoadedChunks, CallFunc_Array_Get_Item_3, CallFunc_Map_Find_Value)
+            CallFunc_K2_GetActorLocation_ReturnValue = CallFunc_Map_Find_Value.Actor.K2_GetActorLocation()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable_1, CallFunc_Array_Get_Item_19)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_Array_Get_Item_19)
+            CallFunc_Array_Find_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.ActiveDoorActors, CallFunc_Array_Find_ReturnValue_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.LoadedChunks, CallFunc_Array_Get_Item_3, CallFunc_Map_Find_Value)
+            CallFunc_K2_GetActorLocation_ReturnValue = CallFunc_Map_Find_Value.Actor.K2_GetActorLocation()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable_1, CallFunc_Array_Get_Item_19)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_Array_Get_Item_19)
+            CallFunc_Array_Find_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.ActiveDoorActorLocations, CallFunc_Array_Find_ReturnValue_2)
+            pop_flow  // return to pushed flow
+    @10388: CallFunc_Add_IntInt_ReturnValue_5 = KismetMathLibrary.Add_IntInt(Temp_int_Variable_1, 1)
+            Temp_int_Variable_1 = CallFunc_Add_IntInt_ReturnValue_5
+            goto @8707
+    @10462: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.LoadedChunks, CallFunc_Array_Get_Item_3, CallFunc_Map_Find_Value)
+            CallFunc_Map_Find_Value.DestroyChunk()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DespawnQueue, 0, CallFunc_Array_Get_Item_3)
+            CallFunc_Map_Remove_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Remove(self.LoadedChunks, CallFunc_Array_Get_Item_3)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.DespawnQueue, 0)
+            pop_flow  // return to pushed flow
+    @10784: Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable_12 = 0
+    @10830: CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Map_Keys_Keys)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue_3)
+            if not (CallFunc_Less_IntInt_ReturnValue) pop_flow
+            Temp_int_Array_Index_Variable_12 = Temp_int_Loop_Counter_Variable_1
+            push_flow @12503
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Map_Keys_Keys, Temp_int_Array_Index_Variable_12, CallFunc_Array_Get_Item_9)
+            CallFunc_Array_Contains_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Contains(self.DesiredChunks, CallFunc_Array_Get_Item_9)
+            if not (CallFunc_Array_Contains_ReturnValue_2) goto @11103
+            pop_flow  // return to pushed flow
+    @11103: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Map_Keys_Keys, Temp_int_Array_Index_Variable_12, CallFunc_Array_Get_Item_9)
+            CallFunc_Array_Contains_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Contains(self.DespawnQueue, CallFunc_Array_Get_Item_9)
+            if not (CallFunc_Array_Contains_ReturnValue_1) goto @11237
+            pop_flow  // return to pushed flow
+    @11237: self.KeepChunk = true
+            Temp_int_Loop_Counter_Variable_4 = 0
+            Temp_int_Array_Index_Variable_8 = 0
+    @11294: CallFunc_GetGameState_ReturnValue_2 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_2.self.?)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_4, CallFunc_Array_Length_ReturnValue_4)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) goto @12360
+            Temp_int_Array_Index_Variable_8 = Temp_int_Loop_Counter_Variable_4
+            push_flow @12286
+            CallFunc_GetGameState_ReturnValue_2 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_2.self.?, Temp_int_Array_Index_Variable_8, CallFunc_Array_Get_Item_5)
+            CallFunc_GetPawn_ReturnValue = CallFunc_Array_Get_Item_5.PlayerState.GetPawn()
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(CallFunc_GetPawn_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue_1) pop_flow
+            CallFunc_GetGameState_ReturnValue_2 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_2.self.?, Temp_int_Array_Index_Variable_8, CallFunc_Array_Get_Item_5)
+            CallFunc_GetPawn_ReturnValue = CallFunc_Array_Get_Item_5.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_3 = CallFunc_GetPawn_ReturnValue.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_3, CallFunc_GetPlayerCoordinate_Coordinate_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Map_Keys_Keys, Temp_int_Array_Index_Variable_12, CallFunc_Array_Get_Item_9)
+            CallFunc_Subtract_IntInt_ReturnValue_6 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_2.YValue_5, CallFunc_Array_Get_Item_9.YValue_5)
+            CallFunc_Abs_Int_ReturnValue_2 = KismetMathLibrary.Abs_Int(CallFunc_Subtract_IntInt_ReturnValue_6)
+            CallFunc_Subtract_IntInt_ReturnValue_7 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_2.XValue_4, CallFunc_Array_Get_Item_9.XValue_4)
+            CallFunc_GreaterEqual_IntInt_ReturnValue_1 = KismetMathLibrary.GreaterEqual_IntInt(CallFunc_Abs_Int_ReturnValue_2, self.UnloadRadius)
+            CallFunc_Abs_Int_ReturnValue_3 = KismetMathLibrary.Abs_Int(CallFunc_Subtract_IntInt_ReturnValue_7)
+            CallFunc_GreaterEqual_IntInt_ReturnValue_2 = KismetMathLibrary.GreaterEqual_IntInt(CallFunc_Abs_Int_ReturnValue_3, self.UnloadRadius)
+            CallFunc_BooleanOR_ReturnValue_1 = KismetMathLibrary.BooleanOR(CallFunc_GreaterEqual_IntInt_ReturnValue_2, CallFunc_GreaterEqual_IntInt_ReturnValue_1)
+            if not (CallFunc_BooleanOR_ReturnValue_1) pop_flow
+            self.KeepChunk = false
+            pop_flow  // return to pushed flow
+    @12286: CallFunc_Add_IntInt_ReturnValue_3 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_4, 1)
+            Temp_int_Loop_Counter_Variable_4 = CallFunc_Add_IntInt_ReturnValue_3
+            goto @11294
+    @12360: if not (self.KeepChunk) goto @12375
+            pop_flow  // return to pushed flow
+    @12375: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Map_Keys_Keys, Temp_int_Array_Index_Variable_12, CallFunc_Array_Get_Item_9)
+            CallFunc_Array_Add_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.DespawnQueue, CallFunc_Array_Get_Item_9)
+            pop_flow  // return to pushed flow
+    @12503: CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @10830
+    @12577: Temp_int_Variable = 0
+    @12600: CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, 3)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) pop_flow
+            push_flow @13988
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable, CallFunc_Array_Get_Item_17)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_Array_Get_Item_17, CallFunc_GetChunkWorldLocation_Location)
+            CallFunc_Array_Find_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue)
+            CallFunc_EqualEqual_IntInt_ReturnValue_11 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue_1, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_11) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.CheckChunkDirection, Temp_int_Variable, CallFunc_Array_Get_Item_21)
+            CallFunc_Add_VectorVector_ReturnValue_2 = KismetMathLibrary.Add_VectorVector(CallFunc_GetChunkWorldLocation_Location, CallFunc_Array_Get_Item_21)
+            CallFunc_EqualExactly_VectorVector_ReturnValue = KismetMathLibrary.EqualExactly_VectorVector(CallFunc_Add_VectorVector_ReturnValue_2, Vec(0.0, -8400.0, 0.0))
+            if not (CallFunc_EqualExactly_VectorVector_ReturnValue) goto @13040
+            pop_flow  // return to pushed flow
+    @13040: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable, CallFunc_Array_Get_Item_17)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_Array_Get_Item_17, CallFunc_GetChunkWorldLocation_Location)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorAddRotation, Temp_int_Variable, CallFunc_Array_Get_Item_18)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Array_Get_Item_18)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            CallFunc_MakeTransform_ReturnValue_1 = KismetMathLibrary.MakeTransform(CallFunc_Add_VectorVector_ReturnValue, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1 = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<SingleDoorA_C>, CallFunc_MakeTransform_ReturnValue_1, 0, null, 1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable, CallFunc_Array_Get_Item_17)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_Array_Get_Item_17, CallFunc_GetChunkWorldLocation_Location)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorAddRotation, Temp_int_Variable, CallFunc_Array_Get_Item_18)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Array_Get_Item_18)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            CallFunc_MakeTransform_ReturnValue_1 = KismetMathLibrary.MakeTransform(CallFunc_Add_VectorVector_ReturnValue, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue_1 = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1, CallFunc_MakeTransform_ReturnValue_1, 1)
+            CallFunc_Array_Add_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveDoorActors, CallFunc_FinishSpawningActor_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DoorCheckDirection, Temp_int_Variable, CallFunc_Array_Get_Item_17)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_Array_Get_Item_17, CallFunc_GetChunkWorldLocation_Location)
+            CallFunc_Array_Add_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.ActiveDoorActorLocations, CallFunc_Add_VectorVector_ReturnValue)
+            pop_flow  // return to pushed flow
+    @13988: CallFunc_Add_IntInt_ReturnValue_4 = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue_4
+            goto @12600
+    @14062: bind K2Node_CreateDelegate_OutputDelegate -> self.ProcessDespawnQueue
+            CallFunc_K2_SetTimerDelegate_ReturnValue = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate, 0.21, true, false, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+    @14140: CallFunc_Add_IntInt_ReturnValue_6 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_5, 1)
+            Temp_int_Loop_Counter_Variable_5 = CallFunc_Add_IntInt_ReturnValue_6
+    @14209: CallFunc_GetGameState_ReturnValue_8 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_19 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_8.self.?)
+            CallFunc_Less_IntInt_ReturnValue_16 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_5, CallFunc_Array_Length_ReturnValue_19)
+            if not (CallFunc_Less_IntInt_ReturnValue_16) pop_flow
+            Temp_int_Array_Index_Variable_4 = Temp_int_Loop_Counter_Variable_5
+            push_flow @14140
+            CallFunc_GetGameState_ReturnValue_8 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_8.self.?, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_22)
+            CallFunc_GetPawn_ReturnValue_7 = CallFunc_Array_Get_Item_22.PlayerState.GetPawn()
+            CallFunc_IsValid_ReturnValue_7 = KismetSystemLibrary.IsValid(CallFunc_GetPawn_ReturnValue_7)
+            if not (CallFunc_IsValid_ReturnValue_7) pop_flow
+            CallFunc_GetGameState_ReturnValue_8 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_8.self.?, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_22)
+            CallFunc_GetPawn_ReturnValue_7 = CallFunc_Array_Get_Item_22.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_10 = CallFunc_GetPawn_ReturnValue_7.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(Vec(0.0, -4200.0, 0.0), CallFunc_K2_GetActorLocation_ReturnValue_10)
+            CallFunc_Round_ReturnValue_8 = KismetMathLibrary.Round(CallFunc_Vector_Distance_ReturnValue)
+            CallFunc_Divide_IntInt_ReturnValue = KismetMathLibrary.Divide_IntInt(CallFunc_Round_ReturnValue_8, 150)
+            CallFunc_Greater_IntInt_ReturnValue_8 = KismetMathLibrary.Greater_IntInt(CallFunc_Divide_IntInt_ReturnValue, self.CurrentFurthestDistance)
+            if not (CallFunc_Greater_IntInt_ReturnValue_8) pop_flow
+            CallFunc_GetGameState_ReturnValue_8 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_8.self.?, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_22)
+            CallFunc_GetPawn_ReturnValue_7 = CallFunc_Array_Get_Item_22.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_10 = CallFunc_GetPawn_ReturnValue_7.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(Vec(0.0, -4200.0, 0.0), CallFunc_K2_GetActorLocation_ReturnValue_10)
+            CallFunc_Round_ReturnValue_8 = KismetMathLibrary.Round(CallFunc_Vector_Distance_ReturnValue)
+            CallFunc_Divide_IntInt_ReturnValue = KismetMathLibrary.Divide_IntInt(CallFunc_Round_ReturnValue_8, 150)
+            self.CurrentFurthestDistance = CallFunc_Divide_IntInt_ReturnValue
+            self.GameState.Actor.FlushNetDormancy()
+            self.GameState.self.FurthestDistanceTraveled = self.CurrentFurthestDistance
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.GameState, 30, "FurthestDistanceTraveled")
+            goto @7211
+    @15442: Temp_int_Loop_Counter_Variable_5 = 0
+            Temp_int_Array_Index_Variable_4 = 0
+            goto @14209
+    @15493: Temp_int_Array_Index_Variable_5 = 0
+    @15516: CallFunc_Array_Length_ReturnValue_11 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Less_IntInt_ReturnValue_4 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_8, CallFunc_Array_Length_ReturnValue_11)
+            if not (CallFunc_Less_IntInt_ReturnValue_4) goto @16237
+            Temp_int_Array_Index_Variable_5 = Temp_int_Loop_Counter_Variable_8
+            push_flow @16163
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Lifeforms, Temp_int_Array_Index_Variable_5, CallFunc_Array_Get_Item_4)
+            CallFunc_K2_GetActorLocation_ReturnValue_2 = CallFunc_Array_Get_Item_4.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_2, CallFunc_GetPlayerCoordinate_Coordinate_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.PossibleMonsterSpawnLocations, Temp_int_Array_Index_Variable_9, CallFunc_Array_Get_Item_6)
+            CallFunc_Subtract_IntInt_ReturnValue_1 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_1.YValue_5, CallFunc_Array_Get_Item_6.YValue_5)
+            CallFunc_Abs_Int_ReturnValue = KismetMathLibrary.Abs_Int(CallFunc_Subtract_IntInt_ReturnValue_1)
+            CallFunc_Subtract_IntInt_ReturnValue_2 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_1.XValue_4, CallFunc_Array_Get_Item_6.XValue_4)
+            CallFunc_Abs_Int_ReturnValue_1 = KismetMathLibrary.Abs_Int(CallFunc_Subtract_IntInt_ReturnValue_2)
+            CallFunc_Add_IntInt_ReturnValue_11 = KismetMathLibrary.Add_IntInt(CallFunc_Abs_Int_ReturnValue_1, CallFunc_Abs_Int_ReturnValue)
+            CallFunc_Less_IntInt_ReturnValue_5 = KismetMathLibrary.Less_IntInt(CallFunc_Add_IntInt_ReturnValue_11, 3)
+            if not (CallFunc_Less_IntInt_ReturnValue_5) pop_flow
+            self.LocationStillValid = false
+            pop_flow  // return to pushed flow
+    @16163: CallFunc_Add_IntInt_ReturnValue_10 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_8, 1)
+            Temp_int_Loop_Counter_Variable_8 = CallFunc_Add_IntInt_ReturnValue_10
+            goto @15516
+    @16237: if not (self.LocationStillValid) pop_flow
+    @16247: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(self.PossibleMonsterSpawnLocations, CallFunc_Array_Random_OutItem, CallFunc_Array_Random_OutIndex)
+            CallFunc_Multiply_IntInt_ReturnValue = KismetMathLibrary.Multiply_IntInt(CallFunc_Array_Random_OutItem.YValue_5, 8400)
+            CallFunc_Conv_IntToDouble_ReturnValue = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue)
+            CallFunc_Multiply_IntInt_ReturnValue_1 = KismetMathLibrary.Multiply_IntInt(CallFunc_Array_Random_OutItem.XValue_4, 8400)
+            CallFunc_Conv_IntToDouble_ReturnValue_1 = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue_1)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Conv_IntToDouble_ReturnValue_1, CallFunc_Conv_IntToDouble_ReturnValue, 225.0)
+            CallFunc_MakeTransform_ReturnValue_2 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue, Rot(0.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_2 = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<Lifeform_Char_C>, CallFunc_MakeTransform_ReturnValue_2, 0, null, 1)
+            CallFunc_RandomBoolWithWeight_ReturnValue = KismetMathLibrary.RandomBoolWithWeight(0.2)
+            KismetSystemLibrary.SetBoolPropertyByName(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_2, "IsGiant", CallFunc_RandomBoolWithWeight_ReturnValue)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(self.PossibleMonsterSpawnLocations, CallFunc_Array_Random_OutItem, CallFunc_Array_Random_OutIndex)
+            CallFunc_Multiply_IntInt_ReturnValue = KismetMathLibrary.Multiply_IntInt(CallFunc_Array_Random_OutItem.YValue_5, 8400)
+            CallFunc_Conv_IntToDouble_ReturnValue = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue)
+            CallFunc_Multiply_IntInt_ReturnValue_1 = KismetMathLibrary.Multiply_IntInt(CallFunc_Array_Random_OutItem.XValue_4, 8400)
+            CallFunc_Conv_IntToDouble_ReturnValue_1 = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue_1)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Conv_IntToDouble_ReturnValue_1, CallFunc_Conv_IntToDouble_ReturnValue, 225.0)
+            CallFunc_MakeTransform_ReturnValue_2 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue, Rot(0.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue_2 = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_2, CallFunc_MakeTransform_ReturnValue_2, 1)
+            CallFunc_Array_Add_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Lifeforms, CallFunc_FinishSpawningActor_ReturnValue_2)
+            KismetSystemLibrary.PrintString(self, "Spawned Lifeform", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            BreakLifeformSpawnLoop()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable_12 = 0
+            Temp_int_Array_Index_Variable_13 = 0
+    @17363: CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue.self.?)
+            CallFunc_Less_IntInt_ReturnValue_11 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_12, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue_11) pop_flow
+            Temp_int_Array_Index_Variable_13 = Temp_int_Loop_Counter_Variable_12
+            push_flow @18490
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable_13, CallFunc_Array_Get_Item_10)
+            CallFunc_GetPawn_ReturnValue_2 = CallFunc_Array_Get_Item_10.PlayerState.GetPawn()
+            CallFunc_IsValid_ReturnValue_4 = KismetSystemLibrary.IsValid(CallFunc_GetPawn_ReturnValue_2)
+            if not (CallFunc_IsValid_ReturnValue_4) pop_flow
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable_13, CallFunc_Array_Get_Item_10)
+            CallFunc_GetPawn_ReturnValue_2 = CallFunc_Array_Get_Item_10.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_6 = CallFunc_GetPawn_ReturnValue_2.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_6, CallFunc_GetPlayerCoordinate_Coordinate_5)
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable_13, CallFunc_Array_Get_Item_10)
+            CallFunc_Map_Find_ReturnValue_1 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.PreviousPlayerChunks, CallFunc_Array_Get_Item_10, CallFunc_Map_Find_Value_1)
+            if not (CallFunc_Map_Find_ReturnValue_1) goto @18475
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable_13, CallFunc_Array_Get_Item_10)
+            CallFunc_Map_Find_ReturnValue_1 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.PreviousPlayerChunks, CallFunc_Array_Get_Item_10, CallFunc_Map_Find_Value_1)
+            CallFunc_EqualEqual_IntInt_ReturnValue_5 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_5.YValue_5, CallFunc_Map_Find_Value_1.YValue_5)
+            CallFunc_EqualEqual_IntInt_ReturnValue_6 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_5.XValue_4, CallFunc_Map_Find_Value_1.XValue_4)
+            CallFunc_BooleanAND_ReturnValue_3 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue_6, CallFunc_EqualEqual_IntInt_ReturnValue_5)
+            if not (CallFunc_BooleanAND_ReturnValue_3) goto @18475
+            pop_flow  // return to pushed flow
+    @18475: RebuildDesiredChunks()
+            pop_flow  // return to pushed flow
+    @18490: CallFunc_Add_IntInt_ReturnValue_16 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_12, 1)
+            Temp_int_Loop_Counter_Variable_12 = CallFunc_Add_IntInt_ReturnValue_16
+            goto @17363
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(self.DesiredChunks)
+            Temp_int_Loop_Counter_Variable_10 = 0
+            Temp_int_Array_Index_Variable_10 = 0
+    @18651: CallFunc_GetGameState_ReturnValue_1 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_1.self.?)
+            CallFunc_Less_IntInt_ReturnValue_6 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_10, CallFunc_Array_Length_ReturnValue_1)
+            if not (CallFunc_Less_IntInt_ReturnValue_6) goto @20552
+            Temp_int_Array_Index_Variable_10 = Temp_int_Loop_Counter_Variable_10
+            push_flow @20478
+            CallFunc_GetGameState_ReturnValue_1 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_1.self.?, Temp_int_Array_Index_Variable_10, CallFunc_Array_Get_Item_7)
+            CallFunc_GetPawn_ReturnValue_1 = CallFunc_Array_Get_Item_7.PlayerState.GetPawn()
+            CallFunc_IsValid_ReturnValue_2 = KismetSystemLibrary.IsValid(CallFunc_GetPawn_ReturnValue_1)
+            if not (CallFunc_IsValid_ReturnValue_2) pop_flow
+            CallFunc_GetGameState_ReturnValue_1 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_1.self.?, Temp_int_Array_Index_Variable_10, CallFunc_Array_Get_Item_7)
+            CallFunc_GetPawn_ReturnValue_1 = CallFunc_Array_Get_Item_7.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_4 = CallFunc_GetPawn_ReturnValue_1.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_4, CallFunc_GetPlayerCoordinate_Coordinate_3)
+            CallFunc_Add_IntInt_ReturnValue_13 = KismetMathLibrary.Add_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_3.XValue_4, 1)
+            K2Node_MakeStruct_ChunkCoordinate_4.XValue_4 = CallFunc_Add_IntInt_ReturnValue_13
+            K2Node_MakeStruct_ChunkCoordinate_4.YValue_5 = CallFunc_GetPlayerCoordinate_Coordinate_3.YValue_5
+            CallFunc_Array_AddUnique_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate_4)
+            CallFunc_Subtract_IntInt_ReturnValue_4 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_3.XValue_4, 1)
+            K2Node_MakeStruct_ChunkCoordinate_3.XValue_4 = CallFunc_Subtract_IntInt_ReturnValue_4
+            K2Node_MakeStruct_ChunkCoordinate_3.YValue_5 = CallFunc_GetPlayerCoordinate_Coordinate_3.YValue_5
+            CallFunc_Array_AddUnique_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate_3)
+            CallFunc_Add_IntInt_ReturnValue_12 = KismetMathLibrary.Add_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_3.YValue_5, 1)
+            K2Node_MakeStruct_ChunkCoordinate_2.XValue_4 = CallFunc_GetPlayerCoordinate_Coordinate_3.XValue_4
+            K2Node_MakeStruct_ChunkCoordinate_2.YValue_5 = CallFunc_Add_IntInt_ReturnValue_12
+            CallFunc_Array_AddUnique_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate_2)
+            CallFunc_Subtract_IntInt_ReturnValue_3 = KismetMathLibrary.Subtract_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_3.YValue_5, 1)
+            K2Node_MakeStruct_ChunkCoordinate_1.XValue_4 = CallFunc_GetPlayerCoordinate_Coordinate_3.XValue_4
+            K2Node_MakeStruct_ChunkCoordinate_1.YValue_5 = CallFunc_Subtract_IntInt_ReturnValue_3
+            CallFunc_Array_AddUnique_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate_1)
+            CallFunc_Array_AddUnique_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, CallFunc_GetPlayerCoordinate_Coordinate_3)
+            K2Node_MakeStruct_ChunkCoordinate.XValue_4 = 0
+            K2Node_MakeStruct_ChunkCoordinate.YValue_5 = -1
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @20295
+            pop_flow  // return to pushed flow
+    @20295: K2Node_MakeStruct_ChunkCoordinate.XValue_4 = 0
+            K2Node_MakeStruct_ChunkCoordinate.YValue_5 = -1
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.DesiredChunks, K2Node_MakeStruct_ChunkCoordinate)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.DesiredChunks, CallFunc_Array_Find_ReturnValue)
+            pop_flow  // return to pushed flow
+    @20478: CallFunc_Add_IntInt_ReturnValue_14 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_10, 1)
+            Temp_int_Loop_Counter_Variable_10 = CallFunc_Add_IntInt_ReturnValue_14
+            goto @18651
+    @20552: CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.HazmatEmployee)
+            if not (CallFunc_IsValid_ReturnValue) goto @20913
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = self.HazmatEmployee.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_GetPlayerCoordinate_Coordinate)
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate.YValue_5, -1)
+            CallFunc_EqualEqual_IntInt_ReturnValue_2 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_GetPlayerCoordinate_Coordinate.XValue_4, 0)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_IntInt_ReturnValue_2, CallFunc_EqualEqual_IntInt_ReturnValue_1)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_BooleanAND_ReturnValue, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue) goto @20913
+            CallFunc_Array_AddUnique_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_AddUnique(self.DesiredChunks, CallFunc_GetPlayerCoordinate_Coordinate)
+    @20913: UpdateQueues()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable_7 = 0
+            Temp_int_Array_Index_Variable_6 = 0
+    @20974: CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.DesiredChunks)
+            CallFunc_Less_IntInt_ReturnValue_2 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_7, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_2) goto @21587
+            Temp_int_Array_Index_Variable_6 = Temp_int_Loop_Counter_Variable_7
+            push_flow @21513
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DesiredChunks, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item)
+            CallFunc_Map_Contains_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Contains(self.LoadedChunks, CallFunc_Array_Get_Item)
+            if not (CallFunc_Map_Contains_ReturnValue) goto @21251
+            pop_flow  // return to pushed flow
+    @21251: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DesiredChunks, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item)
+            CallFunc_Array_Contains_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Contains(self.SpawnQueue, CallFunc_Array_Get_Item)
+            if not (CallFunc_Array_Contains_ReturnValue) goto @21385
+            pop_flow  // return to pushed flow
+    @21385: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.DesiredChunks, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item)
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.SpawnQueue, CallFunc_Array_Get_Item)
+            pop_flow  // return to pushed flow
+    @21513: CallFunc_Add_IntInt_ReturnValue_8 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_7, 1)
+            Temp_int_Loop_Counter_Variable_7 = CallFunc_Add_IntInt_ReturnValue_8
+            goto @20974
+    @21587: CallFunc_Map_Keys_Keys = []
+            Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Keys(self.LoadedChunks, CallFunc_Map_Keys_Keys)
+            goto @10784
+            CallFunc_Array_Length_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.SpawnQueue)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_5, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SpawnQueue, 0, CallFunc_Array_Get_Item_1)
+            GetChunkWorldLocation(CallFunc_Array_Get_Item_1, CallFunc_GetChunkWorldLocation_Location)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_GetChunkWorldLocation_Location, Rot(0.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<Chunk_Actor_C>, CallFunc_MakeTransform_ReturnValue, 0, null, 1)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, "ChunkHandler", self)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_GetChunkWorldLocation_Location, Rot(0.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, CallFunc_MakeTransform_ReturnValue, 1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SpawnQueue, 0, CallFunc_Array_Get_Item_2)
+            Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Add(self.LoadedChunks, CallFunc_Array_Get_Item_2, CallFunc_FinishSpawningActor_ReturnValue)
+            CallFunc_FinishSpawningActor_ReturnValue.Actor.FlushNetDormancy()
+            CallFunc_FinishSpawningActor_ReturnValue.self.Seed = self.MainSeed
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_FinishSpawningActor_ReturnValue, 10, "Seed")
+            CallFunc_FinishSpawningActor_ReturnValue.OnRep_Seed()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(self.SpawnQueue, 0)
+            goto @12577
+    @22453: push_flow @22584
+            push_flow @22662
+            push_flow @14062
+            push_flow @22773
+            bind K2Node_CreateDelegate_OutputDelegate_4 -> self.UpdatePlayerChunks
+            CallFunc_K2_SetTimerDelegate_Time_ImplicitCast = CST_DoubleToFloat(self.PlayerCheckInterval)
+            CallFunc_K2_SetTimerDelegate_ReturnValue_4 = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate_4, CallFunc_K2_SetTimerDelegate_Time_ImplicitCast, true, false, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+    @22584: bind K2Node_CreateDelegate_OutputDelegate_2 -> self.CheckPlayerFurthestDistance
+            CallFunc_K2_SetTimerDelegate_ReturnValue_1 = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate_2, 5.0, true, false, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+    @22662: bind K2Node_CreateDelegate_OutputDelegate_1 -> self.CheckSpawnMonster
+            CallFunc_K2_SetTimerDelegate_Time_ImplicitCast_1 = CST_DoubleToFloat(self.SpawnMonsterInterval)
+            CallFunc_K2_SetTimerDelegate_ReturnValue_2 = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate_1, CallFunc_K2_SetTimerDelegate_Time_ImplicitCast_1, true, false, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+    @22773: bind K2Node_CreateDelegate_OutputDelegate_3 -> self.ProcessSpawnQueue
+            CallFunc_K2_SetTimerDelegate_ReturnValue_3 = KismetSystemLibrary.K2_SetTimerDelegate(K2Node_CreateDelegate_OutputDelegate_3, 0.2, true, false, 0.0, 0.0)
+            pop_flow  // return to pushed flow
+            CallFunc_Array_Length_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.DespawnQueue)
+            CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_6, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_1) pop_flow
+            CallFunc_Array_Length_ReturnValue_12 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Greater_IntInt_ReturnValue_4 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_12, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_4) goto @8684
+            CallFunc_Array_Length_ReturnValue_13 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Subtract_IntInt_ReturnValue_5 = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Length_ReturnValue_13, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Subtract_IntInt_ReturnValue_5
+            CallFunc_Array_Length_ReturnValue_13 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Subtract_IntInt_ReturnValue_5 = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Length_ReturnValue_13, 1)
+            CallFunc_Max_ReturnValue = KismetMathLibrary.Max(0, CallFunc_Subtract_IntInt_ReturnValue_5)
+            Temp_int_Array_Index_Variable = CallFunc_Max_ReturnValue
+            goto @8604
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Clear(self.PossibleMonsterSpawnLocations)
+            Temp_int_Loop_Counter_Variable_13 = 0
+            Temp_int_Array_Index_Variable_14 = 0
+    @23451: CallFunc_GetGameState_ReturnValue_3 = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue_3.self.?)
+            CallFunc_Less_IntInt_ReturnValue_15 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_13, CallFunc_Array_Length_ReturnValue_7)
+            if not (CallFunc_Less_IntInt_ReturnValue_15) goto @24571
+            Temp_int_Array_Index_Variable_14 = Temp_int_Loop_Counter_Variable_13
+            push_flow @24497
+            CallFunc_GetGameState_ReturnValue_3 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_3.self.?, Temp_int_Array_Index_Variable_14, CallFunc_Array_Get_Item_16)
+            CallFunc_GetPawn_ReturnValue_6 = CallFunc_Array_Get_Item_16.PlayerState.GetPawn()
+            CallFunc_IsValid_ReturnValue_6 = KismetSystemLibrary.IsValid(CallFunc_GetPawn_ReturnValue_6)
+            if not (CallFunc_IsValid_ReturnValue_6) goto @24415
+            CallFunc_GetGameState_ReturnValue_3 = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue_3.self.?, Temp_int_Array_Index_Variable_14, CallFunc_Array_Get_Item_16)
+            CallFunc_GetPawn_ReturnValue_6 = CallFunc_Array_Get_Item_16.PlayerState.GetPawn()
+            CallFunc_K2_GetActorLocation_ReturnValue_9 = CallFunc_GetPawn_ReturnValue_6.Actor.K2_GetActorLocation()
+            GetPlayerCoordinate(CallFunc_K2_GetActorLocation_ReturnValue_9, CallFunc_GetPlayerCoordinate_Coordinate_6)
+            CallFunc_Greater_IntInt_ReturnValue_6 = KismetMathLibrary.Greater_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_6.YValue_5, 0)
+            CallFunc_Less_IntInt_ReturnValue_13 = KismetMathLibrary.Less_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_6.YValue_5, -1)
+            CallFunc_Greater_IntInt_ReturnValue_7 = KismetMathLibrary.Greater_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_6.XValue_4, 0)
+            CallFunc_BooleanOR_ReturnValue_2 = KismetMathLibrary.BooleanOR(CallFunc_Greater_IntInt_ReturnValue_6, CallFunc_Less_IntInt_ReturnValue_13)
+            CallFunc_Less_IntInt_ReturnValue_14 = KismetMathLibrary.Less_IntInt(CallFunc_GetPlayerCoordinate_Coordinate_6.XValue_4, 0)
+            CallFunc_BooleanOR_ReturnValue_3 = KismetMathLibrary.BooleanOR(CallFunc_Greater_IntInt_ReturnValue_7, CallFunc_Less_IntInt_ReturnValue_14)
+            CallFunc_BooleanOR_ReturnValue_4 = KismetMathLibrary.BooleanOR(CallFunc_BooleanOR_ReturnValue_3, CallFunc_BooleanOR_ReturnValue_2)
+            if not (CallFunc_BooleanOR_ReturnValue_4) pop_flow
+            CallFunc_Array_Add_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.PossibleMonsterSpawnLocations, CallFunc_GetPlayerCoordinate_Coordinate_6)
+            pop_flow  // return to pushed flow
+    @24415: KismetSystemLibrary.PrintString(self, "Pawn not valid", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @24497: CallFunc_Add_IntInt_ReturnValue_17 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_13, 1)
+            Temp_int_Loop_Counter_Variable_13 = CallFunc_Add_IntInt_ReturnValue_17
+            goto @23451
+    @24571: CallFunc_Array_Length_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Less_IntInt_ReturnValue_3 = KismetMathLibrary.Less_IntInt(CallFunc_Array_Length_ReturnValue_8, 2)
+            CallFunc_Array_Length_ReturnValue_9 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.PossibleMonsterSpawnLocations)
+            CallFunc_Greater_IntInt_ReturnValue_2 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_9, 0)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_Less_IntInt_ReturnValue_3, CallFunc_Greater_IntInt_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_1) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Shuffle(self.PossibleMonsterSpawnLocations)
+            self.LocationStillValid = true
+            if not (self.LocationStillValid) pop_flow
+            CallFunc_Array_Length_ReturnValue_10 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Lifeforms)
+            CallFunc_Greater_IntInt_ReturnValue_3 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_10, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_3) goto @16247
+            Temp_int_Loop_Counter_Variable_8 = 0
+            goto @15493
+            Temp_bool_True_if_break_was_hit_Variable = true
+            pop_flow  // return to pushed flow
+    @25014: CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            goto @7323
+            self.LoadedFromSave = K2Node_CustomEvent_LoadedFromSave
+            self.HasStartedChunkHandler = true
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            goto @22453
+            goto @25014
+            pop_flow  // return to pushed flow
+            goto @15442
+    @25125: return
+
+function GetChunkCoordinate  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            KismetMathLibrary.BreakVector(ChunkLocation, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X, 8400.0)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y, 8400.0)
+            CallFunc_FFloor_ReturnValue = KismetMathLibrary.FFloor(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_FFloor_ReturnValue_1 = KismetMathLibrary.FFloor(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            K2Node_MakeStruct_ChunkCoordinate.XValue_4 = CallFunc_FFloor_ReturnValue
+            K2Node_MakeStruct_ChunkCoordinate.YValue_5 = CallFunc_FFloor_ReturnValue_1
+            ChunkCoordinate = K2Node_MakeStruct_ChunkCoordinate
+            return
+
+function GetChunkWorldLocation  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Multiply_IntInt_ReturnValue = KismetMathLibrary.Multiply_IntInt(ChunkCoordinate.XValue_4, 8400)
+            CallFunc_Multiply_IntInt_ReturnValue_1 = KismetMathLibrary.Multiply_IntInt(ChunkCoordinate.YValue_5, 8400)
+            CallFunc_Conv_IntToDouble_ReturnValue = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue)
+            CallFunc_Conv_IntToDouble_ReturnValue_1 = KismetMathLibrary.Conv_IntToDouble(CallFunc_Multiply_IntInt_ReturnValue_1)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Conv_IntToDouble_ReturnValue, CallFunc_Conv_IntToDouble_ReturnValue_1, 0.0)
+            Location = CallFunc_MakeVector_ReturnValue
+            return
+
+function GetPlayerCoordinate  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            KismetMathLibrary.BreakVector(Location, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X, 8400.0)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            K2Node_MakeStruct_ChunkCoordinate.XValue_4 = CallFunc_Round_ReturnValue
+            K2Node_MakeStruct_ChunkCoordinate.YValue_5 = CallFunc_Round_ReturnValue_1
+            Coordinate = K2Node_MakeStruct_ChunkCoordinate
+            return
+
+function ProcessDespawnQueue  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(22851)
+            return
+
+function ProcessSpawnQueue  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(21653)
+            return
+
+function RebuildDesiredChunks  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(18564)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(25114)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(25119)
+            return
+
+function SpawnLostEmployeeChunk  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_RandomBool_ReturnValue_1 = KismetMathLibrary.RandomBool()
+            if not (CallFunc_RandomBool_ReturnValue_1) goto @302
+            CallFunc_RandomIntegerInRange_ReturnValue_3 = KismetMathLibrary.RandomIntegerInRange(3, 6)
+            TempXValue = CallFunc_RandomIntegerInRange_ReturnValue_3
+    @99:    CallFunc_RandomBool_ReturnValue = KismetMathLibrary.RandomBool()
+            if not (CallFunc_RandomBool_ReturnValue) goto @372
+            CallFunc_RandomIntegerInRange_ReturnValue_1 = KismetMathLibrary.RandomIntegerInRange(3, 6)
+            TempYValue = CallFunc_RandomIntegerInRange_ReturnValue_1
+    @198:   K2Node_MakeStruct_ChunkCoordinate.XValue_4 = TempXValue
+            K2Node_MakeStruct_ChunkCoordinate.YValue_5 = TempYValue
+            SpawnLocation = K2Node_MakeStruct_ChunkCoordinate
+            goto @442
+    @302:   CallFunc_RandomIntegerInRange_ReturnValue_2 = KismetMathLibrary.RandomIntegerInRange(-3, -6)
+            TempXValue = CallFunc_RandomIntegerInRange_ReturnValue_2
+            goto @99
+    @372:   CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(-3, -6)
+            TempYValue = CallFunc_RandomIntegerInRange_ReturnValue
+            goto @198
+    @442:   return
+
+function StartChunkHandler  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_LoadedFromSave = LoadedFromSave
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(25049)
+            return
+
+function UpdatePlayerChunks  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(17317)
+            return
+
+function UpdateQueues  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            WorldChunkHandler_C.ExecuteUbergraph_WorldChunkHandler(20928)
+            return

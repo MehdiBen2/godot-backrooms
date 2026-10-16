@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\WorldGen\WallBorder_HISM
+
+== class WallBorder_HISM_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

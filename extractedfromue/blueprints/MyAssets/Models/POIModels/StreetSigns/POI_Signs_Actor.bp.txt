@@ -1,0 +1,110 @@
+// Content\MyAssets\Models\POIModels\StreetSigns\POI_Signs_Actor
+
+== class POI_Signs_Actor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Cube: Object
+  var Box: Object
+  var CameraCollision: Object
+  var DefaultSceneRoot: Object
+  var SignMeshes: Array
+  var NumToSpawn: Int
+  var RandomStream: Struct
+  var MeshName: Name
+  var CurrentRotation: Struct
+  var CurrentLocation: Struct
+  var CurrentScale: Struct
+  var RandomColor: Struct
+  var MinusZAmount: Double
+  var XRotOffset: Double
+  var YRotOffset: Double
+  var ZRotOffset: Double
+
+== class ExecuteUbergraph_POI_Signs_Actor : 
+  var EntryPoint: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var Temp_int_Variable: Int
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_BreakVector_X_1: Double
+  var CallFunc_BreakVector_Y_1: Double
+  var CallFunc_BreakVector_Z_1: Double
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Divide_DoubleDouble_ReturnValue: Double
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_Divide_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_RandomIntegerInRangeFromStream_ReturnValue: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var CallFunc_Multiply_IntInt_ReturnValue: Int
+  var CallFunc_MakeRandomStream_ReturnValue: Struct
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue: Float
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_1: Float
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_2: Float
+  var CallFunc_Add_DoubleDouble_ReturnValue: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_RandomFloatInRangeFromStream_ReturnValue_3: Float
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_MakeTransform_ReturnValue: Struct
+  var CallFunc_RandomIntegerInRangeFromStream_ReturnValue_1: Int
+  var CallFunc_AddComponent_ReturnValue: Object
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+  var CallFunc_Add_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_Add_DoubleDouble_A_ImplicitCast_1: Double
+  var CallFunc_MakeVector_Z_ImplicitCast: Double
+
+function ExecuteUbergraph_POI_Signs_Actor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1596
+            goto computed(EntryPoint)
+    @15:    Temp_int_Variable = 0
+    @38:    CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, self.NumToSpawn)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) pop_flow
+            push_flow @1051
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, 0.0, 360.0)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_RandomFloatInRangeFromStream_ReturnValue)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_1 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -200.0, 200.0)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_2 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -200.0, 200.0)
+            CallFunc_Add_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue_1)
+            CallFunc_Add_DoubleDouble_ReturnValue = KismetMathLibrary.Add_DoubleDouble(CallFunc_Add_DoubleDouble_A_ImplicitCast, CallFunc_BreakVector_X)
+            CallFunc_Add_DoubleDouble_A_ImplicitCast_1 = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue_2)
+            CallFunc_Add_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Add_DoubleDouble(CallFunc_Add_DoubleDouble_A_ImplicitCast_1, CallFunc_BreakVector_Y)
+            CallFunc_RandomFloatInRangeFromStream_ReturnValue_3 = KismetMathLibrary.RandomFloatInRangeFromStream(self.RandomStream, -100.0, 0.0)
+            CallFunc_MakeVector_Z_ImplicitCast = CST_FloatToDouble(CallFunc_RandomFloatInRangeFromStream_ReturnValue_3)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Add_DoubleDouble_ReturnValue, CallFunc_Add_DoubleDouble_ReturnValue_1, CallFunc_MakeVector_Z_ImplicitCast)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue, CallFunc_MakeRotator_ReturnValue, Vec(1.0, 1.0, 1.0))
+            CallFunc_AddComponent_ReturnValue = Actor.AddComponent("NODE_AddStaticMeshComponent-1", true, CallFunc_MakeTransform_ReturnValue, self, false)
+            CallFunc_AddComponent_ReturnValue.SetMobility(2)
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(self.SignMeshes)
+            CallFunc_RandomIntegerInRangeFromStream_ReturnValue_1 = KismetMathLibrary.RandomIntegerInRangeFromStream(self.RandomStream, 0, CallFunc_Array_LastIndex_ReturnValue)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SignMeshes, CallFunc_RandomIntegerInRangeFromStream_ReturnValue_1, CallFunc_Array_Get_Item)
+            CallFunc_SetStaticMesh_ReturnValue = CallFunc_AddComponent_ReturnValue.SetStaticMesh(CallFunc_Array_Get_Item)
+            CallFunc_AddComponent_ReturnValue.SetMobility(0)
+            pop_flow  // return to pushed flow
+    @1051:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @38
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_BreakVector_Z_1)
+            CallFunc_Divide_DoubleDouble_ReturnValue = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_Y_1, 8400.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue)
+            CallFunc_Divide_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Divide_DoubleDouble(CallFunc_BreakVector_X_1, 8400.0)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Divide_DoubleDouble_ReturnValue_1)
+            CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(CallFunc_Round_ReturnValue_1, CallFunc_Round_ReturnValue)
+            CallFunc_Multiply_IntInt_ReturnValue = KismetMathLibrary.Multiply_IntInt(CallFunc_Add_IntInt_ReturnValue_1, 12345)
+            CallFunc_MakeRandomStream_ReturnValue = KismetMathLibrary.MakeRandomStream(CallFunc_Multiply_IntInt_ReturnValue)
+            self.RandomStream = CallFunc_MakeRandomStream_ReturnValue
+            CallFunc_RandomIntegerInRangeFromStream_ReturnValue = KismetMathLibrary.RandomIntegerInRangeFromStream(self.RandomStream, 2, 4)
+            self.NumToSpawn = CallFunc_RandomIntegerInRangeFromStream_ReturnValue
+            goto @15
+    @1596:  return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            POI_Signs_Actor_C.ExecuteUbergraph_POI_Signs_Actor(1125)
+            return

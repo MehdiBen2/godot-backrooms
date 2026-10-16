@@ -1,0 +1,97 @@
+// Content\MyAssets\Models\PlayerItems\CardboardCutout\CardboardCutoutSetUpActor
+
+== class CardboardCutoutSetUpActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Audio1: Object
+  var Audio: Object
+  var RadialForce: Object
+  var ImpulseLoc: Object
+  var CardboardDebris6: Object
+  var CardboardDebris5: Object
+  var CardboardDebris4: Object
+  var CardboardDebris3: Object
+  var CardboardDebris2: Object
+  var CardboardDebris1: Object
+  var Overlapper: Object
+  var EnemyDetectionSphere: Object
+  var Box: Object
+  var CardboardSetUp: Object
+  var DefaultSceneRoot: Object
+
+== class ExecuteUbergraph_CardboardCutoutSetUpActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_CardboardCutoutSetUpActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @974
+            goto computed(EntryPoint)
+            K2_DestroyActor()
+            pop_flow  // return to pushed flow
+    @30:    self.Audio.Deactivate()
+            self.EnemyDetectionSphere.SetCollisionEnabled(0)
+            self.Overlapper.SetCollisionEnabled(0)
+            self.Box.SetCollisionEnabled(0)
+            self.CardboardSetUp.SetCollisionEnabled(0)
+            self.CardboardSetUp.SceneComponent.SetVisibility(false, false)
+            self.CardboardDebris6.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris5.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris2.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris4.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris3.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris1.SceneComponent.SetVisibility(true, false)
+            self.CardboardDebris6.SetSimulatePhysics(true)
+            self.CardboardDebris5.SetSimulatePhysics(true)
+            self.CardboardDebris2.SetSimulatePhysics(true)
+            self.CardboardDebris4.SetSimulatePhysics(true)
+            self.CardboardDebris3.SetSimulatePhysics(true)
+            self.CardboardDebris1.SetSimulatePhysics(true)
+            self.RadialForce.Activate(true)
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player_1.PickUpCardboardCutout()
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Pick up Cardboard Cutout"})
+            pop_flow  // return to pushed flow
+            MULTI: PlayBreakAudio()
+            KismetSystemLibrary.Delay(self, 8.0, LatentActionInfo{15, 1229352881, "ExecuteUbergraph_CardboardCutoutSetUpActor", self})
+            pop_flow  // return to pushed flow
+    @927:   self.Audio1.Activate(false)
+            goto @30
+            goto @927
+    @974:   return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            CardboardCutoutSetUpActor_C.ExecuteUbergraph_CardboardCutoutSetUpActor(753)
+            return
+
+function MULTI: PlayBreakAudio  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CardboardCutoutSetUpActor_C.ExecuteUbergraph_CardboardCutoutSetUpActor(969)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            CardboardCutoutSetUpActor_C.ExecuteUbergraph_CardboardCutoutSetUpActor(716)
+            return
+
+function TakeDamage  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CardboardCutoutSetUpActor_C.ExecuteUbergraph_CardboardCutoutSetUpActor(858)
+            return

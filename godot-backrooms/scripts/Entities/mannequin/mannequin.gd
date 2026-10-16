@@ -868,7 +868,7 @@ func _update_watch(delta: float) -> void:
 	if not _watch.blinked and _watch.t >= MannequinSnap.SNAP_AT - lids:
 		_watch.blinked = true
 		if player.blink != null and (seen(Vector3(at.x, 0.0, at.z)) or seen(real_node.position) or seen(pos)):
-			player.blink.blink(slow)
+			player.blink.blink(slow, true)              # one blink, never a double: it is timed to the crack
 	# the cut: only once the crack has come, and only while you can't see it (eyes shut, looking away)
 	if not _watch.cut and _watch.t >= MannequinSnap.SNAP_AT and not seen(real_node.position) and not seen(pos):
 		_watch.cut = true
@@ -982,7 +982,7 @@ func _update_stare(delta: float) -> void:
 	if not watching:
 		stare = maxf(0.0, stare - delta * 2.0)
 		return
-	if player.blink.blinking():
+	if player.blink.blinking() or not _watch.is_empty():     # a friend's kill has its own single blink, at the crack
 		return
 	stare += delta
 	player.unnerved = 0.5                          # light doesn't calm you while you hold their gaze

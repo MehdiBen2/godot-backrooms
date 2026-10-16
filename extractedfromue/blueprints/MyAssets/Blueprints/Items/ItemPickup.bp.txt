@@ -1,0 +1,346 @@
+// Content\MyAssets\Blueprints\Items\ItemPickup
+
+== class ItemPickup_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var ItemMesh: Object
+  var DefaultSceneRoot: Object
+  var BeltMovement_Move: Float
+  var BeltMovement__Direction: Byte
+  var BeltMovement: Object
+  var ItemType: Struct
+  var ItemData: Struct
+  var ConveyorBelt: Object
+  var SpawnedOnBelt: Bool
+  var Moving: Bool
+  var StartLocation: Struct
+  var TargetLocation: Struct
+  var HasMoved: Bool
+  var GotStartLocation: Bool
+  var IsResearchData: Bool
+  var RDOMapCoord: Struct
+  var ChunkHandler: Object
+  var SpawnedLocation: Struct
+  var TempVArray: Array
+  var SpawnedByChunk: Bool
+  var SpawnedByLoad: Bool
+
+== class ExecuteUbergraph_ItemPickup : 
+  var EntryPoint: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_int_Array_Index_Variable: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_DeltaSeconds: Float
+  var CallFunc_GetForwardVector_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_1: Struct
+  var CallFunc_Conv_DoubleToVector_ReturnValue: Struct
+  var CallFunc_GetForwardVector_ReturnValue_1: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue_2: Struct
+  var CallFunc_Multiply_VectorVector_ReturnValue: Struct
+  var CallFunc_Add_VectorVector_ReturnValue: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var CallFunc_K2_GetComponentLocation_ReturnValue_3: Struct
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_GetDataTableRowFromName_OutRow: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue: Bool
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+  var K2Node_MakeStruct_ItemInfo: Struct
+  var CallFunc_EqualEqual_StrStr_ReturnValue: Bool
+  var CallFunc_SetStaticMesh_ReturnValue_1: Bool
+  var CallFunc_Conv_StringToName_ReturnValue_1: Name
+  var CallFunc_GetDataTableRowFromName_OutRow_1: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var K2Node_MakeStruct_ItemInfo_1: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_GetAllActorsOfClass_OutActors_1: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Get_Item_1: Object
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var CallFunc_Conv_DoubleToVector_ReturnValue_1: Struct
+  var CallFunc_Multiply_VectorVector_ReturnValue_1: Struct
+  var CallFunc_Add_VectorVector_ReturnValue_1: Struct
+  var K2Node_MakeStruct_ItemInfo_2: Struct
+  var Temp_object_Variable: Array
+  var CallFunc_LineTraceSingle_OutHit: Struct
+  var CallFunc_LineTraceSingle_ReturnValue: Bool
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Map_Find_Value: Struct
+  var CallFunc_Map_Find_ReturnValue: Bool
+  var K2Node_CustomEvent_Coords: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors_2: Array
+  var CallFunc_Array_Get_Item_2: Object
+  var CallFunc_VLerp_ReturnValue: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult_1: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue_1: Bool
+  var CallFunc_Map_Find_Value_1: Struct
+  var CallFunc_Map_Find_ReturnValue_1: Bool
+  var CallFunc_Map_Find_Value_2: Struct
+  var CallFunc_Map_Find_ReturnValue_2: Bool
+  var CallFunc_Array_Get_Item_3: Struct
+  var CallFunc_Conv_VectorToString_ReturnValue: Str
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var K2Node_MakeStruct_RDOMapStruct: Struct
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_K2_GetComponentLocation_ReturnValue_4: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult_2: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue_2: Bool
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class SERVER: Add RDO Map  : 
+  var Coords: Struct
+
+function BeltMovement__FinishedFunc  [FUNC_BlueprintEvent]
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(6264)
+            return
+
+function BeltMovement__UpdateFunc  [FUNC_BlueprintEvent]
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(5629)
+            return
+
+function ExecuteUbergraph_ItemPickup  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @6265
+            goto computed(EntryPoint)
+    @15:    push_flow @346
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_2)
+            CallFunc_Map_Find_ReturnValue_1 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(CallFunc_Array_Get_Item_2.self.RDOsPickedUp, K2Node_CustomEvent_Coords, CallFunc_Map_Find_Value_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Map_Find_Value_1.Locations_4, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_3)
+            CallFunc_Conv_VectorToString_ReturnValue = KismetStringLibrary.Conv_VectorToString(CallFunc_Array_Get_Item_3)
+            KismetSystemLibrary.PrintString(self, CallFunc_Conv_VectorToString_ReturnValue, true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @346:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+    @415:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_2)
+            CallFunc_Map_Find_ReturnValue_1 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(CallFunc_Array_Get_Item_2.self.RDOsPickedUp, K2Node_CustomEvent_Coords, CallFunc_Map_Find_Value_1)
+            CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Map_Find_Value_1.Locations_4)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_3)
+            if not (CallFunc_Less_IntInt_ReturnValue) pop_flow
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            goto @15
+    @709:   Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+            goto @415
+    @760:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            SERVER: UpdateCameraImages()
+            KismetSystemLibrary.PrintString(self, "Resizing images", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player_1.Client: AddItem(self.ItemData)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.ChunkHandler)
+            if not (CallFunc_IsValid_ReturnValue) goto @1186
+            CallFunc_Map_Find_ReturnValue = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(self.ChunkHandler.self.RDOsPickedUp, self.RDOMapCoord, CallFunc_Map_Find_Value)
+            if not (CallFunc_Map_Find_ReturnValue) goto @1186
+            SERVER: Add RDO Map (self.RDOMapCoord)
+            KismetSystemLibrary.PrintString(self, "Added to RDO Map", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+    @1186:  K2_DestroyActor()
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player.self.InteractText = self.ItemData.InteractText_8
+            pop_flow  // return to pushed flow
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(self.SpawnedByLoad, self.SpawnedOnBelt)
+            if not (CallFunc_BooleanAND_ReturnValue_1) goto @1440
+            CallFunc_K2_GetComponentLocation_ReturnValue_4 = self.ConveyorBelt.self.StopLoc.SceneComponent.K2_GetComponentLocation()
+            CallFunc_K2_SetActorLocation_ReturnValue_2 = Actor.K2_SetActorLocation(CallFunc_K2_GetComponentLocation_ReturnValue_4, false, CallFunc_K2_SetActorLocation_SweepHitResult_2, false)
+    @1424:  SetActorTickEnabled(false)
+            pop_flow  // return to pushed flow
+    @1440:  if not (self.SpawnedOnBelt) goto @1424
+            if not (self.GotStartLocation) goto @1935
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            CallFunc_GetForwardVector_ReturnValue = self.Box.SceneComponent.GetForwardVector()
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.Box.SceneComponent.K2_GetComponentLocation()
+            CallFunc_Conv_DoubleToVector_ReturnValue_1 = KismetMathLibrary.Conv_DoubleToVector(30.0)
+            CallFunc_Multiply_VectorVector_ReturnValue_1 = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetForwardVector_ReturnValue, CallFunc_Conv_DoubleToVector_ReturnValue_1)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_Multiply_VectorVector_ReturnValue_1)
+            CallFunc_LineTraceSingle_ReturnValue = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_Add_VectorVector_ReturnValue_1, 4, false, Temp_object_Variable, 0, CallFunc_LineTraceSingle_OutHit, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue) goto @2046
+            if not (self.Moving) goto @2116
+            self.Moving = false
+            self.BeltMovement.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @1935:  CallFunc_K2_GetComponentLocation_ReturnValue_3 = self.ConveyorBelt.self.StartLoc.SceneComponent.K2_GetComponentLocation()
+            self.StartLocation = CallFunc_K2_GetComponentLocation_ReturnValue_3
+            self.GotStartLocation = true
+            pop_flow  // return to pushed flow
+    @2046:  if not (self.Moving) goto @2061
+            pop_flow  // return to pushed flow
+    @2061:  self.Moving = true
+            self.HasMoved = true
+            self.BeltMovement.TimelineComponent.Play()
+            pop_flow  // return to pushed flow
+    @2116:  if not (self.HasMoved) goto @2131
+            pop_flow  // return to pushed flow
+    @2131:  CallFunc_Conv_DoubleToVector_ReturnValue = KismetMathLibrary.Conv_DoubleToVector(-50.0)
+            CallFunc_GetForwardVector_ReturnValue_1 = self.Box.SceneComponent.GetForwardVector()
+            CallFunc_K2_GetComponentLocation_ReturnValue_2 = self.Box.SceneComponent.K2_GetComponentLocation()
+            CallFunc_Multiply_VectorVector_ReturnValue = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetForwardVector_ReturnValue_1, CallFunc_Conv_DoubleToVector_ReturnValue)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetComponentLocation_ReturnValue_2, CallFunc_Multiply_VectorVector_ReturnValue)
+            CallFunc_K2_SetActorLocation_ReturnValue = Actor.K2_SetActorLocation(CallFunc_Add_VectorVector_ReturnValue, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            CallFunc_Conv_DoubleToVector_ReturnValue = KismetMathLibrary.Conv_DoubleToVector(-50.0)
+            CallFunc_GetForwardVector_ReturnValue_1 = self.Box.SceneComponent.GetForwardVector()
+            CallFunc_K2_GetComponentLocation_ReturnValue_2 = self.Box.SceneComponent.K2_GetComponentLocation()
+            CallFunc_Multiply_VectorVector_ReturnValue = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetForwardVector_ReturnValue_1, CallFunc_Conv_DoubleToVector_ReturnValue)
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetComponentLocation_ReturnValue_2, CallFunc_Multiply_VectorVector_ReturnValue)
+            self.StartLocation = CallFunc_Add_VectorVector_ReturnValue
+            pop_flow  // return to pushed flow
+    @2657:  CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(self.ItemType.ItemType_2)
+            CallFunc_GetDataTableRowFromName_ReturnValue = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<ItemDataTable>, CallFunc_Conv_StringToName_ReturnValue, CallFunc_GetDataTableRowFromName_OutRow)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue) goto @4271
+            K2Node_MakeStruct_ItemInfo.Name_2 = CallFunc_GetDataTableRowFromName_OutRow.Name_2
+            K2Node_MakeStruct_ItemInfo.RowName_31 = CallFunc_GetDataTableRowFromName_OutRow.RowName_31
+            K2Node_MakeStruct_ItemInfo.Mesh_7 = CallFunc_GetDataTableRowFromName_OutRow.Mesh_7
+            K2Node_MakeStruct_ItemInfo.HeldMesh_39 = CallFunc_GetDataTableRowFromName_OutRow.HeldMesh_39
+            K2Node_MakeStruct_ItemInfo.InteractText_8 = CallFunc_GetDataTableRowFromName_OutRow.InteractText_8
+            K2Node_MakeStruct_ItemInfo.ActorClass_11 = CallFunc_GetDataTableRowFromName_OutRow.ActorClass_11
+            K2Node_MakeStruct_ItemInfo.HazmatAnimEquip_24 = CallFunc_GetDataTableRowFromName_OutRow.HazmatAnimEquip_24
+            K2Node_MakeStruct_ItemInfo.HazmatArmAnimEquip_28 = CallFunc_GetDataTableRowFromName_OutRow.HazmatArmAnimEquip_28
+            K2Node_MakeStruct_ItemInfo.HazmatAnimDrop_27 = CallFunc_GetDataTableRowFromName_OutRow.HazmatAnimDrop_27
+            K2Node_MakeStruct_ItemInfo.IsResearchDataObject_33 = CallFunc_GetDataTableRowFromName_OutRow.IsResearchDataObject_33
+            K2Node_MakeStruct_ItemInfo.ResearchDataAmount_36 = CallFunc_GetDataTableRowFromName_OutRow.ResearchDataAmount_36
+            K2Node_MakeStruct_ItemInfo.Quantity_45 = self.ItemType.Quantity_5
+            K2Node_MakeStruct_ItemInfo.ControlsText_48 = CallFunc_GetDataTableRowFromName_OutRow.ControlsText_48
+            self.ItemData = K2Node_MakeStruct_ItemInfo
+            CallFunc_SetStaticMesh_ReturnValue = self.ItemMesh.SetStaticMesh(self.ItemData.Mesh_7)
+            CallFunc_EqualEqual_StrStr_ReturnValue = KismetStringLibrary.EqualEqual_StrStr(CallFunc_GetDataTableRowFromName_OutRow.Name_2, "Camera")
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(self.ItemData.Quantity_45, -1)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_StrStr_ReturnValue, CallFunc_EqualEqual_IntInt_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            CallFunc_GetAllActorsOfClass_OutActors_1 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CameraImageHandler_C>, CallFunc_GetAllActorsOfClass_OutActors_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_1)
+            CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item_1.self.CameraImages)
+            K2Node_MakeStruct_ItemInfo_2.Name_2 = self.ItemData.Name_2
+            K2Node_MakeStruct_ItemInfo_2.RowName_31 = self.ItemData.RowName_31
+            K2Node_MakeStruct_ItemInfo_2.Mesh_7 = self.ItemData.Mesh_7
+            K2Node_MakeStruct_ItemInfo_2.HeldMesh_39 = self.ItemData.HeldMesh_39
+            K2Node_MakeStruct_ItemInfo_2.InteractText_8 = self.ItemData.InteractText_8
+            K2Node_MakeStruct_ItemInfo_2.ActorClass_11 = self.ItemData.ActorClass_11
+            K2Node_MakeStruct_ItemInfo_2.HazmatAnimEquip_24 = self.ItemData.HazmatAnimEquip_24
+            K2Node_MakeStruct_ItemInfo_2.HazmatArmAnimEquip_28 = self.ItemData.HazmatArmAnimEquip_28
+            K2Node_MakeStruct_ItemInfo_2.HazmatAnimDrop_27 = self.ItemData.HazmatAnimDrop_27
+            K2Node_MakeStruct_ItemInfo_2.IsResearchDataObject_33 = self.ItemData.IsResearchDataObject_33
+            K2Node_MakeStruct_ItemInfo_2.ResearchDataAmount_36 = self.ItemData.ResearchDataAmount_36
+            K2Node_MakeStruct_ItemInfo_2.Quantity_45 = CallFunc_Array_Length_ReturnValue_1
+            K2Node_MakeStruct_ItemInfo_2.ControlsText_48 = self.ItemData.ControlsText_48
+            self.ItemData = K2Node_MakeStruct_ItemInfo_2
+            goto @760
+    @4271:  CallFunc_Conv_StringToName_ReturnValue_1 = KismetStringLibrary.Conv_StringToName(self.ItemType.ItemType_2)
+            CallFunc_GetDataTableRowFromName_ReturnValue_1 = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<ResearchDataObjectsTable>, CallFunc_Conv_StringToName_ReturnValue_1, CallFunc_GetDataTableRowFromName_OutRow_1)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue_1) pop_flow
+            K2Node_MakeStruct_ItemInfo_1.Name_2 = CallFunc_GetDataTableRowFromName_OutRow_1.Name_2
+            K2Node_MakeStruct_ItemInfo_1.RowName_31 = CallFunc_GetDataTableRowFromName_OutRow_1.RowName_31
+            K2Node_MakeStruct_ItemInfo_1.Mesh_7 = CallFunc_GetDataTableRowFromName_OutRow_1.Mesh_7
+            K2Node_MakeStruct_ItemInfo_1.HeldMesh_39 = CallFunc_GetDataTableRowFromName_OutRow_1.HeldMesh_39
+            K2Node_MakeStruct_ItemInfo_1.InteractText_8 = CallFunc_GetDataTableRowFromName_OutRow_1.InteractText_8
+            K2Node_MakeStruct_ItemInfo_1.ActorClass_11 = CallFunc_GetDataTableRowFromName_OutRow_1.ActorClass_11
+            K2Node_MakeStruct_ItemInfo_1.HazmatAnimEquip_24 = CallFunc_GetDataTableRowFromName_OutRow_1.HazmatAnimEquip_24
+            K2Node_MakeStruct_ItemInfo_1.HazmatArmAnimEquip_28 = CallFunc_GetDataTableRowFromName_OutRow_1.HazmatArmAnimEquip_28
+            K2Node_MakeStruct_ItemInfo_1.HazmatAnimDrop_27 = CallFunc_GetDataTableRowFromName_OutRow_1.HazmatAnimDrop_27
+            K2Node_MakeStruct_ItemInfo_1.IsResearchDataObject_33 = CallFunc_GetDataTableRowFromName_OutRow_1.IsResearchDataObject_33
+            K2Node_MakeStruct_ItemInfo_1.ResearchDataAmount_36 = CallFunc_GetDataTableRowFromName_OutRow_1.ResearchDataAmount_36
+            K2Node_MakeStruct_ItemInfo_1.Quantity_45 = self.ItemType.Quantity_5
+            K2Node_MakeStruct_ItemInfo_1.ControlsText_48 = CallFunc_GetDataTableRowFromName_OutRow_1.ControlsText_48
+            self.ItemData = K2Node_MakeStruct_ItemInfo_1
+            CallFunc_SetStaticMesh_ReturnValue_1 = self.ItemMesh.SetStaticMesh(self.ItemData.Mesh_7)
+            pop_flow  // return to pushed flow
+            goto @2657
+            MULTI: UpdateCameraImages()
+            pop_flow  // return to pushed flow
+    @5037:  CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CameraImageHandler_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item.self.CameraImages)
+            CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(CallFunc_Array_Length_ReturnValue_2, 1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Resize(CallFunc_Array_Get_Item.self.CameraImages, CallFunc_Add_IntInt_ReturnValue_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_Array_Get_Item.self.CameraImages)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_Array_Length_ReturnValue)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr("New Size: ", CallFunc_Conv_IntToString_ReturnValue)
+            KismetSystemLibrary.PrintString(self, CallFunc_Concat_StrStr_ReturnValue, true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+            goto @5037
+            CallFunc_K2_GetComponentLocation_ReturnValue_1 = self.ConveyorBelt.self.StopLoc.SceneComponent.K2_GetComponentLocation()
+            CallFunc_VLerp_ReturnValue = KismetMathLibrary.VLerp(self.StartLocation, CallFunc_K2_GetComponentLocation_ReturnValue_1, self.BeltMovement_Move)
+            CallFunc_K2_SetActorLocation_ReturnValue_1 = Actor.K2_SetActorLocation(CallFunc_VLerp_ReturnValue, false, CallFunc_K2_SetActorLocation_SweepHitResult_1, false)
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors_2 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<WorldChunkHandler_C>, CallFunc_GetAllActorsOfClass_OutActors_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_2)
+            CallFunc_Map_Find_ReturnValue_2 = Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Find(CallFunc_Array_Get_Item_2.self.RDOsPickedUp, K2Node_CustomEvent_Coords, CallFunc_Map_Find_Value_2)
+            self.TempVArray = CallFunc_Map_Find_Value_2.Locations_4
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.TempVArray, self.SpawnedLocation)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_2)
+            K2Node_MakeStruct_RDOMapStruct.Locations_4 = self.TempVArray
+            Obj<Default__BlueprintMapLibrary>.BlueprintMapLibrary.Map_Add(CallFunc_Array_Get_Item_2.self.RDOsPickedUp, K2Node_CustomEvent_Coords, K2Node_MakeStruct_RDOMapStruct)
+            goto @709
+            pop_flow  // return to pushed flow
+    @6265:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(1201)
+            return
+
+function MULTI: UpdateCameraImages  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(5624)
+            return
+
+function OnRep_ItemType  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            UpdateMesh()
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(887)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(1260)
+            return
+
+function SERVER: Add RDO Map   [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Coords = Coords
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(5797)
+            return
+
+function SERVER: UpdateCameraImages  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(5022)
+            return
+
+function UpdateMesh  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ItemPickup_C.ExecuteUbergraph_ItemPickup(5017)
+            return

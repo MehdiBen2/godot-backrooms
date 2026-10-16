@@ -1,0 +1,163 @@
+// Content\MyAssets\Player\HazmatPlayer\Hazmat2_Drop_DeathActor
+
+== class Hazmat2_Drop_DeathActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Head: Object
+  var SkeletalMesh: Object
+  var DefaultSceneRoot: Object
+  var DropToFloor_Drop: Float
+  var DropToFloor__Direction: Byte
+  var DropToFloor: Object
+  var ActorStartZ: Double
+  var ActorStartRot: Struct
+
+== class ExecuteUbergraph_Hazmat2_Drop_DeathActor : 
+  var EntryPoint: Int
+  var K2Node_CustomEvent_NotifyName_4: Name
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var K2Node_CustomEvent_NotifyName_3: Name
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var K2Node_CustomEvent_NotifyName_2: Name
+  var K2Node_CreateDelegate_OutputDelegate_2: Delegate
+  var K2Node_CustomEvent_NotifyName_1: Name
+  var K2Node_CreateDelegate_OutputDelegate_3: Delegate
+  var K2Node_CustomEvent_NotifyName: Name
+  var K2Node_CreateDelegate_OutputDelegate_4: Delegate
+  var Temp_name_Variable: Name
+  var CallFunc_CreateProxyObjectForPlayMontage_ReturnValue: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var CallFunc_K2_GetActorRotation_ReturnValue: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_BreakVector_X_1: Double
+  var CallFunc_BreakVector_Y_1: Double
+  var CallFunc_BreakVector_Z_1: Double
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_RLerp_ReturnValue: Struct
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+
+== class OnBlendOut_BA2C2701436F07BD2DC90FAFED933DCC : 
+  var NotifyName: Name
+
+== class OnCompleted_BA2C2701436F07BD2DC90FAFED933DCC : 
+  var NotifyName: Name
+
+== class OnInterrupted_BA2C2701436F07BD2DC90FAFED933DCC : 
+  var NotifyName: Name
+
+== class OnNotifyBegin_BA2C2701436F07BD2DC90FAFED933DCC : 
+  var NotifyName: Name
+
+== class OnNotifyEnd_BA2C2701436F07BD2DC90FAFED933DCC : 
+  var NotifyName: Name
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_K2_AttachToComponent_ReturnValue: Bool
+
+function DropToFloor__FinishedFunc  [FUNC_BlueprintEvent]
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(632)
+            return
+
+function DropToFloor__UpdateFunc  [FUNC_BlueprintEvent]
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(10)
+            return
+
+function ExecuteUbergraph_Hazmat2_Drop_DeathActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.DropToFloor_Drop)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(self.ActorStartZ, 0.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_Lerp_ReturnValue)
+            CallFunc_K2_SetActorLocation_ReturnValue = Actor.K2_SetActorLocation(CallFunc_MakeVector_ReturnValue, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(-15.0, 0.0, 0.0)
+            CallFunc_RLerp_ReturnValue = KismetMathLibrary.RLerp(Rot(0.0, 0.0, 0.0), CallFunc_MakeRotator_ReturnValue, self.DropToFloor_Drop, true)
+            self.SkeletalMesh.SceneComponent.K2_SetRelativeRotation(CallFunc_RLerp_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            goto @1257
+    @435:   self.DropToFloor.TimelineComponent.PlayFromStart()
+            goto @1257
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_4
+            goto @1257
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_3
+            goto @1257
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_2
+            goto @1257
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_1
+            goto @1257
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName
+            goto @1257
+            goto @1257
+    @637:   CallFunc_CreateProxyObjectForPlayMontage_ReturnValue = PlayMontageCallbackProxy.CreateProxyObjectForPlayMontage(self.SkeletalMesh, Obj<P_Hazmat2_Death1_Montage>, 1.0, 0.0, "None", true)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_CreateProxyObjectForPlayMontage_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) goto @435
+            bind K2Node_CreateDelegate_OutputDelegate_4 -> self.OnCompleted_BA2C2701436F07BD2DC90FAFED933DCC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_4
+            bind K2Node_CreateDelegate_OutputDelegate_3 -> self.OnBlendOut_BA2C2701436F07BD2DC90FAFED933DCC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_3
+            bind K2Node_CreateDelegate_OutputDelegate_2 -> self.OnInterrupted_BA2C2701436F07BD2DC90FAFED933DCC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_2
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnNotifyBegin_BA2C2701436F07BD2DC90FAFED933DCC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnNotifyEnd_BA2C2701436F07BD2DC90FAFED933DCC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            goto @435
+            MULTI:DeathMontage()
+            goto @1257
+            goto @637
+    @1091:  CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            self.ActorStartRot = CallFunc_K2_GetActorRotation_ReturnValue
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_1, CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_BreakVector_Z_1)
+            self.ActorStartZ = CallFunc_BreakVector_Z_1
+            goto @637
+            goto @1091
+    @1257:  return
+
+function MULTI:DeathMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(1086)
+            return
+
+function OnBlendOut  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_1 = NotifyName
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(568)
+            return
+
+function OnCompleted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName = NotifyName
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(600)
+            return
+
+function OnInterrupted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_2 = NotifyName
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(536)
+            return
+
+function OnNotifyBegin  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_3 = NotifyName
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(504)
+            return
+
+function OnNotifyEnd  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_4 = NotifyName
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(472)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(1252)
+            return
+
+function SERVER:DeathMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Hazmat2_Drop_DeathActor_C.ExecuteUbergraph_Hazmat2_Drop_DeathActor(1067)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_K2_AttachToComponent_ReturnValue = self.Head.SceneComponent.K2_AttachToComponent(self.SkeletalMesh, "Head", 0, 0, 0, true)
+            return

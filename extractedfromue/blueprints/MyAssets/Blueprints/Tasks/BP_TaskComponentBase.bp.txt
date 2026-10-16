@@ -1,0 +1,71 @@
+// Content\MyAssets\Blueprints\Tasks\BP_TaskComponentBase
+
+== class BP_TaskComponentBase_C : Class'ActorComponent'
+  var MissionID: Name
+  var MissionName: Text
+  var Description: Text
+  var IsCompleted: Bool
+  var OwningManager: Object
+  var TaskEnum: Byte
+  var TaskListIndex: Int
+
+== class CheckIsCompleted : 
+  var IsCompleted: Bool
+
+== class CompleteMission : 
+  var K2Node_SwitchInteger_CmpSuccess: Bool
+
+== class UncompleteMission : 
+  var K2Node_SwitchInteger_CmpSuccess: Bool
+
+function CalculateReward  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return
+
+function CheckIsCompleted  [FUNC_Public | FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            IsCompleted = self.IsCompleted
+            return
+
+function CompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            self.IsCompleted = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 2, "IsCompleted")
+            OnRep_IsCompleted()
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.TaskListIndex, 0)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @155
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.TaskListIndex, 1)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @262
+            goto @364
+    @155:   self.OwningManager.Actor.FlushNetDormancy()
+            self.OwningManager.self.Task1Completed = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.OwningManager, 13, "Task1Completed")
+            goto @364
+    @262:   self.OwningManager.Actor.FlushNetDormancy()
+            self.OwningManager.self.Task2Completed = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.OwningManager, 14, "Task2Completed")
+    @364:   return
+
+function OnRep_IsCompleted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return
+
+function StartMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return
+
+function UncompleteMission  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            self.IsCompleted = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 2, "IsCompleted")
+            OnRep_IsCompleted()
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.TaskListIndex, 0)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @155
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.TaskListIndex, 1)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @262
+            goto @364
+    @155:   self.OwningManager.Actor.FlushNetDormancy()
+            self.OwningManager.self.Task1Completed = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.OwningManager, 13, "Task1Completed")
+            goto @364
+    @262:   self.OwningManager.Actor.FlushNetDormancy()
+            self.OwningManager.self.Task2Completed = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.OwningManager, 14, "Task2Completed")
+    @364:   return
+
+function UpdateProgress  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return

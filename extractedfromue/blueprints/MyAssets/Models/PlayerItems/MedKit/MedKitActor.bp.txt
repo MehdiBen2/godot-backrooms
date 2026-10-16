@@ -1,0 +1,5 @@
+// Content\MyAssets\Models\PlayerItems\MedKit\MedKitActor
+
+== class MedKitActor_C : Class'Actor'
+  var MedKit: Object
+  var DefaultSceneRoot: Object

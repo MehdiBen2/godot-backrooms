@@ -1,0 +1,33 @@
+// Content\MyAssets\Player\HazmatPlayer\Hazmat2\P_DeadHazmat_AnimBP
+
+== class P_DeadHazmat_AnimBP_C : Class'AnimInstance'
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_Slot: Struct
+  var AnimGraphNode_SequencePlayer: Struct
+
+== class AnimGraph : 
+  var AnimGraph: Struct
+
+== class AnimBlueprintGeneratedConstantData : Class'AnimBlueprintConstantData'
+  var __NameProperty_9: Name
+  var __NameProperty_10: Name
+  var __StructProperty_11: Struct
+  var __BoolProperty_12: Bool
+  var __FloatProperty_13: Float
+  var __StructProperty_14: Struct
+  var __FloatProperty_15: Float
+  var __BoolProperty_16: Bool
+  var __EnumProperty_17: Enum
+  var __ByteProperty_18: Byte
+  var __NameProperty_19: Name
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_Slot: Struct
+  var AnimGraphNode_SequencePlayer: Struct
+
+function AnimGraph  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnimGraph = PoseLink{-1}
+            return

@@ -1,0 +1,379 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\Lobby\BP_LobbyGameMode
+
+== class BP_LobbyGameMode_C : Class'GameModeBase'
+  var UberGraphFrame: Struct
+  var DefaultSceneRoot: Object
+  var Player Slots: Array
+  var PCs: Array
+  var SetSlotsDone: Bool
+
+== class CheckAllPlayersReady : 
+  var AllPlayersReady: Bool
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_PC_Lobby: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Get_Item: Object
+  var K2Node_DynamicCast_AsBP_PC_Lobby_1: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+
+== class ExecuteUbergraph_BP_LobbyGameMode : 
+  var EntryPoint: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Length_ReturnValue: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Loop_Counter_Variable: Int
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_K2_SetWorldLocation_SweepHitResult: Struct
+  var K2Node_Event_NewPlayer: Object
+  var K2Node_Event_ExitingController: Object
+  var K2Node_DynamicCast_AsPlayer_Controller: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_RemoveItem_ReturnValue: Bool
+  var CallFunc_ServerTravel_ReturnValue: Bool
+  var CallFunc_GetGameInstance_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_Game_Instance: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_Array_Get_Item_1: Object
+  var CallFunc_GetOwner_ReturnValue: Object
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var K2Node_DynamicCast_AsBP_PC_Lobby: Object
+  var K2Node_DynamicCast_bSuccess_2: Bool
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+
+== class K2_OnLogout : Class'GameModeBase:K2_OnLogout'
+  var ExitingController: Object
+
+== class K2_PostLogin : Class'GameModeBase:K2_PostLogin'
+  var NewPlayer: Object
+
+== class Set Player Slots : 
+  var Temp_int_Variable: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_LessEqual_IntInt_ReturnValue: Bool
+  var CallFunc_GetAllActorsOfClassWithTag_OutActors: Array
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+
+== class Update Player Info : 
+  var RequestingPC: Object
+  var Temp_bool_True_if_break_was_hit_Variable: Bool
+  var Temp_int_Array_Index_Variable: Int
+  var CallFunc_Not_PreBool_ReturnValue: Bool
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var K2Node_DynamicCast_AsBP_PC_Lobby: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var K2Node_DynamicCast_AsBP_PC_Lobby_1: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_GetPlayerName_PlayerName: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var K2Node_MakeStruct_S_PlayerInfo: Struct
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue: Bool
+
+== class Update Player Slots : 
+  var PC Already Added: Bool
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_bool_True_if_break_was_hit_Variable: Bool
+  var Temp_int_Array_Index_Variable: Int
+  var CallFunc_Not_PreBool_ReturnValue: Bool
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Loop_Counter_Variable_2: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var Temp_int_Loop_Counter_Variable_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_3: Int
+  var Temp_int_Array_Index_Variable_2: Int
+  var Temp_int_Array_Index_Variable_3: Int
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_Array_Contains_ReturnValue: Bool
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_1: Object
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+  var Temp_bool_True_if_break_was_hit_Variable_1: Bool
+  var CallFunc_Not_PreBool_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_2: Object
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Less_IntInt_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_3: Object
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_Less_IntInt_ReturnValue_3: Bool
+
+function CheckAllPlayersReady  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @616
+            AllPlayersReady = true
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @62:    CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.PCs)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @375
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @530
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.PCs, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            K2Node_DynamicCast_AsBP_PC_Lobby_1 = Cast<BP_PC_Lobby_C>(CallFunc_Array_Get_Item)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby_1)
+            if not (K2Node_DynamicCast_AsBP_PC_Lobby_1.self.Player Info.Ready_9) goto @604
+            pop_flow  // return to pushed flow
+    @375:   CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            K2Node_DynamicCast_AsBP_PC_Lobby = Cast<BP_PC_Lobby_C>(CallFunc_GetPlayerController_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby)
+            K2Node_DynamicCast_AsBP_PC_Lobby.self.FriendsList.self.AllPlayersReady = AllPlayersReady
+            pop_flow  // return to pushed flow
+    @530:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @62
+    @604:   AllPlayersReady = false
+            pop_flow  // return to pushed flow
+    @616:   return
+
+function ExecuteUbergraph_BP_LobbyGameMode  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1831
+            goto computed(EntryPoint)
+    @15:    CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<LobbyCharacterActor_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @101:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @394
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable_1
+            push_flow @528
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.self.PlayerInfoWidget.SceneComponent.K2_SetWorldLocation(Vec(0.0, 0.0, 0.0), false, CallFunc_K2_SetWorldLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @394:   KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{449, -1685579714, "ExecuteUbergraph_BP_LobbyGameMode", self})
+            pop_flow  // return to pushed flow
+            CallFunc_ServerTravel_ReturnValue = Obj<Default__AdvancedSessionsLibrary>.AdvancedSessionsLibrary.ServerTravel(self, "/Game/MainWorld?listen?seamless", false, false)
+            pop_flow  // return to pushed flow
+    @528:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue
+            goto @101
+    @602:   if not (self.SetSlotsDone) goto @631
+            Update Player Slots()
+            pop_flow  // return to pushed flow
+    @631:   KismetSystemLibrary.Delay(self, 0.05, LatentActionInfo{602, 748150117, "ExecuteUbergraph_BP_LobbyGameMode", self})
+            pop_flow  // return to pushed flow
+            goto @15
+    @691:   push_flow @952
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_1)
+            CallFunc_GetOwner_ReturnValue = CallFunc_Array_Get_Item_1.Actor.GetOwner()
+            K2Node_DynamicCast_AsBP_PC_Lobby = Cast<BP_PC_Lobby_C>(CallFunc_GetOwner_ReturnValue)
+            K2Node_DynamicCast_bSuccess_2 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby)
+            if not (K2Node_DynamicCast_bSuccess_2) pop_flow
+            K2Node_DynamicCast_AsBP_PC_Lobby.CLIENT: FadeCameraToBlack()
+            pop_flow  // return to pushed flow
+    @952:   CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue_1
+    @1021:  CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue.self.?)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) goto @1207
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            goto @691
+    @1207:  KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{686, 784692151, "ExecuteUbergraph_BP_LobbyGameMode", self})
+            pop_flow  // return to pushed flow
+    @1262:  Temp_int_Array_Index_Variable = 0
+            goto @1021
+    @1290:  Temp_int_Loop_Counter_Variable = 0
+            goto @1262
+            Set Player Slots()
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.PrintString(self, "Logged In", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.PCs, K2Node_Event_NewPlayer)
+            goto @602
+            K2Node_DynamicCast_AsPlayer_Controller = Cast<PlayerController>(K2Node_Event_ExitingController)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_Controller)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_Array_RemoveItem_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_RemoveItem(self.PCs, K2Node_DynamicCast_AsPlayer_Controller)
+            goto @602
+            CallFunc_GetGameInstance_ReturnValue = GameplayStatics.GetGameInstance(self)
+            K2Node_DynamicCast_AsBP_Game_Instance = Cast<BP_GameInstance_C>(CallFunc_GetGameInstance_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Game_Instance)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.PCs)
+            K2Node_DynamicCast_AsBP_Game_Instance.self.ExpectedPlayers = CallFunc_Array_Length_ReturnValue_1
+            goto @1290
+    @1831:  return
+
+function K2_OnLogout  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_ExitingController = ExitingController
+            BP_LobbyGameMode_C.ExecuteUbergraph_BP_LobbyGameMode(1482)
+            return
+
+function K2_PostLogin  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_NewPlayer = NewPlayer
+            BP_LobbyGameMode_C.ExecuteUbergraph_BP_LobbyGameMode(1333)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            BP_LobbyGameMode_C.ExecuteUbergraph_BP_LobbyGameMode(1318)
+            return
+
+function Set Player Slots  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @517
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<BP_PlayerSlot_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Temp_int_Variable = 0
+    @68:    CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_LessEqual_IntInt_ReturnValue = KismetMathLibrary.LessEqual_IntInt(Temp_int_Variable, CallFunc_Array_LastIndex_ReturnValue)
+            if not (CallFunc_LessEqual_IntInt_ReturnValue) goto @431
+            push_flow @443
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(Temp_int_Variable)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            CallFunc_GetAllActorsOfClassWithTag_OutActors = []
+            GameplayStatics.GetAllActorsOfClassWithTag(self, Obj<BP_PlayerSlot_C>, CallFunc_Conv_StringToName_ReturnValue, CallFunc_GetAllActorsOfClassWithTag_OutActors)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClassWithTag_OutActors, 0, CallFunc_Array_Get_Item)
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Player Slots, CallFunc_Array_Get_Item)
+            pop_flow  // return to pushed flow
+    @431:   self.SetSlotsDone = true
+            pop_flow  // return to pushed flow
+    @443:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Variable, 1)
+            Temp_int_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @68
+    @517:   return
+
+function StartGame  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_LobbyGameMode_C.ExecuteUbergraph_BP_LobbyGameMode(1622)
+            return
+
+function Update Player Info  [FUNC_Public | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @1032
+            Temp_bool_True_if_break_was_hit_Variable = false
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @62:    CallFunc_Not_PreBool_ReturnValue = KismetMathLibrary.Not_PreBool(Temp_bool_True_if_break_was_hit_Variable)
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Player Slots)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_Not_PreBool_ReturnValue, CallFunc_Less_IntInt_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue) goto @856
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @958
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_EqualEqual_ObjectObject_ReturnValue = KismetMathLibrary.EqualEqual_ObjectObject(CallFunc_Array_Get_Item.self.PC, RequestingPC)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue) pop_flow
+            K2Node_DynamicCast_AsBP_PC_Lobby_1 = Cast<BP_PC_Lobby_C>(RequestingPC)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby_1)
+            AdvancedSessionsLibrary.GetPlayerName(RequestingPC, CallFunc_GetPlayerName_PlayerName)
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_GetPlayerName_PlayerName)
+            K2Node_MakeStruct_S_PlayerInfo.PC_2 = RequestingPC
+            K2Node_MakeStruct_S_PlayerInfo.PlayerName_7 = CallFunc_Conv_StringToText_ReturnValue
+            K2Node_MakeStruct_S_PlayerInfo.Ready_9 = K2Node_DynamicCast_AsBP_PC_Lobby_1.self.Player Info.Ready_9
+            K2Node_MakeStruct_S_PlayerInfo.PlayerState_11 = RequestingPC.self.?
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.self.Selected Character.Update Player Info(K2Node_MakeStruct_S_PlayerInfo)
+            CheckAllPlayersReady()
+            Temp_bool_True_if_break_was_hit_Variable = true
+            pop_flow  // return to pushed flow
+    @856:   K2Node_DynamicCast_AsBP_PC_Lobby = Cast<BP_PC_Lobby_C>(RequestingPC)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_PC_Lobby)
+            K2Node_DynamicCast_AsBP_PC_Lobby.Update Player Info()
+            pop_flow  // return to pushed flow
+    @958:   CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @62
+    @1032:  return
+
+function Update Player Slots  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            push_flow @2003
+            Temp_int_Loop_Counter_Variable_3 = 0
+            Temp_int_Array_Index_Variable_2 = 0
+    @51:    CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.PCs)
+            CallFunc_Less_IntInt_ReturnValue_3 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_3, CallFunc_Array_Length_ReturnValue_3)
+            if not (CallFunc_Less_IntInt_ReturnValue_3) goto @683
+            Temp_int_Array_Index_Variable_2 = Temp_int_Loop_Counter_Variable_3
+            push_flow @1098
+            PC Already Added = false
+            Temp_bool_True_if_break_was_hit_Variable = false
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @262:   CallFunc_Not_PreBool_ReturnValue = KismetMathLibrary.Not_PreBool(Temp_bool_True_if_break_was_hit_Variable)
+            CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Player Slots)
+            CallFunc_Less_IntInt_ReturnValue_2 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_2)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_Not_PreBool_ReturnValue, CallFunc_Less_IntInt_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_1) goto @1172
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @1833
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.PCs, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_3)
+            CallFunc_EqualEqual_ObjectObject_ReturnValue = KismetMathLibrary.EqualEqual_ObjectObject(CallFunc_Array_Get_Item_2.self.PC, CallFunc_Array_Get_Item_3)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue) pop_flow
+            PC Already Added = true
+            Temp_bool_True_if_break_was_hit_Variable = true
+            pop_flow  // return to pushed flow
+    @683:   Temp_int_Loop_Counter_Variable_2 = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @729:   CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Player Slots)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_2, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue) pop_flow
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable_2
+            push_flow @1024
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item)
+            CallFunc_Array_Contains_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Contains(self.PCs, CallFunc_Array_Get_Item.self.PC)
+            if not (CallFunc_Array_Contains_ReturnValue) goto @1907
+            pop_flow  // return to pushed flow
+    @1024:  CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_2, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Add_IntInt_ReturnValue_2
+            goto @729
+    @1098:  CallFunc_Add_IntInt_ReturnValue_3 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_3, 1)
+            Temp_int_Loop_Counter_Variable_3 = CallFunc_Add_IntInt_ReturnValue_3
+            goto @51
+    @1172:  if not (PC Already Added) goto @1187
+            pop_flow  // return to pushed flow
+    @1187:  Temp_bool_True_if_break_was_hit_Variable_1 = false
+            Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable_3 = 0
+    @1244:  CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.Player Slots)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue_1)
+            CallFunc_Not_PreBool_ReturnValue_1 = KismetMathLibrary.Not_PreBool(Temp_bool_True_if_break_was_hit_Variable_1)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_Not_PreBool_ReturnValue_1, CallFunc_Less_IntInt_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            Temp_int_Array_Index_Variable_3 = Temp_int_Loop_Counter_Variable_1
+            push_flow @1759
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_1)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_Array_Get_Item_1.self.PC)
+            if not (CallFunc_IsValid_ReturnValue) goto @1575
+            pop_flow  // return to pushed flow
+    @1575:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.PCs, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_3)
+            CallFunc_Array_Get_Item_1.Add Player(CallFunc_Array_Get_Item_3, Temp_int_Array_Index_Variable_3)
+            Temp_bool_True_if_break_was_hit_Variable_1 = true
+            pop_flow  // return to pushed flow
+    @1759:  CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @1244
+    @1833:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @262
+    @1907:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.Player Slots, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.Remove Player()
+            pop_flow  // return to pushed flow
+    @2003:  return

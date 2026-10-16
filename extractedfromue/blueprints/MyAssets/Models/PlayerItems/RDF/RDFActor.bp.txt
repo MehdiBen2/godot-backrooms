@@ -1,0 +1,141 @@
+// Content\MyAssets\Models\PlayerItems\RDF\RDFActor
+
+== class RDFActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var DistanceWidget: Object
+  var RDF: Object
+  var DefaultSceneRoot: Object
+  var RDFNextPoint: Struct
+  var CanCheckDistance: Bool
+  var CompassMaterial: Object
+  var SyncedToLab: Bool
+  var PathEnd: Struct
+  var LostEmployeeLoc: Struct
+  var LabLocation: Struct
+  var DistanceWidgetRef: Object
+  var CanUpdate: Bool
+  var WorldChunkHandler: Object
+  var HazmatEmployee: Object
+  var Player: Object
+  var MyGameState: Object
+
+== class ExecuteUbergraph_RDFActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_GetGameState_ReturnValue: Object
+  var K2Node_Event_DeltaSeconds: Float
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_GetWidget_ReturnValue: Object
+  var CallFunc_Round_ReturnValue: Int
+  var K2Node_DynamicCast_AsRDFDistance_Widget: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_Divide_IntInt_ReturnValue: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_Vector_Distance_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Divide_IntInt_ReturnValue_1: Int
+  var CallFunc_Conv_IntToString_ReturnValue_1: Str
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_Conv_StringToText_ReturnValue_1: Text
+  var CallFunc_GetGameState_ReturnValue_1: Object
+  var K2Node_DynamicCast_AsWorld_Game_State_1: Object
+  var K2Node_DynamicCast_bSuccess_2: Bool
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+function ExecuteUbergraph_RDFActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @1616
+            goto computed(EntryPoint)
+            self.CanUpdate = true
+            pop_flow  // return to pushed flow
+            self.CanUpdate = true
+            pop_flow  // return to pushed flow
+            if not (self.SyncedToLab) goto @144
+            self.SyncedToLab = false
+            self.CompassMaterial.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.03434, 0.144547, 0.270498, 1.0})
+            pop_flow  // return to pushed flow
+    @144:   self.SyncedToLab = true
+            self.CompassMaterial.MaterialInstanceDynamic.SetVectorParameterValue("Color", LinearColor{0.0185, 0.052861, 0.0, 1.0})
+            pop_flow  // return to pushed flow
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, Obj<Compass_Inst>, "None", 0)
+            self.CompassMaterial = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            self.RDF.SetMaterial(3, self.CompassMaterial)
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) goto @498
+            self.LostEmployeeLoc = K2Node_DynamicCast_AsWorld_Game_State.self.EmployeeLastLocation
+    @498:   CallFunc_GetWidget_ReturnValue = self.DistanceWidget.GetWidget()
+            K2Node_DynamicCast_AsRDFDistance_Widget = Cast<RDFDistanceWidget_C>(CallFunc_GetWidget_ReturnValue)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsRDFDistance_Widget)
+            if not (K2Node_DynamicCast_bSuccess_1) goto @642
+            self.DistanceWidgetRef = K2Node_DynamicCast_AsRDFDistance_Widget
+    @642:   CallFunc_GetGameState_ReturnValue_1 = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State_1 = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue_1)
+            K2Node_DynamicCast_bSuccess_2 = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State_1)
+            if not (K2Node_DynamicCast_bSuccess_2) pop_flow
+            self.MyGameState = K2Node_DynamicCast_AsWorld_Game_State_1
+            pop_flow  // return to pushed flow
+            if not (self.SyncedToLab) goto @1183
+            if not (self.CanUpdate) pop_flow
+            self.CanUpdate = false
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(self.LabLocation, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Vector_Distance_ReturnValue)
+            CallFunc_Divide_IntInt_ReturnValue = KismetMathLibrary.Divide_IntInt(CallFunc_Round_ReturnValue, 150)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_Divide_IntInt_ReturnValue)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue, " m")
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue)
+            self.DistanceWidgetRef.self.DistanceText.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{15, 915488607, "ExecuteUbergraph_RDFActor", self})
+            pop_flow  // return to pushed flow
+    @1183:  if not (self.CanUpdate) pop_flow
+            self.CanUpdate = false
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_1 = KismetMathLibrary.Vector_Distance(self.MyGameState.self.LostEmployeeLocation, CallFunc_K2_GetActorLocation_ReturnValue_1)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Vector_Distance_ReturnValue_1)
+            CallFunc_Divide_IntInt_ReturnValue_1 = KismetMathLibrary.Divide_IntInt(CallFunc_Round_ReturnValue_1, 150)
+            CallFunc_Conv_IntToString_ReturnValue_1 = KismetStringLibrary.Conv_IntToString(CallFunc_Divide_IntInt_ReturnValue_1)
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue_1, " m")
+            CallFunc_Conv_StringToText_ReturnValue_1 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_1)
+            self.DistanceWidgetRef.self.DistanceText.SetText(CallFunc_Conv_StringToText_ReturnValue_1)
+            KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{27, 2117910661, "ExecuteUbergraph_RDFActor", self})
+            pop_flow  // return to pushed flow
+    @1616:  return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            RDFActor_C.ExecuteUbergraph_RDFActor(39)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            RDFActor_C.ExecuteUbergraph_RDFActor(235)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            RDFActor_C.ExecuteUbergraph_RDFActor(758)
+            return

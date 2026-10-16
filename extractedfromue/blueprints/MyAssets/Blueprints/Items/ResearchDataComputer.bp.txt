@@ -1,0 +1,165 @@
+// Content\MyAssets\Blueprints\Items\ResearchDataComputer
+
+== class ResearchDataComputer_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var DepositedMesh: Object
+  var RDDepositePlatform: Object
+  var RDDepositeDoor: Object
+  var Cube: Object
+  var Tasks: Object
+  var DefaultSceneRoot: Object
+  var DoorAnimation_Door: Float
+  var DoorAnimation__Direction: Byte
+  var DoorAnimation: Object
+  var Data: Int
+  var BusyDepositing: Bool
+  var TaskSystem: Object
+
+== class ExecuteUbergraph_ResearchDataComputer : 
+  var EntryPoint: Int
+  var CallFunc_VLerp_ReturnValue: Struct
+  var CallFunc_VLerp_ReturnValue_1: Struct
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_StrStr_ReturnValue: Bool
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_StrStr_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+  var CallFunc_SetStaticMesh_ReturnValue_1: Bool
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_1: Struct
+  var CallFunc_GetWidget_ReturnValue: Object
+  var K2Node_DynamicCast_AsResearch_Data_Computer_UI: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_SetStaticMesh_ReturnValue_2: Bool
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_SpawnSoundAtLocation_ReturnValue: Object
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function DoorAnimation__DepositItem__EventFunc  [FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(688)
+            return
+
+function DoorAnimation__FinishedFunc  [FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(2101)
+            return
+
+function DoorAnimation__UpdateFunc  [FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(1729)
+            return
+
+function ExecuteUbergraph_ResearchDataComputer  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2262
+            goto computed(EntryPoint)
+    @15:    self.TaskSystem.UpdateMissionProgress(3)
+    @53:    self.DoorAnimation.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @86:    NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "BusyDepositing")
+            CallFunc_SetStaticMesh_ReturnValue = self.DepositedMesh.SetStaticMesh(K2Node_Event_CurrentItemInfo.Mesh_7)
+            K2Node_Event_Player_1.Client: DepositResearchItem()
+            SERVER: SpawnWhirSound()
+            goto @53
+    @234:   Actor.FlushNetDormancy()
+            self.BusyDepositing = true
+            goto @86
+    @260:   Actor.FlushNetDormancy()
+            self.BusyDepositing = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "BusyDepositing")
+            pop_flow  // return to pushed flow
+            K2Node_DynamicCast_AsResearch_Data_Computer_UI.self.DataAmountText.SetVisibility(4)
+            K2Node_DynamicCast_AsResearch_Data_Computer_UI.self.TopLineText.SetText(Text({"Token": "EX_StringConst", "Value": "Research data"}))
+            pop_flow  // return to pushed flow
+    @483:   Actor.FlushNetDormancy()
+            self.BusyDepositing = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "BusyDepositing")
+            CallFunc_SetStaticMesh_ReturnValue_2 = self.DepositedMesh.SetStaticMesh(Obj<CamcorderFootageStick>)
+            SERVER: SpawnWhirSound()
+            K2Node_Event_Player_1.CLIENT: RemoveFootageFromInventory(K2Node_Event_Player_1.self.ItemSlotSelected)
+            MULTI:SetFootageText()
+            goto @15
+            CallFunc_SetStaticMesh_ReturnValue_1 = self.DepositedMesh.SetStaticMesh(null)
+            pop_flow  // return to pushed flow
+            if not (K2Node_Event_CurrentItemInfo.IsResearchDataObject_33) goto @774
+            if not (self.BusyDepositing) goto @234
+            pop_flow  // return to pushed flow
+    @774:   CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(K2Node_Event_CurrentItemInfo.Quantity_45, 1)
+            CallFunc_EqualEqual_StrStr_ReturnValue_1 = KismetStringLibrary.EqualEqual_StrStr(K2Node_Event_CurrentItemInfo.Name_2, "Camcorder")
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_StrStr_ReturnValue_1, CallFunc_EqualEqual_IntInt_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            if not (self.BusyDepositing) goto @483
+            pop_flow  // return to pushed flow
+            if not (self.BusyDepositing) goto @986
+            K2Node_Event_Player.self.InteractText = Text("")
+            pop_flow  // return to pushed flow
+    @986:   CallFunc_EqualEqual_StrStr_ReturnValue = KismetStringLibrary.EqualEqual_StrStr(K2Node_Event_Player.self.CurrentItemInfo.Name_2, "Handheld Camcorder")
+            if not (CallFunc_EqualEqual_StrStr_ReturnValue) goto @1255
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(K2Node_Event_Player.self.CurrentItemInfo.Quantity_45, 1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @1348
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Deposit Footage"})
+            pop_flow  // return to pushed flow
+    @1255:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Deposit Item"})
+            pop_flow  // return to pushed flow
+    @1348:  K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "No Footage to Deposit"})
+            pop_flow  // return to pushed flow
+    @1450:  CallFunc_VLerp_ReturnValue_1 = KismetMathLibrary.VLerp(Vec(54.0, 74.0, 69.0), Vec(54.0, 74.0, 123.0), self.DoorAnimation_Door)
+            self.RDDepositeDoor.SceneComponent.K2_SetRelativeLocation(CallFunc_VLerp_ReturnValue_1, false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+            CallFunc_VLerp_ReturnValue = KismetMathLibrary.VLerp(Vec(54.0, 28.0, 122.0), Vec(54.0, 28.0, 90.0), self.DoorAnimation_Door)
+            self.RDDepositePlatform.SceneComponent.K2_SetRelativeLocation(CallFunc_VLerp_ReturnValue, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            pop_flow  // return to pushed flow
+            goto @1450
+            CallFunc_GetWidget_ReturnValue = self.Tasks.GetWidget()
+            K2Node_DynamicCast_AsResearch_Data_Computer_UI = Cast<ResearchDataComputerUI_C>(CallFunc_GetWidget_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsResearch_Data_Computer_UI)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsResearch_Data_Computer_UI.self.DataAmountText.SetVisibility(2)
+            K2Node_DynamicCast_AsResearch_Data_Computer_UI.self.TopLineText.SetText(Text({"Token": "EX_StringConst", "Value": "Footage \r\nDeposited\r\nSuccessfully"}))
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{311, -968566717, "ExecuteUbergraph_ResearchDataComputer", self})
+            pop_flow  // return to pushed flow
+            goto @260
+            MULTI: SpawnWhirSound()
+            pop_flow  // return to pushed flow
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.DepositedMesh.SceneComponent.K2_GetComponentLocation()
+            CallFunc_SpawnSoundAtLocation_ReturnValue = GameplayStatics.SpawnSoundAtLocation(self, Obj<DepositWhir>, CallFunc_K2_GetComponentLocation_ReturnValue, Rot(0.0, 0.0, 0.0), 0.25, 1.0, 0.0, Obj<PlayerAttenuation>, null, true)
+            pop_flow  // return to pushed flow
+    @2262:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(929)
+            return
+
+function MULTI: SpawnWhirSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(2121)
+            return
+
+function MULTI:SetFootageText  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(1734)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(736)
+            return
+
+function SERVER: SpawnWhirSound  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            ResearchDataComputer_C.ExecuteUbergraph_ResearchDataComputer(2106)
+            return

@@ -1,0 +1,76 @@
+// Content\MyAssets\Models\Furniture\HazardLight\HazardLightA
+
+== class HazardLightA_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var SpotLight: Object
+  var SpotLight1: Object
+  var RotatingMovement: Object
+  var HazardLightLamp1: Object
+  var HazardLightBase: Object
+  var DefaultSceneRoot: Object
+  var LightsTurnOn_NewTrack_0: Float
+  var LightsTurnOn__Direction: Byte
+  var LightsTurnOn: Object
+  var DynamicGlow: Object
+
+== class ExecuteUbergraph_HazardLightA : 
+  var EntryPoint: Int
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_Lerp_ReturnValue_2: Double
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_2: Double
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast: Float
+  var CallFunc_SetScalarParameterValue_Value_ImplicitCast: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+
+function ExecuteUbergraph_HazardLightA  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+            self.LightsTurnOn.TimelineComponent.ReverseFromEnd()
+            goto @767
+    @47:    self.LightsTurnOn.TimelineComponent.PlayFromStart()
+            goto @767
+            goto @47
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.HazardLightLamp1.CreateDynamicMaterialInstance(1, Obj<LampGlow_Inst>, "None")
+            self.DynamicGlow = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            goto @767
+    @186:   CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.LightsTurnOn_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_2 = KismetMathLibrary.Lerp(0.0, 320.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_2)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(0.0, 0.0, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            self.RotatingMovement.self.? = CallFunc_MakeRotator_ReturnValue
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.LightsTurnOn_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(0.0, 4.0, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            CallFunc_SetScalarParameterValue_Value_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_1)
+            self.DynamicGlow.MaterialInstanceDynamic.SetScalarParameterValue("Emissive", CallFunc_SetScalarParameterValue_Value_ImplicitCast)
+            CallFunc_Lerp_Alpha_ImplicitCast_2 = CST_FloatToDouble(self.LightsTurnOn_NewTrack_0)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.0, 10000.0, CallFunc_Lerp_Alpha_ImplicitCast_2)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue)
+            self.SpotLight1.LightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast)
+            self.SpotLight.LightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast)
+            goto @767
+            goto @186
+    @767:   return
+
+function LightsTurnOn__FinishedFunc  [FUNC_BlueprintEvent]
+            HazardLightA_C.ExecuteUbergraph_HazardLightA(767)
+            return
+
+function LightsTurnOn__UpdateFunc  [FUNC_BlueprintEvent]
+            HazardLightA_C.ExecuteUbergraph_HazardLightA(762)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            HazardLightA_C.ExecuteUbergraph_HazardLightA(89)
+            return
+
+function StartSequenceHazard  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazardLightA_C.ExecuteUbergraph_HazardLightA(84)
+            return
+
+function StopSequenceHazard  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            HazardLightA_C.ExecuteUbergraph_HazardLightA(10)
+            return

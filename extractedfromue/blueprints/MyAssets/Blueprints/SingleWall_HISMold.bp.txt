@@ -1,0 +1,5 @@
+// Content\MyAssets\Blueprints\SingleWall_HISMold
+
+== class SingleWall_HISMold_C : Class'Actor'
+  var HierarchicalInstancedStaticMesh: Object
+  var DefaultSceneRoot: Object

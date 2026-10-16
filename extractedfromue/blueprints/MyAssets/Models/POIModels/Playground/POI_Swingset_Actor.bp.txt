@@ -1,0 +1,143 @@
+// Content\MyAssets\Models\POIModels\Playground\POI_Swingset_Actor
+
+== class POI_Swingset_Actor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Box: Object
+  var CameraCollision: Object
+  var Sphere: Object
+  var Swingset: Object
+  var DefaultSceneRoot: Object
+  var Color1: Struct
+  var Color2: Struct
+  var Color3: Struct
+  var RandomSubjectTag: Name
+
+== class ExecuteUbergraph_POI_Swingset_Actor : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_1: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_2: Double
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_HSVToRGB_ReturnValue: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_3: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_4: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_5: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_6: Double
+  var CallFunc_HSVToRGB_ReturnValue_1: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_7: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_8: Double
+  var CallFunc_HSVToRGB_ReturnValue_2: Struct
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue_1: Object
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue_2: Object
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var CallFunc_HSVToRGB_H_ImplicitCast: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast_2: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast_2: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast_2: Float
+
+== class OnRep_Color1 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_Color2 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_Color3 : 
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_RandomSubjectTag : 
+  var CallFunc_Array_Add_ReturnValue: Int
+
+function ExecuteUbergraph_POI_Swingset_Actor  [FUNC_Final | FUNC_UbergraphFunction]
+            goto computed(EntryPoint)
+    @10:    SERVER: SetRandomSubjectTag()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue = KismetMathLibrary.RandomFloatInRange(0.0, 360.0)
+            CallFunc_RandomFloatInRange_ReturnValue_1 = KismetMathLibrary.RandomFloatInRange(0.25, 0.75)
+            CallFunc_RandomFloatInRange_ReturnValue_2 = KismetMathLibrary.RandomFloatInRange(0.2, 0.5)
+            CallFunc_HSVToRGB_H_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue)
+            CallFunc_HSVToRGB_S_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_1)
+            CallFunc_HSVToRGB_V_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_2)
+            CallFunc_HSVToRGB_ReturnValue = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast, CallFunc_HSVToRGB_S_ImplicitCast, CallFunc_HSVToRGB_V_ImplicitCast, 1.0)
+            self.Color1 = CallFunc_HSVToRGB_ReturnValue
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 10, "Color1")
+            OnRep_Color1()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_3 = KismetMathLibrary.RandomFloatInRange(0.0, 360.0)
+            CallFunc_RandomFloatInRange_ReturnValue_4 = KismetMathLibrary.RandomFloatInRange(0.25, 0.75)
+            CallFunc_RandomFloatInRange_ReturnValue_5 = KismetMathLibrary.RandomFloatInRange(0.2, 0.5)
+            CallFunc_HSVToRGB_H_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_3)
+            CallFunc_HSVToRGB_S_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_4)
+            CallFunc_HSVToRGB_V_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_5)
+            CallFunc_HSVToRGB_ReturnValue_1 = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast_1, CallFunc_HSVToRGB_S_ImplicitCast_1, CallFunc_HSVToRGB_V_ImplicitCast_1, 1.0)
+            self.Color2 = CallFunc_HSVToRGB_ReturnValue_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 11, "Color2")
+            OnRep_Color2()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_6 = KismetMathLibrary.RandomFloatInRange(0.0, 360.0)
+            CallFunc_RandomFloatInRange_ReturnValue_7 = KismetMathLibrary.RandomFloatInRange(0.25, 0.75)
+            CallFunc_RandomFloatInRange_ReturnValue_8 = KismetMathLibrary.RandomFloatInRange(0.25, 0.5)
+            CallFunc_HSVToRGB_H_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_6)
+            CallFunc_HSVToRGB_S_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_7)
+            CallFunc_HSVToRGB_V_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_8)
+            CallFunc_HSVToRGB_ReturnValue_2 = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast_2, CallFunc_HSVToRGB_S_ImplicitCast_2, CallFunc_HSVToRGB_V_ImplicitCast_2, 1.0)
+            self.Color3 = CallFunc_HSVToRGB_ReturnValue_2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 12, "Color3")
+            OnRep_Color3()
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(0, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color1)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_1 = self.Swingset.CreateDynamicMaterialInstance(1, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_1.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color2)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_2 = self.Swingset.CreateDynamicMaterialInstance(2, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue_2.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color3)
+            goto @1761
+    @1505:  OnRep_RandomSubjectTag()
+            goto @1761
+    @1524:  NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 13, "RandomSubjectTag")
+            goto @1505
+    @1558:  Actor.FlushNetDormancy()
+            CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(10000, 10000000)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_RandomIntegerInRange_ReturnValue)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            self.RandomSubjectTag = CallFunc_Conv_StringToName_ReturnValue
+            goto @1524
+    @1712:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @1761
+            goto @10
+            goto @1712
+            goto @1558
+    @1761:  return
+
+function OnRep_Color1  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(0, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color1)
+            return
+
+function OnRep_Color2  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(1, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color2)
+            return
+
+function OnRep_Color3  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Swingset.CreateDynamicMaterialInstance(2, Obj<ModularPaint_Inst>, "None")
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.Color3)
+            return
+
+function OnRep_RandomSubjectTag  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Box.self.?, self.RandomSubjectTag)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            POI_Swingset_Actor_C.ExecuteUbergraph_POI_Swingset_Actor(1751)
+            return
+
+function SERVER: SetRandomSubjectTag  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            POI_Swingset_Actor_C.ExecuteUbergraph_POI_Swingset_Actor(1756)
+            return

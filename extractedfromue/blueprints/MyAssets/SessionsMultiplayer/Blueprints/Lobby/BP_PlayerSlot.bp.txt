@@ -1,0 +1,57 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\Lobby\BP_PlayerSlot
+
+== class BP_PlayerSlot_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Arrow: Object
+  var Cylinder: Object
+  var DefaultSceneRoot: Object
+  var PC: Object
+  var Selected Character: Object
+
+== class Add Player : 
+  var PC: Object
+  var SlotNumber: Int
+
+== class ExecuteUbergraph_BP_PlayerSlot : 
+  var EntryPoint: Int
+  var CallFunc_IsValid_ReturnValue: Bool
+  var K2Node_CustomEvent_PC: Object
+  var K2Node_CustomEvent_SlotNumber: Int
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_K2_GetComponentToWorld_ReturnValue: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue: Object
+  var CallFunc_FinishSpawningActor_ReturnValue: Object
+
+function Add Player  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_PC = PC
+            frame.K2Node_CustomEvent_SlotNumber = SlotNumber
+            BP_PlayerSlot_C.ExecuteUbergraph_BP_PlayerSlot(115)
+            return
+
+function ExecuteUbergraph_BP_PlayerSlot  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    self.Selected Character = null
+            goto @442
+    @26:    self.Selected Character.K2_DestroyActor()
+            goto @10
+    @67:    CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.Selected Character)
+            if not (CallFunc_IsValid_ReturnValue) goto @442
+            goto @26
+            self.PC = K2Node_CustomEvent_PC
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(self.Selected Character)
+            if not (CallFunc_IsValid_ReturnValue_1) goto @218
+            self.Selected Character.K2_DestroyActor()
+            goto @442
+    @218:   CallFunc_K2_GetComponentToWorld_ReturnValue = self.Arrow.SceneComponent.K2_GetComponentToWorld()
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<LobbyCharacterActor_C>, CallFunc_K2_GetComponentToWorld_ReturnValue, 1, null, 1)
+            CallFunc_K2_GetComponentToWorld_ReturnValue = self.Arrow.SceneComponent.K2_GetComponentToWorld()
+            CallFunc_FinishSpawningActor_ReturnValue = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, CallFunc_K2_GetComponentToWorld_ReturnValue, 1)
+            self.Selected Character = CallFunc_FinishSpawningActor_ReturnValue
+            goto @442
+            self.PC = null
+            goto @67
+    @442:   return
+
+function Remove Player  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PlayerSlot_C.ExecuteUbergraph_BP_PlayerSlot(426)
+            return

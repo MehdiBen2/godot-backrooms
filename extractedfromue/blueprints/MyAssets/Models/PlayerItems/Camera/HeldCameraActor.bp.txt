@@ -1,0 +1,85 @@
+// Content\MyAssets\Models\PlayerItems\Camera\HeldCameraActor
+
+== class HeldCameraActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var CameraFlash: Object
+  var CameraHeldHold: Object
+  var DefaultSceneRoot: Object
+  var CanTakePicture: Bool
+  var ScreenMaterial: Object
+
+== class ExecuteUbergraph_HeldCameraActor : 
+  var EntryPoint: Int
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var K2Node_Event_PlayerLocation_1: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling_1: Bool
+  var K2Node_Event_CurrentSelectedSeat_1: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var CallFunc_K2_GetComponentRotation_ReturnValue: Struct
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_BooleanAND_ReturnValue: Bool
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class PlayerInteractRightClick : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+
+function ExecuteUbergraph_HeldCameraActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @801
+            goto computed(EntryPoint)
+            self.CanTakePicture = true
+            pop_flow  // return to pushed flow
+    @27:    CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.CameraHeldHold.CreateDynamicMaterialInstance(2, Obj<CameraPhotoMaterial_Inst>, "None")
+            self.ScreenMaterial = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            self.CameraHeldHold.SetMaterial(2, self.ScreenMaterial)
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player_1.UseCamera()
+            pop_flow  // return to pushed flow
+    @207:   self.CanTakePicture = false
+            K2Node_Event_Player.self.CurrentSelectedPicture = 0
+            CallFunc_K2_GetComponentRotation_ReturnValue = K2Node_Event_Player.self.SceneCaptureComponent2D.SceneComponent.K2_GetComponentRotation()
+            CallFunc_K2_GetComponentLocation_ReturnValue = K2Node_Event_Player.self.SceneCaptureComponent2D.SceneComponent.K2_GetComponentLocation()
+            K2Node_Event_Player.SERVER: TakePictureScene(K2Node_Event_Player.self.CurrentItemInfo.Quantity_45, CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_K2_GetComponentRotation_ReturnValue, K2Node_Event_Player.self.CurrentCameraViewValue, K2Node_Event_Player.self.SubjectTags, K2Node_Event_Player.self.SubjectTypeTags)
+            K2Node_Event_Player.SERVER: TakePicture()
+            K2Node_Event_Player.UpdateCameraPicture()
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{15, -1372696291, "ExecuteUbergraph_HeldCameraActor", self})
+            pop_flow  // return to pushed flow
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(self.CanTakePicture, K2Node_Event_Player.self.UsingCamera)
+            if not (CallFunc_BooleanAND_ReturnValue) pop_flow
+            goto @207
+            goto @27
+    @801:   return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            HeldCameraActor_C.ExecuteUbergraph_HeldCameraActor(721)
+            return
+
+function PlayerInteractRightClick  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation_1 = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling_1 = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat_1 = CurrentSelectedSeat
+            HeldCameraActor_C.ExecuteUbergraph_HeldCameraActor(170)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            HeldCameraActor_C.ExecuteUbergraph_HeldCameraActor(796)
+            return

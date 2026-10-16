@@ -1,0 +1,100 @@
+// Content\MyAssets\SessionsMultiplayer\UI\W_Friend
+
+== class ExecuteUbergraph_W_Friend : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var CallFunc_IsHovered_ReturnValue: Bool
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_CustomEvent_FriendData: Struct
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_GetSteamFriendAvatar_Result: Enum
+  var CallFunc_GetSteamFriendAvatar_ReturnValue: Object
+  var CallFunc_SelectFloat_ReturnValue: Double
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_SendSessionInviteToFriend_Result: Enum
+  var K2Node_SwitchEnum_CmpSuccess_1: Bool
+  var CallFunc_SetRenderOpacity_InOpacity_ImplicitCast: Float
+
+== class Update : 
+  var FriendData: Struct
+
+== class W_Friend_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var Button_Invite: Object
+  var IMG_Avatar: Object
+  var InviteText: Object
+  var Text_PlayerName: Object
+  var FriendData: Struct
+
+function BndEvt__W_Friend_Button_Invite_K2Node_ComponentBoundEvent_0_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_Friend_C.ExecuteUbergraph_W_Friend(753)
+            return
+
+function BndEvt__W_Friend_Button_Invite_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_Friend_C.ExecuteUbergraph_W_Friend(1087)
+            return
+
+function BndEvt__W_Friend_Button_Invite_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_Friend_C.ExecuteUbergraph_W_Friend(1092)
+            return
+
+function BndEvt__W_Friend_Button_Invite_K2Node_ComponentBoundEvent_4_OnButtonPressedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_Friend_C.ExecuteUbergraph_W_Friend(1097)
+            return
+
+function BndEvt__W_Friend_Button_Invite_K2Node_ComponentBoundEvent_5_OnButtonReleasedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            W_Friend_C.ExecuteUbergraph_W_Friend(1233)
+            return
+
+function ExecuteUbergraph_W_Friend  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    CallFunc_IsHovered_ReturnValue = self.Button_Invite.IsHovered()
+            if not (CallFunc_IsHovered_ReturnValue) goto @206
+    @70:    K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.InviteText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            goto @1238
+    @206:   K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.InviteText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @1238
+            self.FriendData = K2Node_CustomEvent_FriendData
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(self.FriendData.?)
+            self.Text_PlayerName.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            CallFunc_GetSteamFriendAvatar_ReturnValue = AdvancedSteamFriendsLibrary.GetSteamFriendAvatar(self.FriendData.?, CallFunc_GetSteamFriendAvatar_Result, 2)
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(CallFunc_GetSteamFriendAvatar_Result, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @559
+            goto @1238
+    @559:   self.IMG_Avatar.SetBrushFromTexture(CallFunc_GetSteamFriendAvatar_ReturnValue, false)
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(self.FriendData.?, 1)
+            CallFunc_SelectFloat_ReturnValue = KismetMathLibrary.SelectFloat(0.25, 1.0, CallFunc_EqualEqual_ByteByte_ReturnValue)
+            CallFunc_SetRenderOpacity_InOpacity_ImplicitCast = CST_DoubleToFloat(CallFunc_SelectFloat_ReturnValue)
+            Widget.SetRenderOpacity(CallFunc_SetRenderOpacity_InOpacity_ImplicitCast)
+            goto @1238
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            AdvancedFriendsLibrary.SendSessionInviteToFriend(CallFunc_GetPlayerController_ReturnValue, self.FriendData.?, CallFunc_SendSessionInviteToFriend_Result)
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(CallFunc_SendSessionInviteToFriend_Result, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @920
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(CallFunc_SendSessionInviteToFriend_Result, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @999
+            goto @1238
+    @920:   KismetSystemLibrary.PrintString(self, "Invited", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            goto @1238
+    @999:   KismetSystemLibrary.PrintString(self, "Failed to Invite", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            goto @1238
+            goto @70
+            goto @206
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{0.520833, 0.335667, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.InviteText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            goto @1238
+            goto @10
+    @1238:  return
+
+function Update  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_FriendData = FriendData
+            W_Friend_C.ExecuteUbergraph_W_Friend(342)
+            return

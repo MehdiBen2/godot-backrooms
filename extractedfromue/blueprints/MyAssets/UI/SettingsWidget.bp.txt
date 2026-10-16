@@ -1,0 +1,757 @@
+// Content\MyAssets\UI\SettingsWidget
+
+== class BndEvt__SettingsWidget_HeadBobSlider_K2Node_ComponentBoundEvent_30_OnFloatValueChangedEvent__DelegateSignature : 
+  var Value: Float
+
+== class ExecuteUbergraph_SettingsWidget : 
+  var EntryPoint: Int
+  var K2Node_MakeStruct_SlateColor: Struct
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var K2Node_MakeStruct_SlateColor_1: Struct
+  var K2Node_MakeStruct_SlateColor_2: Struct
+  var K2Node_MakeStruct_SlateColor_3: Struct
+  var K2Node_SwitchInteger_CmpSuccess: Bool
+  var CallFunc_SetPropertyValueAndBroadcast_ReturnValue: Bool
+  var CallFunc_SetPropertyValueAndBroadcast_ReturnValue_1: Bool
+  var CallFunc_SetPropertyValueAndBroadcast_ReturnValue_2: Bool
+  var CallFunc_SetPropertyValueAndBroadcast_ReturnValue_3: Bool
+  var CallFunc_Create_ReturnValue: Object
+  var K2Node_MakeStruct_SlateColor_4: Struct
+  var K2Node_MakeStruct_SlateColor_5: Struct
+  var K2Node_MakeStruct_SlateColor_6: Struct
+  var K2Node_MakeStruct_SlateColor_7: Struct
+  var K2Node_Event_IsDesignTime: Bool
+  var K2Node_SwitchEnum_CmpSuccess_1: Bool
+  var K2Node_MakeStruct_SlateColor_8: Struct
+  var K2Node_SwitchEnum_CmpSuccess_2: Bool
+  var K2Node_MakeStruct_SlateColor_9: Struct
+  var CallFunc_GetGameUserSettings_ReturnValue: Object
+  var CallFunc_GetGameUserSettings_ReturnValue_1: Object
+  var CallFunc_GetShadingQuality_ReturnValue: Int
+  var CallFunc_GetTextureQuality_ReturnValue: Int
+  var CallFunc_SetPropertyValueAndBroadcast_ReturnValue_4: Bool
+  var CallFunc_GetGlobalIlluminationQuality_ReturnValue: Int
+  var CallFunc_GetShadowQuality_ReturnValue: Int
+  var CallFunc_GetAntiAliasingQuality_ReturnValue: Int
+  var CallFunc_GetPostProcessingQuality_ReturnValue: Int
+  var CallFunc_GetScreenResolution_ReturnValue: Struct
+  var CallFunc_GetFullscreenMode_ReturnValue: Byte
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Conv_IntToString_ReturnValue_1: Str
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var K2Node_SwitchEnum_CmpSuccess_3: Bool
+  var CallFunc_GetEnumeratorUserFriendlyName_ReturnValue: Str
+  var CallFunc_Conv_StringToText_ReturnValue_1: Text
+  var CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_1: Str
+  var K2Node_SwitchEnum_CmpSuccess_4: Bool
+  var CallFunc_Conv_StringToText_ReturnValue_2: Text
+  var CallFunc_GetSupportedFullscreenResolutions_Resolutions: Array
+  var CallFunc_GetSupportedFullscreenResolutions_ReturnValue: Bool
+  var CallFunc_Array_Find_ReturnValue: Int
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_Array_Get_Item: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var K2Node_MakeStruct_SlateColor_10: Struct
+  var CallFunc_Array_Get_Item_1: Struct
+  var K2Node_MakeStruct_SlateColor_11: Struct
+  var K2Node_MakeStruct_SlateColor_12: Struct
+  var CallFunc_Conv_IntToString_ReturnValue_2: Str
+  var CallFunc_Conv_IntToString_ReturnValue_3: Str
+  var CallFunc_Concat_StrStr_ReturnValue_2: Str
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_Concat_StrStr_ReturnValue_3: Str
+  var CallFunc_Conv_StringToText_ReturnValue_3: Text
+  var CallFunc_Array_Find_ReturnValue_1: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var K2Node_MakeStruct_SlateColor_13: Struct
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Array_Get_Item_2: Struct
+  var CallFunc_Array_Get_Item_3: Struct
+  var CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_2: Str
+  var CallFunc_Conv_IntToString_ReturnValue_4: Str
+  var CallFunc_Conv_StringToText_ReturnValue_4: Text
+  var CallFunc_Conv_IntToString_ReturnValue_5: Str
+  var CallFunc_Concat_StrStr_ReturnValue_4: Str
+  var CallFunc_Concat_StrStr_ReturnValue_5: Str
+  var CallFunc_Conv_StringToText_ReturnValue_5: Text
+  var K2Node_SwitchEnum_CmpSuccess_5: Bool
+  var K2Node_SwitchEnum_CmpSuccess_6: Bool
+  var CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_3: Str
+  var K2Node_MakeStruct_SlateColor_14: Struct
+  var CallFunc_Conv_StringToText_ReturnValue_6: Text
+  var K2Node_SwitchEnum_CmpSuccess_7: Bool
+  var K2Node_MakeStruct_SlateColor_15: Struct
+  var CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_4: Str
+  var CallFunc_Conv_StringToText_ReturnValue_7: Text
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var K2Node_MakeStruct_SlateColor_16: Struct
+  var K2Node_MakeStruct_SlateColor_17: Struct
+  var K2Node_MakeStruct_LinearColor: Struct
+  var K2Node_Event_MyGeometry: Struct
+  var K2Node_Event_InDeltaTime: Float
+  var K2Node_MakeStruct_SlateColor_18: Struct
+  var CallFunc_GetValue_ReturnValue: Float
+  var CallFunc_Multiply_DoubleDouble_ReturnValue: Double
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_LoadGameFromSlot_ReturnValue: Object
+  var CallFunc_Conv_IntToString_ReturnValue_6: Str
+  var K2Node_DynamicCast_AsSettings_Save_Game: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Concat_StrStr_ReturnValue_6: Str
+  var CallFunc_Conv_StringToText_ReturnValue_8: Text
+  var K2Node_ComponentBoundEvent_Value: Float
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Conv_IntToText_ReturnValue: Text
+  var K2Node_MakeStruct_SlateColor_19: Struct
+  var CallFunc_SaveGameToSlot_ReturnValue: Bool
+  var K2Node_MakeStruct_PostProcessSettings: Struct
+  var K2Node_MakeStruct_PostProcessSettings_1: Struct
+  var CallFunc_Multiply_DoubleDouble_A_ImplicitCast: Double
+  var K2Node_VariableSet_HeadBobAmount_ImplicitCast: Double
+  var CallFunc_SetValue_InValue_ImplicitCast: Float
+
+== class OnKeyDown : Class'UserWidget:OnKeyDown'
+  var MyGeometry: Struct
+  var InKeyEvent: Struct
+  var ReturnValue: Struct
+  var CallFunc_GetKey_ReturnValue: Struct
+  var CallFunc_GetPlayerController_ReturnValue: Object
+  var CallFunc_EqualEqual_KeyKey_ReturnValue: Bool
+  var CallFunc_Handled_ReturnValue: Struct
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+
+== class PreConstruct : Class'UserWidget:PreConstruct'
+  var IsDesignTime: Bool
+
+== class Tick : Class'UserWidget:Tick'
+  var MyGeometry: Struct
+  var InDeltaTime: Float
+
+== class SettingsWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var ApplyButton: Object
+  var ApplyText: Object
+  var BackButton: Object
+  var BackgroundBlur_151: Object
+  var BackText: Object
+  var BlackBG: Object
+  var BlackBG_1: Object
+  var DisplayLeftButton: Object
+  var DisplayLeftText: Object
+  var DisplayRightButton: Object
+  var DisplayRightText: Object
+  var DisplaySettingText: Object
+  var GraphicsQualityLeftButton: Object
+  var GraphicsQualityLeftText: Object
+  var GraphicsQualityRightButton: Object
+  var GraphicsQualityRightText: Object
+  var GraphicsSettingText: Object
+  var HeadBobAmountText: Object
+  var HeadBobSlider: Object
+  var MotionBlurLeftButton_1: Object
+  var MotionBlurLeftText_1: Object
+  var MotionBlurRightButton_1: Object
+  var MotionBlurRightText_1: Object
+  var MotionBlurText_1: Object
+  var ResolutionLeftButton: Object
+  var ResolutionLeftText: Object
+  var ResolutionRightButton: Object
+  var ResolutionRightText: Object
+  var ResolutionSettingText: Object
+  var SettingsText: Object
+  var ExitMenuType: Byte
+  var DisplayMode: Byte
+  var Resolution: Struct
+  var SupportedResolutions: Array
+  var GraphicsQuality: Byte
+  var PostProcessingQuality: Int
+  var AAQuality: Int
+  var ShadowQuality: Int
+  var GlobalIlluminationQuality: Int
+  var TextureQuality: Int
+  var ShadingQuality: Int
+  var PostProcessingQualityPrev: Int
+  var AAQualityPrev: Int
+  var ShadowQualityPrev: Int
+  var GlobalIlluminationQualityPrev: Int
+  var TextureQualityPrev: Int
+  var ShadingQualityPrev: Int
+  var DisplayModePrev: Byte
+  var ResolutionPrev: Struct
+  var SettingsSaveGame: Object
+  var HeadBobAmountPrev: Double
+  var HeadBobAmount: Double
+  var MotionBlurPrev: Bool
+  var MotionBlur: Bool
+  var Player: Object
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_1_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(3569)
+            return
+
+function BndEvt__ConfirmExitWidget_BackButton_K2Node_ComponentBoundEvent_2_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(3705)
+            return
+
+function BndEvt__SettingsWidget_ApplyButton_K2Node_ComponentBoundEvent_5_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4237)
+            return
+
+function BndEvt__SettingsWidget_ApplyButton_K2Node_ComponentBoundEvent_6_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4373)
+            return
+
+function BndEvt__SettingsWidget_ApplyButton_K2Node_ComponentBoundEvent_7_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4509)
+            return
+
+function BndEvt__SettingsWidget_BackButton_K2Node_ComponentBoundEvent_4_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(3841)
+            return
+
+function BndEvt__SettingsWidget_DisplayLeftButton_K2Node_ComponentBoundEvent_13_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(7162)
+            return
+
+function BndEvt__SettingsWidget_DisplayLeftButton_K2Node_ComponentBoundEvent_8_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4648)
+            return
+
+function BndEvt__SettingsWidget_DisplayLeftButton_K2Node_ComponentBoundEvent_9_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4784)
+            return
+
+function BndEvt__SettingsWidget_DisplayRightButton_K2Node_ComponentBoundEvent_10_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(4920)
+            return
+
+function BndEvt__SettingsWidget_DisplayRightButton_K2Node_ComponentBoundEvent_11_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(5056)
+            return
+
+function BndEvt__SettingsWidget_DisplayRightButton_K2Node_ComponentBoundEvent_12_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(6819)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityLeftButton_K2Node_ComponentBoundEvent_0_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(9591)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityLeftButton_K2Node_ComponentBoundEvent_22_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(10135)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityLeftButton_K2Node_ComponentBoundEvent_3_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(9727)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityRightButton_K2Node_ComponentBoundEvent_20_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(9863)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityRightButton_K2Node_ComponentBoundEvent_21_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(9999)
+            return
+
+function BndEvt__SettingsWidget_GraphicsQualityRightButton_K2Node_ComponentBoundEvent_23_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(11080)
+            return
+
+function BndEvt__SettingsWidget_HeadBobSlider_K2Node_ComponentBoundEvent_30_OnFloatValueChangedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_Value = Value
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(12462)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurLeftButton_1_K2Node_ComponentBoundEvent_24_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(11691)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurLeftButton_1_K2Node_ComponentBoundEvent_25_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(11827)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurLeftButton_1_K2Node_ComponentBoundEvent_29_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(12457)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurRightButton_1_K2Node_ComponentBoundEvent_26_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(11963)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurRightButton_1_K2Node_ComponentBoundEvent_27_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(12099)
+            return
+
+function BndEvt__SettingsWidget_MotionBlurRightButton_1_K2Node_ComponentBoundEvent_28_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(12235)
+            return
+
+function BndEvt__SettingsWidget_ResolutionLeftButton_K2Node_ComponentBoundEvent_14_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(7505)
+            return
+
+function BndEvt__SettingsWidget_ResolutionLeftButton_K2Node_ComponentBoundEvent_15_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(7641)
+            return
+
+function BndEvt__SettingsWidget_ResolutionLeftButton_K2Node_ComponentBoundEvent_18_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(8049)
+            return
+
+function BndEvt__SettingsWidget_ResolutionRightButton_K2Node_ComponentBoundEvent_16_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(7777)
+            return
+
+function BndEvt__SettingsWidget_ResolutionRightButton_K2Node_ComponentBoundEvent_17_OnButtonHoverEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(7913)
+            return
+
+function BndEvt__SettingsWidget_ResolutionRightButton_K2Node_ComponentBoundEvent_19_OnButtonClickedEvent__DelegateSignature  [FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(8820)
+            return
+
+function ExecuteUbergraph_SettingsWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+    @10:    K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @105
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @400
+            goto @12518
+    @105:   self.Player.self.HeadBobAmount = self.HeadBobAmount
+            if not (self.MotionBlur) goto @1440
+            K2Node_MakeStruct_PostProcessSettings.? = self.Player.self.FirstPersonCamera.self.?.?
+            K2Node_MakeStruct_PostProcessSettings.? = 0.1
+            K2Node_MakeStruct_PostProcessSettings.? = true
+            K2Node_MakeStruct_PostProcessSettings.? = true
+            self.Player.self.FirstPersonCamera.self.? = K2Node_MakeStruct_PostProcessSettings
+    @400:   CallFunc_GetGameUserSettings_ReturnValue = GameUserSettings.GetGameUserSettings()
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetFullscreenMode(self.DisplayMode)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetScreenResolution(self.Resolution)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetPostProcessingQuality(self.PostProcessingQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetAntiAliasingQuality(self.AAQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetShadowQuality(self.ShadowQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetGlobalIlluminationQuality(self.GlobalIlluminationQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetTextureQuality(self.TextureQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.GameUserSettings.SetShadingQuality(self.ShadingQuality)
+            CallFunc_GetGameUserSettings_ReturnValue.ApplySettings(true)
+            CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SettingsAppliedWidget_C>, null)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue, "ExitMenuType", self.ExitMenuType)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "PostProcessingQuality", self.PostProcessingQualityPrev)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "AAQuality", self.AAQualityPrev)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "ShadowQuality", self.ShadowQualityPrev)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "GlobalIlluminationQuality", self.GlobalIlluminationQualityPrev)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "TextureQuality", self.TextureQualityPrev)
+            KismetSystemLibrary.SetIntPropertyByName(CallFunc_Create_ReturnValue, "ShadingQuality", self.ShadingQualityPrev)
+            KismetSystemLibrary.SetBytePropertyByName(CallFunc_Create_ReturnValue, "DisplayMode", self.DisplayModePrev)
+            Obj<Default__KismetSystemLibrary>.KismetSystemLibrary.SetStructurePropertyByName(CallFunc_Create_ReturnValue, "Resolution", self.ResolutionPrev)
+            KismetSystemLibrary.SetDoublePropertyByName(CallFunc_Create_ReturnValue, "HeadBobAmount", self.HeadBobAmountPrev)
+            KismetSystemLibrary.SetBoolPropertyByName(CallFunc_Create_ReturnValue, "MotionBlur", self.MotionBlurPrev)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue, "Player", self.Player)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue.Widget.SetFocus()
+            RemoveFromParent()
+            goto @12518
+    @1440:  K2Node_MakeStruct_PostProcessSettings_1.? = self.Player.self.FirstPersonCamera.self.?.?
+            K2Node_MakeStruct_PostProcessSettings_1.? = 0.0
+            K2Node_MakeStruct_PostProcessSettings_1.? = true
+            K2Node_MakeStruct_PostProcessSettings_1.? = true
+            self.Player.self.FirstPersonCamera.self.? = K2Node_MakeStruct_PostProcessSettings_1
+            goto @400
+    @1677:  K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.AAQuality, 0)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @2550
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.AAQuality, 1)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @1874
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.AAQuality, 2)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @2575
+            K2Node_SwitchInteger_CmpSuccess = KismetMathLibrary.NotEqual_IntInt(self.AAQuality, 3)
+            if not (K2Node_SwitchInteger_CmpSuccess) goto @2600
+            goto @12518
+    @1874:  self.GraphicsQuality = 1
+    @1894:  CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_4 = KismetNodeHelperLibrary.GetEnumeratorUserFriendlyName(Obj<GraphicsQualityEnum>, self.GraphicsQuality)
+            CallFunc_Conv_StringToText_ReturnValue_7 = KismetTextLibrary.Conv_StringToText(CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_4)
+            self.GraphicsSettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_7)
+            CallFunc_GetShadowQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetShadowQuality()
+            self.ShadowQuality = CallFunc_GetShadowQuality_ReturnValue
+            CallFunc_GetGlobalIlluminationQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetGlobalIlluminationQuality()
+            self.GlobalIlluminationQuality = CallFunc_GetGlobalIlluminationQuality_ReturnValue
+            CallFunc_GetTextureQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetTextureQuality()
+            self.TextureQuality = CallFunc_GetTextureQuality_ReturnValue
+            CallFunc_GetShadingQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetShadingQuality()
+            CallFunc_SetPropertyValueAndBroadcast_ReturnValue_4 = Obj<Default__FieldNotificationLibrary>.FieldNotificationLibrary.SetPropertyValueAndBroadcast(true, self.self.ShadingQuality, CallFunc_GetShadingQuality_ReturnValue, self, self, false, false, false)
+            self.PostProcessingQualityPrev = self.PostProcessingQuality
+            self.AAQualityPrev = self.AAQuality
+            self.ShadowQualityPrev = self.ShadowQuality
+            self.GlobalIlluminationQualityPrev = self.GlobalIlluminationQuality
+            self.TextureQualityPrev = self.TextureQuality
+            self.ShadingQualityPrev = self.ShadingQuality
+            goto @12518
+    @2550:  self.GraphicsQuality = 0
+            goto @1894
+    @2575:  self.GraphicsQuality = 2
+            goto @1894
+    @2600:  self.GraphicsQuality = 3
+            goto @1894
+    @2625:  CallFunc_SetPropertyValueAndBroadcast_ReturnValue = Obj<Default__FieldNotificationLibrary>.FieldNotificationLibrary.SetPropertyValueAndBroadcast(false, self.self.ShadingQuality, 0, self, self, false, false, false)
+    @2701:  CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_3 = KismetNodeHelperLibrary.GetEnumeratorUserFriendlyName(Obj<GraphicsQualityEnum>, self.GraphicsQuality)
+            CallFunc_Conv_StringToText_ReturnValue_6 = KismetTextLibrary.Conv_StringToText(CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_3)
+            self.GraphicsSettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_6)
+            goto @12518
+    @2834:  CallFunc_SetPropertyValueAndBroadcast_ReturnValue_1 = Obj<Default__FieldNotificationLibrary>.FieldNotificationLibrary.SetPropertyValueAndBroadcast(false, self.self.ShadingQuality, 1, self, self, false, false, false)
+            goto @2701
+    @2915:  CallFunc_SetPropertyValueAndBroadcast_ReturnValue_2 = Obj<Default__FieldNotificationLibrary>.FieldNotificationLibrary.SetPropertyValueAndBroadcast(false, self.self.ShadingQuality, 2, self, self, false, false, false)
+            goto @2701
+    @2996:  CallFunc_SetPropertyValueAndBroadcast_ReturnValue_3 = Obj<Default__FieldNotificationLibrary>.FieldNotificationLibrary.SetPropertyValueAndBroadcast(false, self.self.ShadingQuality, 3, self, self, false, false, false)
+            goto @2701
+            CallFunc_LoadGameFromSlot_ReturnValue = GameplayStatics.LoadGameFromSlot("Settings", 0)
+            K2Node_DynamicCast_AsSettings_Save_Game = Cast<Settings_SaveGame_C>(CallFunc_LoadGameFromSlot_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsSettings_Save_Game)
+            if not (K2Node_DynamicCast_bSuccess) goto @12518
+            self.SettingsSaveGame = K2Node_DynamicCast_AsSettings_Save_Game
+            SetCurrentSettings()
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @3274
+            goto @12518
+    @3274:  self.BackgroundBlur_151.Widget.SetRenderOpacity(0.5)
+            self.BlackBG.SetBrushFromTexture(Obj<BlackFadeSidewaysDoubleLarge>, true)
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 0.0
+            K2Node_MakeStruct_LinearColor.? = 1.0
+            self.BlackBG.Image.SetColorAndOpacity(K2Node_MakeStruct_LinearColor)
+            self.BlackBG_1.SetVisibility(3)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_17.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_17.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_17)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_16.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_16.? = 0
+            self.BackText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_16)
+            goto @12518
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @4055
+            K2Node_SwitchEnum_CmpSuccess_2 = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_2) goto @3936
+            goto @12518
+    @3936:  CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<SessionsWidget_C>, null)
+            CallFunc_Create_ReturnValue_1.UserWidget.AddToViewport(100)
+            Widget.SetFocus()
+            RemoveFromParent()
+            goto @12518
+    @4055:  CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<ESCMenu_C>, null)
+            KismetSystemLibrary.SetObjectPropertyByName(CallFunc_Create_ReturnValue_2, "Player", self.Player)
+            CallFunc_Create_ReturnValue_2.UserWidget.AddToViewport(100)
+            CallFunc_Create_ReturnValue_2.Widget.SetFocus()
+            RemoveFromParent()
+            goto @12518
+            K2Node_MakeStruct_SlateColor_9.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_9.? = 0
+            self.ApplyText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_9)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_8.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_8.? = 0
+            self.ApplyText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_8)
+            goto @12518
+            self.SettingsSaveGame.self.UseMotionBlur = self.MotionBlur
+            self.SettingsSaveGame.self.HeadbobStrength = self.HeadBobAmount
+            CallFunc_SaveGameToSlot_ReturnValue = GameplayStatics.SaveGameToSlot(self.SettingsSaveGame, "Settings", 0)
+            goto @10
+            K2Node_MakeStruct_SlateColor_19.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_19.? = 0
+            self.DisplayLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_19)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_18.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_18.? = 0
+            self.DisplayLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_18)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_15.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_15.? = 0
+            self.DisplayRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_15)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_14.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_14.? = 0
+            self.DisplayRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_14)
+            goto @12518
+            self.MotionBlurPrev = self.SettingsSaveGame.self.UseMotionBlur
+            self.MotionBlur = self.SettingsSaveGame.self.UseMotionBlur
+            if not (self.SettingsSaveGame.self.UseMotionBlur) goto @6735
+            self.MotionBlurText_1.SetText(Text({"Token": "EX_StringConst", "Value": "On"}))
+    @5388:  self.HeadBobAmountPrev = self.SettingsSaveGame.self.HeadbobStrength
+            self.HeadBobAmount = self.SettingsSaveGame.self.HeadbobStrength
+            CallFunc_SetValue_InValue_ImplicitCast = CST_DoubleToFloat(self.SettingsSaveGame.self.HeadbobStrength)
+            self.HeadBobSlider.Slider.SetValue(CallFunc_SetValue_InValue_ImplicitCast)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Multiply_DoubleDouble(self.SettingsSaveGame.self.HeadbobStrength, 100.0)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(CallFunc_Multiply_DoubleDouble_ReturnValue_1)
+            CallFunc_Conv_IntToText_ReturnValue = KismetTextLibrary.Conv_IntToText(CallFunc_Round_ReturnValue_1, false, true, 1, 324)
+            self.HeadBobAmountText.SetText(CallFunc_Conv_IntToText_ReturnValue)
+            CallFunc_GetGameUserSettings_ReturnValue_1 = GameUserSettings.GetGameUserSettings()
+            CallFunc_GetSupportedFullscreenResolutions_Resolutions = []
+            CallFunc_GetSupportedFullscreenResolutions_ReturnValue = KismetSystemLibrary.GetSupportedFullscreenResolutions(CallFunc_GetSupportedFullscreenResolutions_Resolutions)
+            if not (CallFunc_GetSupportedFullscreenResolutions_ReturnValue) goto @5878
+            self.SupportedResolutions = CallFunc_GetSupportedFullscreenResolutions_Resolutions
+    @5878:  CallFunc_GetFullscreenMode_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetFullscreenMode()
+            self.DisplayMode = CallFunc_GetFullscreenMode_ReturnValue
+            self.DisplayModePrev = self.DisplayMode
+            CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_2 = KismetNodeHelperLibrary.GetEnumeratorUserFriendlyName(Obj<EWindowMode>, self.DisplayMode)
+            CallFunc_Conv_StringToText_ReturnValue_4 = KismetTextLibrary.Conv_StringToText(CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_2)
+            self.DisplaySettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_4)
+            CallFunc_GetScreenResolution_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetScreenResolution()
+            self.Resolution = CallFunc_GetScreenResolution_ReturnValue
+            CallFunc_GetScreenResolution_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetScreenResolution()
+            self.ResolutionPrev = CallFunc_GetScreenResolution_ReturnValue
+            CallFunc_GetScreenResolution_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetScreenResolution()
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_GetScreenResolution_ReturnValue.?)
+            CallFunc_Conv_IntToString_ReturnValue_1 = KismetStringLibrary.Conv_IntToString(CallFunc_GetScreenResolution_ReturnValue.?)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue_1, " X ")
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue, CallFunc_Conv_IntToString_ReturnValue)
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_1)
+            self.ResolutionSettingText.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            CallFunc_GetPostProcessingQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetPostProcessingQuality()
+            self.PostProcessingQuality = CallFunc_GetPostProcessingQuality_ReturnValue
+            CallFunc_GetAntiAliasingQuality_ReturnValue = CallFunc_GetGameUserSettings_ReturnValue_1.GameUserSettings.GetAntiAliasingQuality()
+            self.AAQuality = CallFunc_GetAntiAliasingQuality_ReturnValue
+            goto @1677
+    @6735:  self.MotionBlurText_1.SetText(Text({"Token": "EX_StringConst", "Value": "Off"}))
+            goto @5388
+            K2Node_SwitchEnum_CmpSuccess_3 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_3) goto @7137
+            K2Node_SwitchEnum_CmpSuccess_3 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_3) goto @7112
+            K2Node_SwitchEnum_CmpSuccess_3 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_3) goto @6959
+            goto @12518
+    @6959:  self.DisplayMode = 0
+    @6979:  CallFunc_GetEnumeratorUserFriendlyName_ReturnValue = KismetNodeHelperLibrary.GetEnumeratorUserFriendlyName(Obj<EWindowMode>, self.DisplayMode)
+            CallFunc_Conv_StringToText_ReturnValue_1 = KismetTextLibrary.Conv_StringToText(CallFunc_GetEnumeratorUserFriendlyName_ReturnValue)
+            self.DisplaySettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_1)
+            goto @12518
+    @7112:  self.DisplayMode = 2
+            goto @6979
+    @7137:  self.DisplayMode = 1
+            goto @6979
+            K2Node_SwitchEnum_CmpSuccess_4 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_4) goto @7480
+            K2Node_SwitchEnum_CmpSuccess_4 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_4) goto @7455
+            K2Node_SwitchEnum_CmpSuccess_4 = KismetMathLibrary.NotEqual_ByteByte(self.DisplayMode, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_4) goto @7302
+            goto @12518
+    @7302:  self.DisplayMode = 1
+    @7322:  CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_1 = KismetNodeHelperLibrary.GetEnumeratorUserFriendlyName(Obj<EWindowMode>, self.DisplayMode)
+            CallFunc_Conv_StringToText_ReturnValue_2 = KismetTextLibrary.Conv_StringToText(CallFunc_GetEnumeratorUserFriendlyName_ReturnValue_1)
+            self.DisplaySettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_2)
+            goto @12518
+    @7455:  self.DisplayMode = 0
+            goto @7322
+    @7480:  self.DisplayMode = 2
+            goto @7322
+            K2Node_MakeStruct_SlateColor_13.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_13.? = 0
+            self.ResolutionLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_13)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_12.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_12.? = 0
+            self.ResolutionLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_12)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_11.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_11.? = 0
+            self.ResolutionRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_11)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_10.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_10.? = 0
+            self.ResolutionRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_10)
+            goto @12518
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.SupportedResolutions, self.Resolution)
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Find_ReturnValue, 1)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Subtract_IntInt_ReturnValue, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @8619
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(self.SupportedResolutions)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SupportedResolutions, CallFunc_Array_LastIndex_ReturnValue, CallFunc_Array_Get_Item)
+            self.Resolution = CallFunc_Array_Get_Item
+    @8352:  CallFunc_Conv_IntToString_ReturnValue_2 = KismetStringLibrary.Conv_IntToString(self.Resolution.?)
+            CallFunc_Conv_IntToString_ReturnValue_3 = KismetStringLibrary.Conv_IntToString(self.Resolution.?)
+            CallFunc_Concat_StrStr_ReturnValue_2 = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue_3, " X ")
+            CallFunc_Concat_StrStr_ReturnValue_3 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue_2, CallFunc_Conv_IntToString_ReturnValue_2)
+            CallFunc_Conv_StringToText_ReturnValue_3 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_3)
+            self.ResolutionSettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_3)
+            goto @12518
+    @8619:  CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.SupportedResolutions, self.Resolution)
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(CallFunc_Array_Find_ReturnValue, 1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SupportedResolutions, CallFunc_Subtract_IntInt_ReturnValue, CallFunc_Array_Get_Item_1)
+            self.Resolution = CallFunc_Array_Get_Item_1
+            goto @8352
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.SupportedResolutions)
+            CallFunc_Array_Find_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.SupportedResolutions, self.Resolution)
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(CallFunc_Array_Find_ReturnValue_1, 1)
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Add_IntInt_ReturnValue, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_1) goto @9390
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SupportedResolutions, 0, CallFunc_Array_Get_Item_3)
+            self.Resolution = CallFunc_Array_Get_Item_3
+    @9123:  CallFunc_Conv_IntToString_ReturnValue_4 = KismetStringLibrary.Conv_IntToString(self.Resolution.?)
+            CallFunc_Conv_IntToString_ReturnValue_5 = KismetStringLibrary.Conv_IntToString(self.Resolution.?)
+            CallFunc_Concat_StrStr_ReturnValue_4 = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue_5, " X ")
+            CallFunc_Concat_StrStr_ReturnValue_5 = KismetStringLibrary.Concat_StrStr(CallFunc_Concat_StrStr_ReturnValue_4, CallFunc_Conv_IntToString_ReturnValue_4)
+            CallFunc_Conv_StringToText_ReturnValue_5 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_5)
+            self.ResolutionSettingText.SetText(CallFunc_Conv_StringToText_ReturnValue_5)
+            goto @12518
+    @9390:  CallFunc_Array_Find_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(self.SupportedResolutions, self.Resolution)
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(CallFunc_Array_Find_ReturnValue_1, 1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.SupportedResolutions, CallFunc_Add_IntInt_ReturnValue, CallFunc_Array_Get_Item_2)
+            self.Resolution = CallFunc_Array_Get_Item_2
+            goto @9123
+            K2Node_MakeStruct_SlateColor.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor.? = 0
+            self.GraphicsQualityLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_1.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_1.? = 0
+            self.GraphicsQualityLeftText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_1)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_2.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_2.? = 0
+            self.GraphicsQualityRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_2)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_3.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_3.? = 0
+            self.GraphicsQualityRightText.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_3)
+            goto @12518
+            K2Node_SwitchEnum_CmpSuccess_5 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_5) goto @10695
+            K2Node_SwitchEnum_CmpSuccess_5 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_5) goto @10670
+            K2Node_SwitchEnum_CmpSuccess_5 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_5) goto @10645
+            K2Node_SwitchEnum_CmpSuccess_5 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 3)
+            if not (K2Node_SwitchEnum_CmpSuccess_5) goto @10320
+            goto @12518
+    @10320: self.GraphicsQuality = 2
+    @10340: K2Node_SwitchEnum_CmpSuccess_7 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_7) goto @10525
+            K2Node_SwitchEnum_CmpSuccess_7 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_7) goto @10720
+            K2Node_SwitchEnum_CmpSuccess_7 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_7) goto @10840
+            K2Node_SwitchEnum_CmpSuccess_7 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 3)
+            if not (K2Node_SwitchEnum_CmpSuccess_7) goto @10960
+            goto @12518
+    @10525: self.PostProcessingQuality = 2
+            self.AAQuality = 0
+            self.ShadowQuality = 2
+            self.GlobalIlluminationQuality = 2
+            self.TextureQuality = 0
+            goto @2625
+    @10645: self.GraphicsQuality = 1
+            goto @10340
+    @10670: self.GraphicsQuality = 0
+            goto @10340
+    @10695: self.GraphicsQuality = 3
+            goto @10340
+    @10720: self.PostProcessingQuality = 2
+            self.AAQuality = 1
+            self.ShadowQuality = 2
+            self.GlobalIlluminationQuality = 2
+            self.TextureQuality = 1
+            goto @2834
+    @10840: self.PostProcessingQuality = 3
+            self.AAQuality = 2
+            self.ShadowQuality = 2
+            self.GlobalIlluminationQuality = 3
+            self.TextureQuality = 2
+            goto @2915
+    @10960: self.PostProcessingQuality = 3
+            self.AAQuality = 3
+            self.ShadowQuality = 3
+            self.GlobalIlluminationQuality = 3
+            self.TextureQuality = 3
+            goto @2996
+            K2Node_SwitchEnum_CmpSuccess_6 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_6) goto @11340
+            K2Node_SwitchEnum_CmpSuccess_6 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_6) goto @11315
+            K2Node_SwitchEnum_CmpSuccess_6 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_6) goto @11290
+            K2Node_SwitchEnum_CmpSuccess_6 = KismetMathLibrary.NotEqual_ByteByte(self.GraphicsQuality, 3)
+            if not (K2Node_SwitchEnum_CmpSuccess_6) goto @11265
+            goto @12518
+    @11265: self.GraphicsQuality = 0
+            goto @10340
+    @11290: self.GraphicsQuality = 3
+            goto @10340
+    @11315: self.GraphicsQuality = 2
+            goto @10340
+    @11340: self.GraphicsQuality = 1
+            goto @10340
+            CallFunc_GetValue_ReturnValue = self.HeadBobSlider.Slider.GetValue()
+            CallFunc_Multiply_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(CallFunc_GetValue_ReturnValue)
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_A_ImplicitCast, 100.0)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Multiply_DoubleDouble_ReturnValue)
+            CallFunc_Conv_IntToString_ReturnValue_6 = KismetStringLibrary.Conv_IntToString(CallFunc_Round_ReturnValue)
+            CallFunc_Concat_StrStr_ReturnValue_6 = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue_6, "%")
+            CallFunc_Conv_StringToText_ReturnValue_8 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_6)
+            self.HeadBobAmountText.SetText(CallFunc_Conv_StringToText_ReturnValue_8)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_4.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_4.? = 0
+            self.MotionBlurLeftText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_4)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_5.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_5.? = 0
+            self.MotionBlurLeftText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_5)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_6.? = LinearColor{1.0, 0.64448, 0.0, 1.0}
+            K2Node_MakeStruct_SlateColor_6.? = 0
+            self.MotionBlurRightText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_6)
+            goto @12518
+            K2Node_MakeStruct_SlateColor_7.? = LinearColor{1.0, 1.0, 1.0, 1.0}
+            K2Node_MakeStruct_SlateColor_7.? = 0
+            self.MotionBlurRightText_1.TextBlock.SetColorAndOpacity(K2Node_MakeStruct_SlateColor_7)
+            goto @12518
+    @12235: if not (self.MotionBlur) goto @12441
+            self.MotionBlur = false
+    @12260: if not (self.MotionBlur) goto @12357
+            self.MotionBlurText_1.SetText(Text({"Token": "EX_StringConst", "Value": "On"}))
+            goto @12518
+    @12357: self.MotionBlurText_1.SetText(Text({"Token": "EX_StringConst", "Value": "Off"}))
+            goto @12518
+    @12441: self.MotionBlur = true
+            goto @12260
+            goto @12235
+            K2Node_VariableSet_HeadBobAmount_ImplicitCast = CST_FloatToDouble(K2Node_ComponentBoundEvent_Value)
+            self.HeadBobAmount = K2Node_VariableSet_HeadBobAmount_ImplicitCast
+    @12518: return
+
+function OnKeyDown  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_HasOutParms | FUNC_HasDefaults | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.ExitMenuType, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @50
+            goto @353
+    @50:    CallFunc_GetKey_ReturnValue = KismetInputLibrary.GetKey(InKeyEvent)
+            CallFunc_EqualEqual_KeyKey_ReturnValue = KismetInputLibrary.EqualEqual_KeyKey(CallFunc_GetKey_ReturnValue, Key{"Escape"})
+            if not (CallFunc_EqualEqual_KeyKey_ReturnValue) goto @353
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameOnly(CallFunc_GetPlayerController_ReturnValue, false)
+            CallFunc_GetPlayerController_ReturnValue = GameplayStatics.GetPlayerController(self, 0)
+            CallFunc_GetPlayerController_ReturnValue.self.? = false
+            RemoveFromParent()
+            CallFunc_Handled_ReturnValue = WidgetBlueprintLibrary.Handled()
+            ReturnValue = CallFunc_Handled_ReturnValue
+    @353:   return
+
+function PreConstruct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_IsDesignTime = IsDesignTime
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(3077)
+            return
+
+function SetCurrentSettings  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(5192)
+            return
+
+function Tick  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_MyGeometry = MyGeometry
+            frame.K2Node_Event_InDeltaTime = InDeltaTime
+            SettingsWidget_C.ExecuteUbergraph_SettingsWidget(11365)
+            return

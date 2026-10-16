@@ -1,0 +1,5 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\Lobby\BP_LobbyPawn
+
+== class BP_LobbyPawn_C : Class'Pawn'
+  var Camera: Object
+  var DefaultSceneRoot: Object

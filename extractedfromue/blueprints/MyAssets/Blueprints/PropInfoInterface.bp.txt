@@ -1,0 +1,7 @@
+// Content\MyAssets\Blueprints\PropInfoInterface
+
+== class GetPropInfo : 
+  var Player: Object
+
+function GetPropInfo  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return

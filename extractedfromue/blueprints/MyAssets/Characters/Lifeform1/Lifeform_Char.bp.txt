@@ -1,0 +1,2929 @@
+// Content\MyAssets\Characters\Lifeform1\Lifeform_Char
+
+== class Lifeform_Char_C : Class'Character'
+  var UberGraphFrame: Struct
+  var AudioVoice: Object
+  var Box: Object
+  var NavigationInvoker: Object
+  var Body: Object
+  var HangingPlayer: Object
+  var GrabPlayerLoc: Object
+  var Lifeform_Head1: Object
+  var Hair: Object
+  var DetectionSphere: Object
+  var EyeLocation: Object
+  var CrouchChecker: Object
+  var Audio1: Object
+  var Audio: Object
+  var PlayerCollider: Object
+  var PlayerChecker: Object
+  var KillHeldPlayerTimeline__Direction: Byte
+  var KillHeldPlayerTimeline: Object
+  var GrabDelayTimeline__Direction: Byte
+  var GrabDelayTimeline: Object
+  var AnesthesiaSpeedBackUpTimeline_SpeedBackUp: Float
+  var AnesthesiaSpeedBackUpTimeline__Direction: Byte
+  var AnesthesiaSpeedBackUpTimeline: Object
+  var AnestheticProgressionTimeline_Progression: Float
+  var AnestheticProgressionTimeline__Direction: Byte
+  var AnestheticProgressionTimeline: Object
+  var Timeline_7_NewTrack_0: Float
+  var Timeline_7__Direction: Byte
+  var Timeline_7: Object
+  var GiantRotateBodyTimeline_NewTrack_0: Float
+  var GiantRotateBodyTimeline__Direction: Byte
+  var GiantRotateBodyTimeline: Object
+  var Timeline_6_Crouch: Float
+  var Timeline_6_NewTrack_0: Float
+  var Timeline_6__Direction: Byte
+  var Timeline_6: Object
+  var Timeline_5_Crouch: Float
+  var Timeline_5_NewTrack_0: Float
+  var Timeline_5__Direction: Byte
+  var Timeline_5: Object
+  var Timeline_4_NewTrack_0: Float
+  var Timeline_4__Direction: Byte
+  var Timeline_4: Object
+  var Timeline_3_NewTrack_0: Float
+  var Timeline_3__Direction: Byte
+  var Timeline_3: Object
+  var Timeline_NewTrack_0: Float
+  var Timeline__Direction: Byte
+  var Timeline: Object
+  var Timeline_2_NewTrack_0: Float
+  var Timeline_2__Direction: Byte
+  var Timeline_2: Object
+  var Timeline_1_NewTrack_0: Float
+  var Timeline_1__Direction: Byte
+  var Timeline_1: Object
+  var Timeline_0_NewTrack_0: Float
+  var Timeline_0__Direction: Byte
+  var Timeline_0: Object
+  var HitDelayTimeline__Direction: Byte
+  var HitDelayTimeline: Object
+  var TransitionToStop_NewTrack_0: Float
+  var TransitionToStop__Direction: Byte
+  var TransitionToStop: Object
+  var TransitionToWalk_NewTrack_0: Float
+  var TransitionToWalk__Direction: Byte
+  var TransitionToWalk: Object
+  var TransitionToRun_NewTrack_0: Float
+  var TransitionToRun__Direction: Byte
+  var TransitionToRun: Object
+  var Player: Object
+  var TransitioningToRun: Bool
+  var TransitioningToWalk: Bool
+  var TransitioningToStop: Bool
+  var CurrentMoveSpeed: Double
+  var MonsterAnimBP: Object
+  var TargetLoc: Struct
+  var MonsterAudio: Array
+  var CanPlayAudio: Bool
+  var AudioIndex: Int
+  var Attacking: Bool
+  var NumPlayersOverlapping: Double
+  var MonsterState: Byte
+  var DetectedPlayersList: Array
+  var StartingOrigin: Struct
+  var PlayersNearby: Bool
+  var ChoseIdleLocation: Bool
+  var TempTargetLoc: Struct
+  var AcceptanceRadius: Double
+  var TransitioningToRun2: Bool
+  var TransitioningToWalk2: Bool
+  var TransitioningToStop2: Bool
+  var CanSeePlayer: Bool
+  var TempLifeformBoneTransform: Struct
+  var ShirtColor: Struct
+  var PantsColor: Struct
+  var ShoesColor: Struct
+  var ChasesOrFollows: Bool
+  var TransitioningToRun3: Bool
+  var TransitioningToWalk3: Bool
+  var TransitioningToStop3: Bool
+  var CurrentWalkSpeedReplicated: Double
+  var HairColor: Struct
+  var Wanders: Bool
+  var IdleMaxDistance: Double
+  var IdleMinDistance: Double
+  var CrouchSpeedMultiplier: Double
+  var CurrentCrouchHeight: Double
+  var CurrentCrouchHeightReplicated: Double
+  var MoveSpeedTransition: Double
+  var CanTick: Bool
+  var TempCrouchSpeedMultiplier: Double
+  var AnimationPlayRate: Double
+  var RunAnimationBS: Object
+  var WalkAnimationBS: Object
+  var HairMesh: Object
+  var HeadMesh: Object
+  var IsGiant: Bool
+  var CrouchAmount: Double
+  var CurrentSpineTransform: Struct
+  var StartingBoneTransforms: Struct
+  var LifeformSkeletonAndAnimBP: Struct
+  var AnesthesiaSpeedMultiplier: Double
+  var NumGasOverlapping: Double
+  var Stumbling: Bool
+  var OverlappingTargetsArray: Array
+  var TargetActor: Object
+  var CanCheckTargets: Bool
+  var PlayerToGrab: Object
+  var HoldingPlayer: Bool
+  var ValidSpawnLocation: Bool
+  var LifeformInfo: Struct
+  var FoundDropLocation: Bool
+  var Loops: Int
+  var RotationOffset: Double
+  var TempDropLocation: Struct
+  var TempSpawnLoc: Struct
+  var RandomSubjectTag: Name
+  var MonsterSounds: Array
+  var MonsterPitch: Double
+  var Loops2: Int
+  var TimesPunched: Int
+  var TempStunned: Bool
+  var CanTempStun: Bool
+  var ForceStumbled: Bool
+
+== class BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class BndEvt__Lifeform_Char_DetectionSphere_K2Node_ComponentBoundEvent_5_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class BndEvt__Monster2Char_DetectionSphere_K2Node_ComponentBoundEvent_2_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class BndEvt__Monster2Char_PlayerChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+  var bFromSweep: Bool
+  var SweepResult: Struct
+
+== class BndEvt__Monster2Char_PlayerChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature : 
+  var OverlappedComponent: Object
+  var OtherActor: Object
+  var OtherComp: Object
+  var OtherBodyIndex: Int
+
+== class DropPlayer : 
+  var PlayerDead: Bool
+
+== class ExecuteUbergraph_Lifeform_Char : 
+  var EntryPoint: Int
+  var Temp_object_Variable: Array
+  var CallFunc_K2_ProjectPointToNavigation_ProjectedLocation: Struct
+  var CallFunc_K2_ProjectPointToNavigation_ReturnValue: Bool
+  var K2Node_CustomEvent_MovementResult_1: Byte
+  var K2Node_CreateDelegate_OutputDelegate: Delegate
+  var K2Node_CustomEvent_MovementResult: Byte
+  var K2Node_CreateDelegate_OutputDelegate_1: Delegate
+  var Temp_byte_Variable: Byte
+  var K2Node_CreateDelegate_OutputDelegate_2: Delegate
+  var K2Node_CustomEvent_NotifyName_14: Name
+  var K2Node_CustomEvent_NotifyName_13: Name
+  var K2Node_CreateDelegate_OutputDelegate_3: Delegate
+  var K2Node_CustomEvent_NotifyName_12: Name
+  var K2Node_CreateDelegate_OutputDelegate_4: Delegate
+  var K2Node_CustomEvent_NotifyName_11: Name
+  var K2Node_CreateDelegate_OutputDelegate_5: Delegate
+  var K2Node_CustomEvent_NotifyName_10: Name
+  var K2Node_CreateDelegate_OutputDelegate_6: Delegate
+  var Temp_name_Variable: Name
+  var Temp_object_Variable_1: Array
+  var K2Node_CustomEvent_NotifyName_9: Name
+  var K2Node_CreateDelegate_OutputDelegate_7: Delegate
+  var K2Node_CustomEvent_NotifyName_8: Name
+  var K2Node_CreateDelegate_OutputDelegate_8: Delegate
+  var K2Node_CustomEvent_NotifyName_7: Name
+  var K2Node_CreateDelegate_OutputDelegate_9: Delegate
+  var K2Node_CustomEvent_NotifyName_6: Name
+  var K2Node_CreateDelegate_OutputDelegate_10: Delegate
+  var K2Node_CustomEvent_NotifyName_5: Name
+  var K2Node_CreateDelegate_OutputDelegate_11: Delegate
+  var Temp_name_Variable_1: Name
+  var Temp_object_Variable_2: Array
+  var CallFunc_Conv_DoubleToVector_ReturnValue: Struct
+  var K2Node_CustomEvent_NotifyName_4: Name
+  var K2Node_CreateDelegate_OutputDelegate_12: Delegate
+  var K2Node_CustomEvent_NotifyName_3: Name
+  var K2Node_CreateDelegate_OutputDelegate_13: Delegate
+  var K2Node_CustomEvent_NotifyName_2: Name
+  var K2Node_CreateDelegate_OutputDelegate_14: Delegate
+  var K2Node_CustomEvent_NotifyName_1: Name
+  var K2Node_CreateDelegate_OutputDelegate_15: Delegate
+  var K2Node_CustomEvent_NotifyName: Name
+  var K2Node_CreateDelegate_OutputDelegate_16: Delegate
+  var Temp_name_Variable_2: Name
+  var CallFunc_Conv_DoubleToVector_ReturnValue_1: Struct
+  var Temp_object_Variable_3: Array
+  var CallFunc_K2_ProjectPointToNavigation_ProjectedLocation_1: Struct
+  var CallFunc_K2_ProjectPointToNavigation_ReturnValue_1: Bool
+  var K2Node_ComponentBoundEvent_OverlappedComponent_5: Object
+  var K2Node_ComponentBoundEvent_OtherActor_5: Object
+  var K2Node_ComponentBoundEvent_OtherComp_5: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_5: Int
+  var K2Node_ComponentBoundEvent_bFromSweep_2: Bool
+  var K2Node_ComponentBoundEvent_SweepResult_2: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent_4: Object
+  var K2Node_ComponentBoundEvent_OtherActor_4: Object
+  var K2Node_ComponentBoundEvent_OtherComp_4: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_4: Int
+  var CallFunc_ComponentHasTag_ReturnValue: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_1: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_2: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_3: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_4: Bool
+  var CallFunc_BooleanOR_ReturnValue_1: Bool
+  var K2Node_DynamicCast_AsPlayer_BP: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Add_DoubleDouble_ReturnValue: Double
+  var CallFunc_Subtract_DoubleDouble_ReturnValue: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue: Bool
+  var CallFunc_GetTransform_ReturnValue: Struct
+  var CallFunc_BreakTransform_Location: Struct
+  var CallFunc_BreakTransform_Rotation: Struct
+  var CallFunc_BreakTransform_Scale: Struct
+  var CallFunc_MakeTransform_ReturnValue: Struct
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue: Object
+  var K2Node_SwitchEnum_CmpSuccess: Bool
+  var CallFunc_FinishSpawningActor_ReturnValue: Object
+  var K2Node_ComponentBoundEvent_OverlappedComponent_3: Object
+  var K2Node_ComponentBoundEvent_OtherActor_3: Object
+  var K2Node_ComponentBoundEvent_OtherComp_3: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_3: Int
+  var K2Node_ComponentBoundEvent_bFromSweep_1: Bool
+  var K2Node_ComponentBoundEvent_SweepResult_1: Struct
+  var CallFunc_ComponentHasTag_ReturnValue_5: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_6: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_7: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue: Struct
+  var CallFunc_Vector_Distance_ReturnValue: Double
+  var CallFunc_K2_GetActorLocation_ReturnValue_1: Struct
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_2: Bool
+  var CallFunc_Lerp_ReturnValue: Double
+  var Temp_bool_True_if_break_was_hit_Variable: Bool
+  var CallFunc_Not_PreBool_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_3: Bool
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_Lerp_ReturnValue_2: Double
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_4: Bool
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Lerp_ReturnValue_3: Double
+  var K2Node_CustomEvent_Target_2: Struct
+  var CallFunc_Vector_Distance_ReturnValue_1: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_K2_GetComponentLocation_ReturnValue: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_2: Struct
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_BooleanAND_ReturnValue_1: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_1: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_2: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_3: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_4: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_5: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_6: Double
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeVector_ReturnValue_1: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_7: Double
+  var CallFunc_MakeTransform_ReturnValue_1: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_8: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_9: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_10: Double
+  var CallFunc_MakeVector_ReturnValue_2: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_11: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_12: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_13: Double
+  var CallFunc_MakeRotator_ReturnValue_1: Struct
+  var CallFunc_MakeVector_ReturnValue_3: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_14: Double
+  var CallFunc_MakeTransform_ReturnValue_2: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_15: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_16: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_17: Double
+  var CallFunc_MakeVector_ReturnValue_4: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_18: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_19: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_20: Double
+  var CallFunc_MakeRotator_ReturnValue_2: Struct
+  var CallFunc_MakeVector_ReturnValue_5: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_21: Double
+  var CallFunc_MakeTransform_ReturnValue_3: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_22: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_23: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_24: Double
+  var CallFunc_MakeVector_ReturnValue_6: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_25: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_26: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_27: Double
+  var CallFunc_MakeRotator_ReturnValue_3: Struct
+  var CallFunc_MakeVector_ReturnValue_7: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_28: Double
+  var CallFunc_MakeTransform_ReturnValue_4: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_29: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_30: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_31: Double
+  var CallFunc_MakeVector_ReturnValue_8: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_32: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_33: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_34: Double
+  var CallFunc_MakeRotator_ReturnValue_4: Struct
+  var CallFunc_MakeVector_ReturnValue_9: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_35: Double
+  var CallFunc_MakeTransform_ReturnValue_5: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_36: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_37: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_38: Double
+  var CallFunc_MakeVector_ReturnValue_10: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_39: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_40: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_41: Double
+  var CallFunc_MakeRotator_ReturnValue_5: Struct
+  var CallFunc_MakeVector_ReturnValue_11: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_42: Double
+  var CallFunc_MakeTransform_ReturnValue_6: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_43: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_44: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_45: Double
+  var CallFunc_MakeVector_ReturnValue_12: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_46: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_47: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_48: Double
+  var CallFunc_MakeRotator_ReturnValue_6: Struct
+  var CallFunc_MakeVector_ReturnValue_13: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_49: Double
+  var CallFunc_MakeTransform_ReturnValue_7: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_50: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_51: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_52: Double
+  var CallFunc_MakeVector_ReturnValue_14: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_53: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_54: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_55: Double
+  var CallFunc_MakeRotator_ReturnValue_7: Struct
+  var CallFunc_MakeVector_ReturnValue_15: Struct
+  var CallFunc_MakeTransform_ReturnValue_8: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_56: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_57: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_58: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_59: Double
+  var CallFunc_MakeRotator_ReturnValue_8: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_60: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_61: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_62: Double
+  var CallFunc_MakeVector_ReturnValue_16: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_63: Double
+  var CallFunc_MakeTransform_ReturnValue_9: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_64: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_65: Double
+  var CallFunc_MakeVector_ReturnValue_17: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_66: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_67: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_68: Double
+  var CallFunc_MakeRotator_ReturnValue_9: Struct
+  var CallFunc_MakeVector_ReturnValue_18: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_69: Double
+  var CallFunc_MakeTransform_ReturnValue_10: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_70: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_71: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_72: Double
+  var CallFunc_MakeVector_ReturnValue_19: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_73: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_74: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_75: Double
+  var CallFunc_MakeRotator_ReturnValue_10: Struct
+  var CallFunc_MakeVector_ReturnValue_20: Struct
+  var CallFunc_MakeTransform_ReturnValue_11: Struct
+  var K2Node_MakeStruct_LifeformBoneTransforms: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_76: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_77: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_78: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_79: Double
+  var CallFunc_HSVToRGB_ReturnValue: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_80: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_81: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_82: Double
+  var CallFunc_HSVToRGB_ReturnValue_1: Struct
+  var CallFunc_RandomFloatInRange_ReturnValue_83: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_84: Double
+  var CallFunc_HSVToRGB_ReturnValue_2: Struct
+  var CallFunc_Lerp_ReturnValue_4: Double
+  var CallFunc_RandomBoolWithWeight_ReturnValue: Bool
+  var K2Node_CustomEvent_Target_1: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_3: Struct
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_5: Bool
+  var CallFunc_Lerp_ReturnValue_5: Double
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_6: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_7: Bool
+  var CallFunc_Lerp_ReturnValue_6: Double
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_8: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_4: Struct
+  var K2Node_Event_DeltaSeconds: Float
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var CallFunc_Lerp_ReturnValue_7: Double
+  var CallFunc_Vector_Distance_ReturnValue_2: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_3: Bool
+  var CallFunc_Greater_DoubleDouble_ReturnValue_4: Bool
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue_85: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_86: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_87: Double
+  var CallFunc_GetDataTableRowNames_OutRowNames: Array
+  var CallFunc_HSVToRGB_ReturnValue_3: Struct
+  var CallFunc_Array_LastIndex_ReturnValue: Int
+  var CallFunc_RandomIntegerInRange_ReturnValue: Int
+  var CallFunc_Array_Get_Item: Name
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var CallFunc_GetDataTableRowFromName_OutRow: Struct
+  var CallFunc_GetDataTableRowFromName_ReturnValue: Bool
+  var CallFunc_Array_Random_OutItem: Object
+  var CallFunc_Array_Random_OutIndex: Int
+  var CallFunc_Array_Random_OutItem_1: Object
+  var CallFunc_Array_Random_OutIndex_1: Int
+  var K2Node_MakeStruct_LifeformSkeletonAndAnimBP: Struct
+  var CallFunc_Array_Random_OutItem_2: Object
+  var CallFunc_Array_Random_OutIndex_2: Int
+  var CallFunc_Array_Random_OutItem_3: Object
+  var CallFunc_Array_Random_OutIndex_3: Int
+  var CallFunc_Array_Random_OutItem_4: Object
+  var CallFunc_Array_Random_OutIndex_4: Int
+  var CallFunc_Greater_DoubleDouble_ReturnValue_5: Bool
+  var CallFunc_HasAuthority_ReturnValue_2: Bool
+  var CallFunc_Lerp_ReturnValue_8: Double
+  var Temp_int_Array_Index_Variable: Int
+  var CallFunc_Vector_Distance_ReturnValue_3: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_6: Bool
+  var CallFunc_CreateMoveToProxyObject_ReturnValue: Object
+  var CallFunc_Round_ReturnValue: Int
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var K2Node_ComponentBoundEvent_OverlappedComponent_2: Object
+  var K2Node_ComponentBoundEvent_OtherActor_2: Object
+  var K2Node_ComponentBoundEvent_OtherComp_2: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_2: Int
+  var K2Node_ComponentBoundEvent_bFromSweep: Bool
+  var K2Node_ComponentBoundEvent_SweepResult: Struct
+  var K2Node_ComponentBoundEvent_OverlappedComponent_1: Object
+  var K2Node_ComponentBoundEvent_OtherActor_1: Object
+  var K2Node_ComponentBoundEvent_OtherComp_1: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex_1: Int
+  var CallFunc_Array_Get_Item_1: Name
+  var K2Node_SwitchName_CmpSuccess: Bool
+  var CallFunc_Array_Get_Item_2: Name
+  var K2Node_SwitchName_CmpSuccess_1: Bool
+  var CallFunc_Lerp_ReturnValue_9: Double
+  var CallFunc_HasAuthority_ReturnValue_3: Bool
+  var CallFunc_Lerp_ReturnValue_10: Double
+  var CallFunc_Lerp_ReturnValue_11: Double
+  var CallFunc_Multiply_DoubleDouble_ReturnValue: Double
+  var CallFunc_Round_ReturnValue_1: Int
+  var CallFunc_Round_ReturnValue_2: Int
+  var CallFunc_NotEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_1: Bool
+  var CallFunc_BooleanAND_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_3: Bool
+  var CallFunc_Round_ReturnValue_3: Int
+  var CallFunc_Round_ReturnValue_4: Int
+  var CallFunc_NotEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_NotEqual_IntInt_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_4: Bool
+  var CallFunc_BooleanAND_ReturnValue_5: Bool
+  var CallFunc_Round_ReturnValue_5: Int
+  var CallFunc_Round_ReturnValue_6: Int
+  var CallFunc_Greater_IntInt_ReturnValue_2: Bool
+  var CallFunc_NotEqual_IntInt_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_6: Bool
+  var CallFunc_BooleanAND_ReturnValue_7: Bool
+  var CallFunc_Round_ReturnValue_7: Int
+  var CallFunc_Round_ReturnValue_8: Int
+  var CallFunc_NotEqual_IntInt_ReturnValue_4: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_3: Bool
+  var CallFunc_BooleanAND_ReturnValue_8: Bool
+  var CallFunc_BooleanAND_ReturnValue_9: Bool
+  var CallFunc_Lerp_ReturnValue_12: Double
+  var CallFunc_BreakTransform_Location_1: Struct
+  var CallFunc_BreakTransform_Rotation_1: Struct
+  var CallFunc_BreakTransform_Scale_1: Struct
+  var CallFunc_BreakTransform_Location_2: Struct
+  var CallFunc_BreakTransform_Rotation_2: Struct
+  var CallFunc_BreakTransform_Scale_2: Struct
+  var CallFunc_BreakRotator_Roll: Float
+  var CallFunc_BreakRotator_Pitch: Float
+  var CallFunc_BreakRotator_Yaw: Float
+  var CallFunc_BreakRotator_Roll_1: Float
+  var CallFunc_BreakRotator_Pitch_1: Float
+  var CallFunc_BreakRotator_Yaw_1: Float
+  var CallFunc_Lerp_ReturnValue_13: Double
+  var CallFunc_MakeRotator_ReturnValue_11: Struct
+  var CallFunc_MakeTransform_ReturnValue_12: Struct
+  var K2Node_MakeStruct_LifeformBoneTransforms_1: Struct
+  var CallFunc_BreakTransform_Location_3: Struct
+  var CallFunc_BreakTransform_Rotation_3: Struct
+  var CallFunc_BreakTransform_Scale_3: Struct
+  var CallFunc_HasAuthority_ReturnValue_4: Bool
+  var CallFunc_BreakRotator_Roll_2: Float
+  var CallFunc_BreakRotator_Pitch_2: Float
+  var CallFunc_BreakRotator_Yaw_2: Float
+  var CallFunc_Lerp_ReturnValue_14: Double
+  var CallFunc_MakeRotator_ReturnValue_12: Struct
+  var CallFunc_MakeTransform_ReturnValue_13: Struct
+  var K2Node_MakeStruct_LifeformBoneTransforms_2: Struct
+  var K2Node_CustomEvent_Target: Struct
+  var CallFunc_Multiply_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_NotEqual_DoubleDouble_ReturnValue: Bool
+  var CallFunc_Add_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue: Bool
+  var K2Node_ComponentBoundEvent_OverlappedComponent: Object
+  var K2Node_ComponentBoundEvent_OtherActor: Object
+  var K2Node_ComponentBoundEvent_OtherComp: Object
+  var K2Node_ComponentBoundEvent_OtherBodyIndex: Int
+  var CallFunc_HasAuthority_ReturnValue_5: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_8: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_9: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_10: Bool
+  var CallFunc_BooleanOR_ReturnValue_2: Bool
+  var CallFunc_Subtract_DoubleDouble_ReturnValue_1: Double
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_9: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_10: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_11: Bool
+  var CallFunc_BooleanAND_ReturnValue_10: Bool
+  var CallFunc_HasAuthority_ReturnValue_6: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_12: Bool
+  var CallFunc_Array_Add_ReturnValue: Int
+  var CallFunc_Array_RemoveItem_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_3: Object
+  var CallFunc_K2_GetComponentLocation_ReturnValue_1: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_5: Struct
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_BreakVector_X: Double
+  var CallFunc_BreakVector_Y: Double
+  var CallFunc_BreakVector_Z: Double
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Add_DoubleDouble_ReturnValue_2: Double
+  var CallFunc_BooleanAND_ReturnValue_11: Bool
+  var CallFunc_MakeVector_ReturnValue_21: Struct
+  var CallFunc_LineTraceSingle_OutHit: Struct
+  var CallFunc_LineTraceSingle_ReturnValue: Bool
+  var CallFunc_BreakHitResult_bBlockingHit: Bool
+  var CallFunc_BreakHitResult_bInitialOverlap: Bool
+  var CallFunc_BreakHitResult_Time: Float
+  var CallFunc_BreakHitResult_Distance: Float
+  var CallFunc_BreakHitResult_Location: Struct
+  var CallFunc_BreakHitResult_ImpactPoint: Struct
+  var CallFunc_BreakHitResult_Normal: Struct
+  var CallFunc_BreakHitResult_ImpactNormal: Struct
+  var CallFunc_BreakHitResult_PhysMat: Object
+  var CallFunc_BreakHitResult_HitActor: Object
+  var CallFunc_BreakHitResult_HitComponent: Object
+  var CallFunc_BreakHitResult_HitBoneName: Name
+  var CallFunc_BreakHitResult_BoneName: Name
+  var CallFunc_BreakHitResult_HitItem: Int
+  var CallFunc_BreakHitResult_ElementIndex: Int
+  var CallFunc_BreakHitResult_FaceIndex: Int
+  var CallFunc_BreakHitResult_TraceStart: Struct
+  var CallFunc_BreakHitResult_TraceEnd: Struct
+  var CallFunc_ComponentHasTag_ReturnValue_11: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_12: Bool
+  var CallFunc_BooleanOR_ReturnValue_3: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_1: Bool
+  var CallFunc_NotEqual_ObjectObject_ReturnValue: Bool
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_6: Struct
+  var CallFunc_BreakVector_X_1: Double
+  var CallFunc_BreakVector_Y_1: Double
+  var CallFunc_BreakVector_Z_1: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_3: Double
+  var CallFunc_MakeVector_ReturnValue_22: Struct
+  var CallFunc_GetVelocity_ReturnValue: Struct
+  var CallFunc_LineTraceSingle_OutHit_1: Struct
+  var CallFunc_LineTraceSingle_ReturnValue_1: Bool
+  var CallFunc_VSize_ReturnValue: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_7: Bool
+  var CallFunc_BreakHitResult_bBlockingHit_1: Bool
+  var CallFunc_BreakHitResult_bInitialOverlap_1: Bool
+  var CallFunc_BreakHitResult_Time_1: Float
+  var CallFunc_BreakHitResult_Distance_1: Float
+  var CallFunc_BreakHitResult_Location_1: Struct
+  var CallFunc_BreakHitResult_ImpactPoint_1: Struct
+  var CallFunc_BreakHitResult_Normal_1: Struct
+  var CallFunc_BreakHitResult_ImpactNormal_1: Struct
+  var CallFunc_BreakHitResult_PhysMat_1: Object
+  var CallFunc_BreakHitResult_HitActor_1: Object
+  var CallFunc_BreakHitResult_HitComponent_1: Object
+  var CallFunc_BreakHitResult_HitBoneName_1: Name
+  var CallFunc_BreakHitResult_BoneName_1: Name
+  var CallFunc_BreakHitResult_HitItem_1: Int
+  var CallFunc_BreakHitResult_ElementIndex_1: Int
+  var CallFunc_BreakHitResult_FaceIndex_1: Int
+  var CallFunc_BreakHitResult_TraceStart_1: Struct
+  var CallFunc_BreakHitResult_TraceEnd_1: Struct
+  var CallFunc_ComponentHasTag_ReturnValue_13: Bool
+  var CallFunc_ComponentHasTag_ReturnValue_14: Bool
+  var CallFunc_Vector_Normal2D_ReturnValue: Struct
+  var CallFunc_BooleanOR_ReturnValue_4: Bool
+  var CallFunc_Multiply_VectorVector_ReturnValue: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_7: Struct
+  var CallFunc_Add_VectorVector_ReturnValue: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_8: Struct
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Greater_IntInt_ReturnValue_4: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_13: Bool
+  var CallFunc_GetOverlappingActors_OverlappingActors: Array
+  var CallFunc_Array_Find_ReturnValue: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_14: Bool
+  var CallFunc_BooleanAND_ReturnValue_12: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_15: Bool
+  var CallFunc_BooleanAND_ReturnValue_13: Bool
+  var CallFunc_MakeTransform_ReturnValue_14: Struct
+  var K2Node_MakeStruct_LifeformBoneTransforms_3: Struct
+  var CallFunc_HasAuthority_ReturnValue_7: Bool
+  var CallFunc_CreateProxyObjectForPlayMontage_ReturnValue: Object
+  var CallFunc_GetBoneTransform_ReturnValue: Struct
+  var CallFunc_BreakTransform_Location_4: Struct
+  var CallFunc_BreakTransform_Rotation_4: Struct
+  var CallFunc_BreakTransform_Scale_4: Struct
+  var CallFunc_K2_SetWorldLocation_SweepHitResult: Struct
+  var CallFunc_IsValid_ReturnValue_2: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_9: Struct
+  var CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation: Struct
+  var CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue: Bool
+  var CallFunc_HasAuthority_ReturnValue_8: Bool
+  var CallFunc_BreakVector_X_2: Double
+  var CallFunc_BreakVector_Y_2: Double
+  var CallFunc_BreakVector_Z_2: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_4: Double
+  var CallFunc_Less_DoubleDouble_ReturnValue: Bool
+  var CallFunc_MakeVector_ReturnValue_23: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_K2_GetActorLocation_ReturnValue_10: Struct
+  var CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation: Struct
+  var CallFunc_K2_GetRandomReachablePointInRadius_ReturnValue: Bool
+  var CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1: Object
+  var CallFunc_IsValid_ReturnValue_3: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue_88: Double
+  var K2Node_CustomEvent_PlayerDead: Bool
+  var CallFunc_IsValid_ReturnValue_4: Bool
+  var CallFunc_BooleanAND_ReturnValue_14: Bool
+  var Temp_int_Array_Index_Variable_1: Int
+  var CallFunc_Array_Get_Item_4: Object
+  var CallFunc_K2_GetActorLocation_ReturnValue_11: Struct
+  var CallFunc_BreakVector_X_3: Double
+  var CallFunc_BreakVector_Y_3: Double
+  var CallFunc_BreakVector_Z_3: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_5: Double
+  var CallFunc_MakeVector_ReturnValue_24: Struct
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_16: Bool
+  var CallFunc_Greater_IntInt_ReturnValue_5: Bool
+  var CallFunc_BooleanAND_ReturnValue_15: Bool
+  var CallFunc_K2_GetActorRotation_ReturnValue: Struct
+  var CallFunc_BreakRotator_Roll_3: Float
+  var CallFunc_BreakRotator_Pitch_3: Float
+  var CallFunc_BreakRotator_Yaw_3: Float
+  var CallFunc_Add_DoubleDouble_ReturnValue_6: Double
+  var CallFunc_K2_GetActorLocation_ReturnValue_12: Struct
+  var CallFunc_MakeRotator_ReturnValue_13: Struct
+  var CallFunc_GetForwardVector_ReturnValue: Struct
+  var CallFunc_Multiply_VectorVector_ReturnValue_1: Struct
+  var K2Node_MakeArray_Array: Array
+  var CallFunc_Add_VectorVector_ReturnValue_1: Struct
+  var CallFunc_K2_GetActorLocation_ReturnValue_13: Struct
+  var CallFunc_LineTraceSingle_OutHit_2: Struct
+  var CallFunc_LineTraceSingle_ReturnValue_2: Bool
+  var CallFunc_Add_DoubleDouble_ReturnValue_7: Double
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var K2Node_CustomEvent_Visibility_1: Bool
+  var CallFunc_K2_GetComponentToWorld_ReturnValue: Struct
+  var CallFunc_BreakTransform_Location_5: Struct
+  var CallFunc_BreakTransform_Rotation_5: Struct
+  var CallFunc_BreakTransform_Scale_5: Struct
+  var CallFunc_MakeTransform_ReturnValue_15: Struct
+  var K2Node_CustomEvent_Visibility: Bool
+  var CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1: Object
+  var CallFunc_FinishSpawningActor_ReturnValue_1: Object
+  var CallFunc_LineTraceSingle_OutHit_3: Struct
+  var CallFunc_LineTraceSingle_ReturnValue_3: Bool
+  var CallFunc_BreakVector_X_4: Double
+  var CallFunc_BreakVector_Y_4: Double
+  var CallFunc_BreakVector_Z_4: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_8: Double
+  var CallFunc_BreakHitResult_bBlockingHit_2: Bool
+  var CallFunc_BreakHitResult_bInitialOverlap_2: Bool
+  var CallFunc_BreakHitResult_Time_2: Float
+  var CallFunc_BreakHitResult_Distance_2: Float
+  var CallFunc_BreakHitResult_Location_2: Struct
+  var CallFunc_BreakHitResult_ImpactPoint_2: Struct
+  var CallFunc_BreakHitResult_Normal_2: Struct
+  var CallFunc_BreakHitResult_ImpactNormal_2: Struct
+  var CallFunc_BreakHitResult_PhysMat_2: Object
+  var CallFunc_BreakHitResult_HitActor_2: Object
+  var CallFunc_BreakHitResult_HitComponent_2: Object
+  var CallFunc_BreakHitResult_HitBoneName_2: Name
+  var CallFunc_BreakHitResult_BoneName_2: Name
+  var CallFunc_BreakHitResult_HitItem_2: Int
+  var CallFunc_BreakHitResult_ElementIndex_2: Int
+  var CallFunc_BreakHitResult_FaceIndex_2: Int
+  var CallFunc_BreakHitResult_TraceStart_2: Struct
+  var CallFunc_BreakHitResult_TraceEnd_2: Struct
+  var CallFunc_MakeVector_ReturnValue_25: Struct
+  var CallFunc_ComponentHasTag_ReturnValue_15: Bool
+  var CallFunc_K2_SetActorLocation_SweepHitResult: Struct
+  var CallFunc_K2_SetActorLocation_ReturnValue: Bool
+  var CallFunc_RandomIntegerInRange_ReturnValue_1: Int
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Conv_StringToName_ReturnValue: Name
+  var K2Node_CustomEvent_AttackMontage_1: Object
+  var K2Node_CustomEvent_AttackMontage: Object
+  var CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2: Object
+  var CallFunc_IsValid_ReturnValue_5: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue_89: Double
+  var CallFunc_EqualEqual_DoubleDouble_ReturnValue_2: Bool
+  var CallFunc_BooleanAND_ReturnValue_16: Bool
+  var K2Node_CustomEvent_Sound_1: Object
+  var K2Node_CustomEvent_Pitch_1: Double
+  var CallFunc_Array_Random_OutItem_5: Struct
+  var CallFunc_Array_Random_OutIndex_5: Int
+  var K2Node_CustomEvent_Sound: Object
+  var K2Node_CustomEvent_Pitch: Double
+  var CallFunc_RandomFloatInRange_ReturnValue_90: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_9: Double
+  var K2Node_SwitchEnum_CmpSuccess_1: Bool
+  var CallFunc_RandomFloatInRange_ReturnValue_91: Double
+  var CallFunc_Add_DoubleDouble_ReturnValue_10: Double
+  var CallFunc_Greater_IntInt_ReturnValue_6: Bool
+  var CallFunc_Subtract_IntInt_ReturnValue_1: Int
+  var CallFunc_K2_GetActorLocation_ReturnValue_14: Struct
+  var CallFunc_BreakVector_X_5: Double
+  var CallFunc_BreakVector_Y_5: Double
+  var CallFunc_BreakVector_Z_5: Double
+  var CallFunc_Subtract_DoubleDouble_ReturnValue_2: Double
+  var CallFunc_MakeVector_ReturnValue_26: Struct
+  var CallFunc_LineTraceSingle_OutHit_4: Struct
+  var CallFunc_LineTraceSingle_ReturnValue_4: Bool
+  var CallFunc_BreakHitResult_bBlockingHit_3: Bool
+  var CallFunc_BreakHitResult_bInitialOverlap_3: Bool
+  var CallFunc_BreakHitResult_Time_3: Float
+  var CallFunc_BreakHitResult_Distance_3: Float
+  var CallFunc_BreakHitResult_Location_3: Struct
+  var CallFunc_BreakHitResult_ImpactPoint_3: Struct
+  var CallFunc_BreakHitResult_Normal_3: Struct
+  var CallFunc_BreakHitResult_ImpactNormal_3: Struct
+  var CallFunc_BreakHitResult_PhysMat_3: Object
+  var CallFunc_BreakHitResult_HitActor_3: Object
+  var CallFunc_BreakHitResult_HitComponent_3: Object
+  var CallFunc_BreakHitResult_HitBoneName_3: Name
+  var CallFunc_BreakHitResult_BoneName_3: Name
+  var CallFunc_BreakHitResult_HitItem_3: Int
+  var CallFunc_BreakHitResult_ElementIndex_3: Int
+  var CallFunc_BreakHitResult_FaceIndex_3: Int
+  var CallFunc_BreakHitResult_TraceStart_3: Struct
+  var CallFunc_BreakHitResult_TraceEnd_3: Struct
+  var CallFunc_BreakVector_X_6: Double
+  var CallFunc_BreakVector_Y_6: Double
+  var CallFunc_BreakVector_Z_6: Double
+  var CallFunc_Greater_DoubleDouble_ReturnValue_8: Bool
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_2: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_3: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_4: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_5: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_6: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_7: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_8: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_9: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_10: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_11: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_12: Double
+  var K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast: Double
+  var K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_13: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_14: Double
+  var CallFunc_CreateMoveToProxyObject_AcceptanceRadius_ImplicitCast: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_1: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_1: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_1: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_2: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_2: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_2: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_3: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_3: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_3: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_4: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_4: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_4: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_5: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_5: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_5: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_6: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_6: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_6: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_7: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_7: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_7: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_8: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_8: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_8: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_9: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_9: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_9: Float
+  var CallFunc_MakeRotator_Roll_ImplicitCast_10: Float
+  var CallFunc_MakeRotator_Pitch_ImplicitCast_10: Float
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_10: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast_1: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast_2: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast_2: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast_2: Float
+  var CallFunc_HSVToRGB_H_ImplicitCast_3: Float
+  var CallFunc_HSVToRGB_S_ImplicitCast_3: Float
+  var CallFunc_HSVToRGB_V_ImplicitCast_3: Float
+  var CallFunc_K2_GetRandomReachablePointInRadius_Radius_ImplicitCast: Float
+  var CallFunc_Round_A_ImplicitCast: Double
+  var CallFunc_NotEqual_DoubleDouble_B_ImplicitCast: Double
+  var CallFunc_Lerp_A_ImplicitCast: Double
+  var CallFunc_Lerp_A_ImplicitCast_1: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_11: Float
+  var CallFunc_Lerp_B_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_12: Float
+  var K2Node_VariableSet_MaxWalkSpeed_ImplicitCast: Float
+  var CallFunc_SetNewTime_NewTime_ImplicitCast: Float
+  var CallFunc_Add_DoubleDouble_A_ImplicitCast: Double
+  var CallFunc_MakeRotator_Yaw_ImplicitCast_13: Float
+  var CallFunc_SetPitchMultiplier_NewPitchMultiplier_ImplicitCast: Float
+  var CallFunc_Delay_Duration_ImplicitCast: Float
+  var CallFunc_Delay_Duration_ImplicitCast_1: Float
+
+== class MoveToChaseLocation : 
+  var Target: Struct
+
+== class MoveToFollowLocation : 
+  var Target: Struct
+
+== class MoveToIdleLocation : 
+  var Target: Struct
+
+== class MULTI: PlayBodyMontage : 
+  var AttackMontage: Object
+
+== class MULTI: PlayMonsterSound : 
+  var Sound: Object
+  var Pitch: Double
+
+== class MULTI: SetHangingVisibility : 
+  var Visibility: Bool
+
+== class OnBlendOut_2F762D1F46DCC85312A3399301166DA1 : 
+  var NotifyName: Name
+
+== class OnBlendOut_A3CB89B94D1256BC59A15C9050A0A563 : 
+  var NotifyName: Name
+
+== class OnBlendOut_F2270D624E19A09B15D7239C60EC92AC : 
+  var NotifyName: Name
+
+== class OnCompleted_2F762D1F46DCC85312A3399301166DA1 : 
+  var NotifyName: Name
+
+== class OnCompleted_A3CB89B94D1256BC59A15C9050A0A563 : 
+  var NotifyName: Name
+
+== class OnCompleted_F2270D624E19A09B15D7239C60EC92AC : 
+  var NotifyName: Name
+
+== class OnFail_E765B03D487C6B86152EE3864488FC07 : 
+  var MovementResult: Byte
+
+== class OnInterrupted_2F762D1F46DCC85312A3399301166DA1 : 
+  var NotifyName: Name
+
+== class OnInterrupted_A3CB89B94D1256BC59A15C9050A0A563 : 
+  var NotifyName: Name
+
+== class OnInterrupted_F2270D624E19A09B15D7239C60EC92AC : 
+  var NotifyName: Name
+
+== class OnNotifyBegin_2F762D1F46DCC85312A3399301166DA1 : 
+  var NotifyName: Name
+
+== class OnNotifyBegin_A3CB89B94D1256BC59A15C9050A0A563 : 
+  var NotifyName: Name
+
+== class OnNotifyBegin_F2270D624E19A09B15D7239C60EC92AC : 
+  var NotifyName: Name
+
+== class OnNotifyEnd_2F762D1F46DCC85312A3399301166DA1 : 
+  var NotifyName: Name
+
+== class OnNotifyEnd_A3CB89B94D1256BC59A15C9050A0A563 : 
+  var NotifyName: Name
+
+== class OnNotifyEnd_F2270D624E19A09B15D7239C60EC92AC : 
+  var NotifyName: Name
+
+== class OnRep_HairColor : 
+  var CallFunc_GetMaterial_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_HairMesh : 
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+
+== class OnRep_HeadMesh : 
+  var CallFunc_SetStaticMesh_ReturnValue: Bool
+
+== class OnRep_PantsColor : 
+  var CallFunc_GetMaterial_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_RandomSubjectTag : 
+  var CallFunc_Array_Add_ReturnValue: Int
+
+== class OnRep_ShirtColor : 
+  var CallFunc_GetMaterial_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnRep_ShoesColor : 
+  var CallFunc_GetMaterial_ReturnValue: Object
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+
+== class OnSuccess_E765B03D487C6B86152EE3864488FC07 : 
+  var MovementResult: Byte
+
+== class ReceiveTick : Class'Actor:ReceiveTick'
+  var DeltaSeconds: Float
+
+== class SERVER: PlayBodyMontage : 
+  var AttackMontage: Object
+
+== class SERVER: PlayMonsterSound : 
+  var Sound: Object
+  var Pitch: Double
+
+== class SERVER: SetHangingVisibility : 
+  var Visibility: Bool
+
+== class UserConstructionScript : Class'Actor:UserConstructionScript'
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_K2_AttachToComponent_ReturnValue: Bool
+  var CallFunc_K2_AttachToComponent_ReturnValue_1: Bool
+
+function AnesthesiaSpeedBackUpTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30542)
+            return
+
+function AnesthesiaSpeedBackUpTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30537)
+            return
+
+function AnestheticProgressionTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34841)
+            return
+
+function AnestheticProgressionTimeline__Stumble__EventFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(31896)
+            return
+
+function AnestheticProgressionTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34831)
+            return
+
+function BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_2 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_2 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_2 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_2 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult = SweepResult
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34836)
+            return
+
+function BndEvt__HazmatChar_CrouchChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_1 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_1 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_1 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_1 = OtherBodyIndex
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34842)
+            return
+
+function BndEvt__Lifeform_Char_DetectionSphere_K2Node_ComponentBoundEvent_5_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex = OtherBodyIndex
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35570)
+            return
+
+function BndEvt__Monster2Char_DetectionSphere_K2Node_ComponentBoundEvent_2_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_3 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_3 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_3 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_3 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep_1 = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult_1 = SweepResult
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(22589)
+            return
+
+function BndEvt__Monster2Char_PlayerChecker_K2Node_ComponentBoundEvent_0_ComponentBeginOverlapSignature__DelegateSignature  [FUNC_HasOutParms | FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_5 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_5 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_5 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_5 = OtherBodyIndex
+            frame.K2Node_ComponentBoundEvent_bFromSweep_2 = bFromSweep
+            frame.K2Node_ComponentBoundEvent_SweepResult_2 = SweepResult
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(20173)
+            return
+
+function BndEvt__Monster2Char_PlayerChecker_K2Node_ComponentBoundEvent_1_ComponentEndOverlapSignature__DelegateSignature  [FUNC_BlueprintEvent]
+            frame.K2Node_ComponentBoundEvent_OverlappedComponent_4 = OverlappedComponent
+            frame.K2Node_ComponentBoundEvent_OtherActor_4 = OtherActor
+            frame.K2Node_ComponentBoundEvent_OtherComp_4 = OtherComp
+            frame.K2Node_ComponentBoundEvent_OtherBodyIndex_4 = OtherBodyIndex
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(20439)
+            return
+
+function CalculateMoveSpeed  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34979)
+            return
+
+function CheckCanSeeTarget  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(27582)
+            return
+
+function CheckForTarget  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35591)
+            return
+
+function DropPlayer  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_PlayerDead = PlayerDead
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36685)
+            return
+
+function ExecuteUbergraph_Lifeform_Char  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @38670
+            goto computed(EntryPoint)
+    @15:    self.ForceStumbled = false
+            pop_flow  // return to pushed flow
+            SetActorTickEnabled(true)
+            CallFunc_HasAuthority_ReturnValue_3 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_3) pop_flow
+            push_flow @2770
+            push_flow @1309
+            CallFunc_GetDataTableRowNames_OutRowNames = []
+            DataTableFunctionLibrary.GetDataTableRowNames(Obj<LifeformsDataTable>, CallFunc_GetDataTableRowNames_OutRowNames)
+            CallFunc_Array_LastIndex_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_LastIndex(CallFunc_GetDataTableRowNames_OutRowNames)
+            CallFunc_RandomIntegerInRange_ReturnValue = KismetMathLibrary.RandomIntegerInRange(0, CallFunc_Array_LastIndex_ReturnValue)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetDataTableRowNames_OutRowNames, CallFunc_RandomIntegerInRange_ReturnValue, CallFunc_Array_Get_Item)
+            CallFunc_GetDataTableRowFromName_ReturnValue = Obj<Default__DataTableFunctionLibrary>.DataTableFunctionLibrary.GetDataTableRowFromName(Obj<LifeformsDataTable>, CallFunc_Array_Get_Item, CallFunc_GetDataTableRowFromName_OutRow)
+            if not (CallFunc_GetDataTableRowFromName_ReturnValue) pop_flow
+            Actor.FlushNetDormancy()
+            self.LifeformInfo = CallFunc_GetDataTableRowFromName_OutRow
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 39, "LifeformInfo")
+            Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(CallFunc_GetDataTableRowFromName_OutRow.SkeletalMeshVariations_8, CallFunc_Array_Random_OutItem_1, CallFunc_Array_Random_OutIndex_1)
+            K2Node_MakeStruct_LifeformSkeletonAndAnimBP.SkeletalMesh_2 = CallFunc_Array_Random_OutItem_1
+            K2Node_MakeStruct_LifeformSkeletonAndAnimBP.AnimBP_5 = CallFunc_GetDataTableRowFromName_OutRow.AnimationBP_9
+            self.LifeformSkeletonAndAnimBP = K2Node_MakeStruct_LifeformSkeletonAndAnimBP
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 38, "LifeformSkeletonAndAnimBP")
+            OnRep_LifeformSkeletonAndAnimBP()
+            if not (self.IsGiant) goto @2815
+            Actor.FlushNetDormancy()
+            self.AnimationPlayRate = 0.75
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 33, "AnimationPlayRate")
+            self.Body.SceneComponent.SetRelativeScale3D(Vec(1.5, 1.5, 1.5))
+    @776:   Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(CallFunc_GetDataTableRowFromName_OutRow.WalkBlendSpaces_17, CallFunc_Array_Random_OutItem_4, CallFunc_Array_Random_OutIndex_4)
+            self.WalkAnimationBS = CallFunc_Array_Random_OutItem_4
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 35, "WalkAnimationBS")
+            Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(CallFunc_GetDataTableRowFromName_OutRow.RunBlendSpaces_19, CallFunc_Array_Random_OutItem_3, CallFunc_Array_Random_OutIndex_3)
+            self.RunAnimationBS = CallFunc_Array_Random_OutItem_3
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 34, "RunAnimationBS")
+            Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(CallFunc_GetDataTableRowFromName_OutRow.HeadTypes_28, CallFunc_Array_Random_OutItem_2, CallFunc_Array_Random_OutIndex_2)
+            self.HeadMesh = CallFunc_Array_Random_OutItem_2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 37, "HeadMesh")
+            OnRep_HeadMesh()
+            Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(CallFunc_GetDataTableRowFromName_OutRow.HairTypes_30, CallFunc_Array_Random_OutItem, CallFunc_Array_Random_OutIndex)
+            self.HairMesh = CallFunc_Array_Random_OutItem
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 36, "HairMesh")
+            OnRep_HairMesh()
+            pop_flow  // return to pushed flow
+    @1309:  Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_76 = KismetMathLibrary.RandomFloatInRange(0.0, 360.0)
+            CallFunc_RandomFloatInRange_ReturnValue_77 = KismetMathLibrary.RandomFloatInRange(0.0, 0.8)
+            CallFunc_RandomFloatInRange_ReturnValue_78 = KismetMathLibrary.RandomFloatInRange(0.2, 0.8)
+            CallFunc_HSVToRGB_H_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_76)
+            CallFunc_HSVToRGB_S_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_77)
+            CallFunc_HSVToRGB_V_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_78)
+            CallFunc_HSVToRGB_ReturnValue = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast, CallFunc_HSVToRGB_S_ImplicitCast, CallFunc_HSVToRGB_V_ImplicitCast, 1.0)
+            self.ShirtColor = CallFunc_HSVToRGB_ReturnValue
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 27, "ShirtColor")
+            OnRep_ShirtColor()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_79 = KismetMathLibrary.RandomFloatInRange(0.0, 360.0)
+            CallFunc_RandomFloatInRange_ReturnValue_80 = KismetMathLibrary.RandomFloatInRange(0.0, 0.75)
+            CallFunc_RandomFloatInRange_ReturnValue_81 = KismetMathLibrary.RandomFloatInRange(0.5, 0.8)
+            CallFunc_HSVToRGB_H_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_79)
+            CallFunc_HSVToRGB_S_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_80)
+            CallFunc_HSVToRGB_V_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_81)
+            CallFunc_HSVToRGB_ReturnValue_1 = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast_1, CallFunc_HSVToRGB_S_ImplicitCast_1, CallFunc_HSVToRGB_V_ImplicitCast_1, 1.0)
+            self.PantsColor = CallFunc_HSVToRGB_ReturnValue_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 28, "PantsColor")
+            OnRep_PantsColor()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_82 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_83 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_84 = KismetMathLibrary.RandomFloatInRange(0.3, 1.0)
+            CallFunc_HSVToRGB_H_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_82)
+            CallFunc_HSVToRGB_S_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_83)
+            CallFunc_HSVToRGB_V_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_84)
+            CallFunc_HSVToRGB_ReturnValue_2 = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast_2, CallFunc_HSVToRGB_S_ImplicitCast_2, CallFunc_HSVToRGB_V_ImplicitCast_2, 1.0)
+            self.ShoesColor = CallFunc_HSVToRGB_ReturnValue_2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 29, "ShoesColor")
+            OnRep_ShoesColor()
+            Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue_85 = KismetMathLibrary.RandomFloatInRange(20.0, 33.0)
+            CallFunc_RandomFloatInRange_ReturnValue_86 = KismetMathLibrary.RandomFloatInRange(0.75, 0.89)
+            CallFunc_RandomFloatInRange_ReturnValue_87 = KismetMathLibrary.RandomFloatInRange(0.05, 0.85)
+            CallFunc_HSVToRGB_H_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_85)
+            CallFunc_HSVToRGB_S_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_86)
+            CallFunc_HSVToRGB_V_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_87)
+            CallFunc_HSVToRGB_ReturnValue_3 = KismetMathLibrary.HSVToRGB(CallFunc_HSVToRGB_H_ImplicitCast_3, CallFunc_HSVToRGB_S_ImplicitCast_3, CallFunc_HSVToRGB_V_ImplicitCast_3, 1.0)
+            self.HairColor = CallFunc_HSVToRGB_ReturnValue_3
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 31, "HairColor")
+            OnRep_HairColor()
+            pop_flow  // return to pushed flow
+    @2770:  CallFunc_RandomBoolWithWeight_ReturnValue = KismetMathLibrary.RandomBoolWithWeight(0.9)
+            self.ChasesOrFollows = CallFunc_RandomBoolWithWeight_ReturnValue
+            pop_flow  // return to pushed flow
+    @2815:  Actor.FlushNetDormancy()
+            self.AnimationPlayRate = 1.0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 33, "AnimationPlayRate")
+            goto @776
+            if not (self.CanSeePlayer) goto @2901
+            pop_flow  // return to pushed flow
+    @2901:  Actor.FlushNetDormancy()
+            self.MonsterState = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            self.TargetActor = null
+            KismetSystemLibrary.PrintString(self, "Switched to Idle", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @3055:  Actor.FlushNetDormancy()
+            CallFunc_RandomFloatInRange_ReturnValue = KismetMathLibrary.RandomFloatInRange(0.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_1 = KismetMathLibrary.RandomFloatInRange(-20.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_2 = KismetMathLibrary.RandomFloatInRange(-10.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_3 = KismetMathLibrary.RandomFloatInRange(-45.0, 30.0)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue, CallFunc_RandomFloatInRange_ReturnValue_1, CallFunc_RandomFloatInRange_ReturnValue_2)
+            CallFunc_RandomFloatInRange_ReturnValue_4 = KismetMathLibrary.RandomFloatInRange(0.0, 35.0)
+            CallFunc_RandomFloatInRange_ReturnValue_5 = KismetMathLibrary.RandomFloatInRange(-10.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_6 = KismetMathLibrary.RandomFloatInRange(0.8, 1.1)
+            CallFunc_MakeRotator_Roll_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_3)
+            CallFunc_MakeRotator_Pitch_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_4)
+            CallFunc_MakeRotator_Yaw_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_5)
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast, CallFunc_MakeRotator_Pitch_ImplicitCast, CallFunc_MakeRotator_Yaw_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue_1 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_6, CallFunc_RandomFloatInRange_ReturnValue_6, CallFunc_RandomFloatInRange_ReturnValue_6)
+            CallFunc_RandomFloatInRange_ReturnValue_7 = KismetMathLibrary.RandomFloatInRange(-20.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_1 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue, CallFunc_MakeRotator_ReturnValue, CallFunc_MakeVector_ReturnValue_1)
+            CallFunc_RandomFloatInRange_ReturnValue_8 = KismetMathLibrary.RandomFloatInRange(-20.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_9 = KismetMathLibrary.RandomFloatInRange(-10.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_10 = KismetMathLibrary.RandomFloatInRange(-45.0, 30.0)
+            CallFunc_MakeVector_ReturnValue_2 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_7, CallFunc_RandomFloatInRange_ReturnValue_8, CallFunc_RandomFloatInRange_ReturnValue_9)
+            CallFunc_RandomFloatInRange_ReturnValue_11 = KismetMathLibrary.RandomFloatInRange(-35.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_12 = KismetMathLibrary.RandomFloatInRange(-10.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_13 = KismetMathLibrary.RandomFloatInRange(0.75, 1.1)
+            CallFunc_MakeRotator_Roll_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_10)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_11)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_12)
+            CallFunc_MakeRotator_ReturnValue_1 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_1, CallFunc_MakeRotator_Pitch_ImplicitCast_1, CallFunc_MakeRotator_Yaw_ImplicitCast_1)
+            CallFunc_MakeVector_ReturnValue_3 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_13, CallFunc_RandomFloatInRange_ReturnValue_13, CallFunc_RandomFloatInRange_ReturnValue_13)
+            CallFunc_RandomFloatInRange_ReturnValue_14 = KismetMathLibrary.RandomFloatInRange(-5.0, 5.0)
+            CallFunc_MakeTransform_ReturnValue_2 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_2, CallFunc_MakeRotator_ReturnValue_1, CallFunc_MakeVector_ReturnValue_3)
+            CallFunc_RandomFloatInRange_ReturnValue_15 = KismetMathLibrary.RandomFloatInRange(-5.0, 5.0)
+            CallFunc_RandomFloatInRange_ReturnValue_16 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_17 = KismetMathLibrary.RandomFloatInRange(-100.0, 25.0)
+            CallFunc_MakeVector_ReturnValue_4 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_14, CallFunc_RandomFloatInRange_ReturnValue_15, CallFunc_RandomFloatInRange_ReturnValue_16)
+            CallFunc_RandomFloatInRange_ReturnValue_18 = KismetMathLibrary.RandomFloatInRange(-10.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_19 = KismetMathLibrary.RandomFloatInRange(-10.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_20 = KismetMathLibrary.RandomFloatInRange(0.9, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_17)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_18)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_19)
+            CallFunc_MakeRotator_ReturnValue_2 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_2, CallFunc_MakeRotator_Pitch_ImplicitCast_2, CallFunc_MakeRotator_Yaw_ImplicitCast_2)
+            CallFunc_MakeVector_ReturnValue_5 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_20, CallFunc_RandomFloatInRange_ReturnValue_20, CallFunc_RandomFloatInRange_ReturnValue_20)
+            CallFunc_RandomFloatInRange_ReturnValue_21 = KismetMathLibrary.RandomFloatInRange(-5.0, 5.0)
+            CallFunc_MakeTransform_ReturnValue_3 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_4, CallFunc_MakeRotator_ReturnValue_2, CallFunc_MakeVector_ReturnValue_5)
+            CallFunc_RandomFloatInRange_ReturnValue_22 = KismetMathLibrary.RandomFloatInRange(-5.0, 5.0)
+            CallFunc_RandomFloatInRange_ReturnValue_23 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_24 = KismetMathLibrary.RandomFloatInRange(-100.0, 25.0)
+            CallFunc_MakeVector_ReturnValue_6 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_21, CallFunc_RandomFloatInRange_ReturnValue_22, CallFunc_RandomFloatInRange_ReturnValue_23)
+            CallFunc_RandomFloatInRange_ReturnValue_25 = KismetMathLibrary.RandomFloatInRange(-20.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_26 = KismetMathLibrary.RandomFloatInRange(-10.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_27 = KismetMathLibrary.RandomFloatInRange(0.9, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_24)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_25)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_26)
+            CallFunc_MakeRotator_ReturnValue_3 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_3, CallFunc_MakeRotator_Pitch_ImplicitCast_3, CallFunc_MakeRotator_Yaw_ImplicitCast_3)
+            CallFunc_MakeVector_ReturnValue_7 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_27, CallFunc_RandomFloatInRange_ReturnValue_27, CallFunc_RandomFloatInRange_ReturnValue_27)
+            CallFunc_RandomFloatInRange_ReturnValue_28 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_4 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_6, CallFunc_MakeRotator_ReturnValue_3, CallFunc_MakeVector_ReturnValue_7)
+            CallFunc_RandomFloatInRange_ReturnValue_29 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_30 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_31 = KismetMathLibrary.RandomFloatInRange(-50.0, 70.0)
+            CallFunc_MakeVector_ReturnValue_8 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_28, CallFunc_RandomFloatInRange_ReturnValue_29, CallFunc_RandomFloatInRange_ReturnValue_30)
+            CallFunc_RandomFloatInRange_ReturnValue_32 = KismetMathLibrary.RandomFloatInRange(-50.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_33 = KismetMathLibrary.RandomFloatInRange(-20.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_34 = KismetMathLibrary.RandomFloatInRange(0.7, 1.25)
+            CallFunc_MakeRotator_Roll_ImplicitCast_4 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_31)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_4 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_32)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_4 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_33)
+            CallFunc_MakeRotator_ReturnValue_4 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_4, CallFunc_MakeRotator_Pitch_ImplicitCast_4, CallFunc_MakeRotator_Yaw_ImplicitCast_4)
+            CallFunc_MakeVector_ReturnValue_9 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_34, CallFunc_RandomFloatInRange_ReturnValue_34, CallFunc_RandomFloatInRange_ReturnValue_34)
+            CallFunc_RandomFloatInRange_ReturnValue_35 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_5 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_8, CallFunc_MakeRotator_ReturnValue_4, CallFunc_MakeVector_ReturnValue_9)
+            CallFunc_RandomFloatInRange_ReturnValue_36 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_37 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_38 = KismetMathLibrary.RandomFloatInRange(-50.0, 70.0)
+            CallFunc_MakeVector_ReturnValue_10 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_35, CallFunc_RandomFloatInRange_ReturnValue_36, CallFunc_RandomFloatInRange_ReturnValue_37)
+            CallFunc_RandomFloatInRange_ReturnValue_39 = KismetMathLibrary.RandomFloatInRange(-20.0, 50.0)
+            CallFunc_RandomFloatInRange_ReturnValue_40 = KismetMathLibrary.RandomFloatInRange(-20.0, 20.0)
+            CallFunc_RandomFloatInRange_ReturnValue_41 = KismetMathLibrary.RandomFloatInRange(0.7, 1.25)
+            CallFunc_MakeRotator_Roll_ImplicitCast_5 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_38)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_5 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_39)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_5 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_40)
+            CallFunc_MakeRotator_ReturnValue_5 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_5, CallFunc_MakeRotator_Pitch_ImplicitCast_5, CallFunc_MakeRotator_Yaw_ImplicitCast_5)
+            CallFunc_MakeVector_ReturnValue_11 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_41, CallFunc_RandomFloatInRange_ReturnValue_41, CallFunc_RandomFloatInRange_ReturnValue_41)
+            CallFunc_RandomFloatInRange_ReturnValue_42 = KismetMathLibrary.RandomFloatInRange(-5.0, 5.0)
+            CallFunc_MakeTransform_ReturnValue_6 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_10, CallFunc_MakeRotator_ReturnValue_5, CallFunc_MakeVector_ReturnValue_11)
+            CallFunc_RandomFloatInRange_ReturnValue_43 = KismetMathLibrary.RandomFloatInRange(-5.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_44 = KismetMathLibrary.RandomFloatInRange(-5.0, 15.0)
+            CallFunc_RandomFloatInRange_ReturnValue_45 = KismetMathLibrary.RandomFloatInRange(-25.0, 25.0)
+            CallFunc_MakeVector_ReturnValue_12 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_42, CallFunc_RandomFloatInRange_ReturnValue_43, CallFunc_RandomFloatInRange_ReturnValue_44)
+            CallFunc_RandomFloatInRange_ReturnValue_46 = KismetMathLibrary.RandomFloatInRange(-10.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_47 = KismetMathLibrary.RandomFloatInRange(-25.0, 25.0)
+            CallFunc_RandomFloatInRange_ReturnValue_48 = KismetMathLibrary.RandomFloatInRange(1.0, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_6 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_45)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_6 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_46)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_6 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_47)
+            CallFunc_MakeRotator_ReturnValue_6 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_6, CallFunc_MakeRotator_Pitch_ImplicitCast_6, CallFunc_MakeRotator_Yaw_ImplicitCast_6)
+            CallFunc_MakeVector_ReturnValue_13 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_48, CallFunc_RandomFloatInRange_ReturnValue_48, CallFunc_RandomFloatInRange_ReturnValue_48)
+            CallFunc_RandomFloatInRange_ReturnValue_49 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_7 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_12, CallFunc_MakeRotator_ReturnValue_6, CallFunc_MakeVector_ReturnValue_13)
+            CallFunc_RandomFloatInRange_ReturnValue_50 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_51 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_52 = KismetMathLibrary.RandomFloatInRange(-5.0, 10.0)
+            CallFunc_MakeVector_ReturnValue_14 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_49, CallFunc_RandomFloatInRange_ReturnValue_50, CallFunc_RandomFloatInRange_ReturnValue_51)
+            CallFunc_RandomFloatInRange_ReturnValue_53 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_54 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_55 = KismetMathLibrary.RandomFloatInRange(1.0, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_7 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_52)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_7 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_53)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_7 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_54)
+            CallFunc_MakeRotator_ReturnValue_7 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_7, CallFunc_MakeRotator_Pitch_ImplicitCast_7, CallFunc_MakeRotator_Yaw_ImplicitCast_7)
+            CallFunc_MakeVector_ReturnValue_15 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_55, CallFunc_RandomFloatInRange_ReturnValue_55, CallFunc_RandomFloatInRange_ReturnValue_55)
+            CallFunc_MakeTransform_ReturnValue_8 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_14, CallFunc_MakeRotator_ReturnValue_7, CallFunc_MakeVector_ReturnValue_15)
+            CallFunc_RandomFloatInRange_ReturnValue_56 = KismetMathLibrary.RandomFloatInRange(-10.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_57 = KismetMathLibrary.RandomFloatInRange(-10.0, 10.0)
+            CallFunc_RandomFloatInRange_ReturnValue_58 = KismetMathLibrary.RandomFloatInRange(-30.0, 30.0)
+            CallFunc_RandomFloatInRange_ReturnValue_59 = KismetMathLibrary.RandomFloatInRange(0.9, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_8 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_56)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_8 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_57)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_8 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_58)
+            CallFunc_MakeRotator_ReturnValue_8 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_8, CallFunc_MakeRotator_Pitch_ImplicitCast_8, CallFunc_MakeRotator_Yaw_ImplicitCast_8)
+            CallFunc_RandomFloatInRange_ReturnValue_60 = KismetMathLibrary.RandomFloatInRange(0.9, 1.0)
+            CallFunc_RandomFloatInRange_ReturnValue_61 = KismetMathLibrary.RandomFloatInRange(0.9, 1.0)
+            CallFunc_RandomFloatInRange_ReturnValue_62 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeVector_ReturnValue_16 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_59, CallFunc_RandomFloatInRange_ReturnValue_60, CallFunc_RandomFloatInRange_ReturnValue_61)
+            CallFunc_RandomFloatInRange_ReturnValue_63 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_9 = KismetMathLibrary.MakeTransform(Vec(0.0, 0.0, 0.0), CallFunc_MakeRotator_ReturnValue_8, CallFunc_MakeVector_ReturnValue_16)
+            CallFunc_RandomFloatInRange_ReturnValue_64 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_65 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeVector_ReturnValue_17 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_62, CallFunc_RandomFloatInRange_ReturnValue_63, CallFunc_RandomFloatInRange_ReturnValue_64)
+            CallFunc_RandomFloatInRange_ReturnValue_66 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_67 = KismetMathLibrary.RandomFloatInRange(-30.0, 30.0)
+            CallFunc_RandomFloatInRange_ReturnValue_68 = KismetMathLibrary.RandomFloatInRange(1.0, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_9 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_65)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_9 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_66)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_9 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_67)
+            CallFunc_MakeRotator_ReturnValue_9 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_9, CallFunc_MakeRotator_Pitch_ImplicitCast_9, CallFunc_MakeRotator_Yaw_ImplicitCast_9)
+            CallFunc_MakeVector_ReturnValue_18 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_68, CallFunc_RandomFloatInRange_ReturnValue_68, CallFunc_RandomFloatInRange_ReturnValue_68)
+            CallFunc_RandomFloatInRange_ReturnValue_69 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeTransform_ReturnValue_10 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_17, CallFunc_MakeRotator_ReturnValue_9, CallFunc_MakeVector_ReturnValue_18)
+            CallFunc_RandomFloatInRange_ReturnValue_70 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_71 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_72 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_MakeVector_ReturnValue_19 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_69, CallFunc_RandomFloatInRange_ReturnValue_70, CallFunc_RandomFloatInRange_ReturnValue_71)
+            CallFunc_RandomFloatInRange_ReturnValue_73 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_74 = KismetMathLibrary.RandomFloatInRange(0.0, 0.0)
+            CallFunc_RandomFloatInRange_ReturnValue_75 = KismetMathLibrary.RandomFloatInRange(1.0, 1.0)
+            CallFunc_MakeRotator_Roll_ImplicitCast_10 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_72)
+            CallFunc_MakeRotator_Pitch_ImplicitCast_10 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_73)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_10 = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_74)
+            CallFunc_MakeRotator_ReturnValue_10 = KismetMathLibrary.MakeRotator(CallFunc_MakeRotator_Roll_ImplicitCast_10, CallFunc_MakeRotator_Pitch_ImplicitCast_10, CallFunc_MakeRotator_Yaw_ImplicitCast_10)
+            CallFunc_MakeVector_ReturnValue_20 = KismetMathLibrary.MakeVector(CallFunc_RandomFloatInRange_ReturnValue_75, CallFunc_RandomFloatInRange_ReturnValue_75, CallFunc_RandomFloatInRange_ReturnValue_75)
+            CallFunc_MakeTransform_ReturnValue_11 = KismetMathLibrary.MakeTransform(CallFunc_MakeVector_ReturnValue_19, CallFunc_MakeRotator_ReturnValue_10, CallFunc_MakeVector_ReturnValue_20)
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftArm_2 = CallFunc_MakeTransform_ReturnValue_1
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftForearm_4 = CallFunc_MakeTransform_ReturnValue_3
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftHand_7 = CallFunc_MakeTransform_ReturnValue_5
+            K2Node_MakeStruct_LifeformBoneTransforms.RightArm_9 = CallFunc_MakeTransform_ReturnValue_2
+            K2Node_MakeStruct_LifeformBoneTransforms.RightForeArm_12 = CallFunc_MakeTransform_ReturnValue_4
+            K2Node_MakeStruct_LifeformBoneTransforms.RightHand_13 = CallFunc_MakeTransform_ReturnValue_6
+            K2Node_MakeStruct_LifeformBoneTransforms.Spine_20 = CallFunc_MakeTransform_ReturnValue_7
+            K2Node_MakeStruct_LifeformBoneTransforms.Spine1_21 = CallFunc_MakeTransform_ReturnValue_8
+            K2Node_MakeStruct_LifeformBoneTransforms.Head_24 = CallFunc_MakeTransform_ReturnValue_9
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftUpLeg_31 = CallFunc_MakeTransform_ReturnValue_11
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftLeg_32 = CallFunc_MakeTransform_ReturnValue_11
+            K2Node_MakeStruct_LifeformBoneTransforms.LeftFoot_33 = CallFunc_MakeTransform_ReturnValue_10
+            K2Node_MakeStruct_LifeformBoneTransforms.RightUpLeg_34 = CallFunc_MakeTransform_ReturnValue_11
+            K2Node_MakeStruct_LifeformBoneTransforms.RightLeg_35 = CallFunc_MakeTransform_ReturnValue_11
+            K2Node_MakeStruct_LifeformBoneTransforms.RightFoot_36 = CallFunc_MakeTransform_ReturnValue_10
+            self.TempLifeformBoneTransform = K2Node_MakeStruct_LifeformBoneTransforms
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "TempLifeformBoneTransform")
+            self.StartingBoneTransforms = self.TempLifeformBoneTransform
+            pop_flow  // return to pushed flow
+    @10523: Actor.FlushNetDormancy()
+            self.MonsterState = 2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            pop_flow  // return to pushed flow
+    @10583: Actor.FlushNetDormancy()
+            self.MonsterState = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            pop_flow  // return to pushed flow
+    @10643: Actor.FlushNetDormancy()
+            self.MonsterState = 1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            pop_flow  // return to pushed flow
+    @10703: Actor.FlushNetDormancy()
+            CallFunc_Lerp_Alpha_ImplicitCast_10 = CST_FloatToDouble(self.Timeline_6_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_9 = KismetMathLibrary.Lerp(self.CurrentCrouchHeight, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_10)
+            self.CurrentCrouchHeightReplicated = CallFunc_Lerp_ReturnValue_9
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 32, "CurrentCrouchHeightReplicated")
+            CallFunc_Lerp_Alpha_ImplicitCast_9 = CST_FloatToDouble(self.Timeline_6_Crouch)
+            CallFunc_Lerp_ReturnValue_11 = KismetMathLibrary.Lerp(self.TempCrouchSpeedMultiplier, 1.0, CallFunc_Lerp_Alpha_ImplicitCast_9)
+            self.CrouchSpeedMultiplier = CallFunc_Lerp_ReturnValue_11
+            pop_flow  // return to pushed flow
+    @10965: Actor.FlushNetDormancy()
+            CallFunc_Lerp_Alpha_ImplicitCast_8 = CST_FloatToDouble(self.Timeline_5_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_12 = KismetMathLibrary.Lerp(self.CurrentCrouchHeight, self.CrouchAmount, CallFunc_Lerp_Alpha_ImplicitCast_8)
+            self.CurrentCrouchHeightReplicated = CallFunc_Lerp_ReturnValue_12
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 32, "CurrentCrouchHeightReplicated")
+            CallFunc_Lerp_Alpha_ImplicitCast_7 = CST_FloatToDouble(self.Timeline_5_Crouch)
+            CallFunc_Lerp_ReturnValue_10 = KismetMathLibrary.Lerp(self.TempCrouchSpeedMultiplier, 0.5, CallFunc_Lerp_Alpha_ImplicitCast_7)
+            self.CrouchSpeedMultiplier = CallFunc_Lerp_ReturnValue_10
+            pop_flow  // return to pushed flow
+    @11227: Actor.FlushNetDormancy()
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(self.MoveSpeedTransition, self.CrouchSpeedMultiplier)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.AnesthesiaSpeedMultiplier)
+            self.CurrentWalkSpeedReplicated = CallFunc_Multiply_DoubleDouble_ReturnValue_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 30, "CurrentWalkSpeedReplicated")
+            pop_flow  // return to pushed flow
+            self.CanTick = true
+            pop_flow  // return to pushed flow
+    @11398: Actor.FlushNetDormancy()
+            KismetMathLibrary.BreakTransform(self.CurrentSpineTransform, CallFunc_BreakTransform_Location_1, CallFunc_BreakTransform_Rotation_1, CallFunc_BreakTransform_Scale_1)
+            KismetMathLibrary.BreakRotator(CallFunc_BreakTransform_Rotation_1, CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_BreakRotator_Yaw)
+            CallFunc_Lerp_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw)
+            CallFunc_Lerp_Alpha_ImplicitCast_11 = CST_FloatToDouble(self.GiantRotateBodyTimeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_13 = KismetMathLibrary.Lerp(CallFunc_Lerp_A_ImplicitCast, 70.0, CallFunc_Lerp_Alpha_ImplicitCast_11)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_11 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_13)
+            CallFunc_MakeRotator_ReturnValue_11 = KismetMathLibrary.MakeRotator(CallFunc_BreakRotator_Roll, CallFunc_BreakRotator_Pitch, CallFunc_MakeRotator_Yaw_ImplicitCast_11)
+            CallFunc_MakeTransform_ReturnValue_12 = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location_1, CallFunc_MakeRotator_ReturnValue_11, CallFunc_BreakTransform_Scale_1)
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftArm_2 = self.TempLifeformBoneTransform.LeftArm_2
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftForearm_4 = self.TempLifeformBoneTransform.LeftForearm_4
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftHand_7 = self.TempLifeformBoneTransform.LeftHand_7
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightArm_9 = self.TempLifeformBoneTransform.RightArm_9
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightForeArm_12 = self.TempLifeformBoneTransform.RightForeArm_12
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightHand_13 = self.TempLifeformBoneTransform.RightHand_13
+            K2Node_MakeStruct_LifeformBoneTransforms_1.Spine_20 = CallFunc_MakeTransform_ReturnValue_12
+            K2Node_MakeStruct_LifeformBoneTransforms_1.Spine1_21 = self.TempLifeformBoneTransform.Spine1_21
+            K2Node_MakeStruct_LifeformBoneTransforms_1.Head_24 = self.TempLifeformBoneTransform.Head_24
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftUpLeg_31 = self.TempLifeformBoneTransform.LeftUpLeg_31
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftLeg_32 = self.TempLifeformBoneTransform.LeftLeg_32
+            K2Node_MakeStruct_LifeformBoneTransforms_1.LeftFoot_33 = self.TempLifeformBoneTransform.LeftFoot_33
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightUpLeg_34 = self.TempLifeformBoneTransform.RightUpLeg_34
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightLeg_35 = self.TempLifeformBoneTransform.RightLeg_35
+            K2Node_MakeStruct_LifeformBoneTransforms_1.RightFoot_36 = self.TempLifeformBoneTransform.RightFoot_36
+            self.TempLifeformBoneTransform = K2Node_MakeStruct_LifeformBoneTransforms_1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "TempLifeformBoneTransform")
+            pop_flow  // return to pushed flow
+    @12475: Actor.FlushNetDormancy()
+            KismetMathLibrary.BreakTransform(self.CurrentSpineTransform, CallFunc_BreakTransform_Location_2, CallFunc_BreakTransform_Rotation_2, CallFunc_BreakTransform_Scale_2)
+            KismetMathLibrary.BreakRotator(CallFunc_BreakTransform_Rotation_2, CallFunc_BreakRotator_Roll_1, CallFunc_BreakRotator_Pitch_1, CallFunc_BreakRotator_Yaw_1)
+            KismetMathLibrary.BreakTransform(self.StartingBoneTransforms.Spine_20, CallFunc_BreakTransform_Location_3, CallFunc_BreakTransform_Rotation_3, CallFunc_BreakTransform_Scale_3)
+            KismetMathLibrary.BreakRotator(CallFunc_BreakTransform_Rotation_3, CallFunc_BreakRotator_Roll_2, CallFunc_BreakRotator_Pitch_2, CallFunc_BreakRotator_Yaw_2)
+            CallFunc_Lerp_A_ImplicitCast_1 = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_1)
+            CallFunc_Lerp_B_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_2)
+            CallFunc_Lerp_Alpha_ImplicitCast_12 = CST_FloatToDouble(self.Timeline_7_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_14 = KismetMathLibrary.Lerp(CallFunc_Lerp_A_ImplicitCast_1, CallFunc_Lerp_B_ImplicitCast, CallFunc_Lerp_Alpha_ImplicitCast_12)
+            CallFunc_MakeRotator_Yaw_ImplicitCast_12 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_14)
+            CallFunc_MakeRotator_ReturnValue_12 = KismetMathLibrary.MakeRotator(CallFunc_BreakRotator_Roll_1, CallFunc_BreakRotator_Pitch_1, CallFunc_MakeRotator_Yaw_ImplicitCast_12)
+            CallFunc_MakeTransform_ReturnValue_13 = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location_2, CallFunc_MakeRotator_ReturnValue_12, CallFunc_BreakTransform_Scale_2)
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftArm_2 = self.TempLifeformBoneTransform.LeftArm_2
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftForearm_4 = self.TempLifeformBoneTransform.LeftForearm_4
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftHand_7 = self.TempLifeformBoneTransform.LeftHand_7
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightArm_9 = self.TempLifeformBoneTransform.RightArm_9
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightForeArm_12 = self.TempLifeformBoneTransform.RightForeArm_12
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightHand_13 = self.TempLifeformBoneTransform.RightHand_13
+            K2Node_MakeStruct_LifeformBoneTransforms_2.Spine_20 = CallFunc_MakeTransform_ReturnValue_13
+            K2Node_MakeStruct_LifeformBoneTransforms_2.Spine1_21 = self.TempLifeformBoneTransform.Spine1_21
+            K2Node_MakeStruct_LifeformBoneTransforms_2.Head_24 = self.TempLifeformBoneTransform.Head_24
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftUpLeg_31 = self.TempLifeformBoneTransform.LeftUpLeg_31
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftLeg_32 = self.TempLifeformBoneTransform.LeftLeg_32
+            K2Node_MakeStruct_LifeformBoneTransforms_2.LeftFoot_33 = self.TempLifeformBoneTransform.LeftFoot_33
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightUpLeg_34 = self.TempLifeformBoneTransform.RightUpLeg_34
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightLeg_35 = self.TempLifeformBoneTransform.RightLeg_35
+            K2Node_MakeStruct_LifeformBoneTransforms_2.RightFoot_36 = self.TempLifeformBoneTransform.RightFoot_36
+            self.TempLifeformBoneTransform = K2Node_MakeStruct_LifeformBoneTransforms_2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "TempLifeformBoneTransform")
+            pop_flow  // return to pushed flow
+            self.AnestheticProgressionTimeline.TimelineComponent.SetNewTime(0.0)
+            self.AnesthesiaSpeedBackUpTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @13752: Actor.FlushNetDormancy()
+            self.MonsterState = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            self.TargetActor = null
+            KismetSystemLibrary.PrintString(self, "Switched to Idle", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+            self.CanCheckTargets = true
+            pop_flow  // return to pushed flow
+    @13918: Actor.FlushNetDormancy()
+            self.MonsterState = 1
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+    @13977: Temp_bool_True_if_break_was_hit_Variable = true
+            pop_flow  // return to pushed flow
+    @13989: Actor.FlushNetDormancy()
+            self.MonsterState = 2
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            goto @13977
+    @14053: Actor.FlushNetDormancy()
+            self.MonsterState = 0
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 25, "MonsterState")
+            MULTI: HoldPlayerMontage()
+            SERVER: UpdateHoldingPlayerBoneTransforms()
+            CallFunc_RandomFloatInRange_ReturnValue_88 = KismetMathLibrary.RandomFloatInRange(10.0, 20.0)
+            CallFunc_SetNewTime_NewTime_ImplicitCast = CST_DoubleToFloat(CallFunc_RandomFloatInRange_ReturnValue_88)
+            self.KillHeldPlayerTimeline.TimelineComponent.SetNewTime(CallFunc_SetNewTime_NewTime_ImplicitCast)
+            self.KillHeldPlayerTimeline.TimelineComponent.Play()
+            pop_flow  // return to pushed flow
+    @14289: Actor.FlushNetDormancy()
+            CallFunc_MakeTransform_ReturnValue_14 = KismetMathLibrary.MakeTransform(Vec(0.0, 0.0, 0.0), Rot(0.0, 0.0, 0.0), Vec(1.0, 1.0, 1.0))
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftArm_2 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftForearm_4 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftHand_7 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightArm_9 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightForeArm_12 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightHand_13 = CallFunc_MakeTransform_ReturnValue_14
+            K2Node_MakeStruct_LifeformBoneTransforms_3.Spine_20 = self.StartingBoneTransforms.Spine_20
+            K2Node_MakeStruct_LifeformBoneTransforms_3.Spine1_21 = self.StartingBoneTransforms.Spine1_21
+            K2Node_MakeStruct_LifeformBoneTransforms_3.Head_24 = self.StartingBoneTransforms.Head_24
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftUpLeg_31 = self.StartingBoneTransforms.LeftUpLeg_31
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftLeg_32 = self.StartingBoneTransforms.LeftLeg_32
+            K2Node_MakeStruct_LifeformBoneTransforms_3.LeftFoot_33 = self.StartingBoneTransforms.LeftFoot_33
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightUpLeg_34 = self.StartingBoneTransforms.RightUpLeg_34
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightLeg_35 = self.StartingBoneTransforms.RightLeg_35
+            K2Node_MakeStruct_LifeformBoneTransforms_3.RightFoot_36 = self.StartingBoneTransforms.RightFoot_36
+            self.TempLifeformBoneTransform = K2Node_MakeStruct_LifeformBoneTransforms_3
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 26, "TempLifeformBoneTransform")
+            pop_flow  // return to pushed flow
+    @15080: CallFunc_K2_GetActorLocation_ReturnValue_9 = Actor.K2_GetActorLocation()
+            CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue = NavigationSystemV1.K2_GetRandomLocationInNavigableRadius(self, CallFunc_K2_GetActorLocation_ReturnValue_9, CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation, 4200.0, null, null)
+            if not (CallFunc_K2_GetRandomLocationInNavigableRadius_ReturnValue) goto @17635
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation, CallFunc_BreakVector_X_2, CallFunc_BreakVector_Y_2, CallFunc_BreakVector_Z_2)
+            CallFunc_Less_DoubleDouble_ReturnValue = KismetMathLibrary.Less_DoubleDouble(CallFunc_BreakVector_Z_2, 20.0)
+            if not (CallFunc_Less_DoubleDouble_ReturnValue) goto @17529
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<PlayerBP_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable_1 = 0
+    @15352: CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) goto @16449
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable
+            push_flow @17690
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetRandomLocationInNavigableRadius_RandomLocation, CallFunc_BreakVector_X_2, CallFunc_BreakVector_Y_2, CallFunc_BreakVector_Z_2)
+            CallFunc_Add_DoubleDouble_ReturnValue_4 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z_2, 90.0)
+            CallFunc_MakeVector_ReturnValue_23 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X_2, CallFunc_BreakVector_Y_2, CallFunc_Add_DoubleDouble_ReturnValue_4)
+            self.TempSpawnLoc = CallFunc_MakeVector_ReturnValue_23
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_4)
+            CallFunc_K2_GetActorLocation_ReturnValue_11 = CallFunc_Array_Get_Item_4.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_11, CallFunc_BreakVector_X_3, CallFunc_BreakVector_Y_3, CallFunc_BreakVector_Z_3)
+            CallFunc_Add_DoubleDouble_ReturnValue_5 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z_3, 20.0)
+            CallFunc_MakeVector_ReturnValue_24 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X_3, CallFunc_BreakVector_Y_3, CallFunc_Add_DoubleDouble_ReturnValue_5)
+            CallFunc_LineTraceSingle_ReturnValue_3 = KismetSystemLibrary.LineTraceSingle(self, self.TempSpawnLoc, CallFunc_MakeVector_ReturnValue_24, 0, false, Temp_object_Variable_2, 0, CallFunc_LineTraceSingle_OutHit_3, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue_3) pop_flow
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit_3, CallFunc_BreakHitResult_bBlockingHit_2, CallFunc_BreakHitResult_bInitialOverlap_2, CallFunc_BreakHitResult_Time_2, CallFunc_BreakHitResult_Distance_2, CallFunc_BreakHitResult_Location_2, CallFunc_BreakHitResult_ImpactPoint_2, CallFunc_BreakHitResult_Normal_2, CallFunc_BreakHitResult_ImpactNormal_2, CallFunc_BreakHitResult_PhysMat_2, CallFunc_BreakHitResult_HitActor_2, CallFunc_BreakHitResult_HitComponent_2, CallFunc_BreakHitResult_HitBoneName_2, CallFunc_BreakHitResult_BoneName_2, CallFunc_BreakHitResult_HitItem_2, CallFunc_BreakHitResult_ElementIndex_2, CallFunc_BreakHitResult_FaceIndex_2, CallFunc_BreakHitResult_TraceStart_2, CallFunc_BreakHitResult_TraceEnd_2)
+            CallFunc_ComponentHasTag_ReturnValue_15 = CallFunc_BreakHitResult_HitComponent_2.ActorComponent.ComponentHasTag("PlayerLineTrace")
+            if not (CallFunc_ComponentHasTag_ReturnValue_15) pop_flow
+            self.ValidSpawnLocation = false
+            KismetSystemLibrary.PrintString(self, "PLAYER VISIBLE FROM LIFEFORM SPAWN LOC - TRYING AGAIN", true, true, LinearColor{1.0, 0.168185, 0.0, 1.0}, 5.0, "None")
+            pop_flow  // return to pushed flow
+    @16449: if not (self.ValidSpawnLocation) goto @17381
+            KismetMathLibrary.BreakVector(self.TempSpawnLoc, CallFunc_BreakVector_X_4, CallFunc_BreakVector_Y_4, CallFunc_BreakVector_Z_4)
+            CallFunc_Add_DoubleDouble_ReturnValue_8 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z_4, 75.0)
+            CallFunc_MakeVector_ReturnValue_25 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X_4, CallFunc_BreakVector_Y_4, CallFunc_Add_DoubleDouble_ReturnValue_8)
+            CallFunc_K2_SetActorLocation_ReturnValue = Actor.K2_SetActorLocation(CallFunc_MakeVector_ReturnValue_25, false, CallFunc_K2_SetActorLocation_SweepHitResult, false)
+            CallFunc_K2_GetActorLocation_ReturnValue_14 = Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_14, CallFunc_BreakVector_X_5, CallFunc_BreakVector_Y_5, CallFunc_BreakVector_Z_5)
+            CallFunc_Subtract_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Subtract_DoubleDouble(CallFunc_BreakVector_Z_5, 500.0)
+            CallFunc_MakeVector_ReturnValue_26 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X_5, CallFunc_BreakVector_Y_5, CallFunc_Subtract_DoubleDouble_ReturnValue_2)
+            CallFunc_LineTraceSingle_ReturnValue_4 = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetActorLocation_ReturnValue_14, CallFunc_MakeVector_ReturnValue_26, 0, false, Temp_object_Variable_3, 3, CallFunc_LineTraceSingle_OutHit_4, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue_4) goto @17764
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit_4, CallFunc_BreakHitResult_bBlockingHit_3, CallFunc_BreakHitResult_bInitialOverlap_3, CallFunc_BreakHitResult_Time_3, CallFunc_BreakHitResult_Distance_3, CallFunc_BreakHitResult_Location_3, CallFunc_BreakHitResult_ImpactPoint_3, CallFunc_BreakHitResult_Normal_3, CallFunc_BreakHitResult_ImpactNormal_3, CallFunc_BreakHitResult_PhysMat_3, CallFunc_BreakHitResult_HitActor_3, CallFunc_BreakHitResult_HitComponent_3, CallFunc_BreakHitResult_HitBoneName_3, CallFunc_BreakHitResult_BoneName_3, CallFunc_BreakHitResult_HitItem_3, CallFunc_BreakHitResult_ElementIndex_3, CallFunc_BreakHitResult_FaceIndex_3, CallFunc_BreakHitResult_TraceStart_3, CallFunc_BreakHitResult_TraceEnd_3)
+            KismetMathLibrary.BreakVector(CallFunc_BreakHitResult_Location_3, CallFunc_BreakVector_X_6, CallFunc_BreakVector_Y_6, CallFunc_BreakVector_Z_6)
+            CallFunc_Greater_DoubleDouble_ReturnValue_8 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_BreakVector_Z_6, 20.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_8) goto @17764
+            K2_DestroyActor()
+            KismetSystemLibrary.PrintString(self, "spawned on top of something, destroying actor", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @17381: CallFunc_Subtract_IntInt_ReturnValue_1 = KismetMathLibrary.Subtract_IntInt(self.Loops2, 1)
+            self.Loops2 = CallFunc_Subtract_IntInt_ReturnValue_1
+    @17450: CallFunc_Greater_IntInt_ReturnValue_6 = KismetMathLibrary.Greater_IntInt(self.Loops2, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue_6) goto @17514
+            self.ValidSpawnLocation = true
+            goto @15080
+    @17514: K2_DestroyActor()
+            pop_flow  // return to pushed flow
+    @17529: KismetSystemLibrary.PrintString(self, "Location was too high, trying agin", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            goto @15080
+    @17635: KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{15080, -1806167387, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @17690: CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @15352
+    @17764: self.Hair.SceneComponent.SetVisibility(true, false)
+            self.Lifeform_Head1.SceneComponent.SetVisibility(true, false)
+            self.Body.SceneComponent.SetVisibility(true, false)
+            self.?.SetMovementMode(1, 0)
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+            KismetSystemLibrary.PrintString(self, "Lifeform Touch Down", true, true, LinearColor{0.0, 1.0, 0.14433, 1.0}, 2.0, "None")
+            CallFunc_RandomFloatInRange_ReturnValue_89 = KismetMathLibrary.RandomFloatInRange(0.9, 1.2)
+            self.MonsterPitch = CallFunc_RandomFloatInRange_ReturnValue_89
+            CallFunc_K2_GetActorLocation_ReturnValue_2 = Actor.K2_GetActorLocation()
+            self.StartingOrigin = CallFunc_K2_GetActorLocation_ReturnValue_2
+            CallFunc_K2_GetActorLocation_ReturnValue_2 = Actor.K2_GetActorLocation()
+            self.TargetLoc = CallFunc_K2_GetActorLocation_ReturnValue_2
+            SERVER: UpdateRandomBoneTransforms()
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{27, 1361997025, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @18309: OnRep_RandomSubjectTag()
+            pop_flow  // return to pushed flow
+    @18324: NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self, 40, "RandomSubjectTag")
+            goto @18309
+    @18358: Actor.FlushNetDormancy()
+            CallFunc_RandomIntegerInRange_ReturnValue_1 = KismetMathLibrary.RandomIntegerInRange(10000, 10000000)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(CallFunc_RandomIntegerInRange_ReturnValue_1)
+            CallFunc_Conv_StringToName_ReturnValue = KismetStringLibrary.Conv_StringToName(CallFunc_Conv_IntToString_ReturnValue)
+            self.RandomSubjectTag = CallFunc_Conv_StringToName_ReturnValue
+            goto @18324
+    @18512: self.CanPlayAudio = true
+            pop_flow  // return to pushed flow
+            goto @18512
+            self.TempStunned = false
+            KismetSystemLibrary.Delay(self, 1.5, LatentActionInfo{18595, -1022563642, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+            self.CanTempStun = true
+            pop_flow  // return to pushed flow
+    @18607: CallFunc_Greater_DoubleDouble_ReturnValue = KismetMathLibrary.Greater_DoubleDouble(self.NumPlayersOverlapping, 0.0)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.Attacking, false)
+            CallFunc_BooleanAND_ReturnValue = KismetMathLibrary.BooleanAND(CallFunc_Greater_DoubleDouble_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 1)
+            CallFunc_BooleanAND_ReturnValue_1 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue, CallFunc_EqualEqual_ByteByte_ReturnValue)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_11 = KismetMathLibrary.EqualEqual_BoolBool(self.Stumbling, false)
+            CallFunc_BooleanAND_ReturnValue_10 = KismetMathLibrary.BooleanAND(CallFunc_BooleanAND_ReturnValue_1, CallFunc_EqualEqual_BoolBool_ReturnValue_11)
+            if not (CallFunc_BooleanAND_ReturnValue_10) pop_flow
+            if not (self.TempStunned) goto @18929
+            KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{18607, -1666983888, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @18929: if not (self.IsGiant) goto @19182
+            CallFunc_ComponentHasTag_ReturnValue = K2Node_ComponentBoundEvent_OtherComp_5.ActorComponent.ComponentHasTag("Player")
+            if not (CallFunc_ComponentHasTag_ReturnValue) goto @19182
+            K2Node_DynamicCast_AsPlayer_BP = Cast<PlayerBP_C>(K2Node_ComponentBoundEvent_OtherActor_5)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsPlayer_BP)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            self.PlayerToGrab = K2Node_DynamicCast_AsPlayer_BP
+            self.Attacking = true
+            SERVER: PlayBodyMontage(self.LifeformInfo.AttackAnimMontage_36)
+            self.GrabDelayTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @19182: self.Attacking = true
+            SERVER: PlayBodyMontage(self.LifeformInfo.AttackAnimMontage_36)
+            self.HitDelayTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @19258: self.NumGasOverlapping = 0.0
+            self.TargetActor = null
+            self.Stumbling = false
+            self.DetectionSphere.PrimitiveComponent.SetGenerateOverlapEvents(true)
+            self.TimesPunched = 0
+            goto @15
+    @19368: CallFunc_K2_ProjectPointToNavigation_ReturnValue = NavigationSystemV1.K2_ProjectPointToNavigation(self, self.TargetLoc, CallFunc_K2_ProjectPointToNavigation_ProjectedLocation, null, null, Vec(1000.0, 1000.0, 300.0))
+            MoveToChaseLocation(CallFunc_K2_ProjectPointToNavigation_ProjectedLocation)
+            pop_flow  // return to pushed flow
+    @19458: MoveToFollowLocation(self.TargetLoc)
+            pop_flow  // return to pushed flow
+            Temp_byte_Variable = K2Node_CustomEvent_MovementResult_1
+            pop_flow  // return to pushed flow
+            Temp_byte_Variable = K2Node_CustomEvent_MovementResult
+            self.ChoseIdleLocation = false
+            pop_flow  // return to pushed flow
+    @19549: K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast = CST_FloatToDouble(self.AnestheticProgressionTimeline_Progression)
+            self.AnesthesiaSpeedMultiplier = K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast
+            pop_flow  // return to pushed flow
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_14
+            pop_flow  // return to pushed flow
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_13
+            pop_flow  // return to pushed flow
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_12
+            pop_flow  // return to pushed flow
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_11
+            pop_flow  // return to pushed flow
+            Temp_name_Variable = K2Node_CustomEvent_NotifyName_10
+            pop_flow  // return to pushed flow
+    @19746: K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast_1 = CST_FloatToDouble(self.AnesthesiaSpeedBackUpTimeline_SpeedBackUp)
+            self.AnesthesiaSpeedMultiplier = K2Node_VariableSet_AnesthesiaSpeedMultiplier_ImplicitCast_1
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_1 = K2Node_CustomEvent_NotifyName_9
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_1 = K2Node_CustomEvent_NotifyName_8
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_1 = K2Node_CustomEvent_NotifyName_7
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_1 = K2Node_CustomEvent_NotifyName_6
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_1 = K2Node_CustomEvent_NotifyName_5
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_2 = K2Node_CustomEvent_NotifyName_4
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_2 = K2Node_CustomEvent_NotifyName_3
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_2 = K2Node_CustomEvent_NotifyName_2
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_2 = K2Node_CustomEvent_NotifyName_1
+            pop_flow  // return to pushed flow
+            Temp_name_Variable_2 = K2Node_CustomEvent_NotifyName
+            pop_flow  // return to pushed flow
+    @20083: CallFunc_K2_ProjectPointToNavigation_ReturnValue_1 = NavigationSystemV1.K2_ProjectPointToNavigation(self, self.TargetLoc, CallFunc_K2_ProjectPointToNavigation_ProjectedLocation_1, null, null, Vec(1000.0, 1000.0, 300.0))
+            MoveToChaseLocation(CallFunc_K2_ProjectPointToNavigation_ProjectedLocation_1)
+            pop_flow  // return to pushed flow
+            CallFunc_HasAuthority_ReturnValue_7 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_7) pop_flow
+            CallFunc_ComponentHasTag_ReturnValue_3 = K2Node_ComponentBoundEvent_OtherComp_5.ActorComponent.ComponentHasTag("Cardboard")
+            CallFunc_ComponentHasTag_ReturnValue_4 = K2Node_ComponentBoundEvent_OtherComp_5.ActorComponent.ComponentHasTag("Player")
+            CallFunc_BooleanOR_ReturnValue_1 = KismetMathLibrary.BooleanOR(CallFunc_ComponentHasTag_ReturnValue_4, CallFunc_ComponentHasTag_ReturnValue_3)
+            if not (CallFunc_BooleanOR_ReturnValue_1) pop_flow
+            CallFunc_Add_DoubleDouble_ReturnValue = KismetMathLibrary.Add_DoubleDouble(self.NumPlayersOverlapping, 1.0)
+            self.NumPlayersOverlapping = CallFunc_Add_DoubleDouble_ReturnValue
+            goto @18607
+            CallFunc_HasAuthority_ReturnValue_6 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_6) pop_flow
+            CallFunc_ComponentHasTag_ReturnValue_1 = K2Node_ComponentBoundEvent_OtherComp_4.ActorComponent.ComponentHasTag("Cardboard")
+            CallFunc_ComponentHasTag_ReturnValue_2 = K2Node_ComponentBoundEvent_OtherComp_4.ActorComponent.ComponentHasTag("Player")
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_ComponentHasTag_ReturnValue_2, CallFunc_ComponentHasTag_ReturnValue_1)
+            if not (CallFunc_BooleanOR_ReturnValue) pop_flow
+            CallFunc_Subtract_DoubleDouble_ReturnValue = KismetMathLibrary.Subtract_DoubleDouble(self.NumPlayersOverlapping, 1.0)
+            self.NumPlayersOverlapping = CallFunc_Subtract_DoubleDouble_ReturnValue
+            pop_flow  // return to pushed flow
+    @20701: self.Attacking = false
+            goto @18607
+            CallFunc_GetTransform_ReturnValue = Actor.GetTransform()
+            KismetMathLibrary.BreakTransform(CallFunc_GetTransform_ReturnValue, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<PunchOverlap_C>, CallFunc_MakeTransform_ReturnValue, 0, null, 0)
+            KismetSystemLibrary.SetDoublePropertyByName(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, "DamageMultiplier", 1.0)
+            KismetSystemLibrary.SetBoolPropertyByName(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, "IgnoreMonster", true)
+            CallFunc_GetTransform_ReturnValue = Actor.GetTransform()
+            KismetMathLibrary.BreakTransform(CallFunc_GetTransform_ReturnValue, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            CallFunc_MakeTransform_ReturnValue = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue, CallFunc_MakeTransform_ReturnValue, 0)
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.TransitionToWalk_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_2 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 180.0, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_2
+            pop_flow  // return to pushed flow
+    @21278: SpawnPunchBox()
+            pop_flow  // return to pushed flow
+    @21293: StopTransitionToWalk()
+            self.TransitioningToStop = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.TransitionToStop.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @21378: K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @22229
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @21633
+            K2Node_SwitchEnum_CmpSuccess = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess) goto @21514
+            pop_flow  // return to pushed flow
+    @21514: push_flow @21536
+            push_flow @21551
+            self.ChoseIdleLocation = false
+            pop_flow  // return to pushed flow
+    @21536: CheckCanSeeTarget()
+            pop_flow  // return to pushed flow
+    @21551: CallFunc_K2_GetActorLocation_ReturnValue_8 = self.TargetActor.Actor.K2_GetActorLocation()
+            self.TargetLoc = CallFunc_K2_GetActorLocation_ReturnValue_8
+            goto @19458
+    @21633: self.AcceptanceRadius = 50.0
+            push_flow @21682
+            push_flow @21697
+            self.ChoseIdleLocation = false
+            pop_flow  // return to pushed flow
+    @21682: CheckCanSeeTarget()
+            pop_flow  // return to pushed flow
+    @21697: CallFunc_GetVelocity_ReturnValue = self.TargetActor.GetVelocity()
+            CallFunc_VSize_ReturnValue = KismetMathLibrary.VSize(CallFunc_GetVelocity_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue_7 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_VSize_ReturnValue, 0.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_7) goto @22147
+            CallFunc_Conv_DoubleToVector_ReturnValue_1 = KismetMathLibrary.Conv_DoubleToVector(200.0)
+            CallFunc_GetVelocity_ReturnValue = self.TargetActor.GetVelocity()
+            CallFunc_Vector_Normal2D_ReturnValue = KismetMathLibrary.Vector_Normal2D(CallFunc_GetVelocity_ReturnValue, 0.0001)
+            CallFunc_Multiply_VectorVector_ReturnValue = KismetMathLibrary.Multiply_VectorVector(CallFunc_Vector_Normal2D_ReturnValue, CallFunc_Conv_DoubleToVector_ReturnValue_1)
+            CallFunc_K2_GetActorLocation_ReturnValue_7 = self.TargetActor.Actor.K2_GetActorLocation()
+            CallFunc_Add_VectorVector_ReturnValue = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue_7, CallFunc_Multiply_VectorVector_ReturnValue)
+            self.TargetLoc = CallFunc_Add_VectorVector_ReturnValue
+            goto @19368
+    @22147: CallFunc_K2_GetActorLocation_ReturnValue_7 = self.TargetActor.Actor.K2_GetActorLocation()
+            self.TargetLoc = CallFunc_K2_GetActorLocation_ReturnValue_7
+            goto @20083
+    @22229: if not (self.ChoseIdleLocation) goto @22267
+            MoveToIdleLocation(self.TargetLoc)
+            pop_flow  // return to pushed flow
+    @22267: CallFunc_K2_GetActorLocation_ReturnValue_10 = Actor.K2_GetActorLocation()
+            CallFunc_K2_GetRandomReachablePointInRadius_Radius_ImplicitCast = CST_DoubleToFloat(self.IdleMaxDistance)
+            CallFunc_K2_GetRandomReachablePointInRadius_ReturnValue = NavigationSystemV1.K2_GetRandomReachablePointInRadius(self, CallFunc_K2_GetActorLocation_ReturnValue_10, CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation, CallFunc_K2_GetRandomReachablePointInRadius_Radius_ImplicitCast, null, null)
+            self.TempTargetLoc = CallFunc_K2_GetRandomReachablePointInRadius_RandomLocation
+            CallFunc_K2_GetActorLocation_ReturnValue = Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue = KismetMathLibrary.Vector_Distance(self.TempTargetLoc, CallFunc_K2_GetActorLocation_ReturnValue)
+            CallFunc_Greater_DoubleDouble_ReturnValue_5 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue, self.IdleMinDistance)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_5) pop_flow
+            self.TargetLoc = self.TempTargetLoc
+            self.AcceptanceRadius = 10.0
+            self.ChoseIdleLocation = true
+            pop_flow  // return to pushed flow
+            CallFunc_HasAuthority_ReturnValue_8 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_8) pop_flow
+            push_flow @22870
+            push_flow @23004
+            CallFunc_ComponentHasTag_ReturnValue_7 = K2Node_ComponentBoundEvent_OtherComp_3.ActorComponent.ComponentHasTag("Gas")
+            if not (CallFunc_ComponentHasTag_ReturnValue_7) pop_flow
+            CallFunc_Add_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Add_DoubleDouble(self.NumGasOverlapping, 1.0)
+            self.NumGasOverlapping = CallFunc_Add_DoubleDouble_ReturnValue_1
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue = KismetMathLibrary.EqualEqual_DoubleDouble(self.NumGasOverlapping, 1.0)
+            if not (CallFunc_EqualEqual_DoubleDouble_ReturnValue) pop_flow
+            CallFunc_EqualEqual_BoolBool_ReturnValue_10 = KismetMathLibrary.EqualEqual_BoolBool(self.Stumbling, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue_10) pop_flow
+            StartAnestheticProgression()
+            pop_flow  // return to pushed flow
+    @22870: CallFunc_ComponentHasTag_ReturnValue_5 = K2Node_ComponentBoundEvent_OtherComp_3.ActorComponent.ComponentHasTag("PlayerDetect")
+            if not (CallFunc_ComponentHasTag_ReturnValue_5) pop_flow
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.OverlappingTargetsArray, K2Node_ComponentBoundEvent_OtherActor_3)
+            pop_flow  // return to pushed flow
+    @23004: CallFunc_ComponentHasTag_ReturnValue_6 = K2Node_ComponentBoundEvent_OtherComp_3.ActorComponent.ComponentHasTag("Cardboard")
+            if not (CallFunc_ComponentHasTag_ReturnValue_6) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.OverlappingTargetsArray, K2Node_ComponentBoundEvent_OtherActor_3, 0)
+            pop_flow  // return to pushed flow
+    @23125: push_flow @23140
+            push_flow @23155
+            goto @21378
+    @23140: CheckForTarget()
+            pop_flow  // return to pushed flow
+    @23155: CallFunc_Round_A_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_Round_ReturnValue = KismetMathLibrary.Round(CallFunc_Round_A_ImplicitCast)
+            CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue) pop_flow
+            CallFunc_CreateMoveToProxyObject_AcceptanceRadius_ImplicitCast = CST_DoubleToFloat(self.AcceptanceRadius)
+            CallFunc_CreateMoveToProxyObject_ReturnValue = AIBlueprintHelperLibrary.CreateMoveToProxyObject(self, self, self.TargetLoc, null, CallFunc_CreateMoveToProxyObject_AcceptanceRadius_ImplicitCast, false)
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(CallFunc_CreateMoveToProxyObject_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_1 -> self.OnSuccess_E765B03D487C6B86152EE3864488FC07
+            CallFunc_CreateMoveToProxyObject_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_1
+            bind K2Node_CreateDelegate_OutputDelegate -> self.OnFail_E765B03D487C6B86152EE3864488FC07
+            CallFunc_CreateMoveToProxyObject_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate
+            pop_flow  // return to pushed flow
+    @23526: StopTransitionToRun()
+            goto @21293
+    @23545: self.ChoseIdleLocation = false
+            pop_flow  // return to pushed flow
+    @23557: push_flow @10583
+            CallFunc_K2_GetActorLocation_ReturnValue_1 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_1 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_1)
+            CallFunc_Greater_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_1, 300.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_1) goto @23950
+            CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToRun2, false)
+            CallFunc_Round_ReturnValue_3 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_NotEqual_IntInt_ReturnValue_1 = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_3, 210)
+            CallFunc_BooleanAND_ReturnValue_4 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue_1, CallFunc_EqualEqual_BoolBool_ReturnValue_1)
+            if not (CallFunc_BooleanAND_ReturnValue_4) pop_flow
+            StopTransitionToWalk2()
+            StopTransitionToStop2()
+            self.TransitioningToRun2 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline_0.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @23950: CallFunc_K2_GetActorLocation_ReturnValue_1 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_1 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_1)
+            CallFunc_Greater_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_1, 100.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_2) goto @24338
+            CallFunc_EqualEqual_BoolBool_ReturnValue_3 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToWalk2, false)
+            CallFunc_Round_ReturnValue_4 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_NotEqual_IntInt_ReturnValue_2 = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_4, 150)
+            CallFunc_BooleanAND_ReturnValue_5 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue_2, CallFunc_EqualEqual_BoolBool_ReturnValue_3)
+            if not (CallFunc_BooleanAND_ReturnValue_5) pop_flow
+            StopTransitionToRun2()
+            StopTransitionToStop2()
+            self.TransitioningToWalk2 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline_1.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @24338: CallFunc_EqualEqual_BoolBool_ReturnValue_4 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToStop2, false)
+            CallFunc_Round_ReturnValue_5 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_Greater_IntInt_ReturnValue_2 = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue_5, 0)
+            CallFunc_BooleanAND_ReturnValue_6 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_2, CallFunc_EqualEqual_BoolBool_ReturnValue_4)
+            if not (CallFunc_BooleanAND_ReturnValue_6) pop_flow
+            StopTransitionToRun2()
+            StopTransitionToWalk2()
+            self.TransitioningToStop2 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline_2.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @24586: CallFunc_Lerp_Alpha_ImplicitCast_13 = CST_FloatToDouble(self.Timeline_0_NewTrack_0)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 210.0, CallFunc_Lerp_Alpha_ImplicitCast_13)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue
+            pop_flow  // return to pushed flow
+    @24698: Temp_bool_True_if_break_was_hit_Variable = false
+            Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable = 0
+    @24755: CallFunc_Not_PreBool_ReturnValue = KismetMathLibrary.Not_PreBool(Temp_bool_True_if_break_was_hit_Variable)
+            CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.OverlappingTargetsArray)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue)
+            CallFunc_BooleanAND_ReturnValue_11 = KismetMathLibrary.BooleanAND(CallFunc_Not_PreBool_ReturnValue, CallFunc_Less_IntInt_ReturnValue)
+            if not (CallFunc_BooleanAND_ReturnValue_11) goto @26327
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable_1
+            push_flow @26253
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.OverlappingTargetsArray, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_3)
+            CallFunc_K2_GetComponentLocation_ReturnValue_1 = self.EyeLocation.SceneComponent.K2_GetComponentLocation()
+            CallFunc_K2_GetActorLocation_ReturnValue_5 = CallFunc_Array_Get_Item_3.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_5, CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_BreakVector_Z)
+            CallFunc_Add_DoubleDouble_ReturnValue_2 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z, 20.0)
+            CallFunc_MakeVector_ReturnValue_21 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X, CallFunc_BreakVector_Y, CallFunc_Add_DoubleDouble_ReturnValue_2)
+            CallFunc_LineTraceSingle_ReturnValue = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue_1, CallFunc_MakeVector_ReturnValue_21, 0, false, Temp_object_Variable_1, 0, CallFunc_LineTraceSingle_OutHit, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue) pop_flow
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit, CallFunc_BreakHitResult_bBlockingHit, CallFunc_BreakHitResult_bInitialOverlap, CallFunc_BreakHitResult_Time, CallFunc_BreakHitResult_Distance, CallFunc_BreakHitResult_Location, CallFunc_BreakHitResult_ImpactPoint, CallFunc_BreakHitResult_Normal, CallFunc_BreakHitResult_ImpactNormal, CallFunc_BreakHitResult_PhysMat, CallFunc_BreakHitResult_HitActor, CallFunc_BreakHitResult_HitComponent, CallFunc_BreakHitResult_HitBoneName, CallFunc_BreakHitResult_BoneName, CallFunc_BreakHitResult_HitItem, CallFunc_BreakHitResult_ElementIndex, CallFunc_BreakHitResult_FaceIndex, CallFunc_BreakHitResult_TraceStart, CallFunc_BreakHitResult_TraceEnd)
+            CallFunc_ComponentHasTag_ReturnValue_11 = CallFunc_BreakHitResult_HitComponent.ActorComponent.ComponentHasTag("CardboardLineTrace")
+            CallFunc_ComponentHasTag_ReturnValue_12 = CallFunc_BreakHitResult_HitComponent.ActorComponent.ComponentHasTag("PlayerLineTrace")
+            CallFunc_BooleanOR_ReturnValue_3 = KismetMathLibrary.BooleanOR(CallFunc_ComponentHasTag_ReturnValue_12, CallFunc_ComponentHasTag_ReturnValue_11)
+            if not (CallFunc_BooleanOR_ReturnValue_3) pop_flow
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit, CallFunc_BreakHitResult_bBlockingHit, CallFunc_BreakHitResult_bInitialOverlap, CallFunc_BreakHitResult_Time, CallFunc_BreakHitResult_Distance, CallFunc_BreakHitResult_Location, CallFunc_BreakHitResult_ImpactPoint, CallFunc_BreakHitResult_Normal, CallFunc_BreakHitResult_ImpactNormal, CallFunc_BreakHitResult_PhysMat, CallFunc_BreakHitResult_HitActor, CallFunc_BreakHitResult_HitComponent, CallFunc_BreakHitResult_HitBoneName, CallFunc_BreakHitResult_BoneName, CallFunc_BreakHitResult_HitItem, CallFunc_BreakHitResult_ElementIndex, CallFunc_BreakHitResult_FaceIndex, CallFunc_BreakHitResult_TraceStart, CallFunc_BreakHitResult_TraceEnd)
+            CallFunc_NotEqual_ObjectObject_ReturnValue = KismetMathLibrary.NotEqual_ObjectObject(CallFunc_BreakHitResult_HitActor, self.TargetActor)
+            if not (CallFunc_NotEqual_ObjectObject_ReturnValue) goto @13977
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit, CallFunc_BreakHitResult_bBlockingHit, CallFunc_BreakHitResult_bInitialOverlap, CallFunc_BreakHitResult_Time, CallFunc_BreakHitResult_Distance, CallFunc_BreakHitResult_Location, CallFunc_BreakHitResult_ImpactPoint, CallFunc_BreakHitResult_Normal, CallFunc_BreakHitResult_ImpactNormal, CallFunc_BreakHitResult_PhysMat, CallFunc_BreakHitResult_HitActor, CallFunc_BreakHitResult_HitComponent, CallFunc_BreakHitResult_HitBoneName, CallFunc_BreakHitResult_BoneName, CallFunc_BreakHitResult_HitItem, CallFunc_BreakHitResult_ElementIndex, CallFunc_BreakHitResult_FaceIndex, CallFunc_BreakHitResult_TraceStart, CallFunc_BreakHitResult_TraceEnd)
+            self.TargetActor = CallFunc_BreakHitResult_HitActor
+            CallFunc_EqualEqual_ByteByte_ReturnValue_1 = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 0)
+            if not (CallFunc_EqualEqual_ByteByte_ReturnValue_1) goto @13977
+            if not (self.ChasesOrFollows) goto @13989
+            goto @13918
+    @26253: CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @24755
+    @26327: KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{13906, 615913760, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @26382: self.TransitioningToRun2 = false
+            pop_flow  // return to pushed flow
+            self.TransitioningToRun2 = false
+            self.Timeline_0.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @26438: StopTransitionToWalk()
+            StopTransitionToStop()
+            self.TransitioningToRun = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.TransitionToRun.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @26537: self.TransitioningToWalk = false
+            self.TransitionToWalk.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @26537
+    @26586: self.TransitioningToWalk2 = false
+            pop_flow  // return to pushed flow
+    @26598: CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.Timeline_1_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 150.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_1
+            pop_flow  // return to pushed flow
+            self.TransitioningToWalk2 = false
+            self.Timeline_1.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @26754: self.TransitioningToWalk = false
+            pop_flow  // return to pushed flow
+    @26766: self.KillHeldPlayerTimeline.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @26799: CallFunc_Lerp_Alpha_ImplicitCast_2 = CST_FloatToDouble(self.Timeline_2_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_3 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_2)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_3
+            pop_flow  // return to pushed flow
+            self.TransitioningToStop2 = false
+            self.Timeline_2.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @26955: self.TransitioningToStop2 = false
+            goto @23545
+            self.TargetLoc = K2Node_CustomEvent_Target_2
+            StopTransitionToRun3()
+            StopTransitionToWalk3()
+            StopTransitionToStop3()
+            StopTransitionToRun()
+            StopTransitionToWalk()
+            StopTransitionToStop()
+            goto @23557
+    @27087: StopTransitionToRun2()
+            StopTransitionToWalk2()
+            StopTransitionToStop2()
+            push_flow @10643
+            CallFunc_K2_GetActorLocation_ReturnValue_4 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_3 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_4)
+            CallFunc_Greater_DoubleDouble_ReturnValue_6 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_3, 150.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_6) goto @27428
+            CallFunc_EqualEqual_BoolBool_ReturnValue_6 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToRun, false)
+            CallFunc_Round_ReturnValue_1 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_NotEqual_IntInt_ReturnValue = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_1, 450)
+            CallFunc_BooleanAND_ReturnValue_2 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue, CallFunc_EqualEqual_BoolBool_ReturnValue_6)
+            if not (CallFunc_BooleanAND_ReturnValue_2) pop_flow
+            goto @26438
+    @27428: CallFunc_EqualEqual_BoolBool_ReturnValue_2 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToStop, false)
+            CallFunc_Round_ReturnValue_2 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_Greater_IntInt_ReturnValue_1 = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue_2, 0)
+            CallFunc_BooleanAND_ReturnValue_3 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_1, CallFunc_EqualEqual_BoolBool_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_3) pop_flow
+            goto @23526
+            CallFunc_EqualEqual_BoolBool_ReturnValue_12 = KismetMathLibrary.EqualEqual_BoolBool(self.Stumbling, false)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_14 = KismetMathLibrary.EqualEqual_BoolBool(self.HoldingPlayer, false)
+            CallFunc_BooleanAND_ReturnValue_12 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_BoolBool_ReturnValue_12, CallFunc_EqualEqual_BoolBool_ReturnValue_14)
+            if not (CallFunc_BooleanAND_ReturnValue_12) goto @28643
+            CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(self.TargetActor)
+            if not (CallFunc_IsValid_ReturnValue_1) pop_flow
+            CallFunc_K2_GetComponentLocation_ReturnValue = self.EyeLocation.SceneComponent.K2_GetComponentLocation()
+            CallFunc_K2_GetActorLocation_ReturnValue_6 = self.TargetActor.Actor.K2_GetActorLocation()
+            KismetMathLibrary.BreakVector(CallFunc_K2_GetActorLocation_ReturnValue_6, CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_BreakVector_Z_1)
+            CallFunc_Add_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Add_DoubleDouble(CallFunc_BreakVector_Z_1, 20.0)
+            CallFunc_MakeVector_ReturnValue_22 = KismetMathLibrary.MakeVector(CallFunc_BreakVector_X_1, CallFunc_BreakVector_Y_1, CallFunc_Add_DoubleDouble_ReturnValue_3)
+            CallFunc_LineTraceSingle_ReturnValue_1 = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetComponentLocation_ReturnValue, CallFunc_MakeVector_ReturnValue_22, 0, false, Temp_object_Variable, 0, CallFunc_LineTraceSingle_OutHit_1, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue_1) goto @28485
+            GameplayStatics.BreakHitResult(CallFunc_LineTraceSingle_OutHit_1, CallFunc_BreakHitResult_bBlockingHit_1, CallFunc_BreakHitResult_bInitialOverlap_1, CallFunc_BreakHitResult_Time_1, CallFunc_BreakHitResult_Distance_1, CallFunc_BreakHitResult_Location_1, CallFunc_BreakHitResult_ImpactPoint_1, CallFunc_BreakHitResult_Normal_1, CallFunc_BreakHitResult_ImpactNormal_1, CallFunc_BreakHitResult_PhysMat_1, CallFunc_BreakHitResult_HitActor_1, CallFunc_BreakHitResult_HitComponent_1, CallFunc_BreakHitResult_HitBoneName_1, CallFunc_BreakHitResult_BoneName_1, CallFunc_BreakHitResult_HitItem_1, CallFunc_BreakHitResult_ElementIndex_1, CallFunc_BreakHitResult_FaceIndex_1, CallFunc_BreakHitResult_TraceStart_1, CallFunc_BreakHitResult_TraceEnd_1)
+            CallFunc_ComponentHasTag_ReturnValue_13 = CallFunc_BreakHitResult_HitComponent_1.ActorComponent.ComponentHasTag("CardboardLineTrace")
+            CallFunc_ComponentHasTag_ReturnValue_14 = CallFunc_BreakHitResult_HitComponent_1.ActorComponent.ComponentHasTag("PlayerLineTrace")
+            CallFunc_BooleanOR_ReturnValue_4 = KismetMathLibrary.BooleanOR(CallFunc_ComponentHasTag_ReturnValue_14, CallFunc_ComponentHasTag_ReturnValue_13)
+            if not (CallFunc_BooleanOR_ReturnValue_4) goto @28485
+            self.CanSeePlayer = true
+            pop_flow  // return to pushed flow
+    @28485: if not (self.CanSeePlayer) pop_flow
+            self.CanSeePlayer = false
+            KismetSystemLibrary.PrintString(self, "Cant See Player", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            KismetSystemLibrary.RetriggerableDelay(self, 5.0, LatentActionInfo{2886, -1495428864, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @28643: self.CanSeePlayer = false
+            goto @13752
+            pop_flow  // return to pushed flow
+            if not (self.HoldingPlayer) pop_flow
+            DropPlayer(true)
+            pop_flow  // return to pushed flow
+            goto @3055
+    @28691: self.TransitioningToRun = false
+            self.TransitionToRun.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @28691
+    @28740: self.TransitioningToRun = false
+            pop_flow  // return to pushed flow
+    @28752: CallFunc_Lerp_Alpha_ImplicitCast_4 = CST_FloatToDouble(self.TransitionToRun_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_4 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 450.0, CallFunc_Lerp_Alpha_ImplicitCast_4)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_4
+            pop_flow  // return to pushed flow
+            self.TargetLoc = K2Node_CustomEvent_Target_1
+            StopTransitionToRun2()
+            StopTransitionToWalk2()
+            StopTransitionToStop2()
+            StopTransitionToRun()
+            StopTransitionToWalk()
+            StopTransitionToStop()
+            push_flow @10523
+            CallFunc_K2_GetActorLocation_ReturnValue_3 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_2 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_3)
+            CallFunc_Greater_DoubleDouble_ReturnValue_3 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_2, 300.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_3) goto @29368
+            CallFunc_EqualEqual_BoolBool_ReturnValue_5 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToRun3, false)
+            CallFunc_Round_ReturnValue_6 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_NotEqual_IntInt_ReturnValue_3 = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_6, 210)
+            CallFunc_BooleanAND_ReturnValue_7 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue_3, CallFunc_EqualEqual_BoolBool_ReturnValue_5)
+            if not (CallFunc_BooleanAND_ReturnValue_7) pop_flow
+            StopTransitionToWalk3()
+            StopTransitionToStop3()
+            self.TransitioningToRun3 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @29368: CallFunc_K2_GetActorLocation_ReturnValue_3 = self.Actor.K2_GetActorLocation()
+            CallFunc_Vector_Distance_ReturnValue_2 = KismetMathLibrary.Vector_Distance(self.TargetLoc, CallFunc_K2_GetActorLocation_ReturnValue_3)
+            CallFunc_Greater_DoubleDouble_ReturnValue_4 = KismetMathLibrary.Greater_DoubleDouble(CallFunc_Vector_Distance_ReturnValue_2, 100.0)
+            if not (CallFunc_Greater_DoubleDouble_ReturnValue_4) goto @29756
+            CallFunc_EqualEqual_BoolBool_ReturnValue_7 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToWalk3, false)
+            CallFunc_Round_ReturnValue_7 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_NotEqual_IntInt_ReturnValue_4 = KismetMathLibrary.NotEqual_IntInt(CallFunc_Round_ReturnValue_7, 150)
+            CallFunc_BooleanAND_ReturnValue_8 = KismetMathLibrary.BooleanAND(CallFunc_NotEqual_IntInt_ReturnValue_4, CallFunc_EqualEqual_BoolBool_ReturnValue_7)
+            if not (CallFunc_BooleanAND_ReturnValue_8) pop_flow
+            StopTransitionToRun3()
+            StopTransitionToStop3()
+            self.TransitioningToWalk3 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline_3.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @29756: CallFunc_EqualEqual_BoolBool_ReturnValue_8 = KismetMathLibrary.EqualEqual_BoolBool(self.TransitioningToStop3, false)
+            CallFunc_Round_ReturnValue_8 = KismetMathLibrary.Round(self.MoveSpeedTransition)
+            CallFunc_Greater_IntInt_ReturnValue_3 = KismetMathLibrary.Greater_IntInt(CallFunc_Round_ReturnValue_8, 0)
+            CallFunc_BooleanAND_ReturnValue_9 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_3, CallFunc_EqualEqual_BoolBool_ReturnValue_8)
+            if not (CallFunc_BooleanAND_ReturnValue_9) pop_flow
+            StopTransitionToRun3()
+            StopTransitionToWalk3()
+            self.TransitioningToStop3 = true
+            self.CurrentMoveSpeed = self.MoveSpeedTransition
+            self.Timeline_4.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @30004: self.ChoseIdleLocation = false
+            pop_flow  // return to pushed flow
+            CallFunc_EqualEqual_BoolBool_ReturnValue_13 = KismetMathLibrary.EqualEqual_BoolBool(self.Stumbling, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue_13) pop_flow
+            CallFunc_GetOverlappingActors_OverlappingActors = []
+            self.PlayerChecker.PrimitiveComponent.GetOverlappingActors(CallFunc_GetOverlappingActors_OverlappingActors, Obj<PlayerBP_C>)
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(CallFunc_GetOverlappingActors_OverlappingActors, self.PlayerToGrab)
+            CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @30238
+            goto @20701
+    @30238: SERVER: SetHangingVisibility(true)
+            self.PlayerToGrab.EnemyGrabPlayer(Rot(0.0, 0.0, 0.0), Vec(0.0, 0.0, 0.0), self)
+            self.HoldingPlayer = true
+            self.CanSeePlayer = false
+            goto @14053
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @30369: self.TransitioningToRun3 = false
+            pop_flow  // return to pushed flow
+    @30381: CallFunc_Lerp_Alpha_ImplicitCast_3 = CST_FloatToDouble(self.Timeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_5 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 210.0, CallFunc_Lerp_Alpha_ImplicitCast_3)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_5
+            pop_flow  // return to pushed flow
+            self.TransitioningToRun3 = false
+            self.Timeline.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @19746
+            goto @19258
+    @30547: self.TransitioningToWalk3 = false
+            pop_flow  // return to pushed flow
+    @30559: CallFunc_Lerp_Alpha_ImplicitCast_5 = CST_FloatToDouble(self.Timeline_3_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_6 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 150.0, CallFunc_Lerp_Alpha_ImplicitCast_5)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_6
+            pop_flow  // return to pushed flow
+            self.TransitioningToWalk3 = false
+            self.Timeline_3.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @30715: self.AnestheticProgressionTimeline.TimelineComponent.Reverse()
+            pop_flow  // return to pushed flow
+    @30748: self.AnestheticProgressionTimeline.TimelineComponent.Play()
+            pop_flow  // return to pushed flow
+            push_flow @30942
+            CallFunc_HasAuthority_ReturnValue_5 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_5) pop_flow
+            push_flow @30912
+            push_flow @30927
+            if not (self.CanTick) pop_flow
+            self.CanTick = false
+            push_flow @30857
+            goto @23125
+    @30857: KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{11386, -89299525, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @30912: PlayRandomAudio()
+            pop_flow  // return to pushed flow
+    @30927: CalculateMoveSpeed()
+            pop_flow  // return to pushed flow
+    @30942: CallFunc_GetBoneTransform_ReturnValue = self.Body.SkinnedMeshComponent.GetBoneTransform("RightHand", 0)
+            KismetMathLibrary.BreakTransform(CallFunc_GetBoneTransform_ReturnValue, CallFunc_BreakTransform_Location_4, CallFunc_BreakTransform_Rotation_4, CallFunc_BreakTransform_Scale_4)
+            self.GrabPlayerLoc.SceneComponent.K2_SetWorldLocation(CallFunc_BreakTransform_Location_4, false, CallFunc_K2_SetWorldLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+    @31106: CallFunc_Lerp_Alpha_ImplicitCast_6 = CST_FloatToDouble(self.Timeline_4_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_7 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_6)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_7
+            pop_flow  // return to pushed flow
+            self.TransitioningToStop3 = false
+            self.Timeline_4.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @31262: self.TransitioningToStop3 = false
+            goto @30004
+    @31278: StopTransitionToRun3()
+            StopTransitionToWalk3()
+            StopTransitionToStop3()
+            goto @27087
+            goto @26754
+            CallFunc_HasAuthority_ReturnValue_4 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_4) pop_flow
+            SERVER: SetRandomSubjectTag()
+            self.Loops2 = 100
+            goto @17450
+    @31402: CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            CallFunc_ComponentHasTag_ReturnValue_10 = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("Gas")
+            if not (CallFunc_ComponentHasTag_ReturnValue_10) goto @31677
+            CallFunc_Subtract_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Subtract_DoubleDouble(self.NumGasOverlapping, 1.0)
+            self.NumGasOverlapping = CallFunc_Subtract_DoubleDouble_ReturnValue_1
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue_1 = KismetMathLibrary.EqualEqual_DoubleDouble(self.NumGasOverlapping, 0.0)
+            if not (CallFunc_EqualEqual_DoubleDouble_ReturnValue_1) pop_flow
+            CallFunc_EqualEqual_BoolBool_ReturnValue_9 = KismetMathLibrary.EqualEqual_BoolBool(self.Stumbling, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue_9) pop_flow
+            StopAnestheticProgression()
+            pop_flow  // return to pushed flow
+    @31677: CallFunc_ComponentHasTag_ReturnValue_8 = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("PlayerDetect")
+            CallFunc_ComponentHasTag_ReturnValue_9 = K2Node_ComponentBoundEvent_OtherComp.ActorComponent.ComponentHasTag("Cardboard")
+            CallFunc_BooleanOR_ReturnValue_2 = KismetMathLibrary.BooleanOR(CallFunc_ComponentHasTag_ReturnValue_9, CallFunc_ComponentHasTag_ReturnValue_8)
+            if not (CallFunc_BooleanOR_ReturnValue_2) pop_flow
+            CallFunc_Array_RemoveItem_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_RemoveItem(self.OverlappingTargetsArray, K2Node_ComponentBoundEvent_OtherActor)
+            pop_flow  // return to pushed flow
+    @31896: if not (self.Stumbling) goto @31934
+            self.TimesPunched = 0
+            pop_flow  // return to pushed flow
+    @31934: self.Stumbling = true
+            self.DetectionSphere.PrimitiveComponent.SetGenerateOverlapEvents(false)
+            SERVER: PlayStumbleMontage()
+            CallFunc_IsValid_ReturnValue_4 = KismetSystemLibrary.IsValid(self.PlayerToGrab)
+            CallFunc_BooleanAND_ReturnValue_14 = KismetMathLibrary.BooleanAND(self.HoldingPlayer, CallFunc_IsValid_ReturnValue_4)
+            if not (CallFunc_BooleanAND_ReturnValue_14) goto @32088
+            DropPlayer(false)
+    @32088: if not (self.ForceStumbled) goto @32157
+            KismetSystemLibrary.Delay(self, 3.0, LatentActionInfo{19258, 730265313, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @32157: KismetSystemLibrary.Delay(self, 6.2, LatentActionInfo{13682, 911226602, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @32212: CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(K2Node_ComponentBoundEvent_OtherComp_1.self.?, 0, CallFunc_Array_Get_Item_2)
+            K2Node_SwitchName_CmpSuccess_1 = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item_2, "Crouch")
+            if not (K2Node_SwitchName_CmpSuccess_1) goto @32456
+            K2Node_SwitchName_CmpSuccess_1 = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item_2, "CrouchGiant")
+            if not (K2Node_SwitchName_CmpSuccess_1) goto @32432
+            pop_flow  // return to pushed flow
+    @32432: if not (self.IsGiant) pop_flow
+            GiantUnrotateBody()
+    @32456: StopCrouch()
+            self.CurrentCrouchHeight = self.CurrentCrouchHeightReplicated
+            self.TempCrouchSpeedMultiplier = self.CrouchSpeedMultiplier
+            self.Timeline_6.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @32557: push_flow @33369
+            CallFunc_Conv_DoubleToVector_ReturnValue = KismetMathLibrary.Conv_DoubleToVector(100.0)
+            CallFunc_K2_GetActorRotation_ReturnValue = Actor.K2_GetActorRotation()
+            KismetMathLibrary.BreakRotator(CallFunc_K2_GetActorRotation_ReturnValue, CallFunc_BreakRotator_Roll_3, CallFunc_BreakRotator_Pitch_3, CallFunc_BreakRotator_Yaw_3)
+            CallFunc_Add_DoubleDouble_A_ImplicitCast = CST_FloatToDouble(CallFunc_BreakRotator_Yaw_3)
+            CallFunc_Add_DoubleDouble_ReturnValue_6 = KismetMathLibrary.Add_DoubleDouble(CallFunc_Add_DoubleDouble_A_ImplicitCast, self.RotationOffset)
+            CallFunc_K2_GetActorLocation_ReturnValue_12 = Actor.K2_GetActorLocation()
+            CallFunc_MakeRotator_Yaw_ImplicitCast_13 = CST_DoubleToFloat(CallFunc_Add_DoubleDouble_ReturnValue_6)
+            CallFunc_MakeRotator_ReturnValue_13 = KismetMathLibrary.MakeRotator(CallFunc_BreakRotator_Roll_3, CallFunc_BreakRotator_Pitch_3, CallFunc_MakeRotator_Yaw_ImplicitCast_13)
+            CallFunc_GetForwardVector_ReturnValue = KismetMathLibrary.GetForwardVector(CallFunc_MakeRotator_ReturnValue_13)
+            CallFunc_Multiply_VectorVector_ReturnValue_1 = KismetMathLibrary.Multiply_VectorVector(CallFunc_GetForwardVector_ReturnValue, CallFunc_Conv_DoubleToVector_ReturnValue)
+            CallFunc_Add_VectorVector_ReturnValue_1 = KismetMathLibrary.Add_VectorVector(CallFunc_K2_GetActorLocation_ReturnValue_12, CallFunc_Multiply_VectorVector_ReturnValue_1)
+            self.TempDropLocation = CallFunc_Add_VectorVector_ReturnValue_1
+            K2Node_MakeArray_Array = [self.PlayerToGrab]
+            CallFunc_K2_GetActorLocation_ReturnValue_13 = Actor.K2_GetActorLocation()
+            CallFunc_LineTraceSingle_ReturnValue_2 = KismetSystemLibrary.LineTraceSingle(self, CallFunc_K2_GetActorLocation_ReturnValue_13, self.TempDropLocation, 0, false, K2Node_MakeArray_Array, 0, CallFunc_LineTraceSingle_OutHit_2, true, LinearColor{1.0, 0.0, 0.0, 1.0}, LinearColor{0.0, 1.0, 0.0, 1.0}, 5.0)
+            if not (CallFunc_LineTraceSingle_ReturnValue_2) goto @33357
+            CallFunc_Add_DoubleDouble_ReturnValue_7 = KismetMathLibrary.Add_DoubleDouble(self.RotationOffset, 5.0)
+            self.RotationOffset = CallFunc_Add_DoubleDouble_ReturnValue_7
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(self.Loops, 1)
+            self.Loops = CallFunc_Subtract_IntInt_ReturnValue
+            pop_flow  // return to pushed flow
+    @33357: self.FoundDropLocation = true
+            pop_flow  // return to pushed flow
+    @33369: CallFunc_EqualEqual_BoolBool_ReturnValue_16 = KismetMathLibrary.EqualEqual_BoolBool(self.FoundDropLocation, false)
+            CallFunc_Greater_IntInt_ReturnValue_5 = KismetMathLibrary.Greater_IntInt(self.Loops, 0)
+            CallFunc_BooleanAND_ReturnValue_15 = KismetMathLibrary.BooleanAND(CallFunc_EqualEqual_BoolBool_ReturnValue_16, CallFunc_Greater_IntInt_ReturnValue_5)
+            if not (CallFunc_BooleanAND_ReturnValue_15) goto @33490
+            goto @32557
+    @33490: if not (self.FoundDropLocation) goto @34087
+            self.PlayerToGrab.EnemyDropPlayer(self.TempDropLocation, K2Node_CustomEvent_PlayerDead)
+    @33558: self.HoldingPlayer = false
+            StopKillPlayerTimeline()
+            self.HangingPlayer.SceneComponent.SetVisibility(false, false)
+            self.Attacking = false
+            self.TargetActor = null
+            if not (K2Node_CustomEvent_PlayerDead) goto @34071
+            CallFunc_K2_GetComponentToWorld_ReturnValue = self.HangingPlayer.SceneComponent.K2_GetComponentToWorld()
+            KismetMathLibrary.BreakTransform(CallFunc_K2_GetComponentToWorld_ReturnValue, CallFunc_BreakTransform_Location_5, CallFunc_BreakTransform_Rotation_5, CallFunc_BreakTransform_Scale_5)
+            CallFunc_MakeTransform_ReturnValue_15 = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location_5, CallFunc_BreakTransform_Rotation_5, Vec(1.0, 1.0, 1.0))
+            CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1 = GameplayStatics.BeginDeferredActorSpawnFromClass(self, Obj<Hazmat2_Drop_DeathActor_C>, CallFunc_MakeTransform_ReturnValue_15, 0, null, 1)
+            CallFunc_K2_GetComponentToWorld_ReturnValue = self.HangingPlayer.SceneComponent.K2_GetComponentToWorld()
+            KismetMathLibrary.BreakTransform(CallFunc_K2_GetComponentToWorld_ReturnValue, CallFunc_BreakTransform_Location_5, CallFunc_BreakTransform_Rotation_5, CallFunc_BreakTransform_Scale_5)
+            CallFunc_MakeTransform_ReturnValue_15 = KismetMathLibrary.MakeTransform(CallFunc_BreakTransform_Location_5, CallFunc_BreakTransform_Rotation_5, Vec(1.0, 1.0, 1.0))
+            CallFunc_FinishSpawningActor_ReturnValue_1 = GameplayStatics.FinishSpawningActor(CallFunc_BeginDeferredActorSpawnFromClass_ReturnValue_1, CallFunc_MakeTransform_ReturnValue_15, 1)
+    @34071: MULTI: SetHangingVisibility(false)
+            pop_flow  // return to pushed flow
+    @34087: self.PlayerToGrab.EnemyDropPlayer(Vec(0.0, 0.0, 0.0), true)
+            KismetSystemLibrary.PrintString(self, "Failed to find drop location", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            goto @33558
+            goto @26598
+            goto @26586
+    @34259: CallFunc_HasAuthority_ReturnValue_2 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_2) pop_flow
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(K2Node_ComponentBoundEvent_OtherComp_2.self.?, 0, CallFunc_Array_Get_Item_1)
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item_1, "Crouch")
+            if not (K2Node_SwitchName_CmpSuccess) goto @34631
+            K2Node_SwitchName_CmpSuccess = KismetMathLibrary.NotEqual_NameName(CallFunc_Array_Get_Item_1, "CrouchGiant")
+            if not (K2Node_SwitchName_CmpSuccess) goto @34479
+            pop_flow  // return to pushed flow
+    @34479: if not (self.IsGiant) pop_flow
+            self.CrouchAmount = 50.0
+            GiantRotateBody()
+    @34530: StopUncrouch()
+            self.CurrentCrouchHeight = self.CurrentCrouchHeightReplicated
+            self.TempCrouchSpeedMultiplier = self.CrouchSpeedMultiplier
+            self.Timeline_5.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @34631: self.CrouchAmount = 100.0
+            goto @34530
+            self.TransitioningToStop = false
+            self.TransitionToStop.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @34707: CallFunc_Lerp_Alpha_ImplicitCast_14 = CST_FloatToDouble(self.TransitionToStop_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_8 = KismetMathLibrary.Lerp(self.CurrentMoveSpeed, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_14)
+            self.MoveSpeedTransition = CallFunc_Lerp_ReturnValue_8
+            pop_flow  // return to pushed flow
+    @34819: self.TransitioningToStop = false
+            pop_flow  // return to pushed flow
+            goto @19549
+            goto @34259
+            pop_flow  // return to pushed flow
+            goto @32212
+    @34847: self.Timeline_7.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+    @34880: self.Timeline_7.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.Timeline_5.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            self.Timeline_6.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(self.MoveSpeedTransition, self.CrouchSpeedMultiplier)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.AnesthesiaSpeedMultiplier)
+            CallFunc_NotEqual_DoubleDouble_B_ImplicitCast = CST_FloatToDouble(self.?.self.?)
+            CallFunc_NotEqual_DoubleDouble_ReturnValue = KismetMathLibrary.NotEqual_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue_1, CallFunc_NotEqual_DoubleDouble_B_ImplicitCast)
+            if not (CallFunc_NotEqual_DoubleDouble_ReturnValue) pop_flow
+            CallFunc_Multiply_DoubleDouble_ReturnValue = KismetMathLibrary.Multiply_DoubleDouble(self.MoveSpeedTransition, self.CrouchSpeedMultiplier)
+            CallFunc_Multiply_DoubleDouble_ReturnValue_1 = KismetMathLibrary.Multiply_DoubleDouble(CallFunc_Multiply_DoubleDouble_ReturnValue, self.AnesthesiaSpeedMultiplier)
+            K2Node_VariableSet_MaxWalkSpeed_ImplicitCast = CST_DoubleToFloat(CallFunc_Multiply_DoubleDouble_ReturnValue_1)
+            self.?.self.? = K2Node_VariableSet_MaxWalkSpeed_ImplicitCast
+            goto @11227
+            goto @24586
+            StopGiantUnrotateBody()
+            self.CurrentSpineTransform = self.TempLifeformBoneTransform.Spine_20
+            self.GiantRotateBodyTimeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            StopGiantRotateBody()
+            self.CurrentSpineTransform = self.TempLifeformBoneTransform.Spine_20
+            goto @34880
+            self.GiantRotateBodyTimeline.TimelineComponent.Stop()
+            pop_flow  // return to pushed flow
+            goto @34847
+            goto @26382
+            goto @12475
+            pop_flow  // return to pushed flow
+            self.TargetLoc = K2Node_CustomEvent_Target
+            goto @31278
+            pop_flow  // return to pushed flow
+            goto @31402
+            goto @30748
+            goto @30715
+            goto @11398
+            pop_flow  // return to pushed flow
+            CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.OverlappingTargetsArray)
+            CallFunc_Greater_IntInt_ReturnValue_4 = KismetMathLibrary.Greater_IntInt(CallFunc_Array_Length_ReturnValue_1, 0)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_15 = KismetMathLibrary.EqualEqual_BoolBool(self.HoldingPlayer, false)
+            CallFunc_BooleanAND_ReturnValue_13 = KismetMathLibrary.BooleanAND(CallFunc_Greater_IntInt_ReturnValue_4, CallFunc_EqualEqual_BoolBool_ReturnValue_15)
+            if not (CallFunc_BooleanAND_ReturnValue_13) pop_flow
+            if not (self.CanCheckTargets) pop_flow
+            self.CanCheckTargets = false
+            goto @24698
+            goto @10703
+            pop_flow  // return to pushed flow
+            goto @21278
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            goto @10965
+            pop_flow  // return to pushed flow
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1 = PlayMontageCallbackProxy.CreateProxyObjectForPlayMontage(self.Body, self.LifeformInfo.HoldPlayerAnimMontage_37, 1.0, 0.0, "None", true)
+            CallFunc_IsValid_ReturnValue_3 = KismetSystemLibrary.IsValid(CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1)
+            if not (CallFunc_IsValid_ReturnValue_3) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_11 -> self.OnCompleted_A3CB89B94D1256BC59A15C9050A0A563
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_11
+            bind K2Node_CreateDelegate_OutputDelegate_10 -> self.OnBlendOut_A3CB89B94D1256BC59A15C9050A0A563
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_10
+            bind K2Node_CreateDelegate_OutputDelegate_9 -> self.OnInterrupted_A3CB89B94D1256BC59A15C9050A0A563
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_9
+            bind K2Node_CreateDelegate_OutputDelegate_8 -> self.OnNotifyBegin_A3CB89B94D1256BC59A15C9050A0A563
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_8
+            bind K2Node_CreateDelegate_OutputDelegate_7 -> self.OnNotifyEnd_A3CB89B94D1256BC59A15C9050A0A563
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_1.self.? += K2Node_CreateDelegate_OutputDelegate_7
+            pop_flow  // return to pushed flow
+            goto @20701
+            goto @14289
+    @36248: CallFunc_CreateProxyObjectForPlayMontage_ReturnValue = PlayMontageCallbackProxy.CreateProxyObjectForPlayMontage(self.Body, Obj<Lifeform1_Stumble_Montage>, 1.0, 0.0, "None", true)
+            CallFunc_IsValid_ReturnValue_2 = KismetSystemLibrary.IsValid(CallFunc_CreateProxyObjectForPlayMontage_ReturnValue)
+            if not (CallFunc_IsValid_ReturnValue_2) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_6 -> self.OnCompleted_2F762D1F46DCC85312A3399301166DA1
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_6
+            bind K2Node_CreateDelegate_OutputDelegate_5 -> self.OnBlendOut_2F762D1F46DCC85312A3399301166DA1
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_5
+            bind K2Node_CreateDelegate_OutputDelegate_4 -> self.OnInterrupted_2F762D1F46DCC85312A3399301166DA1
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_4
+            bind K2Node_CreateDelegate_OutputDelegate_3 -> self.OnNotifyBegin_2F762D1F46DCC85312A3399301166DA1
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_3
+            bind K2Node_CreateDelegate_OutputDelegate_2 -> self.OnNotifyEnd_2F762D1F46DCC85312A3399301166DA1
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue.self.? += K2Node_CreateDelegate_OutputDelegate_2
+            pop_flow  // return to pushed flow
+            goto @31106
+            goto @31262
+            goto @26766
+            self.FoundDropLocation = false
+            self.Loops = 1000
+            self.RotationOffset = 0.0
+            goto @33369
+            goto @30559
+            goto @30547
+            MULTI: SetHangingVisibility(K2Node_CustomEvent_Visibility_1)
+            pop_flow  // return to pushed flow
+            self.HangingPlayer.SceneComponent.SetVisibility(K2Node_CustomEvent_Visibility, false)
+            pop_flow  // return to pushed flow
+            goto @18358
+            goto @28752
+            goto @28740
+            MULTI: PlayBodyMontage(K2Node_CustomEvent_AttackMontage_1)
+            pop_flow  // return to pushed flow
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2 = PlayMontageCallbackProxy.CreateProxyObjectForPlayMontage(self.Body, K2Node_CustomEvent_AttackMontage, 1.0, 0.45, "None", true)
+            CallFunc_IsValid_ReturnValue_5 = KismetSystemLibrary.IsValid(CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2)
+            if not (CallFunc_IsValid_ReturnValue_5) pop_flow
+            bind K2Node_CreateDelegate_OutputDelegate_16 -> self.OnCompleted_F2270D624E19A09B15D7239C60EC92AC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2.self.? += K2Node_CreateDelegate_OutputDelegate_16
+            bind K2Node_CreateDelegate_OutputDelegate_15 -> self.OnBlendOut_F2270D624E19A09B15D7239C60EC92AC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2.self.? += K2Node_CreateDelegate_OutputDelegate_15
+            bind K2Node_CreateDelegate_OutputDelegate_14 -> self.OnInterrupted_F2270D624E19A09B15D7239C60EC92AC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2.self.? += K2Node_CreateDelegate_OutputDelegate_14
+            bind K2Node_CreateDelegate_OutputDelegate_13 -> self.OnNotifyBegin_F2270D624E19A09B15D7239C60EC92AC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2.self.? += K2Node_CreateDelegate_OutputDelegate_13
+            bind K2Node_CreateDelegate_OutputDelegate_12 -> self.OnNotifyEnd_F2270D624E19A09B15D7239C60EC92AC
+            CallFunc_CreateProxyObjectForPlayMontage_ReturnValue_2.self.? += K2Node_CreateDelegate_OutputDelegate_12
+            pop_flow  // return to pushed flow
+            goto @34707
+            MULTI: PlayStumbleMontage()
+            pop_flow  // return to pushed flow
+            goto @36248
+            CallFunc_EqualEqual_DoubleDouble_ReturnValue_2 = KismetMathLibrary.EqualEqual_DoubleDouble(self.AnesthesiaSpeedMultiplier, 1.0)
+            CallFunc_BooleanAND_ReturnValue_16 = KismetMathLibrary.BooleanAND(self.CanPlayAudio, CallFunc_EqualEqual_DoubleDouble_ReturnValue_2)
+            if not (CallFunc_BooleanAND_ReturnValue_16) pop_flow
+            self.CanPlayAudio = false
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(self.MonsterSounds, CallFunc_Array_Random_OutItem_5, CallFunc_Array_Random_OutIndex_5)
+            SERVER: PlayMonsterSound(CallFunc_Array_Random_OutItem_5.SoundWave_5, self.MonsterPitch)
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 0)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @37895
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 1)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @37647
+            K2Node_SwitchEnum_CmpSuccess_1 = KismetMathLibrary.NotEqual_ByteByte(self.MonsterState, 2)
+            if not (K2Node_SwitchEnum_CmpSuccess_1) goto @37895
+            pop_flow  // return to pushed flow
+    @37647: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(self.MonsterSounds, CallFunc_Array_Random_OutItem_5, CallFunc_Array_Random_OutIndex_5)
+            CallFunc_RandomFloatInRange_ReturnValue_91 = KismetMathLibrary.RandomFloatInRange(0.0, 1.0)
+            CallFunc_Add_DoubleDouble_ReturnValue_10 = KismetMathLibrary.Add_DoubleDouble(CallFunc_Array_Random_OutItem_5.Duration_4, CallFunc_RandomFloatInRange_ReturnValue_91)
+            CallFunc_Delay_Duration_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Add_DoubleDouble_ReturnValue_10)
+            KismetSystemLibrary.Delay(self, CallFunc_Delay_Duration_ImplicitCast_1, LatentActionInfo{18524, -797649461, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+    @37895: Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Random(self.MonsterSounds, CallFunc_Array_Random_OutItem_5, CallFunc_Array_Random_OutIndex_5)
+            CallFunc_RandomFloatInRange_ReturnValue_90 = KismetMathLibrary.RandomFloatInRange(1.0, 3.0)
+            CallFunc_Add_DoubleDouble_ReturnValue_9 = KismetMathLibrary.Add_DoubleDouble(CallFunc_Array_Random_OutItem_5.Duration_4, CallFunc_RandomFloatInRange_ReturnValue_90)
+            CallFunc_Delay_Duration_ImplicitCast = CST_DoubleToFloat(CallFunc_Add_DoubleDouble_ReturnValue_9)
+            KismetSystemLibrary.Delay(self, CallFunc_Delay_Duration_ImplicitCast, LatentActionInfo{18512, -1763423070, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+            MULTI: PlayMonsterSound(K2Node_CustomEvent_Sound_1, K2Node_CustomEvent_Pitch_1)
+            pop_flow  // return to pushed flow
+            self.AudioVoice.AudioComponent.SetSound(K2Node_CustomEvent_Sound)
+            CallFunc_SetPitchMultiplier_NewPitchMultiplier_ImplicitCast = CST_DoubleToFloat(K2Node_CustomEvent_Pitch)
+            self.AudioVoice.AudioComponent.SetPitchMultiplier(CallFunc_SetPitchMultiplier_NewPitchMultiplier_ImplicitCast)
+            self.AudioVoice.Play(0.0)
+            pop_flow  // return to pushed flow
+            goto @34819
+            goto @30381
+            goto @30369
+            goto @26799
+            goto @26955
+            CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(self.TimesPunched, 1)
+            self.TimesPunched = CallFunc_Add_IntInt_ReturnValue_2
+            push_flow @38567
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(self.TimesPunched, 4)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_1) pop_flow
+            ForceStumble()
+            KismetSystemLibrary.PrintString(self, "Force Stumble", true, true, LinearColor{0.0, 0.66, 1.0, 1.0}, 2.0, "None")
+            pop_flow  // return to pushed flow
+    @38567: if not (self.CanTempStun) pop_flow
+            self.CanTempStun = false
+            self.TempStunned = true
+            KismetSystemLibrary.Delay(self, 1.5, LatentActionInfo{18529, -1598376185, "ExecuteUbergraph_Lifeform_Char", self})
+            pop_flow  // return to pushed flow
+            self.ForceStumbled = true
+            goto @31896
+    @38670: return
+
+function ForceStumble  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38654)
+            return
+
+function GetStunned  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38354)
+            return
+
+function GiantRotateBody  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35350)
+            return
+
+function GiantRotateBodyTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35590)
+            return
+
+function GiantRotateBodyTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35585)
+            return
+
+function GiantUnrotateBody  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35433)
+            return
+
+function GrabDelayTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30368)
+            return
+
+function GrabDelayTimeline__Grab__EventFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30016)
+            return
+
+function GrabDelayTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30367)
+            return
+
+function HitDelayTimeline__DisableOverlaps__EventFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35799)
+            return
+
+function HitDelayTimeline__EnableOverlaps__EventFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35794)
+            return
+
+function HitDelayTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36238)
+            return
+
+function HitDelayTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35800)
+            return
+
+function KillHeldPlayerTimeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(28660)
+            return
+
+function KillHeldPlayerTimeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(28659)
+            return
+
+function MoveToChaseLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Target = Target
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35537)
+            return
+
+function MoveToFollowLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Target_1 = Target
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(28864)
+            return
+
+function MoveToIdleLocation  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Target_2 = Target
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(26971)
+            return
+
+function MULTI: HoldPlayerMontage  [FUNC_Net | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35807)
+            return
+
+function MULTI: PlayBodyMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_AttackMontage = AttackMontage
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36867)
+            return
+
+function MULTI: PlayMonsterSound  [FUNC_Net | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Sound = Sound
+            frame.K2Node_CustomEvent_Pitch = Pitch
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38176)
+            return
+
+function MULTI: PlayStumbleMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(37309)
+            return
+
+function MULTI: SetHangingVisibility  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Visibility = Visibility
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36785)
+            return
+
+function OnBlendOut  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_11 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19690)
+            return
+
+function OnBlendOut  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_6 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19887)
+            return
+
+function OnBlendOut  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_1 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(20027)
+            return
+
+function OnCompleted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_10 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19718)
+            return
+
+function OnCompleted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_5 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19915)
+            return
+
+function OnCompleted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(20055)
+            return
+
+function OnFail  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_MovementResult_1 = MovementResult
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19482)
+            return
+
+function OnInterrupted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_12 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19662)
+            return
+
+function OnInterrupted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_7 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19859)
+            return
+
+function OnInterrupted  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_2 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19999)
+            return
+
+function OnNotifyBegin  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_13 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19634)
+            return
+
+function OnNotifyBegin  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_8 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19831)
+            return
+
+function OnNotifyBegin  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_3 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19971)
+            return
+
+function OnNotifyEnd  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_14 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19606)
+            return
+
+function OnNotifyEnd  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_9 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19803)
+            return
+
+function OnNotifyEnd  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_NotifyName_4 = NotifyName
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19943)
+            return
+
+function OnRep_HairColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetMaterial_ReturnValue = self.Hair.GetMaterial(0)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, CallFunc_GetMaterial_ReturnValue, "None", 0)
+            self.Hair.SetMaterial(0, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.HairColor)
+            return
+
+function OnRep_HairMesh  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_SetStaticMesh_ReturnValue = self.Hair.SetStaticMesh(self.HairMesh)
+            return
+
+function OnRep_HeadMesh  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_SetStaticMesh_ReturnValue = self.Lifeform_Head1.SetStaticMesh(self.HeadMesh)
+            return
+
+function OnRep_LifeformData  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return
+
+function OnRep_LifeformSkeletonAndAnimBP  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            self.Body.SkeletalMeshComponent.SetSkeletalMeshAsset(self.LifeformSkeletonAndAnimBP.SkeletalMesh_2)
+            self.Body.SetAnimInstanceClass(self.LifeformSkeletonAndAnimBP.AnimBP_5)
+            return
+
+function OnRep_PantsColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetMaterial_ReturnValue = self.Body.GetMaterial(1)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, CallFunc_GetMaterial_ReturnValue, "None", 0)
+            self.Body.SetMaterial(1, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.PantsColor)
+            return
+
+function OnRep_Player  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            return
+
+function OnRep_RandomSubjectTag  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_Array_Add_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Add(self.Box.self.?, self.RandomSubjectTag)
+            return
+
+function OnRep_ShirtColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetMaterial_ReturnValue = self.Body.GetMaterial(0)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, CallFunc_GetMaterial_ReturnValue, "None", 0)
+            self.Body.SetMaterial(0, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.ShirtColor)
+            return
+
+function OnRep_ShoesColor  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_GetMaterial_ReturnValue = self.Body.GetMaterial(2)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = KismetMaterialLibrary.CreateDynamicMaterialInstance(self, CallFunc_GetMaterial_ReturnValue, "None", 0)
+            self.Body.SetMaterial(2, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue.MaterialInstanceDynamic.SetVectorParameterValue("Color", self.ShoesColor)
+            return
+
+function OnSuccess  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_MovementResult = MovementResult
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(19510)
+            return
+
+function PlayChaseAudio  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35536)
+            return
+
+function PlayRandomAudio  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(37314)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(31330)
+            return
+
+function ReceiveTick  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaSeconds = DeltaSeconds
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30781)
+            return
+
+function SERVER: PlayBodyMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_AttackMontage_1 = AttackMontage
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36843)
+            return
+
+function SERVER: PlayMonsterSound  [FUNC_Net | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Sound_1 = Sound
+            frame.K2Node_CustomEvent_Pitch_1 = Pitch
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38143)
+            return
+
+function SERVER: PlayStumbleMontage  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(37294)
+            return
+
+function SERVER: SetHangingVisibility  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_Visibility_1 = Visibility
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36761)
+            return
+
+function SERVER: SetRandomSubjectTag  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36828)
+            return
+
+function SERVER: UpdateHoldingPlayerBoneTransforms  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36243)
+            return
+
+function SERVER: UpdateRandomBoneTransforms  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(28686)
+            return
+
+function SpawnPunchBox  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(20717)
+            return
+
+function StartAnestheticProgression  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35575)
+            return
+
+function StopAnestheticProgression  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35580)
+            return
+
+function StopCrouch  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34913)
+            return
+
+function StopGiantRotateBody  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35488)
+            return
+
+function StopGiantUnrotateBody  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35521)
+            return
+
+function StopKillPlayerTimeline  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36680)
+            return
+
+function StopTransitionToRun  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(28735)
+            return
+
+function StopTransitionToRun2  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(26394)
+            return
+
+function StopTransitionToRun3  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30493)
+            return
+
+function StopTransitionToStop  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34663)
+            return
+
+function StopTransitionToStop2  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(26911)
+            return
+
+function StopTransitionToStop3  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(31218)
+            return
+
+function StopTransitionToWalk  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(26581)
+            return
+
+function StopTransitionToWalk2  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(26710)
+            return
+
+function StopTransitionToWalk3  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(30671)
+            return
+
+function StopUncrouch  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34946)
+            return
+
+function Timeline_0__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35526)
+            return
+
+function Timeline_0__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35345)
+            return
+
+function Timeline_1__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34254)
+            return
+
+function Timeline_1__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(34249)
+            return
+
+function Timeline_2__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38349)
+            return
+
+function Timeline_2__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38344)
+            return
+
+function Timeline_3__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36756)
+            return
+
+function Timeline_3__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36751)
+            return
+
+function Timeline_4__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36675)
+            return
+
+function Timeline_4__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36670)
+            return
+
+function Timeline_5__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35806)
+            return
+
+function Timeline_5__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35801)
+            return
+
+function Timeline_6__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35793)
+            return
+
+function Timeline_6__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35788)
+            return
+
+function Timeline_7__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35569)
+            return
+
+function Timeline_7__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(35531)
+            return
+
+function Timeline__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38339)
+            return
+
+function Timeline__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38334)
+            return
+
+function TransitionToRun__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36838)
+            return
+
+function TransitionToRun__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(36833)
+            return
+
+function TransitionToStop__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(38329)
+            return
+
+function TransitionToStop__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(37289)
+            return
+
+function TransitionToWalk__FinishedFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(31325)
+            return
+
+function TransitionToWalk__UpdateFunc  [FUNC_BlueprintEvent]
+            Lifeform_Char_C.ExecuteUbergraph_Lifeform_Char(21166)
+            return
+
+function UserConstructionScript  [FUNC_Event | FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            CallFunc_K2_AttachToComponent_ReturnValue_1 = self.Hair.SceneComponent.K2_AttachToComponent(self.Body, "Head", 2, 0, 0, true)
+            CallFunc_K2_AttachToComponent_ReturnValue = self.Lifeform_Head1.SceneComponent.K2_AttachToComponent(self.Body, "Head", 2, 0, 0, true)
+            CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) goto @281
+            self.?.SetMovementMode(5, 0)
+            self.?.self.? = Vec(0.0, 0.0, 0.0)
+    @281:   return

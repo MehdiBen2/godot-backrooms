@@ -1,0 +1,98 @@
+// Content\MyAssets\SessionsMultiplayer\Blueprints\Lobby\BP_PC_Lobby
+
+== class BP_PC_Lobby_C : Class'PlayerController'
+  var UberGraphFrame: Struct
+  var FriendsList: Object
+  var Player Info: Struct
+
+== class ExecuteUbergraph_BP_PC_Lobby : 
+  var EntryPoint: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_PlayAnimation_ReturnValue: Object
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_IsLocalPlayerController_ReturnValue: Bool
+  var CallFunc_GetGameMode_ReturnValue: Object
+  var K2Node_DynamicCast_AsBP_Lobby_Game_Mode: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_GetGameMode_ReturnValue_1: Object
+  var K2Node_DynamicCast_AsBP_Lobby_Game_Mode_1: Object
+  var K2Node_DynamicCast_bSuccess_1: Bool
+  var CallFunc_Not_PreBool_ReturnValue: Bool
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_GetGameMode_ReturnValue_2: Object
+  var K2Node_DynamicCast_AsBP_Lobby_Game_Mode_2: Object
+  var K2Node_DynamicCast_bSuccess_2: Bool
+  var CallFunc_GetPlayerCameraManager_ReturnValue: Object
+
+function CLIENT: FadeCameraToBlack  [FUNC_Net | FUNC_NetClient | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(1043)
+            return
+
+function ExecuteUbergraph_BP_PC_Lobby  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @1161
+            goto computed(EntryPoint)
+            ROS_Update Player Info()
+            pop_flow  // return to pushed flow
+    @30:    CallFunc_PlayAnimation_ReturnValue = self.FriendsList.UserWidget.PlayAnimation(self.FriendsList.self.FadeOut, 0.0, 1, 0, 1.0, false)
+            pop_flow  // return to pushed flow
+    @122:   CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            CallFunc_GetGameMode_ReturnValue_2 = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode_2 = Cast<BP_LobbyGameMode_C>(CallFunc_GetGameMode_ReturnValue_2)
+            K2Node_DynamicCast_bSuccess_2 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Lobby_Game_Mode_2)
+            if not (K2Node_DynamicCast_bSuccess_2) pop_flow
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode_2.StartGame()
+            pop_flow  // return to pushed flow
+            CallFunc_IsLocalPlayerController_ReturnValue = Controller.IsLocalPlayerController()
+            if not (CallFunc_IsLocalPlayerController_ReturnValue) pop_flow
+            CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<Blur_C>, null)
+            CallFunc_Create_ReturnValue.UserWidget.AddToViewport(0)
+            CallFunc_Create_ReturnValue.self.BackgroundBlur.SetBlurStrength(1.2)
+            CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<W_FriendList_C>, null)
+            self.FriendsList = CallFunc_Create_ReturnValue_1
+            self.FriendsList.UserWidget.AddToViewport(0)
+            self.? = true
+            Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.SetInputMode_GameAndUIEx(self, self.FriendsList, 0, true, false)
+            ROS_Update Player Info()
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{15, -1575954400, "ExecuteUbergraph_BP_PC_Lobby", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetGameMode_ReturnValue = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode = Cast<BP_LobbyGameMode_C>(CallFunc_GetGameMode_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Lobby_Game_Mode)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode.Update Player Info(self)
+            pop_flow  // return to pushed flow
+            CallFunc_Not_PreBool_ReturnValue = KismetMathLibrary.Not_PreBool(self.Player Info.Ready_9)
+            self.Player Info.Ready_9 = CallFunc_Not_PreBool_ReturnValue
+            CallFunc_GetGameMode_ReturnValue_1 = GameplayStatics.GetGameMode(self)
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode_1 = Cast<BP_LobbyGameMode_C>(CallFunc_GetGameMode_ReturnValue_1)
+            K2Node_DynamicCast_bSuccess_1 = CST_ObjectToBool(K2Node_DynamicCast_AsBP_Lobby_Game_Mode_1)
+            if not (K2Node_DynamicCast_bSuccess_1) pop_flow
+            K2Node_DynamicCast_AsBP_Lobby_Game_Mode_1.Update Player Info(self)
+            pop_flow  // return to pushed flow
+            goto @122
+            CallFunc_GetPlayerCameraManager_ReturnValue = GameplayStatics.GetPlayerCameraManager(self, 0)
+            CallFunc_GetPlayerCameraManager_ReturnValue.StartCameraFade(0.0, 1.0, 0.5, LinearColor{0.0, 0.0, 0.0, 0.0}, false, true)
+            goto @30
+    @1161:  return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(285)
+            return
+
+function RequestStartGame  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(1038)
+            return
+
+function ROS_ToggleReadyStatus  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(838)
+            return
+
+function ROS_Update Player Info  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(704)
+            return
+
+function Update Player Info  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            BP_PC_Lobby_C.ExecuteUbergraph_BP_PC_Lobby(649)
+            return

@@ -1,0 +1,786 @@
+// Content\MyAssets\Models\Furniture\ControlPanels\DoorControlBoxActor
+
+== class DoorControlBoxActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var DoorControlBoxLever: Object
+  var DoorControlBox: Object
+  var DefaultSceneRoot: Object
+  var Timeline_5_DoorHeight: Float
+  var Timeline_5__Direction: Byte
+  var Timeline_5: Object
+  var Timeline_3_NewTrack_0: Float
+  var Timeline_3__Direction: Byte
+  var Timeline_3: Object
+  var Timeline_2_NewTrack_0: Float
+  var Timeline_2__Direction: Byte
+  var Timeline_2: Object
+  var Timeline_1_DoorHeight: Float
+  var Timeline_1__Direction: Byte
+  var Timeline_1: Object
+  var Timeline_0_LeverRotation: Float
+  var Timeline_0__Direction: Byte
+  var Timeline_0: Object
+  var Timeline_NewTrack_0: Float
+  var Timeline__Direction: Byte
+  var Timeline: Object
+  var SkylightIntensity_NewTrack_0: Float
+  var SkylightIntensity__Direction: Byte
+  var SkylightIntensity: Object
+  var Close_Door_Gate: Float
+  var Close_Door__Direction: Byte
+  var Close Door: Object
+  var Close_Lever_LeverRotation: Float
+  var Close_Lever__Direction: Byte
+  var Close Lever: Object
+  var OpenDoor_Gate: Float
+  var OpenDoor__Direction: Byte
+  var OpenDoor: Object
+  var Open_Lever_LeverRotation: Float
+  var Open_Lever__Direction: Byte
+  var Open Lever: Object
+  var LevelPulled: Bool
+  var CanPullLever: Bool
+  var LabDoor: Object
+  var LeversPulled: Int
+  var CeilingLights: Array
+  var HazardLights: Array
+  var Skylight: Object
+  var DoorAlarmAudio: Object
+  var ThreshholdPowerAudio: Object
+  var AmbientDingAudio: Object
+  var Terminal: Object
+  var DoorAlarmStopAudio: Object
+  var ThresholdOpen: Bool
+  var ControlBoxStateClosed: Bool
+  var HasLoadedFromSave: Bool
+
+== class ExecuteUbergraph_DoorControlBoxActor : 
+  var EntryPoint: Int
+  var CallFunc_MakeRotator_ReturnValue: Struct
+  var CallFunc_MakeRotator_ReturnValue_1: Struct
+  var CallFunc_Lerp_ReturnValue: Double
+  var CallFunc_Lerp_ReturnValue_1: Double
+  var CallFunc_MakeVector_ReturnValue: Struct
+  var CallFunc_MakeVector_ReturnValue_1: Struct
+  var CallFunc_Lerp_ReturnValue_2: Double
+  var CallFunc_Lerp_ReturnValue_3: Double
+  var CallFunc_MakeVector_ReturnValue_2: Struct
+  var CallFunc_Lerp_ReturnValue_4: Double
+  var CallFunc_MakeVector_ReturnValue_3: Struct
+  var CallFunc_Lerp_ReturnValue_5: Double
+  var CallFunc_MakeRotator_ReturnValue_2: Struct
+  var CallFunc_MakeVector_ReturnValue_4: Struct
+  var CallFunc_Lerp_ReturnValue_6: Double
+  var CallFunc_Lerp_ReturnValue_7: Double
+  var CallFunc_MakeVector_ReturnValue_5: Struct
+  var Temp_int_Loop_Counter_Variable: Int
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var Temp_int_Array_Index_Variable: Int
+  var Temp_int_Array_Index_Variable_1: Int
+  var Temp_int_Loop_Counter_Variable_1: Int
+  var CallFunc_Add_IntInt_ReturnValue_1: Int
+  var Temp_int_Array_Index_Variable_2: Int
+  var Temp_int_Loop_Counter_Variable_2: Int
+  var Temp_int_Loop_Counter_Variable_3: Int
+  var CallFunc_Add_IntInt_ReturnValue_2: Int
+  var CallFunc_Add_IntInt_ReturnValue_3: Int
+  var Temp_int_Loop_Counter_Variable_4: Int
+  var CallFunc_Add_IntInt_ReturnValue_4: Int
+  var Temp_int_Array_Index_Variable_3: Int
+  var Temp_int_Array_Index_Variable_4: Int
+  var Temp_int_Loop_Counter_Variable_5: Int
+  var CallFunc_Add_IntInt_ReturnValue_5: Int
+  var Temp_int_Array_Index_Variable_5: Int
+  var Temp_int_Loop_Counter_Variable_6: Int
+  var CallFunc_Add_IntInt_ReturnValue_6: Int
+  var Temp_int_Loop_Counter_Variable_7: Int
+  var CallFunc_Add_IntInt_ReturnValue_7: Int
+  var Temp_int_Array_Index_Variable_6: Int
+  var Temp_int_Array_Index_Variable_7: Int
+  var CallFunc_HasAuthority_ReturnValue: Bool
+  var CallFunc_HasAuthority_ReturnValue_1: Bool
+  var Temp_int_Loop_Counter_Variable_8: Int
+  var CallFunc_Add_IntInt_ReturnValue_8: Int
+  var Temp_int_Array_Index_Variable_8: Int
+  var Temp_int_Loop_Counter_Variable_9: Int
+  var CallFunc_Add_IntInt_ReturnValue_9: Int
+  var Temp_int_Loop_Counter_Variable_10: Int
+  var CallFunc_Add_IntInt_ReturnValue_10: Int
+  var Temp_int_Array_Index_Variable_9: Int
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult: Struct
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_1: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_Array_Length_ReturnValue: Int
+  var CallFunc_GetAllActorsOfClass_OutActors_1: Array
+  var Temp_int_Array_Index_Variable_10: Int
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_2: Array
+  var CallFunc_Array_Length_ReturnValue_1: Int
+  var CallFunc_Array_Get_Item_1: Object
+  var CallFunc_Less_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_2: Object
+  var CallFunc_Array_Get_Item_3: Object
+  var CallFunc_Array_Length_ReturnValue_2: Int
+  var CallFunc_Array_Length_ReturnValue_3: Int
+  var CallFunc_Less_IntInt_ReturnValue_1: Bool
+  var CallFunc_Less_IntInt_ReturnValue_2: Bool
+  var CallFunc_K2_SetRelativeRotation_SweepHitResult_2: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult: Struct
+  var Temp_int_Array_Index_Variable_11: Int
+  var CallFunc_Array_Get_Item_4: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_3: Array
+  var CallFunc_Array_Get_Item_5: Object
+  var CallFunc_Array_Length_ReturnValue_4: Int
+  var CallFunc_Less_IntInt_ReturnValue_3: Bool
+  var CallFunc_Array_Get_Item_6: Object
+  var CallFunc_Array_Length_ReturnValue_5: Int
+  var CallFunc_Less_IntInt_ReturnValue_4: Bool
+  var CallFunc_Array_Get_Item_7: Object
+  var CallFunc_Array_Length_ReturnValue_6: Int
+  var CallFunc_Less_IntInt_ReturnValue_5: Bool
+  var Temp_int_Loop_Counter_Variable_11: Int
+  var CallFunc_Array_Get_Item_8: Object
+  var CallFunc_Less_IntInt_ReturnValue_6: Bool
+  var CallFunc_Add_IntInt_ReturnValue_11: Int
+  var CallFunc_Array_Length_ReturnValue_7: Int
+  var CallFunc_Less_IntInt_ReturnValue_7: Bool
+  var CallFunc_Array_Get_Item_9: Object
+  var CallFunc_Array_Length_ReturnValue_8: Int
+  var CallFunc_Less_IntInt_ReturnValue_8: Bool
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_1: Struct
+  var CallFunc_GetAllActorsOfClass_OutActors_4: Array
+  var CallFunc_Array_Get_Item_10: Object
+  var CallFunc_Array_Length_ReturnValue_9: Int
+  var CallFunc_Less_IntInt_ReturnValue_9: Bool
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_2: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_3: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_4: Struct
+  var CallFunc_K2_SetRelativeLocation_SweepHitResult_5: Struct
+  var K2Node_CustomEvent_ControlBoxState: Bool
+  var CallFunc_GetAllActorsOfClass_OutActors_5: Array
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_Array_Get_Item_11: Object
+  var CallFunc_Array_Get_Item_12: Object
+  var CallFunc_Array_Length_ReturnValue_10: Int
+  var CallFunc_GetOwner_ReturnValue: Object
+  var CallFunc_Less_IntInt_ReturnValue_10: Bool
+  var K2Node_DynamicCast_AsWorld_Player_Controller: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Array_Length_ReturnValue_11: Int
+  var CallFunc_Less_IntInt_ReturnValue_11: Bool
+  var CallFunc_Lerp_Alpha_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_1: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_2: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_3: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_4: Double
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast: Float
+  var CallFunc_Lerp_Alpha_ImplicitCast_5: Double
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast_1: Float
+  var CallFunc_MakeVector_Z_ImplicitCast: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_6: Double
+  var CallFunc_Lerp_Alpha_ImplicitCast_7: Double
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast_2: Float
+  var CallFunc_SetIntensity_NewIntensity_ImplicitCast_3: Float
+  var CallFunc_MakeVector_Z_ImplicitCast_1: Double
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+== class SetControlBoxState : 
+  var ControlBoxState: Bool
+
+function Close Door__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10621)
+            return
+
+function Close Door__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(9316)
+            return
+
+function Close Lever__ActivateDoor__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8655)
+            return
+
+function Close Lever__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8852)
+            return
+
+function Close Lever__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8752)
+            return
+
+function ExecuteUbergraph_DoorControlBoxActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @11046
+            goto computed(EntryPoint)
+    @15:    push_flow @375
+            CallFunc_HasAuthority_ReturnValue_1 = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue_1) pop_flow
+            CallFunc_GetAllActorsOfClass_OutActors_5 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<Lifeform_Char_C>, CallFunc_GetAllActorsOfClass_OutActors_5)
+            Temp_int_Loop_Counter_Variable_8 = 0
+            Temp_int_Array_Index_Variable_8 = 0
+    @136:   CallFunc_Array_Length_ReturnValue_11 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors_5)
+            CallFunc_Less_IntInt_ReturnValue_11 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_8, CallFunc_Array_Length_ReturnValue_11)
+            if not (CallFunc_Less_IntInt_ReturnValue_11) goto @505
+            Temp_int_Array_Index_Variable_8 = Temp_int_Loop_Counter_Variable_8
+            push_flow @1063
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_5, Temp_int_Array_Index_Variable_8, CallFunc_Array_Get_Item_11)
+            CallFunc_Array_Get_Item_11.K2_DestroyActor()
+            pop_flow  // return to pushed flow
+    @375:   self.Terminal.self.TerminalPowerLoop.self.?.FadeIn(12.0, 1.0, 0.0, 0)
+            self.Timeline_5.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @505:   Temp_int_Loop_Counter_Variable_10 = 0
+            Temp_int_Array_Index_Variable_9 = 0
+    @551:   CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            CallFunc_Array_Length_ReturnValue_10 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetGameState_ReturnValue.self.?)
+            CallFunc_Less_IntInt_ReturnValue_10 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_10, CallFunc_Array_Length_ReturnValue_10)
+            if not (CallFunc_Less_IntInt_ReturnValue_10) pop_flow
+            Temp_int_Array_Index_Variable_9 = Temp_int_Loop_Counter_Variable_10
+            push_flow @989
+            CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetGameState_ReturnValue.self.?, Temp_int_Array_Index_Variable_9, CallFunc_Array_Get_Item_12)
+            CallFunc_GetOwner_ReturnValue = CallFunc_Array_Get_Item_12.Actor.GetOwner()
+            K2Node_DynamicCast_AsWorld_Player_Controller = Cast<WorldPlayerController_C>(CallFunc_GetOwner_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Player_Controller)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            K2Node_DynamicCast_AsWorld_Player_Controller.CLIENT: KillPlayerOutsideDoor()
+            pop_flow  // return to pushed flow
+    @989:   CallFunc_Add_IntInt_ReturnValue_10 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_10, 1)
+            Temp_int_Loop_Counter_Variable_10 = CallFunc_Add_IntInt_ReturnValue_10
+            goto @551
+    @1063:  CallFunc_Add_IntInt_ReturnValue_8 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_8, 1)
+            Temp_int_Loop_Counter_Variable_8 = CallFunc_Add_IntInt_ReturnValue_8
+            goto @136
+            MULTI: ForceOpenDoor()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable_6 = 0
+            Temp_int_Array_Index_Variable_4 = 0
+    @1198:  CallFunc_Array_Length_ReturnValue_2 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.HazardLights)
+            CallFunc_Less_IntInt_ReturnValue_1 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_6, CallFunc_Array_Length_ReturnValue_2)
+            if not (CallFunc_Less_IntInt_ReturnValue_1) goto @1511
+            Temp_int_Array_Index_Variable_4 = Temp_int_Loop_Counter_Variable_6
+            push_flow @1437
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.HazardLights, Temp_int_Array_Index_Variable_4, CallFunc_Array_Get_Item_3)
+            CallFunc_Array_Get_Item_3.StopSequenceHazard()
+            pop_flow  // return to pushed flow
+    @1437:  CallFunc_Add_IntInt_ReturnValue_6 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_6, 1)
+            Temp_int_Loop_Counter_Variable_6 = CallFunc_Add_IntInt_ReturnValue_6
+            goto @1198
+    @1511:  Temp_int_Loop_Counter_Variable_9 = 0
+            Temp_int_Array_Index_Variable_7 = 0
+    @1557:  CallFunc_Array_Length_ReturnValue_3 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.CeilingLights)
+            CallFunc_Less_IntInt_ReturnValue_2 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_9, CallFunc_Array_Length_ReturnValue_3)
+            if not (CallFunc_Less_IntInt_ReturnValue_2) goto @1870
+            Temp_int_Array_Index_Variable_7 = Temp_int_Loop_Counter_Variable_9
+            push_flow @1796
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.CeilingLights, Temp_int_Array_Index_Variable_7, CallFunc_Array_Get_Item_2)
+            CallFunc_Array_Get_Item_2.StopSequenceLights()
+            pop_flow  // return to pushed flow
+    @1796:  CallFunc_Add_IntInt_ReturnValue_9 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_9, 1)
+            Temp_int_Loop_Counter_Variable_9 = CallFunc_Add_IntInt_ReturnValue_9
+            goto @1557
+    @1870:  self.Timeline.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable_11 = 0
+            Temp_int_Array_Index_Variable_10 = 0
+    @1949:  CallFunc_Array_Length_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.CeilingLights)
+            CallFunc_Less_IntInt_ReturnValue_6 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_11, CallFunc_Array_Length_ReturnValue)
+            if not (CallFunc_Less_IntInt_ReturnValue_6) goto @2262
+            Temp_int_Array_Index_Variable_10 = Temp_int_Loop_Counter_Variable_11
+            push_flow @2188
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.CeilingLights, Temp_int_Array_Index_Variable_10, CallFunc_Array_Get_Item)
+            CallFunc_Array_Get_Item.StartSequenceLights()
+            pop_flow  // return to pushed flow
+    @2188:  CallFunc_Add_IntInt_ReturnValue_11 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_11, 1)
+            Temp_int_Loop_Counter_Variable_11 = CallFunc_Add_IntInt_ReturnValue_11
+            goto @1949
+    @2262:  Temp_int_Loop_Counter_Variable_3 = 0
+            Temp_int_Array_Index_Variable_11 = 0
+    @2308:  CallFunc_Array_Length_ReturnValue_1 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.HazardLights)
+            CallFunc_Less_IntInt_ReturnValue = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_3, CallFunc_Array_Length_ReturnValue_1)
+            if not (CallFunc_Less_IntInt_ReturnValue) goto @2621
+            Temp_int_Array_Index_Variable_11 = Temp_int_Loop_Counter_Variable_3
+            push_flow @2547
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.HazardLights, Temp_int_Array_Index_Variable_11, CallFunc_Array_Get_Item_4)
+            CallFunc_Array_Get_Item_4.StartSequenceHazard()
+            pop_flow  // return to pushed flow
+    @2547:  CallFunc_Add_IntInt_ReturnValue_2 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_3, 1)
+            Temp_int_Loop_Counter_Variable_3 = CallFunc_Add_IntInt_ReturnValue_2
+            goto @2308
+    @2621:  self.SkylightIntensity.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.ThreshholdPowerAudio.self.?.Play(0.0)
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{1903, -1527594685, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            MULTI: ForceCloseDoor()
+            pop_flow  // return to pushed flow
+            Temp_int_Loop_Counter_Variable = 0
+            Temp_int_Array_Index_Variable = 0
+    @2833:  CallFunc_Array_Length_ReturnValue_5 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.CeilingLights)
+            CallFunc_Less_IntInt_ReturnValue_4 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable, CallFunc_Array_Length_ReturnValue_5)
+            if not (CallFunc_Less_IntInt_ReturnValue_4) goto @3146
+            Temp_int_Array_Index_Variable = Temp_int_Loop_Counter_Variable
+            push_flow @3072
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.CeilingLights, Temp_int_Array_Index_Variable, CallFunc_Array_Get_Item_6)
+            CallFunc_Array_Get_Item_6.StartSequenceLights()
+            pop_flow  // return to pushed flow
+    @3072:  CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable, 1)
+            Temp_int_Loop_Counter_Variable = CallFunc_Add_IntInt_ReturnValue
+            goto @2833
+    @3146:  Temp_int_Loop_Counter_Variable_1 = 0
+            Temp_int_Array_Index_Variable_2 = 0
+    @3192:  CallFunc_Array_Length_ReturnValue_6 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.HazardLights)
+            CallFunc_Less_IntInt_ReturnValue_5 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_1, CallFunc_Array_Length_ReturnValue_6)
+            if not (CallFunc_Less_IntInt_ReturnValue_5) goto @3505
+            Temp_int_Array_Index_Variable_2 = Temp_int_Loop_Counter_Variable_1
+            push_flow @3431
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.HazardLights, Temp_int_Array_Index_Variable_2, CallFunc_Array_Get_Item_7)
+            CallFunc_Array_Get_Item_7.StartSequenceHazard()
+            pop_flow  // return to pushed flow
+    @3431:  CallFunc_Add_IntInt_ReturnValue_1 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_1, 1)
+            Temp_int_Loop_Counter_Variable_1 = CallFunc_Add_IntInt_ReturnValue_1
+            goto @3192
+    @3505:  self.Timeline_2.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.ThreshholdPowerAudio.self.?.Play(0.0)
+            self.AmbientDingAudio.self.?.FadeOut(2.0, 0.0, 0)
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{2787, -904972179, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            goto @15
+            Temp_int_Loop_Counter_Variable_5 = 0
+            Temp_int_Array_Index_Variable_5 = 0
+    @3777:  CallFunc_Array_Length_ReturnValue_8 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.HazardLights)
+            CallFunc_Less_IntInt_ReturnValue_8 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_5, CallFunc_Array_Length_ReturnValue_8)
+            if not (CallFunc_Less_IntInt_ReturnValue_8) goto @4090
+            Temp_int_Array_Index_Variable_5 = Temp_int_Loop_Counter_Variable_5
+            push_flow @4016
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.HazardLights, Temp_int_Array_Index_Variable_5, CallFunc_Array_Get_Item_9)
+            CallFunc_Array_Get_Item_9.StopSequenceHazard()
+            pop_flow  // return to pushed flow
+    @4016:  CallFunc_Add_IntInt_ReturnValue_5 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_5, 1)
+            Temp_int_Loop_Counter_Variable_5 = CallFunc_Add_IntInt_ReturnValue_5
+            goto @3777
+    @4090:  Temp_int_Loop_Counter_Variable_4 = 0
+            Temp_int_Array_Index_Variable_3 = 0
+    @4136:  CallFunc_Array_Length_ReturnValue_7 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(self.CeilingLights)
+            CallFunc_Less_IntInt_ReturnValue_7 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_4, CallFunc_Array_Length_ReturnValue_7)
+            if not (CallFunc_Less_IntInt_ReturnValue_7) goto @4449
+            Temp_int_Array_Index_Variable_3 = Temp_int_Loop_Counter_Variable_4
+            push_flow @4375
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.CeilingLights, Temp_int_Array_Index_Variable_3, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Get_Item_8.StopSequenceLights()
+            pop_flow  // return to pushed flow
+    @4375:  CallFunc_Add_IntInt_ReturnValue_4 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_4, 1)
+            Temp_int_Loop_Counter_Variable_4 = CallFunc_Add_IntInt_ReturnValue_4
+            goto @4136
+    @4449:  self.Timeline_3.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            CallFunc_MakeRotator_ReturnValue_2 = KismetMathLibrary.MakeRotator(self.Timeline_0_LeverRotation, 0.0, 0.0)
+            self.DoorControlBoxLever.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_2, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_2, false)
+            pop_flow  // return to pushed flow
+    @4583:  self.Timeline_1.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            CallFunc_MakeVector_Z_ImplicitCast = CST_FloatToDouble(self.Timeline_1_DoorHeight)
+            CallFunc_MakeVector_ReturnValue_4 = KismetMathLibrary.MakeVector(0.0, 0.0, CallFunc_MakeVector_Z_ImplicitCast)
+            self.LabDoor.self.Door.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_4, false, CallFunc_K2_SetRelativeLocation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+            self.LabDoor.StartDissolve()
+            self.Terminal.self.TerminalPowerLoop.self.?.FadeOut(2.0, 0.0, 0)
+            KismetSystemLibrary.Delay(self, 12.0, LatentActionInfo{1152, 1355519693, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.Delay(self, 5.0, LatentActionInfo{2772, -702549988, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_6 = CST_FloatToDouble(self.Timeline_2_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_6 = KismetMathLibrary.Lerp(0.13, 0.11, CallFunc_Lerp_Alpha_ImplicitCast_6)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast_2 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_6)
+            self.Skylight.self.?.SkyLightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast_2)
+            pop_flow  // return to pushed flow
+            self.DoorAlarmStopAudio.self.?.Play(0.0)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_7 = CST_FloatToDouble(self.Timeline_3_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_7 = KismetMathLibrary.Lerp(0.11, 0.13, CallFunc_Lerp_Alpha_ImplicitCast_7)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast_3 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_7)
+            self.Skylight.self.?.SkyLightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast_3)
+            pop_flow  // return to pushed flow
+            self.CanPullLever = true
+            self.ThresholdOpen = false
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.DayStarted = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 12, "DayStarted")
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.ThresholdCurrentlyTransitioning = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 13, "ThresholdCurrentlyTransitioning")
+            self.LabDoor.self.DoorStateClosed = true
+            self.ControlBoxStateClosed = true
+            CallFunc_GetAllActorsOfClass_OutActors_4 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<StartSwitchA_C>, CallFunc_GetAllActorsOfClass_OutActors_4)
+            Temp_int_Loop_Counter_Variable_7 = 0
+            Temp_int_Array_Index_Variable_6 = 0
+    @5789:  CallFunc_Array_Length_ReturnValue_9 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors_4)
+            CallFunc_Less_IntInt_ReturnValue_9 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_7, CallFunc_Array_Length_ReturnValue_9)
+            if not (CallFunc_Less_IntInt_ReturnValue_9) pop_flow
+            Temp_int_Array_Index_Variable_6 = Temp_int_Loop_Counter_Variable_7
+            push_flow @6487
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            CallFunc_Array_Get_Item_10.Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            CallFunc_Array_Get_Item_10.self.CanPullLever = true
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_Array_Get_Item_10, 10, "CanPullLever")
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            CallFunc_Array_Get_Item_10.Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            CallFunc_Array_Get_Item_10.self.LeverPartialOn = false
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_4, Temp_int_Array_Index_Variable_6, CallFunc_Array_Get_Item_10)
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_Array_Get_Item_10, 11, "LeverPartialOn")
+            pop_flow  // return to pushed flow
+    @6487:  CallFunc_Add_IntInt_ReturnValue_7 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_7, 1)
+            Temp_int_Loop_Counter_Variable_7 = CallFunc_Add_IntInt_ReturnValue_7
+            goto @5789
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{3731, 427076140, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            CallFunc_MakeVector_Z_ImplicitCast_1 = CST_FloatToDouble(self.Timeline_5_DoorHeight)
+            CallFunc_MakeVector_ReturnValue_5 = KismetMathLibrary.MakeVector(0.0, 0.0, CallFunc_MakeVector_Z_ImplicitCast_1)
+            self.LabDoor.self.Door.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_5, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_1, false)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @6776:  self.OpenDoor.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+    @6809:  Temp_int_Array_Index_Variable_1 = 0
+    @6832:  CallFunc_Array_Length_ReturnValue_4 = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Length(CallFunc_GetAllActorsOfClass_OutActors_3)
+            CallFunc_Less_IntInt_ReturnValue_3 = KismetMathLibrary.Less_IntInt(Temp_int_Loop_Counter_Variable_2, CallFunc_Array_Length_ReturnValue_4)
+            if not (CallFunc_Less_IntInt_ReturnValue_3) pop_flow
+            Temp_int_Array_Index_Variable_1 = Temp_int_Loop_Counter_Variable_2
+            push_flow @7530
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            CallFunc_Array_Get_Item_5.Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            CallFunc_Array_Get_Item_5.self.CanPullLever = true
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_Array_Get_Item_5, 10, "CanPullLever")
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            CallFunc_Array_Get_Item_5.Actor.FlushNetDormancy()
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            CallFunc_Array_Get_Item_5.self.LeverPartialOn = false
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_3, Temp_int_Array_Index_Variable_1, CallFunc_Array_Get_Item_5)
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(CallFunc_Array_Get_Item_5, 11, "LeverPartialOn")
+            pop_flow  // return to pushed flow
+    @7530:  CallFunc_Add_IntInt_ReturnValue_3 = KismetMathLibrary.Add_IntInt(Temp_int_Loop_Counter_Variable_2, 1)
+            Temp_int_Loop_Counter_Variable_2 = CallFunc_Add_IntInt_ReturnValue_3
+            goto @6832
+            self.AmbientDingAudio.self.?.Play(0.0)
+            self.CanPullLever = true
+            self.ThresholdOpen = true
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.DayStarted = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 12, "DayStarted")
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.ThresholdCurrentlyTransitioning = false
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 13, "ThresholdCurrentlyTransitioning")
+            self.LabDoor.self.DoorStateClosed = false
+            self.ControlBoxStateClosed = false
+            CallFunc_GetAllActorsOfClass_OutActors_3 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<StartSwitchA_C>, CallFunc_GetAllActorsOfClass_OutActors_3)
+            Temp_int_Loop_Counter_Variable_2 = 0
+            goto @6809
+            CallFunc_Lerp_Alpha_ImplicitCast = CST_FloatToDouble(self.OpenDoor_Gate)
+            CallFunc_Lerp_ReturnValue_1 = KismetMathLibrary.Lerp(0.0, 186.0, CallFunc_Lerp_Alpha_ImplicitCast)
+            CallFunc_MakeVector_ReturnValue_1 = KismetMathLibrary.MakeVector(CallFunc_Lerp_ReturnValue_1, -17.5, 0.0)
+            self.LabDoor.self.LabDoorGate1.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_1, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_2, false)
+            CallFunc_Lerp_Alpha_ImplicitCast_1 = CST_FloatToDouble(self.OpenDoor_Gate)
+            CallFunc_Lerp_ReturnValue = KismetMathLibrary.Lerp(0.0, -186.0, CallFunc_Lerp_Alpha_ImplicitCast_1)
+            CallFunc_MakeVector_ReturnValue = KismetMathLibrary.MakeVector(CallFunc_Lerp_ReturnValue, -17.5, 0.0)
+            self.LabDoor.self.LabDoorGate2.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_3, false)
+            pop_flow  // return to pushed flow
+            self.CanPullLever = true
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_5 = CST_FloatToDouble(self.Timeline_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_5 = KismetMathLibrary.Lerp(0.11, 0.13, CallFunc_Lerp_Alpha_ImplicitCast_5)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast_1 = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_5)
+            self.Skylight.self.?.SkyLightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast_1)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @8622:  self.Close Lever.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.Close Door.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            self.DoorAlarmAudio.self.?.Play(0.0)
+            pop_flow  // return to pushed flow
+            CallFunc_MakeRotator_ReturnValue_1 = KismetMathLibrary.MakeRotator(self.Close_Lever_LeverRotation, 0.0, 0.0)
+            self.DoorControlBoxLever.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue_1, false, CallFunc_K2_SetRelativeRotation_SweepHitResult_1, false)
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @8853:  CallFunc_HasAuthority_ReturnValue = Actor.HasAuthority()
+            if not (CallFunc_HasAuthority_ReturnValue) pop_flow
+            self.ControlBoxStateClosed = K2Node_CustomEvent_ControlBoxState
+            if not (self.ControlBoxStateClosed) goto @8931
+            SERVER:SetControlBoxClosed()
+            pop_flow  // return to pushed flow
+    @8931:  SERVER:SetControlBoxOpen()
+            pop_flow  // return to pushed flow
+    @8946:  self.Open Lever.TimelineComponent.PlayFromStart()
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_4 = CST_FloatToDouble(self.SkylightIntensity_NewTrack_0)
+            CallFunc_Lerp_ReturnValue_3 = KismetMathLibrary.Lerp(0.13, 0.11, CallFunc_Lerp_Alpha_ImplicitCast_4)
+            CallFunc_SetIntensity_NewIntensity_ImplicitCast = CST_DoubleToFloat(CallFunc_Lerp_ReturnValue_3)
+            self.Skylight.self.?.SkyLightComponent.SetIntensity(CallFunc_SetIntensity_NewIntensity_ImplicitCast)
+            pop_flow  // return to pushed flow
+            KismetSystemLibrary.Delay(self, 5.0, LatentActionInfo{1137, 899047045, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            goto @6776
+            CallFunc_MakeRotator_ReturnValue = KismetMathLibrary.MakeRotator(self.Open_Lever_LeverRotation, 0.0, 0.0)
+            self.DoorControlBoxLever.SceneComponent.K2_SetRelativeRotation(CallFunc_MakeRotator_ReturnValue, false, CallFunc_K2_SetRelativeRotation_SweepHitResult, false)
+            pop_flow  // return to pushed flow
+            CallFunc_Lerp_Alpha_ImplicitCast_2 = CST_FloatToDouble(self.Close_Door_Gate)
+            CallFunc_Lerp_ReturnValue_4 = KismetMathLibrary.Lerp(186.0, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_2)
+            CallFunc_MakeVector_ReturnValue_3 = KismetMathLibrary.MakeVector(CallFunc_Lerp_ReturnValue_4, -17.5, 0.0)
+            self.LabDoor.self.LabDoorGate1.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_3, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_4, false)
+            CallFunc_Lerp_Alpha_ImplicitCast_3 = CST_FloatToDouble(self.Close_Door_Gate)
+            CallFunc_Lerp_ReturnValue_2 = KismetMathLibrary.Lerp(-186.0, 0.0, CallFunc_Lerp_Alpha_ImplicitCast_3)
+            CallFunc_MakeVector_ReturnValue_2 = KismetMathLibrary.MakeVector(CallFunc_Lerp_ReturnValue_2, -17.5, 0.0)
+            self.LabDoor.self.LabDoorGate2.SceneComponent.K2_SetRelativeLocation(CallFunc_MakeVector_ReturnValue_2, false, CallFunc_K2_SetRelativeLocation_SweepHitResult_5, false)
+            pop_flow  // return to pushed flow
+    @9743:  CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(self.LevelPulled, false)
+            if not (CallFunc_EqualEqual_BoolBool_ReturnValue) goto @9866
+            self.LevelPulled = true
+            self.LabDoor.self.DoorGateOpen.Play(0.0)
+            goto @8946
+    @9866:  self.LevelPulled = false
+            self.LabDoor.self.DoorGateClose.Play(0.0)
+            goto @8622
+            MULTI: Pull Lever()
+            pop_flow  // return to pushed flow
+    @9960:  self.CanPullLever = false
+            goto @9743
+    @9976:  if not (self.CanPullLever) pop_flow
+            goto @9960
+    @9991:  self.CanPullLever = true
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Pull Lever"})
+            pop_flow  // return to pushed flow
+            goto @9976
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.ThresholdCurrentlyTransitioning = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 13, "ThresholdCurrentlyTransitioning")
+            self.Terminal.self.BlinkingLight2.SERVER: DeactivateFlashing()
+            self.Terminal.self.BlinkingLight3.SERVER: DeactivateFlashing()
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{2654, -152502637, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<TileLightHUB_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            self.CeilingLights = CallFunc_GetAllActorsOfClass_OutActors
+            CallFunc_GetAllActorsOfClass_OutActors_1 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<HazardLightA_C>, CallFunc_GetAllActorsOfClass_OutActors_1)
+            self.HazardLights = CallFunc_GetAllActorsOfClass_OutActors_1
+            CallFunc_GetAllActorsOfClass_OutActors_2 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<SkyLight>, CallFunc_GetAllActorsOfClass_OutActors_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_2, 0, CallFunc_Array_Get_Item_1)
+            self.Skylight = CallFunc_Array_Get_Item_1
+            pop_flow  // return to pushed flow
+            goto @9991
+            goto @4583
+            self.Terminal.Actor.FlushNetDormancy()
+            self.Terminal.self.ThresholdCurrentlyTransitioning = true
+            NetPushModelHelpers.MarkPropertyDirtyFromRepIndex(self.Terminal, 13, "ThresholdCurrentlyTransitioning")
+            KismetSystemLibrary.Delay(self, 0.5, LatentActionInfo{3538, -121813800, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            self.LabDoor.ReverseDissolve()
+            KismetSystemLibrary.Delay(self, 12.0, LatentActionInfo{3726, 1788478947, "ExecuteUbergraph_DoorControlBoxActor", self})
+            pop_flow  // return to pushed flow
+            goto @8853
+            MULTI:SetControlBoxOpen()
+            pop_flow  // return to pushed flow
+            self.AmbientDingAudio.self.?.Play(0.0)
+            self.CanPullLever = true
+            self.ThresholdOpen = true
+            self.HasLoadedFromSave = true
+            pop_flow  // return to pushed flow
+            MULTI:SetControlBoxClosed()
+            pop_flow  // return to pushed flow
+            self.CanPullLever = true
+            self.ThresholdOpen = false
+            self.HasLoadedFromSave = true
+            pop_flow  // return to pushed flow
+            pop_flow  // return to pushed flow
+    @11046: return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10003)
+            return
+
+function MULTI: ForceCloseDoor  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10788)
+            return
+
+function MULTI: ForceOpenDoor  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10626)
+            return
+
+function MULTI: Pull Lever  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10094)
+            return
+
+function MULTI:SetControlBoxClosed  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(11011)
+            return
+
+function MULTI:SetControlBoxOpen  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10899)
+            return
+
+function Open Lever__ActivateDoor__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(9211)
+            return
+
+function Open Lever__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(11045)
+            return
+
+function Open Lever__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(9216)
+            return
+
+function OpenDoor__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8432)
+            return
+
+function OpenDoor__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8005)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(9945)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10372)
+            return
+
+function ReverseSequence  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10631)
+            return
+
+function SERVER:SetControlBoxClosed  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10996)
+            return
+
+function SERVER:SetControlBoxOpen  [FUNC_Net | FUNC_NetReliable | FUNC_NetServer | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10884)
+            return
+
+function SetControlBoxState  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_CustomEvent_ControlBoxState = ControlBoxState
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10879)
+            return
+
+function SkylightIntensity__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(9156)
+            return
+
+function SkylightIntensity__StartAlarm__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8688)
+            return
+
+function SkylightIntensity__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8979)
+            return
+
+function StartSequence  [FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(10099)
+            return
+
+function Timeline_0__ActivateDoor__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4583)
+            return
+
+function Timeline_0__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4482)
+            return
+
+function Timeline_0__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4483)
+            return
+
+function Timeline_1__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4616)
+            return
+
+function Timeline_1__StartThreshold__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4776)
+            return
+
+function Timeline_1__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4617)
+            return
+
+function Timeline_2__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(4959)
+            return
+
+function Timeline_2__StartAlarm__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(5191)
+            return
+
+function Timeline_2__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(5014)
+            return
+
+function Timeline_3__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(5255)
+            return
+
+function Timeline_3__OpenDoor__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(5433)
+            return
+
+function Timeline_3__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(5256)
+            return
+
+function Timeline_5__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(6561)
+            return
+
+function Timeline_5__StartThreshold__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(6775)
+            return
+
+function Timeline_5__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(6616)
+            return
+
+function Timeline__FinishedFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8621)
+            return
+
+function Timeline__OpenDoor__EventFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(7604)
+            return
+
+function Timeline__UpdateFunc  [FUNC_BlueprintEvent]
+            DoorControlBoxActor_C.ExecuteUbergraph_DoorControlBoxActor(8444)
+            return

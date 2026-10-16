@@ -1,0 +1,125 @@
+// Content\MyAssets\UI\EndContractWidget
+
+== class ExecuteUbergraph_EndContractWidget : 
+  var EntryPoint: Int
+  var CallFunc_PlayAnimation_ReturnValue: Object
+  var CallFunc_GetGameState_ReturnValue: Object
+  var CallFunc_PlayAnimation_ReturnValue_1: Object
+  var K2Node_DynamicCast_AsWorld_Game_State: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_Conv_IntToString_ReturnValue: Str
+  var CallFunc_Conv_IntToString_ReturnValue_1: Str
+  var CallFunc_Concat_StrStr_ReturnValue: Str
+  var CallFunc_Conv_StringToText_ReturnValue: Text
+  var CallFunc_Conv_StringToText_ReturnValue_1: Text
+  var CallFunc_Subtract_IntInt_ReturnValue: Int
+  var CallFunc_Conv_IntToString_ReturnValue_2: Str
+  var CallFunc_Conv_IntToString_ReturnValue_3: Str
+  var CallFunc_Concat_StrStr_ReturnValue_1: Str
+  var CallFunc_Conv_StringToText_ReturnValue_2: Text
+  var CallFunc_Conv_StringToText_ReturnValue_3: Text
+  var CallFunc_GetChildrenCount_ReturnValue: Int
+  var CallFunc_Greater_IntInt_ReturnValue: Bool
+  var CallFunc_GetChildAt_ReturnValue: Object
+  var CallFunc_Add_IntInt_ReturnValue: Int
+  var CallFunc_Create_ReturnValue: Object
+  var CallFunc_Subtract_IntInt_ReturnValue_1: Int
+  var CallFunc_Create_ReturnValue_1: Object
+  var CallFunc_Create_ReturnValue_2: Object
+  var CallFunc_Conv_StringToText_ReturnValue_4: Text
+  var CallFunc_AddChildToVerticalBox_ReturnValue: Object
+  var CallFunc_Conv_StringToText_ReturnValue_5: Text
+  var CallFunc_Conv_StringToText_ReturnValue_6: Text
+  var CallFunc_AddChildToVerticalBox_ReturnValue_1: Object
+  var CallFunc_Conv_StringToText_ReturnValue_7: Text
+  var CallFunc_AddChildToVerticalBox_ReturnValue_2: Object
+  var CallFunc_Create_ReturnValue_3: Object
+  var CallFunc_AddChildToVerticalBox_ReturnValue_3: Object
+
+== class EndContractWidget_C : Class'UserWidget'
+  var UberGraphFrame: Struct
+  var FadeInMain: Object
+  var FundingText: Object
+  var KeepPlayingText: Object
+  var VerticalBox: Object
+  var Loops: Int
+  var Index: Int
+
+function Construct  [FUNC_BlueprintCosmetic | FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            EndContractWidget_C.ExecuteUbergraph_EndContractWidget(2839)
+            return
+
+function ExecuteUbergraph_EndContractWidget  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @2844
+            goto computed(EntryPoint)
+            CallFunc_PlayAnimation_ReturnValue_1 = UserWidget.PlayAnimation(self.FadeInMain, 0.0, 1, 1, 1.0, false)
+            KismetSystemLibrary.Delay(self, 2.1, LatentActionInfo{117, -1471388293, "ExecuteUbergraph_EndContractWidget", self})
+            pop_flow  // return to pushed flow
+            RemoveFromParent()
+            pop_flow  // return to pushed flow
+    @132:   self.KeepPlayingText.SetVisibility(4)
+            KismetSystemLibrary.Delay(self, 10.0, LatentActionInfo{15, -1579020717, "ExecuteUbergraph_EndContractWidget", self})
+            pop_flow  // return to pushed flow
+            CallFunc_GetChildrenCount_ReturnValue = self.VerticalBox.PanelWidget.GetChildrenCount()
+            self.Loops = CallFunc_GetChildrenCount_ReturnValue
+    @302:   CallFunc_Greater_IntInt_ReturnValue = KismetMathLibrary.Greater_IntInt(self.Loops, 0)
+            if not (CallFunc_Greater_IntInt_ReturnValue) goto @692
+            CallFunc_GetChildAt_ReturnValue = self.VerticalBox.PanelWidget.GetChildAt(self.Index)
+            CallFunc_GetChildAt_ReturnValue.SetVisibility(0)
+            CallFunc_Add_IntInt_ReturnValue = KismetMathLibrary.Add_IntInt(self.Index, 1)
+            self.Index = CallFunc_Add_IntInt_ReturnValue
+            CallFunc_Subtract_IntInt_ReturnValue_1 = KismetMathLibrary.Subtract_IntInt(self.Loops, 1)
+            self.Loops = CallFunc_Subtract_IntInt_ReturnValue_1
+            Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<ButtonClick>, 1.0, 1.0, 0.0, null, null, true)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{812, -1894091348, "ExecuteUbergraph_EndContractWidget", self})
+            pop_flow  // return to pushed flow
+    @692:   Obj<Default__GameplayStatics>.GameplayStatics.PlaySound2D(self, Obj<PurchaseLoading>, 1.0, 1.0, 0.0, null, null, true)
+            KismetSystemLibrary.Delay(self, 1.0, LatentActionInfo{807, 2011666447, "ExecuteUbergraph_EndContractWidget", self})
+            pop_flow  // return to pushed flow
+            goto @132
+            goto @302
+    @817:   CallFunc_PlayAnimation_ReturnValue = UserWidget.PlayAnimation(self.FadeInMain, 0.0, 1, 0, 1.0, false)
+            KismetSystemLibrary.Delay(self, 2.0, LatentActionInfo{225, -670620964, "ExecuteUbergraph_EndContractWidget", self})
+            pop_flow  // return to pushed flow
+    @919:   CallFunc_GetGameState_ReturnValue = GameplayStatics.GetGameState(self)
+            K2Node_DynamicCast_AsWorld_Game_State = Cast<WorldGameState_C>(CallFunc_GetGameState_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsWorld_Game_State)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            CallFunc_Create_ReturnValue = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EODHorizontalBox_C>, null)
+            CallFunc_Conv_StringToText_ReturnValue_7 = KismetTextLibrary.Conv_StringToText("Days taken to complete: ")
+            CallFunc_Create_ReturnValue.self.TextFirst.SetText(CallFunc_Conv_StringToText_ReturnValue_7)
+            CallFunc_Subtract_IntInt_ReturnValue = KismetMathLibrary.Subtract_IntInt(K2Node_DynamicCast_AsWorld_Game_State.self.CurrentDay, 1)
+            CallFunc_Conv_IntToString_ReturnValue_3 = KismetStringLibrary.Conv_IntToString(CallFunc_Subtract_IntInt_ReturnValue)
+            CallFunc_Conv_StringToText_ReturnValue_2 = KismetTextLibrary.Conv_StringToText(CallFunc_Conv_IntToString_ReturnValue_3)
+            CallFunc_Create_ReturnValue.self.TextSecond.SetText(CallFunc_Conv_StringToText_ReturnValue_2)
+            CallFunc_AddChildToVerticalBox_ReturnValue_2 = self.VerticalBox.VerticalBox.AddChildToVerticalBox(CallFunc_Create_ReturnValue)
+            CallFunc_Create_ReturnValue.SetVisibility(2)
+            CallFunc_Create_ReturnValue_1 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EODHorizontalBox_C>, null)
+            CallFunc_Conv_StringToText_ReturnValue_6 = KismetTextLibrary.Conv_StringToText("Total funding earned: ")
+            CallFunc_Create_ReturnValue_1.self.TextFirst.SetText(CallFunc_Conv_StringToText_ReturnValue_6)
+            CallFunc_Conv_IntToString_ReturnValue_2 = KismetStringLibrary.Conv_IntToString(K2Node_DynamicCast_AsWorld_Game_State.self.TotalFundingEarned)
+            CallFunc_Concat_StrStr_ReturnValue_1 = KismetStringLibrary.Concat_StrStr("$", CallFunc_Conv_IntToString_ReturnValue_2)
+            CallFunc_Conv_StringToText_ReturnValue_3 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue_1)
+            CallFunc_Create_ReturnValue_1.self.TextSecond.SetText(CallFunc_Conv_StringToText_ReturnValue_3)
+            CallFunc_AddChildToVerticalBox_ReturnValue_1 = self.VerticalBox.VerticalBox.AddChildToVerticalBox(CallFunc_Create_ReturnValue_1)
+            CallFunc_Create_ReturnValue_1.SetVisibility(2)
+            CallFunc_Create_ReturnValue_2 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EODHorizontalBox_C>, null)
+            CallFunc_Conv_StringToText_ReturnValue_4 = KismetTextLibrary.Conv_StringToText("Total Deaths: ")
+            CallFunc_Create_ReturnValue_2.self.TextFirst.SetText(CallFunc_Conv_StringToText_ReturnValue_4)
+            CallFunc_Conv_IntToString_ReturnValue_1 = KismetStringLibrary.Conv_IntToString(K2Node_DynamicCast_AsWorld_Game_State.self.TotalDeaths)
+            CallFunc_Conv_StringToText_ReturnValue = KismetTextLibrary.Conv_StringToText(CallFunc_Conv_IntToString_ReturnValue_1)
+            CallFunc_Create_ReturnValue_2.self.TextSecond.SetText(CallFunc_Conv_StringToText_ReturnValue)
+            CallFunc_AddChildToVerticalBox_ReturnValue = self.VerticalBox.VerticalBox.AddChildToVerticalBox(CallFunc_Create_ReturnValue_2)
+            CallFunc_Create_ReturnValue_2.SetVisibility(2)
+            CallFunc_Create_ReturnValue_3 = Obj<Default__WidgetBlueprintLibrary>.WidgetBlueprintLibrary.Create(self, Obj<EODHorizontalBox_C>, null)
+            CallFunc_Conv_StringToText_ReturnValue_5 = KismetTextLibrary.Conv_StringToText("Furthest Distance Traveled: ")
+            CallFunc_Create_ReturnValue_3.self.TextFirst.SetText(CallFunc_Conv_StringToText_ReturnValue_5)
+            CallFunc_Conv_IntToString_ReturnValue = KismetStringLibrary.Conv_IntToString(K2Node_DynamicCast_AsWorld_Game_State.self.FurthestDistanceTraveled)
+            CallFunc_Concat_StrStr_ReturnValue = KismetStringLibrary.Concat_StrStr(CallFunc_Conv_IntToString_ReturnValue, " m")
+            CallFunc_Conv_StringToText_ReturnValue_1 = KismetTextLibrary.Conv_StringToText(CallFunc_Concat_StrStr_ReturnValue)
+            CallFunc_Create_ReturnValue_3.self.TextSecond.SetText(CallFunc_Conv_StringToText_ReturnValue_1)
+            CallFunc_AddChildToVerticalBox_ReturnValue_3 = self.VerticalBox.VerticalBox.AddChildToVerticalBox(CallFunc_Create_ReturnValue_3)
+            CallFunc_Create_ReturnValue_3.SetVisibility(2)
+            goto @817
+            goto @919
+    @2844:  return

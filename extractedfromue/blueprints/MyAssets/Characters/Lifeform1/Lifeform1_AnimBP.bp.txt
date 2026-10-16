@@ -1,0 +1,408 @@
+// Content\MyAssets\Characters\Lifeform1\Lifeform1_AnimBP
+
+== class Lifeform1_AnimBP_C : Class'AnimInstance'
+  var UberGraphFrame: Struct
+  var __AnimBlueprintMutables: Struct
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_SaveCachedPose: Struct
+  var AnimGraphNode_LayeredBoneBlend: Struct
+  var AnimGraphNode_UseCachedPose_1: Struct
+  var AnimGraphNode_UseCachedPose: Struct
+  var AnimGraphNode_Slot: Struct
+  var AnimGraphNode_TransitionResult_3: Struct
+  var AnimGraphNode_TransitionResult_2: Struct
+  var AnimGraphNode_TransitionResult_1: Struct
+  var AnimGraphNode_TransitionResult: Struct
+  var AnimGraphNode_BlendSpacePlayer_2: Struct
+  var AnimGraphNode_StateResult_2: Struct
+  var AnimGraphNode_BlendSpacePlayer_1: Struct
+  var AnimGraphNode_StateResult_1: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+  var AnimGraphNode_StateResult: Struct
+  var AnimGraphNode_StateMachine: Struct
+  var AnimGraphNode_ModifyBone_14: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_ModifyBone_13: Struct
+  var AnimGraphNode_ModifyBone_12: Struct
+  var AnimGraphNode_ModifyBone_11: Struct
+  var AnimGraphNode_ModifyBone_10: Struct
+  var AnimGraphNode_ModifyBone_9: Struct
+  var AnimGraphNode_ModifyBone_8: Struct
+  var AnimGraphNode_ModifyBone_7: Struct
+  var AnimGraphNode_ModifyBone_6: Struct
+  var AnimGraphNode_ModifyBone_5: Struct
+  var AnimGraphNode_ModifyBone_4: Struct
+  var AnimGraphNode_ModifyBone_3: Struct
+  var AnimGraphNode_ModifyBone_2: Struct
+  var AnimGraphNode_ModifyBone_1: Struct
+  var AnimGraphNode_ModifyBone: Struct
+  var CurrentVelocity: Double
+  var MonsterState: Byte
+  var BoneTransforms: Struct
+  var WalkingBlendSpace: Object
+  var RunningBlendSpace: Object
+  var Lifeform1_Char: Object
+  var CurrentCrouchHeight: Double
+  var AnimPlayRate: Double
+
+== class AnimGraph : 
+  var AnimGraph: Struct
+
+== class BlueprintUpdateAnimation : Class'AnimInstance:BlueprintUpdateAnimation'
+  var DeltaTimeX: Float
+
+== class ExecuteUbergraph_Lifeform1_AnimBP : 
+  var EntryPoint: Int
+  var CallFunc_EqualEqual_ByteByte_ReturnValue: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_2: Bool
+  var CallFunc_EqualEqual_ByteByte_ReturnValue_3: Bool
+  var CallFunc_BreakTransform_Location: Struct
+  var CallFunc_BreakTransform_Rotation: Struct
+  var CallFunc_BreakTransform_Scale: Struct
+  var CallFunc_BreakTransform_Location_1: Struct
+  var CallFunc_BreakTransform_Rotation_1: Struct
+  var CallFunc_BreakTransform_Scale_1: Struct
+  var CallFunc_BreakTransform_Location_2: Struct
+  var CallFunc_BreakTransform_Rotation_2: Struct
+  var CallFunc_BreakTransform_Scale_2: Struct
+  var CallFunc_BreakTransform_Location_3: Struct
+  var CallFunc_BreakTransform_Rotation_3: Struct
+  var CallFunc_BreakTransform_Scale_3: Struct
+  var CallFunc_BreakTransform_Location_4: Struct
+  var CallFunc_BreakTransform_Rotation_4: Struct
+  var CallFunc_BreakTransform_Scale_4: Struct
+  var CallFunc_BreakTransform_Location_5: Struct
+  var CallFunc_BreakTransform_Rotation_5: Struct
+  var CallFunc_BreakTransform_Scale_5: Struct
+  var CallFunc_BreakTransform_Location_6: Struct
+  var CallFunc_BreakTransform_Rotation_6: Struct
+  var CallFunc_BreakTransform_Scale_6: Struct
+  var CallFunc_BreakTransform_Location_7: Struct
+  var CallFunc_BreakTransform_Rotation_7: Struct
+  var CallFunc_BreakTransform_Scale_7: Struct
+  var CallFunc_BreakTransform_Location_8: Struct
+  var CallFunc_BreakTransform_Rotation_8: Struct
+  var CallFunc_BreakTransform_Scale_8: Struct
+  var CallFunc_BreakTransform_Location_9: Struct
+  var CallFunc_BreakTransform_Rotation_9: Struct
+  var CallFunc_BreakTransform_Scale_9: Struct
+  var CallFunc_BreakTransform_Location_10: Struct
+  var CallFunc_BreakTransform_Rotation_10: Struct
+  var CallFunc_BreakTransform_Scale_10: Struct
+  var CallFunc_BreakTransform_Location_11: Struct
+  var CallFunc_BreakTransform_Rotation_11: Struct
+  var CallFunc_BreakTransform_Scale_11: Struct
+  var CallFunc_BreakTransform_Location_12: Struct
+  var CallFunc_BreakTransform_Rotation_12: Struct
+  var CallFunc_BreakTransform_Scale_12: Struct
+  var CallFunc_BreakTransform_Location_13: Struct
+  var CallFunc_BreakTransform_Rotation_13: Struct
+  var CallFunc_BreakTransform_Scale_13: Struct
+  var CallFunc_BreakTransform_Location_14: Struct
+  var CallFunc_BreakTransform_Rotation_14: Struct
+  var CallFunc_BreakTransform_Scale_14: Struct
+  var K2Node_Event_DeltaTimeX: Float
+  var CallFunc_GetOwningActor_ReturnValue: Object
+  var K2Node_DynamicCast_AsLifeform_Char: Object
+  var K2Node_DynamicCast_bSuccess: Bool
+  var CallFunc_IsValid_ReturnValue: Bool
+  var CallFunc_IsValid_ReturnValue_1: Bool
+  var CallFunc_IsValid_ReturnValue_2: Bool
+  var CallFunc_IsValid_ReturnValue_3: Bool
+  var CallFunc_NearlyEqual_TransformTransform_ReturnValue: Bool
+  var CallFunc_NearlyEqual_TransformTransform_ReturnValue_1: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue: Bool
+  var CallFunc_EqualEqual_BoolBool_ReturnValue_1: Bool
+  var CallFunc_BooleanOR_ReturnValue: Bool
+
+== class AnimBlueprintGeneratedConstantData : Class'AnimBlueprintConstantData'
+  var __NameProperty_130: Name
+  var __NameProperty_131: Name
+  var __IntProperty_132: Int
+  var __NameProperty_133: Name
+  var __IntProperty_134: Int
+  var __FloatProperty_135: Float
+  var __BoolProperty_136: Bool
+  var __BoolProperty_137: Bool
+  var __EnumProperty_138: Enum
+  var __ByteProperty_139: Byte
+  var __NameProperty_140: Name
+  var __NameProperty_141: Name
+  var __NameProperty_142: Name
+  var __IntProperty_143: Int
+  var __StructProperty_144: Struct
+  var AnimBlueprintExtension_PropertyAccess: Struct
+  var AnimBlueprintExtension_Base: Struct
+  var AnimGraphNode_Root: Struct
+  var AnimGraphNode_SaveCachedPose: Struct
+  var AnimGraphNode_LayeredBoneBlend: Struct
+  var AnimGraphNode_UseCachedPose_1: Struct
+  var AnimGraphNode_UseCachedPose: Struct
+  var AnimGraphNode_Slot: Struct
+  var AnimGraphNode_TransitionResult_3: Struct
+  var AnimGraphNode_TransitionResult_2: Struct
+  var AnimGraphNode_TransitionResult_1: Struct
+  var AnimGraphNode_TransitionResult: Struct
+  var AnimGraphNode_BlendSpacePlayer_2: Struct
+  var AnimGraphNode_StateResult_2: Struct
+  var AnimGraphNode_BlendSpacePlayer_1: Struct
+  var AnimGraphNode_StateResult_1: Struct
+  var AnimGraphNode_BlendSpacePlayer: Struct
+  var AnimGraphNode_StateResult: Struct
+  var AnimGraphNode_StateMachine: Struct
+  var AnimGraphNode_ModifyBone_14: Struct
+  var AnimGraphNode_LocalToComponentSpace: Struct
+  var AnimGraphNode_ComponentToLocalSpace: Struct
+  var AnimGraphNode_ModifyBone_13: Struct
+  var AnimGraphNode_ModifyBone_12: Struct
+  var AnimGraphNode_ModifyBone_11: Struct
+  var AnimGraphNode_ModifyBone_10: Struct
+  var AnimGraphNode_ModifyBone_9: Struct
+  var AnimGraphNode_ModifyBone_8: Struct
+  var AnimGraphNode_ModifyBone_7: Struct
+  var AnimGraphNode_ModifyBone_6: Struct
+  var AnimGraphNode_ModifyBone_5: Struct
+  var AnimGraphNode_ModifyBone_4: Struct
+  var AnimGraphNode_ModifyBone_3: Struct
+  var AnimGraphNode_ModifyBone_2: Struct
+  var AnimGraphNode_ModifyBone_1: Struct
+  var AnimGraphNode_ModifyBone: Struct
+
+== class AnimBlueprintGeneratedMutableData : Class'AnimBlueprintMutableData'
+  var __FloatProperty: Float
+  var __FloatProperty_0: Float
+  var __FloatProperty_1: Float
+  var __FloatProperty_2: Float
+  var __FloatProperty_3: Float
+  var __FloatProperty_4: Float
+  var __FloatProperty_5: Float
+  var __FloatProperty_6: Float
+  var __FloatProperty_7: Float
+
+function AnimGraph  [FUNC_HasOutParms | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            AnimGraph = PoseLink{-1}
+            return
+
+function BlueprintBeginPlay  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3769)
+            return
+
+function BlueprintUpdateAnimation  [FUNC_Event | FUNC_Public | FUNC_BlueprintEvent]
+            frame.K2Node_Event_DeltaTimeX = DeltaTimeX
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3190)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2017)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(1301)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(1465)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(689)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(913)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(1077)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2678)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(1853)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2345)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(465)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3869)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(1689)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3180)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2509)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_ModifyBone  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2181)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3185)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(2673)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3170)
+            return
+
+function EvaluateGraphExposedInputs_ExecuteUbergraph_Lifeform1_AnimBP_AnimGraphNode_TransitionResult  [FUNC_BlueprintEvent]
+            Lifeform1_AnimBP_C.ExecuteUbergraph_Lifeform1_AnimBP(3175)
+            return
+
+function ExecuteUbergraph_Lifeform1_AnimBP  [FUNC_Final | FUNC_UbergraphFunction]
+            push_flow @3874
+            goto computed(EntryPoint)
+    @15:    KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{70, 1114776545, "ExecuteUbergraph_Lifeform1_AnimBP", self})
+            pop_flow  // return to pushed flow
+    @70:    CallFunc_IsValid_ReturnValue_1 = KismetSystemLibrary.IsValid(K2Node_DynamicCast_AsLifeform_Char)
+            if not (CallFunc_IsValid_ReturnValue_1) goto @15
+            self.Lifeform1_Char = K2Node_DynamicCast_AsLifeform_Char
+    @132:   CallFunc_IsValid_ReturnValue_3 = KismetSystemLibrary.IsValid(K2Node_DynamicCast_AsLifeform_Char.self.WalkAnimationBS)
+            if not (CallFunc_IsValid_ReturnValue_3) goto @345
+            self.WalkingBlendSpace = K2Node_DynamicCast_AsLifeform_Char.self.WalkAnimationBS
+    @238:   CallFunc_IsValid_ReturnValue_2 = KismetSystemLibrary.IsValid(K2Node_DynamicCast_AsLifeform_Char.self.RunAnimationBS)
+            if not (CallFunc_IsValid_ReturnValue_2) goto @405
+            self.RunningBlendSpace = K2Node_DynamicCast_AsLifeform_Char.self.RunAnimationBS
+            pop_flow  // return to pushed flow
+    @345:   KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{400, -951127636, "ExecuteUbergraph_Lifeform1_AnimBP", self})
+            pop_flow  // return to pushed flow
+            goto @132
+    @405:   KismetSystemLibrary.Delay(self, 0.2, LatentActionInfo{460, -428144937, "ExecuteUbergraph_Lifeform1_AnimBP", self})
+            pop_flow  // return to pushed flow
+            goto @238
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightLeg_35, CallFunc_BreakTransform_Location_1, CallFunc_BreakTransform_Rotation_1, CallFunc_BreakTransform_Scale_1)
+            self.AnimGraphNode_ModifyBone_1.? = CallFunc_BreakTransform_Location_1
+            self.AnimGraphNode_ModifyBone_1.? = CallFunc_BreakTransform_Rotation_1
+            self.AnimGraphNode_ModifyBone_1.? = CallFunc_BreakTransform_Scale_1
+            pop_flow  // return to pushed flow
+    @629:   CallFunc_EqualEqual_ByteByte_ReturnValue = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 1)
+            self.AnimGraphNode_TransitionResult_1.? = CallFunc_EqualEqual_ByteByte_ReturnValue
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightHand_13, CallFunc_BreakTransform_Location_9, CallFunc_BreakTransform_Rotation_9, CallFunc_BreakTransform_Scale_9)
+            self.AnimGraphNode_ModifyBone_9.? = CallFunc_BreakTransform_Location_9
+            self.AnimGraphNode_ModifyBone_9.? = CallFunc_BreakTransform_Rotation_9
+            self.AnimGraphNode_ModifyBone_9.? = CallFunc_BreakTransform_Scale_9
+            pop_flow  // return to pushed flow
+    @853:   CallFunc_EqualEqual_ByteByte_ReturnValue_1 = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 2)
+            self.AnimGraphNode_TransitionResult.? = CallFunc_EqualEqual_ByteByte_ReturnValue_1
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.Spine_20, CallFunc_BreakTransform_Location_8, CallFunc_BreakTransform_Rotation_8, CallFunc_BreakTransform_Scale_8)
+            self.AnimGraphNode_ModifyBone_8.? = CallFunc_BreakTransform_Location_8
+            self.AnimGraphNode_ModifyBone_8.? = CallFunc_BreakTransform_Rotation_8
+            self.AnimGraphNode_ModifyBone_8.? = CallFunc_BreakTransform_Scale_8
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightUpLeg_34, CallFunc_BreakTransform_Location_2, CallFunc_BreakTransform_Rotation_2, CallFunc_BreakTransform_Scale_2)
+            self.AnimGraphNode_ModifyBone_2.? = CallFunc_BreakTransform_Location_2
+            self.AnimGraphNode_ModifyBone_2.? = CallFunc_BreakTransform_Rotation_2
+            self.AnimGraphNode_ModifyBone_2.? = CallFunc_BreakTransform_Scale_2
+            pop_flow  // return to pushed flow
+    @1241:  CallFunc_EqualEqual_ByteByte_ReturnValue_2 = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 0)
+            self.AnimGraphNode_TransitionResult_2.? = CallFunc_EqualEqual_ByteByte_ReturnValue_2
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightForeArm_12, CallFunc_BreakTransform_Location_10, CallFunc_BreakTransform_Rotation_10, CallFunc_BreakTransform_Scale_10)
+            self.AnimGraphNode_ModifyBone_10.? = CallFunc_BreakTransform_Location_10
+            self.AnimGraphNode_ModifyBone_10.? = CallFunc_BreakTransform_Rotation_10
+            self.AnimGraphNode_ModifyBone_10.? = CallFunc_BreakTransform_Scale_10
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightFoot_36, CallFunc_BreakTransform_Location, CallFunc_BreakTransform_Rotation, CallFunc_BreakTransform_Scale)
+            self.AnimGraphNode_ModifyBone.? = CallFunc_BreakTransform_Location
+            self.AnimGraphNode_ModifyBone.? = CallFunc_BreakTransform_Rotation
+            self.AnimGraphNode_ModifyBone.? = CallFunc_BreakTransform_Scale
+            pop_flow  // return to pushed flow
+    @1629:  CallFunc_EqualEqual_ByteByte_ReturnValue_3 = KismetMathLibrary.EqualEqual_ByteByte(self.MonsterState, 0)
+            self.AnimGraphNode_TransitionResult_3.? = CallFunc_EqualEqual_ByteByte_ReturnValue_3
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.RightArm_9, CallFunc_BreakTransform_Location_11, CallFunc_BreakTransform_Rotation_11, CallFunc_BreakTransform_Scale_11)
+            self.AnimGraphNode_ModifyBone_11.? = CallFunc_BreakTransform_Location_11
+            self.AnimGraphNode_ModifyBone_11.? = CallFunc_BreakTransform_Rotation_11
+            self.AnimGraphNode_ModifyBone_11.? = CallFunc_BreakTransform_Scale_11
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftFoot_33, CallFunc_BreakTransform_Location_3, CallFunc_BreakTransform_Rotation_3, CallFunc_BreakTransform_Scale_3)
+            self.AnimGraphNode_ModifyBone_3.? = CallFunc_BreakTransform_Location_3
+            self.AnimGraphNode_ModifyBone_3.? = CallFunc_BreakTransform_Rotation_3
+            self.AnimGraphNode_ModifyBone_3.? = CallFunc_BreakTransform_Scale_3
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftHand_7, CallFunc_BreakTransform_Location_12, CallFunc_BreakTransform_Rotation_12, CallFunc_BreakTransform_Scale_12)
+            self.AnimGraphNode_ModifyBone_12.? = CallFunc_BreakTransform_Location_12
+            self.AnimGraphNode_ModifyBone_12.? = CallFunc_BreakTransform_Rotation_12
+            self.AnimGraphNode_ModifyBone_12.? = CallFunc_BreakTransform_Scale_12
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftForearm_4, CallFunc_BreakTransform_Location_13, CallFunc_BreakTransform_Rotation_13, CallFunc_BreakTransform_Scale_13)
+            self.AnimGraphNode_ModifyBone_13.? = CallFunc_BreakTransform_Location_13
+            self.AnimGraphNode_ModifyBone_13.? = CallFunc_BreakTransform_Rotation_13
+            self.AnimGraphNode_ModifyBone_13.? = CallFunc_BreakTransform_Scale_13
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftLeg_32, CallFunc_BreakTransform_Location_4, CallFunc_BreakTransform_Rotation_4, CallFunc_BreakTransform_Scale_4)
+            self.AnimGraphNode_ModifyBone_4.? = CallFunc_BreakTransform_Location_4
+            self.AnimGraphNode_ModifyBone_4.? = CallFunc_BreakTransform_Rotation_4
+            self.AnimGraphNode_ModifyBone_4.? = CallFunc_BreakTransform_Scale_4
+            pop_flow  // return to pushed flow
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftArm_2, CallFunc_BreakTransform_Location_14, CallFunc_BreakTransform_Rotation_14, CallFunc_BreakTransform_Scale_14)
+            self.AnimGraphNode_ModifyBone_14.? = CallFunc_BreakTransform_Location_14
+            self.AnimGraphNode_ModifyBone_14.? = CallFunc_BreakTransform_Rotation_14
+            self.AnimGraphNode_ModifyBone_14.? = CallFunc_BreakTransform_Scale_14
+            pop_flow  // return to pushed flow
+            goto @853
+            KismetMathLibrary.BreakTransform(self.BoneTransforms.LeftUpLeg_31, CallFunc_BreakTransform_Location_5, CallFunc_BreakTransform_Rotation_5, CallFunc_BreakTransform_Scale_5)
+            self.AnimGraphNode_ModifyBone_5.? = CallFunc_BreakTransform_Location_5
+            self.AnimGraphNode_ModifyBone_5.? = CallFunc_BreakTransform_Rotation_5
+            self.AnimGraphNode_ModifyBone_5.? = CallFunc_BreakTransform_Scale_5
+            pop_flow  // return to pushed flow
+    @2842:  KismetMathLibrary.BreakTransform(self.BoneTransforms.Head_24, CallFunc_BreakTransform_Location_6, CallFunc_BreakTransform_Rotation_6, CallFunc_BreakTransform_Scale_6)
+            self.AnimGraphNode_ModifyBone_6.? = CallFunc_BreakTransform_Location_6
+            self.AnimGraphNode_ModifyBone_6.? = CallFunc_BreakTransform_Rotation_6
+            self.AnimGraphNode_ModifyBone_6.? = CallFunc_BreakTransform_Scale_6
+            pop_flow  // return to pushed flow
+    @3006:  KismetMathLibrary.BreakTransform(self.BoneTransforms.Spine1_21, CallFunc_BreakTransform_Location_7, CallFunc_BreakTransform_Rotation_7, CallFunc_BreakTransform_Scale_7)
+            self.AnimGraphNode_ModifyBone_7.? = CallFunc_BreakTransform_Location_7
+            self.AnimGraphNode_ModifyBone_7.? = CallFunc_BreakTransform_Rotation_7
+            self.AnimGraphNode_ModifyBone_7.? = CallFunc_BreakTransform_Scale_7
+            pop_flow  // return to pushed flow
+            goto @629
+            goto @1241
+            goto @2842
+            goto @1629
+            CallFunc_IsValid_ReturnValue = KismetSystemLibrary.IsValid(self.Lifeform1_Char)
+            if not (CallFunc_IsValid_ReturnValue) pop_flow
+            self.MonsterState = self.Lifeform1_Char.self.MonsterState
+            self.CurrentVelocity = self.Lifeform1_Char.self.CurrentWalkSpeedReplicated
+            self.CurrentCrouchHeight = self.Lifeform1_Char.self.CurrentCrouchHeightReplicated
+            self.AnimPlayRate = self.Lifeform1_Char.self.AnimationPlayRate
+            CallFunc_NearlyEqual_TransformTransform_ReturnValue = KismetMathLibrary.NearlyEqual_TransformTransform(self.Lifeform1_Char.self.TempLifeformBoneTransform.Spine_20, self.BoneTransforms.Spine_20, 0.01, 0.01, 0.01)
+            CallFunc_NearlyEqual_TransformTransform_ReturnValue_1 = KismetMathLibrary.NearlyEqual_TransformTransform(self.Lifeform1_Char.self.TempLifeformBoneTransform.LeftArm_2, self.BoneTransforms.LeftArm_2, 0.01, 0.01, 0.01)
+            CallFunc_EqualEqual_BoolBool_ReturnValue = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_NearlyEqual_TransformTransform_ReturnValue, false)
+            CallFunc_EqualEqual_BoolBool_ReturnValue_1 = KismetMathLibrary.EqualEqual_BoolBool(CallFunc_NearlyEqual_TransformTransform_ReturnValue_1, false)
+            CallFunc_BooleanOR_ReturnValue = KismetMathLibrary.BooleanOR(CallFunc_EqualEqual_BoolBool_ReturnValue_1, CallFunc_EqualEqual_BoolBool_ReturnValue)
+            if not (CallFunc_BooleanOR_ReturnValue) pop_flow
+            self.BoneTransforms = self.Lifeform1_Char.self.TempLifeformBoneTransform
+            pop_flow  // return to pushed flow
+            CallFunc_GetOwningActor_ReturnValue = AnimInstance.GetOwningActor()
+            K2Node_DynamicCast_AsLifeform_Char = Cast<Lifeform_Char_C>(CallFunc_GetOwningActor_ReturnValue)
+            K2Node_DynamicCast_bSuccess = CST_ObjectToBool(K2Node_DynamicCast_AsLifeform_Char)
+            if not (K2Node_DynamicCast_bSuccess) pop_flow
+            goto @70
+            goto @3006
+    @3874:  return

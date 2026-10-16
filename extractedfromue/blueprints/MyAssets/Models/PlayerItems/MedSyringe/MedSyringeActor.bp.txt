@@ -1,0 +1,36 @@
+// Content\MyAssets\Models\PlayerItems\MedSyringe\MedSyringeActor
+
+== class MedSyringeActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var MedSyringe: Object
+  var DefaultSceneRoot: Object
+  var Reviving: Bool
+
+== class ExecuteUbergraph_MedSyringeActor : 
+  var EntryPoint: Int
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_MedSyringeActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            goto computed(EntryPoint)
+            K2Node_Event_Player.Revive()
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            MedSyringeActor_C.ExecuteUbergraph_MedSyringeActor(10)
+            return

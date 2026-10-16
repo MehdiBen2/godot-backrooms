@@ -1,0 +1,139 @@
+// Content\MyAssets\Models\PlayerItems\Camera\PhysicalPictureActor
+
+== class PhysicalPictureActor_C : Class'Actor'
+  var UberGraphFrame: Struct
+  var Plane: Object
+  var DefaultSceneRoot: Object
+  var PictureMaterial: Object
+  var ImageLocation: Struct
+  var ImageInfo: Struct
+  var CanBeRemoved: Bool
+  var FoundIndex: Int
+
+== class ExecuteUbergraph_PhysicalPictureActor : 
+  var EntryPoint: Int
+  var CallFunc_GetAllActorsOfClass_OutActors: Array
+  var CallFunc_CreateDynamicMaterialInstance_ReturnValue: Object
+  var CallFunc_Array_Get_Item: Object
+  var CallFunc_K2_GetTextureParameterValue_ReturnValue: Object
+  var CallFunc_EqualEqual_IntInt_ReturnValue: Bool
+  var CallFunc_Array_Get_Item_1: Struct
+  var CallFunc_Array_Get_Item_2: Struct
+  var CallFunc_Array_Get_Item_3: Struct
+  var CallFunc_Array_Get_Item_4: Int
+  var CallFunc_Array_Get_Item_5: Object
+  var CallFunc_Array_Get_Item_6: Object
+  var CallFunc_EqualEqual_ObjectObject_ReturnValue: Bool
+  var K2Node_Event_PlayerLocation: Struct
+  var K2Node_Event_Player_1: Object
+  var K2Node_Event_IsFalling: Bool
+  var K2Node_Event_CurrentSelectedSeat: Int
+  var K2Node_Event_CurrentItemInfo: Struct
+  var K2Node_Event_Player: Object
+  var CallFunc_GetAllActorsOfClass_OutActors_1: Array
+  var CallFunc_Array_Get_Item_7: Object
+  var CallFunc_Array_Get_Item_8: Object
+  var CallFunc_Array_Find_ReturnValue: Int
+  var CallFunc_EqualEqual_IntInt_ReturnValue_1: Bool
+
+== class GetInteractText : 
+  var Player: Object
+
+== class PlayerInteract : 
+  var PlayerLocation: Struct
+  var Player: Object
+  var IsFalling: Bool
+  var CurrentSelectedSeat: Int
+  var CurrentItemInfo: Struct
+
+function ExecuteUbergraph_PhysicalPictureActor  [FUNC_Final | FUNC_UbergraphFunction | FUNC_HasDefaults]
+            push_flow @3377
+            goto computed(EntryPoint)
+    @15:    CallFunc_EqualEqual_IntInt_ReturnValue = KismetMathLibrary.EqualEqual_IntInt(self.ImageLocation.QuantityIndex_2, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue) goto @127
+            KismetSystemLibrary.Delay(self, 0.1, LatentActionInfo{15, -1151442353, "ExecuteUbergraph_PhysicalPictureActor", self})
+            pop_flow  // return to pushed flow
+    @127:   Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].Image_3, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_5)
+            self.PictureMaterial.MaterialInstanceDynamic.SetTextureParameterValue("CameraImage", CallFunc_Array_Get_Item_5)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].Image_3, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_6)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.ImageInfo.Image_3, CallFunc_Array_Get_Item_6, 0)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].Value_7, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_4)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.ImageInfo.Value_7, CallFunc_Array_Get_Item_4, 0)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].CameraPictureTransform_16, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_3)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.ImageInfo.CameraPictureTransform_16, CallFunc_Array_Get_Item_3, 0)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].SubjectsTags_11, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_2)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.ImageInfo.SubjectsTags_11, CallFunc_Array_Get_Item_2, 0)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].SubjectTypeTags_20, 0, CallFunc_Array_Get_Item_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Insert(self.ImageInfo.SubjectTypeTags_20, CallFunc_Array_Get_Item_1, 0)
+            self.CanBeRemoved = true
+            pop_flow  // return to pushed flow
+            CallFunc_CreateDynamicMaterialInstance_ReturnValue = self.Plane.CreateDynamicMaterialInstance(0, Obj<CameraPhotoMaterial_Inst>, "None")
+            self.PictureMaterial = CallFunc_CreateDynamicMaterialInstance_ReturnValue
+            self.Plane.SetMaterial(0, CallFunc_CreateDynamicMaterialInstance_ReturnValue)
+            CallFunc_GetAllActorsOfClass_OutActors = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CameraImageHandler_C>, CallFunc_GetAllActorsOfClass_OutActors)
+            CallFunc_K2_GetTextureParameterValue_ReturnValue = self.PictureMaterial.MaterialInstanceDynamic.K2_GetTextureParameterValue("CameraImage")
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors, 0, CallFunc_Array_Get_Item)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_Array_Get_Item.self.CameraImages[self.ImageLocation.QuantityIndex_2].Image_3, self.ImageLocation.PictureIndex_4, CallFunc_Array_Get_Item_5)
+            CallFunc_EqualEqual_ObjectObject_ReturnValue = KismetMathLibrary.EqualEqual_ObjectObject(CallFunc_K2_GetTextureParameterValue_ReturnValue, CallFunc_Array_Get_Item_5)
+            if not (CallFunc_EqualEqual_ObjectObject_ReturnValue) goto @15
+            pop_flow  // return to pushed flow
+            if not (self.CanBeRemoved) pop_flow
+            MULTI: RemoveImageFromBoard()
+            pop_flow  // return to pushed flow
+            K2Node_Event_Player.self.InteractText = Text({"Token": "EX_StringConst", "Value": "Remove Picture"})
+            pop_flow  // return to pushed flow
+    @2121:  K2_DestroyActor()
+            pop_flow  // return to pushed flow
+            CallFunc_GetAllActorsOfClass_OutActors_1 = []
+            GameplayStatics.GetAllActorsOfClass(self, Obj<CorkBoardActor_C>, CallFunc_GetAllActorsOfClass_OutActors_1)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ImageInfo.Image_3, 0, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.Image_3, CallFunc_Array_Get_Item_8)
+            CallFunc_EqualEqual_IntInt_ReturnValue_1 = KismetMathLibrary.EqualEqual_IntInt(CallFunc_Array_Find_ReturnValue, -1)
+            if not (CallFunc_EqualEqual_IntInt_ReturnValue_1) goto @2447
+            goto @2121
+    @2447:  Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(self.ImageInfo.Image_3, 0, CallFunc_Array_Get_Item_8)
+            CallFunc_Array_Find_ReturnValue = Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Find(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.Image_3, CallFunc_Array_Get_Item_8)
+            self.FoundIndex = CallFunc_Array_Find_ReturnValue
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.Image_3, self.FoundIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.Value_7, self.FoundIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.CameraPictureTransform_16, self.FoundIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.SubjectsTags_11, self.FoundIndex)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Get(CallFunc_GetAllActorsOfClass_OutActors_1, 0, CallFunc_Array_Get_Item_7)
+            Obj<Default__KismetArrayLibrary>.KismetArrayLibrary.Array_Remove(CallFunc_Array_Get_Item_7.self.ImagesOnBoard.SubjectTypeTags_20, self.FoundIndex)
+            goto @2121
+    @3377:  return
+
+function GetInteractText  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_Player = Player
+            PhysicalPictureActor_C.ExecuteUbergraph_PhysicalPictureActor(2026)
+            return
+
+function MULTI: RemoveImageFromBoard  [FUNC_Net | FUNC_NetReliable | FUNC_NetMulticast | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            PhysicalPictureActor_C.ExecuteUbergraph_PhysicalPictureActor(2136)
+            return
+
+function PlayerInteract  [FUNC_Public | FUNC_BlueprintCallable | FUNC_BlueprintEvent]
+            frame.K2Node_Event_PlayerLocation = PlayerLocation
+            frame.K2Node_Event_Player_1 = Player
+            frame.K2Node_Event_IsFalling = IsFalling
+            frame.K2Node_Event_CurrentSelectedSeat = CurrentSelectedSeat
+            frame.K2Node_Event_CurrentItemInfo = CurrentItemInfo
+            PhysicalPictureActor_C.ExecuteUbergraph_PhysicalPictureActor(2001)
+            return
+
+function ReceiveBeginPlay  [FUNC_Event | FUNC_Protected | FUNC_BlueprintEvent]
+            PhysicalPictureActor_C.ExecuteUbergraph_PhysicalPictureActor(1538)
+            return
