@@ -153,6 +153,7 @@ var bob_rate := 5.3              # how fast `bob` runs right now (rad/s): one st
 var stair_w := 0.0               # eased 0..1: how much of a stair flight is underfoot
 var stair_vy := 0.0              # smoothed climb rate on a flight (m/s, + up)
 var stair_prev_y := 0.0
+var stair_hold := 0.0            # s left of counting as on a flight after the last frame the slope was felt (the contact flickers)
 var breath := 0.0
 var click_player: AudioStreamPlayer
 var click_on: AudioStream = load("res://audio/items/torch/on.mp3")
@@ -765,13 +766,17 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	# it hangs, then drops as the foot lands. Nothing at a footfall itself, so it joins the bob seamlessly.
 	var dy := global_position.y - stair_prev_y
 	stair_prev_y = global_position.y
-	var on_flight := walking and is_on_floor() and _on_stair_flight()
+	# (the slope contact can drop out for a tick as the floor snap re-seats you; that must not switch the effect
+	# off and on again, or the head judders)
+	if walking and is_on_floor() and _on_stair_flight(): stair_hold = 0.15
+	else: stair_hold = maxf(0.0, stair_hold - dt)
+	var on_flight := walking and stair_hold > 0.0
 	if absf(dy) < 0.5:                                      # not a teleport or the floor swap on a far landing
-		stair_vy = lerpf(stair_vy, dy / maxf(dt, 0.0001) if on_flight else 0.0, minf(1.0, dt * 10.0))
-	stair_w = lerpf(stair_w, 1.0 if on_flight else 0.0, minf(1.0, dt * 6.0))
+		stair_vy = lerpf(stair_vy, dy / maxf(dt, 0.0001) if on_flight else 0.0, minf(1.0, dt * 4.0))
+	stair_w = lerpf(stair_w, 1.0 if on_flight else 0.0, minf(1.0, dt * 4.0))
 	if stair_w > 0.001:
 		var stair_p := fposmod(bob, PI) / PI                # 0 at a footfall .. 1 at the next
-		var stair_h := minf(absf(stair_vy) * PI / maxf(bob_rate, 0.1), 0.45)    # height won per step
+		var stair_h := minf(absf(stair_vy) * PI / maxf(bob_rate, 0.1), 0.2)    # height won per step
 		var stair_lift := (1.0 - pow(1.0 - stair_p, 2.5)) - stair_p if stair_vy > 0.0 else stair_p - pow(stair_p, 2.5)
 		y += stair_lift * stair_h * stair_w * head_bob * 0.8
 		if stair_vy > 0.0:

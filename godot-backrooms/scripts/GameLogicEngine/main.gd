@@ -30,11 +30,33 @@ func _ready() -> void:
 	if Game.respawned:
 		# respawn (death.js finishRespawn): straight back into the game, no title screen
 		Game.respawned = false
+		_respawn_beside_survivor()
 		set_paused(false)
 	else:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
 	preload("res://scripts/GameLogicEngine/load_manifest.gd").finish(get_tree())    # what this build read, kept for next time
+
+## Co-op: a player who died comes back beside the nearest living teammate instead of at the level's start
+func _respawn_beside_survivor() -> void:
+	if not Net.is_online():
+		return
+	var best := {}
+	var best_d := INF
+	for s in Net.survivors():
+		if s.local:
+			continue
+		var d: float = player.global_position.distance_squared_to(s.pos)
+		if d < best_d:
+			best_d = d
+			best = s
+	if best.is_empty():
+		return
+	var fwd: Vector3 = best.fwd
+	player.global_position = best.pos - fwd * 1.2      # a step behind them, so they don't spawn in their face
+	player.rotation.y = atan2(-fwd.x, -fwd.z)
+	if player is CharacterBody3D:
+		(player as CharacterBody3D).velocity = Vector3.ZERO
 
 func toggle_fullscreen() -> void:
 	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN

@@ -18,24 +18,42 @@ const END_IN := 1
 const END_OUT := 2
 var _faces: Array = []
 
+## Wall to the trim: a wall block, or the box of a stairwell (skirted and finished like the walls it stands in)
+func _trim_wall(c: Vector2i) -> bool:
+	return _block_at(c) or stair_cells.has(c)
+
 func _wall_faces() -> Array:
 	var out: Array = []
+	var doorways := {}                    # [open cell, way to the wall] -> the stairwell whose doorway is in that face
+	for o: Dictionary in objects:
+		if is_stairs(str(o.type)):
+			var dir := stair_dir(o)
+			doorways[[Vector2i(roundi(o.pos_x), roundi(o.pos_y)) - dir, dir]] = o
 	for x in range(1, size - 1):
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
-			if _block_at(c) or pits.has(c) or stair_cells.has(c) or arch_cells.has(c): continue
+			if _trim_wall(c) or pits.has(c) or arch_cells.has(c): continue
 			if not crop.is_empty() and not crop.has(c): continue
 			if edge_wrap and wrap_ring.has(c): continue
 			for n: Vector2i in DIRS:
-				if not _block_at(c + n): continue
+				if not _trim_wall(c + n): continue
 				if edge_wrap and wrap_ring.has(c + n): continue          # (the copy beyond the seam draws that one)
 				var t := Vector2i(-n.y, n.x)
 				var ends := []
 				for s: Vector2i in [-t, t]:
-					if _block_at(c + s): ends.append(END_IN)
-					elif _block_at(c + s + n): ends.append(END_ON)
+					if _trim_wall(c + s): ends.append(END_IN)
+					elif _trim_wall(c + s + n): ends.append(END_ON)
 					else: ends.append(END_OUT)
-				out.append({"c": c, "n": n, "t": t, "ends": ends})
+				var face := {"c": c, "n": n, "t": t, "ends": ends}
+				if doorways.has([c, n]):
+					# the doorway's edges along this face (m from its middle): the skirting stops short of them
+					var xf := _stair_xf(doorways[[c, n]])
+					var mid := Vector3((c.x + n.x * 0.5) * CELL, 0.0, (c.y + n.y * 0.5) * CELL)
+					var along := Vector3(t.x, 0.0, t.y)
+					var d0 := (xf * Vector3(-CELL * 0.5, 0.0, 1.3) - mid).dot(along)
+					var d1 := (xf * Vector3(-CELL * 0.5, 0.0, 3.5) - mid).dot(along)
+					face["door"] = [minf(d0, d1), maxf(d0, d1)]
+				out.append(face)
 	return out
 
 ## Where face `f` is: the middle of it on the floor (world), its normal out into the room, and along it
@@ -145,6 +163,12 @@ func _build_skirting() -> void:
 		var b := mid + along * (CELL * 0.5)
 		var sa: float = MITRE[f.ends[0]]
 		var sb: float = MITRE[f.ends[1]]
+		if f.has("door"):                 # a stairwell's doorway: a run each side of it, butting up to its casing
+			var lo: float = f.door[0] - SKIRT_STOP
+			var hi: float = f.door[1] + SKIRT_STOP
+			if lo > -CELL * 0.5 + 0.05: _skirt_run(_chunk_st(sts, mid), [a, mid + along * lo], [out - along * sa, out], [out, out], [out, out], false)
+			if hi < CELL * 0.5 - 0.05: _skirt_run(_chunk_st(sts, mid), [mid + along * hi, b], [out, out + along * sb], [out, out], [out, out], false)
+			continue
 		_skirt_run(_chunk_st(sts, mid), [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
 	# placed walls, pillars and columns: round the outline of each
 	for o: Dictionary in objects:
@@ -497,6 +521,7 @@ func _build_fittings() -> Array:
 	var switches: Array = []
 	var outlets: Array = []
 	for f: Dictionary in _faces:
+		if f.has("door"): continue
 		var c: Vector2i = f.c
 		var r := RandomNumberGenerator.new()
 		r.seed = hash(Vector4i(c.x, c.y, DIRS.find(f.n), floor_src(level_raw, floor_no) + 8117))
@@ -608,6 +633,7 @@ const WEAR_FOOT := Vector2(0.105, 0.72)          # the kick band: from the top o
 func _build_wall_wear(switches: Array) -> void:
 	var cards: Array = []                       # [transform, mode, seed, corner side, centre height]
 	for f: Dictionary in _faces:
+		if f.has("door"): continue
 		var fr := _face_frame(f)
 		var mid: Vector3 = fr[0]
 		var out: Vector3 = fr[1]
@@ -690,6 +716,7 @@ func _build_damp() -> void:
 	var span := CELL / (DAMP_PHOTO_H * DAMP_ASPECT)          # a face's width as a share of a photo's
 	var cards: Array = []
 	for f: Dictionary in _faces:
+		if f.has("door"): continue
 		var c: Vector2i = f.c
 		if liminal.has(c) or bright.has(c): continue        # (the kept, clean places)
 		var r := RandomNumberGenerator.new()

@@ -142,7 +142,7 @@ func _parse_floor(d: Dictionary) -> Dictionary:
 	_walls_joined += before - fd.objects.size()
 	# the old single "entity" cell (levels saved before entity marks were objects) becomes one bacteria mark
 	var old_ent = d.get("entity")
-	if old_ent is Array and old_ent.size() >= 2:
+	if int(d.get("version", 1)) < 2 and not d.has("objects") and old_ent is Array and old_ent.size() >= 2:
 		fd.objects.append({"type": "entity", "pos_x": float(old_ent[0]), "pos_y": float(old_ent[1]), "rotation": 0.0,
 			"scale": 1.0, "kind": "bacteria", "behavior": "roam"})
 	return fd
@@ -311,7 +311,7 @@ func _blank_level(nm: String) -> Dictionary:
 			row += FLOOR if (x >= 8 and x <= 15 and z >= 9 and z <= 14) else WALL
 		g.append(row)
 	return {"format": "backrooms_level", "version": 2, "name": nm, "size": s, "spawn": [9, 11], "exit": null,
-		"entity": [14, 13], "tv": null, "grid": g, "zones": {}, "objects": []}
+		"entity": null, "tv": null, "grid": g, "zones": {}, "objects": []}
 
 func _ask_delete() -> void:
 	if current < 0 or index.size() <= 1:

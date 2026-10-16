@@ -35,7 +35,10 @@ const SKY := {
 	"noon": [Color(0.30, 0.54, 0.93), Color(0.86, 0.92, 0.98), Color(0.62, 0.70, 0.74), Color(1.0, 0.97, 0.9), Color(1.0, 0.96, 0.9), 2.2],
 	"golden": [Color(0.36, 0.46, 0.76), Color(1.0, 0.83, 0.62), Color(0.62, 0.55, 0.5), Color(1.0, 0.76, 0.46), Color(1.0, 0.8, 0.56), 2.0],
 	"overcast": [Color(0.8, 0.82, 0.85), Color(0.93, 0.94, 0.95), Color(0.7, 0.72, 0.74), Color(0.25, 0.25, 0.25), Color(0.9, 0.93, 0.97), 1.8],
+	# night: a deep blue sky, the moon for a sun, a pale cold light thrown in (dimmed by NIGHT_GAIN)
+	"night": [Color(0.015, 0.025, 0.08), Color(0.05, 0.08, 0.17), Color(0.02, 0.025, 0.04), Color(0.85, 0.9, 1.0), Color(0.55, 0.65, 1.0), 1.0],
 }
+const NIGHT_GAIN := 0.12           # the moon's light against the sun's, for the same "sun" strength
 
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
 # style -> the model, the part of it that is this window ("nodes", all if none), what to leave out ("drop": its
@@ -263,6 +266,7 @@ func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bo
 func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float, panes: int) -> void:
 	var sky: Array = SKY.get(str(o.get("sky", "noon")), SKY.noon)
 	var power := maxf(float(o.get("sun", 8.0)), 0.0)
+	if str(o.get("sky", "noon")) == "night": power *= NIGHT_GAIN
 	if power <= 0.0: return
 	var overcast := str(o.get("sky", "noon")) == "overcast"
 	var d := _sun_dir_local(o)

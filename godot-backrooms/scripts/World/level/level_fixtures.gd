@@ -21,7 +21,7 @@ const PANEL_GLOW := Color(3.6, 3.25, 2.75)  # HDR emission multiplier over the (
 # a panel ceiling is one lamp per lit cell in a perfectly regular grid: with too few dead or failing ones it reads
 # as a repeating pattern, so its lamps fail far more often than a troffer's tubes
 const PANEL_BURNT_CHANCE := 0.22
-const PANEL_FLICKER_CHANCE := 0.15
+const PANEL_FLICKER_CHANCE := 0.05
 const PANEL_DYING_CHANCE := 0.12
 const PANEL_AGE := 0.45             # how far an old panel's output can fall (a troffer tube: 0.15)
 const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]

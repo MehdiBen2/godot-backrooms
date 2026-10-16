@@ -15,6 +15,7 @@ const GridNav := preload("res://scripts/World/grid_nav.gd")
 const MannequinModel := preload("res://scripts/Entities/mannequin/mannequin_model.gd")
 const MannequinCrowd := preload("res://scripts/Entities/mannequin/mannequin_crowd.gd")
 const MannequinSnap := preload("res://scripts/Entities/mannequin/mannequin_snap.gd")
+const Blink := preload("res://scripts/Player/blink.gd")
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
 const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const CELL := 4.5
@@ -133,6 +134,7 @@ var t_fwd := Vector3.FORWARD
 var _net_t := 0.0
 var _view_t := 0.0
 var _snap_cd := {}
+var _watch := {}                  # {id, t, pos, at, blinked, cut} while another survivor is being killed (net_watch_kill)
 
 # the kill in progress (mannequin_snap.gd)
 var snap_active: bool:
@@ -167,7 +169,7 @@ func lod_position() -> Vector3:
 	return real_node.global_position if real_node != null else global_position
 
 func lod_engaged() -> bool:
-	return awake or snap.active
+	return awake or snap.active or not _watch.is_empty()
 
 # ================================================================= room
 ## The room's cells: the level's painted Mannequin zone (level editor), else the fixed ROOM rectangle
@@ -259,6 +261,7 @@ func reset() -> void:
 	for c in get_children():
 		c.queue_free()
 	killed = false
+	_watch = {}
 	hunt_clock = 0.0
 	rest_left = 0.0
 	rest_count = 0
@@ -736,18 +739,26 @@ func _physics_process_timed(delta: float) -> void:
 		return
 	if snap.active:
 		snap.update(delta)
+		if online and not puppet:
+			_net_send(delta)                     # the others watch it at your neck
 		return
 	# far from its room and nothing has woken it (EntityLOD ASLEEP): nothing to do until you come near
-	if not online and not awake and EntityLOD.tier(self) == EntityLOD.ASLEEP and not in_zone(player.global_position):
+	if not online and not awake and _watch.is_empty() and EntityLOD.tier(self) == EntityLOD.ASLEEP and not in_zone(player.global_position):
 		return
 	if puppet:
-		_puppet_step(delta)
+		if _watch.is_empty():
+			_puppet_step(delta)
+		else:
+			_update_watch(delta)                 # our own staging of a kill, not the host's (see net_watch_kill)
 		_view_t -= delta
 		if _view_t <= 0.0:
 			_view_t = 0.1
 			Net.send_mq_view(Game.playing and not player.dead and seen(real_node.position))
 	else:
-		update_real(delta)
+		if _watch.is_empty():
+			update_real(delta)
+		else:
+			_update_watch(delta)
 		if online:
 			_net_send(delta)
 	if Game.playing:
@@ -805,6 +816,130 @@ func _puppet_step(delta: float) -> void:
 		if net_step_idx >= 0 and moving:
 			_footfall(st.pos, idx)
 		net_step_idx = idx
+
+## Another survivor's machine has started its neck snap (net.gd, on every machine but theirs). Each of us
+## stages it ourselves, so the cut lines up with our own eyes: it holds still where it caught them while
+## they shake; at the crack anyone looking at them blinks, and the lids open on it right behind them, hands
+## on their head, neck broken. It never moves while it is seen (see _update_watch).
+func net_watch_kill(id: int) -> void:
+	var r: Node3D = Net.remotes.get(id)
+	if r == null or not is_instance_valid(r):
+		return
+	if watch_kill(r.target_pos, r.rotation.y, id):       # their body's facing: the clip turns the head on it
+		_snap_cd[id] = Time.get_ticks_msec() / 1000.0 + 25.0
+
+## Stages the kill on a body standing at `at` facing `yaw` (it faces -Z): a survivor over the network, or a
+## debug stand-in. `body`, if it has a `time_scale` (the debug walker's slow motion), sets the pace.
+func watch_kill(at: Vector3, yaw: float, id := -1, body: Node = null) -> bool:
+	if not ready_ok or real_node == null or snap.active or not _watch.is_empty():
+		return false
+	var behind := _spot_behind(at, yaw, MannequinSnap.SNAP_DISTANCE)
+	_watch = {"id": id, "t": 0.0, "pos": behind, "at": at, "blinked": false, "cut": false, "body": body}
+	moving = false
+	return true
+
+## Where it stands `dist` behind a body at `at` facing `yaw`: straight behind if that's open floor, else the
+## nearest open spot round their back (their back to a wall), else wherever it can get
+func _spot_behind(at: Vector3, yaw: float, dist: float) -> Vector3:
+	var fwd := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	for ang in [0.0, 0.5, -0.5, 1.0, -1.0, 1.57, -1.57]:
+		var want := at - fwd.rotated(Vector3.UP, ang) * dist
+		var got := nav.resolve(want, RADIUS)
+		if Vector2(got.x - want.x, got.z - want.z).length() < 0.1:
+			got.y = 0.0
+			return got
+	var spot := nav.resolve(at - fwd * dist, RADIUS)
+	spot.y = 0.0
+	return spot
+
+## A blink long enough to hide their head going round (death_neck_snap's whip and settle) and its cut
+const WATCH_BLINK := 1.6
+
+func _update_watch(delta: float) -> void:
+	var body = _watch.body
+	var rate: float = body.get("time_scale") if body != null and is_instance_valid(body) and body.get("time_scale") != null else 1.0
+	_watch.t += delta * rate
+	var at: Vector3 = _watch.at
+	var pos: Vector3 = _watch.pos
+	var slow := WATCH_BLINK / maxf(rate, 0.05)          # in slow motion the lids stay down as long, in its time
+	var lids := Blink.CLOSE * sqrt(slow) * rate
+	# the crack is coming: if you are looking at them or at it, your eyes shut on it, the lids meeting right
+	# as the head goes round
+	if not _watch.blinked and _watch.t >= MannequinSnap.SNAP_AT - lids:
+		_watch.blinked = true
+		if player.blink != null and (seen(Vector3(at.x, 0.0, at.z)) or seen(real_node.position) or seen(pos)):
+			player.blink.blink(slow)
+	# the cut: only once the crack has come, and only while you can't see it (eyes shut, looking away)
+	if not _watch.cut and _watch.t >= MannequinSnap.SNAP_AT and not seen(real_node.position) and not seen(pos):
+		_watch.cut = true
+		real_node.position = pos
+		real_yaw = atan2(at.x - pos.x, at.z - pos.z)
+		real_node.rotation.y = real_yaw
+		set_pose(MannequinSnap.pose_at(_watch.t))
+	# done: it goes back to hunting (or, for a guest, to following the host) when nobody here sees the change
+	if _watch.t > MannequinSnap.TOTAL + 0.5 and (not puppet or not seen(real_node.position)):
+		_watch = {}
+		if not hunt.is_empty():
+			hunt.move_to = null                  # the next step starts from where it stands now
+
+## Debug: stands it where it has just caught a body at `at` facing `yaw` (a step behind, facing it), out of
+## sight: call it with your eyes shut
+func _debug_catch(at: Vector3, yaw: float) -> void:
+	var caught := _spot_behind(at, yaw, 1.0)
+	real_node.position = caught
+	real_yaw = atan2(at.x - caught.x, at.z - caught.z)
+	real_node.rotation.y = real_yaw
+
+## Debug: open floor a few metres ahead of you, in plain view (your feet's height)
+func _open_spot_ahead() -> Vector3:
+	var p0 := player.global_position
+	var fwd := player_forward()
+	var at := p0 + fwd * 2.0
+	for d in [3.5, 3.0, 2.5, 2.0]:
+		var want: Vector3 = p0 + fwd * float(d)
+		var c := nav.resolve(want, RADIUS + 0.2)
+		if Vector2(c.x - want.x, c.z - want.z).length() < 0.05 and nav.clear_line(p0.x, p0.z, c.x, c.z, 0.3):
+			at = c
+			break
+	at.y = p0.y
+	return at
+
+## Debug: summons it if this level has none out. False if it can't be had here, or a kill is already on.
+func _debug_ready() -> bool:
+	if snap.active or not _watch.is_empty() or player.blink == null or player.frozen:
+		return false
+	process_mode = Node.PROCESS_MODE_INHERIT
+	visible = true
+	if real_node == null:
+		summoned = true
+		reset()
+	return real_node != null
+
+## Debug (the animation tab's walker): its neck snap with the real thing round it. Your eyes shut, and it is
+## standing just behind the walker when they open; then the kill is staged on the walker exactly as on a
+## friend (you blink at the crack), at the walker's slow-motion pace. False if there's no mannequin to be had.
+func debug_walker_kill(w: Node3D) -> bool:
+	if not _debug_ready():
+		return false
+	_debug_walker_run(w)
+	return true
+
+func _debug_walker_run(w: Node3D) -> void:
+	while player.blink.blinking():
+		await get_tree().process_frame
+	player.blink.blink(2.0)
+	await player.blink.closed
+	if not is_instance_valid(w):
+		return
+	var home: Vector3 = w.global_position
+	var open := nav.resolve(home, RADIUS)
+	if Vector2(open.x - home.x, open.z - home.z).length() > 0.05:
+		w.move_home(_open_spot_ahead())        # it was summoned into a wall: out onto the floor, unseen
+	w.prepare_kill()
+	_debug_catch(w.global_position, w.kill_yaw())
+	await get_tree().create_timer(0.3, false).timeout   # (still behind your lids)
+	if is_instance_valid(w) and w.snap_neck():
+		watch_kill(w.global_position, w.kill_yaw(), -1, w)
 
 # The host says the real one has reached this survivor: play the neck snap here
 func net_snap() -> void:
@@ -1001,6 +1136,52 @@ func debug_spawn() -> bool:
 	visible = true
 	reset()
 	return true
+
+## Debug: watch it kill another survivor, the way a friend sees it in co-op. Under a blink a stand-in
+## (remote_player.gd, fed snapshots as the network would) appears a few metres in front of you, side-on,
+## with the real one just behind it where it caught them; then the kill runs through net_watch_kill like
+## the real thing (you blink at the crack), and the body lies there a while. False if this level has no
+## mannequin, or a kill is already going on.
+const DEBUG_VICTIM := 7777
+func debug_watch_kill() -> bool:
+	if Net.remotes.has(DEBUG_VICTIM) or not _debug_ready():
+		return false
+	_debug_watch_run()
+	return true
+
+func _debug_watch_run() -> void:
+	while player.blink.blinking():
+		await get_tree().process_frame
+	player.blink.blink(2.0)
+	await player.blink.closed
+	# a clear spot ahead of you; they stand side-on (facing your left), it a step behind them
+	var at := _open_spot_ahead()
+	var yaw := player.rotation.y + PI / 2.0
+	_debug_catch(at, yaw)
+	var r: Node3D = load("res://scripts/Net/remote_player.gd").new()
+	r.peer_id = DEBUG_VICTIM
+	add_child(r)                                  # goes with the level (reset() clears it too)
+	r.set_label("STAND-IN")
+	Net.remotes[DEBUG_VICTIM] = r
+	r.tree_exiting.connect(func(): Net.remotes.erase(DEBUG_VICTIM))
+	# a snapshot every 0.05 s, as the network would: standing, torch on, playing; dead from TOTAL in
+	var t := 0.0
+	var kill_at := 0.3                            # (once they have a body, still behind your lids)
+	var started := false
+	var t0 := SnapBuffer.now()
+	while is_instance_valid(r):
+		t = SnapBuffer.now() - t0
+		var dead := t >= kill_at + MannequinSnap.TOTAL
+		r.push_state(SnapBuffer.now(), at, yaw, 0.0, 0.0, 2 | 8 | (4 if dead else 0), Game.level_index, Game.level_floor)
+		if t >= kill_at and not started:
+			started = true
+			r.play_kill()
+			net_watch_kill(DEBUG_VICTIM)
+		# the body lies there a while, and goes when you aren't looking
+		if t > 14.0 and (not seen(at) or t > 40.0):
+			r.queue_free()
+			return
+		await get_tree().create_timer(0.05, false).timeout
 
 ## Debug: summon it and run the kill right now (it appears behind you, as in the real thing), to test the
 ## gasp / neck snap / voice without waiting for it to hunt you. False if this level has no mannequin.

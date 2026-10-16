@@ -283,6 +283,17 @@ func neck_snap() -> void:
 	if vs != null:
 		spawn_flat(vs, ClipLevels.gain(v, VOICE_RMS, VOICE_PEAK), "Voice")
 
+## Someone else's neck, out there where it happens (a survivor THE MANNEQUIN has: remote_player.gd)
+func neck_snap_at(pos: Vector3) -> void:
+	var s := _stream(NECK_SNAP_SOUND)
+	spawn3d(s if s != null else synth("neck_snap"), pos, 1.0, "Scares", 3.0, rng.randf_range(0.96, 1.03))
+
+## ...and their body going down onto the floor
+func body_fall_at(pos: Vector3) -> void:
+	var s := _stream(BODY_FALL)
+	if s != null:
+		spawn3d(s, pos, 0.9, "Scares", 3.0)
+
 ## The scream of falling down a bottomless pit; returns the player so the fall can cut it off
 func fall_scream() -> AudioStreamPlayer:
 	var s := _stream(FALL_SCREAM)

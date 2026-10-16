@@ -90,8 +90,8 @@ func _pbr_or(slot: String, _world := false) -> StandardMaterial3D:
 	return _pbr_by_id(_mat_id(slot))
 
 ## The textures/pbr folder a surface is made of: the level's pick, else the game's default (the ceiling: the
-## pool rooms' white tiles, Tile_White_Grid; the rest: the Level 0 look, "")
-const DEFAULT_MATERIALS := {"ceiling": "Tile_White_Grid"}
+## office drop ceiling with its light panels, Ceiling_Office_Lit; the rest: the Level 0 look, "")
+const DEFAULT_MATERIALS := {"ceiling": "Ceiling_Office_Lit"}
 func _mat_id(slot: String) -> String:
 	var id := str(level_data.get("materials", {}).get(slot, ""))
 	return id if id != "" else str(DEFAULT_MATERIALS.get(slot, ""))
@@ -920,7 +920,7 @@ func _outer_corners(c: Vector2i) -> int:
 ## A wall block, or a squeeze gap's jambs (they fill their cell edge to edge, so a block beside one keeps its
 ## corner square and the wall runs on flush)
 func _solid_at(c: Vector2i) -> bool:
-	if _block_at(c): return true
+	if _block_at(c) or stair_cells.has(c): return true      # (a stairwell's box is square and flush: no notch beside it)
 	if not carved.has(c): return false
 	if _squeeze_cells.is_empty():
 		for o: Dictionary in objects:

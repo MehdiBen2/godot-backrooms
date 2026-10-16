@@ -25,7 +25,7 @@ metadata/shader_params = {
 "dead_lens": 1.0,
 "lens_gloss": 1.0,
 "panel_dim": 0.07,
-"panel_flicker": 0.04,
+"panel_flicker": 0.01,
 "panel_off": 0.002,
 "panel_tint": 0.16,
 "panel_vary": 0.06,

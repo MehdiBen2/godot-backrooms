@@ -679,7 +679,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	g.add_child(_label("Lights", 13, UI_DIM))
 	lights_pick = OptionButton.new()
 	for l: Array in LIGHTS: lights_pick.add_item(l[1])
-	lights_pick.tooltip_text = "The ceiling's lights.\nCeiling panels: the ceiling's own light panels; a plain tiled ceiling (Tile_White_Grid, the default) gets squares of its tiles lit from behind.\nTroffers: hanging 1 x 4 fluorescent fixtures with their humming ballasts (the Level 0 look).\nNone: only what windows and the torch give"
+	lights_pick.tooltip_text = "The ceiling's lights.\nCeiling panels: the ceiling's own light panels; the default, Ceiling_Office_Lit, has its own; a plain tiled ceiling (Tile_White_Grid) gets squares of its tiles lit from behind.\nTroffers: hanging 1 x 4 fluorescent fixtures with their humming ballasts (the Level 0 look).\nNone: only what windows and the torch give"
 	lights_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lights_pick.item_selected.connect(func(_i): _mark_dirty())
 	g.add_child(lights_pick)
@@ -702,7 +702,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	lvl.add_child(wrap_check)
 	lvl.add_child(HSeparator.new())
 	lvl.add_child(_heading("Materials"))
-	lvl.add_child(_note("What every cell you have not painted is made of. The ceiling's default is Tile_White_Grid."))
+	lvl.add_child(_note("What every cell you have not painted is made of. The ceiling's default is Ceiling_Office_Lit."))
 	for slot in SLOTS:
 		var row := HBoxContainer.new()
 		lvl.add_child(row)
@@ -718,7 +718,7 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 		row.add_child(col)
 		col.add_child(_label(slot.capitalize() + ("  (Tiles zones)" if slot == "tiles" else ""), 12, UI_DIM))
 		var ob := OptionButton.new()
-		ob.add_item("Tile_White_Grid (default)" if slot == "ceiling" else "Game default")
+		ob.add_item("Ceiling_Office_Lit (default)" if slot == "ceiling" else "Game default")
 		for n in pbr_names: ob.add_item(n)
 		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ob.fit_to_longest_item = false
@@ -1778,7 +1778,7 @@ var _oi_rows := {}
 const DOOR_STYLES := ["level", "wood", "old_wood", "metal", "office", "glass", "security"]
 const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_sash"]
 const GLASSES := ["sky", "clear", "frosted"]
-const SKIES := ["noon", "golden", "overcast"]
+const SKIES := ["noon", "golden", "overcast", "night"]
 
 func _build_op_inspector(side: VBoxContainer) -> void:
 	op_insp = PanelContainer.new()
@@ -1816,7 +1816,7 @@ func _build_op_inspector(side: VBoxContainer) -> void:
 		_oi[key] = sb
 		_oi_rows[key] = [lbl, sb]
 	for f: Array in [["style", "Style", "The door's leaf / the window's frame"], ["glass", "Glass", "Onto the sky (a window out: the sun comes in), clear (into the next room: you see through it), frosted (light, no view)"],
-			["sky", "Sky", "The light's colour: a white noon sun, a low warm golden one, a flat bright overcast"]]:
+			["sky", "Sky", "The light's colour: a white noon sun, a low warm golden one, a flat bright overcast, or a dim blue moonlit night"]]:
 		var lbl := _label(f[1], 13, UI_DIM)
 		g.add_child(lbl)
 		var pick := OptionButton.new()

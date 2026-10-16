@@ -1,9 +1,6 @@
 {
   "drop_hole": null,
-  "entity": [
-    51.0,
-    46.0
-  ],
+  "entity": null,
   "exit": [
     50,
     26
@@ -572,15 +569,6 @@
       "type": "entity"
     },
     {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
       "custom_event": "",
       "delay": 0.0,
       "depth": 2.0,
@@ -636,111 +624,12 @@
       "type": "prop_box_c"
     },
     {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
       "elev": 0.0,
       "pos_x": 68.0,
       "pos_y": 27.444,
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_water_cooler"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
-      "behavior": "roam",
-      "kind": "bacteria",
-      "pos_x": 51.0,
-      "pos_y": 46.0,
-      "rotation": 0.0,
-      "scale": 1.0,
-      "type": "entity"
     }
   ],
   "sdfgi": true,

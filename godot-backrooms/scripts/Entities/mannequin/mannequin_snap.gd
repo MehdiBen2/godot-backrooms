@@ -44,6 +44,19 @@ func _smooth(x: float) -> float:
 func _noise(seed_v: float, time: float) -> float:
 	return sin(time * 13.1 + seed_v * 4.7) * 0.5 + sin(time * 7.3 + seed_v * 8.1) * 0.3 + sin(time * 23.7 + seed_v * 2.9) * 0.2
 
+## Its pose `t` s into the kill (shared with mannequin.gd, which stages it behind a survivor the others watch
+## die): arms out to your head; from the snap on, the head tipped over and the hands on your neck. It never
+## moves where it can be seen, so the two are a cut, not a tween: here the whip hides it, and the others
+## blink over it (mannequin.gd _update_watch). Once you're dead it stays exactly so.
+static func pose_at(t: float) -> Dictionary:
+	var k := 1.0 if t >= SNAP_AT else 0.0
+	var pose := MannequinModel.rest_pose()
+	var reach := 1.15 - 0.05 * k          # settles onto the neck, not raised above the head
+	pose.lean = 0.08; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
+	pose.armL = reach; pose.armR = reach; pose.splayL = 0.1 - 0.3 * k; pose.splayR = 0.1 - 0.3 * k
+	pose["align"] = 1.0
+	return pose
+
 func start() -> void:
 	var player: CharacterBody3D = m.player
 	var real: Node3D = m.real_node
@@ -79,10 +92,9 @@ func start() -> void:
 	var to := player.global_position - real.position
 	m.real_yaw = atan2(to.x, to.z)
 	real.rotation.y = m.real_yaw
-	var pose := MannequinModel.rest_pose()
-	pose.armL = 1.15; pose.armR = 1.15; pose.splayL = 0.1; pose.splayR = 0.1; pose.lean = 0.08
-	pose["align"] = 1.0
-	m.set_pose(pose)
+	m.set_pose(pose_at(0.0))
+	# the others see it happen to you: your suit plays the kill on their screens (remote_player.gd)
+	Net.send_mq_victim()
 
 func update(delta: float) -> void:
 	t += delta
@@ -98,14 +110,8 @@ func update(delta: float) -> void:
 	if turn_x > 0.0:
 		# it does NOT lunge or lean in: the body stays exactly where it stood behind you, and only the
 		# head tilts and the hands settle, so nothing reads as the figure sliding toward the camera
-		var k := 1.0 - pow(1.0 - turn_x, 4.0)
 		real.position = start_pos
-		var reach := 1.15 - 0.05 * k          # settles onto the neck, not raised above the head
-		var pose := MannequinModel.rest_pose()
-		pose.lean = 0.08; pose.headNod = 0.2 * k; pose.headTilt = 0.5 * k; pose.headYaw = 0.35 * k
-		pose.armL = reach; pose.armR = reach; pose.splayL = 0.1 - 0.3 * k; pose.splayR = 0.1 - 0.3 * k
-		pose["align"] = 1.0
-		m.set_pose(pose)
+		m.set_pose(pose_at(t))
 	var a := maxf(0.0, t - SNAP_AT)
 	trauma = maxf(0.0, trauma - delta * 1.1)
 	if t < SNAP_AT:

@@ -4,7 +4,9 @@ extends Node3D
 ## It paces a short lane next to where it was summoned: goes LANE metres one way, stops, turns round on the
 ## spot and comes back, keeping the chosen kind of step (backwards stays backwards). It sets itself side-on
 ## to you so the motion crosses the screen. Head tests stand still and turn the head; "circle" walks a loop
-## facing you, so the blend sweeps through every direction.
+## facing you, so the blend sweeps through every direction. snap_neck() plays THE MANNEQUIN's kill as the
+## others see it (death_neck_snap), side-on, and leaves it lying where it fell until revive(); the debug
+## console has the mannequin itself stage it round the walker (mannequin.gd debug_walker_kill).
 
 const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
@@ -38,12 +40,15 @@ const LOOKS := {
 const LANE := 3.0              # m each way
 const PAUSE := 0.45            # s stood still at each end before turning round
 const CIRCLE_RADIUS := 1.6     # m
+const KILL_DEAD_AT := 4.6      # s into the neck snap its own machine says dead (mannequin_snap.gd TOTAL)
 
 var move := "forward"
 var gait := "walk"
 var look := "ahead"
 var dead := false
+var killing := false           # THE MANNEQUIN has it (snap_neck)
 var time_scale := 1.0          # slow motion for this body only
+var _kill_t := 0.0
 
 var loco: SurvivorAnim.Locomotion
 var _floor: SurvivorAnim.FloorGuard
@@ -96,7 +101,7 @@ func set_move(m: String) -> void:
 		return
 	move = m
 	look = "ahead"
-	dead = false
+	revive()
 	_t = 0.0
 	global_position = _home
 	var d: Vector2 = MOVES[m][1]
@@ -125,24 +130,68 @@ func set_look(l: String) -> void:
 	if not LOOKS.has(l):
 		return
 	look = l
-	dead = false
+	revive()
 	if move != "idle":
 		move = "idle"
 		_phase = "move"
 	_face = _viewer_yaw + PI                    # turns to face you first (on the spot), then looks
 	_t = 0.0
 
+## THE MANNEQUIN's kill, as a friend watching sees it: stood side-on to you (the head going round reads),
+## frozen, the neck wrenched round, hanging, then down onto the knees and the floor. Dead from KILL_DEAD_AT,
+## as the real thing is, lying there until revive(). False if the suit has no death_neck_snap clip.
+func snap_neck() -> bool:
+	if loco == null:
+		return false
+	prepare_kill()
+	if not loco.play_kill():
+		return false
+	killing = true
+	_kill_t = 0.0
+	return true
+
+## Stands still in the middle of its lane, side-on to you, for the kill (the mannequin is set behind it first)
+func prepare_kill() -> void:
+	revive()
+	move = "idle"
+	look = "ahead"
+	_phase = "move"
+	global_position = _home
+	_face = kill_yaw()
+	if loco:
+		loco.face(_face)
+	rotation.y = _face
+
+## A new middle for its lane (and it stands there)
+func move_home(p: Vector3) -> void:
+	_home = p
+	global_position = p
+
+## Its facing for the kill (it faces -Z at rotation.y = this)
+func kill_yaw() -> float:
+	return _viewer_yaw + PI / 2.0
+
+## Back on its feet, whatever had it
+func revive() -> void:
+	dead = false
+	killing = false
+	if loco:
+		loco.end_kill()
+
 func _process(dt: float) -> void:
 	if loco == null:
 		return
 	var sdt := dt * time_scale
 	_t += sdt
+	if killing:
+		_kill_t += sdt
+		dead = _kill_t >= KILL_DEAD_AT
 	var speed: float = GAIT_SPEED[gait]
 	var vel := Vector3.ZERO
 	var aim := _face
 	var pitch := 0.0
 	var d: Vector2 = MOVES[move][1]
-	if dead:
+	if dead or killing:
 		pass
 	elif move == "circle":
 		# facing fixed, the way of travel going round: every direction in turn
@@ -185,9 +234,9 @@ func _process(dt: float) -> void:
 	loco.update(sdt, vel, vel.length(), sprint, crouch, dead, aim, pitch)
 	loco.tree.advance(sdt)
 	rotation.y = loco.body_yaw
-	_floor.on = not dead
+	_floor.on = not dead and not killing           # kneeling and lying are meant to be low
 	_caption.text = describe()
-	_caption.position.y = 0.9 if dead else (1.75 if crouch else 2.35)
+	_caption.position.y = 0.9 if dead or (killing and _kill_t > 4.0) else (1.75 if crouch else 2.35)
 
 ## A direction in a body's own frame (x right, y forward) facing `yaw` -> world (the body faces -Z).
 static func _world_dir(d: Vector2, yaw: float) -> Vector3:
@@ -198,6 +247,9 @@ static func _world_dir(d: Vector2, yaw: float) -> Vector3:
 ## One line for the console / panel: what it's doing and the clip that is mostly playing.
 func describe() -> String:
 	var what: String = MOVES[move][0]
+	if killing:
+		what = "NECK SNAP (THE MANNEQUIN) %.1f s%s  [death_neck_snap]" % [_kill_t, " - DEAD" if dead else ""]
+		return "%s%s" % [what, "  (SLOW x%.2f)" % time_scale if time_scale < 1.0 else ""]
 	if dead:
 		what = "DEAD"
 	elif MOVES[move][1] == Vector2.ZERO and move != "circle":

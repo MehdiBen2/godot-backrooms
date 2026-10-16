@@ -71,6 +71,8 @@ func _ready() -> void:
 	else:
 		spawned = false
 		visible = false
+		global_position = Vector3(99999.0, -99999.0, 99999.0)
+		scares.entity_breathe(0.0)
 		EntityLOD.register(self, {})
 
 # ================================================================= model
@@ -506,15 +508,17 @@ var _anim_acc := 0.0
 var _anim_odd := false
 
 func lod_spawned() -> bool:
-	return spawned and visible
+	return (has_mark() or summoned) and spawned and visible
 
 func lod_engaged() -> bool:
-	return spawned and (not (state == "roam" or state == "lurk") or stun_timer > 0.0 or grab.active())
+	return (has_mark() or summoned) and spawned and (not (state == "roam" or state == "lurk") or stun_timer > 0.0 or grab.active())
 
 func lod_spawn(at_mark: bool) -> void:
 	if not has_mark() and not summoned:
 		visible = false
 		spawned = false
+		global_position = Vector3(99999.0, -99999.0, 99999.0)
+		scares.entity_breathe(0.0)
 		return
 	spawned = true
 	visible = true
@@ -597,8 +601,8 @@ func _puppet_step(delta: float) -> void:
 
 # ---------------------------------------------------------------- fear, sanity, the kill
 func update_fear(delta: float) -> void:
-	if not Game.playing:
-		return                       # menu open (co-op): nothing may hurt you from there
+	if not Game.playing or not spawned or not visible:
+		return                       # menu open (co-op) or entity not active
 	var dist := global_position.distance_to(player.global_position)
 	var near: bool = dist < TERROR_DISTANCE and not player.dead
 	var hunts := hunting()
@@ -655,32 +659,30 @@ func net_apply(t: float, m: Array) -> void:
 	net.apply(t, m)
 
 ## The bacteria's mark on this floor: the first Entity object (object_types.json "entity") whose kind is bacteria,
-## or legacy single "entity" cell, or {} when there is none.
+## or {} when there is none.
 func _mark() -> Dictionary:
 	if level == null or not ("level_data" in level) or level.level_data == null:
 		return {}
 	var marks := EntityMarks.of_kind(level, "bacteria")
 	if not marks.is_empty():
 		return marks[0]
-	var sp = level.level_data.get("entity")
-	if sp is Array and sp.size() >= 2:
-		return {"pos_x": float(sp[0]), "pos_y": float(sp[1]), "behavior": "roam"}
 	return {}
 
 func has_mark() -> bool:
 	return not _mark().is_empty()
 
-## The cell it starts on: its mark, else the old "entity" cell (null when none is placed), else near the far end
+## The cell it starts on: its mark, else far off
 func _spawn_cell() -> Array:
 	var m := _mark()
 	if not m.is_empty():
 		return [roundi(float(m.get("pos_x", 0.0))), roundi(float(m.get("pos_y", 0.0)))]
-	return [n - 12, 18]
+	return [99999, 99999]
 
 func relocate() -> void:
 	if not has_mark() and not summoned:
 		spawned = false
 		visible = false
+		global_position = Vector3(99999.0, -99999.0, 99999.0)
 		scares.entity_breathe(0.0)
 		return
 	var sp := _spawn_cell()
@@ -708,6 +710,7 @@ func on_floor_changed() -> void:
 	else:
 		spawned = false
 		visible = false
+		global_position = Vector3(99999.0, -99999.0, 99999.0)
 		scares.entity_breathe(0.0)
 		EntityLOD.register(self, {})
 

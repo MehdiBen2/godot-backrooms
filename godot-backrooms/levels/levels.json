@@ -5,8 +5,8 @@
     "name": "Level 0: Floor Zero"
   },
   {
-    "file": "level_1_the_lobby.lvl",
-    "id": "level_1_the_lobby",
-    "name": "Level 1: The Lobby"
+    "file": "level_1_floor_1.lvl",
+    "id": "level_1_floor_1",
+    "name": "Level 1: floor 1"
   }
 ]

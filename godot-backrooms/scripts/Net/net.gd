@@ -27,7 +27,7 @@ const MAX_PLAYERS := 8
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 7
+const PROTOCOL := 8
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -872,6 +872,25 @@ func _mq_kill_rpc() -> void:
 	var mq := _scene_node("Mannequin")
 	if mq != null and mq.has_method("net_snap"):
 		mq.net_snap()
+
+## This machine's player: its neck snap has started (mannequin_snap.gd). Everyone else watches it on their
+## suit, and stages the real one for it on their own machine (mannequin.gd net_watch_kill: it never moves
+## where it is seen, so whoever is looking blinks at the crack and it is behind them when their eyes open).
+func send_mq_victim() -> void:
+	if is_online() and not multiplayer.get_peers().is_empty():
+		_mq_victim_rpc.rpc()
+
+@rpc("any_peer", "call_remote", "reliable")
+func _mq_victim_rpc() -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not _is_peer(id):
+		return
+	var r: Node = remotes.get(id)
+	if r != null and is_instance_valid(r) and r.has_method("play_kill"):
+		r.play_kill()
+	var mq := _scene_node("Mannequin")
+	if mq != null and mq.has_method("net_watch_kill"):
+		mq.net_watch_kill(id)
 
 # ---- THE MIMIC: the host runs the body, each survivor gets the same one ---------------------------
 func send_mm(m: Array) -> void:

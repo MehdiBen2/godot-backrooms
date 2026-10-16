@@ -717,7 +717,8 @@ func _build_anim_tab() -> Control:
 	top.add_child(_action_btn("SUMMON HERE", func(): _walker_summon(true)))
 	top.add_child(_action_btn("DISMISS", func(): _walker_off()))
 	top.add_child(_action_btn("DIE", func(): _walker_do(func(w): w.dead = true, true)))
-	top.add_child(_action_btn("REVIVE", func(): _walker_do(func(w): w.dead = false, true)))
+	top.add_child(_action_btn("NECK SNAP (MANNEQUIN)", func(): _walker_do(_walker_snap, true)))
+	top.add_child(_action_btn("REVIVE", func(): _walker_do(func(w): w.revive(), true)))
 	btn_walker_slow = _make_toggle_btn("SLOW MOTION 0.25x", Color(0.85, 0.6, 1.0), func(on):
 		_walker_do(func(w): w.time_scale = 0.25 if on else 1.0, false))
 	top.add_child(btn_walker_slow)
@@ -928,6 +929,7 @@ func _build_entities_tab() -> Control:
 		if m == null or not m.has_method("debug_snap_now"): return
 		if not m.debug_snap_now(): _print("Mannequin: no mannequin in this level to snap with")
 	))
+	man_box.add_child(_action_btn("WATCH A FRIEND DIE", func(): _watch_kill()))
 
 	# Mimic Row
 	var mim_box := HBoxContainer.new()
@@ -1580,7 +1582,8 @@ func _submit(line: String) -> void:
 		"help", "?":
 			_print("Cheats: noclip, invisible, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
 			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
-			_print("Walker: walker [%s|walk|run|crouch|look [%s]|die|revive|slow|off]" % ["|".join(AnimWalker.MOVES.keys()), "|".join(AnimWalker.LOOKS.keys())])
+			_print("Walker: walker [%s|walk|run|crouch|look [%s]|die|snap|revive|slow|off]" % ["|".join(AnimWalker.MOVES.keys()), "|".join(AnimWalker.LOOKS.keys())])
+			_print("Mannequin kill as a friend sees it: watchkill (a stand-in survivor, the mannequin and your blink)")
 			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
 			_print("Events: event <name>, event stop (ends them all), events (lists them)")
 			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
@@ -1589,6 +1592,8 @@ func _submit(line: String) -> void:
 			_print("Names: " + ", ".join(ORDER))
 			_print("Models (no AI): " + ", ".join(EntityRoster.ROSTER.keys()))
 			_print("Crash reports: crash (takes the game down on purpose, to see the crash window)")
+		"watchkill":
+			_watch_kill()
 		"crash":
 			_print("[color=red]crashing on purpose...[/color]")
 			Crash.test_crash.call_deferred()
@@ -2034,8 +2039,10 @@ func _walker_command(arg: String) -> void:
 				walker.set_look(which)
 		"die", "dead":
 			_walker_do(func(w): w.dead = true, false)
+		"snap", "necksnap":
+			_walker_do(_walker_snap, false)
 		"revive":
-			_walker_do(func(w): w.dead = false, false)
+			_walker_do(func(w): w.revive(), false)
 		"slow":
 			_walker_do(func(w): w.time_scale = 1.0 if w.time_scale < 1.0 else 0.25, false)
 		_:
@@ -2045,6 +2052,27 @@ func _walker_command(arg: String) -> void:
 				_print("[color=orange]walker what? %s[/color]" % ", ".join(keys))
 				return
 	_walker_report()
+
+## THE MANNEQUIN's kill as a friend sees it in co-op (mannequin.gd debug_watch_kill): the menu closes to watch
+func _watch_kill() -> void:
+	var m = root.get_node_or_null("Mannequin")
+	if m == null or not m.has_method("debug_watch_kill"):
+		return
+	if not m.debug_watch_kill():
+		_print("Mannequin: can't stage it here (no mannequin on this level, or a kill is already on)")
+		return
+	_print("Mannequin: a stand-in survivor, a few metres ahead. Keep watching it.")
+	if menu_window.visible:
+		_toggle(false)
+
+## The walker's neck snap with the mannequin round it and your blink (as a friend sees it); just the clip if
+## this level has no mannequin to be had
+func _walker_snap(w: AnimWalker) -> void:
+	var m = root.get_node_or_null("Mannequin")
+	if m != null and m.has_method("debug_walker_kill") and m.debug_walker_kill(w):
+		return
+	if not w.snap_neck():
+		_print("Walker: the suit has no death_neck_snap clip")
 
 func _walker_report() -> void:
 	var text := walker.describe() if is_instance_valid(walker) else "none"

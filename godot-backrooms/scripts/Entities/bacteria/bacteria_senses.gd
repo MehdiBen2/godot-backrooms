@@ -23,6 +23,8 @@ func target_pos() -> Vector3:
 	return Vector3.INF if tgt.dead else tgt.pos
 
 func hear(pos: Vector3, radius: float) -> void:
+	if not ("spawned" in self and self.spawned):
+		return
 	if entity_noises.size() < 16:
 		entity_noises.append({"x": pos.x, "z": pos.z, "r": radius})
 
@@ -141,7 +143,7 @@ func _consider_noise(res: Dictionary, x: float, z: float, radius: float) -> void
 ## makes (walls in between cut the reach, it hears less while winded, further lying in wait); the
 ## HUD's noise meter (vitals_panel.gd) asks, to warn you while you are in earshot.
 func would_hear(pos: Vector3, radius: float) -> bool:
-	if radius <= 0.0 or process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree():
+	if radius <= 0.0 or process_mode == Node.PROCESS_MODE_DISABLED or not is_visible_in_tree() or not ("spawned" in self and self.spawned):
 		return false
 	var p := global_position
 	var r := radius * (LURK_HEAR if state == "lurk" else 1.0)

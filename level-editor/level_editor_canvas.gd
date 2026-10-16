@@ -73,6 +73,8 @@ var _last_painted_cell := Vector2i(-9999, -9999)
 var objects: Array = []              # {type, pos_x, pos_y, rotation, scale, <its type's params>}
 var selected := -1                   # index into objects
 var hover_obj := -1
+var stair_extend_dir := 0               # a stairs tool pressed on a stairwell: the way to carry it on if the press turns out a click
+var stair_press_at := Vector2.ZERO
 var drag := ""                       # "" | "move" | "rotate" | "place" | "line" | "chain" | "box"
 var multi: Array = []                # indices of a multi-selection (box drag or Shift+click); [] = just `selected`
 var group_start: Array = []          # [index, pos_x, pos_y] of each piece a group move started with
@@ -718,7 +720,7 @@ func _paint_colour(id: String) -> Color:
 # ---------------------------------------------------------------- material thumbnails
 # How a surface looks when the level sets no material: the game's own Level 0 textures
 const DEFAULT_TEX := {"wall": "textures/wall_color.png", "floor": "textures/l0_carpet_color.webp",
-	"ceiling": "textures/pbr/Tile_White_Grid/Tile_White_Grid_Color.jpg", "tiles": "textures/tiles_color.png"}   # (the ceiling: Tile_White_Grid, level_geometry.gd DEFAULT_MATERIALS)
+	"ceiling": "textures/pbr/Ceiling_Office_Lit/Ceiling_Office_Lit_Color.png", "tiles": "textures/tiles_color.png"}   # (the ceiling: Ceiling_Office_Lit, level_geometry.gd DEFAULT_MATERIALS)
 # ...and the tint the game puts over each (level_geometry.gd _mat / _wall_material)
 const DEFAULT_TINT := {"wall": Color(1.0, 0.98, 0.88), "floor": Color(1.0, 0.94, 0.75)}
 const THUMB := 128
@@ -897,7 +899,7 @@ func _draw_canvas() -> void:
 	_draw_markers()
 	if _object_tool():
 		if not show_objects: pass
-		elif hover_obj >= 0 and hover_obj != selected and drag == "":
+		elif hover_obj >= 0 and hover_obj < objects.size() and hover_obj != selected and drag == "":
 			_draw_outline(objects[hover_obj], Color(SEL, 0.6), 1.5)
 		elif hover.x >= 0 and hover_obj < 0 and drag == "" and tool.begins_with("obj:") and not _walls_tool():
 			var t := tool.get_slice(":", 1)
@@ -916,7 +918,7 @@ func _draw_canvas() -> void:
 			if k != selected and k < objects.size():
 				_draw_outline(objects[k], Color(0, 0, 0, 0.7), 4.0)
 				_draw_outline(objects[k], SEL, 2.0)
-	if selected >= 0 and show_objects:
+	if selected >= 0 and selected < objects.size() and show_objects:
 		_draw_gizmo(objects[selected])
 	if drag == "box":
 		var r := Rect2(box_from, Vector2.ZERO).expand(mouse_px)
@@ -1420,7 +1422,7 @@ func _canvas_input(ev: InputEvent) -> void:
 			pass
 		elif drag != "" and selected >= 0:
 			_status(_describe(objects[selected]))
-		elif hover_obj >= 0:
+		elif hover_obj >= 0 and hover_obj < objects.size():
 			_status(_describe(objects[hover_obj]) + "   click to select, drag to move, right click deletes")
 		elif hover.x >= 0:
 			_status(_describe_cell(hover))
@@ -2178,6 +2180,8 @@ func _restore(s: Dictionary) -> void:
 	grid_size = s.size
 	mark_shift = s.get("mark_shift", mark_shift)
 	selected = s.selected if s.selected < objects.size() else -1
+	hover_obj = -1
+	multi = []
 	drag = ""
 	_floors_changed()
 	_sync_inspector()
@@ -2544,15 +2548,14 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		group_start = multi.map(func(k): return [k, objects[k].pos_x, objects[k].pos_y])
 		group_anchor = _pos_at(mb.position)
 		drag = "group"
-	elif i >= 0 and _is_stairs(tool.get_slice(":", 1)) and _is_stairs(str(objects[i].type)):
-		# a stairs tool on a stairwell that is already here: carry that one on, up or down another floor
-		_push_undo()
-		_select(i)
-		_stair_extend(objects[i], 1 if tool == "obj:stairs_up" else -1)
-		_stair_settle(objects[i])
-		_mark_dirty()
 	elif i >= 0:
 		_select(i)
+		# a stairs tool clicked (not dragged) on a stairwell that is already here carries it on, up or down another
+		# floor; dragged, it moves like any other piece
+		stair_extend_dir = 0
+		if _is_stairs(tool.get_slice(":", 1)) and _is_stairs(str(objects[i].type)):
+			stair_extend_dir = 1 if tool == "obj:stairs_up" else -1
+			stair_press_at = Vector2(objects[i].pos_x, objects[i].pos_y)
 		if mb.double_click and objects[i].type == "trigger":
 			_open_trigger_dialog(i)
 			return
@@ -2619,7 +2622,13 @@ func _object_release(at: Vector2, shift := false) -> void:
 	if drag == "box":
 		_end_box(at)
 		return
+	var was_move := drag == "move"
 	drag = ""
+	if was_move and stair_extend_dir != 0 and selected >= 0 and selected < objects.size():
+		var so: Dictionary = objects[selected]
+		if _is_stairs(str(so.type)) and Vector2(so.pos_x, so.pos_y).is_equal_approx(stair_press_at):
+			_stair_extend(so, stair_extend_dir)
+	stair_extend_dir = 0
 	for k in _group():                    # a stairwell that was placed, moved or turned settles onto the grid
 		if k < objects.size() and _is_stairs(str(objects[k].type)) and not _stair_settle(objects[k]): break
 	_sync_inspector()
@@ -2690,7 +2699,7 @@ func _object_drag(p: Vector2) -> void:
 		o.pos_x = q.x
 		o.pos_y = q.y
 		_stand_on_surface(o, selected, true)
-		if is_zero_approx(fposmod(o.rotation, 90.0)):      # a piece hand-turned off the grid axes keeps its angle
+		if is_zero_approx(fposmod(o.rotation, 90.0)) and not _is_stairs(str(o.type)):      # a piece hand-turned off the grid axes keeps its angle; a stairwell keeps the way it faces
 			o.rotation = _wall_align(q, o.rotation, o.type)
 		_snap_ports(o, selected)
 	else:

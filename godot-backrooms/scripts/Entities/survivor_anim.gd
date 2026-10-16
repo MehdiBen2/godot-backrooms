@@ -8,6 +8,9 @@ extends RefCounted
 ##   run              sprinting
 ##   crouch_idle      squatting still        crouch_walk   creeping, heel to toe
 ##   death            falls onto its back and holds the last frame
+##   death_neck_snap  THE MANNEQUIN's kill seen from outside (tools/blender/add_survivor_neck_snap.py), timed
+##                    to mannequin_snap.gd: frozen, the head wrenched round, hanging limp in its grip, then
+##                    down on the knees and face down. Holds the last frame. Locomotion.play_kill()
 ## and, for a body whose real velocity is known (Locomotion below; tools/blender/add_survivor_directions.py):
 ##   walk_back / run_back / crouch_walk_back                       going backwards (a backpedal when running)
 ##   strafe_l/_r / run_strafe_l/_r / crouch_strafe_l/_r            side-steps, a side shuffle when running
@@ -25,12 +28,13 @@ const SCALE_RANGE := {"walk": Vector2(0.6, 1.25), "run": Vector2(0.6, 1.5), "spr
 
 const PATTERNS := {
 	"idle": "look|^idle", "walk": "^walk$", "run": "^run$", "sprint": "sprint",
-	"crouch_idle": "crouch.*idle", "crouch_walk": "^crouch_walk$", "death": "death",
+	"crouch_idle": "crouch.*idle", "crouch_walk": "^crouch_walk$", "death": "^death$", "neck_snap": "neck_snap",
 }
+const ONCE := ["death", "neck_snap"]       # every other clip loops
 ## A role the model has no clip for plays the nearest one it does have.
 const FALLBACK := {"crouch_walk": "walk", "crouch_idle": "idle", "sprint": "run", "run": "walk", "walk": "run", "idle": "walk"}
 
-## role -> animation name in `anim` ("" when the model has none). Every clip loops except death.
+## role -> animation name in `anim` ("" when the model has none). Every clip loops except ONCE.
 static func find_clips(anim: AnimationPlayer) -> Dictionary:
 	var clips := {}
 	for role in PATTERNS:
@@ -42,7 +46,7 @@ static func find_clips(anim: AnimationPlayer) -> Dictionary:
 				clips[role] = n
 				break
 		if clips[role] != "":
-			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role == "death" else Animation.LOOP_LINEAR
+			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role in ONCE else Animation.LOOP_LINEAR
 	return clips
 
 ## The role to play: walk when moving, run when sprinting. `_current` is the role playing now. "" if nothing fits.
@@ -163,6 +167,9 @@ class Locomotion:
 	var _dead := 0.0
 	var _was_dead := false
 	var _turning := false
+	var killing := false                        # play_kill(): the kill clip has the body until end_kill()
+	var _kill := 0.0
+	var _has_kill := false
 
 	func _init(player: AnimationPlayer, clips: Dictionary) -> void:
 		tree = AnimationTree.new()
@@ -217,7 +224,17 @@ class Locomotion:
 		bt.connect_node("posture", 1, "crouch")
 		bt.connect_node("life", 0, "posture")
 		bt.connect_node("life", 1, "death_seek")
-		bt.connect_node("output", 0, "life")
+		# the mannequin's kill over all of it, the fall included: it plays from the start and holds its end
+		var kill := AnimationNodeAnimation.new()
+		_has_kill = str(clips.get("neck_snap", "")) != ""
+		kill.animation = str(clips.get("neck_snap", "")) if _has_kill else idle
+		bt.add_node("kill", kill)
+		bt.add_node("kill_seek", AnimationNodeTimeSeek.new())
+		bt.connect_node("kill_seek", 0, "kill")
+		bt.add_node("fate", AnimationNodeBlend2.new())
+		bt.connect_node("fate", 0, "life")
+		bt.connect_node("fate", 1, "kill_seek")
+		bt.connect_node("output", 0, "fate")
 		tree.tree_root = bt
 		tree.active = true
 		var sks := player.get_parent().find_children("*", "Skeleton3D", true, false)
@@ -225,18 +242,32 @@ class Locomotion:
 			look = HeadLook.new()
 			sks[0].add_child(look)
 
+	## THE MANNEQUIN has them: its kill clip from the start, over everything (the death that follows too)
+	## until end_kill(). False if the suit has no such clip (they just fall the usual way when they die).
+	func play_kill() -> bool:
+		if not _has_kill:
+			return false
+		killing = true
+		_turning = false
+		tree.set("parameters/kill_seek/seek_request", 0.0)
+		return true
+
+	## Back on their feet (respawned), or it never came to a death
+	func end_kill() -> void:
+		killing = false
+
 	## Snap to a facing without turning (first sight, respawn, coming back into view).
 	func face(yaw: float) -> void:
 		body_yaw = yaw
 		_turning = false
 
 	func update(dt: float, vel: Vector3, speed: float, sprinting: bool, crouching: bool, dead: bool, look_yaw: float, look_pitch: float) -> void:
-		var moving := speed > MOVING_ABOVE and not dead
+		var moving := speed > MOVING_ABOVE and not dead and not killing
 		# ---- body yaw: lags the look; standing, only once the head can't cover it
 		var before := body_yaw
 		var diff := wrapf(look_yaw - body_yaw, -PI, PI)
-		if dead:
-			_turning = false                            # lies where it fell
+		if dead or killing:
+			_turning = false                            # lies where it fell (held where it was caught)
 		elif moving:
 			_turning = false
 			body_yaw += diff * (1.0 - exp(-turn_moving * dt))
@@ -267,6 +298,8 @@ class Locomotion:
 		_run = lerpf(_run, 1.0 if sprinting and moving else 0.0, k)
 		_crouch = lerpf(_crouch, 1.0 if crouching else 0.0, k)
 		_dead = lerpf(_dead, 1.0 if dead else 0.0, k)
+		# into the kill fast (it starts with a jump), back out at the usual pace once they are up again
+		_kill = lerpf(_kill, 1.0 if killing else 0.0, 1.0 - exp(-(30.0 if killing else fade_rate) * dt))
 		if dead and not _was_dead:
 			tree.set("parameters/death_seek/seek_request", 0.0)     # falls from the start, holds the end
 		_was_dead = dead
@@ -282,6 +315,7 @@ class Locomotion:
 		tree.set("parameters/crouch/blend_amount", _move)
 		tree.set("parameters/posture/blend_amount", _crouch)
 		tree.set("parameters/life/blend_amount", _dead)
+		tree.set("parameters/fate/blend_amount", _kill)
 
 		# ---- head: the rest of the look, damped, within what a neck can do
 		if look:
@@ -290,7 +324,7 @@ class Locomotion:
 			var want_pitch := 0.0 if dead else clampf(look_pitch, -head_max_pitch, head_max_pitch)
 			look.yaw = lerpf(look.yaw, want_yaw, hk)
 			look.pitch = lerpf(look.pitch, want_pitch, hk)
-			look.influence = 1.0 - _dead
+			look.influence = (1.0 - _dead) * (1.0 - _kill)     # the clip turns the head (all the way round)
 
 
 ## Turns the chest, neck and head after the animation is posed: `yaw` (rad, + = to its left) and `pitch`

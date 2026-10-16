@@ -1,8 +1,10 @@
 extends Node3D
 ## Another survivor. Wears the hazmat suit (models/player/survivor.glb) and moves it through
 ## survivor_anim.gd's Locomotion: look-around idle, walk / run / crouch walk blended forwards, backwards and
-## sideways by the way they are really going, and the death clip which holds its last frame. The body turns
-## after their look and the head leads it. Falls back to a box figure if the model can't load.
+## sideways by the way they are really going, and the death clip which holds its last frame. Caught by THE
+## MANNEQUIN they play its kill instead (play_kill(): frozen, the neck wrenched round, then down), so the
+## others watch it happen. The body turns after their look and the head leads it. Falls back to a box
+## figure if the model can't load.
 ## Smoothed towards the last state received.
 
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
@@ -50,6 +52,11 @@ var _last_pos := Vector3.INF
 var _speed := 0.0
 var speed := 0.0                # m/s, smoothed; read by the entity's senses
 var _fall := 0.0
+const KILL_GIVE_UP := 9.0        # s: a kill that never ended in their death (they got away?) lets them go
+const KILL_SNAP_AT := 2.3        # s into it: the crack (mannequin_snap.gd SNAP_AT)
+const KILL_DROP_AT := 4.75       # ...it let go, they dropped onto their knees and went over: the chest hits
+var _kill_t := -1.0              # s since the mannequin's kill started (-1: not in one)
+var _kill_dead := false          # ...and they have died since
 var buf = preload("res://scripts/Net/snap_buffer.gd").new()
 
 func _ready() -> void:
@@ -149,6 +156,31 @@ func _tint(root: Node) -> void:
 				c.albedo_color = c.albedo_color * tint
 				mi.set_surface_override_material(i, c)
 
+## THE MANNEQUIN has them (net.gd, from their own machine as its neck snap starts there): its kill, played on
+## their suit. The death that follows holds its last frame instead of the usual fall.
+func play_kill() -> void:
+	if loco != null and loco.play_kill():
+		_kill_t = 0.0
+		_kill_dead = false
+
+# Heard from where it happens: the crack as the head goes round, the body dropping once it lets go
+# (the clip's beats: tools/blender/add_survivor_neck_snap.py)
+func _kill_sounds(was: float) -> void:
+	if not visible:
+		return
+	var scares: Node = Game.main.get_node_or_null("Scares") if Game.main != null and is_instance_valid(Game.main) else null
+	if scares == null:
+		return
+	if was < KILL_SNAP_AT and _kill_t >= KILL_SNAP_AT:
+		scares.neck_snap_at(global_position + Vector3(0.0, 1.65, 0.0))
+	if was < KILL_DROP_AT and _kill_t >= KILL_DROP_AT:
+		scares.body_fall_at(global_position + Vector3(0.0, 0.3, 0.0))
+
+func _end_kill() -> void:
+	_kill_t = -1.0
+	if loco != null:
+		loco.end_kill()
+
 ## A snapshot from the network: sender clock t (s), feet position, facing, look pitch, ground speed
 func push_state(t: float, pos: Vector3, yaw: float, pitch: float, spd: float, flags: int, level: int, floor_i: int) -> void:
 	buf.push(t, {"pos": pos, "yaw": yaw, "pitch": pitch, "speed": spd, "flags": flags, "level": level, "floor": floor_i})
@@ -201,8 +233,16 @@ func _process(dt: float) -> void:
 		_tag_signal()
 	tag.modulate.a = _tag_alpha
 	var k := minf(1.0, dt * SMOOTH)
+	if _kill_t >= 0.0:
+		var was := _kill_t
+		_kill_t += dt
+		_kill_sounds(was)
+		_kill_dead = _kill_dead or dead
+		if (_kill_dead and not dead) or (not _kill_dead and _kill_t > KILL_GIVE_UP):
+			_end_kill()                          # back on their feet (respawned), or it never killed them
+	var caught := _kill_t >= 0.0
 	light.rotation.x = target_pitch
-	light.visible = torch_on and not dead and visible
+	light.visible = torch_on and not dead and visible and not caught      # the torch is flung away
 
 	if loco != null:
 		loco.tree.active = visible               # nobody sees them: don't pose a skeleton every frame
@@ -212,8 +252,8 @@ func _process(dt: float) -> void:
 		# their own speed (measured on their machine) for the stride, our velocity for its direction
 		var dir := _vel.normalized() if _vel.length() > 0.05 else Vector3.ZERO
 		loco.update(dt, dir * _speed, _speed, _speed > SurvivorAnim.SPRINT_ABOVE, crouching, dead, st.yaw, target_pitch)
-		_floor.on = not dead
-		tag.position.y = 0.9 if dead else (1.75 if crouching else 2.25)
+		_floor.on = not dead and not caught         # kneeling and lying are meant to be low
+		tag.position.y = 0.9 if dead or _kill_t > 4.0 else (1.75 if crouching else 2.25)
 		return
 
 	# ---- box figure fallback ----
