@@ -43,10 +43,12 @@ float fbm2(vec2 p) {
 // the mottling, sampled at WORLD position with NO per-decal offset: every splat on the same surface reads the
 // same field, so where two overlap the pattern keeps running instead of jump-cutting to a different noise at
 // the boundary (which is what made overlapping splats read as two stickers stacked on top of each other).
-// Splats only ever land on floors (death_blood.gd), so one planar read does what the triplanar blend did at a
-// third of the cost.
+// Splats land on floors and upright walls (death_blood.gd): one planar read along the surface does what the
+// triplanar blend did at a third of the cost.
 float mottle(vec3 p) {
-	return fbm2(p.xz);
+	vec3 a = abs(splat_normal);
+	if (a.y > 0.5) { return fbm2(p.xz); }
+	return a.x > a.z ? fbm2(p.zy) : fbm2(p.xy);
 }
 float field(vec2 p) {
 	float hit = clamp(length(impact_dir), 0.0, 1.0);
@@ -55,6 +57,11 @@ float field(vec2 p) {
 	// organic edge: a two-octave domain warp, so no outline is ever a clean circle
 	p += (vec2(vno(p * 3.0 + seed * 3.1), vno(p * 3.0 - seed * 1.7)) - 0.5) * 0.14;
 	p += (vec2(vno(p * 9.0 + seed * 5.3), vno(p * 9.0 - seed * 2.9)) - 0.5) * 0.04;
+	// on an upright wall blood does not pool: it clings, sags and runs. The card's +y is up the wall here, so the
+	// body is stretched downward (below the hit point) and runs of blood trickle down from it (added below)
+	bool wall = abs(splat_normal.y) < 0.5;
+	vec2 wp = p;
+	if (wall && p.y < 0.0) { p.y *= 0.5; }
 	// local frame: x runs along the direction the blood was travelling
 	vec2 lp = vec2(dot(p, dir), dot(p, side));
 	vec2 bp = vec2(lp.x / (1.0 + 0.55 * hit), lp.y) / max(grow, 0.02);
@@ -77,6 +84,19 @@ float field(vec2 p) {
 			f += ball(bp - link_to, vec2(cos(a), sin(a)) * d, 0.24 + 0.18 * hs(fi * 7.1 + 42.0));
 		}
 		f += seg(bp, vec2(0.0), link_to, 0.34, 0.3);
+	}
+	// runs: thin streaks that creep down the wall from the splat, each ending in a fat bead, slowly lengthening
+	if (wall) {
+		float creep = smoothstep(0.08, 1.0, grow);
+		for (int i = 0; i < 5; i++) {
+			float fi = float(i);
+			float x = (hs(fi * 3.1 + 20.0) - 0.5) * 0.8;
+			float len = (0.2 + 0.45 * hs(fi * 5.7 + 21.0)) * creep;
+			vec2 a = vec2(x, -0.08);
+			vec2 b = vec2(x + (hs(fi * 2.9 + 22.0) - 0.5) * 0.08, -0.08 - len);
+			f += 1.1 * seg(wp, a, b, 0.11, 0.07);
+			f += ball(wp, b, 0.1 + 0.03 * hs(fi * 9.1 + 23.0));
+		}
 	}
 	// fingers and droplets land on impact, before the pool has spread
 	float appear = smoothstep(0.0, 0.25, grow);
@@ -101,6 +121,15 @@ void fragment() {
 	// the card is `extent` times bigger than the pool it holds, so no lobe, finger or linked pool ever reaches the
 	// quad's edge (where the field used to be sliced off in a straight line); a last soft fade covers the warp
 	vec2 p = pu * extent;
+	// the card is far bigger than the pool it holds (a linked pool's card spans both ends, ~9x the area of the
+	// old one), and the field costs ~35 lobes a pixel: bail out cheaply anywhere past the farthest lobe, finger
+	// or droplet (~1.1 from a centre, plus the warp) of either centre or the stream between them. Without this,
+	// the dozens of overlapping cards under the death camera ran long enough for the driver to reset the GPU.
+	vec2 ab = link_to * 1.1;
+	float ab2 = dot(ab, ab);
+	float seg_t = ab2 > 1e-4 ? clamp(dot(p, ab) / ab2, 0.0, 1.0) : 0.0;
+	vec2 off = p - ab * seg_t;
+	if (dot(off, off) > 1.96) { discard; }
 	const float TH = 0.3;
 	float f = field(p);
 	f *= 1.0 - smoothstep(0.82, 1.0, max(abs(pu.x), abs(pu.y)));
@@ -119,7 +148,10 @@ void fragment() {
 	vec2 py = dFdy(p);
 	float det = px.x * py.y - px.y * py.x;
 	vec2 gr = abs(det) > 1e-9 ? vec2(dFdx(f) * py.y - dFdy(f) * px.y, dFdy(f) * px.x - dFdx(f) * py.x) / det : vec2(0.0);
-	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.018 * lip, vec2(-0.35), vec2(0.35)), 1.0)) * 0.5 + 0.5;
+	// on a wall the rim bump and the shine are what made a splat read as a glossy bubble stuck on in front of it
+	// rather than a stain in it: flatten them there
+	bool on_wall = abs(splat_normal.y) < 0.5;
+	NORMAL_MAP = normalize(vec3(clamp(-gr * 0.018 * lip * (on_wall ? 0.15 : 1.0), vec2(-0.35), vec2(0.35)), 1.0)) * 0.5 + 0.5;
 	float n = mottle(wpos * 3.0);   // world-aligned mottling: clotting, shared by overlapping splats
 	vec3 thin_col = vec3(0.15, 0.006, 0.007);
 	vec3 thick_col = vec3(0.1, 0.003, 0.005);
@@ -136,6 +168,7 @@ void fragment() {
 	ALPHA = m;
 	// wet blood is glossy; dried blood is matte (any leftover sheen reads as grey plastic)
 	ROUGHNESS = mix(0.9, mix(0.25, 0.08, thick), wet);
-	SPECULAR = mix(0.05, 0.6, wet);
+	ROUGHNESS = on_wall ? max(ROUGHNESS, 0.6) : ROUGHNESS;
+	SPECULAR = mix(0.05, 0.6, wet) * (on_wall ? 0.35 : 1.0);
 	METALLIC = 0.0;
 }

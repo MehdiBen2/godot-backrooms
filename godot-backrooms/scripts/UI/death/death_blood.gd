@@ -17,6 +17,9 @@ const WARM_CULL_MARGIN := 600.0     # past the camera's draw distance: keeps the
 # read as a small blob standing on its edge rather than a puddle lying down; below this, the blob keeps
 # rolling/falling instead of painting one there.
 const FLAT_ENOUGH_Y := 0.92
+# How upright a surface must be (|normal.y| below this) to count as a wall that takes a splat
+const WALL_MAX_Y := 0.15
+const WALL_POOL_REACH := 3.0        # m: how far from the kill a wall still gets a puddle
 # Splats laid at most. Each is a transparent, lit card: under the bite's camera (lifted, looking down at the floor
 # it is all landing on) they overlap many deep, and every layer is shaded in full. 90 made a 750 ms frame.
 const MAX_DECALS := 60
@@ -137,9 +140,9 @@ func _physics_process(delta: float) -> void:
 		var point := Vector3.ZERO
 		var normal := Vector3.UP
 		var splat := false
-		# only the level's floor takes blood: never the player's or an entity's hitbox (a splat floating in
-		# mid-air), and not walls or the ceiling for now. A blob that meets a wall drops down it to the floor.
-		if ray.is_colliding() and ray.get_collider() is StaticBody3D and ray.get_collision_normal().y > FLAT_ENOUGH_Y:
+		# only the level's floor and upright walls take blood: never the player's or an entity's hitbox (a splat
+		# floating in mid-air), and not the ceiling or a sloped face. A blob thrown at a wall beside you splats there.
+		if ray.is_colliding() and ray.get_collider() is StaticBody3D and (ray.get_collision_normal().y > FLAT_ENOUGH_Y or absf(ray.get_collision_normal().y) < WALL_MAX_Y):
 			splat = true
 			point = ray.get_collision_point()
 			normal = ray.get_collision_normal()
@@ -159,7 +162,9 @@ func _physics_process(delta: float) -> void:
 			continue
 		if splat:
 			var s: float = b.size * randf_range(9.0, 15.0) * clampf(0.5 + speed / 8.0, 0.5, 1.4)
-			surface_decal(point + normal * 0.02, normal, s, 0.0, ray.get_collider() as CollisionObject3D, v)
+			if absf(normal.y) < WALL_MAX_Y:
+				s *= 1.8                                    # on a wall a small splat read as a tiny ball
+			surface_decal(point + normal * (0.0 if absf(normal.y) < WALL_MAX_Y else 0.02), normal, s, 0.0, ray.get_collider() as CollisionObject3D, v)
 			_splat_sound(s)
 			rb.queue_free()
 			b["dead"] = true
@@ -222,7 +227,9 @@ func surface_decal(point: Vector3, normal: Vector3, size: float, delay := 0.0, o
 	# overlapping splats correctly, and a height that kept climbing with every decal ever laid made
 	# older splats visibly float above newer ones at a grazing view - another reason they read as
 	# stacked cards instead of stains on the same surface
-	mi.transform = Transform3D(Basis(t, b, n), point + n * 0.025)
+	# (on a wall hugging it, a couple of mm: 2.5 cm off a wall shows as a gap, a card floating in front, from any angle)
+	var lift := 0.004 if absf(n.y) < WALL_MAX_Y else 0.025
+	mi.transform = Transform3D(Basis(t, b, n), point + n * lift)
 	if _warm:
 		_keep_drawn(mi)
 	_decals.append(mi)
@@ -293,6 +300,8 @@ func feast(head: Vector3, victim: Vector3) -> void:
 		var out := Vector3(cos(a), 0.0, sin(a))
 		var splat_pos := _find_floor_point(Vector3(head.x + out.x * sp * 0.9, head.y + 1.0, head.z + out.z * sp * 0.9))
 		surface_decal(splat_pos, Vector3.UP, randf_range(0.2, 0.5), randf_range(0.0, 0.8), null, out * randf_range(1.5, 4.0))
+	# a wall close beside the kill takes a real puddle of its own, bigger the nearer it is
+	_wall_pools(head)
 	# flung blobs: fast ones fan out across the floor, heavy clots fall close
 	for i in 12:
 		var a := randf() * TAU
@@ -302,6 +311,39 @@ func feast(head: Vector3, victim: Vector3) -> void:
 		var a := randf() * TAU
 		var sp := randf_range(0.4, 1.8)
 		blob(head, Vector3(cos(a) * sp, randf_range(0.6, 2.0), sin(a) * sp), randf_range(0.05, 0.09))
+
+## Walls within WALL_POOL_REACH of `head` (checked along the four compass directions and a few random ones)
+## each get a puddle splashed on them at about chest height, bigger the closer the wall is.
+func _wall_pools(head: Vector3) -> void:
+	var w := _world()
+	if not (w is Node3D):
+		return
+	var space: PhysicsDirectSpaceState3D = (w as Node3D).get_world_3d().direct_space_state
+	var dirs: Array[Vector3] = [Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK]
+	for i in 3:
+		var a := randf() * TAU
+		dirs.append(Vector3(cos(a), 0.0, sin(a)))
+	var done: Array[Vector3] = []              # one puddle per wall face, not one per ray that finds it
+	for d in dirs:
+		var from := Vector3(head.x, head.y + randf_range(-0.2, 0.4), head.z)
+		var q := PhysicsRayQueryParameters3D.create(from, from + d * WALL_POOL_REACH)
+		q.collision_mask = 1
+		var hit := space.intersect_ray(q)
+		if hit.is_empty() or not (hit.collider is StaticBody3D):
+			continue
+		var n: Vector3 = hit.normal
+		if absf(n.y) >= WALL_MAX_Y:
+			continue
+		var skip := false
+		for p in done:
+			if p.distance_to(hit.position) < 1.2:
+				skip = true
+		if skip:
+			continue
+		done.append(hit.position)
+		var near := 1.0 - from.distance_to(hit.position) / WALL_POOL_REACH
+		var size := lerpf(1.1, 2.2, near) * randf_range(0.9, 1.2)
+		surface_decal(hit.position, n, size, randf_range(0.0, 0.4), hit.collider as CollisionObject3D, -n * 3.0)
 
 ## Find the actual floor surface point by raycasting downward
 func _find_floor_point(from: Vector3) -> Vector3:

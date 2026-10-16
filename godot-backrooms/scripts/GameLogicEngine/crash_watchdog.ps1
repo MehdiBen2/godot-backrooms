@@ -8,7 +8,8 @@ param(
     [string]$Dir,
     [string]$Reports,
     [string]$EngineLog,
-    [switch]$NoWindow
+    [switch]$NoWindow,
+    [switch]$Editor
 )
 $ErrorActionPreference = 'SilentlyContinue'
 
@@ -18,6 +19,13 @@ $proc.WaitForExit()
 
 $base = Join-Path $Dir ('run_' + $GamePid)
 if (Test-Path ($base + '.clean')) { Remove-Item ($base + '.clean') -Force; exit }
+# the editor's Stop button (or the player ending it from outside) is not a crash: exit code 1 or Ctrl+C, nothing to report
+$code = 0
+try { $code = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int]$proc.ExitCode), 0) } catch {}
+if ($Editor -and ($code -eq 1 -or $code -eq 3221225786)) {
+    foreach ($e in @('.json', '.log', '.alive', '.reported', '.report.txt')) { Remove-Item ($base + $e) -Force }
+    exit
+}
 Set-Content -Path ($base + '.reported') -Value 'watchdog'      # first: a restart from the window must not show it twice
 
 # ---- what happened --------------------------------------------------------------------------------------------

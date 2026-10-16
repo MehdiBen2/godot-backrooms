@@ -13,6 +13,9 @@ const BURNT_CHANCE := 0.16
 const FLICKER_CHANCE := 0.24
 const LIMINAL_BURNT_CHANCE := 0.03     # liminal: nearly every tube works, steady, humming - nothing is wrong, and that's what's wrong
 const LIMINAL_FLICKER_CHANCE := 0.04
+const POWER_CUT_EMBER_SHARE := 0.2    # share of tubes that keep a faint glow through a blackout
+const POWER_CUT_RESTORE_SPREAD := 2.4 # s over which the tubes strike back after the cut (the embers first)
+const AFTERGLOW := 0.01               # a tube's glow the instant the power dies: 1%, then it fades
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
 const FLUOR_MODEL := "res://models/props/asset_pack/weathered_fluorescent_lightlamp_-_4096px2.glb"   # the "Fluorescent (new model)" lights
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
@@ -950,11 +953,18 @@ func cut_fixture(f: Dictionary, duration: float) -> void:
 # Every tube dies at once; they return at staggered times after `duration`
 func cut_power(duration: float) -> void:
 	LampFixture.power(false)                     # lamps, sconces and chandeliers go out; the red emergency strips come on
-	get_tree().create_timer(duration + 1.6).timeout.connect(func() -> void: LampFixture.power(true))
+	get_tree().create_timer(duration + POWER_CUT_RESTORE_SPREAD).timeout.connect(func() -> void: LampFixture.power(true))
 	for f in lit:
-		f.black = duration + rng.randf() * 1.6
-		f.level = 0.03
-		_set_lit_color(f, 0.03)
+		# every tube starts on a 1% afterglow (3% bloomed under the camcorder's exposure, so it read as still on)
+		# that dies away over a few seconds. A few (the embers) never quite die: they settle to a faint, slowly
+		# wandering glow, and are the first to strike back when the grid returns; the rest come back staggered.
+		var ember := rng.randf() < POWER_CUT_EMBER_SHARE
+		f.black = duration + (rng.randf() * 0.6 if ember else 0.5 + rng.randf() * (POWER_CUT_RESTORE_SPREAD - 0.5))
+		f.glow_t = 0.0
+		f.glow_tau = 1.5 + rng.randf() * 3.0
+		f.glow_floor = AFTERGLOW * 0.4 if ember else 0.0
+		f.level = AFTERGLOW
+		_set_lit_color(f, AFTERGLOW)
 		_wake(f)
 
 func restore_power() -> void:
@@ -962,10 +972,11 @@ func restore_power() -> void:
 	for f in lit:
 		if f.black > 0.0 or f.burst > 0 or f.level < 0.5:
 			f.black = 0.0
+			f.erase("glow_tau")
 			f.burst = 0
 			f.level = 1.0
 			f.timer = 1.0 + rng.randf() * 3.0
-			_restrike(f, false)          # (everything strikes at once: no one lamp's sag to see)
+			_restrike(f, false)         # (everything strikes at once: no one lamp's sag to see)
 			_set_lit_color(f, 1.0)
 			fixture_event.emit(f, true)
 
@@ -1438,7 +1449,14 @@ func _update_fixtures(delta: float) -> void:
 		if f == null: continue
 		if f.black > 0.0:
 			f.black -= delta
+			if f.has("glow_tau") and f.black > 0.0:
+				f.glow_t += delta
+				var g := _afterglow(f)
+				if absf(g - f.level) > 0.0004:
+					f.level = g
+					_set_lit_color(f, g)
 			if f.black <= 0.0:
+				f.erase("glow_tau")
 				f.level = 1.0
 				f.burst = 0
 				f.timer = 1.0 + rng.randf() * 3.0
@@ -1521,6 +1539,19 @@ func _update_mods(delta: float) -> void:
 			f.mod = m
 			if f.black <= 0.0 and f.level > 0.3: _set_lit_color(f, f.level)
 	for i in done: _moving.erase(i)
+
+## A tube cooling after a power cut: the afterglow dies away (fast at first) to its floor. An ember's floor is
+## a faint glow that slowly wanders and now and then sags, the way a worn tube hangs on.
+static func _afterglow(f: Dictionary) -> float:
+	var k := clampf(float(f.glow_t) / float(f.glow_tau), 0.0, 1.0)
+	var s := (1.0 - k) * (1.0 - k)
+	var g := lerpf(float(f.glow_floor), AFTERGLOW, s)
+	if float(f.glow_floor) > 0.0:
+		var t: float = Game.time + float(f.seed) * 100.0
+		var w := 0.55 + 0.3 * sin(t * 1.3) + 0.15 * sin(t * 3.7 + 2.0)
+		if fposmod(sin(floorf(t * 1.5) * 12.9898 + float(f.seed) * 78.233) * 43758.5453, 1.0) < 0.12: w *= 0.3
+		g *= lerpf(1.0, w, k)
+	return g
 
 ## A dying lamp's light: the arc wandering in the worn tube, never settled, now and then sagging hard
 static func _swirl(f: Dictionary) -> float:

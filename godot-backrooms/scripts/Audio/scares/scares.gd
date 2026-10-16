@@ -13,7 +13,7 @@ extends Node
 ##   the bite   bite_death(): the blood-scream recording once, plus its own bite recording, wet rips after it
 ##   neck snap  neck_snap(): its own recording (synth crack as a fallback), and the heart stops on the spot (flatline)
 ##   death      heart_stop() settles the flatline into a quiet hold under the death muffle,
-##              body_fall() lands with your body on the death camera, and the last breath (DEATH_VOICE)
+##              body_fall() lands with your body on the death camera, and the last breath (death_voice(), the DEATH_VOICES pool)
 ##              goes out with it - except when something caught you: the bite/snap already told that
 ##              story at the moment it happened
 ##
@@ -39,6 +39,7 @@ const GASPS := [
 	"res://audio/player/gasp/gasp_short_1.mp3", "res://audio/player/gasp/gasp_short_2.mp3",
 	"res://audio/player/gasp/gasp_7.mp3", "res://audio/player/gasp/gasp_8.mp3", "res://audio/player/gasp/gasp_9.mp3",
 	"res://audio/player/gasp/gasp_10.mp3", "res://audio/player/gasp/gasp_11.mp3",
+	"res://audio/player/gasp/gasp_12.mp3", "res://audio/player/gasp/gasp_13.mp3",
 ]
 const GASP_RMS := -20.0
 const GASP_PEAK := -6.0
@@ -53,8 +54,14 @@ const GASP_SKIP := {
 	"res://audio/player/gasp/gasp_6.mp3": 1.26,
 }
 const BODY_FALL := "res://audio/player/death/body_fall.mp3"
-# The last breath, only when nothing caught you (a bite/snap already had its own reaction sound)
-const DEATH_VOICE := "res://audio/player/death/death.mp3"
+# The last breath, only when nothing caught you (a bite/snap already had its own reaction sound).
+# A pool of its own, never mixed with the GASPS: a gasp is being caught, these are actually dying.
+const DEATH_VOICES := [
+	"res://audio/player/death/death.mp3", "res://audio/player/death/death_2.mp3",
+	"res://audio/player/death/death_3.mp3", "res://audio/player/death/death_4.mp3",
+]
+const DEATH_RMS := -20.0
+const DEATH_PEAK := -6.0
 const BLOOD_SCREAM := "res://audio/entity/blood_scream.mp3"
 # The bacteria's bite: its own recording, on top of the blood-scream splat()
 const BITE_DEATH := "res://audio/player/death/bite/bitedeathsound.mp3"
@@ -80,7 +87,9 @@ const HEART_SAMPLES := ["res://audio/player/heartbeat.ogg", "res://audio/player/
 # that only its level moves (the grab / snap bring it up, death settles it down to a quiet hold). Never
 # a second copy: two of the same 1 kHz tone beat against each other and it sounds like it restarts.
 const FLATLINE_GAIN := 1.0        # as the heart stops (grab, snap)
-const FLATLINE_HOLD_GAIN := 0.5   # dead: a thin line under the muffle until the respawn, not an alarm
+const FLATLINE_HOLD_GAIN := 0.2  # dead: a thin line under the muffle, not an alarm
+const FLATLINE_HOLD_TIME := 2.0   # how long it holds before fading away
+const FLATLINE_FADE_OUT := 3.0    # and how long that fade takes
 
 enum { KNOCK_KNUCKLE, KNOCK_FIST, KNOCK_NAIL }
 const KNOCK_TAKES := [3, 2, 3]    # rendered takes per knock kind: a run of knocks never repeats one sample
@@ -96,6 +105,7 @@ var preacher_fx: Preacher
 var _synth := ScareSynth.new()
 var _streams := {}                # path -> AudioStream, loaded once so nothing loads on the hot path
 var _last_gasp := -1
+var _last_death_voice := -1
 var _last_gasp_time := -10.0
 var _last_scream_time := -100.0
 var _clock := 0.0
@@ -117,7 +127,7 @@ func _ready() -> void:
 	steps = CreatureSteps.new(self)
 	preacher_fx = Preacher.new(self)
 	# every scare clip goes into the buffer pool now, on worker threads, so none of them hits the disk mid-scare
-	SfxPool.warm(GASPS + [BODY_FALL, DEATH_VOICE, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, FALL_SCREAM, GRID_OFF, TUBE_RESTRIKE] + NECK_SNAP_VOICES + SfxPool.scare_paths())
+	SfxPool.warm(GASPS + DEATH_VOICES + [BODY_FALL, BLOOD_SCREAM, BITE_DEATH, NECK_SNAP_SOUND, FALL_SCREAM, GRID_OFF, TUBE_RESTRIKE] + NECK_SNAP_VOICES + SfxPool.scare_paths())
 	for path in HEART_SAMPLES:
 		if ResourceLoader.exists(path):
 			_heart_sample = load(path)
@@ -445,6 +455,10 @@ func flatline(gain := FLATLINE_GAIN, fade := 0.9) -> void:
 
 func flatline_hold(fade := 1.5) -> void:
 	flatline(FLATLINE_HOLD_GAIN, fade)
+	# the line is only there to land the death: let it hang a moment, then fade out and stop, not drone on
+	_flat_tween.tween_interval(FLATLINE_HOLD_TIME)
+	_flat_tween.tween_property(_flat_player, "volume_db", -80.0, FLATLINE_FADE_OUT)
+	_flat_tween.tween_callback(stop_flatline)
 
 func stop_flatline() -> void:
 	if _flat_player == null or not is_instance_valid(_flat_player):
@@ -476,8 +490,20 @@ func body_fall(from := 0.0, voice := true) -> void:
 		p.play(from)
 	# the last breath leaving you as you hit the floor - never when something caught you: the bite/
 	# snap already told that story at the moment it happened
-	if voice and _stream(DEATH_VOICE) != null:
-		spawn_flat(_stream(DEATH_VOICE), 1.0, "Voice")
+	if voice:
+		death_voice()
+
+## The dying breath/cry: a random take from DEATH_VOICES (never the same one twice running), matched to one
+## loudness. Never a gasp - those are only for being caught (see gasp()).
+func death_voice() -> void:
+	var i := rng.randi() % DEATH_VOICES.size()
+	if DEATH_VOICES.size() > 1 and i == _last_death_voice:
+		i = (i + 1) % DEATH_VOICES.size()
+	var s := _stream(DEATH_VOICES[i])
+	if s == null:
+		return
+	_last_death_voice = i
+	spawn_flat(s, ClipLevels.gain(DEATH_VOICES[i], DEATH_RMS, DEATH_PEAK), "Voice", rng.randf_range(0.97, 1.03))
 
 # At death: a grab or snap already stopped the heart, so its flatline (the same player) just settles
 # down to the quiet hold. A death nothing built up to gets a few weak, uneven beats first, then the line.
@@ -516,7 +542,10 @@ func _exit_tree() -> void:
 
 ## A gasp of fright (seized, snapped, struck). Never the same take twice running, all at one loudness.
 ## The recording IS that breath: the breathing model waits it out rather than gasping over it.
+## Only for being CAUGHT: once you are dead it stays silent (death_voice() is the dying sound).
 func gasp(volume_mult := 1.0) -> void:
+	if Game.dead:
+		return
 	var now := Time.get_ticks_msec() / 1000.0
 	if now - _last_gasp_time < 0.35:
 		return

@@ -881,6 +881,12 @@ func _build_cheats_tab() -> Control:
 	)
 	hud_row.add_child(hud_btn)
 
+	var crash_btn := _action_btn("SHOW LAST CRASH", func():
+		if not Crash.show_last_crash():
+			_print("[color=orange]no crash report saved yet[/color]")
+	)
+	hud_row.add_child(crash_btn)
+
 	return scroll
 
 # TAB 2: Entities & Behavior
@@ -1594,13 +1600,16 @@ func _submit(line: String) -> void:
 			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
 			_print("Names: " + ", ".join(ORDER))
 			_print("Models (no AI): " + ", ".join(EntityRoster.ROSTER.keys()))
-			_print("Crash reports: crash (takes the game down on purpose, to see the crash window)")
+			_print("Crash reports: lastcrash (shows the newest saved report), crash (takes the game down on purpose, to see the crash window)")
 		"watchkill":
 			_watch_kill()
 		"fardeath":
 			_friend_death_sound(true)
 		"neardeath":
 			_friend_death_sound(false)
+		"lastcrash":
+			if not Crash.show_last_crash():
+				_print("[color=orange]no crash report saved yet[/color]")
 		"crash":
 			_print("[color=red]crashing on purpose...[/color]")
 			Crash.test_crash.call_deferred()

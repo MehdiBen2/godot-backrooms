@@ -98,7 +98,7 @@ var _quiet := false
 func _init() -> void:
 	var args := OS.get_cmdline_args() + OS.get_cmdline_user_args()
 	_quiet = args.has("--crash-quiet")
-	_release = OS.has_feature("template") or args.has("--crash-watchdog")
+	_release = true       # every game run gets the window (a dev run from the editor too); only a player-caused close is quiet
 	# tool runs (--script, contact sheets, checks) are not the game
 	if args.has("--script") or (DisplayServer.get_name() == "headless" and not args.has("--crash-watchdog")):
 		return
@@ -209,6 +209,8 @@ func _start_watchdog() -> void:
 		"-EngineLog", g.call(str(ProjectSettings.get_setting("debug/file_logging/log_path", "user://logs/godot.log")))])
 	if _quiet:
 		args.append("-NoWindow")
+	if OS.has_feature("editor"):
+		args.append("-Editor")       # the editor's Stop button ends the run with exit code 1: that is the player, not a crash
 	var pid := OS.create_process("powershell.exe", args)
 	_log.write("crash watchdog: " + ("watching (pid %d)" % pid if pid > 0 else "could not start PowerShell"))
 
@@ -333,10 +335,31 @@ static func _summary(report: String) -> String:
 	return "\n".join(out)
 
 # ---- the window -------------------------------------------------------------------------------------------
-func _show_report(found: Dictionary) -> void:
-	await get_tree().create_timer(1.0).timeout      # over the title screen, once it is up
+## Debug console button / `lastcrash`: open the newest saved report again. False if none has been saved yet.
+func show_last_crash() -> bool:
+	var dir := DirAccess.open(REPORT_DIR)
+	if dir == null:
+		return false
+	var best := ""
+	var best_t := 0
+	for n in dir.get_files():
+		if not n.ends_with(".txt") or n.ends_with("_log.txt"):
+			continue
+		var t := FileAccess.get_modified_time(REPORT_DIR + n)
+		if t > best_t:
+			best = n
+			best_t = t
+	if best == "":
+		return false
+	var report := FileAccess.get_file_as_string(REPORT_DIR + best)
+	_show_report({"report": report, "summary": _summary(report)}, 0.0, "The last saved crash report (%s)" % best)
+	return true
+
+func _show_report(found: Dictionary, delay := 1.0, title := "The game crashed last time") -> void:
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout      # over the title screen, once it is up
 	var dlg := AcceptDialog.new()
-	dlg.title = "The game crashed last time"
+	dlg.title = title
 	dlg.ok_button_text = "Close"
 	dlg.process_mode = Node.PROCESS_MODE_ALWAYS
 	dlg.always_on_top = true

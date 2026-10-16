@@ -208,8 +208,7 @@ func kill_player(reason: String, type := DeathType.NONE) -> void:
 	var sc: Node = scene.get_node_or_null("Scares") if scene else null
 	if sc != null:
 		# a grab / snap already had its scream and stinger at the bite: don't hit a second time into the black
-		if sudden:
-			sc.gasp()
+		if sudden:                 # no gasp here: that is for being caught, this is dying
 			sc.play_scare("staticHit", 1.2)
 			sc.startle(0.9)
 		sc.heart_stop()          # ends in a quiet flatline that holds until the respawn

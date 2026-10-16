@@ -41,7 +41,6 @@ Voice="*res://scripts/Voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
 Archive="*res://scripts/GameLogicEngine/tsra_archive.gd"
 Clearance="*res://scripts/GameLogicEngine/tsra_clearance.gd"
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [debug]
 
@@ -57,7 +56,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/blendkit/plugin.cfg", "res://addons/godot_ai/plugin.cfg", "res://addons/godot_mcp/plugin.cfg")
+enabled=PackedStringArray("res://addons/blendkit/plugin.cfg", "res://addons/godot_mcp/plugin.cfg")
 
 [physics]
 
