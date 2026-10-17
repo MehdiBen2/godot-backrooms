@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://pg18res0doue"
-path.bptc="res://.godot/imported/GasCan_Roughness.png-f5c614acbe1b663af01cbb5d3c83ec6a.bptc.ctex"
+path.s3tc="res://.godot/imported/GasCan_Roughness.png-f5c614acbe1b663af01cbb5d3c83ec6a.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://models/props/industrial/Gas_can/GasCan_Roughness.png"
-dest_files=["res://.godot/imported/GasCan_Roughness.png-f5c614acbe1b663af01cbb5d3c83ec6a.bptc.ctex"]
+dest_files=["res://.godot/imported/GasCan_Roughness.png-f5c614acbe1b663af01cbb5d3c83ec6a.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

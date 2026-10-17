@@ -50,7 +50,6 @@ const ROSTER := {
 	"goose": ["Goose", "goose.glb", 0.9, "new"],
 	"maxwell": ["Maxwell the cat", "maxwell_cat.glb", 0.45, "new"],
 	"breakingnews": ["Breaking News", "breaking_news.glb", 2.4, "new"],
-	"goat": ["Nightmare Goat", "nightmare_goat.glb", 1.6, "new"],
 	"smiley": ["Smiley horror monster", "smiley_horror.glb", 2.0, "new"],
 	"suction": ["Suction", "suction.glb", 1.5, "new"],
 	"telekung": ["Telekung", "telekung.glb", 1.7, "new"],
@@ -61,7 +60,6 @@ const ROSTER := {
 	"clownhead_fat2": ["Clown head: fat 2", "clown_heads.glb", 0.45, "new", "Tete_gros2_low"],
 	"moon": ["The Moon Woke Up", "moon_woke_up.glb", 2.0, "new"],
 	"rollinggiant": ["Rolling Giant", "rolling_giant.glb", 2.4, "new"],
-	"sheetzombies": ["Zombies under sheets (group)", "zombies_under_sheets.glb", 1.8, "new"],
 }
 
 ## The ones that don't stand on the floor (model_entity.gd mount, entity_mount.gd): "wall" goes flat on the wall

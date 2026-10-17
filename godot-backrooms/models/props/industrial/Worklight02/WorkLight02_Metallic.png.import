@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bf8m6e1pv4jid"
-path.bptc="res://.godot/imported/WorkLight02_Metallic.png-b98f488c2974d539c7421cee2be30231.bptc.ctex"
+path.s3tc="res://.godot/imported/WorkLight02_Metallic.png-b98f488c2974d539c7421cee2be30231.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://models/props/industrial/Worklight02/WorkLight02_Metallic.png"
-dest_files=["res://.godot/imported/WorkLight02_Metallic.png-b98f488c2974d539c7421cee2be30231.bptc.ctex"]
+dest_files=["res://.godot/imported/WorkLight02_Metallic.png-b98f488c2974d539c7421cee2be30231.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

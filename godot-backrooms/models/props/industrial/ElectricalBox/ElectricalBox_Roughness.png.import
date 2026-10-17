@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cc50o3j1cqnig"
-path.bptc="res://.godot/imported/ElectricalBox_Roughness.png-0c57076867c040859eb49303f711d3a4.bptc.ctex"
+path.s3tc="res://.godot/imported/ElectricalBox_Roughness.png-0c57076867c040859eb49303f711d3a4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://models/props/industrial/ElectricalBox/ElectricalBox_Roughness.png"
-dest_files=["res://.godot/imported/ElectricalBox_Roughness.png-0c57076867c040859eb49303f711d3a4.bptc.ctex"]
+dest_files=["res://.godot/imported/ElectricalBox_Roughness.png-0c57076867c040859eb49303f711d3a4.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

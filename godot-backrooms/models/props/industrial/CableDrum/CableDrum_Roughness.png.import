@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://blvudsueg6mc2"
-path.bptc="res://.godot/imported/CableDrum_Roughness.png-cea975f1fa655ea6f5c5fbea2b819657.bptc.ctex"
+path.s3tc="res://.godot/imported/CableDrum_Roughness.png-cea975f1fa655ea6f5c5fbea2b819657.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://models/props/industrial/CableDrum/CableDrum_Roughness.png"
-dest_files=["res://.godot/imported/CableDrum_Roughness.png-cea975f1fa655ea6f5c5fbea2b819657.bptc.ctex"]
+dest_files=["res://.godot/imported/CableDrum_Roughness.png-cea975f1fa655ea6f5c5fbea2b819657.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0

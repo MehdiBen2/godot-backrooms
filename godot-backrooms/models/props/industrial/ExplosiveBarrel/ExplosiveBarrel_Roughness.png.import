@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d21u5ua42pw26"
-path.bptc="res://.godot/imported/ExplosiveBarrel_Roughness.png-a5d578cfa8074242c87872a6028c96aa.bptc.ctex"
+path.s3tc="res://.godot/imported/ExplosiveBarrel_Roughness.png-a5d578cfa8074242c87872a6028c96aa.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -12,12 +12,12 @@ metadata={
 [deps]
 
 source_file="res://models/props/industrial/ExplosiveBarrel/ExplosiveBarrel_Roughness.png"
-dest_files=["res://.godot/imported/ExplosiveBarrel_Roughness.png-a5d578cfa8074242c87872a6028c96aa.bptc.ctex"]
+dest_files=["res://.godot/imported/ExplosiveBarrel_Roughness.png-a5d578cfa8074242c87872a6028c96aa.s3tc.ctex"]
 
 [params]
 
 compress/mode=2
-compress/high_quality=true
+compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
