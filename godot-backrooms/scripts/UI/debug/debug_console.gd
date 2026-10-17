@@ -35,6 +35,7 @@ const ENTITIES := {
 	"grabber": "Grabber",
 	"skinstealer": "SkinStealer",
 	"burnt": "Burnt",
+	"tallone": "TallOne",
 }
 ## Scare events the console can fire (`event <id>`, or the buttons on WORLD & EVENTS): id -> what it does
 const EVENTS := {
@@ -64,9 +65,9 @@ const EVENTS := {
 	"soundstoavoid": ["soundsToAvoid", "a card lists three sounds to avoid; a little later you hear the third"],
 	"countdown": ["countdown", "a timer counts down from 60; at zero nothing happens; then it counts up"],
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt"]
+const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt", "tallone"]
 # other things you might type for a name
-const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt"}
+const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt", "tall": "tallone", "tallone": "tallone"}
 const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
 # the first-person arms' one-shots (torch_model.gd): console name -> clip. "swap" goes the way R does,
 # sound and light with it, but spends no battery pack.
@@ -1020,6 +1021,16 @@ func _build_entities_tab() -> Control:
 	for st in GRABBER_STATES:
 		grb_box.add_child(_action_btn(st.to_upper(), func(): _grabber_state(st)))
 
+	# The Tall One (tall_one.gd): spawn it ahead (it sees you and runs), or drop into the scream / the hunt
+	var tal_box := HBoxContainer.new()
+	tal_box.add_theme_constant_override("separation", 8)
+	v.add_child(tal_box)
+	tal_box.add_child(_label("THE TALL ONE:", 12, Color(0.9, 0.8, 0.6), 160))
+	tal_box.add_child(_action_btn("SPAWN", func(): _apply("tallone", true)))
+	tal_box.add_child(_action_btn("DESPAWN", func(): _apply("tallone", false)))
+	tal_box.add_child(_action_btn("SCREAM", func(): _tallone("debug_scream")))
+	tal_box.add_child(_action_btn("HUNT", func(): _tallone("debug_hunt")))
+
 	# All Monsters Action
 	var all_box := HBoxContainer.new()
 	all_box.add_theme_constant_override("separation", 8)
@@ -1664,6 +1675,9 @@ func _submit(line: String) -> void:
 				_print("ambience: " + amb.status())
 		"grabber":
 			_grabber_state(arg)
+		"tallone", "tall":
+			if arg in ["scream", "hunt"]: _tallone("debug_" + arg)
+			else: _print("tallone what? scream, hunt (or spawn tallone / despawn tallone)")
 		"events":
 			for k in EVENTS:
 				_print("  %-16s %s" % [EVENTS[k][0], EVENTS[k][1]])
@@ -1874,6 +1888,17 @@ func _node(name: String) -> Node:
 func _active(name: String) -> bool:
 	var n := _node(name)
 	return n != null and n.debug_active()
+
+## THE TALL ONE straight into the scream (start of the 7 s window) or the hunt (running at you, kills you)
+func _tallone(method: String) -> void:
+	var n := _node("tallone")
+	if n == null:
+		_print("[color=orange]tallone is not in the scene[/color]")
+		return
+	if n.call(method):
+		_print("tallone: " + method.trim_prefix("debug_"))
+	else:
+		_print("[color=orange]tallone: %s[/color]" % n.get("last_error"))
 
 ## THE GRABBER straight into hunch / peek / chase / drag (console: grabber <state>)
 func _grabber_state(st: String) -> void:

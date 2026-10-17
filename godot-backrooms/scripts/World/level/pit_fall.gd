@@ -64,8 +64,7 @@ const CAP_ALPHA := 0.97
 
 ## The haze, by the level's look: a sickly yellow over the dim halls, washed-out grey-green in the liminal look,
 ## a dirtier yellow in the bright classic one, a pale aqua glow by day
-const SICK := {"dim": Color(0.16, 0.145, 0.085), "liminal": Color(0.23, 0.235, 0.19), "classic": Color(0.3, 0.27, 0.15),
-	"pool": Color(0.42, 0.5, 0.48)}
+const SICK := {"dim": Color(0.16, 0.145, 0.085), "liminal": Color(0.23, 0.235, 0.19), "classic": Color(0.3, 0.27, 0.15)}
 
 var level: Node3D
 var seg_h := 9.0
@@ -422,7 +421,6 @@ func _material() -> ShaderMaterial:
 	var tube: Color = level.LIGHT_COLOR
 	if look == "liminal": tube = level.ATMOSPHERES.liminal.light
 	elif look == "classic": tube = Color(1.0, 0.99, 0.96)
-	elif look == "pool": tube = level.ATMOSPHERES.pool.light
 	m.set_shader_parameter("tube_color", tube)
 	m.set_shader_parameter("rows", _rows)
 	m.set_shader_parameter("period", ROW_PERIOD)

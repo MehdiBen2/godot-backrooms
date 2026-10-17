@@ -1024,7 +1024,7 @@ func ambient_light() -> float:
 	if Game.outdoors:
 		return Game.day_light
 	if level == null: return 1.0
-	return maxf(level.tube_light_at(global_position), Game.fx_pool)
+	return level.tube_light_at(global_position)
 
 ## Crouched, crawling or squeezed through a slit: no room to hold the torch up, the head lamp is on instead
 func _tight_spot() -> bool:

@@ -208,7 +208,6 @@ func _place_fixtures() -> void:
 	_seed_fixtures()
 	var lm := str(call("lights_mode"))
 	if lm != "troffers" and lm != "fluorescent": return       # hung only where the level asks for them (level_geometry.gd)
-	var steady := atmosphere() == "pool"                    # the pool rooms are kept up: every lamp works, none flickers
 	var min_sp := CELL * 1.9
 	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
@@ -249,7 +248,7 @@ func _place_fixtures() -> void:
 			elif not (ns or ew or grid_node): continue
 			var is_liminal := liminal.has(c)
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
-			var kept := is_bright or is_classic or (steady and not (dark.has(c) or dim.has(c)))
+			var kept := is_bright or is_classic
 			var burnt := not kept and rng.randf() < chance
 			var flick := (not burnt) and not kept and (flicker.has(c) or rng.randf() < (LIMINAL_FLICKER_CHANCE if is_liminal else FLICKER_CHANCE))
 			if loop.has(c):                 # a corridor that repeats: every tube alike, or the repeat would show
@@ -271,7 +270,6 @@ func _place_fixtures() -> void:
 # Panel ceilings: a fixture per open cell (its five panels), a real light only on the checkerboard cells
 func _place_panel_fixtures() -> void:
 	_seed_fixtures()
-	var steady := atmosphere() == "pool"                    # the pool rooms are kept up: every lamp works, none flickers
 	for x in range(1, size - 1):
 		await _slice()
 		for z in range(1, size - 1):
@@ -287,7 +285,7 @@ func _place_panel_fixtures() -> void:
 			# sit right on top of the wall and bleed through both faces
 			var on_grid := x % 2 == 0 and z % 2 == 0 and not carved.has(c)
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
-			var kept := is_bright or is_classic or (steady and not (dark.has(c) or dim.has(c)))
+			var kept := is_bright or is_classic
 			var burnt := not on_grid or (not kept and rng.randf() < chance)
 			var flick := (not burnt) and not kept and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
 			if loop.has(c):
@@ -522,8 +520,8 @@ func _characterise(f: Dictionary, c: Vector2i) -> void:
 	var age := r.randf() * r.randf()                  # most nearly new, a few well down
 	var is_panel := f.has("cell")
 	var doomed := r.randf() < (PANEL_DYING_CHANCE if is_panel else DYING_CHANCE)
-	# (kept-up lights: the lit zones, and the pool look's outside its Dark / Dim zones: no tired or dying lamps)
-	if f.bright or f.classic or liminal.has(c) or (atmosphere() == "pool" and not (dark.has(c) or dim.has(c))):
+	# (kept-up lights: the lit zones: no tired or dying lamps)
+	if f.bright or f.classic or liminal.has(c):
 		f.warm = Color(1.0 + 0.012 * kelvin, 1.0, 1.0 - 0.025 * kelvin)
 		f.peak = 1.0 - 0.04 * age
 		return

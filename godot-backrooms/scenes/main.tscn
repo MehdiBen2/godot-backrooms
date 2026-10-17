@@ -18,6 +18,7 @@
 [ext_resource type="Script" path="res://scripts/Entities/grabber/grabber.gd" id="17_grabber"]
 [ext_resource type="Script" path="res://scripts/Entities/model_entity.gd" id="18_model_entity"]
 [ext_resource type="Script" path="res://scripts/Entities/burnt/burnt.gd" id="19_burnt"]
+[ext_resource type="Script" path="res://scripts/Entities/tall/tall_one.gd" id="20_tallone"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -148,3 +149,9 @@ script = ExtResource("19_burnt")
 model = "res://models/entities/burnt/theburnt_animated.glb"
 height = 4.5
 source_height = 0.978
+
+[node name="TallOne" type="Node3D" parent="."]
+script = ExtResource("20_tallone")
+model = "res://models/entities/tall/tall_one.glb"
+height = 4.45
+source_height = 4.45

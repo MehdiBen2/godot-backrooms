@@ -834,8 +834,7 @@ func _first_open() -> Array:
 
 ## "dim" (the default: failing tubes, light that dies in the fog), "classic" (the whole level lit bright
 ## and steady, clear air) or "liminal" (every tube on and steady, flat pale light, halls that fade into a
-## haze far away instead of the dark) or "day" (the pool rooms at noon: daylight and a sun over everything, the
-## tubes or no). New level-wide looks go here and in scripts/Render/atmospheres.gd.
+## haze far away instead of the dark).
 func atmosphere() -> String:
 	return str(level_data.get("atmosphere", "dim"))
 

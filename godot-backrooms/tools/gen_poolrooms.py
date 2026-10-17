@@ -1,9 +1,9 @@
-"""The Poolrooms (Level 37) in the day look: white tile, flooded halls, sun from a sky you never see.
+"""The Poolrooms (Level 37) in the pool look: white tile, flooded halls, a grid of bright round downlights.
 Built after three reference photos, one area each:
   the colonnade hall   tall white hall, two rows of thick round columns, a parapet gallery along one side with
                        steps rising out of the water to it, flooded (the yellow-duck photo)
   the arch tunnel      a narrow flooded passage through ring after ring of round arches (the tunnel photo)
-  the cube rooms       tall square rooms joined by big square openings, all flooded, sun from high windows
+  the cube rooms       tall square rooms joined by big square openings, all flooded
                        (the photo of the white cubes)
 and a dry lap-pool hall and a dry entrance landing, reached over a low step out of the water.
 Writes levels/level_37_poolrooms.lvl and adds it to levels/levels.json (the other entries are left alone).
@@ -17,7 +17,6 @@ NAME = "Level 37: The Poolrooms"
 N = 56
 WATER = 0.5                 # m: how deep the flooded halls stand (shin to knee)
 STEP = 0.6                  # m: the dry landings' step, just over the water so its glassy edge hides behind it
-TALL = 5.4 * 2              # (the "tall" zone's ceiling, level_data.gd: what the gallery and windows are sized to)
 
 r = random.Random(1037)
 grid = [["#"] * N for _ in range(N)]
@@ -62,12 +61,6 @@ def landing(x, y, into_dry, into_wet):
             railing="none", surface="tile")
 
 
-def window(x, y, d, **kw):
-    """a sunlit window in the wall face on side d of cell (x, y), looking into the room"""
-    rot = {(1, 0): 180.0, (-1, 0): 0.0, (0, 1): 270.0, (0, -1): 90.0}[d]
-    obj("window", x + d[0] * 0.5, y + d[1] * 0.5, rot, kw.pop("scale", 0.8), sky="noon", **kw)
-
-
 def oct_pts(rx, ry, cut=0.35):
     cx, cy = rx * cut, ry * cut
     return [(-rx + cx, -ry), (rx - cx, -ry), (rx, -ry + cy), (rx, ry - cy), (rx - cx, ry), (-rx + cx, ry), (-rx, ry - cy), (-rx, -ry + cy)]
@@ -91,10 +84,6 @@ for row in (23, 28):                                     # two rows of thick col
 obj("platform", (HALL[0] + HALL[2]) / 2, 18.5, 0.0, 2.0, depth=float(HALL[2] - HALL[0] + 1), elev=5.4, slab=0.45,
     edge="parapet", posts=True, surface="tile")
 obj("stair_flight", 27, 19.5 + 0.8, 270.0, 0.9, depth=1.6, elev=0.0, rise=5.4, railing="both", surface="tile")
-for x in (12, 18, 24):                                   # tall windows down the south wall: the sun's lanes across the water
-    window(x, HALL[3], (0, 1), frame="panorama", elev=1.6, height=6.5, panes=4.0, sun=9.0, sun_angle=38.0, scale=1.0)
-for x in (11, 21):                                       # and a pair over the gallery
-    window(x, HALL[1], (0, -1), frame="arched", elev=7.0, height=3.0, panes=3.0, sun=6.0, sun_angle=50.0, scale=0.7)
 
 # ---------------------------------------------------------------- the lap-pool hall (dry deck), north of the gallery
 POOLS = (8, 4, 29, 14)
@@ -109,8 +98,6 @@ obj("pool", 18.5, 9, 0.0, 1.0, points=[[round(p[0], 3), round(p[1], 3)] for p in
 for row in (5, 13):
     for x in range(10, 29, 3):
         obj("column", x, row, 0.0, 1.0, thick=1.2, height=0.0)
-for x in (11, 18, 25):
-    window(x, POOLS[1], (0, -1), frame="arched", elev=2.0, height=5.0, panes=3.0, sun=8.0, sun_angle=42.0, scale=0.9)
 
 # ---------------------------------------------------------------- the arch tunnel (photo 2)
 TY = 28
@@ -135,9 +122,6 @@ for cx in COLS:
     for wy in (20, 26, 32):
         x = cx + r.randint(1, 3)
         carve(x, wy, x, wy)
-for ry in ROWS:                                          # sun from high in the outer wall
-
-    window(52, ry + 2, (1, 0), frame="pane", elev=6.2, height=3.4, panes=2.0, sun=7.0, sun_angle=48.0, scale=0.7)
 
 # ---------------------------------------------------------------- water, paint, zones
 water(HALL[0], HALL[1], 41, HALL[3])                     # the hall and the tunnel (the walls between hide it)
@@ -153,13 +137,13 @@ SPAWN = (3, 26)
 EXIT = (52, 37)                                          # the far corner of the last cube room
 assert grid[SPAWN[1]][SPAWN[0]] == "." and grid[EXIT[1]][EXIT[0]] == "."
 obj("trigger", 5, 26, 0.0, 3.0, event="message", custom_event="", events_list=[], once=True, delay=0.0, duration=20.0, depth=3.0,
-    text="LEVEL 37 - THE POOLROOMS. White tile, warm water, daylight from nowhere. It is peaceful here. That is what makes it wrong.")
+    text="LEVEL 37 - THE POOLROOMS. White tile, warm water, every light on. It is peaceful here. That is what makes it wrong.")
 for (x, y), ev in zip([(20, 30), (36, 28), (44, 23), (50, 30)], ["silence", "drone", "silence", "hallucination"]):
     obj("trigger", x, y, 0.0, 2.5, event=ev, custom_event="", events_list=[], text="", once=True, delay=0.0, duration=14.0, depth=2.0)
 
 out = {
     "format": "backrooms_level", "version": 2, "name": NAME, "size": N,
-    "atmosphere": "day", "lights": "none",
+    "atmosphere": "liminal", "lights": "panels",      # (a tiled ceiling: round downlights in it)
     "materials": {"wall": "Tile_White_Grid", "floor": "Tile_White_Grid", "ceiling": "Tile_White_Grid", "tiles": "Tile_White_Grid"},
     "drop_hole": None,
     "grid": ["".join(row) for row in grid],

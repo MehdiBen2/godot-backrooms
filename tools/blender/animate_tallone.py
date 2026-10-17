@@ -1,6 +1,6 @@
 """Author THE TALL ONE's clips (models/entities/tall/tall_one.glb) on the rig built in tall_one.blend.
 
-    blender -b models/entities/tall/tall_one.blend --python tools/blender/animate_tallone.py
+    blender -b tools/blender/tall_one.blend --python tools/blender/animate_tallone.py
     (or exec() it in a live Blender over the MCP, with the tall_one scene open)
 
 The rig is a 66-bone Mixamo-style skeleton stretched to 4.45 m. Bones are renamed to plain names (Hips, Spine,
@@ -25,7 +25,7 @@ import math
 from mathutils import Matrix, Quaternion, Vector
 
 OUT = r"C:\Users\alhyu\Documents\GitHub\godot-backrooms\godot-backrooms\models\entities\tall\tall_one.glb"
-BLEND = r"C:\Users\alhyu\Documents\GitHub\godot-backrooms\godot-backrooms\models\entities\tall\tall_one.blend"
+BLEND = r"C:\Users\alhyu\Documents\GitHub\godot-backrooms\tools\blender\tall_one.blend"
 FPS = 30
 X = Vector((1, 0, 0))               # pitch: + folds forward (top toward -Y)
 Y = Vector((0, 1, 0))               # roll: + tips the top toward its left (+X)
@@ -483,15 +483,15 @@ def kill(t):
     p.ik["legR"] = (fr, Vector((-1.0 - 0.8 * sq, -0.4 * (1 - sq) - 0.1, 0.2 + 1.2 * sq)))
     p.foot_pitch["L"], p.foot_pitch["R"] = (-10.0 * air, -10.0 * air)
     # the body: stooped over the run, thrown out flat in the leap, then bent right over you
-    lean = lerp(lerp(24.0, 58.0, ease(fly)), 78.0, settle)
+    lean = lerp(lerp(24.0, 58.0, ease(fly)), 66.0, settle)
     p.turn("Hips", (X, 6.0 + 18.0 * ease(fly) - 14.0 * settle))
     p.turn("Spine", (X, lean * 0.30 - 4.0 * settle))
     p.turn("Spine1", (X, lean * 0.34), (Z, 4.0 * heave * tear))
     p.turn("Spine2", (X, lean * 0.36 + 6.0 * settle), (Z, -3.0 * heave * tear))
-    p.turn("Neck", (X, lerp(-8.0, 20.0, settle) + 12.0 * tear * heave))
+    p.turn("Neck", (X, lerp(-8.0, 34.0, settle) + 8.0 * tear * heave))
     # the head: on you the whole way; once sat it cocks and ticks over your face
     cock = 16.0 * math.sin(k * 1.9) + 9.0 * math.sin(k * 5.3 + 2.0)
-    p.turn("Head", (X, lerp(-20.0, 30.0, settle)), (Y, cock * tear), (Z, 6.0 * math.sin(k * 3.1) * tear))
+    p.turn("Head", (X, lerp(-20.0, 62.0, settle)), (Y, cock * 0.6 * tear), (Z, 6.0 * math.sin(k * 3.1) * tear))
     # arms: out in front, reaching for you through the leap; once sat, both hands on your face, raking
     reach = ease(fly)
     shoulder = lambda sx: Vector((sx * 0.45, lerp(fy - 0.15, fy - 0.1, 1) - 0.0, 0.0))
@@ -523,16 +523,15 @@ def kill_eye_clear():
 
 
 def kill_eye():
-    """An empty where your eyes are, lying under it looking up (-Z of the empty points the way you look)"""
+    """An empty where your eyes are, lying under it looking up. Godot re-expresses an empty's rotation in its own
+    axes (x, z, -y), so this basis is the one that arrives there as: -Z = up (the way you look), +Y = its facing
+    (the top of your head), +X = its left"""
     kill_eye_clear()
     e = bpy.data.objects.new("KillEye", None)
     e.empty_display_type = 'ARROWS'
     e.empty_display_size = 0.2
     bpy.context.scene.collection.objects.link(e)
-    f = Vector((0, 0, 1))
-    u = Vector((0, 1, 0))
-    r = f.cross(u)
-    e.matrix_world = Matrix(((r.x, u.x, -f.x, EYE.x), (r.y, u.y, -f.y, EYE.y), (r.z, u.z, -f.z, EYE.z), (0, 0, 0, 1)))
+    e.matrix_world = Matrix(((1, 0, 0, EYE.x), (0, 0, -1, EYE.y), (0, 1, 0, EYE.z), (0, 0, 0, 1)))
     return e
 
 

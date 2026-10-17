@@ -467,6 +467,7 @@
         "grabber": "THE GRABBER. Placed from a mark: it hangs from the ceiling there (roam: it moves on in time; lurk: it stays)",
         "skinstealer": "THE SKIN STEALER. Not placed from a mark yet: kept in the level, skipped by the game",
         "burnt": "THE BURNT. Placed from a mark: it starts there (roam: stalks you at once; lurk: waits until you are close)",
+        "tallone": "THE TALL ONE (4.5 m). Placed from a mark: it roams (lurk: waits there until you come close). It runs from you when it sees you from afar, then, out of nowhere, you hear it scream and have 7 seconds to hide, or it comes running and kills you",
         "eyes": "THE EYES. Placed from a mark: a pair of eyes watches from there and never leaves",
         "screamface": "Screaming face statue (model only, no AI yet). WALLS ONLY: hangs flat on the wall nearest the mark (the one its arrow points at, if any), at face height. No wall within a cell: left out",
         "sculpture_tall": "Sculpture: tall draped figure (model only): stands on the mark, facing along its arrow",

@@ -115,8 +115,6 @@ var shaft_mix := 0.0               # 0..1: standing by a shaft through the floor
 const SHAFT_AIR_CELLS := 5         # how near
 const SHAFT_FOG := 0.2             # share of the fog left there
 var _lim := 0.0                    # liminal_mix while the power is on (a power cut is dark in any look)
-var _pool_look := 0.0              # 1 in a level with the pool look (level-wide)
-var _pool_shade := 1.0             # the pool look's fill left where you stand (a Dark / Dim zone dims it, eased)
 ## A crawl space's tubes hang 0.7 m up pointing at the floor, so its walls get almost none of their light: while
 ## you are in one the ambient is lifted by up to this much (eased in and out), the walls read as walls
 const CRAWL_AMBIENT := 1.6
@@ -156,8 +154,6 @@ func build_lighting() -> void:
 	_build_floor_glow()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
 	env = we.environment if we else null
-	_pool_look = 1.0 if atmosphere() == "pool" else 0.0
-	lamp_gain = lerpf(1.0, float(ATMOSPHERES.pool.lamp_gain), _pool_look)
 	_build_horizon_fog()
 	_read_quality()
 	Gfx.changed.connect(_read_quality)
@@ -213,12 +209,11 @@ func _update_atmosphere(delta: float) -> void:
 	open_mix = maxf(classic_mix, bright_mix * 0.85) * (1.0 - grid_glow) * power   # a power cut is dark, whatever the zone
 	_lim = liminal_mix * (1.0 - grid_glow) * power
 	Game.fx_classic = classic_mix
-	Game.fx_pool = _pool_look
 	if reflect_mmi != null:                                              # noclip under the map would show them as huge white panels
 		reflect_mmi.visible = player.global_position.y > 0.0
 	# stark white tubes in the classic zone, so the light reads against the yellow walls. Written only when it
 	# changes: it used to be set on all ~70 pooled lights every frame, each one a renderer update
-	var tube_col := LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix).lerp(ATMOSPHERES.pool.light, _pool_look)
+	var tube_col := LIGHT_COLOR.lerp(ATMOSPHERES.liminal.light, _lim).lerp(Color(1.0, 0.99, 0.96), classic_mix)
 	if not tube_col.is_equal_approx(_tube_col):
 		_tube_col = tube_col
 		tube_color = tube_col            # (each pooled light takes it times its own lamp's white, level_light_pool.gd)
@@ -238,11 +233,9 @@ func _update_atmosphere(delta: float) -> void:
 	if cam: ahead = cam.global_position - cam.global_transform.basis.z * EYE_PROBE
 	var seen := 0.5 * (tube_light_at(player.global_position) + tube_light_at(ahead))
 	var gain := lerpf(1.0, lerpf(EYE_GAIN_DARK, EYE_GAIN_BRIGHT, seen), clampf(zone_amb, 0.0, 1.0) * (1.0 - grid_glow))
-	gain = lerpf(gain, 1.0, _pool_look)                                # the pool rooms are lit evenly: the exposure holds steady
 	eye += (gain - eye) * minf(1.0, delta * EYE_SPEED)
-	_pool_shade += (lerpf(1.0, zone_amb, float(ATMOSPHERES.pool.dark_shade)) - _pool_shade) * k
 	if cam:
-		var target := _glare_now(cam) * (1.0 - _pool_look)            # (lamps all over a high ceiling: a glance up must not stop the room down)
+		var target := _glare_now(cam)
 		glare_now = target
 		glare +=(target - glare) * minf(1.0, delta * (GLARE_IN if target > glare else GLARE_OUT))
 	if Gfx.post_mat:
@@ -256,17 +249,14 @@ func _update_atmosphere(delta: float) -> void:
 	shaft_mix += ((1.0 if by_shaft else 0.0) - shaft_mix) * minf(1.0, delta * 1.5)
 	zf = minf(zf, lerpf(zf, SHAFT_FOG, shaft_mix))
 	zf = lerpf(zf, FF_FOG, open_mix)                                  # clear air: the far halls keep their light, only a touch of haze
-	zf = lerpf(zf, ATMOSPHERES.pool.fog, _pool_look)                  # pool: clear air across the hall
 	zone_fog += (zf - zone_fog) * k
 	var b := AMBIENT_MIN + (1.0 - AMBIENT_MIN) * bounce
 	# power cut: a faint glow so shapes barely read (ATMOSPHERE.gridDownAmbient / gridDownFog)
 	var darkness := 1.0 - minf(1.0, maxf(b * zone_amb, 0.25 * grid_glow))
-	darkness *= 1.0 - _pool_look                                      # the pool rooms' air never goes dark between the lamps
 	env.fog_light_color = FOG_COLOR.lerp(FOG_COLOR_DARK, darkness)
 	# in big lit halls the distance fades to a warm haze instead of black, so you can read the far walls and ceiling
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.liminal.haze, _lim * (1.0 - 0.6 * darkness))   # stays pale in the shadows too
 	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.classic.haze, open_mix * (1.0 - darkness))
-	env.fog_light_color = env.fog_light_color.lerp(ATMOSPHERES.pool.haze, _pool_look)
 	env.background_color = env.fog_light_color
 	if is_instance_valid(_horizon) and _horizon_mat:
 		_horizon_mat.set_shader_parameter("fog_color", env.fog_light_color)
@@ -334,21 +324,6 @@ func _blend_env(a: Dictionary) -> void:
 	env.glow_bloom = lerpf(b.glow_bloom, a.glow_bloom, cam_mix)
 	env.set_glow_level(5, _glow_level(5, lerpf(b.glow_wide, a.glow_wide, cam_mix)))
 	env.ssao_intensity = lerpf(b.ssao_intensity, a.ssao_intensity, cam_mix)
-	if _pool_look > 0.001: _blend_pool()
-
-## The pool look over whatever the rest of the blend made: its fill and camera settings hold whatever the
-## zone and the camcorder would do (Dark / Dim zones still shade the fill a little: _pool_shade)
-func _blend_pool() -> void:
-	var d: Dictionary = ATMOSPHERES.pool
-	env.ambient_light_energy = lerpf(env.ambient_light_energy, d.ambient_energy * _pool_shade, _pool_look)
-	env.ambient_light_color = env.ambient_light_color.lerp(d.ambient_color, _pool_look)
-	env.tonemap_exposure = lerpf(env.tonemap_exposure, d.exposure * exposure_gain, _pool_look)
-	env.tonemap_agx_white = lerpf(env.tonemap_agx_white, d.agx_white, _pool_look)
-	env.glow_hdr_threshold = lerpf(env.glow_hdr_threshold, d.glow_threshold, _pool_look)
-	env.glow_intensity = lerpf(env.glow_intensity, d.glow_intensity, _pool_look)
-	env.glow_bloom = lerpf(env.glow_bloom, d.glow_bloom, _pool_look)
-	env.set_glow_level(5, _glow_level(5, lerpf(env.get_glow_level(5), d.glow_wide, _pool_look)))
-	env.ssao_intensity = lerpf(env.ssao_intensity, d.ssao_intensity, _pool_look)
 
 ## A glow level is either off or clearly on, never faint. A level with a tiny share of the glow (under about
 ## 1 %: measured, 0.03 next to the other levels' 3.4 broke and 0.05 did not) still gets added to the picture
@@ -443,10 +418,6 @@ func _update_grid_gi() -> void:
 	var col: Color = GI_TINT_DIM.lerp(li.get("gi_tint", GI_TINT_DIM), _lim).lerp(cl.get("gi_tint", GI_TINT_DIM), open_mix)
 	col = col * tube_color * tint
 	var ceil_gain := lerpf(lerpf(GI_CEIL_DIM, GI_CEIL_LIMINAL, _lim), float(cl.get("gi_ceil", 0.0)), open_mix)
-	var dy: Dictionary = ATMOSPHERES.pool
-	strength = lerpf(strength, float(dy.gi), _pool_look)
-	col = col.lerp((dy.gi_tint as Color) * tube_color * tint, _pool_look)
-	ceil_gain = lerpf(ceil_gain, float(dy.gi_ceil), _pool_look)
 	grid_gi.update(player.global_position, strength, col, env.fog_density if env else 0.0, ceil_gain)
 
 ## The dust hanging in the air round the player (dust_motes.gd), lit by the pool's nearest working tubes.
@@ -455,7 +426,7 @@ const DustMotes := preload("res://scripts/World/level/dust_motes.gd")
 var dust: DustMotes
 
 func _update_dust() -> void:
-	var want: bool = int(Gfx.s.get("post", 2)) > 0 and not Gfx.compat and _pool_look <= 0.0   # (against white tile the motes are specks of white all over)
+	var want: bool = int(Gfx.s.get("post", 2)) > 0 and not Gfx.compat
 	if not want:
 		if is_instance_valid(dust):
 			dust.emitting = false

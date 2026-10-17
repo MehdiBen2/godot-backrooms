@@ -47,7 +47,6 @@ var fx_static := 0.0
 var fx_warp := 0.0
 var fx_corrupt := 0.0          # 0..1 the picture breaking up into blocks (the Burnt), drawn by the post shader
 var fx_classic := 0.0         # 0..1 in a Classic zone (set by level_lighting.gd, read by the post shader)
-var fx_pool := 0.0            # 1 in a level with the pool look (level_lighting.gd): films clean, no dark grade, no banding
 var fx_tubes := 0.0          # 0..1 how much tube light is on the player (level_lighting.gd): the camera's fluorescent banding
 var fx_blink := 0.0           # 0 eyes open .. 1 lids shut (player/blink.gd, drawn by the post shader)
 var fx_fade_release := false  # after death the black/red edges clear over 1.8s (endGrab(dying))

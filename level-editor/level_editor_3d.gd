@@ -74,7 +74,6 @@ const ATMO_PREVIEW := {
 	"dim": [Color("0d0c08"), Color("8a7a52"), 0.4, Color(1.0, 0.9, 0.7), 0.5],                   # warm, dark, foggy halls
 	"classic": [Color("6b5d2c"), Color("e8d27a"), 0.6, Color(1.0, 0.98, 0.9), 0.7],              # Kane Pixels: bright, flat yellow
 	"liminal": [Color("4a4a3c"), Color("c8ccb8"), 0.55, Color(0.95, 0.98, 0.9), 0.6],            # pale, cool, hazy
-	"day": [Color("cce0de"), Color("d6ebeb"), 0.9, Color(1.0, 0.96, 0.88), 0.9],                 # pool rooms at noon: white, aqua air
 }
 ## the view's light level: the atmosphere's light times this (- and = in the 3D view). Tonemapping keeps the
 ## highlights from clipping to white, which is what made the old preview look blown out
