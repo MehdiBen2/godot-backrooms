@@ -16,6 +16,14 @@ const LIMINAL_FLICKER_CHANCE := 0.04
 const POWER_CUT_EMBER_SHARE := 0.2    # share of tubes that keep a faint glow through a blackout
 const POWER_CUT_RESTORE_SPREAD := 2.4 # s over which the tubes strike back after the cut (the embers first)
 const AFTERGLOW := 0.01               # a tube's glow the instant the power dies: 1%, then it fades
+# No two tubes die alike in a cut (cut_power, _cut_glow): most snap straight off, some stutter out, some sag out
+# as the ballast's charge drains; a few try to re-strike in the dark, and a few are late back when the grid returns
+const POWER_CUT_STUTTER_SHARE := 0.3
+const POWER_CUT_BROWN_SHARE := 0.2
+const POWER_CUT_GASP_SHARE := 0.12
+const POWER_CUT_LATE_SHARE := 0.07
+const POWER_CUT_RESTUTTER_SHARE := 0.25   # back on with a stutter rather than one clean strike
+const CUT_LIT := 0.1                  # above this a cut tube shows a real flash (lamp_out), not just afterglow
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)   # HDR: well past the bloom threshold, so a lit tube glows and hits the lens
 const FLUOR_MODEL := "res://models/props/asset_pack/weathered_fluorescent_lightlamp_-_4096px2.glb"   # the "Fluorescent (new model)" lights
 const TOP_Y := 0.1432132             # troffer housing top, baked model coordinates
@@ -524,9 +532,11 @@ func _characterise(f: Dictionary, c: Vector2i) -> void:
 		warm *= Color(1.05, 0.93, 0.9)
 	f.warm = warm
 
-## What tube `f` puts out now (0 while cut): its flicker level times its age and the moment's warm-up, sag or swirl
+## What tube `f` puts out now (0 while cut, but for a power cut's stutters and re-strike flashes): its flicker level
+## times its age and the moment's warm-up, sag or swirl
 func lamp_out(f: Dictionary) -> float:
-	return 0.0 if f.black > 0.0 else f.level * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
+	if f.black > 0.0 and f.level < CUT_LIT: return 0.0
+	return f.level * float(f.get("peak", 1.0)) * float(f.get("mod", 1.0))
 
 ## A drop ceiling built tile by tile (drop_ceiling.gdshader) rather than a cell-sized picture with its panels baked
 ## in (panel_ceiling.gdshader): a textures/pbr material whose .tres says "metadata/drop_ceiling" (Ceiling_Drop*)
@@ -603,7 +613,8 @@ func _build_panel_ceiling() -> void:
 			f.panel_i = i
 			var o: int = i * st
 			MMBuffer.put(buf, o, Transform3D(down, f.pos))
-			MMBuffer.put_color(buf, o, Color.BLACK if f.burnt else PANEL_GLOW * (f.warm as Color) * float(f.peak))
+			# alpha: 1 a working fixture, 0 none (panel_ceiling.gdshader keeps a working one's lenses even unlit)
+			MMBuffer.put_color(buf, o, Color(0, 0, 0, 0) if f.burnt else _panel_color(PANEL_GLOW * (f.warm as Color) * float(f.peak)))
 			if drop:
 				var v: Array = f.get("vents", [])
 				buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
@@ -943,7 +954,13 @@ func _set_lit_color(f: Dictionary, lvl: float) -> void:
 	if f.has("fluor_mm"): (f.fluor_mm as MultiMesh).set_instance_color(f.fluor_i, LIT_DIFFUSER * w * k)
 	f.glow_lvl = k
 	_write_glow(f)
-	if f.has("panel_mm"): (f.panel_mm as MultiMesh).set_instance_color(f.panel_i, PANEL_GLOW * w * k)
+	if f.has("panel_mm"): (f.panel_mm as MultiMesh).set_instance_color(f.panel_i, _panel_color(PANEL_GLOW * w * k))
+
+## A working panel fixture's instance colour: its glow, alpha 1 however dim (Color * float scales alpha too, and
+## panel_ceiling.gdshader reads alpha as "a fixture is here": a dark one is drawn switched off, not as a plain tile)
+static func _panel_color(c: Color) -> Color:
+	c.a = 1.0
+	return c
 
 # Recolour every lit tube; Color.WHITE puts the normal warm white back (random events)
 func set_tint(c: Color) -> void:
@@ -964,16 +981,32 @@ func cut_power(duration: float) -> void:
 	LampFixture.power(false)                     # lamps, sconces and chandeliers go out; the red emergency strips come on
 	get_tree().create_timer(duration + POWER_CUT_RESTORE_SPREAD).timeout.connect(func() -> void: LampFixture.power(true))
 	for f in lit:
-		# every tube starts on a 1% afterglow (3% bloomed under the camcorder's exposure, so it read as still on)
+		# every tube ends on a 1% afterglow (3% bloomed under the camcorder's exposure, so it read as still on)
 		# that dies away over a few seconds. A few (the embers) never quite die: they settle to a faint, slowly
 		# wandering glow, and are the first to strike back when the grid returns; the rest come back staggered.
 		var ember := rng.randf() < POWER_CUT_EMBER_SHARE
+		var late := not ember and rng.randf() < POWER_CUT_LATE_SHARE
 		f.black = duration + (rng.randf() * 0.6 if ember else 0.5 + rng.randf() * (POWER_CUT_RESTORE_SPREAD - 0.5))
+		if late: f.black += 4.0 + rng.randf() * 8.0          # its ballast is slow to take: dark after the rest are back
 		f.glow_t = 0.0
 		f.glow_tau = 1.5 + rng.randf() * 3.0
 		f.glow_floor = AFTERGLOW * 0.4 if ember else 0.0
-		f.level = AFTERGLOW
-		_set_lit_color(f, AFTERGLOW)
+		# how it goes out: snaps off, stutters out, or sags out
+		var r := rng.randf()
+		f.cut_kind = "stutter" if r < POWER_CUT_STUTTER_SHARE else ("brown" if r < POWER_CUT_STUTTER_SHARE + POWER_CUT_BROWN_SHARE else "snap")
+		f.cut_out = 0.0 if f.cut_kind == "snap" else (0.3 + rng.randf() * 0.8 if f.cut_kind == "stutter" else 0.5 + rng.randf() * 1.2)
+		f.cut_from = clampf(f.level, 0.3, 1.0)
+		# a few try to strike again in the dark: a short double blink, now and then. A late one keeps trying
+		# toward the end of the cut, the rest early on while the ballast still has charge.
+		var gasps: Array = []
+		if late or rng.randf() < POWER_CUT_GASP_SHARE:
+			for _n in 1 + rng.randi() % 3:
+				var at: float = (f.black - 1.0 - rng.randf() * 10.0) if late else (f.cut_out + 2.0 + rng.randf() * minf(14.0, duration * 0.4))
+				gasps.append(Vector3(maxf(at, f.cut_out + 1.0), 0.08 + rng.randf() * 0.22, 0.25 + rng.randf() * 0.5))
+		f.gasps = gasps
+		f.gasp_lit = false
+		f.level = _cut_glow(f)
+		_set_lit_color(f, f.level)
 		_wake(f)
 
 func restore_power() -> void:
@@ -1462,15 +1495,24 @@ func _update_fixtures(delta: float) -> void:
 			f.black -= delta
 			if f.has("glow_tau") and f.black > 0.0:
 				f.glow_t += delta
-				var g := _afterglow(f)
+				var g := _cut_glow(f)
+				# a re-strike flash in the dark ticks like any re-strike (only once it is out: not every stutter)
+				var flash := g >= CUT_LIT and float(f.glow_t) > float(f.get("cut_out", 0.0))
+				if flash and not f.get("gasp_lit", false): fixture_event.emit(f, true)
+				f.gasp_lit = flash
 				if absf(g - f.level) > 0.0004:
 					f.level = g
 					_set_lit_color(f, g)
 			if f.black <= 0.0:
+				var from_cut: bool = f.has("glow_tau")
 				f.erase("glow_tau")
 				f.level = 1.0
 				f.burst = 0
 				f.timer = 1.0 + rng.randf() * 3.0
+				# back from a power cut, some don't take at the first strike: a stutter of dropouts before they hold
+				if from_cut and rng.randf() < POWER_CUT_RESTUTTER_SHARE:
+					f.burst = 2 * (1 + rng.randi() % 3)
+					f.timer = 0.06 + rng.randf() * 0.2
 				_restrike(f)
 				_set_lit_color(f, 1.0)
 				fixture_event.emit(f, true)
@@ -1551,10 +1593,28 @@ func _update_mods(delta: float) -> void:
 			if f.black <= 0.0 and f.level > 0.3: _set_lit_color(f, f.level)
 	for i in done: _moving.erase(i)
 
-## A tube cooling after a power cut: the afterglow dies away (fast at first) to its floor. An ember's floor is
-## a faint glow that slowly wanders and now and then sags, the way a worn tube hangs on.
-static func _afterglow(f: Dictionary) -> float:
-	var k := clampf(float(f.glow_t) / float(f.glow_tau), 0.0, 1.0)
+## A tube in a power cut, `glow_t` seconds in: first how it goes out (cut_kind, over cut_out seconds: a stutter of
+## dropouts that come longer and dimmer, or a sag as the ballast drains), then its afterglow, and over that any
+## attempt to strike again (gasps: [start, length, level], a quick double blink).
+static func _cut_glow(f: Dictionary) -> float:
+	var t := float(f.glow_t)
+	var out := float(f.get("cut_out", 0.0))
+	if t < out:
+		var k := t / out
+		if f.get("cut_kind", "") == "stutter":
+			var n := fposmod(sin(floorf(t * 18.0) * 12.9898 + float(f.seed) * 78.233) * 43758.5453, 1.0)
+			return lerpf(float(f.cut_from), 0.2, k) if n > 0.2 + 0.7 * k else AFTERGLOW * 2.0
+		return lerpf(float(f.cut_from), AFTERGLOW, k * k) * (1.0 + 0.06 * sin(t * 31.0))
+	var g := _afterglow(f, t - out)
+	for v: Vector3 in f.get("gasps", []):
+		var s := (t - v.x) / v.y
+		if s >= 0.0 and s < 1.0 and (s < 0.35 or (s > 0.55 and s < 0.85)): g = maxf(g, v.z)
+	return g
+
+## A tube cooling after a power cut, `since` seconds after it went out: the afterglow dies away (fast at first) to
+## its floor. An ember's floor is a faint glow that slowly wanders and now and then sags, the way a worn tube hangs on.
+static func _afterglow(f: Dictionary, since: float) -> float:
+	var k := clampf(since / float(f.glow_tau), 0.0, 1.0)
 	var s := (1.0 - k) * (1.0 - k)
 	var g := lerpf(float(f.glow_floor), AFTERGLOW, s)
 	if float(f.glow_floor) > 0.0:

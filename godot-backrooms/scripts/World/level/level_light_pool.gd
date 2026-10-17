@@ -24,9 +24,12 @@ const FADE_START := 18.0
 # short-ranged spots like the near ones (Forward+ clusters them) on the next nearest tubes out to FAR_RADIUS; how many
 # comes from the graphics preset (Gfx `far_lights`). Same range and falloff as the near lights, so a wall
 # 30 m away is lit exactly like the same wall up close (anything else reads as a flat, fake distance).
-const FAR_MAX := 32
-const FAR_RADIUS := 46.0
-const FAR_FADE := 36.0
+# They reach most of the way down a long hall: at 46 m the tubes past it were left to the unshaded fake glow
+# (level_fixtures.gd _build_floor_glow), a flat pool on the floor and a stripe on each wall under panels that
+# still blazed, so the end of every long view went dark and fake.
+const FAR_MAX := 64
+const FAR_RADIUS := 72.0
+const FAR_FADE := 60.0
 # Ceiling glow: the tube lights skip the ceiling (CEIL_LAYER, level_geometry.gd), so each lit slot also drives a
 # soft light further down that only reaches the ceiling: the broad halo round a real troffer, never a hotspot.
 # It only ever lights the CEIL_LAYER mesh (never walls), so walls can never occlude it: it has no way to

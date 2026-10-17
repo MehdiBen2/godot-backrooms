@@ -76,6 +76,10 @@ func _make_materials() -> void:
 	door_frame_mat.albedo_color = Color(0.40, 0.37, 0.29)
 	door_frame_mat.roughness = 0.85
 	door_frame_mat.metallic_specular = 0.08
+	door_frame_mat.albedo_texture = _SkirtMaterial.tex(_SkirtMaterial.DIRT[1])     # grime photo, multiplied over the cream, in world space
+	door_frame_mat.uv1_triplanar = true
+	door_frame_mat.uv1_world_triplanar = true
+	door_frame_mat.uv1_scale = Vector3.ONE * 0.5
 
 # ---------------------------------------------------------------- materials
 ## The .lvl's optional "materials" ({wall, floor, ceiling, tiles} -> a folder in textures/pbr/, picked in the

@@ -23,7 +23,7 @@ const Breathing := preload("res://scripts/Audio/breathing.gd")
 # the switch clicked on an empty torch: three recorded takes (audio/CREDITS.txt), one at random each press
 const DEAD_CLICKS := ["items/torch/battery_dead_click_1.wav", "items/torch/battery_dead_click_2.wav",
 	"items/torch/battery_dead_click_3.wav"]
-const HUM_VOLUME := 0.03           # AUDIO.humVolume: gentle ballast buzz
+const HUM_VOLUME := 0.061         # AUDIO.humVolume: gentle ballast buzz
 const HUM_HABITUATED := 0.35        # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0        # AUDIO.humHabituationTime
 const DRONE_BASE := 0.15
@@ -85,6 +85,7 @@ var voice_gain: Array[float] = []
 var diffuse: AudioStreamPlayer
 var drone: AudioStreamPlayer
 var drone_swell := 0.0
+var _hum_t := 0.0
 var hum_attention := 1.0
 var hum_mix := 0.0
 var hum_user := 1.0
@@ -281,13 +282,25 @@ func _update_hum(dt: float) -> void:
 	hum_user += (hum_user_target - hum_user) * (1.0 - exp(-dt / 1.5))
 	hum_event += (hum_event_target - hum_event) * (1.0 - exp(-dt / 0.8))
 	var mix: float = hum_mix * HUM_VOLUME * hum_user * hum_event * vol.hum * (1.0 - outdoor_mix) * (1.0 - hub_mix)     # no fluorescent hum under the sky or in the hub
+	_hum_t += dt
+	# slow swell of the whole hum, so it breathes instead of sitting flat
+	mix *= 1.0 + 0.22 * sin(_hum_t * 0.31) + 0.12 * sin(_hum_t * 0.83 + 1.7)
 	var comp := 1.0 / float(scales["world/lights/hum_voice.wav"])
 	for i in voices.size():
 		var lvl: float = level.slot_level(i)
 		var p := voices[i]
 		if lvl > 0.004: p.global_position = level.slot_position(i)
+		# each tube's level drifts on its own phase and rate (no pitch drift: detuned copies of one sample chorus into a doubled buzz)
+		var ph := float(i) * 2.399
+		var wander := 1.0 + 0.25 * sin(_hum_t * (0.4 + 0.07 * float(i % 5)) + ph) + 0.1 * sin(_hum_t * 1.9 + ph * 1.3)
+		# only the nearest tubes are heard as separate buzzes: the farther ones fall off faster so they don't stack up
+		var near := 1.0
+		var cam := get_viewport().get_camera_3d()
+		if lvl > 0.004 and cam != null:
+			var d := p.global_position.distance_to(cam.global_position)
+			near = 1.0 / (1.0 + (d / 9.0) * (d / 9.0))
 		# inverse-distance falloff: Godot's model is half the web panner's at the reference distance
-		var want := lvl * SLOT_GAIN * mix * comp * 2.0 * (1.0 - 0.6 * float(p.get_meta("occl", 0.0)))
+		var want := lvl * SLOT_GAIN * mix * wander * near * 1.6 * comp * 2.0 * (1.0 - 0.6 * float(p.get_meta("occl", 0.0)))
 		voice_gain[i] += (want - voice_gain[i]) * (1.0 - exp(-dt / 0.03))
 		p.volume_linear = voice_gain[i]
 	diffuse.volume_linear = mix / float(scales["world/lights/hum_diffuse.wav"])

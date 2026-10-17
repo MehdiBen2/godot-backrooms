@@ -1,16 +1,15 @@
 shader_type spatial;
-// The skirting and door-frame plaster, as it has been lived with: the Plaster_001 maps blended in world space (the
-// boards have no UVs), yellowed, blotched with grime that drifts over a metre or so, and each stretch of board a
-// little lighter or darker than its neighbour, as if touched up at different times. Used by skirt_material.gd.
+// The skirting and door-frame paint: the Plaster_001 maps blended in world space (the boards have no UVs), in a
+// warm cream that sits with the yellowed wallpaper, each stretch of board a shade lighter or darker than its
+// neighbour, as if touched up at different times. Clean: the walls' own wear marks the foot. Used by skirt_material.gd.
 
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rough_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float normal_strength = 0.6;
 uniform float per_metre = 1.2;
-uniform vec3 tint : source_color = vec3(0.93, 0.91, 0.86);      // off-white plaster: just under white, a little warm
-uniform float grime = 0.16;                                      // how far the blotches pull it down
-uniform float variation = 0.045;                                  // board to board, +/- of its brightness
+uniform vec3 tint : source_color = vec3(0.84, 0.79, 0.66);      // aged cream paint: under white, warmed to sit with the wallpaper
+uniform float variation = 0.03;                                   // board to board, +/- of its brightness
 
 varying vec3 wp;
 varying vec3 wn;
@@ -48,9 +47,6 @@ void fragment() {
 	vec3 q = wp * per_metre;
 	vec3 col = texture(albedo_tex, q.zy).rgb * w.x + texture(albedo_tex, q.xz).rgb * w.y + texture(albedo_tex, q.xy).rgb * w.z;
 	float rough = texture(rough_tex, q.zy).r * w.x + texture(rough_tex, q.xz).r * w.y + texture(rough_tex, q.xy).r * w.z;
-	// grime: broad blotches and a finer mottle, strongest where both are high
-	float g = vnoise(wp * 1.3) * 0.65 + vnoise(wp * 6.0) * 0.35;
-	float dirt = smoothstep(0.35, 0.8, g);
 	// the stretch of board it is on: a fixed lightness and a slight warm or cool lean, per 1.4 m
 	vec3 cell = floor(wp * vec3(0.7, 0.0, 0.7) + vec3(0.5));
 	float h = hash(cell + vec3(3.0, 7.0, 11.0));
@@ -58,13 +54,13 @@ void fragment() {
 	float bright = 1.0 + (h - 0.5) * 2.0 * variation;
 	vec3 lean = vec3(1.0 + (h2 - 0.5) * 0.04, 1.0, 1.0 - (h2 - 0.5) * 0.06);
 	vec3 base = col * tint * bright * lean;
-	ALBEDO = base * mix(1.0, 1.0 - grime, dirt);
+	ALBEDO = base;
 	// the plaster's own grain, blended in world space and turned into the view's: lit like any surface
 	vec2 nx = texture(normal_tex, q.zy).xy * 2.0 - 1.0;
 	vec2 ny = texture(normal_tex, q.xz).xy * 2.0 - 1.0;
 	vec2 nz = texture(normal_tex, q.xy).xy * 2.0 - 1.0;
 	vec3 wnrm = normalize(wn + normal_strength * (vec3(0.0, nx.y, nx.x) * w.x + vec3(ny.x, 0.0, ny.y) * w.y + vec3(nz.x, nz.y, 0.0) * w.z));
 	NORMAL = normalize((VIEW_MATRIX * vec4(wnrm, 0.0)).xyz);
-	ROUGHNESS = clamp(0.62 + rough * 0.3 + dirt * 0.15, 0.0, 1.0);
+	ROUGHNESS = clamp(0.62 + rough * 0.3, 0.0, 1.0);
 	SPECULAR = 0.35;
 }

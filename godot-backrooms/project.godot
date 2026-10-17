@@ -41,6 +41,7 @@ Voice="*res://scripts/Voice/voice.gd"
 MCPRuntime="*uid://dxstua4hew682"
 Archive="*res://scripts/GameLogicEngine/tsra_archive.gd"
 Clearance="*res://scripts/GameLogicEngine/tsra_clearance.gd"
+Saves="*res://scripts/GameLogicEngine/save_game.gd"
 
 [debug]
 

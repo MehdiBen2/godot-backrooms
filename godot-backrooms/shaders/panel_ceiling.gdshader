@@ -49,9 +49,10 @@ uniform vec3 world_shift = vec3(0.0);
 // Per material (a .tres's "metadata/shader_params", level_fixtures.gd _build_panel_ceiling); the defaults are
 // Ceiling_Light_Panels's look. Ceiling_Office_Lit turns them on:
 // dead_lens: 0 = a panel that isn't lit wears a plain tile (Ceiling_Light_Panels's colour map bakes a lit lens in);
-// 1 = a panel of the lit grid (every other cell each way, level_fixtures.gd _place_panel_fixtures) keeps its own
-// lens when off, a dull grey diffuser with nothing behind it, so a flickering panel never swaps between a lens and
-// a tile as its glow crosses half. The cells between, and burnt fixtures, keep plain tiles: no lenses are added.
+// 1 = a working fixture's panel (level_fixtures.gd _place_panel_fixtures: alpha 1 in its instance colour) keeps its
+// own lens when off, a dull grey diffuser with nothing behind it, so a flickering panel never swaps between a lens
+// and a tile as its glow crosses half, and a blackout leaves the ceiling's lights there, switched off. The cells
+// between, and burnt fixtures, keep plain tiles: no lenses are added.
 uniform float dead_lens = 0.0;
 // Each of a lit fixture's five panels on its own (a share of panels each): off, flickering, dim, or a warmer /
 // cooler white than the rest (an odd tube put in). Picked per panel from where it is, so it never changes.
@@ -139,11 +140,11 @@ void fragment() {
 	// a lit panel keeps its own square (its glow is drawn from it); every other tile, a switched-off panel
 	// included, wears a random plain tile: (1..5, 1..5), never a panel ((2, any) never is), mirrored at random
 	// (Ceiling_Light_Panels's tiles are all alike apart from their speckle: 20 of them alone still showed as a pattern)
-	vec2 cell_i = round(world / cell);
-	bool on_grid = abs(mod(cell_i.x, 2.0)) < 0.5 && abs(mod(cell_i.y, 2.0)) < 0.5;
-	// (a burnt fixture is written pure black and keeps plain tiles, as before; a lit one never goes below 0.03,
-	// even in a power cut, so its lenses stay put through flicker and blackouts)
-	bool own = is_panel_tile(k) && (glow > 0.5 || (dead_lens > 0.5 && on_grid && glow > 0.001));
+	// The instance colour's alpha says whether the cell has a working fixture at all (level_fixtures.gd: 1 on every
+	// lit fixture whatever its glow, 0 on a burnt one and on the cells between). A burnt fixture keeps plain tiles,
+	// as before; a working one keeps its lenses through flicker and power cuts, where its glow drops to nothing
+	// (testing the glow itself swapped every lens for a plain tile once a blackout's afterglow had died away).
+	bool own = is_panel_tile(k) && (glow > 0.5 || (dead_lens > 0.5 && COLOR.a > 0.5));
 	// this panel's own state (1 / white on everything but a lens)
 	float pm = 1.0;
 	vec3 pt = vec3(1.0);

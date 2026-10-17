@@ -40,13 +40,13 @@ const PHYS_WINDOW := 2.0
 ## the carpet and the ceiling grid sharp down a long hall; only Low (built for integrated GPUs) keeps it at 4x.
 const PRESETS := {
 	"low": {"scale": 70, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
-		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "far_lights": 8, "smooth": true, "banding": true},
+		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "far_lights": 12, "smooth": true, "banding": true},
 	"medium": {"scale": 67, "aa": 3, "shadows": 1, "ssao": 1, "bounce": true, "glow": true, "post": 1, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "far_lights": 12, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "far_lights": 24, "smooth": true, "banding": true},
 	"high": {"scale": 77, "aa": 3, "shadows": 2, "ssao": 2, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "far_lights": 16, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "far_lights": 40, "smooth": true, "banding": true},
 	"ultra": {"scale": 87, "aa": 3, "shadows": 3, "ssao": 3, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "far_lights": 20, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "far_lights": 56, "smooth": true, "banding": true},
 }
 ## Per shadow tier (0 off .. 3 high): the positional shadow atlas, its filter, and whether the tubes are area
 ## lights (PCSS: sharp where a thing meets the floor, softer further out, like a real 60 cm diffuser)
@@ -445,7 +445,7 @@ func _tune_for_weak_gpu() -> void:
 	elif pixels < 1300000:
 		s["scale"] = 85               # (1366x768 laptops: already few pixels, and FSR on top of them is mush)
 	s["lights"] = 4
-	s["far_lights"] = 6
+	s["far_lights"] = 10
 	preset = _matching_preset()
 	_save()
 

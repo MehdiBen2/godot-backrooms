@@ -130,6 +130,10 @@ var liminal := {}     # the liminal look: every tube steady and humming, pale ai
 var safe := {}        # no entity sets foot here: solid to their paths and their bodies (grid_nav.gd), not to their eyes
 var drain := {}       # sanity runs out while you stand here, whatever the light (player.gd)
 var loot := {}        # battery packs, tape and flashes turn up here far more often (level_builder.gd _scatter)
+## How lived-in the walls look (level_trim.gd _build_grime), painted in the level editor: "clean" (no grime,
+## no stains), "dirty" (grime films, foot grime and scuffs far more often) and "moist" (water down from the ceiling,
+## damp coming up from the floor). Zone name -> {Vector2i: true}
+var grime_zones := {"clean": {}, "dirty": {}, "moist": {}}
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 ## Reverb zones painted in the level editor, over the sound the room's shape gives on its own (acoustics.gd):
 var hall_reverb := {} # a vast hard hall: a long, bright tail that rings on (a tiled rotunda, a pool hall)
@@ -712,6 +716,10 @@ func _parse(d: Dictionary) -> void:
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
+	for zone: String in grime_zones:
+		for c in zones.get(zone, []):
+			var v := Vector2i(c[0], c[1])
+			if not walls.has(v): grime_zones[zone][v] = true
 	_hotel_faces_load()
 	_build_sight()
 	# Noclip on plain floor: no hole, you clip straight through the floor (noclip_slip.gd); on a pit it is the

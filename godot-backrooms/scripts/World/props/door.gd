@@ -25,8 +25,8 @@ const LATCH_AFTER := 0.25    # s into the open sound the latch gives and the lea
 const CLOSE_HIT := 0.15      # s into the close sound the leaf meets the frame
 const REACH_OPEN := 0.55     # s from [E] to the knob turning, with no scene to say so
 const REACH_CLOSE := 0.4     # s from [E] to the pull, likewise
-const OPEN_TIME := 1.3       # s the swing takes from the latch, with the creak (gone by ~1.35 s into the sound)
-const CLOSE_TIME := 0.9
+const OPEN_TIME := 0.85      # s the swing takes from the latch, with the creak (gone by ~1.35 s into the sound)
+const CLOSE_TIME := 0.6
 const CRACK_END := 0.1       # fractions of OPEN_TIME: the latch lets it fall ajar...
 const CREEP_END := 0.18      # ...it hangs there a moment, then the push
 const CRACK := 0.06          # fractions of OPEN_ANGLE: how far ajar it falls...
@@ -589,6 +589,9 @@ func _leaf_hits_body(a: float) -> bool:
 	return false
 
 func interact(player: Node3D) -> bool:
+	# spamming [E] mid-swing does nothing (unless the shut is held up by someone in the doorway)
+	if _moving and not blocked:
+		return false
 	var local := to_local(player.global_position) if player != null else Vector3.ZERO
 	var will_open := target_open_amount < 0.5
 	if will_open:
@@ -603,8 +606,15 @@ func interact(player: Node3D) -> bool:
 	_opening = will_open
 	_hit_played = false
 	# no camera scene: the door just opens or shuts on its own, the player keeps control throughout
-	_delay = WAIT if will_open else REACH_CLOSE
-	_knob_in = REACH_OPEN if will_open else -1.0
+	_delay = 0.0
+	_knob_in = -1.0
+	_ajar_left = 0.0
+	# one sound per swing, never stacked: the other one is cut first
+	if will_open:
+		if audio_close != null: audio_close.stop()
+		_play(audio_open, randf_range(0.97, 1.03))
+	else:
+		if audio_open != null: audio_open.stop()
 	_from = angle
 	_t = 0.0
 	_moving = true

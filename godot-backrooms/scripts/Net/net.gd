@@ -15,6 +15,8 @@ signal survivor_joined(id: int, callsign: String, already: bool)
 signal survivor_left(id: int, callsign: String)
 ## A survivor's vitals flatlined, and what did it ("UNDETERMINED" from a build that doesn't report it)
 signal survivor_died(id: int, callsign: String, cause: String)
+## Guest: the host opened / left its lobby screen (lobby_screen.gd), or pressed BEGIN there (`start`)
+signal lobby_changed(open: bool, start: bool)
 ## Signal strength between survivors (signal_of): full this close, gone this far (or on another floor)
 const SIGNAL_FULL := 14.0
 const SIGNAL_LOST := 42.0
@@ -23,11 +25,11 @@ const DEFAULT_PORT := 8910
 const SEND_INTERVAL := 1.0 / 20.0
 const HELLO_TIMEOUT := 6.0       # no hello from the host by then: we are on different game versions
 const NAME_MAX := 16
-const MAX_PLAYERS := 8
+const MAX_PLAYERS := 5          # the host and four more: the lobby corridor has a place for each (lobby_corridor.gd)
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 8
+const PROTOCOL := 9
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -99,6 +101,7 @@ var _room_token := 0            # bumped on host()/leave(): a slow lookup/publis
 var _room_code := ""            # host: this lobby's code (shown at once, live once _room_live)
 var _room_live := false         # host: the relay has the tunnel link for it
 var _tunnel_url := ""           # host: cloudflared's link, once known (it is published once)
+var lobby_open := false         # host: on its lobby screen, so guests wait there with it / guest: what the host said
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -211,6 +214,7 @@ func leave() -> void:
 	_mq_view_last = -1
 	_set_share_link("")
 	_set_status("OFFLINE")
+	lobby_open = false
 
 ## Leave with a message, from inside a network callback (a signal the peer emits while it is being polled,
 ## or an RPC being dispatched): pulling the peer out from under SceneMultiplayer mid-poll can crash, so it
@@ -330,13 +334,36 @@ func _lan_address() -> String:
 
 func my_name() -> String:
 	var n := ""
-	if Game.main and Game.main.get("ui"):
+	if is_instance_valid(Game.main) and Game.main.get("ui"):
 		n = Game.main.ui.menu.callsign.strip_edges().left(NAME_MAX)
+	else:                                # on the title / lobby screen: the callsign as last saved in settings
+		var cf := ConfigFile.new()
+		if cf.load("user://settings.cfg") == OK:
+			n = str(cf.get_value("player", "callsign", "")).strip_edges().left(NAME_MAX)
 	return n if n != "" else launch_name
 
 func label_for(id: int) -> String:
 	var n: String = names.get(id, "")
 	return n if n != "" else "SURVIVOR %02d" % id
+
+## Host: on the lobby screen or not. Guests who join while it is open wait in their own lobby until BEGIN.
+func set_lobby(open: bool) -> void:
+	lobby_open = open
+	if hosting and is_online():
+		_lobby_rpc.rpc(open, false)
+		_level.rpc(Game.level_index)          # a loaded save tape may have moved the run to another level
+
+## Host: BEGIN on the lobby screen takes every guest waiting there along into the run
+func start_lobby() -> void:
+	lobby_open = false
+	if hosting and is_online():
+		_level.rpc(Game.level_index)
+		_lobby_rpc.rpc(false, true)
+
+@rpc("authority", "call_remote", "reliable")
+func _lobby_rpc(open: bool, start: bool) -> void:
+	lobby_open = open
+	lobby_changed.emit(open, start)
 
 ## Host: everyone follows when the level changes (called from Game.change_level)
 func broadcast_level(idx: int) -> void:
@@ -374,6 +401,7 @@ func _on_peer_connected(id: int) -> void:
 	_hello.rpc_id(id, my_name(), PROTOCOL, build_tag)
 	if hosting:
 		_level.rpc_id(id, Game.level_index)
+		_lobby_rpc.rpc_id(id, lobby_open, false)
 		if mq_level >= 0:
 			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
 		_sent.clear()                                        # every monster goes out in full next frame, for the newcomer

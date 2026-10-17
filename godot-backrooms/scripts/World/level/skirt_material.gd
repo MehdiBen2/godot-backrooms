@@ -5,7 +5,25 @@ extends RefCounted
 
 const DIR := "res://textures/pbr/Plaster_001/Plaster_001_"
 
+## The grime photos (textures/dirt_0.jpg, dirt_1.jpg: multiply maps, clean white, mirrored so they tile), kept here
+## for the walls' dirt cards (level_trim.gd)
+const DIRT := ["res://textures/dirt_0.jpg", "res://textures/dirt_1.jpg"]
+
 static var _mat: ShaderMaterial
+static var _raw := {}
+
+## A texture by path; one Godot hasn't imported yet is read straight from its file
+static func tex(path: String) -> Texture2D:
+	if ResourceLoader.exists(path): return load(path)
+	if not _raw.has(path):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+		if img != null and not img.is_empty():
+			img.generate_mipmaps()
+			_raw[path] = ImageTexture.create_from_image(img)
+		else:
+			push_warning("texture not found: " + path)
+			_raw[path] = null
+	return _raw[path]
 
 static func get_material() -> ShaderMaterial:
 	if _mat != null: return _mat

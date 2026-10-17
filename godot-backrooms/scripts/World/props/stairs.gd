@@ -262,11 +262,18 @@ func _flight(look: Dictionary, o: Dictionary, s: float, xs: float, xe: float, y:
 		var z: float = wall[0]
 		var n := Vector3(0, 0, wall[1])
 		_quad(look.wall, a + Vector3(0, 0, z), b + Vector3(0, 0, z), b + head + Vector3(0, 0, z), a + head + Vector3(0, 0, z), n)
-		# the skirting steps up with the stair, as a real one is fitted: one board along each tread, capped at both ends
-		for i in RISERS:
+		# the skirting: one board parallel to the stair, its foot along the front edges of the treads, then flat along the
+		# last one. The three-cornered gap under it over each tread is filled flush with its face
+		var last := RISERS - 1
+		var front := Vector3(xs + d * last * TREAD, y + (last + 1) * RISE, z)
+		_skirting(look.trim, Vector3(xs, y + RISE, z), front, n, false, false)
+		_skirting(look.trim, front, Vector3(xe, front.y, z), n, false, false)
+		for i in last:
 			var x := xs + d * i * TREAD
 			var t := y + (i + 1) * RISE
-			_skirting(look.trim, Vector3(x, t, z), Vector3(x + d * TREAD, t, z), n, false, false)
+			var f := n * 0.0108
+			_quad(look.trim, Vector3(x, t, z) + f, Vector3(x + d * TREAD, t, z) + f, Vector3(x + d * TREAD, t + RISE, z) + f,
+				Vector3(x + d * TREAD, t + RISE, z) + f, n)
 	if bool(o.get("rail", true)):
 		var lift := Vector3(0, RISE + 0.92, 0)
 		for wall: Array in [[z_out, -s], [z_in, s]]:

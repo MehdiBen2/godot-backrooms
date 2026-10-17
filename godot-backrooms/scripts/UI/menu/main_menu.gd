@@ -4,6 +4,8 @@ extends Control
 ## PLAY fades to a loading screen, streams scenes/main.tscn on a thread, then drops straight into the run.
 ## The column builds itself on launch (skippable), entries slide and caption themselves on hover or with
 ## the arrow keys, and QUIT switches the set off like an old CRT.
+## PLAY (and a joined game) first opens the lobby screen (lobby_screen.gd): the picture pushes in and hands
+## over to a live corridor whose camera carries the move on; the save tape and the crew are picked there.
 
 const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
@@ -17,8 +19,7 @@ const MUSIC_DB := -20.0                 # quiet bed, not a soundtrack
 const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # plays once, then fades into the bed
 const BED_PATH := "res://audio/ambients/ambient1.mp3"          # the usual menu loop
 const XFADE := 3.0                      # seconds the intro takes to hand over to the bed
-const PUSH_TIME := 2.2                  # PLAY: seconds the picture pushes in and goes dark before the loading screen
-const PUSH_ZOOM := 1.7                  # how far in it gets
+const PUSH_TIME := 2.2                  # BEGIN: the lobby's push on into the dark before the briefing (black at 0.9 of it)
 const MAIN_SCENE := "res://scenes/main.tscn"
 const MENU_SMEAR := 0.3                 # title screen VHS layer: a quarter-ish of the loading screen's bleed
 const MENU_WIGGLE := 0.012
@@ -26,6 +27,9 @@ const MENU_FISHEYE := 0.03              # subtle on purpose: it only bends the p
 										# (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
+const LobbyScreen := preload("res://scripts/UI/menu/lobby_screen.gd")
+const LOBBY_PUSH := 1.3                 # PLAY: seconds the still pushes in before the corridor has taken over
+const LOBBY_ZOOM := 1.4
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")      # Kit.logo(): the T.S.R.A. emblem
 const TIPS := [
 	"The hum is not always the lights.",
@@ -133,6 +137,7 @@ var group := "main"                     # which entry list is up: "main" or "sub
 var group_tw: Tween
 var group_filler: Control
 var briefing: Control                   # PLAY: the T.S.R.A. mission briefing, between the push-in and the loading screen
+var lobby: Control                      # PLAY: the lobby screen (save tapes, crew, the live corridor), before the briefing
 var loading_root: Control
 var load_emblem: TextureRect            # the T.S.R.A. emblem: it fills with amber from the bottom as the level loads
 var load_glow: TextureRect              # soft amber halo behind it, breathing
@@ -380,6 +385,12 @@ func _build() -> void:
 	counter.offset_right = -110
 	counter.offset_top = 72
 	counter.offset_bottom = 100
+
+	# the lobby screen: over the title, under the lens and the VHS smear, so it is the same tape
+	lobby = LobbyScreen.new()
+	add_child(lobby)
+	lobby.begin_requested.connect(_begin_from_lobby)
+	lobby.back_requested.connect(_back_from_lobby)
 
 	# Settings / Graphics reuse the in-game menu's panels (same code, same saved settings)
 	settings_menu = load("res://scripts/UI/menu/menu.gd").new()
@@ -923,7 +934,7 @@ func _open_join_panel() -> void:
 
 func _on_multiplayer_connected() -> void:
 	if not busy:
-		_on_play()
+		_open_lobby(true)              # into the host's lobby (or straight on, if the host is in a run already)
 
 ## Switch the set off: the picture collapses to a bright line, the line to nothing, then exit
 func _on_quit() -> void:
@@ -953,30 +964,64 @@ func _on_quit() -> void:
 	tw.chain().tween_callback(get_tree().quit)
 	_fade_music(-60.0, 0.7)
 
-## PLAY: the entry blinks, the column fades away, the mission briefing comes up out of the dark; accepting it
-## brings up the loading screen (the level keeps streaming in behind the briefing).
-## `now` skips the hand-off (launched straight into a level from the level editor).
+## PLAY: the entry blinks and the lobby screen opens (_open_lobby); its BEGIN brings up the mission briefing,
+## and accepting that the loading screen (the level keeps streaming in behind the briefing).
+## `now` skips all of it (launched straight into a level from the level editor).
 func _on_play(now := false) -> void:
+	if not now:
+		_open_lobby(false)
+		return
 	if busy:
 		return
 	busy = true
-	load_gate = not now
+	load_gate = false
 	_fade_music(-60.0, 1.5)
-	if now:
-		_start_loading()
+	_start_loading()
+
+## PLAY / a joined game: the column fades, the still starts pushing in toward the far end of its hall, and the
+## lobby's live corridor comes up through it with its camera still travelling forward, slowing to rest on the
+## survivors. `guest`: in someone else's room (no tapes; their BEGIN takes us along).
+func _open_lobby(guest: bool) -> void:
+	if busy:
 		return
+	busy = true
 	settings_menu.close_panel()
 	if corner_tw: corner_tw.kill()           # closing the panel would bring the corners back
-	bg_timer = -PUSH_TIME * 4.0              # no frame swap while the picture is pushing in
+	bg_timer = -1.0e9                        # no frame swap behind the lobby
 	bg_root.pivot_offset = Vector2(960, 470) # in toward the far end of the hall
+	_fade_music(MUSIC_DB - 7.0, 1.5)         # under the tubes' hum
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(menu_box, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(menu_box, "modulate:a", 0.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	for c in [counter, credits]:
-		tw.tween_property(c, "modulate:a", 0.0, 0.5)
-	# the camera creeps forward, faster and faster, while everything sinks into the black
-	tw.tween_property(bg_root, "scale", Vector2(PUSH_ZOOM, PUSH_ZOOM), PUSH_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.tween_property(push_black, "modulate:a", 1.0, PUSH_TIME * 0.7).set_delay(PUSH_TIME * 0.3).set_trans(Tween.TRANS_SINE)
-	tw.chain().tween_callback(_start_briefing)
+		tw.tween_property(c, "modulate:a", 0.0, 0.45)
+	tw.tween_property(bg_root, "scale", Vector2(LOBBY_ZOOM, LOBBY_ZOOM), LOBBY_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	lobby.open(guest)
+
+## BACK: the corridor backs away and fades, the still eases back out and the column returns
+func _back_from_lobby() -> void:
+	lobby.close()
+	_select(-1)
+	_fade_music(MUSIC_DB, 1.2)
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(bg_root, "scale", Vector2(1.08, 1.08), 1.4).set_delay(0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(menu_box, "modulate:a", 1.0, 0.5).set_delay(0.7)
+	for c in [counter, credits]:
+		tw.tween_property(c, "modulate:a", 1.0, 0.5).set_delay(0.8)
+	tw.chain().tween_callback(func() -> void:
+		bg_timer = 0.0
+		busy = false)
+
+## BEGIN (ours, or the host's on a guest): the camera pushes on past the group into the dark down the hall,
+## everything sinks into the black, and the mission briefing comes up out of it
+func _begin_from_lobby() -> void:
+	load_gate = true
+	_fade_music(-60.0, 1.5)
+	lobby.play_out()
+	var tw := create_tween()
+	tw.tween_property(push_black, "modulate:a", 1.0, PUSH_TIME * 0.7).set_delay(PUSH_TIME * 0.2).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func() -> void:
+		lobby.hide_now()
+		_start_briefing())
 
 ## The run keeps loading on its threads while the briefing is read; `accepted` then shows the loading screen
 func _start_briefing() -> void:
@@ -1213,7 +1258,7 @@ func _input(e: InputEvent) -> void:
 		W._finish(intro)
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not (e is InputEventKey and e.pressed):
+	if not (e is InputEventKey and e.pressed) or lobby.shown:
 		return
 	var k: Key = e.physical_keycode
 	if k == KEY_ESCAPE and not e.echo:

@@ -85,8 +85,12 @@ var _env_base := {}        # the WorldEnvironment's own (dim) values, read once
 # scripts/Render/atmospheres.gd ("gi", "gi_tint"); these are the base (dim) look's.
 const GridGI := preload("res://scripts/World/level/grid_gi.gd")
 const GI_DIM := 0.5
-const GI_CEIL_DIM := 0.0           # the ceiling keeps its own colour: no bounce is added to it (it went orange)
-const GI_CEIL_LIMINAL := 0.0
+# The ceiling's bounce: a real ceiling is lit back by the floor and walls under it, so the tiles round a lit panel
+# are never black. Without it every panel past the near pool's ceiling glow (level_light_pool.gd CEIL_GLOW) hung
+# in a black ceiling, a sticker of light with nothing round it. (Tinted toward the tiles' own cream in
+# grid_gi_ceil.gdshader: the walls' yellow bounce taken as it is turned the ceiling orange.)
+const GI_CEIL_DIM := 0.028
+const GI_CEIL_LIMINAL := 0.028
 const GI_TINT_DIM := Color(1.0, 0.84, 0.52)
 var grid_gi: GridGI
 

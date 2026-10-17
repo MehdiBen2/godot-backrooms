@@ -1,0 +1,15 @@
+Grime decals for the walls (level_trim.gd _build_grime): colour in RGB, the decal's opacity in alpha.
+All from ambientCG (https://ambientcg.com), CC0 1.0 (public domain), 1K PNG sets:
+
+ceiling_leak_1   <- Leaking001
+ceiling_leak_2   <- Leaking002
+ceiling_leak_3   <- Leaking003
+ceiling_leak_4   <- Leaking004
+ceiling_leak_5   <- Leaking005
+drip_1           <- Leaking006
+floor_damp_1     <- Leaking007
+floor_damp_2     <- Leaking008
+floor_damp_3     <- Leaking009
+film_1           <- SurfaceImperfections014
+film_2           <- SurfaceImperfections015
+film_3           <- SurfaceImperfections016

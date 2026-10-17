@@ -6,7 +6,9 @@ extends "res://scripts/World/level/level_geometry.gd"
 ##   - a drop ceiling's wall angle: the steel strip its cut edge tiles rest on, along the top of every wall;
 ##   - outlets and light switches: a socket low on the odd wall, a switch beside the odd way through;
 ##   - wear: rubber scuffs and kick marks low on the walls, grey hand marks round the switches and on the
-##     corners people round.
+##     corners people round;
+##   - grime and damp: a film over the paper, grime along the foot, water down from the ceiling, by how dirty and
+##     how damp each area is (wall_grime_at: the floor's own noise and the editor's Clean / Dirty / Moist zones).
 
 # ---------------------------------------------------------------- the wall faces
 ## One per side of an open cell that a solid wall block stands against: {c: the open cell, n: towards the wall,
@@ -125,6 +127,7 @@ static func _on_wall(out: Vector3) -> Basis:
 func _build_trim() -> void:
 	_faces = await _wall_faces()
 	_gather_obstacles()
+	_wall_grime_field()
 	await _build_skirting()
 	await _slice()
 	_build_wall_angle()
@@ -134,6 +137,8 @@ func _build_trim() -> void:
 	_build_wall_wear(switches)
 	await _slice()
 	_build_damp()
+	await _slice()
+	_build_wall_grime()
 
 # ---------------------------------------------------------------- skirting
 # A vinyl cove base, in cross-section from its top edge against the wall down to its toe on the carpet
@@ -620,10 +625,13 @@ func _build_wall_wear(switches: Array) -> void:
 		var along: Vector3 = fr[2]
 		var b := _on_wall(out)
 		var c: Vector2i = f.c
+		var dirt := wall_grime_at(c).x
+		if dirt < 0.03: continue                    # (a Clean zone: kept up, no marks)
 		var sd := fposmod(float(hash(Vector3i(c.x, c.y, DIRS.find(f.n)))) * 0.000123, 1.0)
 		var h := WEAR_FOOT.y - WEAR_FOOT.x
 		var cy := (WEAR_FOOT.x + WEAR_FOOT.y) * 0.5
-		cards.append([Transform3D(b * Basis.from_scale(Vector3(CELL, h, 1.0)), mid + out * 0.004 + Vector3(0, cy, 0)), 0.0, sd, 0.0, cy])
+		# (the mode's fraction, 0..0.4, carries the area's dirt to the shader: more grime and scuffs where it is dirty)
+		cards.append([Transform3D(b * Basis.from_scale(Vector3(CELL, h, 1.0)), mid + out * 0.004 + Vector3(0, cy, 0)), dirt * 0.4, sd, 0.0, cy])
 		for e in 2:
 			# (only some corners are rounded often enough to mark: one in three)
 			if f.ends[e] != END_OUT or fposmod(sd * 7.31 + e * 0.53, 1.0) > 0.33: continue
@@ -633,6 +641,7 @@ func _build_wall_wear(switches: Array) -> void:
 			var at := mid + along * side * (CELL * 0.5 - w * 0.5) + out * 0.005 + Vector3(0, 0.9, 0)
 			cards.append([Transform3D(b * Basis.from_scale(Vector3(w, 1.6, 1.0)), at), 2.0, sd, side * w * 0.5, 0.9])
 	for s: Array in switches:
+		if wall_grime_at(s[2]).x < 0.03: continue
 		var b := _on_wall(s[1])
 		cards.append([Transform3D(b * Basis.from_scale(Vector3(0.36, 0.44, 1.0)), (s[0] as Vector3) + (s[1] as Vector3) * 0.005), 1.0, 0.5, 0.0, SWITCH_H])
 	if cards.is_empty(): return
@@ -670,7 +679,8 @@ func _build_wall_wear(switches: Array) -> void:
 ## odd wall face, its top at the ceiling, showing a random stretch of a random photo (mirrored or not) at true
 ## size (the photos are 5.4 m of wall high), fading out raggedly at the face's ends.
 const DAMP_ATLAS := "res://textures/damp_atlas.jpg"
-const DAMP_CHANCE := 0.035          # a wall face with water down it (rare: a stain you see twice reads as a pattern)
+const DAMP_CHANCE := 0.3            # times the area's damp (wall_grime_at): a face with a big photo stain down it (a wet
+                                    # patch now and then; in a Moist zone one face in four)
 const DAMP_PHOTO_H := 5.4           # metres of wall a photo's height covers
 const DAMP_STRIP := 1365.0 / 4096.0 # one photo's share of the atlas's height
 const DAMP_ASPECT := 2048.0 / 1365.0
@@ -698,10 +708,9 @@ func _build_damp() -> void:
 	for f: Dictionary in _faces:
 		if f.has("door"): continue
 		var c: Vector2i = f.c
-		if liminal.has(c) or bright.has(c): continue        # (the kept, clean places)
 		var r := RandomNumberGenerator.new()
 		r.seed = hash(Vector4i(c.x, c.y, DIRS.find(f.n), floor_src(level_raw, floor_no) + 4441))
-		if r.randf() >= DAMP_CHANCE: continue
+		if r.randf() >= DAMP_CHANCE * wall_grime_at(c).y: continue
 		var fr := _face_frame(f)
 		# (not on a wall a placed wall butts onto: the stain would run straight through the thin wall's end)
 		var clear := true
@@ -785,6 +794,242 @@ void fragment() {
 """
 	return _damp_shader
 
+# ---------------------------------------------------------------- grime
+## How lived-in each stretch of wall looks: a grey film over the paper, grime and damp along its foot, water run
+## down from the ceiling. Real walls are not dirty face by face at random: grime gathers where nobody cleans and
+## water where the building leaks, and both spread over a whole run of wall. So every open cell in front of a wall
+## gets a dirt and a damp amount (0..1) from a slow noise across the floor (whole areas worse than others), raised
+## by the level editor's Dirty and Moist zones and wiped by Clean (each fading out a cell past its painted edge),
+## and its wall faces are dressed from that. The cards are decals: ambientCG photos (textures/grime/, CC0), colour
+## in RGB and opacity in alpha, multiplied over the wall so the paper shows through.
+const GRIME_DIR := "res://textures/grime/"
+const GRIME_FILMS := ["film_1", "film_2", "film_3"]
+const GRIME_FOOT := ["floor_damp_1", "floor_damp_2", "floor_damp_3"]
+const GRIME_LEAKS := ["ceiling_leak_1", "ceiling_leak_2", "ceiling_leak_3", "ceiling_leak_4", "ceiling_leak_5"]
+const GRIME_DRIPS := ["drip_1"]
+const GRIME_NOISE_CELLS := 5.0      # cells across one rise and fall of the floor's own dirt
+const GRIME_FILM_M := 3.0           # metres of wall one pass of a film photo covers
+const GRIME_FILM_MAX := 10.0        # m: how far up a film goes (an endless ceiling's walls are not filmed for ever)
+var _wall_grime := {}               # Vector2i (open cell) -> Vector2(dirt, damp)
+
+## The dirt (x) and damp (y) of the walls round open cell `c`, 0..1 each
+func wall_grime_at(c: Vector2i) -> Vector2:
+	return _wall_grime.get(c, Vector2.ZERO)
+
+func _wall_grime_field() -> void:
+	_wall_grime.clear()
+	var sd := floor_src(level_raw, floor_no)
+	var dust := FastNoiseLite.new()
+	dust.seed = sd * 7 + 311
+	dust.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	dust.frequency = 1.0 / GRIME_NOISE_CELLS
+	dust.fractal_octaves = 2
+	var wet := FastNoiseLite.new()
+	wet.seed = sd * 13 + 977
+	wet.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	wet.frequency = 1.0 / (GRIME_NOISE_CELLS * 1.6)
+	# 1 in a painted zone, 0.5 a cell past its edge: a zone's edge is a fade along the wall, not a line on it
+	var reach := func(zone: Dictionary, c: Vector2i) -> float:
+		if zone.has(c): return 1.0
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				if zone.has(c + Vector2i(dx, dz)): return 0.5
+		return 0.0
+	for f: Dictionary in _faces:
+		var c: Vector2i = f.c
+		if _wall_grime.has(c): continue
+		var n := dust.get_noise_2d(c.x, c.y) * 0.5 + 0.5
+		var w := wet.get_noise_2d(c.x, c.y) * 0.5 + 0.5
+		var dirt := 0.06 + 0.3 * smoothstep(0.3, 0.85, n)            # every wall a little, some areas a good deal more
+		var damp := 0.3 * smoothstep(0.72, 0.95, w)                  # dry, but for the odd patch where water gets in
+		var dirty_k: float = reach.call(grime_zones.dirty, c)
+		var moist_k: float = reach.call(grime_zones.moist, c)
+		dirt += 0.7 * dirty_k + 0.15 * moist_k                                 # (a wet wall gathers dirt too)
+		damp += 0.85 * moist_k
+		if low.has(c) or crawl.has(c): dirt += 0.1                    # (low, tight places are never cleaned)
+		var keep := 1.0 - float(reach.call(grime_zones.clean, c))
+		if liminal.has(c) or bright.has(c): keep *= 0.25              # (the kept, clean places)
+		_wall_grime[c] = Vector2(clampf(dirt * keep, 0.0, 1.0), clampf(damp * keep, 0.0, 1.0))
+
+func _build_wall_grime() -> void:
+	var films := {}                     # photo pic -> cards
+	var decals := {}
+	var sd := floor_src(level_raw, floor_no)
+	for f: Dictionary in _faces:
+		if f.has("door"): continue
+		var c: Vector2i = f.c
+		var g := wall_grime_at(c)
+		if g.x < 0.02 and g.y < 0.02: continue
+		var fr := _face_frame(f)
+		var mid: Vector3 = fr[0]
+		var out: Vector3 = fr[1]
+		var along: Vector3 = fr[2]
+		# (not on a wall a placed wall butts onto: the stain would run straight through the thin wall's end)
+		var clear := true
+		for k in 5:
+			if not _clear_of_objects(mid + along * (CELL * (k / 4.0 - 0.5)) + out * 0.05, 0.2): clear = false
+		if not clear: continue
+		var r := RandomNumberGenerator.new()
+		r.seed = hash(Vector4i(c.x, c.y, DIRS.find(f.n), sd + 7117))
+		var b := _on_wall(out)
+		var top := ceiling_height(c)
+		var roofed := not (open_ceiling.has(c) or endless_ceiling.has(c))
+		# 1. a film of grey over the whole face, the dirtier the area the heavier
+		var film := g.x * 0.42 + g.y * 0.12
+		if film > 0.03:
+			var h := minf(top, GRIME_FILM_MAX)
+			var pic: String = GRIME_FILMS[r.randi() % GRIME_FILMS.size()]
+			_grime_card(films, pic, b, Vector3(CELL, h, 1.0), mid + out * 0.007 + Vector3(0.0, h * 0.5, 0.0),
+				Color(r.randf(), r.randf(), -1.0 if r.randf() < 0.5 else 1.0, 1.0 if r.randf() < 0.5 else 0.0), film)
+		# 2. along the foot: mop splash and dust on a dirty wall, damp creeping up a wet one. Into an inside
+		# corner more often than not (where the mop never reaches and the dust settles)
+		if r.randf() < 0.06 + 0.8 * g.x + 0.7 * g.y:
+			var w := r.randf_range(1.6, CELL)
+			var h := w * 0.25 * r.randf_range(0.9, 1.6)
+			var x := _grime_along(f, w, r, 0.65)
+			_grime_card(decals, GRIME_FOOT[r.randi() % GRIME_FOOT.size()], b, Vector3(w, h, 1.0),
+				mid + along * x + out * 0.008 + Vector3(0.0, h * 0.5, 0.0),
+				Color(0.0, 0.0, -1.0 if r.randf() < 0.5 else 1.0, 0.0), clampf(0.3 + 0.55 * maxf(g.x, g.y * 1.1), 0.0, 0.85))
+		if roofed:
+			# 3. water run down from the ceiling: where it leaks, a broad stain hanging from the top of the wall
+			if r.randf() < 0.75 * g.y:
+				var w := r.randf_range(1.4, CELL)
+				var h := minf(w * 0.5 * r.randf_range(1.0, 2.2), top * 0.8)
+				var x := _grime_along(f, w, r, 0.0)
+				_grime_card(decals, GRIME_LEAKS[r.randi() % GRIME_LEAKS.size()], b, Vector3(w, h, 1.0),
+					mid + along * x + out * 0.009 + Vector3(0.0, top - h * 0.5, 0.0),
+					Color(0.0, 0.0, -1.0 if r.randf() < 0.5 else 1.0, 0.0), clampf(0.35 + 0.5 * g.y, 0.0, 0.85))
+			# 4. and a drip or two, a narrow streak from a joint in the ceiling
+			if g.y > 0.25 and r.randf() < g.y * 0.5:
+				for i in 1 + int(r.randf() < 0.4):
+					var w := r.randf_range(0.22, 0.45)
+					var h := minf(w * 4.0 * r.randf_range(0.7, 1.3), top * 0.9)
+					var x := _grime_along(f, w, r, 0.0)
+					_grime_card(decals, GRIME_DRIPS[r.randi() % GRIME_DRIPS.size()], b, Vector3(w, h, 1.0),
+						mid + along * x + out * 0.01 + Vector3(0.0, top - h * 0.5, 0.0),
+						Color(0.0, 0.0, -1.0 if r.randf() < 0.5 else 1.0, 0.0), r.randf_range(0.4, 0.75))
+	_grime_cards(films, _coded_grime_film(), {"photo_m": GRIME_FILM_M})
+	_grime_cards(decals, _coded_grime_decal(), {})
+
+## Where along face `f` (m from its middle) a decal `w` wide goes: anywhere on it, or with chance `corner` hard
+## into one of its inside corners
+func _grime_along(f: Dictionary, w: float, r: RandomNumberGenerator, corner: float) -> float:
+	var room := maxf(CELL - w, 0.0) * 0.5
+	var ins: Array = []
+	for e in 2:
+		if f.ends[e] == END_IN: ins.append(-1.0 if e == 0 else 1.0)
+	if not ins.is_empty() and r.randf() < corner:
+		return float(ins[r.randi() % ins.size()]) * room * r.randf_range(0.85, 1.0)
+	return r.randf_range(-room, room)
+
+func _grime_card(by: Dictionary, pic: String, b: Basis, size: Vector3, at: Vector3, custom: Color, strength: float) -> void:
+	if not by.has(pic): by[pic] = []
+	(by[pic] as Array).append([Transform3D(b * Basis.from_scale(size), at), custom, strength])
+
+## The cards, one material per photo, chunked like the rest of the trim
+func _grime_cards(by: Dictionary, shader: Shader, params: Dictionary) -> void:
+	for pic: String in by:
+		var tex := _texture(GRIME_DIR + pic + ".png")
+		if tex == null: continue
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.render_priority = 1
+		mat.set_shader_parameter("photo", tex)
+		for k: String in params: mat.set_shader_parameter(k, params[k])
+		var quad := QuadMesh.new()
+		_chunked(by[pic], func(cd: Array) -> Vector3: return (cd[0] as Transform3D).origin, "", func(list: Array) -> MultiMeshInstance3D:
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.use_colors = true
+			mm.use_custom_data = true
+			mm.mesh = quad
+			mm.instance_count = list.size()
+			for j in list.size():
+				mm.set_instance_transform(j, list[j][0])
+				mm.set_instance_custom_data(j, list[j][1])
+				mm.set_instance_color(j, Color(1, 1, 1, list[j][2]))
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			return mmi)
+
+## A film photo tiled over the card at true size (turned and mirrored at random), fading out raggedly at its edges
+static var _grime_film_shader: Shader
+static func _coded_grime_film() -> Shader:
+	if _grime_film_shader != null: return _grime_film_shader
+	_grime_film_shader = Shader.new()
+	_grime_film_shader.code = """shader_type spatial;
+render_mode unshaded, blend_mul, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform sampler2D photo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float photo_m = 3.0;            // metres of wall one pass of the photo covers
+varying vec2 lp;          // metres on the card: x along the wall, y up from its middle
+varying vec2 sz;
+varying vec4 info;        // x, y: where in the photo this card starts, z: mirrored (-1), w: turned a quarter (1)
+varying float strength;
+void vertex() {
+	sz = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz));
+	lp = VERTEX.xy * sz;
+	info = INSTANCE_CUSTOM;
+	strength = COLOR.a;
+}
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+float vnoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x), mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+void fragment() {
+	vec2 m = vec2(lp.x * info.z, lp.y);
+	if (info.w > 0.5) m = m.yx;
+	vec4 t = texture(photo, m / photo_m + info.xy);
+	// heavier low on the wall, where the dust settles and hands and shoes go, lighter up under the ceiling
+	float y = lp.y + sz.y * 0.5;
+	float lowk = mix(1.0, 0.55, smoothstep(0.8, 2.6, y));
+	// ragged fade at the card's own edges, so no outline shows where the next face's film starts
+	vec2 edge = sz * 0.5 - abs(lp);
+	float ragged = (vnoise(lp * 1.6 + info.xy * 23.0) - 0.5) * 0.9;
+	float keep = smoothstep(0.0, 0.9, min(edge.x, edge.y) - 0.05 + ragged);
+	ALBEDO = mix(vec3(1.0), t.rgb, clamp(t.a * strength * keep * lowk, 0.0, 1.0));
+}
+"""
+	return _grime_film_shader
+
+## One decal photo over the whole card (mirrored or not), fading out just inside its edges
+static var _grime_decal_shader: Shader
+static func _coded_grime_decal() -> Shader:
+	if _grime_decal_shader != null: return _grime_decal_shader
+	_grime_decal_shader = Shader.new()
+	_grime_decal_shader.code = """shader_type spatial;
+render_mode unshaded, blend_mul, depth_draw_never, cull_back, shadows_disabled, fog_disabled;
+uniform sampler2D photo : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
+varying vec2 lp;          // metres on the card: x along the wall, y up from its middle
+varying vec2 sz;
+varying vec4 info;        // z: mirrored (-1)
+varying float strength;
+void vertex() {
+	sz = vec2(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz));
+	lp = VERTEX.xy * sz;
+	info = INSTANCE_CUSTOM;
+	strength = COLOR.a;
+}
+void fragment() {
+	vec2 uv = vec2(lp.x / sz.x + 0.5, 0.5 - lp.y / sz.y);
+	if (info.z < 0.0) uv.x = 1.0 - uv.x;
+	vec4 t = texture(photo, uv);
+	vec2 edge = sz * 0.5 - abs(lp);
+	float keep = smoothstep(0.0, 0.06, min(edge.x, edge.y));
+	ALBEDO = mix(vec3(1.0), t.rgb, clamp(t.a * strength * keep, 0.0, 1.0));
+}
+"""
+	return _grime_decal_shader
+
 static var _wear_shader: Shader
 static func _coded_wear() -> Shader:
 	if _wear_shader != null: return _wear_shader
@@ -819,9 +1064,11 @@ void fragment() {
 	float m = 0.0;
 	if (info.x < 0.5) {
 		// Walls differ: most are fairly clean, some grimy, a few well kicked (the same marks on every wall
-		// read as a pattern). How grimy and how scuffed this wall is, each rolled on its own.
-		float grimy = smoothstep(0.6, 0.9, hash12(vec2(info.y * 91.0, 3.7)));
-		float scuffed = 0.06 + 0.32 * pow(hash12(vec2(info.y * 53.0, 8.1)), 2.0);
+		// read as a pattern). How grimy and how scuffed this wall is, each rolled on its own, and both
+		// raised by the dirt of the area it is in (info.x / 0.4, level_trim.gd wall_grime_at)
+		float area = clamp(info.x / 0.4, 0.0, 1.0);
+		float grimy = max(smoothstep(0.6, 0.9, hash12(vec2(info.y * 91.0, 3.7))), smoothstep(0.25, 0.7, area));
+		float scuffed = 0.06 + 0.32 * pow(hash12(vec2(info.y * 53.0, 8.1)), 2.0) + 0.3 * smoothstep(0.3, 0.9, area);
 		// grime settled along the foot: mop splash and dust, uneven, gone by knee height
 		float band = (1.0 - smoothstep(0.11, 0.5, y)) * smoothstep(0.104, 0.118, y);
 		m = band * grimy * (0.1 + 0.25 * vnoise(vec2(u * 1.6, y * 3.0)) * vnoise(vec2(u * 0.35, 1.7)));

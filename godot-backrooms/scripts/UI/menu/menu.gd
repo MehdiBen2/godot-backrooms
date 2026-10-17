@@ -279,6 +279,7 @@ func _build() -> void:
 # ---- panel navigation ------------------------------------------------------------------
 ## Back to the title screen (drops any multiplayer session first)
 func _leave_to_main_menu() -> void:
+	Saves.save_now()            # the save tape gets the run as it stands, while the player is still up
 	Net.leave()
 	Game.end_run()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
