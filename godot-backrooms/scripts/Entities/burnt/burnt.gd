@@ -75,6 +75,7 @@ const STOP_GAP := 1.6               # metres beyond its reach that it stops: roo
 const BRAKE_HOLD := 2.2             # seconds it stands there, heaving, before it goes back to stalking
 
 var _mark_pending := false          # the level has a Burnt mark it has yet to stand at
+var _lod_go := false                 # EntityLOD has said its mark may be stood at (lod_spawn)
 var _lurk := false                  # placed to lurk: it waits where it stands until you are close
 var state := "off"                  # off, stalk, windup, charge, grab, lift, stare, corrupt (+ held: co-op, a guest is being taken)
 var t := 0.0
@@ -156,13 +157,13 @@ const MARK_SPAWN_DIST := 60.0
 const MARK_ARRIVE_AFTER := 240.0
 
 func lod_spawned() -> bool:
-	return present
+	return present or _lod_go
 
 func lod_engaged() -> bool:
 	return state != "stalk" and state != "off"
 
 func lod_spawn(_at_mark: bool) -> void:
-	pass                                 # (_physics_process stands it on its mark once EntityLOD has said so)
+	_lod_go = true                       # (_physics_process stands it on its mark now)
 
 ## A Burnt mark in the level editor: it stands there from the start of the level. Placed to roam it stalks you
 ## at once; placed to lurk it stays put, motionless, until you come within LURK_WAKE of it.

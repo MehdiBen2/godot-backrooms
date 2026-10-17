@@ -131,6 +131,12 @@ const MAX_SIZE := 256                # cells a side: 1.15 km at 4.5 m a cell
 # objects are floor `floor_idx`; floor_store holds every other floor (int -> the same set of fields).
 var floor_idx := 0
 var floor_store := {}
+# The sketches, tape and cables the game saved for a floor are filed under that floor's number (levels/marks/<id>_b12.json for
+# floor -12), so when a floor changes number its files go with it. Each floor's content has an id, whatever its number is now;
+# marks_loc says where that content's file is on disk, and _marks_follow() moves the files to where the numbers say.
+var floor_uid := {}                   # floor number -> id of the floor standing there
+var marks_loc := {}                   # id -> the floor number its marks file is under on disk, or "none", or "parked"
+var _uid_next := 1000000
 var show_onion := true               # the floor below (or above) drawn faintly under this one
 
 var font: FontFile = load("res://fonts/vcr.ttf")
@@ -2136,6 +2142,10 @@ func _switch_floor(f: int) -> void:
 	canvas.queue_redraw()
 	_status("Editing " + _floor_name(f))
 
+## Overridden by level_editor_files.gd: the marks files follow the floors' numbers
+func _marks_follow() -> void:
+	pass
+
 ## Overridden by level_editor.gd to refresh the floor picker
 func _floors_changed() -> void:
 	pass
@@ -2259,7 +2269,7 @@ func _snapshot() -> Dictionary:
 	var fl := {}
 	var all := _all_floors()
 	for f in all: fl[f] = _copy_floor(all[f])
-	return {"floors": fl, "floor": floor_idx, "size": grid_size, "selected": selected, "mark_shift": mark_shift}
+	return {"floors": fl, "floor": floor_idx, "size": grid_size, "selected": selected, "mark_shift": mark_shift, "uid": floor_uid.duplicate()}
 
 func _restore(s: Dictionary) -> void:
 	floor_store = s.floors
@@ -2268,6 +2278,8 @@ func _restore(s: Dictionary) -> void:
 	floor_store.erase(floor_idx)
 	grid_size = s.size
 	mark_shift = s.get("mark_shift", mark_shift)
+	if s.has("uid"): floor_uid = s.uid.duplicate()
+	_marks_follow()                       # (a floor undone back to its old number takes its sketches back too)
 	selected = s.selected if s.selected < objects.size() else -1
 	hover_obj = -1
 	multi = []

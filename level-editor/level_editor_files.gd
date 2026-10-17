@@ -67,6 +67,11 @@ func _open(i: int) -> void:
 	for k in data.get("floors", {}):
 		if data.floors[k] is Dictionary and int(k) != 0: floor_store[int(k)] = _parse_floor(data.floors[k])
 	_wells_adopt()
+	floor_uid = {}
+	marks_loc = {}
+	for f: int in _floor_numbers():
+		floor_uid[f] = f
+		marks_loc[f] = f
 	_floors_changed()
 	var migrated := _migrate_legacy()
 	_walls_absorb()                       # (old thin wall tiles just became thin wall objects: walls of the graph now)
@@ -522,6 +527,7 @@ func _delete_floor() -> void:
 		return
 	_push_undo()
 	var gone := floor_idx
+	floor_uid.erase(gone)
 	var to := gone - 1 if gone > 0 else gone + 1
 	_load_floor(floor_store[to])
 	floor_store.erase(to)
@@ -530,12 +536,205 @@ func _delete_floor() -> void:
 	_floors_changed()
 	_sync_inspector()
 	_mark_dirty()
-	_status("Deleted %s (Ctrl+Z brings it back)" % _floor_name(gone))
+	var closed := _close_gap(gone)
+	_status("Deleted %s%s (Ctrl+Z brings it back)%s" % [_floor_name(gone), ", and the floors beyond it moved in one number so there is no gap" if closed else "", _marks_note()])
 
 func _step_floor(d: int) -> void:
 	var fs := _floor_numbers()
 	var i := fs.find(floor_idx) + d
 	if i >= 0 and i < fs.size(): _switch_floor(fs[i])
+
+## The floors have been given new numbers (old -> new): each floor's id goes to its new number
+func _remap_uid(remap: Dictionary) -> void:
+	var fresh := {}
+	for old: int in remap:
+		if floor_uid.has(old): fresh[remap[old]] = floor_uid[old]
+	floor_uid = fresh
+
+var _marks_moved := 0                 # files the last _marks_follow() moved
+var _marks_note_shown := 0
+
+func _marks_note() -> String:
+	var n := _marks_note_shown
+	_marks_note_shown = 0
+	if n <= 0: return ""
+	return ". The sketches, tape and cables of %d floor%s went with %s, and the level was saved so they stay in step" % [n, "" if n == 1 else "s", "it" if n == 1 else "them"]
+
+## Where the marks file for floor `f` of level `id` is (floor 0 keeps the plain id: mark_store.gd file_id)
+func _marks_path(id: String, loc) -> String:
+	var dir := GAME.path_join("levels/marks/")
+	if loc is String: return dir + "%s_parked%s.json" % [id, str(loc).get_slice(":", 1)]
+	var f: int = loc
+	return dir + (id if f == 0 else ("%s_b%d" % [id, -f] if f < 0 else "%s_f%d" % [id, f])) + ".json"
+
+## The marks files go where the floors' numbers now say. A floor with no id yet (made by a stairwell, +UP, +DOWN) gets
+## one and no file. Two phases (everything steps aside, then goes to its place), so floors swapping numbers don't clash;
+## a file sitting where another is going (a deleted floor's) is parked, not overwritten, so undoing a delete can bring it back.
+## Saves the level when it moved anything.
+func _marks_follow() -> void:
+	if current < 0 or current >= index.size(): return
+	var id := str(index[current].get("id", ""))
+	for f: int in _floor_numbers():
+		if not floor_uid.has(f):
+			floor_uid[f] = _uid_next
+			marks_loc[_uid_next] = "none"
+			_uid_next += 1
+	if id == "": return
+	var want := {}                                      # id -> the number it should be filed under
+	for f: int in floor_uid: want[floor_uid[f]] = f
+	var movers: Array = []
+	for u in want:
+		var loc = marks_loc.get(u, "none")
+		if (loc is int and loc != want[u]) or (loc is String and str(loc).begins_with("parked")): movers.append(u)
+	if movers.is_empty(): return
+	var dests := {}
+	for u in movers: dests[want[u]] = true
+	for u in marks_loc.keys():                          # a deleted floor's file in a mover's way
+		if want.has(u): continue
+		var loc = marks_loc[u]
+		if loc is int and dests.has(loc):
+			var src := _marks_path(id, loc)
+			if FileAccess.file_exists(src):
+				var tag := "parked:%d" % u
+				DirAccess.rename_absolute(src, _marks_path(id, tag))
+				marks_loc[u] = tag
+	var moved := 0
+	for u in movers:
+		var src := _marks_path(id, marks_loc[u])
+		if FileAccess.file_exists(src): DirAccess.rename_absolute(src, src + ".mv")
+	for u in movers:
+		var src := _marks_path(id, marks_loc[u]) + ".mv"
+		var dst := _marks_path(id, want[u])
+		if FileAccess.file_exists(src):
+			if FileAccess.file_exists(dst):             # a file nobody tracks: kept beside it, never lost
+				DirAccess.rename_absolute(dst, dst.get_basename() + ".orphan-%d.bak" % Time.get_ticks_msec())
+			DirAccess.rename_absolute(src, dst)
+			moved += 1
+		marks_loc[u] = want[u]
+	if moved > 0:
+		_marks_note_shown = moved
+		save()
+
+## Every floor replaced by `all` (int -> its fields), standing on floor `at`
+func _set_floors(all: Dictionary, at: int) -> void:
+	if drag == "spline": _end_spline()
+	floor_store = all
+	floor_idx = at
+	_load_floor(floor_store[at])
+	floor_store.erase(at)
+	selected = -1
+	hover_obj = -1
+	multi = []
+	drag = ""
+	rect_from = Vector2i(-1, -1)
+	_floors_changed()
+	_sync_inspector()
+	if preview3d != null and preview3d.visible: preview3d.mark_stale()
+	_update_info()
+	canvas.queue_redraw()
+
+## The floors numbered 1, 2, 3 ... up from the ground floor and -1, -2, -3 ... down from it, in the order they
+## are in: a storey that went (or a gap an old file had) leaves no hole. True when anything was renumbered.
+func _renumber_floors() -> bool:
+	var all := _all_floors()
+	var ups: Array = []
+	var downs: Array = []
+	for f: int in all:
+		if f > 0: ups.append(f)
+		elif f < 0: downs.append(f)
+	ups.sort()
+	downs.sort()
+	downs.reverse()                                     # -1 first
+	var remap := {0: 0}
+	for i in ups.size(): remap[ups[i]] = i + 1
+	for i in downs.size(): remap[downs[i]] = -(i + 1)
+	var same := true
+	for f: int in remap:
+		if remap[f] != f: same = false
+	if same: return false
+	var fresh := {}
+	for f: int in all: fresh[remap[f]] = all[f]
+	_remap_uid(remap)
+	_set_floors(fresh, remap[floor_idx])
+	_mark_dirty()
+	_marks_follow()
+	return true
+
+## The floors beyond number `gone` (a floor just deleted) moved one number toward the ground floor, to close the hole
+## it left. Other gaps are left alone (Renumber is for those). True when anything moved.
+func _close_gap(gone: int) -> bool:
+	var all := _all_floors()
+	var fresh := {}
+	var remap := {}
+	var moved := false
+	for f: int in all:
+		var n := f
+		if gone > 0 and f > gone: n = f - 1
+		elif gone < 0 and f < gone: n = f + 1
+		if n != f: moved = true
+		fresh[n] = all[f]
+		remap[f] = n
+	if not moved: return false
+	_remap_uid(remap)
+	var at := floor_idx
+	if gone > 0 and at > gone: at -= 1
+	elif gone < 0 and at < gone: at += 1
+	_set_floors(fresh, at)
+	_mark_dirty()
+	_marks_follow()
+	return true
+
+## Renumber (the Layers tab's button, undoable)
+func _renumber_button() -> void:
+	_push_undo()
+	if _renumber_floors():
+		_status("Renumbered: the floors run 1, 2, 3 ... up from the ground floor and -1, -2, -3 ... down from it, with no gaps (Ctrl+Z undoes it)" + _marks_note())
+	else:
+		undo_stack.pop_back()
+		_status("The floors are already numbered one after another")
+
+## A new floor between this one and the next up (dir 1) or down (-1): every floor beyond it moves along one number,
+## the ground floor never does, and you are on the new one
+func _insert_floor(dir: int) -> void:
+	var a := floor_idx if dir > 0 else floor_idx - 1       # the new floor goes between a and a + 1
+	var all := _all_floors()
+	_push_undo()
+	var fresh := {}
+	var remap := {}
+	for f: int in all:
+		var n: int = (f + 1 if f >= a + 1 else f) if a >= 0 else (f - 1 if f <= a else f)
+		fresh[n] = all[f]
+		remap[f] = n
+	var at := a + 1 if a >= 0 else a
+	fresh[at] = _new_floor()
+	_remap_uid(remap)
+	_set_floors(fresh, at)
+	_mark_dirty()
+	_marks_follow()
+	_status("Inserted %s %s %s; the floors %s it are renumbered. Stairwells that crossed this spot now skip a floor: put stairs on it to join them again (Ctrl+Z undoes it)%s" % [
+		_floor_name(at), "above" if dir > 0 else "below", _floor_name(at - 1 if dir > 0 else at + 1), "above" if at > 0 else "below", _marks_note()])
+
+## This floor swapped with the one above it (d = 1) or below it (-1), everything on it going with it (its map, its
+## objects, spawn and exit): the floor stays selected, at its new number
+func _move_floor(d: int) -> void:
+	var f := floor_idx
+	var g := f + d
+	var all := _all_floors()
+	if not all.has(g):
+		_status("Nothing %s this floor to swap places with" % ("above" if d > 0 else "below"))
+		return
+	_push_undo()
+	var t: Dictionary = all[f]
+	all[f] = all[g]
+	all[g] = t
+	_remap_uid({f: g, g: f})
+	_set_floors(all, g)
+	_mark_dirty()
+	_marks_follow()
+	var lost := _unreachable_floors()
+	_status("Moved to %s (it swapped places with %s). %s (Ctrl+Z undoes it)" % [_floor_name(g), _floor_name(f),
+		"Stairwells between floors are not rewired: %d floor%s cannot be reached now" % [lost.size(), "" if lost.size() == 1 else "s"] if not lost.is_empty() else "Stairs and pits join the floors they now sit between"]
+		+ _marks_note())
 
 # ---------------------------------------------------------------- materials
 func _set_material(slot: String, id: String) -> void:

@@ -362,7 +362,10 @@ func _build_menubar() -> Control:
 		["Interface to fit the screen", func(): _step_ui_scale(0.0), ctrl | KEY_0]])
 	_menu(mb, "Level", [
 		["Add a floor above", func(): _add_floor(1), 0], ["Add a floor below", func(): _add_floor(-1), 0],
+		["Insert a floor above this one", func(): _insert_floor(1), 0], ["Insert a floor below this one", func(): _insert_floor(-1), 0],
 		["Delete this floor", _delete_floor, 0], ["Repeat this floor down", _repeat_down, 0], [],
+		["Move this floor up   Ctrl+PgUp", func(): _move_floor(1), ctrl | KEY_PAGEUP], ["Move this floor down   Ctrl+PgDn", func(): _move_floor(-1), ctrl | KEY_PAGEDOWN],
+		["Renumber the floors (close gaps)", _renumber_button, 0], [],
 		["Go up a floor   PgUp", func(): _step_floor(1), 0], ["Go down a floor   PgDn", func(): _step_floor(-1), 0], [],
 		["Auto acoustics (paint reverb zones)", _auto_acoustics, 0], ["Scatter props", _scatter_props, 0],
 		["Generate the whole floor", _generate_whole, 0], ["Trim the map to what is used", _trim, 0], [],
@@ -1148,7 +1151,7 @@ func _refresh_layers_panel() -> void:
 		b.focus_mode = Control.FOCUS_NONE
 		b.toggle_mode = true
 		b.button_pressed = f == floor_idx
-		b.text = _floor_name(f)
+		b.text = "%+d   %s" % [f, _floor_name(f)] if f != 0 else " 0   %s" % _floor_name(f)       # (its number, which follows it when floors move)
 		b.icon = Icons.icon("layers", ACCENT if f == floor_idx else UI_DIM, 16)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.tooltip_text = "Edit %s (PageUp / PageDown step floors). Floors stand 9 m apart" % _floor_name(f)
@@ -1162,6 +1165,18 @@ func _refresh_layers_panel() -> void:
 		var ab := _action_button(a[0], a[1], UI_TEXT, a[2], a[0])
 		ab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fr.add_child(ab)
+	layers_box.add_child(_note("Order: the floor you are on swaps places with its neighbour, everything on it going with it. New floors can go in between; the numbers follow along by themselves."))
+	var fo := GridContainer.new()
+	fo.columns = 2
+	layers_box.add_child(fo)
+	for a: Array in [["Move up", "floor_up", func(): _move_floor(1), "Swap this floor with the one above it  (Ctrl+PageUp)"],
+			["Move down", "floor_down", func(): _move_floor(-1), "Swap this floor with the one below it  (Ctrl+PageDown)"],
+			["Insert above", "plus", func(): _insert_floor(1), "A new floor between this one and the next up; the floors above renumber"],
+			["Insert below", "plus", func(): _insert_floor(-1), "A new floor between this one and the next down; the floors below renumber"],
+			["Renumber", "layers", _renumber_button, "Close any gaps: 1, 2, 3 ... up from the ground floor, -1, -2, -3 ... down from it"]]:
+		var ob := _action_button(a[0], a[1], UI_TEXT, a[2], a[3])
+		ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fo.add_child(ob)
 	layers_box.add_child(HSeparator.new())
 	layers_box.add_child(_heading("Heights on this floor"))
 	for row: Array in _layers():
@@ -1245,7 +1260,7 @@ func _show_help() -> void:
 const HELP_TEXT := """MAP
   Left drag paint          Right drag erase          Middle drag / Space+drag pan          Wheel zoom          F fit
   B brush   M rectangle   K fill   (Shift: rectangle, Ctrl: fill, in any mode)          [ ] brush size
-  1 wall   2 floor   3 pit          C floor / ceiling view          PageUp / PageDown floors          F4 3D view
+  1 wall   2 floor   3 pit          C floor / ceiling view          PageUp / PageDown floors (Ctrl: move this floor)          F4 3D view
 
 OBJECTS
   V select / move     S select area     Click places, keep the button down and drag to aim it, right click deletes

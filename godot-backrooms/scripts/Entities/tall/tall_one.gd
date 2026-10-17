@@ -18,6 +18,7 @@ extends "res://scripts/Entities/model_entity.gd"
 ## ahead of you; tallone scream / tallone hunt start the chain at those steps.
 
 const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
+const TallNet := preload("res://scripts/Entities/tall/tall_net.gd")
 const STATES := ["off", "roam", "spot", "flee", "away", "scream", "hunt", "kill"]
 const CELL := 4.5
 const RADIUS := 0.9
@@ -70,6 +71,7 @@ var _warped := false
 var _screamed := false
 var _lurk := false
 var _mark_pending := false
+var _lod_go := false                 # EntityLOD has said its mark may be stood at (lod_spawn)
 var _hunt_t := 0.0
 var flow := PackedInt32Array()
 var _flow_key := -1
@@ -91,24 +93,32 @@ var _clip_pos := 0.0
 var _bone := {}
 var scares
 var _pl                                 # the player, untyped (player.gd's own fields: cam, dead, frozen...)
+var net: TallNet
+var puppet := false                     # co-op guest: it follows the host's snapshots instead of thinking
+var _tid := -1                          # the survivor it hunts (Net.survivors() id)
+var _victim_id := -1                    # host: the guest it has leapt at (their machine plays the camera)
+var _net_taken := false                 # guest: the host's Tall One killed this machine's player: the sequence runs here
+var _snub := 0.0                        # guest: ignore the host's snapshots for a moment after our sequence
+var _victim_t := 0.0
 
 func _ready() -> void:
 	super._ready()
 	process_priority = 100              # after the player: its camera is ours to hold during the kill
 	scares = get_parent().get_node_or_null("Scares")
 	_pl = player
+	net = TallNet.new(self)
 	var marks := EntityMarks.of_kind(level, "tallone")
 	_mark_pending = not marks.is_empty()
 	EntityLOD.register(self, {} if marks.is_empty() else {"mark": EntityMarks.world_pos(marks[0]), "spawn_dist": MARK_SPAWN_DIST, "arrive_after": MARK_ARRIVE_AFTER})
 
 func lod_spawned() -> bool:
-	return present
+	return present or _lod_go
 
 func lod_engaged() -> bool:
 	return state != "roam" and state != "off" and state != "away"
 
 func lod_spawn(_at_mark: bool) -> void:
-	pass                                 # (_physics_process stands it on its mark once EntityLOD has said so)
+	_lod_go = true                       # (_physics_process stands it on its mark now)
 
 func _spawn_from_mark() -> void:
 	var marks := EntityMarks.of_kind(level, "tallone")
@@ -142,13 +152,17 @@ func _build() -> bool:
 # ---------------------------------------------------------------- the mind
 func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
-	if Net.is_online() and not Net.hosting: return
+	puppet = Net.is_online() and not Net.hosting
+	if puppet:
+		_physics_puppet(delta)
+		return
+	if Net.is_online(): net.send(delta)
 	if _mark_pending and Game.playing and not Game.dead and player != null and EntityLOD.is_spawned(self):
 		_mark_pending = false
 		_spawn_from_mark()
 	if not present or player == null: return
 	if Game.freeze_ai: return
-	if _pl.dead and state != "off":
+	if _pl.dead and state != "off" and _victim_id < 0:
 		_finish()
 		return
 	t += delta
@@ -159,6 +173,7 @@ func _physics_process(delta: float) -> void:
 		"away": _away()
 		"scream": _scream(delta)
 		"hunt": _hunt(delta)
+		"kill": _kill_wait(delta)
 
 func _begin_roam() -> void:
 	state = "roam"
@@ -175,9 +190,9 @@ func _begin_roam() -> void:
 
 func _roam(delta: float) -> void:
 	if _lurk:
-		if _dist_to_player() > LURK_WAKE: return
+		if _nearest_dist() > LURK_WAKE: return
 		_lurk = false
-	if _can_see_player():
+	if _sees_any():
 		_begin_spot()
 		return
 	if _pause > 0.0:
@@ -210,12 +225,20 @@ func _pick_waypoint() -> void:
 		return
 	_wp = p
 
-## It sees you: nothing between, close enough, in front of it, and you are not hidden
-func _can_see_player() -> bool:
-	if _pl.dead or _pl.frozen or _pl.spawn_grace > 0.0 or Game.god_mode or Game.invisible or _player_hidden():
-		return false
+## Any survivor it can see: nothing between, close enough, in front of it, and not hidden. Remembers which
+func _sees_any() -> bool:
+	for sv: Dictionary in Net.survivors():
+		if _sees(sv):
+			_tid = sv.id
+			return true
+	return false
+
+func _sees(sv: Dictionary) -> bool:
+	var tgt: Vector3 = sv.pos + Vector3.UP * 1.6
+	if sv.local:
+		if _pl.frozen or _pl.spawn_grace > 0.0 or Game.god_mode or _player_hidden(): return false
+		tgt = (_pl.cam as Camera3D).global_position
 	var eye := global_position + Vector3.UP * 4.0
-	var tgt: Vector3 = (_pl.cam as Camera3D).global_position
 	var to := tgt - eye
 	if to.length() > see_range: return false
 	var fwd := Vector3(sin(yaw), 0.0, cos(yaw))
@@ -228,18 +251,42 @@ func _player_hidden() -> bool:
 	var h = _pl.get("hidden")
 	return h != null and bool(h)
 
+## The survivor it hunts: the nearest, and the one it already has keeps a small edge ({} if nobody is left)
+func _target() -> Dictionary:
+	var best := Net.nearest_survivor(global_position, _tid)
+	_tid = best.get("id", -1)
+	return best
+
+## Where its target is (the local player if there is no survivor to be had)
+func _tpos() -> Vector3:
+	var tg := _target()
+	return tg.pos if not tg.is_empty() else player.global_position
+
+func _nearest_dist() -> float:
+	var p := global_position
+	var q := _tpos()
+	return Vector2(q.x - p.x, q.z - p.z).length()
+
 func _dist_to_player() -> float:
 	var p := global_position
 	var q := player.global_position
 	return Vector2(q.x - p.x, q.z - p.z).length()
 
-## Is the player looking at where it stands?
-func _in_player_view() -> bool:
-	var cam: Camera3D = _pl.cam
-	var to := global_position + Vector3.UP * 2.0 - cam.global_position
-	if to.length() > 90.0: return false
-	if (-cam.global_transform.basis.z).dot(to.normalized()) < 0.25: return false
-	return nav.clear_line(cam.global_position.x, cam.global_position.z, global_position.x, global_position.z)
+## Is any survivor looking at where it stands?
+func _in_any_view() -> bool:
+	for sv: Dictionary in Net.survivors():
+		var eye: Vector3 = sv.pos + Vector3.UP * 1.6
+		var look: Vector3 = sv.fwd
+		if sv.local:
+			var cam: Camera3D = _pl.cam
+			eye = cam.global_position
+			look = -cam.global_transform.basis.z
+		var to := global_position + Vector3.UP * 2.0 - eye
+		if to.length() > 90.0: continue
+		var dir := to.normalized() if sv.local else Vector3(to.x, 0.0, to.z).normalized()
+		if look.dot(dir) < 0.25: continue
+		if nav.clear_line(eye.x, eye.z, global_position.x, global_position.z): return true
+	return false
 
 func _begin_spot() -> void:
 	state = "spot"
@@ -250,7 +297,7 @@ func _begin_spot() -> void:
 		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 3.0, 0.5, "Scares", 8.0, 0.7)
 
 func _spot(delta: float) -> void:
-	var to := player.global_position - global_position
+	var to := _tpos() - global_position
 	if t < SPOT_TURN_AT:
 		yaw = lerp_angle(yaw, atan2(to.x, to.z), minf(1.0, delta * 14.0))      # the head is on you: so is the body
 	else:
@@ -265,7 +312,7 @@ func _spot(delta: float) -> void:
 		_sp = 0.0
 
 func _pick_flee() -> void:
-	var pf := _field(player.global_position)
+	var pf := _field(_tpos())
 	var ef := _field(global_position)
 	var n: int = nav.n
 	var best := -INF
@@ -281,7 +328,7 @@ func _pick_flee() -> void:
 				best = score
 				at = w
 	if best == -INF:                                                             # nowhere far: straight away from you
-		var away := (global_position - player.global_position).normalized()
+		var away := (global_position - _tpos()).normalized()
 		at = global_position + Vector3(away.x, 0.0, away.z) * 20.0
 	_flee_to = at
 
@@ -292,7 +339,7 @@ func _flee(delta: float) -> void:
 	var p := global_position
 	var arrived := Vector2(_flee_to.x - p.x, _flee_to.z - p.z).length() < 3.0
 	if arrived or t > FLEE_MAX:
-		if _in_player_view() and _flee_tries < 3:           # still in sight: run on
+		if _in_any_view() and _flee_tries < 3:           # still in sight: run on
 			_flee_tries += 1
 			t = 0.0
 			_pick_flee()
@@ -314,7 +361,8 @@ func _begin_scream() -> void:
 	_clip = ""
 	_warped = false
 	_screamed = false
-	var fwd := Vector3(player.global_position.x - global_position.x, 0.0, player.global_position.z - global_position.z)
+	var tp := _tpos()
+	var fwd := Vector3(tp.x - global_position.x, 0.0, tp.z - global_position.z)
 	if fwd.length() > 0.1: yaw = atan2(fwd.x, fwd.z)          # it turns to where you are before it screams
 	rotation.y = yaw
 
@@ -324,11 +372,11 @@ func _scream(delta: float) -> void:
 		_screamed = true
 		_voice_scream()
 	# the window: you have `scream_window` seconds from the first note (the clip's head-back is at ~0.55 s)
-	if not _warped and t >= WARP_AT and not _in_player_view():
+	if not _warped and t >= WARP_AT and not _in_any_view():
 		_warped = true
 		_ambush_warp()
 	if t >= scream_window + 0.5:
-		if _player_hidden():                                   # you hid: it loses you and goes back to roaming
+		if _target_hidden():                                   # you hid: it loses you and goes back to roaming
 			_begin_roam()
 			_pause = randf_range(4.0, 8.0)
 			return
@@ -345,9 +393,9 @@ func _voice_scream() -> void:
 
 ## Unseen, it moves to ~40 m of path from you, where the run begins
 func _ambush_warp() -> void:
-	var pf := _field(player.global_position)
+	var pp := _tpos()
+	var pf := _field(pp)
 	var n: int = nav.n
-	var pp := player.global_position
 	var picks: Array[Vector3] = []
 	for x in n:
 		for z in n:
@@ -367,28 +415,35 @@ func _begin_hunt() -> void:
 	_hunt_t = 0.0
 	_sp = 0.0
 	_clip = ""
-	var to := player.global_position - global_position
+	var to := _tpos() - global_position
 	yaw = atan2(to.x, to.z)
 	rotation.y = yaw
 
 func _hunt(delta: float) -> void:
 	_hunt_t += delta
-	var pp := player.global_position
-	var p := global_position
-	var d := Vector2(pp.x - p.x, pp.z - p.z).length()
-	if _player_hidden() or _hunt_t > HUNT_MAX:
+	var tgt := _target()
+	if tgt.is_empty() or (tgt.local and _player_hidden()) or _hunt_t > HUNT_MAX:
 		_begin_roam()
 		return
-	if d <= POUNCE_DIST and nav.clear_line(p.x, p.z, pp.x, pp.z) and _can_take():
-		_begin_kill()
+	var pp: Vector3 = tgt.pos
+	var p := global_position
+	var d := Vector2(pp.x - p.x, pp.z - p.z).length()
+	if d <= POUNCE_DIST and nav.clear_line(p.x, p.z, pp.x, pp.z) and _can_take(tgt):
+		_begin_kill(tgt)
 		return
 	_sp = move_toward(_sp, 1.0, delta * 3.0)
 	_move_toward(pp, hunt_speed * _sp, delta)
 	rotation.y = yaw
-	Game.fear = maxf(Game.fear, 0.6 + 0.4 * clampf(1.0 - d / 40.0, 0.0, 1.0))
+	if tgt.local: Game.fear = maxf(Game.fear, 0.6 + 0.4 * clampf(1.0 - d / 40.0, 0.0, 1.0))
 
-func _can_take() -> bool:
+func _can_take(tgt: Dictionary) -> bool:
+	if not tgt.local: return true
 	return not _pl.dead and not _pl.frozen and not Game.god_mode
+
+## Hidden: only the local player can be (nothing tells the host a guest has hidden yet)
+func _target_hidden() -> bool:
+	var tgt := _target()
+	return not tgt.is_empty() and tgt.local and _player_hidden()
 
 # ---------------------------------------------------------------- moving
 func _yaw_to(at: Vector3) -> float:
@@ -471,10 +526,13 @@ func _process(delta: float) -> void:
 	body.position = Vector3.ZERO
 	body.rotation = Vector3(0.0, deg_to_rad(yaw_offset), 0.0)
 	_animate(delta)
-	if state == "kill":
+	if state == "kill" and _victim_id < 0 and (not puppet or _net_taken):
 		_kill(delta)
 
 func _animate(delta: float) -> void:
+	if puppet and state == "scream" and not _screamed and t >= 0.5:
+		_screamed = true
+		_voice_scream()
 	if _ap == null: return
 	var clip := "idle"
 	var speed := 1.0
@@ -508,6 +566,7 @@ func _animate(delta: float) -> void:
 	if clip != _clip:
 		if not _ap.has_animation(clip): return
 		_ap.play(clip, fade)
+		if clip == "kill" and puppet and not _net_taken: _ap.seek(t, true)
 		_clip = clip
 		_clip_pos = _ap.current_animation_position
 	_ap.speed_scale = speed
@@ -535,30 +594,43 @@ func _footfall(running: bool) -> void:
 	Game.fx_shock = maxf(Game.fx_shock, 0.15 * near)
 
 # ---------------------------------------------------------------- the kill
-func _begin_kill() -> void:
+## It leaps at `tgt`. The local player gets the camera sequence here; a guest is told (Net) and plays it on their own
+## machine, while the clip plays in the world here for everyone else
+func _begin_kill(tgt: Dictionary) -> void:
+	_root_kill(tgt.pos)
+	if tgt.local:
+		_start_kill_view()
+	else:
+		_victim_id = tgt.id
+		_victim_t = 0.0
+		Net.send_tall_take(_victim_id)
+
+## Its root is where your chest will end up; the clip begins POUNCE_FROM behind it, right where it is now
+func _root_kill(pp: Vector3) -> void:
 	state = "kill"
 	t = 0.0
+	_sp = 0.0
+	_clip = ""
+	var f := Vector3(pp.x - global_position.x, 0.0, pp.z - global_position.z)
+	_kill_dir = f.normalized() if f.length() > 0.01 else Vector3(sin(yaw), 0.0, cos(yaw))
+	global_position += _kill_dir * POUNCE_FROM
+	yaw = atan2(_kill_dir.x, _kill_dir.z)
+	rotation.y = yaw
+
+## You are the one it has: freeze, take the view
+func _start_kill_view() -> void:
 	_sounded = {}
 	_hit_done = false
 	_cue_t = 0.0
 	_near = [false, false]
 	_trauma = 0.0
-	_sp = 0.0
 	_pl.frozen = true
 	player.velocity = Vector3.ZERO
 	var cam: Camera3D = _pl.cam
 	_from = cam.global_transform
 	_from_fov = cam.fov
 	Game.fx_reset()
-	var pp := player.global_position
-	var f := Vector3(pp.x - global_position.x, 0.0, pp.z - global_position.z)
-	_kill_dir = f.normalized() if f.length() > 0.01 else Vector3(sin(yaw), 0.0, cos(yaw))
-	# its root is where your chest will end up; the clip begins POUNCE_FROM behind it, right where it is now
-	global_position += _kill_dir * POUNCE_FROM
-	yaw = atan2(_kill_dir.x, _kill_dir.z)
-	rotation.y = yaw
 	Game.fear = 1.0
-	_clip = ""
 
 ## Where your eyes are lying under it, looking up: the model's KillEye (else worked out from its root)
 func _eye_xf() -> Transform3D:
@@ -708,6 +780,11 @@ func _die() -> void:
 	_despawn_quietly()
 
 func _despawn_quietly() -> void:
+	if _net_taken:                        # our sequence is over: tell the host, and ignore its stale snapshots a moment
+		_net_taken = false
+		_snub = 2.0
+		Net.send_tall_result()
+	_victim_id = -1
 	state = "off"
 	present = false
 	visible = false
@@ -734,7 +811,7 @@ func debug_spawn() -> bool:
 	for turn in [0.0, 0.5, -0.5, 1.0, -1.0, 1.5, -1.5, PI]:       # ahead first, then round you
 		var dir := fwd.rotated(Vector3.UP, turn)
 		var d := 26.0
-		while d >= 8.0:
+		while d >= 4.0:
 			var c := p + dir * d
 			if nav.open_at(c.x, c.z) and nav.clear_line(p.x, p.z, c.x, c.z):
 				global_position = Vector3(c.x, _floor_y(c, p.y), c.z)
@@ -770,3 +847,36 @@ func debug_despawn() -> void:
 		if au != null: au.set_muffled(false)
 	_despawn_quietly()
 	super.debug_despawn()
+
+# ---------------------------------------------------------------- co-op
+## Host: a guest is the one it has leapt at: the clip plays here for the others; their machine plays the camera
+func _kill_wait(delta: float) -> void:
+	if _victim_id < 0: return
+	_victim_t += delta
+	if _victim_t > KILL_T + 6.0: _despawn_quietly()     # (their result never came)
+
+## Guest: follow the host's Tall One (or, while it has us, play the kill here)
+func _physics_puppet(delta: float) -> void:
+	_snub = maxf(0.0, _snub - delta)
+	if _net_taken:
+		t += delta
+		return
+	if _snub <= 0.0: net.step(delta)
+
+func net_apply(t_: float, m: Array) -> void:
+	net.apply(t_, m)
+
+## Net (guest): the host's Tall One has this machine's player
+func net_taken() -> void:
+	if _pl.dead or _net_taken or (body == null and not _build()):
+		Net.send_tall_result()
+		return
+	_net_taken = true
+	present = true
+	visible = true
+	_root_kill(player.global_position)
+	_start_kill_view()
+
+## Net (host): the guest it killed is done (dead, or the sequence was cut short)
+func net_result(peer_id: int) -> void:
+	if peer_id == _victim_id: _despawn_quietly()

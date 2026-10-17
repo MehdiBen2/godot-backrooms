@@ -162,6 +162,19 @@ func _chain() -> void:
 	root.get_node("Game").fx_reset()
 	var au: Node = main.get_node_or_null("Audio")
 	if au != null: au.set_muffled(false)
+	# (the level can start you in a safe room, which the monsters' nav treats as a wall: stand on open floor)
+	for x in range(10, 90):
+		var moved := false
+		for z in range(10, 90):
+			var ok := true
+			for dx in range(-3, 4):
+				for dz in range(-3, 4):
+					if not tall.nav.open_at((x + dx) * 4.5, (z + dz) * 4.5): ok = false
+			if ok:
+				player.global_position = Vector3(x * 4.5, 0.1, z * 4.5)
+				moved = true
+				break
+		if moved: break
 	if not tall.debug_spawn():
 		print("chain: could not spawn: ", tall.last_error)
 		return
