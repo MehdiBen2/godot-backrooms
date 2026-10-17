@@ -23,6 +23,10 @@ extends Node3D
 ## (lights under a round head) and panorama (a wall of glass from the sill nearly to the ceiling). The MODEL_FRAMES
 ## styles hang a real window model (models/props/asset_pack) round the same sky glass instead of the built frame:
 ## the model's own glass is left out (it would hide the sky) and it is stretched to the window's Width and Height.
+## One with an "open" part is fitted by that part (its glass) to the opening instead, at the model's own
+## proportions (wall_graph.gd MODEL_WINDOWS), and one with a "face" part (open shutters) is brought forward till
+## that lies flat on the room's face of the wall. A "night" one looks out on a dead black dark
+## (window_night.gdshader) and throws no light in; set_figure puts something standing in it behind the glass.
 
 const CELL := 4.5
 const FRAME_W := 0.1               # m: the frame's face, round the glass
@@ -41,16 +45,24 @@ const SKY := {
 const NIGHT_GAIN := 0.12           # the moon's light against the sun's, for the same "sun" strength
 
 const Prop := preload("res://scripts/World/props/industrial_prop.gd")
+const WallGraph := preload("res://scripts/World/level/walls/wall_graph.gd")
 # style -> the model, the part of it that is this window ("nodes", all if none), what to leave out ("drop": its
-# glass) and how many lights its sashes make for the sun's projector
+# glass), how many lights its sashes make for the sun's projector, the part that is its opening ("open": fitted to
+# the hole, the model's proportions kept), the part that lies on the wall's face ("face") and "night"
 const MODEL_FRAMES := {
 	"casement": {"model": "res://models/props/asset_pack/window.glb", "nodes": ["Null"], "drop": ["w_2_2_g_0", "w_1_2_g_0"], "panes": 2},
 	"casement_open": {"model": "res://models/props/asset_pack/window.glb", "nodes": ["Null_1"], "drop": ["w_2_g_0", "w_1_g_0"], "panes": 2},
-	"shutters": {"model": "res://models/props/asset_pack/window__wodden_4_mb.glb", "drop": ["Glass"], "panes": 1},
+	"shutters": {"model": "res://models/props/asset_pack/window__wodden_4_mb.glb", "drop": ["Glass"], "panes": 1, "open": "Glass", "face": "Symmetry_1"},
+	"wood_night": {"model": "res://models/props/asset_pack/window__wodden_4_mb.glb", "drop": ["Glass"], "panes": 1, "open": "Glass", "face": "Symmetry_1", "night": true},
 	"wood_sash": {"model": "res://models/props/asset_pack/window__wooden_4_mb.glb", "drop": ["Base_1"], "panes": 2},
 }
 
+## Does `style` fit its model by the model's own glass (the hole is the glass, no frame width round it)?
+static func fits_by_glass(style: String) -> bool:
+	return MODEL_FRAMES.has(style) and MODEL_FRAMES[style].has("open")
+
 static var _sky_shader: Shader
+static var _night_shader: Shader
 static var _masks := {}            # key -> ImageTexture: the sun's projector per window shape
 static var _frame_mat: StandardMaterial3D
 
@@ -61,6 +73,9 @@ var _solid: Callable
 var glass := "sky"                 # "sky", "clear", "frosted" (set before build)
 var recess := 0.0                  # m from the glass to the room's face of the wall (set before build)
 var ceiling_h := 5.4
+var night := false                 # it looks out on the dark (a "night" style onto the sky)
+var glass_mat: Material            # the glass's material
+var _glass_mid := Vector2.ZERO     # the middle of the glass in the wall's plane: [z, y]
 
 const WINDOW_LAYER := 1 << 16      # the window's own frame, bars and glass: its sun's shadows leave them out
 const ALL_LAYERS := (1 << 20) - 1
@@ -88,17 +103,20 @@ func build(o: Dictionary, ceiling: float, shell: bool, solid := Callable()) -> v
 		var d := minf(w, h)
 		w = d
 		h = d
+	elif fits_by_glass(style):
+		h = WallGraph.model_window_h(style, w)       # (on a block wall: the model's own proportions)
 	if not o.get("_fitted", false): h = minf(h, maxf(0.3, ceiling - sill - 0.05))
 	if glass != "sky": shell = true                # (no light of its own)
 	var panes := clampi(roundi(float(o.get("panes", 3.0))), 1, 12)
 	if MODEL_FRAMES.has(style):
 		var spec: Dictionary = MODEL_FRAMES[style]
 		panes = int(spec.panes)
+		night = bool(spec.get("night", false)) and glass == "sky"
 		var rect := _outline("pane", w, h, sill)
 		_build_glass(rect, o)
 		if not _build_model_frame(spec, w, h, sill):
 			_build_frame("pane", rect, w, h, sill, panes)
-		if shell: return
+		if shell or night: return
 		_build_light(o, "pane", w, h, sill, panes)
 		return
 	var outline := _outline(style, w, h, sill)
@@ -135,6 +153,7 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 	var mid := Vector2.ZERO
 	for p in outline: mid += p
 	mid /= outline.size()
+	_glass_mid = mid
 	for i in outline.size():
 		var a := outline[i]
 		var b := outline[(i + 1) % outline.size()]
@@ -144,6 +163,13 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 	mi.layers = WINDOW_LAYER
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+	if night:
+		if _night_shader == null: _night_shader = load("res://shaders/window_night.gdshader")
+		var nm := ShaderMaterial.new()
+		nm.shader = _night_shader
+		mi.material_override = nm
+		glass_mat = nm
+		return
 	if glass != "sky":
 		# glass you see through (a little green at the edge, a sharp reflection), or frosted: bright, blurred, milky
 		var gm := StandardMaterial3D.new()
@@ -153,8 +179,10 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 		gm.roughness = 0.04 if glass == "clear" else 0.55
 		gm.metallic_specular = 0.9 if glass == "clear" else 0.4
 		mi.material_override = gm
+		glass_mat = gm
 		return
 	var m := ShaderMaterial.new()
+	glass_mat = m
 	m.shader = _sky_shader
 	var sky: Array = SKY.get(str(o.get("sky", "noon")), SKY.noon)
 	m.set_shader_parameter("zenith", sky[0])
@@ -165,6 +193,22 @@ func _build_glass(outline: PackedVector2Array, o: Dictionary) -> void:
 	m.set_shader_parameter("sun_dir", -_sun_dir_world(o))
 	m.set_shader_parameter("clouds", 0.6 if str(o.get("sky", "noon")) == "overcast" else 0.2)
 	mi.material_override = m
+
+## A night window: `tex` (a face, a figure: its alpha cuts it out) standing in the dark `depth` m behind the glass,
+## its middle `at` ([along the wall, up from the floor], m; the glass's middle if left out), `size` m across and
+## tall, lit `light` (0: unseen .. 1: as the room). It stays put behind the pane as you walk past. Null hides it.
+func set_figure(tex: Texture2D, at := Vector2(INF, INF), size := Vector2(0.45, 0.6), depth := 0.5, light := 0.15) -> void:
+	if not night or not glass_mat is ShaderMaterial: return
+	var m := glass_mat as ShaderMaterial
+	if tex == null:
+		m.set_shader_parameter("has_figure", 0.0)
+		return
+	if not at.is_finite(): at = _glass_mid
+	m.set_shader_parameter("figure", tex)
+	m.set_shader_parameter("figure_rect", Vector4(at.x, at.y, size.x, size.y))
+	m.set_shader_parameter("figure_depth", maxf(depth, 0.02))
+	m.set_shader_parameter("figure_light", light)
+	m.set_shader_parameter("has_figure", 1.0)
 
 ## Which way the sunlight travels, in the window's frame: into the room and down at the sun's angle
 func _sun_dir_local(o: Dictionary) -> Vector3:
@@ -242,6 +286,9 @@ func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bo
 	if inst == null:
 		return false
 	add_child(inst)
+	# (the parts it is fitted by, measured before the glass is left out)
+	var open_box := _part_box(inst, str(spec.get("open", "")))
+	var face_box := _part_box(inst, str(spec.get("face", "")))
 	var raw := AABB()
 	var first := true
 	for mi in Prop.kept_meshes(inst, spec.get("nodes", []), spec.get("drop", [])):
@@ -253,6 +300,23 @@ func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bo
 		return false
 	# the file's thin side becomes the depth (x)
 	var lay := Basis(Vector3.UP, PI * 0.5) if raw.size.z < raw.size.x else Basis.IDENTITY
+	for g in inst.find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).layers = WINDOW_LAYER
+	if open_box.size.y > 0.0:
+		# its own glass is the opening: w x h from the sill, centred, on the glass's plane (so its frame overlaps the
+		# hole's edges as a real one is set in a wall), its depth scaled with its face
+		var ob: AABB = Transform3D(lay, Vector3.ZERO) * open_box
+		var oy := h / ob.size.y
+		var oz := w / maxf(ob.size.z, 0.01)
+		var ok := Basis.from_scale(Vector3((oy + oz) * 0.5, oy, oz))
+		ob = Transform3D(ok * lay, Vector3.ZERO) * open_box
+		var oc := ob.get_center()
+		inst.transform = Transform3D(ok * lay, Vector3(-oc.x, sill + h * 0.5 - oc.y, -oc.z))
+		if face_box.size.y > 0.0 and recess > 0.0:
+			# in a hole: the whole window comes forward till its open shutters lie flat on the room's face of the wall
+			var shift: float = recess - (inst.transform * face_box).position.x
+			position += transform.basis.x * shift
+			recess -= shift
+		return true
 	var box: AABB = Transform3D(lay, Vector3.ZERO) * raw
 	var sy := (h + FRAME_W * 2.0) / box.size.y
 	var sz := (w + FRAME_W * 2.0) / maxf(box.size.z, 0.01)
@@ -260,8 +324,23 @@ func _build_model_frame(spec: Dictionary, w: float, h: float, sill: float) -> bo
 	box = Transform3D(k * lay, Vector3.ZERO) * raw
 	var c := box.get_center()
 	inst.transform = Transform3D(k * lay, Vector3(-box.position.x, sill + h * 0.5 - c.y, -c.z))
-	for g in inst.find_children("*", "GeometryInstance3D", true, false): (g as GeometryInstance3D).layers = WINDOW_LAYER
 	return true
+
+## The box (in the model's space) round the meshes of `inst` under a node named `part`; empty if none
+func _part_box(inst: Node, part: String) -> AABB:
+	var out := AABB()
+	if part == "": return out
+	var first := true
+	for n in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null: continue
+		var p: Node = mi
+		while p != null and p != inst and String(p.name) != part: p = p.get_parent()
+		if p == null or p == inst: continue
+		var b: AABB = Prop.mesh_box(mi.mesh, Prop.in_model(mi, inst))
+		out = b if first else out.merge(b)
+		first = false
+	return out
 
 func _build_light(o: Dictionary, style: String, w: float, h: float, sill: float, panes: int) -> void:
 	var sky: Array = SKY.get(str(o.get("sky", "noon")), SKY.noon)

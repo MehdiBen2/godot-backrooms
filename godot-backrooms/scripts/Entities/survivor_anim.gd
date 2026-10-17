@@ -135,6 +135,19 @@ const DIRS := {
 ## add_survivor_directions.py prints them; and the playback range that still looks like that gait.
 const DIR_NATIVE := {"walk": Vector3(1.2, 1.17, 0.94), "run": Vector3(4.2, 2.58, 2.4), "crouch": Vector3(1.4, 1.4, 1.11)}
 const DIR_RANGE := {"walk": Vector2(0.6, 1.3), "run": Vector2(0.6, 1.6), "crouch": Vector2(0.5, 2.0)}
+## Where each heel comes down in each moving clip, as fractions of the clip, in order (tools/measure_strikes.gd
+## prints them; rerun it if the clips change). Locomotion.stride locks the feet to an outside footfall count
+## with these: footfall k lands on strike k. walk / run hold two strides, the side-steps more steps.
+const STRIKES := {
+	"walk": [0.109, 0.302, 0.609, 0.802], "walk_back": [0.125, 0.391, 0.625, 0.885],
+	"strafe_l": [0.12, 0.245, 0.37, 0.495, 0.62, 0.745, 0.87, 0.995],
+	"strafe_r": [0.125, 0.25, 0.37, 0.495, 0.625, 0.75, 0.87, 0.995],
+	"run": [0.177, 0.432, 0.714, 0.922], "run_back": [0.13, 0.443, 0.651, 0.932],
+	"run_strafe_l": [0.089, 0.328, 0.422, 0.656, 0.755, 0.99],
+	"run_strafe_r": [0.089, 0.328, 0.422, 0.656, 0.755, 0.99],
+	"crouch_walk": [0.182, 0.688], "crouch_walk_back": [0.354, 0.854],
+	"crouch_strafe_l": [0.25, 0.521, 0.755, 0.99], "crouch_strafe_r": [0.25, 0.49, 0.755, 0.99],
+}
 
 
 ## Moves a body the way it is really going. An AnimationTree (built here, next to the suit's AnimationPlayer)
@@ -170,8 +183,15 @@ class Locomotion:
 	var killing := false                        # play_kill(): the kill clip has the body until end_kill()
 	var _kill := 0.0
 	var _has_kill := false
+	## Footfalls so far (any real number, counting up; e.g. the player's head-bob phase / PI): while moving,
+	## the gait clips are held so footfall k lands on heel strike k (STRIKES) instead of playing at their own
+	## rate, so the feet hit the floor with the footstep sounds. Below 0: free-running (remote survivors).
+	var stride := -1.0
+	var _player: AnimationPlayer
+	var _played := {}                           # gait -> the clip at each of its 4 blend points
 
 	func _init(player: AnimationPlayer, clips: Dictionary) -> void:
+		_player = player
 		tree = AnimationTree.new()
 		tree.name = "Locomotion"
 		player.get_parent().add_child(tree)            # a sibling: the same root for the track paths
@@ -210,8 +230,14 @@ class Locomotion:
 				if player.has_animation(names[i]):
 					player.get_animation(names[i]).loop_mode = Animation.LOOP_LINEAR
 			bt.add_node(gait + "_dir", bs)
+			bt.add_node(gait + "_seek", AnimationNodeTimeSeek.new())        # stride lock (update())
+			bt.connect_node(gait + "_seek", 0, gait + "_dir")
 			bt.add_node(gait + "_rate", AnimationNodeTimeScale.new())
-			bt.connect_node(gait + "_rate", 0, gait + "_dir")
+			bt.connect_node(gait + "_rate", 0, gait + "_seek")
+			var played: Array = []                                          # what each point really plays
+			for i in 4:
+				played.append(str(names[i]) if player.has_animation(names[i]) else fwd)
+			_played[gait] = played
 		for b in ["gait", "stand", "crouch", "posture", "life"]:
 			bt.add_node(b, AnimationNodeBlend2.new())
 		bt.connect_node("gait", 0, "walk_rate")
@@ -255,6 +281,21 @@ class Locomotion:
 	## Back on their feet (respawned), or it never came to a death
 	func end_kill() -> void:
 		killing = false
+
+	## Where `clip` should be (s) for `stride` footfalls: between strike k and strike k+1 in step with the
+	## footfall count, so each whole footfall lands exactly on a heel strike even where the clip's steps
+	## aren't evenly spaced.
+	func _strike_time(clip: String) -> float:
+		var length := _player.get_animation(clip).length
+		var s: Array = STRIKES.get(clip, [])
+		if s.is_empty():
+			return fposmod(stride * 0.5, 1.0) * length         # no table: two footfalls a cycle
+		var n := s.size()
+		var whole := floori(stride)
+		var k := posmod(whole, n)
+		var a: float = s[k]
+		var b: float = s[(k + 1) % n] + (1.0 if k + 1 >= n else 0.0)
+		return fposmod(lerpf(a, b, stride - whole), 1.0) * length
 
 	## Snap to a facing without turning (first sight, respawn, coming back into view).
 	func face(yaw: float) -> void:
@@ -304,8 +345,16 @@ class Locomotion:
 			tree.set("parameters/death_seek/seek_request", 0.0)     # falls from the start, holds the end
 		_was_dead = dead
 		var gait_speed := speed if moving else 0.9 * step
+		var locked := stride >= 0.0 and moving
+		# the point the direction leans on most: its clip's strikes set the phase for the whole blend
+		var lead := (0 if p.y >= 0.0 else 1) if absf(p.y) >= absf(p.x) else (2 if p.x < 0.0 else 3)
 		for gait in DIRS:
 			tree.set("parameters/%s_dir/blend_position" % gait, p)
+			if locked:
+				var clip: String = _played[gait][lead]
+				tree.set("parameters/%s_rate/scale" % gait, 0.0)        # the seek alone moves it
+				tree.set("parameters/%s_seek/seek_request" % gait, _strike_time(clip))
+				continue
 			var nat: Vector3 = DIR_NATIVE[gait]
 			var native := absf(p.y) * (nat.x if p.y >= 0.0 else nat.y) + absf(p.x) * nat.z
 			var r: Vector2 = DIR_RANGE[gait]

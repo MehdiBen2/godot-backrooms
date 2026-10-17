@@ -76,6 +76,7 @@ var hover_obj := -1
 var stair_extend_dir := 0               # a stairs tool pressed on a stairwell: the way to carry it on if the press turns out a click
 var stair_press_at := Vector2.ZERO
 var drag := ""                       # "" | "move" | "rotate" | "place" | "line" | "chain" | "box"
+var _place_hung := false             # the piece being placed went onto a wall (_hang_on_wall): dragging doesn't turn it
 var multi: Array = []                # indices of a multi-selection (box drag or Shift+click); [] = just `selected`
 var group_start: Array = []          # [index, pos_x, pos_y] of each piece a group move started with
 var group_anchor := Vector2.ZERO     # where the group move was grabbed, in cells
@@ -392,6 +393,93 @@ func _floor_objects(f: int) -> Array:
 ## Is the stairwell `o` of floor `f` joined to the floor `d` up from it (-1: down)?
 func _stair_linked(o: Dictionary, f: int, d: int) -> bool:
 	return _stair_twin(_floor_objects(f + d), o) >= 0
+
+## The walls of stairwell `o` (on floor `f`) as the game's props/stairs.gd builds them (its WALL, SPINE, LANDING and
+## DOOR_* sizes), in the well's own frame: [[Rect2 (cells: x along its arrow from its own cell, y across, - to the
+## left), from, to (metres up; to < 0: up to the room's ceiling)]]. The box round it, the lintel over its doorway,
+## the wall between the lanes and the end of a lane with no floor to lead to. Wall props hang on them as on a wall.
+func _stair_walls(o: Dictionary, f := floor_idx) -> Array:
+	var m := 1.0 / CELL_M
+	var x0 := -0.5
+	var x1 := STAIR_CELLS - 0.5
+	var y0 := 0.5 - STAIR_WIDE
+	var y1 := 0.5
+	var mid := (y0 + y1) * 0.5
+	var wall := 0.2 * m
+	var spine := 0.5 * m                               # half of it
+	var xa := x0 + wall + 3.0 * m                      # where the flights leave the front landing ...
+	var xb := x1 - wall - 3.0 * m                      # ... and reach the far one
+	var door_mid := mid + spine + (y1 - wall - mid - spine) * 0.5     # the doorway: in the middle of the up lane
+	var door := 1.1 * m
+	var out: Array = [
+		[Rect2(x0, y0, x1 - x0, wall), 0.0, -1.0],
+		[Rect2(x0, y1 - wall, x1 - x0, wall), 0.0, -1.0],
+		[Rect2(x1 - wall, y0, wall, y1 - y0), 0.0, -1.0],
+		[Rect2(x0, y0, wall, door_mid - door - y0), 0.0, -1.0],
+		[Rect2(x0, door_mid + door, wall, y1 - door_mid - door), 0.0, -1.0],
+		[Rect2(x0, door_mid - door, wall, door * 2.0), 2.8, -1.0],
+		[Rect2(xa, mid - spine, xb - xa, spine * 2.0), 0.0, -1.0]]
+	if not _stair_linked(o, f, 1): out.append([Rect2(xa, mid + spine, wall, y1 - wall - mid - spine), 0.0, 4.5])
+	if not _stair_linked(o, f, -1): out.append([Rect2(xa, y0 + wall, wall, mid - spine - y0 - wall), 0.0, 4.5])
+	return out
+
+# ---------------------------------------------------------------- wall props on the map
+const HANG_REACH := 0.45             # cells: how near a wall a wall prop has to be put on the map to go onto it
+
+## A wall prop (object_types.json "mount": "wall", a model: an exit sign, a sconce) put down or moved on the map
+## near a wall goes flat on it as in the 3D view: its back on the nearest face in reach (a wall cell's side or a
+## stairwell's wall, inside or out), turned to face out of it. Alt leaves it where it is. True if it went on one.
+func _hang_on_wall(o: Dictionary) -> bool:
+	var info := _info(o.type)
+	if str(info.get("mount", "")) != "wall" or not info.has("model") or Input.is_key_pressed(KEY_ALT): return false
+	var p := Vector2(o.pos_x, o.pos_y)
+	var best := {"d": HANG_REACH}
+	var c := Vector2i(p.round())
+	for dz in range(-1, 2):
+		for dx in range(-1, 2):
+			var w := c + Vector2i(dx, dz)
+			if not _wall_cell(w): continue
+			for n: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				if not _wall_cell(w + n): _face_near(p, Vector2(w) + Vector2(n) * 0.5, Vector2(n), 0.5, best)
+	for s: Dictionary in objects:
+		if not _is_stairs(str(s.type)): continue
+		var at := Vector2(s.pos_x, s.pos_y)
+		var turn := deg_to_rad(float(s.rotation))
+		for wl: Array in _stair_walls(s):
+			var r: Rect2 = wl[0]
+			var mid := r.get_center()
+			for side: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
+				var half := absf(side.x) * r.size.x * 0.5 + absf(side.y) * r.size.y * 0.5
+				var span := absf(side.y) * r.size.x * 0.5 + absf(side.x) * r.size.y * 0.5
+				_face_near(p, at + (mid + side * half).rotated(turn), side.rotated(turn), span, best, float(wl[1]))
+	if not best.has("at"): return false
+	var back := float(info.get("thickness", 0.1)) * 0.5                  # metres from its origin to its back
+	if preview3d != null:
+		var model: Dictionary = preview3d._model_of(o)
+		if not model.is_empty(): back = -(model.bounds as AABB).position.x
+	var nrm: Vector2 = best.out
+	var q: Vector2 = best.at + nrm * (back * float(o.scale) / CELL_M + 0.0005)
+	o.pos_x = clampf(q.x, 0.0, grid_size - 1)
+	o.pos_y = clampf(q.y, 0.0, grid_size - 1)
+	o.rotation = fposmod(snappedf(rad_to_deg(nrm.angle()), 0.01), 360.0)
+	if o.has("elev") and float(o.elev) < float(best.lo): o["elev"] = float(best.lo) + 0.1      # over a doorway: on its lintel
+	return true
+
+func _wall_cell(c: Vector2i) -> bool:
+	return c.x < 0 or c.y < 0 or c.x >= grid_size or c.y >= grid_size or grid[c.y][c.x] == WALL
+
+## Is `p` in front of the face at `mid` (looking `out`, `span` cells to either side of its middle) and nearer it than
+## best.d? Then best becomes it: {d, at (the point on it), out, lo (metres up the face starts: a lintel's)}
+func _face_near(p: Vector2, mid: Vector2, out: Vector2, span: float, best: Dictionary, lo := 0.0) -> void:
+	var rel := p - mid
+	var d := rel.dot(out)
+	if d < -0.02 or d >= float(best.d): return
+	var along := rel.dot(out.orthogonal())
+	if absf(along) > span: return
+	best.d = maxf(d, 0.0)
+	best.at = mid + out.orthogonal() * along
+	best.out = out
+	best.lo = lo
 
 ## The grid under a stairwell: floor in its cells (the game builds the well itself there) and an open cell in
 ## front of its door. `landing`: where that cell was solid, a little room round it to arrive in too.
@@ -2597,6 +2685,7 @@ func _object_press(mb: InputEventMouseButton) -> void:
 		var made := _new_object(t, p, _wall_align(p, place_rot, t))
 		_stand_on_surface(made, -1)
 		_snap_ports(made, -1)
+		_place_hung = _hang_on_wall(made)
 		if _is_stairs(t):
 			# a new stairwell: here, and its other end on the floor above (Stairs up) or below (Stairs down)
 			_stair_square(made)
@@ -2702,9 +2791,10 @@ func _object_drag(p: Vector2) -> void:
 		if is_zero_approx(fposmod(o.rotation, 90.0)) and not _is_stairs(str(o.type)):      # a piece hand-turned off the grid axes keeps its angle; a stairwell keeps the way it faces
 			o.rotation = _wall_align(q, o.rotation, o.type)
 		_snap_ports(o, selected)
+		_hang_on_wall(o)
 	else:
 		var v := p - _obj_xf(o).origin
-		if drag == "place" and v.length() < maxf(zoom * 0.5, 12.0): return    # a plain click keeps place_rot
+		if drag == "place" and (_place_hung or v.length() < maxf(zoom * 0.5, 12.0)): return    # a plain click keeps place_rot; a wall prop faces out of its wall
 		o.rotation = _snap_rot(rad_to_deg(v.angle()))
 		if _is_stairs(str(o.type)): o.rotation = fposmod(snappedf(o.rotation, 90.0), 360.0)
 		place_rot = o.rotation

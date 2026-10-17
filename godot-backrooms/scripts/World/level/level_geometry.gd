@@ -1545,6 +1545,8 @@ func _build_openings(sol: Dictionary, holes: Dictionary) -> void:
 					var side := str(op.get("side", "l"))
 					trim = {"lining": 0.02, "casing_w": CASING_W * 0.8, "casing_d": CASING_D, "stool": 0.06,
 						"faces": [side] if sky else ["l", "r"]}
+					if WindowPiece.fits_by_glass(str(op.get("style", ""))):
+						trim = {"lining": 0.02}          # (the model's own frame, sill and shutters are on the face)
 			if not trim.is_empty():
 				var mi := MeshInstance3D.new()
 				mi.mesh = OpeningTrim.build(h, cv, trim)
@@ -1607,7 +1609,8 @@ func _build_wall_window(op: Dictionary, h: Dictionary, cv: Dictionary, xf: Trans
 		return lerpf(a.z, b.z, f)
 	var z0: float = jz.call(0)
 	var z1: float = jz.call(n - 1)
-	var fw := WindowPiece.FRAME_W
+	# (a model fitted by its glass: the hole is its glass, its frame lies over the hole's edges)
+	var fw := 0.0 if WindowPiece.fits_by_glass(str(op.get("style", ""))) else WindowPiece.FRAME_W
 	var wp := WindowPiece.new()
 	wp.glass = glass
 	wp.recess = maxf(room_d - glass_d, 0.0)

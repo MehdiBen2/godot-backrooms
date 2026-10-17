@@ -3,10 +3,5 @@
     "file": "level0.lvl",
     "id": "level0",
     "name": "Level 0: Floor Zero"
-  },
-  {
-    "file": "level_1_floor_1.lvl",
-    "id": "level_1_floor_1",
-    "name": "Level 1: floor 1"
   }
 ]

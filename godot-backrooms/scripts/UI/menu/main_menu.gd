@@ -80,7 +80,11 @@ const TIPS := [
 	"Minimize sudden movements.",
 	"Await further instructions.",
 ]
-const MIN_LOAD_TIME := 0.2       # fast load: minimal pause, immediate launch once resources are in memory
+const MIN_LOAD_TIME := 1.2       # s: the screen stays up at least this long, so the log reads and a fast load does not flash
+const CREEP_RATE := 0.04         # bar creep per second while the loaders report nothing new
+const CREEP_AHEAD := 0.15        # ...never further than this past what is really loaded
+const TIP_EVERY := 6.0           # s between tips
+const LOAD_FADE := 2.5           # s: the loading music fades out over the end of its own track
 const DIM := Color(0.9, 0.882, 0.804, 0.6)
 const SLIDE := 30.0               # how far a menu entry steps right when it is selected
 const ROW_H := 50.0
@@ -127,6 +131,17 @@ var load_bar: ColorRect
 var load_pct: Label
 var load_tip: Label
 var load_dot: ColorRect
+var load_bg: TextureRect
+var load_log: Label
+var load_track: ColorRect
+var load_counter: Label
+var load_prompt: Label
+var load_ready := false                 # everything is in memory: waiting for a key (the gate) before the run starts
+var load_gate := true                   # false when launched straight from the level editor: no key press needed
+var tip_clock := 0.0
+var _warm_kind := PackedInt32Array()    # per _warm entry: index into STAGES
+var _scripts_done := false
+const STAGES := ["SCRIPTS", "TEXTURES", "MODELS", "SHADERS", "AUDIO", "DATA"]     # the log's lines; SCRIPTS is the main scene itself
 var loading := false
 var busy := false                       # PLAY / QUIT transition running: ignore further input
 var shown_progress := 0.0
@@ -613,38 +628,95 @@ func _build_loading() -> void:
 	loading_root.add_child(black)
 	_full(black)
 
-	var dot_row := HBoxContainer.new()
-	dot_row.add_theme_constant_override("separation", 10)
-	dot_row.position = Vector2(110, 72)
-	loading_root.add_child(dot_row)
+	# the level's own stills, dimmed, creeping forward like the title screen's
+	load_bg = TextureRect.new()
+	load_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	load_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	load_bg.modulate = Color(0.42, 0.40, 0.34)
+	loading_root.add_child(load_bg)
+	_full(load_bg)
+	var veil := ColorRect.new()
+	veil.color = Color(0.012, 0.012, 0.008, 0.62)
+	loading_root.add_child(veil)
+	_full(veil)
+	var vig := TextureRect.new()
+	vig.texture = _gradient(PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0.15), Color(0, 0, 0, 0.85)]), PackedFloat32Array([0.35, 0.7, 1.0]), true)
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	loading_root.add_child(vig)
+	_full(vig)
+
+	var margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 110 if side in ["left", "right"] else 72)
+	loading_root.add_child(margin)
+	_full(margin)
+	var page := VBoxContainer.new()
+	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(page)
+
+	# top row: REC on the left, the tape counter on the right
+	var top := HBoxContainer.new()
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_theme_constant_override("separation", 10)
+	page.add_child(top)
 	load_dot = ColorRect.new()
 	load_dot.color = RED
 	load_dot.custom_minimum_size = Vector2(9, 9)
+	load_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var dc := CenterContainer.new()
+	dc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dc.add_child(load_dot)
-	dot_row.add_child(dc)
-	dot_row.add_child(_label("REC", 13, Color(0.9, 0.882, 0.804, 0.7), 4))
+	top.add_child(dc)
+	top.add_child(_label("REC", 13, Color(0.9, 0.882, 0.804, 0.7), 4))
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(gap)
+	load_counter = _label("LOADING  0:00:00:00", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
+	top.add_child(load_counter)
 
+	var fill := Control.new()
+	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	page.add_child(fill)
+
+	# bottom column: title, the stage log, the bar, a tip, the "press any key" line
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 14)
-	box.position = Vector2(110, 800)
-	box.custom_minimum_size = Vector2(700, 0)
-	loading_root.add_child(box)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	page.add_child(box)
 	load_title = _label("LOADING", 26, TITLE, 6)
 	box.add_child(load_title)
+	load_log = _label("", 13, Color(0.9, 0.882, 0.804, 0.6), 3)
+	load_log.custom_minimum_size = Vector2(0, 5 * 20)
+	box.add_child(load_log)
 	var track := ColorRect.new()
 	track.color = Color(0.9, 0.882, 0.804, 0.15)
-	track.custom_minimum_size = Vector2(700, 2)
+	track.custom_minimum_size = Vector2(0, 2)
+	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(track)
+	load_track = track
 	load_bar = ColorRect.new()
 	load_bar.color = CREAM
 	load_bar.size = Vector2(0, 2)
+	load_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	track.add_child(load_bar)
 	load_pct = _label("0%", 12, Color(0.9, 0.882, 0.804, 0.55), 4)
 	box.add_child(load_pct)
 	load_tip = _label(TIPS[randi() % TIPS.size()], 14, Color(0.9, 0.882, 0.804, 0.45), 1)
-	load_tip.position = Vector2(110, 960)
-	loading_root.add_child(load_tip)
+	load_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(load_tip)
+	load_prompt = _label("PRESS ANY KEY", 16, CREAM, 6)
+	load_prompt.modulate.a = 0.0
+	box.add_child(load_prompt)
+
+	# the same camcorder lens as the title screen, over all of it
+	var fx := ColorRect.new()
+	var mat := ShaderMaterial.new()
+	mat.shader = _fx_shader()
+	fx.material = mat
+	loading_root.add_child(fx)
+	_full(fx)
 
 ## Quit overlay: two black shutters and the bright line a CRT collapses to when it is switched off
 func _build_crt() -> void:
@@ -825,6 +897,7 @@ func _on_play(now := false) -> void:
 	if busy:
 		return
 	busy = true
+	load_gate = not now
 	_fade_music(-60.0, 1.5)
 	if now:
 		_start_loading()
@@ -850,22 +923,51 @@ func _start_briefing() -> void:
 ## `fade`: coming out of the push (fully black by now), the loading text comes up out of the dark instead of cutting in
 func _start_loading(fade := false) -> void:
 	loading = true
+	load_ready = false
 	loading_root.visible = true
 	loading_root.modulate.a = 1.0
 	for c in loading_root.get_children().slice(1):          # child 0 is the opaque black backdrop
 		c.modulate.a = 0.0 if fade else 1.0
 		if fade:
 			create_tween().tween_property(c, "modulate:a", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
+	load_bg.texture = bg_tex[bg_i]
+	load_bg.pivot_offset = loading_root.size * 0.5
+	load_bg.scale = Vector2.ONE
+	load_bg.create_tween().tween_property(load_bg, "scale", Vector2(1.12, 1.12), 40.0).set_trans(Tween.TRANS_SINE)
 	load_title.text = "LOADING // %s" % _level_name().to_upper()
 	load_title.visible_characters = -1
 	load_tip.text = TIPS[randi() % TIPS.size()]
-	load_tip.visible_characters = -1
+	load_tip.modulate.a = 1.0
+	load_prompt.modulate.a = 0.0
+	load_pct.modulate = Color.WHITE
 	load_bar.size.x = 0.0
 	load_pct.text = "0%"
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
+	tip_clock = 0.0
+	_scripts_done = false
 	_preload_game()
+	_warm_kind = PackedInt32Array()
+	_play_loading_music()
+
+## The menu's start track again, under the loading screen: it fades in, plays to its end and fades out over the
+## last LOAD_FADE seconds. It lives on the root and a tree-wide tween, so it carries on into the run.
+func _play_loading_music() -> void:
+	if not ResourceLoader.exists(INTRO_PATH):
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = load(INTRO_PATH)
+	p.bus = "Master"
+	p.volume_db = -60.0
+	get_tree().root.add_child(p)
+	p.play()
+	var secs := p.stream.get_length()
+	var tw := get_tree().create_tween()
+	tw.tween_property(p, "volume_db", MUSIC_DB, minf(1.0, secs * 0.25))
+	tw.tween_interval(maxf(secs - LOAD_FADE - 1.0, 0.0))
+	tw.tween_property(p, "volume_db", -80.0, LOAD_FADE)
+	tw.tween_callback(p.queue_free)
 
 ## The run, loading on loader threads from the moment the title screen is up (and again here, for a level other
 ## than the one asked for then). Loading main.tscn compiles every script the run uses, ~57,000 lines of GDScript:
@@ -983,6 +1085,11 @@ static func _fade_cover(tree: SceneTree, layer: CanvasLayer) -> void:
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:
+	if load_ready and e.is_pressed() and not e.is_echo() and (e is InputEventKey or e is InputEventMouseButton):
+		get_viewport().set_input_as_handled()
+		load_ready = false
+		_finish_loading()
+		return
 	if e is InputEventKey or e is InputEventMouseButton or (e is InputEventMouseMotion and e.relative.length() > 1.0):
 		idle_time = 0.0
 	if idle and e.is_pressed() and not e.is_echo() and (e is InputEventKey or e is InputEventMouseButton):
@@ -1033,10 +1140,15 @@ func _process(dt: float) -> void:
 
 func _process_loading(dt: float) -> void:
 	load_elapsed += dt
+	_loading_chrome(dt)
+	if load_ready:
+		load_prompt.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 4.0))
+		return
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		load_pct.text = "LOAD FAILED"
+		load_pct.text = "LOAD FAILED // CHECK THE LOG // ENTER TO RETRY"
+		load_pct.modulate = RED
 		loading = false
 		busy = false                  # Enter tries again
 		return
@@ -1046,44 +1158,105 @@ func _process_loading(dt: float) -> void:
 		scene_progress = 1.0
 	elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 		scene_progress = prog[0] if not prog.is_empty() else 0.05
+	_scripts_done = status == ResourceLoader.THREAD_LOAD_LOADED
 
-	# Calculate true percentage across all pre-warmed level assets (textures, meshes, shaders)
+	# Per stage: how much of its files are in (the main scene is the SCRIPTS stage), and the blended real progress
+	if _warm_kind.size() != _warm.size():
+		_warm_kind = PackedInt32Array()
+		for p in _warm:
+			_warm_kind.append(_stage_of(p))
+	var stage_done := PackedFloat32Array()
+	var stage_total := PackedInt32Array()
+	stage_done.resize(STAGES.size())
+	stage_total.resize(STAGES.size())
 	var warm_total: float = 0.0
 	var warm_pending := false
-	var warm_count: int = _warm.size()
-	for p in _warm:
+	for i in _warm.size():
 		var wp := []
-		var ws := ResourceLoader.load_threaded_get_status(p, wp)
-		if ws == ResourceLoader.THREAD_LOAD_LOADED:
-			warm_total += 1.0
-		elif ws == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		var ws := ResourceLoader.load_threaded_get_status(_warm[i], wp)
+		var v := 1.0
+		if ws == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			warm_pending = true
-			warm_total += wp[0] if not wp.is_empty() else 0.0
+			v = wp[0] if not wp.is_empty() else 0.0
+		warm_total += v
+		stage_done[_warm_kind[i]] += v
+		stage_total[_warm_kind[i]] += 1
+	stage_done[0] = scene_progress
+	stage_total[0] = 1
+	_draw_log(stage_done, stage_total)
+
+	var warm_progress: float = (warm_total / float(_warm.size())) if not _warm.is_empty() else 1.0
+	var loaded := _scripts_done and not warm_pending
+	var done := loaded and load_elapsed >= MIN_LOAD_TIME
+	var real_progress: float = 1.0 if loaded else (scene_progress * 0.4 + warm_progress * 0.6)
+
+	# creep: the bar keeps moving a little while a loader reports nothing, but never far past the real figure
+	creep_progress = minf(creep_progress + dt * CREEP_RATE, real_progress + CREEP_AHEAD)
+	var target := 1.0 if done else minf(maxf(real_progress, creep_progress), 0.95)
+	shown_progress = maxf(shown_progress, move_toward(shown_progress, target, dt * (6.0 if done else 3.5)))
+	_set_bar(shown_progress)
+
+	if done and shown_progress >= 0.999:
+		_set_bar(1.0)
+		var all_in := PackedFloat32Array()
+		for n in stage_total:
+			all_in.append(float(n))
+		_draw_log(all_in, stage_total)
+		if load_gate:
+			load_ready = true
+			load_title.text = "LOADING // %s // READY" % _level_name().to_upper()
 		else:
-			warm_total += 1.0
-
-	var warm_progress: float = (warm_total / float(warm_count)) if warm_count > 0 else 1.0
-	var done := (status == ResourceLoader.THREAD_LOAD_LOADED) and not warm_pending
-
-	# Real blended progress from actual file loaders
-	var real_progress: float = 1.0 if done else (scene_progress * 0.4 + warm_progress * 0.6)
-
-	shown_progress = clampf(maxf(shown_progress, move_toward(shown_progress, real_progress, dt * 3.5)), 0.0, 1.0)
-	load_bar.size.x = 700.0 * shown_progress
-	load_pct.text = "%d%%" % int(shown_progress * 100.0)
-	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
-
-	if done:
-		if shown_progress < 1.0:
-			shown_progress = move_toward(shown_progress, 1.0, dt * 6.0)
-			load_bar.size.x = 700.0 * shown_progress
-			load_pct.text = "%d%%" % int(shown_progress * 100.0)
-		if shown_progress >= 0.999:
-			set_process(false)
-			load_bar.size.x = 700.0
-			load_pct.text = "100%"
-			await get_tree().create_timer(0.1).timeout     # (a beat on 100% so it reads; the game is usually loaded by now)
 			_finish_loading()
+
+func _set_bar(v: float) -> void:
+	load_bar.size.x = load_track.size.x * v
+	load_pct.text = "%d%%" % int(v * 100.0)
+
+## REC dot, the tape counter (h:mm:ss:ff at 24 fps), and the tip, which changes every TIP_EVERY seconds
+func _loading_chrome(dt: float) -> void:
+	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
+	var s := int(load_elapsed)
+	load_counter.text = "LOADING  %d:%02d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, s % 60, int(fmod(load_elapsed, 1.0) * 24.0)]
+	tip_clock += dt
+	if tip_clock >= TIP_EVERY:
+		tip_clock = 0.0
+		var tw := create_tween()
+		tw.tween_property(load_tip, "modulate:a", 0.0, 0.4)
+		tw.tween_callback(func() -> void:
+			var nxt: String = TIPS[randi() % TIPS.size()]
+			while nxt == load_tip.text:
+				nxt = TIPS[randi() % TIPS.size()]
+			load_tip.text = nxt)
+		tw.tween_property(load_tip, "modulate:a", 1.0, 0.4)
+
+## Which log line a warmed file belongs to
+func _stage_of(path: String) -> int:
+	match path.get_extension().to_lower():
+		"png", "jpg", "jpeg", "webp", "tres", "res", "exr", "hdr":
+			return 1
+		"glb", "gltf", "obj", "mesh", "scn":
+			return 2
+		"gdshader", "gdshaderinc":
+			return 3
+		"wav", "mp3", "ogg":
+			return 4
+	return 5
+
+## One line per stage that has files: WAIT, then a figure as it loads, then OK. Each is real loader state.
+func _draw_log(done: PackedFloat32Array, total: PackedInt32Array) -> void:
+	var lines := PackedStringArray()
+	for i in STAGES.size():
+		if total[i] == 0:
+			continue
+		var state := "WAIT"
+		if done[i] >= total[i] - 0.001:
+			state = "OK"
+		elif i == 0:
+			state = "%d%%" % int(done[i] / total[i] * 100.0)
+		elif done[i] > 0.0:
+			state = "%d/%d" % [int(done[i]), total[i]]
+		lines.append("> %s %s" % [(STAGES[i] + " ").rpad(14, "."), state])
+	load_log.text = "\n".join(lines)
 
 # ---- AFK screen: the column fades away, the logo sits in the middle, a click brings the menu back ----
 const IDLE_AFTER := 15.0

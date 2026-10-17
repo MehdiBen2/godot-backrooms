@@ -126,6 +126,7 @@ func cpu_ms() -> float:
 
 func _process(dt: float) -> void:
 	# (an autoload: this runs before the scene's own _process, so it closes the books on the frame before)
+	if bench and _bench_t > BENCH_SETTLE and _bench_spot >= 0 and dt * 1000.0 > SPIKE_MS: _log_spike(dt)
 	_roll_systems(bench and _bench_t > BENCH_SETTLE and _bench_spot >= 0)
 	if bench:
 		_bench_step(dt)
@@ -262,6 +263,20 @@ func _stat(col: int) -> String:
 		sum += x
 	return "avg %8.2f   p95 %8.2f   max %8.2f" % [sum / v.size(), v[int(v.size() * 0.95)], v[-1]]
 
+## The benchmark's hitches: each frame over SPIKE_MS, with what the frame before it spent its time on (the systems'
+## script time, physics, the render's CPU and GPU), so a stutter can be put down to something
+const SPIKE_MS := 33.0
+var _spikes: Array = []
+
+func _log_spike(dt: float) -> void:
+	var keys := _sys_frame.keys()
+	keys.sort_custom(func(a, b): return _sys_frame[a] > _sys_frame[b])
+	var top: PackedStringArray = []
+	for k in keys.slice(0, 3): top.append("%s %.1f" % [k, _sys_frame[k] / 1000.0])
+	_spikes.append("  %6.1f ms  spot %d  t %.2f s  physics %.1f  render cpu %.1f gpu %.1f  draws %d  | %s" % [dt * 1000.0, _bench_spot,
+		_bench_t, Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, cpu_ms(), gpu_ms(),
+		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME), ", ".join(top)])
+
 ## Every node that runs each frame, counted by its script (or class): what the frame's unexplained time is spent on
 func _census() -> PackedStringArray:
 	var counts := {}
@@ -304,6 +319,8 @@ func _bench_write() -> void:
 		"prims      " + _stat(5),
 	]
 	out.append_array(_systems_text(_sys_sum, 1.0 / 1000.0 / maxf(_sys_frames, 1)))
+	out.append("hitches over %d ms: %d" % [SPIKE_MS, _spikes.size()])
+	out.append_array(PackedStringArray(_spikes.slice(0, 40)))
 	out.append_array(_census())
 	for side in ["gpu", "cpu"]:
 		var part := {}

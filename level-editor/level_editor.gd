@@ -1776,7 +1776,7 @@ var op_insp: PanelContainer
 var _oi := {}
 var _oi_rows := {}
 const DOOR_STYLES := ["level", "wood", "old_wood", "metal", "office", "glass", "security"]
-const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_sash"]
+const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_night", "wood_sash"]
 const GLASSES := ["sky", "clear", "frosted"]
 const SKIES := ["noon", "golden", "overcast", "night"]
 
@@ -1847,9 +1847,12 @@ func _op_insp_sync() -> void:
 	_wi_sync = true
 	var kind := str(op.kind)
 	(_oi.head as Label).text = "%s in wall %d" % [{"door": "Door", "doorway": "Doorway", "arch": "Arch", "window": "Window"}.get(kind, kind), wsel_op.e]
-	var shows := {"w": true, "h": true, "at": true, "sill": kind == "window", "leaves": kind == "door", "panes": kind == "window",
-		"sun": kind == "window", "sun_angle": kind == "window", "style": kind == "door" or kind == "window", "glass": kind == "window",
-		"sky": kind == "window"}
+	var style := str(op.get("style", ""))
+	var lit := kind == "window" and not (style in NIGHT_STYLES and str(op.get("glass", "sky")) == "sky")   # (a night one throws no light)
+	var shows := {"w": true, "h": true, "at": true, "sill": kind == "window", "leaves": kind == "door",
+		"panes": kind == "window" and not WallGraph.MODEL_WINDOWS.has(style), "sun": lit, "sun_angle": lit,
+		"style": kind == "door" or kind == "window", "glass": kind == "window", "sky": lit}
+	if kind == "window" and not lit: (_oi.head as Label).text += "  (night: dark outside)"
 	for k in shows:
 		for c: Control in _oi_rows[k]: c.visible = shows[k]
 	(_oi.w as SpinBox).set_value_no_signal(float(op.w))

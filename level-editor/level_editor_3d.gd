@@ -606,33 +606,17 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 			for side in [-1.0, 1.0]:
 				parts.append([Vector3(0, h * 0.5, side * span * 0.45), Vector3(depth * 1.4, h, span * 0.1), wall_mat])
 		"stairs_up", "stairs_down":
-			# the stairwell's box (sizes in cells, as props/stairs.gd builds it) with a flight in each lane it has
-			var skin := 0.03
-			var wide: float = ed.STAIR_WIDE
-			var z0 := 0.5 - wide                         # across: its own row and the one to the left
-			var x1: float = ed.STAIR_CELLS - 0.5
-			var zm := z0 + wide * 0.5
+			# the stairwell's walls (ed._stair_walls: as props/stairs.gd builds them) with a flight in each lane it has
+			for wl: Array in _stair_wall_boxes(o, h):
+				parts.append([wl[0], wl[1], wall_mat])
+			var zm := 0.5 - float(ed.STAIR_WIDE) * 0.5   # across: its own row and the one to the left
 			var lane := 3.8 / 4.5
-			var door_z := zm + (0.5 + 1.9) / 4.5
-			var door_w := 2.2 / 4.5
-			var door_h := h * 2.8 / 5.4
-			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, z0 + skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
-			parts.append([Vector3((x1 - 0.5) * 0.5, h * 0.5, 0.5 - skin), Vector3(x1 + 0.5, h, skin * 2.0), wall_mat])
-			parts.append([Vector3(x1 - skin, h * 0.5, zm), Vector3(skin * 2.0, h, wide), wall_mat])
-			var left_w := door_z - door_w * 0.5 - z0
-			var right_w := 0.5 - (door_z + door_w * 0.5)
-			parts.append([Vector3(-0.5 + skin, h * 0.5, z0 + left_w * 0.5), Vector3(skin * 2.0, h, left_w), wall_mat])
-			parts.append([Vector3(-0.5 + skin, h * 0.5, 0.5 - right_w * 0.5), Vector3(skin * 2.0, h, right_w), wall_mat])
-			parts.append([Vector3(-0.5 + skin, (h + door_h) * 0.5, door_z), Vector3(skin * 2.0, h - door_h, door_w), wall_mat])
 			var xa := -0.5 + 3.2 / 4.5
-			var xb := x1 - 3.2 / 4.5
-			parts.append([Vector3((xa + xb) * 0.5, h * 0.5, zm), Vector3(xb - xa, h, 1.0 / 4.5), wall_mat])       # the wall between the lanes
+			var xb: float = ed.STAIR_CELLS - 0.5 - 3.2 / 4.5
 			var steps := 10
 			for side: Array in [[1.0, ed._stair_linked(o, ed.floor_idx, 1)], [-1.0, ed._stair_linked(o, ed.floor_idx, -1)]]:
 				var zc: float = zm + side[0] * (0.5 + 1.9) / 4.5
-				if not side[1]:                           # no floor that way: the lane is walled off
-					parts.append([Vector3(xa + skin, h * 0.5, zc), Vector3(skin * 2.0, h, lane), wall_mat])
-					continue
+				if not side[1]: continue                  # no floor that way: the lane is walled off
 				for i in steps:
 					var top: float = h * 0.8 * (i + 1) / steps
 					if side[0] > 0.0:
@@ -1134,6 +1118,20 @@ func _solid_boxes(o: Dictionary) -> Array:
 				var run := path[i + 1] - path[i]
 				var mid := (path[i] + path[i + 1]) * 0.5
 				out.append([xf * Transform3D(Basis(Vector3.UP, atan2(-run.y, run.x)), Vector3(mid.x, ph * 0.5, mid.y)), Vector3(run.length() + t, ph, t)])
+	elif ed._is_stairs(str(o.type)):                  # a stairwell's walls, inside and out
+		for wl: Array in _stair_wall_boxes(o, h):
+			out.append([xf * Transform3D(Basis.IDENTITY, wl[0]), wl[1]])
+	return out
+
+## Stairwell `o`'s walls (ed._stair_walls) in this view, `h` the room's height here: [[centre, size]] in its own frame
+func _stair_wall_boxes(o: Dictionary, h: float) -> Array:
+	var out: Array = []
+	for wl: Array in ed._stair_walls(o):
+		var r: Rect2 = wl[0]
+		var lo := minf(_up(float(wl[1])), h)
+		var hi := h if float(wl[2]) < 0.0 else minf(_up(float(wl[2])), h)
+		if hi - lo < 0.001: continue
+		out.append([Vector3(r.get_center().x, (lo + hi) * 0.5, r.get_center().y), Vector3(r.size.x, hi - lo, r.size.y)])
 	return out
 
 ## _cast(), and the sides of the wall objects in the way (not object `skip`: the one being moved)
@@ -1260,9 +1258,10 @@ func _ray_object(from: Vector3, dir: Vector3, o: Dictionary) -> float:
 		boxes.append([pb[0], Vector3(maxf(sz.x, 0.08), maxf(sz.y, 0.08), maxf(sz.z, 0.08))])
 	else:
 		boxes = _solid_boxes(o)
-		if boxes.is_empty():                               # an arch, a stairwell, a trigger (by its floor only, so what stands in it can be picked)
+		var well: bool = ed._is_stairs(str(o.type))
+		if boxes.is_empty() or well:                       # an arch, a trigger, a stairwell (by its walls and floor, so what hangs or stands in it can be picked)
 			var foot: Rect2 = ed._obj_bounds(o)
-			var tall := 0.03 if ed._shape(o.type) == "zone" else _wall_height(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))
+			var tall := 0.03 if well or ed._shape(o.type) == "zone" else _wall_height(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))
 			boxes.append([base * Transform3D(Basis.IDENTITY, Vector3(foot.get_center().x, tall * 0.5, foot.get_center().y)),
 				Vector3(maxf(foot.size.x, 0.08), tall, maxf(foot.size.y, 0.08))])
 	var best := -1.0

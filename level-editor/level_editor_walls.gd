@@ -1134,6 +1134,31 @@ func _op_valid(o: Dictionary) -> bool:
 func _op_of(o: Dictionary) -> Dictionary:
 	return wall_graph.edges[o.e].ops[o.i] if _op_valid(o) else {}
 
+const NIGHT_STYLES := ["wood_night"]          # window styles onto the dark (props/window.gd MODEL_FRAMES "night"): no sun
+
+## How far past its jambs opening `op` would reach along its wall at width `w` (a model window's open shutters,
+## wall_graph.gd MODEL_WINDOWS), metres
+func _op_reach_at(op: Dictionary, w: float) -> float:
+	var o := op.duplicate()
+	o["w"] = w
+	return WallGraph.op_reach(o)
+
+## Fit model window `op` (number i of wall e) at its own proportions: as wide as it is if that fits clear of the
+## corners, the walls joining there and the other openings with its shutters open, else as wide as will. False if
+## not even the narrowest fits.
+func _op_fit_model(e: int, i: int, op: Dictionary) -> bool:
+	var style := str(op.get("style", ""))
+	var w := float(op.w)
+	while w >= WallGraph.OP_MIN_W:
+		var fit: float = wall_graph.fit_opening(e, float(op.u), w, WallGraph.OP_GAP, i, _op_reach_at(op, w))
+		if not is_nan(fit):
+			op.w = w
+			op.u = fit
+			op.h = WallGraph.model_window_h(style, w)
+			return true
+		w -= 0.05
+	return false
+
 ## Where the opening tool would put one at screen point px: on the wall under it, fitted clear of its corners and
 ## other openings, on the side of the wall the mouse is
 func _op_ghost_at(px: Vector2) -> Dictionary:
@@ -1235,7 +1260,7 @@ func _op_drag_to(cur: Vector2, free: bool) -> void:
 	if str(wdrag.kind) == "op_move":
 		var u := float(o0.u) + (t - float(wdrag.t0))
 		if snap and not free: u = snappedf(u * l, 0.05) / l
-		var fit: float = wall_graph.fit_opening(e, u, float(op.w), WallGraph.OP_GAP, wsel_op.i)
+		var fit: float = wall_graph.fit_opening(e, u, float(op.w), WallGraph.OP_GAP, wsel_op.i, WallGraph.op_reach(op))
 		if not is_nan(fit):
 			op.u = fit
 			wdrag.moved = absf(fit - float(o0.u)) > 1e-6
@@ -1247,10 +1272,12 @@ func _op_drag_to(cur: Vector2, free: bool) -> void:
 	if snap and not free: w = snappedf(w, 0.05)
 	w = maxf(w, WallGraph.OP_MIN_W)
 	var u := keep + (-1.0 if wdrag.kind == "op_a" else 1.0) * w * 0.5 / l
-	var fit: float = wall_graph.fit_opening(e, u, w, WallGraph.OP_GAP, wsel_op.i)
+	var fit: float = wall_graph.fit_opening(e, u, w, WallGraph.OP_GAP, wsel_op.i, _op_reach_at(op, w))
 	if not is_nan(fit) and absf(fit - u) * l < 0.01:
 		op.w = w
 		op.u = fit
+		var mh: float = WallGraph.model_window_h(str(op.get("style", "")), w) if str(op.kind) == "window" else -1.0
+		if mh > 0.0: op.h = mh                  # (a model window keeps its proportions)
 		wdrag.moved = true
 
 ## How far the picked opening's middle is from its wall's a end, metres
@@ -1271,18 +1298,24 @@ func _op_measure(kind: String, v: float, undo := true) -> void:
 	var e: int = wsel_op.e
 	var op: Dictionary = wall_graph.edges[e].ops[wsel_op.i]
 	var l: float = wall_graph.length_of(e) * CELL_M
+	# (a model window keeps its own proportions: its width and height go together)
+	var model := str(op.kind) == "window" and WallGraph.MODEL_WINDOWS.has(str(op.get("style", "")))
+	if model and kind == "op_h":
+		kind = "op_w"
+		v = maxf(v, 0.3) / WallGraph.model_window_h(str(op.style), 1.0)
 	match kind:
 		"op_w":
 			var w := maxf(v, WallGraph.OP_MIN_W)
-			var fit: float = wall_graph.fit_opening(e, float(op.u), w, WallGraph.OP_GAP, wsel_op.i)
-			if is_nan(fit): _status("It doesn't fit that wide here")
+			var fit: float = wall_graph.fit_opening(e, float(op.u), w, WallGraph.OP_GAP, wsel_op.i, _op_reach_at(op, w))
+			if is_nan(fit): _status("It doesn't fit that wide here" + (" (its open shutters need %.2f m of wall each side)" % _op_reach_at(op, w) if model else ""))
 			else:
 				op.w = w
 				op.u = fit
+				if model: op.h = WallGraph.model_window_h(str(op.style), w)
 		"op_h": op.h = maxf(v, 0.3)
 		"op_sill": op.sill = maxf(v, 0.0)
 		"op_at":
-			var fit: float = wall_graph.fit_opening(e, v / maxf(l, 1e-6), float(op.w), WallGraph.OP_GAP, wsel_op.i)
+			var fit: float = wall_graph.fit_opening(e, v / maxf(l, 1e-6), float(op.w), WallGraph.OP_GAP, wsel_op.i, WallGraph.op_reach(op))
 			if not is_nan(fit): op.u = fit
 	_walls_changed()
 	_mark_dirty()
@@ -1308,7 +1341,20 @@ func _op_set(key: String, v) -> void:
 			_op_measure("op_" + key, float(v), false)
 			return
 	var op: Dictionary = wall_graph.edges[wsel_op.e].ops[wsel_op.i]
+	var was := op.duplicate()
 	op[key] = v
+	if key == "style" and str(op.kind) == "window" and WallGraph.MODEL_WINDOWS.has(str(v)):
+		# a model window: its own size to start with (unless it was one already), fitted clear of the corners,
+		# the walls joining there and the other openings with its shutters open
+		if not WallGraph.MODEL_WINDOWS.has(str(was.get("style", ""))): op.w = float(WallGraph.MODEL_WINDOWS[v].w)
+		if not _op_fit_model(wsel_op.e, wsel_op.i, op):
+			for k in was: op[k] = was[k]
+			var full := float(WallGraph.MODEL_WINDOWS[v].w)
+			_status("No room for it on this wall: with its shutters open it is %.2f m across, and needs that clear of the corners and the other openings" \
+				% (full + _op_reach_at(op, full) * 2.0))
+			_op_insp_sync()
+			return
+		_status("%.2f x %.2f m, its shutters open %.2f m along the wall each side" % [float(op.w), float(op.h), WallGraph.op_reach(op)])
 	_walls_changed()
 	_mark_dirty()
 
@@ -1446,7 +1492,21 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 				canvas.draw_line(cs[k], cs[k + 1], Color(col, 0.95), 2.0)
 				canvas.draw_line(ls[k].lerp(cs[k], 0.5), ls[k + 1].lerp(cs[k + 1], 0.5), Color(col, 0.5), 1.0)
 				canvas.draw_line(rs[k].lerp(cs[k], 0.5), rs[k + 1].lerp(cs[k + 1], 0.5), Color(col, 0.5), 1.0)
-			if glass == "sky":            # a little sun on the side it lights
+			var reach: float = WallGraph.op_reach(op) / CELL_M * zoom
+			var night := str(op.get("style", "")) in NIGHT_STYLES and glass == "sky"
+			if reach > 0.0:               # a model window's open shutters, flat on the room's face either side of it
+				var face: PackedVector2Array = ls if str(op.get("side", "l")) == "l" else rs
+				var out := screen_n * 2.5
+				var wood := Color("a0703c")
+				var along_a: Vector2 = (face[0] - face[1]).normalized()
+				var along_b: Vector2 = (face[n] - face[n - 1]).normalized()
+				canvas.draw_line(face[0] + out, face[0] + out + along_a * reach, wood, 3.0)
+				canvas.draw_line(face[n] + out, face[n] + out + along_b * reach, wood, 3.0)
+			if night:                     # a dark moon: it looks out on the night, no light comes in
+				var m: Vector2 = cs[n / 2] + side_n * (maxf(float(ed.tl), float(ed.tr)) / CELL_M * zoom + 8.0)
+				canvas.draw_circle(m, 3.5, Color("2a3550"))
+				canvas.draw_arc(m, 3.5, 0.0, TAU, 12, Color("8fa3c8"), 1.0)
+			elif glass == "sky":          # a little sun on the side it lights
 				var m: Vector2 = cs[n / 2] + side_n * (maxf(float(ed.tl), float(ed.tr)) / CELL_M * zoom + 8.0)
 				canvas.draw_circle(m, 3.0, Color("ffd84a"))
 	if mark.a > 0.0:

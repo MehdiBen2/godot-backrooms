@@ -33,6 +33,14 @@ const OPENINGS := {
 }
 const OP_MIN_W := 0.3                # metres: the narrowest opening
 const OP_GAP := 0.1                  # metres of wall kept between two openings, and between one and a corner
+## Window styles that hang a real model in the hole at its own proportions (props/window.gd MODEL_FRAMES "open"):
+## `w` / `h` its glass as the file has it (the hole it is made for, metres), `reach` how far past each jamb it
+## stands along the wall, as a share of the hole's width (open shutters lying flat on the wall), measured off
+## models/props/asset_pack/window__wodden_4_mb.glb: glass 1.406 x 1.25, 2.307 across with its shutters open
+const MODEL_WINDOWS := {
+	"shutters": {"w": 1.406, "h": 1.25, "reach": 0.33},
+	"wood_night": {"w": 1.406, "h": 1.25, "reach": 0.33},
+}
 
 const DEFAULT_THICK := 0.3           # metres: the thin wall's thickness (object_types.json)
 const SEE_OVER_H := 1.8              # level_data.gd SEE_OVER_H: a wall lower than this does not take a cell over
@@ -128,21 +136,47 @@ func op_span(e: int, op: Dictionary) -> Vector2:
 	var u := float(op.get("u", 0.5))
 	return Vector2(u - half, u + half)
 
+## How far past each jamb what stands in opening `op` reaches along its wall, metres (a window model's open
+## shutters: MODEL_WINDOWS); 0 for the rest
+static func op_reach(op: Dictionary) -> float:
+	if str(op.get("kind", "")) != "window": return 0.0
+	return float(op.get("w", 1.0)) * float(MODEL_WINDOWS.get(str(op.get("style", "")), {}).get("reach", 0.0))
+
+## A model window's height for width `w` (its proportions kept), or -1 if `style` isn't one
+static func model_window_h(style: String, w: float) -> float:
+	if not MODEL_WINDOWS.has(style): return -1.0
+	var m: Dictionary = MODEL_WINDOWS[style]
+	return w * float(m.h) / float(m.w)
+
+## How far into wall `e` from its end at node `n` the face of a wall joining it there stands, metres (half the
+## thickest of them; 0 at a free end)
+func _joint_half(e: int, n: int) -> float:
+	var out := 0.0
+	for o in edges_at(n):
+		if o != e: out = maxf(out, maxf(float(edges[o].get("tl", DEFAULTS.tl)), float(edges[o].get("tr", DEFAULTS.tr))))
+	return out
+
 ## The u nearest `u` that opening `op` (w metres wide) can sit at on wall `e` clear of its ends (`margin` metres
-## at each: the corners there) and of its other openings (all but number `skip`); NAN when it fits nowhere
-func fit_opening(e: int, u: float, w: float, margin := OP_GAP, skip := -1) -> float:
+## at each: the corners there) and of its other openings (all but number `skip`); NAN when it fits nowhere.
+## `reach`: how far past its jambs what stands in it lies along the wall (op_reach): that is kept clear too, of
+## the other openings' own reach and of the faces of the walls joining this one at its ends.
+func fit_opening(e: int, u: float, w: float, margin := OP_GAP, skip := -1, reach := 0.0) -> float:
 	var l := length_of(e) * CELL_M
 	if l < 1e-6: return NAN
-	var half := (w * 0.5 + OP_GAP * 0.5) / l
+	var half := (w * 0.5 + reach + OP_GAP * 0.5) / l
 	var lo := margin / l + w * 0.5 / l
 	var hi := 1.0 - lo
+	if reach > 0.0:
+		lo += (reach + _joint_half(e, edges[e].a)) / l
+		hi -= (reach + _joint_half(e, edges[e].b)) / l
 	if lo > hi: return NAN
 	var blocked: Array = []
 	var ops := ops_of(e)
 	for i in ops.size():
 		if i == skip: continue
 		var s := op_span(e, ops[i])
-		blocked.append(Vector2(s.x - half - OP_GAP * 0.5 / l, s.y + half + OP_GAP * 0.5 / l))
+		var r := op_reach(ops[i]) / l
+		blocked.append(Vector2(s.x - r - half - OP_GAP * 0.5 / l, s.y + r + half + OP_GAP * 0.5 / l))
 	var cands: Array[float] = [clampf(u, lo, hi)]
 	for b: Vector2 in blocked:
 		cands.append(clampf(b.x, lo, hi))
@@ -933,7 +967,8 @@ func _absorb_window(o: Dictionary) -> bool:
 	var facing := Geom.normal(cv, t).dot(into)
 	if absf(facing) < 0.7: return false
 	var w := clampf(float(o.get("scale", 0.5)) * CELL_M, OP_MIN_W, 30.0)
-	var fit := fit_opening(e, t, w)
+	var style := str(o.get("frame", ""))
+	var fit := fit_opening(e, t, w, OP_GAP, -1, op_reach({"kind": "window", "w": w, "style": style}))
 	if is_nan(fit): return false
 	var settings := {"w": w, "side": "l" if facing > 0.0 else "r", "glass": "sky"}
 	for k in ["panes", "sky", "sun", "sun_angle", "shadows"]:
@@ -941,5 +976,6 @@ func _absorb_window(o: Dictionary) -> bool:
 	if o.has("frame"): settings["style"] = o.frame
 	settings["sill"] = maxf(0.0, float(o.get("elev", OPENINGS.window.sill)))
 	settings["h"] = float(o.height) if float(o.get("height", 0.0)) > 0.0 else 2.2
+	if MODEL_WINDOWS.has(style): settings["h"] = model_window_h(style, w)
 	edges[e].ops.append(new_opening("window", fit, settings))
 	return true

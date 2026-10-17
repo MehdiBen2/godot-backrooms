@@ -281,6 +281,10 @@ var turn_roll := 0.0
 var idle_time := 0.0
 var idle_amt := 0.0
 var pitch_off := 0.0          # motion pitch offset currently added onto cam.rotation.x
+# How far the view tips down (rad, ~66°): your own legs (player_shadow.gd) fill the bottom of the
+# view, and past this you'd stare down into the cut where the body ends. Up stays the old 1.49.
+const LOOK_DOWN_MAX := 1.15
+const LOOK_UP_MAX := 1.49
 var pitch_applied := 0.0
 var dark_time := 0.0          # how long you have been in the dark with no light of your own
 var beam_tilt := 0.0          # eased sprint/crouch dip: the beam drops with the hand, not just the model
@@ -434,7 +438,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		turn_accum += -e.relative.x * aim
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
-		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * aim, -1.49, 1.49)
+		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * aim, -LOOK_DOWN_MAX, LOOK_UP_MAX)
 		_sync_flashlight_aim(0.35)
 	elif e.is_action_pressed("flashlight") and lens_up <= 0.0 \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -647,7 +651,8 @@ func _physics_process_timed(dt: float) -> void:
 		if lens_up > 0.02:
 			torch.visible = false        # the camcorder is at your eye: both hands are on it
 	if shadow_body:
-		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length(), velocity, cam.rotation.x)
+		# bob / PI counts footfalls (_update_head plays one each PI): the legs plant a heel on each
+		shadow_body.update(is_moving, is_sprinting, is_crouching, dead, Vector2(velocity.x, velocity.z).length(), velocity, cam.rotation.x, bob / PI)
 	_update_flashlight(dt)
 	_update_sanity(dt)
 	_update_head(dt, dir, sprint, crouch, moving)
@@ -837,7 +842,7 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	pitch_target = (pitch_target + sway_x) * head_bob
 	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
 	var pitch_total: float = pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb + _door_cam_rot.x
-	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -1.49, 1.49)
+	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -LOOK_DOWN_MAX - 0.05, LOOK_UP_MAX)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
 	var fov_target: float = (2.5 if sprint else 0.0) + (2.0 if not is_on_floor() else 0.0) + float(_sq_cam[5])

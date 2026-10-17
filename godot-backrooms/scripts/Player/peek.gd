@@ -34,7 +34,8 @@ const HUG_FACING := 0.85          # it has to face you this squarely (cos)
 const HUG_DWELL := 0.35           # s up against it before the dice are rolled, so brushing past never counts
 const HUG_ODDS := 3               # one approach in this many ends with both hands on the wall
 const HUG_LEAVE := 0.3            # s away from it before the hands come off
-const EDGE_SMOOTH := 14.0         # 1/s: how quickly the edge the hands use follows the probes
+const MANNEQUIN_LAYER := 1 << 1   # physics layer 2: mannequin bodies
+const EDGE_SMOOTH :=14.0         # 1/s: how quickly the edge the hands use follows the probes
 const SPRING := 14.0              # rad/s: ~0.35 s to settle
 const DAMP := 0.8                 # < 1: a slight overshoot as it settles
 
@@ -252,7 +253,11 @@ func _ray(space: PhysicsDirectSpaceState3D, body: CharacterBody3D, from: Vector3
 	q.exclude = [body.get_rid()]
 	for i in 3:
 		var hit := space.intersect_ray(q)
-		if hit.is_empty() or hit.collider is StaticBody3D:
+		if hit.is_empty():
+			return hit
+		# mannequins (the crowd's are static bodies on layer 2) are no wall to peek round
+		var col = hit.collider
+		if col is StaticBody3D and (col.collision_layer & MANNEQUIN_LAYER) == 0:
 			return hit
 		q.exclude.append(hit.rid)
 	return {}

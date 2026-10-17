@@ -56,6 +56,18 @@ var level_raw := {}   # the whole .lvl (every floor), for what the stairs join o
 ## hole right through the slab: you see that floor through it, and fall into it.
 var floor_no := 0
 var shell := false        # a look-only copy of a floor: nothing to walk on, bump into or set off
+
+## A floor built while the game runs on (level_builder.gd _build_in_stages) is built a slice a frame: the long
+## loops of the build ask `await _slice()` as they go, and once this frame's share of time (slice_usec) is spent
+## that waits for the next frame. 0: no slicing, the build runs straight through (the first build, behind the
+## loading screen; a look-only floor; a floor wanted at once), and _slice() costs no frame.
+var slice_usec := 0
+var _slice_from := 0
+
+func _slice() -> void:
+	if slice_usec <= 0 or Time.get_ticks_usec() - _slice_from < slice_usec: return
+	await get_tree().process_frame
+	_slice_from = Time.get_ticks_usec()
 var through := {}         # Vector2i -> true: this floor's pits that open into the floor below
 var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
 var crop := {}            # Vector2i -> true: a shell builds only these cells (empty: all of them)

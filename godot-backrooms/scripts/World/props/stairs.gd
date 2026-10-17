@@ -60,7 +60,8 @@ const LAMP_ENERGY := 1.7
 const LAMP_RANGE := 9.0
 const LAMP_LENGTH := 1.25
 const LAMP_SHADOWS := 4                # how many of the nearest lamps cast a shadow
-const LAMP_GLOW := 3.0                 # the tube's own brightness (HDR, so it blooms like the level's troffers)
+const FLUOR_MODEL := "res://models/props/asset_pack/weathered_fluorescent_lightlamp_-_4096px2.glb"   # level_fixtures.gd FLUOR_MODEL
+const LAMP_GLOW := 3.0                # the tube's own brightness (HDR, so it blooms like the level's troffers)
 const CEIL_LAYER := 1 << 18            # level_geometry.gd: the level's ceiling, lit by its own glow lights only
 const SHELL_LAYERS := (1 << 10) | (1 << 11)   # level_geometry.gd: the floors above and below, lit by their own lights
 
@@ -74,7 +75,11 @@ var _body: StaticBody3D
 var _st := {}                          # Material -> SurfaceTool, while building
 var _looks := {}                       # look name -> its materials
 var _mats := {}
-var _lamps: Array = []                 # [light, tube material, flickers, which lamp of the well]
+static var _fluor_mesh: Mesh           # the fluorescent model, loaded once, with its layout transform and texture
+static var _fluor_xf := Transform3D.IDENTITY
+static var _fluor_tex: Texture2D
+static var _fluor_sh: Shader
+var _lamps: Array = []                # [light, tube material, flickers, which lamp of the well]
 var _taken := false
 var _surface := "carpet"               # what the solids being built are made of (footsteps.gd reads it off each shape)
 
@@ -274,22 +279,12 @@ func _wall(look: Dictionary, a: Vector3, b: Vector3, n: Vector3) -> void:
 ## ("light": on, flicker, off). `id`: which lamp of the whole well it is, the same number on every floor.
 func _lamp(o: Dictionary, at: Vector3, id: int) -> void:
 	var mode := str(o.get("light", "on"))
-	_box(_mats.trim, at - Vector3(0, 0.03, 0), Vector3(0.16, 0.06, LAMP_LENGTH + 0.1))
-	var tube := StandardMaterial3D.new()
-	tube.albedo_color = Color(0.13, 0.12, 0.1)
-	tube.roughness = 0.4
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.06, 0.035, LAMP_LENGTH)
-	mi.mesh = bm
-	mi.position = at - Vector3(0, 0.075, 0)
-	mi.material_override = tube
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	var tube := ShaderMaterial.new()
+	tube.shader = _fluor_shader()
+	tube.set_shader_parameter("glow_color", LAMP_COLOR)
+	tube.set_shader_parameter("glow", 0.0 if mode == "off" else LAMP_GLOW)
+	_fluorescent(at, tube)
 	if mode == "off": return
-	tube.emission_enabled = true
-	tube.emission = LAMP_COLOR
-	tube.emission_energy_multiplier = LAMP_GLOW
 	var l := OmniLight3D.new()
 	l.light_color = LAMP_COLOR
 	l.light_energy = LAMP_ENERGY
@@ -306,6 +301,60 @@ func _lamp(o: Dictionary, at: Vector3, id: int) -> void:
 	l.position = at - Vector3(0, 0.45, 0)
 	add_child(l)
 	_lamps.append([l, tube, mode == "flicker", id + roundi(_from.x) * 7 + roundi(_from.y) * 13])
+
+static func _fluor_shader() -> Shader:
+	if _fluor_sh == null:
+		_fluor_sh = Shader.new()
+		_fluor_sh.code = """shader_type spatial;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable;
+uniform vec3 glow_color : source_color = vec3(1.0);
+uniform float glow = 1.0;
+void fragment() {
+	ALBEDO = texture(albedo_tex, UV).rgb;
+	ROUGHNESS = 0.6;
+	float down = smoothstep(0.3, 0.9, -(INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).y);
+	EMISSION = glow_color * glow * down;
+}
+"""
+	return _fluor_sh
+
+## The "Fluorescent (new model)" fitting (as level_fixtures.gd lays it) flat under the ceiling at `at`, lying along
+## the lane (Z), its length LAMP_LENGTH. It is one mesh, so a shader glows every face that points down; `glow` drives it.
+func _fluorescent(at: Vector3, mat: ShaderMaterial) -> void:
+	if _fluor_mesh == null:
+		var root: Node3D = (load(FLUOR_MODEL) as PackedScene).instantiate()
+		var node := root.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D
+		var t := Transform3D.IDENTITY
+		var n: Node = node
+		while n != null:
+			if n is Node3D: t = (n as Node3D).transform * t
+			if n == root: break
+			n = n.get_parent()
+		var pre: AABB = t * node.mesh.get_aabb()
+		var order := [0, 1, 2]
+		order.sort_custom(func(a: int, b: int) -> bool: return pre.size[a] > pre.size[b])
+		var cols := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+		cols[order[0]] = Vector3.RIGHT      # longest side along X, thinnest up, as level_fixtures.gd
+		cols[order[2]] = Vector3.UP
+		cols[order[1]] = Vector3.BACK
+		var lay := Basis(cols[0], cols[1], cols[2])
+		if lay.determinant() < 0.0:
+			cols[order[1]] = Vector3.FORWARD
+			lay = Basis(cols[0], cols[1], cols[2])
+		var box: AABB = Transform3D(lay, Vector3.ZERO) * pre
+		var c := box.get_center()
+		_fluor_xf = Transform3D(lay.scaled(Vector3.ONE * (LAMP_LENGTH / box.size.x)), Vector3.ZERO) * Transform3D(Basis(), Vector3(-c.x, -box.end.y, -c.z)) * t
+		_fluor_mesh = node.mesh
+		var src := _fluor_mesh.surface_get_material(0) as BaseMaterial3D
+		if src != null and src.albedo_texture != null: _fluor_tex = src.albedo_texture
+		root.free()
+	if _fluor_tex != null: mat.set_shader_parameter("albedo_tex", _fluor_tex)
+	var mi := MeshInstance3D.new()
+	mi.mesh = _fluor_mesh
+	mi.transform = Transform3D(Basis(Vector3.UP, PI * 0.5), at) * _fluor_xf
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
 
 ## The floor's number on the wall you face as you come up to its landing
 func _sign(n: int, at: Vector3, look: Dictionary) -> void:
@@ -455,7 +504,7 @@ func _process(delta: float) -> void:
 		if not lamp[2]: continue
 		var level := _flicker(t, lamp[3])
 		(lamp[0] as OmniLight3D).light_energy = LAMP_ENERGY * level
-		(lamp[1] as StandardMaterial3D).emission_energy_multiplier = LAMP_GLOW * level
+		(lamp[1] as ShaderMaterial).set_shader_parameter("glow", LAMP_GLOW * level)
 	var player: Node3D = _level.player
 	if player == null:
 		return
