@@ -283,7 +283,7 @@ var idle_amt := 0.0
 var pitch_off := 0.0          # motion pitch offset currently added onto cam.rotation.x
 # How far the view tips down (rad, ~66°): your own legs (player_shadow.gd) fill the bottom of the
 # view, and past this you'd stare down into the cut where the body ends. Up stays the old 1.49.
-const LOOK_DOWN_MAX := 1.15
+const LOOK_DOWN_MAX := 1.4
 const LOOK_UP_MAX := 1.49
 var pitch_applied := 0.0
 var dark_time := 0.0          # how long you have been in the dark with no light of your own

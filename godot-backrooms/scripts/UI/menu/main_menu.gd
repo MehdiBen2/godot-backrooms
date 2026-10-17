@@ -23,7 +23,7 @@ const MAIN_SCENE := "res://scenes/main.tscn"
 const MENU_SMEAR := 0.3                 # title screen VHS layer: a quarter-ish of the loading screen's bleed
 const MENU_WIGGLE := 0.012
 const MENU_FISHEYE := 0.03              # subtle on purpose: it only bends the picture, the buttons keep their flat hit boxes
-                                        # (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
+										# (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")      # Kit.logo(): the T.S.R.A. emblem
