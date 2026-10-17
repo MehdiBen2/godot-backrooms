@@ -46,8 +46,8 @@ const WS_MAX_QUEUED := 8192
 ## a Grabber that is off, a still Mannequin), only this often so a guest that just joined still gets them
 const KEEPALIVE := 0.5
 const MQ_VIEW_KEEPALIVE := 0.25  # a guest repeats "I'm (not) looking at the mannequin" this often (the host forgets after 0.6 s)
-enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC, BURNT }
-const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic", "Burnt"]
+enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC, BURNT, TALL }
+const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic", "Burnt", "TallOne"]
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const TUNNEL_DOMAIN := "trycloudflare.com"
 const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "code -> link" for a while; swap for your own Worker any time
@@ -912,6 +912,34 @@ func _burnt_result_rpc() -> void:
 	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
 		return
 	var b := _scene_node("Burnt")
+	if b != null and b.has_method("net_result"):
+		b.net_result(multiplayer.get_remote_sender_id())
+
+# ---- THE TALL ONE: as the Burnt: the host runs it; whoever it kills plays the kill on their own machine -------
+func send_tall(m: Array) -> void:
+	_queue_ent(Ent.TALL, m)
+
+## Host: it has leapt at `peer_id`'s survivor
+func send_tall_take(peer_id: int) -> void:
+	if _has_peers() and _is_peer(peer_id):
+		_tall_take_rpc.rpc_id(peer_id)
+
+@rpc("authority", "call_remote", "reliable")
+func _tall_take_rpc() -> void:
+	var b := _scene_node("TallOne")
+	if b != null and b.has_method("net_taken"):
+		b.net_taken()
+
+## Guest: the kill is over (they died, or something else ended it)
+func send_tall_result() -> void:
+	if _to_host_ready():
+		_tall_result_rpc.rpc_id(1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _tall_result_rpc() -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
+	var b := _scene_node("TallOne")
 	if b != null and b.has_method("net_result"):
 		b.net_result(multiplayer.get_remote_sender_id())
 
