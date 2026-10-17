@@ -55,7 +55,7 @@ const DOOR_Z1 := LANE_MID + DOOR_W * 0.5
 const SWAP_UP := -2.2
 const SWAP_DOWN := -1.2
 
-const LAMP_COLOR := Color(1.0, 0.93, 0.78)
+const LAMP_COLOR := Color(1.0, 0.78, 0.38)   # a tired yellow
 const LAMP_ENERGY := 1.7
 const LAMP_RANGE := 9.0
 const LAMP_LENGTH := 1.25
@@ -79,6 +79,7 @@ static var _fluor_mesh: Mesh           # the fluorescent model, loaded once, wit
 static var _fluor_xf := Transform3D.IDENTITY
 static var _fluor_tex: Texture2D
 static var _fluor_sh: Shader
+static var _wood_mat: Material
 var _lamps: Array = []                # [light, tube material, flickers, which lamp of the well]
 var _taken := false
 var _surface := "carpet"               # what the solids being built are made of (footsteps.gd reads it off each shape)
@@ -153,7 +154,7 @@ func _shell(room_h: float, lo: float, hi: float) -> void:
 		if part[3] - part[2] > 0.01:
 			_solid(Vector3(X0 + WALL * 0.5, (part[2] + part[3]) * 0.5, (part[0] + part[1]) * 0.5), Vector3(WALL, part[3] - part[2], part[1] - part[0]))
 	# the doorway's frame: lining boards through the wall, casing on both faces, a strip across the floor
-	var trim: Material = _mats.trim
+	var trim: Material = _wood()
 	var zc := (z0 + z1) * 0.5
 	var through := WALL + 0.02
 	for z: float in [z0, z1]:
@@ -248,8 +249,15 @@ func _flight(look: Dictionary, o: Dictionary, s: float, xs: float, xe: float, y:
 		var n := Vector3(0, 0, wall[1])
 		_quad(look.wall, a + Vector3(0, 0, z), b + Vector3(0, 0, z), b + head + Vector3(0, 0, z), a + head + Vector3(0, 0, z), n)
 		var zf := Vector3(0, 0, z) + n * 0.02
-		_quad(look.trim, a + zf, b + zf, b + zf + board, a + zf + board, n)
-		_quad(look.trim, a + board + Vector3(0, 0, z), b + board + Vector3(0, 0, z), b + board + zf, a + board + zf, out)
+		# the board starts the landing's own 0.1 tall and rises to its height along the flight, and comes
+		# back down to it at the far end: it meets the landing's skirting flush, with no step
+		var ramp := minf(0.7, run.length() * 0.25) / run.length()
+		var low := Vector3(0, 0.1, 0)
+		var edge: Array[Vector3] = [a + low, a.lerp(b, ramp) + board, a.lerp(b, 1.0 - ramp) + board, b + low]
+		var foot: Array[Vector3] = [a, a.lerp(b, ramp), a.lerp(b, 1.0 - ramp), b]
+		for i in 3:
+			_quad(look.trim, foot[i] + zf, foot[i + 1] + zf, edge[i + 1] + zf, edge[i] + zf, n)
+			_quad(look.trim, edge[i] + Vector3(0, 0, z), edge[i + 1] + Vector3(0, 0, z), edge[i + 1] + zf, edge[i] + zf, out)
 	if bool(o.get("rail", true)):
 		var lift := Vector3(0, RISE + 0.92, 0)
 		for wall: Array in [[z_out, -s], [z_in, s]]:
@@ -300,7 +308,7 @@ func _lamp(o: Dictionary, at: Vector3, id: int) -> void:
 	l.set_meta("gfx_managed", true)              # Gfx.apply_scene leaves it alone
 	l.position = at - Vector3(0, 0.45, 0)
 	add_child(l)
-	_lamps.append([l, tube, mode == "flicker", id + roundi(_from.x) * 7 + roundi(_from.y) * 13])
+	_lamps.append([l, tube, 1 if mode == "flicker" else 2, id + roundi(_from.x) * 7 + roundi(_from.y) * 13])
 
 static func _fluor_shader() -> Shader:
 	if _fluor_sh == null:
@@ -394,8 +402,8 @@ func _look(o: Dictionary) -> Dictionary:
 		look.wall = _per_storey(_mats.wall)
 		look.floor = _per_storey(_mats.floor)
 		look.ceil = _per_storey(_mats.plaster)
-		look.trim = _mats.trim
-		look.rail = _mats.wood
+		look.trim = _wood()
+		look.rail = _wood()
 		look.bracket = _mats.metal
 		look.plate = _paint(Color(0.2, 0.17, 0.1))
 		look.nosing = _paint(Color(0.2, 0.17, 0.12), 0.7)
@@ -428,6 +436,17 @@ func _concrete(tint: Color, per_metre: float) -> StandardMaterial3D:
 	m.uv1_scale = Vector3.ONE * per_metre
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return _per_storey(m) as StandardMaterial3D
+
+## The dark-grain wood of the well's frame, skirting and handrails (world triplanar: the meshes have no UVs)
+func _wood() -> Material:
+	if _wood_mat == null:
+		var m := (load("res://textures/pbr/Wood_Dark_Grain/Wood_Dark_Grain.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = true
+		m.uv1_scale = Vector3.ONE * 0.5
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+		_wood_mat = _per_storey(m)
+	return _wood_mat
 
 func _paint(col: Color, rough := 0.6) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -501,8 +520,7 @@ var _rank_wait := 0.0
 func _process(delta: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	for lamp: Array in _lamps:
-		if not lamp[2]: continue
-		var level := _flicker(t, lamp[3])
+		var level := _flicker(t, lamp[3], 0.4 if lamp[2] == 1 else 0.93)
 		(lamp[0] as OmniLight3D).light_energy = LAMP_ENERGY * level
 		(lamp[1] as ShaderMaterial).set_shader_parameter("glow", LAMP_GLOW * level)
 	var player: Node3D = _level.player
@@ -547,9 +565,10 @@ func _rank_lamps(p: Vector3) -> void:
 		if l.shadow_enabled != want: l.shadow_enabled = want
 
 ## A failing tube by the clock: steady for a few seconds, then a stutter of dropouts. `id` tells the lamps apart.
-static func _flicker(t: float, id: int) -> float:
+## (`steady`: the share of its spells it holds steady for: a lamp that is "on" only now and then stutters)
+static func _flicker(t: float, id: int, steady: float) -> float:
 	var spell := floorf(t / 2.7) + id * 17.0
-	if _hash(spell) > 0.4:
+	if _hash(spell) > steady:
 		return 1.0
 	return 0.12 if _hash(floorf(t * 13.0) + id * 31.0) < 0.55 else 1.0
 

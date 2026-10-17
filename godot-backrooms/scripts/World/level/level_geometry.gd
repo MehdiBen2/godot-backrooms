@@ -45,10 +45,10 @@ var pit_fall: Node3D           # this floor's bottomless pits and the fall down 
 
 func build_geometry() -> void:
 	_make_materials()
-	_build_surfaces()
-	_build_walls()
-	_build_objects()
-	call("_build_trim")                  # (level_trim.gd, the layer over this one: skirting, fittings, wear)
+	await _build_surfaces()
+	await _build_walls()
+	await _build_objects()
+	await call("_build_trim")            # (level_trim.gd, the layer over this one: skirting, fittings, wear)
 	_build_ceiling_steps()
 	_build_pit_shafts()
 	_build_dirt()
@@ -393,6 +393,7 @@ func _ranged_surface(cells: Array, height_fn: Callable, mat: Material, flip: boo
 	for c: Vector2i in cells: chunks.get_or_add(Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK), []).append(c)
 	var reach := _chunk_reach()
 	for ch in chunks:
+		await _slice()
 		var mi := _cell_surface(chunks[ch], height_fn, mat, flip, priority, layers) as MeshInstance3D
 		mi.visibility_range_end = reach
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
@@ -449,35 +450,37 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			if not walls.has(c): solid_cells.append(c)
 	if ceilings:
 		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
-		_ranged_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
+		await _ranged_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
 		for id in paint_ceil:
-			_ranged_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
+			await _ranged_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
-			_ranged_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
-		if not shell: _build_ceiling_collision(solid_cells + cut_all)
+			await _ranged_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
+		if not shell: await _build_ceiling_collision(solid_cells + cut_all)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
 	if not (through.is_empty() and open_above.is_empty() and holes_below.is_empty()):
-		_ranged_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
+		await _ranged_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
+	# the carpet's floor plan, a slice at a time, before the first carpet asks for it (and would build it all at once)
+	if _floor_map_tex == null and not (_has_pbr("floor") and classic_floor.is_empty() and hotel_floor.is_empty()): await _make_floor_map()
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
-	_ranged_surface(carpet_cells, func(_c): return 0.0, carpet, false)
+	await _ranged_surface(carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
-		_ranged_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
+		await _ranged_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
 	# Classic zone: a clean beige office carpet (the walls carry the yellow)
 	if not classic_floor.is_empty():
-		_ranged_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
+		await _ranged_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
 	# Hotel corridors: the deep red carpet of a hotel hall
 	if not hotel_floor.is_empty():
-		_ranged_surface(hotel_floor, func(_c): return 0.0, _carpet_material(HOTEL_CARPET), false)
+		await _ranged_surface(hotel_floor, func(_c): return 0.0, _carpet_material(HOTEL_CARPET), false)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
 		var tm: StandardMaterial3D = _pbr_or("tiles")
 		if tm == null:
 			tm = _default_tile_material()
-		_ranged_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
+		await _ranged_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
 
 	if not cut_keys.is_empty():
 		var groups := {}
@@ -491,7 +494,8 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		_build_cut_floors(groups, polys)
 
 	if shell: return
-	_build_floor_collision(solid_cells)
+	await _slice()
+	await _build_floor_collision(solid_cells)
 	_build_hole_collision()
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
@@ -522,7 +526,7 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 	sm.set_shader_parameter("crevice_ao_strength", 0.3)
 	sm.set_shader_parameter("mid_distance", 25.0)
 	sm.set_shader_parameter("mid_fade_range", 8.0)
-	if _floor_map_tex == null: _floor_map_tex = _floor_map()
+	if _floor_map_tex == null: _make_floor_map()
 	sm.set_shader_parameter("floor_map", _floor_map_tex)
 	sm.set_shader_parameter("map_cells", float(size))
 	sm.set_shader_parameter("map_cell", CELL)
@@ -535,54 +539,57 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 ## smoothed over its neighbours so a lane runs on round a corner. Counted with summed-area tables: a big level
 ## is tens of thousands of cells.
 var _floor_map_tex: ImageTexture
-func _floor_map() -> ImageTexture:
+func _make_floor_map() -> void:
 	var n := size
 	var w := n + 1
-	var on_floor := func(c: Vector2i) -> bool: return not _block_at(c) and not stair_cells.has(c) and not pits.has(c)
-	var sat := PackedInt32Array()
-	sat.resize(w * w)
+	# per cell: 1 solid (a wall block or a stairwell's box), 2 floor that is walked on, 0 neither (a pit)
+	var kind := PackedByteArray()
+	kind.resize(n * n)
 	for z in n:
 		for x in n:
-			var v := 1 if on_floor.call(Vector2i(x, z)) else 0
-			sat[(z + 1) * w + x + 1] = v + sat[z * w + x + 1] + sat[(z + 1) * w + x] - sat[z * w + x]
-	var box_sum := func(t: PackedFloat32Array, x0: int, z0: int, x1: int, z1: int) -> float:
-		x0 = clampi(x0, 0, n); z0 = clampi(z0, 0, n); x1 = clampi(x1, 0, n); z1 = clampi(z1, 0, n)
-		return t[z1 * w + x1] - t[z0 * w + x1] - t[z1 * w + x0] + t[z0 * w + x0]
+			var c := Vector2i(x, z)
+			kind[z * n + x] = 1 if (_block_at(c) or stair_cells.has(c)) else (0 if pits.has(c) else 2)
 	var satf := PackedFloat32Array()
 	satf.resize(w * w)
-	for i in w * w: satf[i] = sat[i]
+	for z in n:
+		for x in n:
+			var v := 1.0 if kind[z * n + x] == 2 else 0.0
+			satf[(z + 1) * w + x + 1] = v + satf[z * w + x + 1] + satf[(z + 1) * w + x] - satf[z * w + x]
+	await _slice()
 	var traffic := PackedFloat32Array()
 	traffic.resize(w * w)               # summed-area table of the raw traffic, for the smoothing
 	for z in n:
 		for x in n:
 			var t := 0.0
-			if on_floor.call(Vector2i(x, z)):
-				var open_round: float = box_sum.call(satf, x - 2, z - 2, x + 3, z + 3) - 1.0
+			if kind[z * n + x] == 2:
+				var x0 := clampi(x - 2, 0, n)
+				var z0 := clampi(z - 2, 0, n)
+				var x1 := clampi(x + 3, 0, n)
+				var z1 := clampi(z + 3, 0, n)
+				var open_round: float = satf[z1 * w + x1] - satf[z0 * w + x1] - satf[z1 * w + x0] + satf[z0 * w + x0] - 1.0
 				t = clampf((16.0 - open_round) / 12.0, 0.15, 1.0)
 				if carved.has(Vector2i(x, z)): t = 1.0         # a doorway: everyone passes through it
 			traffic[(z + 1) * w + x + 1] = t + traffic[z * w + x + 1] + traffic[(z + 1) * w + x] - traffic[z * w + x]
+		if z % 16 == 15: await _slice()
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	for z in n:
 		for x in n:
-			var c := Vector2i(x, z)
-			var solid := _block_at(c) or stair_cells.has(c)
+			var k := kind[z * n + x]
 			var b := 0.0
 			var g := 0.0
-			if on_floor.call(c):
-				var cnt: float = box_sum.call(satf, x - 1, z - 1, x + 2, z + 2)
-				g = box_sum.call(traffic, x - 1, z - 1, x + 2, z + 2) / maxf(cnt, 1.0)
-				for dx in range(-1, 2):
-					for dz in range(-1, 2):
-						if dx == 0 and dz == 0: continue
-						var nx: int = x + dx
-						var nz: int = z + dz
-						if nx >= 0 and nx < n and nz >= 0 and nz < n:
-							if _block_at(Vector2i(nx, nz)) or stair_cells.has(Vector2i(nx, nz)):
-								b = 1.0
-								break
-					if b > 0.0: break
-			img.set_pixel(x, z, Color(1.0 if solid else 0.0, g, b, 1.0))
-	return ImageTexture.create_from_image(img)
+			if k == 2:
+				var x0 := clampi(x - 1, 0, n)
+				var z0 := clampi(z - 1, 0, n)
+				var x1 := clampi(x + 2, 0, n)
+				var z1 := clampi(z + 2, 0, n)
+				var cnt: float = satf[z1 * w + x1] - satf[z0 * w + x1] - satf[z1 * w + x0] + satf[z0 * w + x0]
+				g = (traffic[z1 * w + x1] - traffic[z0 * w + x1] - traffic[z1 * w + x0] + traffic[z0 * w + x0]) / maxf(cnt, 1.0)
+				for nz in range(z0, z1):                   # a solid block in the 3 x 3 round it: the carpet greys at its foot
+					for nx in range(x0, x1):
+						if kind[nz * n + nx] == 1: b = 1.0
+			img.set_pixel(x, z, Color(1.0 if k == 1 else 0.0, g, b, 1.0))
+		if z % 16 == 15: await _slice()
+	_floor_map_tex = ImageTexture.create_from_image(img)
 
 const AcousticCeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
 
@@ -639,7 +646,10 @@ func _merge_rects(must: Dictionary, may := {}) -> Array[Rect2i]:
 	var keys := free.keys()
 	keys.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
 	var out: Array[Rect2i] = []
+	var i := 0
 	for c: Vector2i in keys:
+		i += 1
+		if i % 128 == 0: await _slice()
 		if not free.has(c): continue
 		var x_end := (floori(float(c.x) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
 		var y_end := (floori(float(c.y) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
@@ -684,7 +694,7 @@ func _build_floor_collision(floor_cells: Array) -> void:
 	# Floor collision: thin slabs merged over runs of floor cells (pits stay open)
 	var body := StaticBody3D.new()
 	add_child(body)
-	_add_merged_boxes(body, _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
+	_add_merged_boxes(body, await _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
 ## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
@@ -698,7 +708,7 @@ func _build_ceiling_collision(floor_cells: Array) -> void:
 		if open_above.has(c): continue   # a hole in the floor above: you come down through here
 		by_height.get_or_add(ceiling_height(c), {})[c] = true
 	for ch: float in by_height:
-		_add_merged_boxes(body, _merge_rects(by_height[ch]), 0.4, ch + 0.2)
+		_add_merged_boxes(body, await _merge_rects(by_height[ch]), 0.4, ch + 0.2)
 
 ## The sides of the holes through the slabs: under this floor's own through-pits down to the ceiling of the
 ## floor below, and over this floor's ceiling up to the hole in the floor above. Someone falling through is
@@ -843,7 +853,10 @@ func _build_hotel_insets() -> void:
 func _build_walls() -> void:
 	_build_hotel_insets()
 	var groups := {WALL_H: [], TALL_H: [], GRAND_H: []}
+	var i := 0
 	for c: Vector2i in walls.keys():
+		i += 1
+		if i % 512 == 0: await _slice()
 		if not _block_at(c): continue     # a door / thin wall object or a stairwell stands here instead of a solid block
 		var exposed := false
 		var reach := WALL_H               # as high as the tallest room it faces
@@ -854,7 +867,7 @@ func _build_walls() -> void:
 			elif tall.has(c + n): reach = maxf(reach, TALL_H)
 		if exposed:
 			groups[reach].append(c)
-	if not shell: _build_wall_collision(groups)
+	if not shell: await _build_wall_collision(groups)
 	# endless halls: the border's blocks only stop you (the copy of the level beyond the seam draws them)
 	if edge_wrap:
 		for height in groups.keys():
@@ -880,6 +893,7 @@ func _build_walls() -> void:
 			var ch := Vector2i(c.x / 8, c.y / 8)
 			chunks.get_or_add(ch, []).append(c)
 		for ch in chunks:
+			await _slice()
 			# a block standing out into the room gets its outside corners rounded (_wall_block), so they are
 			# grouped by which of its edges those are
 			var by_shape := {}
@@ -991,7 +1005,7 @@ func _build_wall_collision(groups: Dictionary) -> void:
 	add_child(body)
 	for height: float in groups.keys():
 		if groups[height].is_empty(): continue
-		_add_merged_boxes(body, _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
+		_add_merged_boxes(body, await _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,
 # facing +X (the way you walk through it) and spanning `scale` cells along Z, then placed with
@@ -1034,10 +1048,14 @@ func _build_objects() -> void:
 					"riser": risers.append(o)
 					"zone":
 						if not shell: _build_trigger(o)
+	await _slice()
 	_build_shaped_walls(shaped)
+	await _slice()
 	_build_wall_graph()
+	await _slice()
 	_build_arches(arch)
 	_build_props(props)
+	await _slice()
 	_build_pipes(pipes, risers, props)
 	_build_vertical(vertical)
 	if not shell: _build_climbers()

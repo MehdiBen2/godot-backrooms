@@ -84,6 +84,7 @@ func build(level, energy_scale: float, boost: float, cell: float, wall_h: float)
 				cell_lamps.get_or_add(c.y * n + c.x, []).append(l)
 	_sources(1, 1, n - 2, n - 2)
 	for s in BUILD_SWEEPS:
+		await lvl._slice()                 # (a floor built while you walk on: a sweep a slice, level_data.gd)
 		_relax(1, 1, n - 2, n - 2, s % 2 == 1)
 	img = Image.create_from_data(n, n, false, Image.FORMAT_RGF, pix.to_byte_array())
 	tex = ImageTexture.create_from_image(img)

@@ -542,6 +542,8 @@ func _graph_walls() -> void:
 	# what stands in the openings, as stand-ins: a door's leaf (shut), a window's glass
 	var leaf := _flat(Color("6b4528"))
 	var glass := _flat(Color(0.7, 0.85, 0.95))
+	var dark := _flat(Color(0.015, 0.018, 0.03))
+	var wood := _flat(Color("7a5634"))
 	for e in res.holes:
 		var cv: Dictionary = sol.edges[e].cv
 		for h: Dictionary in res.holes[e]:
@@ -556,8 +558,23 @@ func _graph_walls() -> void:
 			var mi := MeshInstance3D.new()
 			mi.mesh = box
 			mi.transform = to_view * xf * Transform3D(Basis.IDENTITY, Vector3(0.0, (y0 + y1) * 0.5, 0.0))
-			mi.material_override = leaf if kind == "door" else glass
+			var op: Dictionary = h.op
+			var sky := str(op.get("glass", "sky")) == "sky"
+			mi.material_override = leaf if kind == "door" else (dark if sky and str(op.get("style", "")) in ed.NIGHT_STYLES else glass)
 			world.add_child(mi)
+			# a model window's open shutters, flat on the room's face either side of it
+			var reach: float = ed.WallGraph.op_reach(op) if kind == "window" else 0.0
+			if reach > 0.0:
+				var face := float(g.edges[e].get("tl" if str(op.get("side", "l")) == "l" else "tr", 0.15))
+				var x := (-1.0 if str(op.get("side", "l")) == "l" else 1.0) * (face + 0.04)
+				for s: float in [-1.0, 1.0]:
+					var sh := BoxMesh.new()
+					sh.size = Vector3(0.06, y1 - y0, reach)
+					var sm := MeshInstance3D.new()
+					sm.mesh = sh
+					sm.transform = to_view * xf * Transform3D(Basis.IDENTITY, Vector3(x, (y0 + y1) * 0.5, s * (w * 0.5 + reach * 0.5)))
+					sm.material_override = wood
+					world.add_child(sm)
 
 ## One object's meshes, added to `parent` (its holder in the level, or the ghost)
 func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
@@ -694,7 +711,8 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 				"window":
 					var hh := _up(float(ed._param(o, "height", 2.2)))
 					var sill := _up(float(ed._param(o, "elev", 0.9)))
-					var glass := _flat(Color(0.75, 0.9, 1.0))
+					var night: bool = str(ed._param(o, "frame", "pane")) in ed.NIGHT_STYLES
+					var glass := _flat(Color(0.015, 0.018, 0.03) if night else Color(0.75, 0.9, 1.0))
 					glass.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 					parts.append([Vector3(0.012, sill + hh * 0.5, 0), Vector3(0.02, hh, span), glass])
 					parts.append([Vector3(0.02, sill - 0.01, 0), Vector3(0.05, 0.02, span + 0.04), _flat(Color(0.92, 0.92, 0.9))])

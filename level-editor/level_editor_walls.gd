@@ -1126,7 +1126,21 @@ func _op_kind() -> String:
 func _op_default_w() -> float:
 	var k := _op_kind()
 	if k == "door": return float(_info("door").get("opening", 1.12))
-	return float(WallGraph.OPENINGS.get(k, {}).get("w", 1.2))
+	return float(_op_tool_settings().get("w", WallGraph.OPENINGS.get(k, {}).get("w", 1.2)))
+
+## What the current tool's opening starts as over its kind's defaults (object_types.json "opening": a night
+## window's model style, size and sky)
+func _op_tool_settings() -> Dictionary:
+	if not tool.begins_with("obj:"): return {}
+	var s = _info(tool.get_slice(":", 1)).get("opening", {})
+	return s if s is Dictionary else {}
+
+## How far the current tool's opening reaches past its jambs at width `w` (a model window's shutters)
+func _op_tool_reach(w: float) -> float:
+	var o := _op_tool_settings().duplicate()
+	o["kind"] = _op_kind()
+	o["w"] = w
+	return WallGraph.op_reach(o)
 
 func _op_valid(o: Dictionary) -> bool:
 	return not o.is_empty() and wall_graph.edges.has(o.e) and int(o.i) < (wall_graph.ops_of(o.e) as Array).size()
@@ -1168,11 +1182,12 @@ func _op_ghost_at(px: Vector2) -> Dictionary:
 	var cv: Dictionary = wall_graph.curve_of(e)
 	var c: Dictionary = WallGeom.closest(cv, cur)
 	var w := _op_default_w()
-	var u: float = wall_graph.fit_opening(e, float(c.t), w)
+	var reach := _op_tool_reach(w)
+	var u: float = wall_graph.fit_opening(e, float(c.t), w, WallGraph.OP_GAP, -1, reach)
 	if is_nan(u): return {"e": e, "bad": true}
 	if snap and not Input.is_key_pressed(KEY_ALT):       # the middle on 5 cm steps along the wall
 		var l: float = wall_graph.length_of(e) * CELL_M
-		var su: float = wall_graph.fit_opening(e, snappedf(u * l, 0.05) / l, w)
+		var su: float = wall_graph.fit_opening(e, snappedf(u * l, 0.05) / l, w, WallGraph.OP_GAP, -1, reach)
 		if not is_nan(su): u = su
 	var side := "l" if WallGeom.normal(cv, float(c.t)).dot(cur - (c.p as Vector2)) >= 0.0 else "r"
 	return {"e": e, "u": u, "w": w, "side": side}
@@ -1195,10 +1210,13 @@ func _op_press(mb: InputEventMouseButton) -> bool:
 		return false
 	_op_pressed = true
 	if g.get("bad", false):
-		_status("No room for it there: it needs %.2f m of wall clear of the corners and the other openings" % _op_default_w())
+		_status("No room for it there: it needs %.2f m of wall clear of the corners and the other openings" % (_op_default_w() + _op_tool_reach(_op_default_w()) * 2.0) \
+			+ (" (its shutters open flat on the wall either side)" if _op_tool_reach(_op_default_w()) > 0.0 else ""))
 		return true
 	_push_undo()
-	var settings := {"w": g.w, "side": g.side}
+	var settings := _op_tool_settings().duplicate()
+	settings["w"] = g.w
+	settings["side"] = g.side
 	var ops: Array = wall_graph.edges[g.e].ops
 	ops.append(WallGraph.new_opening(_op_kind(), g.u, settings))
 	wsel_op = {"e": g.e, "i": ops.size() - 1}
@@ -1521,5 +1539,8 @@ func _draw_op_ghost() -> void:
 		var c: Dictionary = WallGeom.closest(wall_graph.curve_of(e), _pos_at(mouse_px))
 		_tag(_cells_px(c.p) + Vector2(10, -12), "no room", Color("ff5a4a"), 11)
 		return
-	var op: Dictionary = WallGraph.new_opening(_op_kind(), g.u, {"w": g.w, "side": g.side})
+	var settings := _op_tool_settings().duplicate()
+	settings["w"] = g.w
+	settings["side"] = g.side
+	var op: Dictionary = WallGraph.new_opening(_op_kind(), g.u, settings)
 	_draw_op(g.e, op, GOLD, true)

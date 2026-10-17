@@ -30,6 +30,7 @@ func _wall_faces() -> Array:
 			var dir := stair_dir(o)
 			doorways[[Vector2i(roundi(o.pos_x), roundi(o.pos_y)) - dir, dir]] = o
 	for x in range(1, size - 1):
+		await _slice()
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if _trim_wall(c) or pits.has(c) or arch_cells.has(c): continue
@@ -120,12 +121,16 @@ static func _on_wall(out: Vector3) -> Basis:
 	return Basis(Vector3.UP.cross(out), Vector3.UP, out)
 
 func _build_trim() -> void:
-	_faces = _wall_faces()
+	_faces = await _wall_faces()
 	_gather_obstacles()
-	_build_skirting()
+	await _build_skirting()
+	await _slice()
 	_build_wall_angle()
+	await _slice()
 	var switches := _build_fittings()
+	await _slice()
 	_build_wall_wear(switches)
+	await _slice()
 	_build_damp()
 
 # ---------------------------------------------------------------- skirting
@@ -154,7 +159,10 @@ func _build_skirting() -> void:
 	var sts := {}
 	# the maze's walls, a face at a time: its ends cut square where the wall runs straight on, mitred into an
 	# inside corner, and mitred round an outside one (the vertex at depth d moves d along the wall)
+	var i := 0
 	for f: Dictionary in _faces:
+		i += 1
+		if i % 32 == 0: await _slice()
 		var fr := _face_frame(f)
 		var mid: Vector3 = fr[0]
 		var out: Vector3 = fr[1]

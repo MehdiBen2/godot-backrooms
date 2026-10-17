@@ -924,6 +924,7 @@ func _start_briefing() -> void:
 func _start_loading(fade := false) -> void:
 	loading = true
 	load_ready = false
+	set_process(true)
 	loading_root.visible = true
 	loading_root.modulate.a = 1.0
 	for c in loading_root.get_children().slice(1):          # child 0 is the opaque black backdrop
@@ -1039,6 +1040,9 @@ func _level_name() -> String:
 	return str(meta.get("name", "LEVEL 0"))
 
 func _finish_loading() -> void:
+	loading = false                    # once only: _process_loading must not hand over again next frame
+	load_ready = false
+	set_process(false)
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
 	_main_asked = false
 	Stability.trace("play: main scene loaded (%s), switching to it" % ("OK" if packed != null else "FAILED: null"))

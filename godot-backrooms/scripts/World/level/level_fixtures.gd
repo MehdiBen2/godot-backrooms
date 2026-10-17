@@ -205,6 +205,7 @@ func _place_fixtures() -> void:
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
 	var at_cell := {}
 	for x in range(1, size - 1):
+		await _slice()
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			# no fixture over any wall, placed thin walls and doors included: the wall reaches the ceiling,
@@ -250,7 +251,7 @@ func _place_fixtures() -> void:
 				"index": -1, "wanted": false, "ceil_h": ceiling_height(c)})
 			_characterise(fx[-1], c)
 			at_cell[c] = pos
-	_fill_dark_gaps(func(f): return true, _new_tube)
+	await _fill_dark_gaps(func(f): return true, _new_tube)
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
@@ -261,6 +262,7 @@ func _place_fixtures() -> void:
 func _place_panel_fixtures() -> void:
 	_seed_fixtures()
 	for x in range(1, size - 1):
+		await _slice()
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			# thin walls and doors leave most of their cell open, so they still need their ceiling panel
@@ -284,7 +286,7 @@ func _place_panel_fixtures() -> void:
 				"timer": rng.randf() * 4.0, "burst": 0, "black": 0.0, "slot": -1, "dsq": 0.0,
 				"index": -1, "cell": fx.size(), "wanted": false, "vents": _pick_vents(c)})
 			_characterise(fx[-1], c)
-	_fill_dark_gaps(func(f): return bool(f.get("casts", false)), Callable())
+	await _fill_dark_gaps(func(f): return bool(f.get("casts", false)), Callable())
 	for f in fx:
 		if not f.burnt:
 			f.index = lit.size()
@@ -320,7 +322,10 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 	var by_cell := {}
 	for f: Dictionary in fx: by_cell[Vector2i(roundi(f.pos.x / CELL), roundi(f.pos.z / CELL))] = f
 	# 1: off the walls
+	var i := 0
 	for f: Dictionary in fx:
+		i += 1
+		if i % 64 == 0: await _slice()
 		if not real.call(f): continue
 		var lp := Vector2(f.light_pos.x, f.light_pos.z)
 		if wall_gap(lp) >= LIGHT_CLEAR: continue
@@ -344,6 +349,7 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 		f.flickers = false
 		if f.has("casts"): f.casts = true
 	for z in range(1, size - 1):
+		await _slice()
 		for x in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if not _wants_light(c): continue
@@ -374,6 +380,7 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 	# 3: small pockets with only burnt tubes
 	var done := {}
 	for z in range(1, size - 1):
+		await _slice()
 		for x in range(1, size - 1):
 			var c0 := Vector2i(x, z)
 			if done.has(c0) or not _wants_light(c0): continue
@@ -1192,6 +1199,7 @@ void fragment() {
 	cone.rings = 1
 	cone.cap_top = false
 	cone.cap_bottom = false
+	await _slice()
 	cone_mm = _chunked(lit if LIGHT_CONES else [], func(f: Dictionary) -> Vector3: return f.pos, "cone", func(list: Array) -> MultiMeshInstance3D:
 		var cm := MultiMesh.new()
 		cm.transform_format = MultiMesh.TRANSFORM_3D
@@ -1213,6 +1221,7 @@ void fragment() {
 		cmi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 		return cmi)
 
+	await _slice()
 	# the walls round each tube: one quad a wall face, over the tube's own cell and the open cells beside it
 	var wsh := _coded_shader("""shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;

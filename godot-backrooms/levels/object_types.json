@@ -381,7 +381,8 @@
         "panorama": "A wall of glass from the sill nearly to the ceiling",
         "casement": "A real double casement window, both sashes shut (a model: Panes does nothing)",
         "casement_open": "The same casement window with one sash swung open into the room",
-        "shutters": "A wooden window between open louvred shutters",
+        "shutters": "A wooden window between open louvred shutters (its own proportions: Height follows Width)",
+        "wood_night": "The same wooden shuttered window onto a dead black night: no light comes in, nothing shows out there",
         "wood_sash": "A plain old wooden window"
       },
       "sky": {
@@ -394,6 +395,28 @@
       "panes": [1.0, 12.0, 1.0, "", "how many lights across (the glazing bars between them)"],
       "sun": [0.0, 30.0, 0.5, "", "how strong the sunlight it throws into the room is"],
       "sun_angle": [5.0, 85.0, 1.0, "°", "how high the sun stands: low throws a long patch across the floor"]
+    },
+    "category": "light"
+  },
+  "window_night": {
+    "label": "Night window",
+    "color": "4a5a7a",
+    "opening_kind": "window",
+    "opening": {"style": "wood_night", "w": 1.406, "h": 1.25, "sill": 0.9, "glass": "sky", "sun": 0.0},
+    "help": "Click a wall of the walls tools and it goes into it: an old wooden window between open louvred shutters, looking out on a dead black night. Nothing lights the room through it and nothing shows out there, only the room's lamps catching in the glass (the place to put a face behind it later). It keeps the model's own proportions (1.41 x 1.25 m of glass, Height follows Width) and is fitted along the wall so its open shutters (a third of its width each side) stay clear of the corners, the walls joining there and the other openings. On a block wall: flat on the face, its arrow into the room",
+    "thickness": 0.25,
+    "shape": "window",
+    "mount": "wall",
+    "max_scale": 1.0,
+    "default_scale": 0.3124,
+    "params": {
+      "elev": 0.9,
+      "height": 1.25,
+      "frame": "wood_night",
+      "panes": 1.0,
+      "sun": 0.0,
+      "sky": "night",
+      "shadows": true
     },
     "category": "light"
   },

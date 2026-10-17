@@ -925,7 +925,8 @@ func absorb(objects: Array, types: Dictionary, size: int, tol := 0.1 / 4.5) -> A
 	# windows hung on a wall of the graph go into it (on the grid's block walls they stay as they were)
 	var left: Array = []
 	for o in kept:
-		if not (o is Dictionary and str(types.get(str(o.get("type", "")), {}).get("shape", "")) == "window" and _absorb_window(o)):
+		if not (o is Dictionary and str(types.get(str(o.get("type", "")), {}).get("shape", "")) == "window" \
+				and _absorb_window(o, types[str(o.type)].get("params", {}))):
 			left.append(o)
 	return left
 
@@ -954,8 +955,13 @@ func _absorb_door(o: Dictionary, info: Dictionary, size: int, tol: float) -> voi
 	edges[e].ops.append(new_opening("door", fit, settings))
 
 ## An old window object on a wall of the graph: its back on a face of the wall, its arrow (+x) into the room.
-## False if there is no wall of the graph under it.
-func _absorb_window(o: Dictionary) -> bool:
+## False if there is no wall of the graph under it. `defaults`: its type's params (object_types.json), for what
+## the object doesn't say itself.
+func _absorb_window(o: Dictionary, defaults := {}) -> bool:
+	if not defaults.is_empty():
+		o = o.duplicate()
+		for k in defaults:
+			if not o.has(k): o[k] = defaults[k]
 	var at := Vector2(float(o.get("pos_x", 0.0)), float(o.get("pos_y", 0.0)))
 	var rot := deg_to_rad(float(o.get("rotation", 0.0)))
 	var into := Vector2(1, 0).rotated(rot)

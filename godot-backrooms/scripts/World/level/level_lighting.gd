@@ -162,12 +162,22 @@ func build_lighting() -> void:
 func _apply_gi() -> void:
 	var want: bool = bool(Gfx.s.get("bounce", true)) and not shell and not Gfx.compat
 	if want and grid_gi == null:
-		grid_gi = GridGI.new()
-		grid_gi.build(self, (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) / LIGHT_ENERGY, CLASSIC_BOOST, CELL, WALL_H)
+		# solved a slice at a time while a floor is built as you walk on (level_data.gd _slice), and only handed
+		# out once whole
+		var gi := GridGI.new()
+		_gi_solving = gi
+		await gi.build(self, (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) / LIGHT_ENERGY, CLASSIC_BOOST, CELL, WALL_H)
+		if _gi_solving != gi or grid_gi != null: return     # (asked for again, or switched off, while it was solved)
+		_gi_solving = null
+		grid_gi = gi
 		grid_gi.attach(self, _pit_materials(), CEIL_LAYER)
-	elif not want and grid_gi != null:
-		grid_gi.detach()
-		grid_gi = null
+	elif not want:
+		_gi_solving = null
+		if grid_gi != null:
+			grid_gi.detach()
+			grid_gi = null
+
+var _gi_solving: RefCounted = null      # the bounce light being solved (_apply_gi), not yet handed out
 
 func _update_atmosphere(delta: float) -> void:
 	if env == null: return
