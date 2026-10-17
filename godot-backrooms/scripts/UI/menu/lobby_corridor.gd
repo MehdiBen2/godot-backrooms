@@ -45,6 +45,11 @@ const PLACES := [
 	Vector3(1.2, 0.0, -5.6), Vector3(5.2, 0.0, -3.4),
 ]
 const FACING := [0.12, -0.3, 0.35, -0.1, -0.45]
+## What each place does while it stands (survivor_anim.gd's lobby_idle_* clips: a hand to the hood, a shift of
+## weight, hands on hips, jumpy glances, a slump) and the colour of its suit (SurvivorAnim.apply_suit_variant;
+## "" = the yellow it comes in): so no two of them stand or look alike
+const IDLES := ["lobby_idle_hips", "lobby_idle_sway", "lobby_idle_adjust", "lobby_idle_glance", "lobby_idle_slump"]
+const SUITS := ["", "blue", "orange", "green", "red"]
 ## The tubes down the hall that belong to no one: [x, z, state] (on / flicker: failing most of the time /
 ## dying: dim and unsteady / dead)
 const HALL_TUBES := [
@@ -524,12 +529,13 @@ func _person(id: int, place: int, r: Dictionary) -> Person:
 		var suit: Node3D = _model.instantiate()
 		holder.add_child(suit)
 		suit.transform = HazmatFit.fit(suit, holder, MODEL_HEIGHT)
+		SurvivorAnim.apply_suit_variant(suit, SUITS[place])
 		_tint(suit, r.get("color", Color.WHITE))
 		var aps := suit.find_children("*", "AnimationPlayer", true, false)
 		if not aps.is_empty():
 			pr.anim = aps[0]
 			pr.clips = SurvivorAnim.find_clips(pr.anim)
-			_play(pr, "idle", 0.0)
+			_play(pr, IDLES[place], 0.0)
 			pr.anim.seek(randf() * pr.anim.current_animation_length, true)    # nobody breathes in step
 	pr.tag = Label3D.new()
 	pr.tag.font = load("res://fonts/vcr.ttf")
@@ -555,7 +561,7 @@ func _tag(pr: Person, r: Dictionary) -> void:
 
 ## remote_player.gd _tint: the suit takes a little of the survivor's colour
 func _tint(root: Node, color: Color) -> void:
-	var tint := Color.WHITE.lerp(color, 0.3)
+	var tint := Color.WHITE.lerp(color, 0.12)           # (the suit's own colour does most of the telling apart now)
 	for m in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := m as MeshInstance3D
 		for i in mi.get_surface_override_material_count():
@@ -587,7 +593,7 @@ func _arrive(pr: Person) -> void:
 	pr.walk_tw.tween_interval(STRIKE_TIME * 0.6)
 	_walk(pr.walk_tw, pr.root, path)
 	pr.walk_tw.tween_callback(func() -> void:
-		_play(pr, "idle")
+		_play(pr, IDLES[pr.place])
 		if pr.anim:
 			pr.anim.speed_scale = 1.0
 		pr.tag.visible = true)

@@ -7,6 +7,8 @@ extends RefCounted
 ##   walk             moving normally (the player's 2.6 m/s, a survivor's walk)
 ##   run              sprinting
 ##   crouch_idle      squatting still        crouch_walk   creeping, heel to toe
+##   lobby_idle_*     idle variants for the lobby corridor (tools/blender/add_survivor_lobby_idles.py): slump,
+##                    sway, adjust (a hand to the hood), hips, glance. Each is its own role.
 ##   death            falls onto its back and holds the last frame
 ##   death_neck_snap  THE MANNEQUIN's kill seen from outside (tools/blender/add_survivor_neck_snap.py), timed
 ##                    to mannequin_snap.gd: frozen, the head wrenched round, hanging limp in its grip, then
@@ -47,7 +49,28 @@ static func find_clips(anim: AnimationPlayer) -> Dictionary:
 				break
 		if clips[role] != "":
 			anim.get_animation(clips[role]).loop_mode = Animation.LOOP_NONE if role in ONCE else Animation.LOOP_LINEAR
+	for n in anim.get_animation_list():                 # the lobby's idle variants: each is its own role
+		if String(n).begins_with("lobby_idle"):
+			clips[String(n)] = String(n)
+			anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 	return clips
+
+## The suit's cloth in another colour (models/player/survivor_suit_<name>.jpg, tools/gen_hazmat_variants.py);
+## "" keeps the yellow it comes in. Every surface that wears the suit's texture gets its own copy of the material.
+static func apply_suit_variant(root: Node, variant: String) -> void:
+	if variant == "":
+		return
+	var tex: Texture2D = load("res://models/player/survivor_suit_%s.jpg" % variant)
+	if tex == null:
+		return
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		for i in mi.get_surface_override_material_count():
+			var mat := mi.get_active_material(i)
+			if mat is StandardMaterial3D and mat.albedo_texture != null:
+				var c: StandardMaterial3D = mat.duplicate()
+				c.albedo_texture = tex
+				mi.set_surface_override_material(i, c)
 
 ## The role to play: walk when moving, run when sprinting. `_current` is the role playing now. "" if nothing fits.
 static func pick_role(clips: Dictionary, _current: String, speed: float, sprinting: bool, crouching: bool, dead: bool) -> String:
