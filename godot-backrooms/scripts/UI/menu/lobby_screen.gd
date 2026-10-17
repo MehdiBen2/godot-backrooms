@@ -37,6 +37,7 @@ var entries: Array[Dictionary] = []     # {button, inner, label, mark, hint, act
 var sel := -1
 var tape_sel := 0                       # the tape BEGIN plays (host / solo)
 var erase_armed := false
+var am_ready := false                   # guest: pressed READY
 var tag_label: Label
 var rec_dot: ColorRect
 var title_label: Label
@@ -67,6 +68,7 @@ func _ready() -> void:
 	Net.status_changed.connect(_on_net_status)
 	Net.share_link_changed.connect(func(_s: String) -> void: _refresh_room())
 	Net.lobby_changed.connect(_on_lobby_changed)
+	Net.ready_changed.connect(_refresh_crew)
 	Saves.changed.connect(_refresh_tapes)
 	# a frame of the corridor while the title is up, hidden: its shaders compile then, not in the PLAY push
 	get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -251,6 +253,7 @@ func _build() -> void:
 
 	wait_label = _label("WAITING FOR THE HOST TO BEGIN", 16, Color(CREAM, 0.8), 6)
 	column.add_child(wait_label)
+	_entry(column, "READY", "TELL THE HOST YOU ARE SET", _on_ready, "ready")
 	_entry(column, "BEGIN", "", _on_begin, "begin")
 	_entry(column, "ERASE TAPE", "", _on_erase, "erase")
 	_entry(column, "BACK", "MAIN MENU", _on_back, "back")
@@ -423,6 +426,7 @@ func open(as_guest: bool) -> void:
 	for i in entries.size():
 		_entry_state(i)
 	view.modulate.a = 0.0
+	corridor.set_sound(true)
 	corridor.from_menu(2.8)
 	W._finish(anim)
 	anim = create_tween().set_parallel(true)
@@ -456,6 +460,7 @@ func close() -> void:
 		Net.leave()
 	Net.lobby_open = false
 	W._finish(anim)
+	corridor.set_sound(false)
 	corridor.pull_back(1.0)
 	anim = create_tween().set_parallel(true)
 	anim.tween_property(panel, "modulate:a", 0.0, 0.3)
@@ -468,6 +473,7 @@ func close() -> void:
 func play_out() -> void:
 	shown = false
 	W._finish(anim)
+	corridor.set_sound(false)
 	corridor.push_in(1.9)
 	anim = create_tween()
 	anim.tween_property(panel, "modulate:a", 0.0, 0.4)
@@ -502,21 +508,21 @@ func _refresh_tapes() -> void:
 		if inf.get("broken", false):
 			hint = "DAMAGED // UNREADABLE"
 		elif not inf.is_empty():
-			hint = "%s  //  %s  //  %s" % [str(inf.get("level_tag", "LEVEL ?")), str(inf.get("tier_code", "C-0")), _runtime(float(inf.get("play_time", 0.0)))]
+			hint = "%s  //  %s" % [str(inf.get("level_tag", "LEVEL ?")), _runtime(float(inf.get("play_time", 0.0)))]
 		_set_entry("tape%d" % i, "", hint, true)
 	var inf := Saves.info(tape_sel)
 	var written: bool = not inf.is_empty() and not inf.get("broken", false)
 	if written:
 		card_lines[0].text = str(inf.get("level_name", "")).to_upper()
-		card_lines[1].text = "CLEARANCE %s // %s    %s %s" % [str(inf.get("tier_code", "")), str(inf.get("tier_title", "")).to_upper(), _thousands(int(inf.get("yield", 0))), str(inf.get("unit", "RY"))]
-		card_lines[2].text = "ENTITIES LOGGED %d    VITALS %d%%    RUNTIME %s" % [int(inf.get("logged", 0)), roundi(float(inf.get("health", 100.0))), _runtime(float(inf.get("play_time", 0.0)))]
+		card_lines[1].text = "RESUMES WHERE YOU LEFT OFF"
+		card_lines[2].text = "RUNTIME %s" % _runtime(float(inf.get("play_time", 0.0)))
 		card_lines[3].text = "LAST RECORDED  " + _date(int(inf.get("saved_unix", 0)))
 	else:
-		var t0: Dictionary = Clearance.tiers[0] if not Clearance.tiers.is_empty() else {}
 		card_lines[0].text = "BLANK TAPE" if not inf.get("broken", false) else "DAMAGED TAPE"
 		card_lines[1].text = "A NEW RECORDING STARTS AT THE THRESHOLD"
-		card_lines[2].text = "CLEARANCE %s // %s    NOTHING ON FILE" % [str(t0.get("code", "C-0")), str(t0.get("title", "")).to_upper()]
+		card_lines[2].text = ""
 		card_lines[3].text = "" if not inf.get("broken", false) else "BEGIN RECORDS OVER IT"
+	card_lines[2].visible = card_lines[2].text != ""
 	card_lines[3].visible = card_lines[3].text != ""
 	if not guest:
 		sub_label.text = "PICK A TAPE  //  A WRITTEN ONE PICKS UP WHERE IT STOPPED"
@@ -529,14 +535,6 @@ func _refresh_tapes() -> void:
 static func _runtime(secs: float) -> String:
 	var s := int(secs)
 	return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
-
-static func _thousands(n: int) -> String:
-	var s := str(absi(n))
-	var out := ""
-	while s.length() > 3:
-		out = "," + s.right(3) + out
-		s = s.left(s.length() - 3)
-	return ("-" if n < 0 else "") + s + out
 
 ## Local time, the way the camcorder stamps it: 14 OCT 2026  18:20
 static func _date(unix: int) -> String:
@@ -552,20 +550,28 @@ static func _date(unix: int) -> String:
 func _roster() -> Array:
 	var me_id := multiplayer.get_unique_id() if Net.is_online() else 1
 	var me := Net.my_name()
-	var out := [{"id": 0, "name": me if me != "" else "YOU", "color": Net.PEER_COLORS[me_id % Net.PEER_COLORS.size()], "local": true}]
+	var out := [{"id": 0, "name": me if me != "" else "YOU", "color": Net.PEER_COLORS[me_id % Net.PEER_COLORS.size()], "local": true,
+		"ready": guest and am_ready}]
 	var ids: Array = Net.names.keys()
 	ids.sort()
 	for id in ids:
 		if str(Net.names[id]) == "":
 			continue
-		out.append({"id": int(id), "name": Net.label_for(int(id)), "color": Net.PEER_COLORS[int(id) % Net.PEER_COLORS.size()], "local": false})
+		out.append({"id": int(id), "name": Net.label_for(int(id)), "color": Net.PEER_COLORS[int(id) % Net.PEER_COLORS.size()], "local": false,
+			"ready": Net.ready_peers.has(int(id)) and int(id) != 1})
 	return out.slice(0, Net.MAX_PLAYERS)
 
 func _refresh_crew(instant := false) -> void:
 	var roster := _roster()
 	if visible:
 		corridor.set_roster(roster, instant)
+	var guests_ready := 0
+	for r in roster.slice(1):
+		if r.ready:
+			guests_ready += 1
 	crew_label.text = "CREW  %d / %d" % [roster.size(), Net.MAX_PLAYERS]
+	if roster.size() > 1:
+		crew_label.text += "   READY  %d / %d" % [guests_ready, roster.size() - 1]
 	for i in crew_dots.get_child_count():
 		var d: ColorRect = crew_dots.get_child(i).get_child(0)
 		d.color = (roster[i].color as Color) if i < roster.size() else Color(CREAM, 0.15)
@@ -585,8 +591,15 @@ func _refresh_room() -> void:
 	_set_entry("host", "", "INVITE UP TO %d SURVIVORS" % (Net.MAX_PLAYERS - 1), not guest and not Net.hosting)
 	_set_entry("copy", "", "TO THE CLIPBOARD", not guest and Net.hosting and Net.share_link != "")
 	_set_entry("close", "", "SEND EVERYONE HOME" if multiplayer.get_peers().size() > 0 else "PLAY ON YOUR OWN", not guest and Net.hosting)
-	_set_entry("begin", "", entries[_entry_of("begin")].hint.text, not guest)
+	var waiting := 0
+	for id in multiplayer.get_peers():
+		if Net.names.has(id) and not Net.ready_peers.has(id):
+			waiting += 1
+	_set_entry("begin", "", entries[_entry_of("begin")].hint.text if waiting == 0 else "WAITING FOR %d SURVIVOR%s TO READY UP" % [waiting, "" if waiting == 1 else "S"], not guest)
+	entries[_entry_of("begin")].label.modulate.a = 1.0 if waiting == 0 else 0.4
 	wait_label.visible = guest
+	wait_label.text = "READY  //  WAITING FOR THE HOST TO BEGIN" if am_ready else "PRESS READY WHEN YOU ARE SET"
+	_set_entry("ready", "READY" if not am_ready else "NOT READY", "TELL THE HOST YOU ARE SET" if not am_ready else "STAND DOWN", guest)
 	_set_entry("back", "", "LEAVE THE ROOM" if guest else "MAIN MENU")
 	tag_label.text = "SURVIVOR LOBBY  //  GUEST" if guest else ("SURVIVOR LOBBY  //  HOST" if Net.hosting and online else "SURVIVOR LOBBY")
 	title_label.text = "STAND BY" if guest else "FIELD TAPES"
@@ -610,8 +623,15 @@ func _on_lobby_changed(open: bool, start: bool) -> void:
 		begin_requested.emit()
 
 # ---- actions --------------------------------------------------------------------------------
+func _on_ready() -> void:
+	if not guest:
+		return
+	am_ready = not am_ready
+	Net.set_ready(am_ready)
+	_refresh_room()
+
 func _on_begin() -> void:
-	if guest:
+	if guest or not Net.all_ready():
 		return
 	Saves.begin(tape_sel)
 	Net.start_lobby()

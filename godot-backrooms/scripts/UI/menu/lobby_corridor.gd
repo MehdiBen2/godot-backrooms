@@ -18,6 +18,14 @@ const SurvivorAnim := preload("res://scripts/Entities/survivor_anim.gd")
 const HazmatFit := preload("res://scripts/Entities/hazmat_fit.gd")
 const CarpetShader := preload("res://shaders/carpet_pom.gdshader")
 const CeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
+const SkirtMaterial := preload("res://scripts/World/level/skirt_material.gd")
+## level_trim.gd SKIRT: the cove base's cross-section, top edge at the wall down to the toe on the carpet
+## (x out from the wall, y up; metres)
+const SKIRT := [Vector2(0.0, 0.102), Vector2(0.0015, 0.1019), Vector2(0.0033, 0.1011), Vector2(0.0047, 0.0997),
+	Vector2(0.0054, 0.0978), Vector2(0.0056, 0.0955), Vector2(0.0052, 0.0935), Vector2(0.0046, 0.0918),
+	Vector2(0.0050, 0.0902), Vector2(0.0062, 0.0890), Vector2(0.0080, 0.0882), Vector2(0.0098, 0.0872),
+	Vector2(0.0108, 0.0850), Vector2(0.0112, 0.0820), Vector2(0.0112, 0.022), Vector2(0.0116, 0.0135),
+	Vector2(0.0124, 0.0075), Vector2(0.0134, 0.0030), Vector2(0.0146, 0.0)]
 
 const CELL := 4.5                       # level_data.gd CELL / WALL_H: the level's own scale
 const WALL_H := 5.4
@@ -49,6 +57,7 @@ const WALK_SPEED := 1.6
 const LIGHT_ENERGY := 3.4               # level_fixtures.gd LIGHT_ENERGY x SPOT_GAIN, a little up: nothing else lights the hall
 const LIT_DIFFUSER := Color(3.2, 3.0, 2.55)
 const TUBE_COLOR := Color(1.0, 0.95, 0.8)
+const TROFFER_TOP_Y := 0.1432132        # level_fixtures.gd TOP_Y: the model's housing top
 const STRIKE_TIME := 0.9                # s a tube stutters before it holds
 ## The camera's rest: on the left of the hall, looking down it, with the room and the group in the right half
 ## of the picture and the hall running off into the dark behind the lobby's panel
@@ -70,12 +79,15 @@ var _cam_pos := CAM_REST_POS            # where the camera is meant to be; the d
 var _cam_look := CAM_REST_LOOK
 var _drift := 1.0                       # 0..1 how much camcorder drift is on (none while it travels)
 var _model: PackedScene
+var _troffer_scene: PackedScene
+var _sound := true                      # false: the hum fades out (BEGIN, BACK) and the tubes stop clicking
 
 ## One fixture: a lamp in the ceiling, its diffuser and the light it throws
 class Tube:
 	var light: SpotLight3D
 	var fill: OmniLight3D
-	var lens: StandardMaterial3D
+	var glow_tubes: ShaderMaterial          # the lit tubes' and lens's colour (a dead one has neither)
+	var glow_lens: ShaderMaterial
 	var energy := 1.0                   # this tube's own output (age)
 	var on := false                     # where it is headed
 	var state := "on"                   # on / flicker / dying / dead (the hall's), "place" for a survivor's
@@ -124,7 +136,7 @@ func _ready() -> void:
 	hum.finished.connect(hum.play)
 	strike_sfx = AudioStreamPlayer.new()
 	strike_sfx.stream = load("res://audio/world/lights/tube_restrike.wav")
-	strike_sfx.volume_db = -26.0
+	strike_sfx.volume_db = -34.0
 	strike_sfx.bus = "Master"
 	add_child(strike_sfx)
 
@@ -170,6 +182,8 @@ func _build_hall() -> void:
 	var paper := _wallpaper()
 	var floor_st := SurfaceTool.new()
 	var ceil_st := SurfaceTool.new()
+	var skirt_st := SurfaceTool.new()
+	skirt_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	floor_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	ceil_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for c: Vector2i in CELLS:
@@ -189,6 +203,11 @@ func _build_hall() -> void:
 			wall.material_override = paper
 			wall.position = Vector3((c.x + d.x * 0.5) * CELL + d.x * WALL_T * 0.5, WALL_H * 0.5, (c.y + d.y * 0.5) * CELL + d.y * WALL_T * 0.5)
 			add_child(wall)
+			_skirt(skirt_st, Vector3((c.x + d.x * 0.5) * CELL, 0.0, (c.y + d.y * 0.5) * CELL), Vector3(d.x, 0, d.y), CELL)
+	var skirting := MeshInstance3D.new()
+	skirting.mesh = skirt_st.commit()
+	skirting.material_override = SkirtMaterial.get_material()
+	add_child(skirting)
 	for pair in [[floor_st, carpet], [ceil_st, ceiling]]:
 		var st: SurfaceTool = pair[0]
 		st.generate_tangents()
@@ -196,6 +215,36 @@ func _build_hall() -> void:
 		mi.mesh = st.commit()
 		mi.material_override = pair[1]
 		add_child(mi)
+
+## The vinyl cove base (level_trim.gd SKIRT, the level's own profile and material) along the foot of a wall: `at`
+## the middle of its face on the floor, `toward` the way the wall lies from the room, `length` along it
+func _skirt(st: SurfaceTool, at: Vector3, toward: Vector3, length: float) -> void:
+	var along := Vector3.UP.cross(toward).normalized()
+	var n := SKIRT.size()
+	var nrm: Array[Vector2] = []
+	for k in n:                                  # the profile's normals, smoothed: out from the wall, up the cove
+		var a: Vector2 = SKIRT[maxi(k - 1, 0)]
+		var b: Vector2 = SKIRT[mini(k + 1, n - 1)]
+		var tan := (b - a).normalized()
+		nrm.append(Vector2(-tan.y, tan.x))
+	for k in n - 1:
+		var p0: Vector2 = SKIRT[k]
+		var p1: Vector2 = SKIRT[k + 1]
+		var a0 := at - toward * p0.x + Vector3.UP * p0.y
+		var a1 := at - toward * p1.x + Vector3.UP * p1.y
+		var lo := -along * length * 0.5
+		var hi := along * length * 0.5
+		var n0 := -toward * nrm[k].x + Vector3.UP * nrm[k].y
+		var n1 := -toward * nrm[k + 1].x + Vector3.UP * nrm[k + 1].y
+		var v := [a0 + lo, a0 + hi, a1 + hi, a1 + lo]
+		var nn := [n0, n0, n1, n1]
+		var tri := [0, 1, 2, 0, 2, 3]
+		var face: Vector3 = (v[1] - v[0]).cross(v[2] - v[0])
+		if face.dot(n0 + n1) > 0.0:              # Godot's front face winds clockwise
+			tri = [0, 2, 1, 0, 3, 2]
+		for idx in tri:
+			st.set_normal(nn[idx])
+			st.add_vertex(v[idx])
 
 ## A quad with its UV in world x / z metres (the level's floor and ceiling shaders tile by it)
 func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, n: Vector3) -> void:
@@ -263,28 +312,7 @@ func _tube(at: Vector3, state: String) -> Tube:
 	tb.state = state
 	tb.energy = randf_range(0.85, 1.0) if state != "dying" else 0.4
 	tb.next = randf_range(3.0, 12.0)
-	var housing := MeshInstance3D.new()
-	var hb := BoxMesh.new()
-	hb.size = Vector3(0.66, 0.05, 1.26)
-	housing.mesh = hb
-	var metal := StandardMaterial3D.new()
-	metal.albedo_color = Color(0.62, 0.6, 0.55)
-	metal.roughness = 0.5
-	metal.metallic = 0.3
-	housing.material_override = metal
-	housing.position = at - Vector3(0, 0.02, 0)
-	add_child(housing)
-	var lens_mi := MeshInstance3D.new()
-	var lb := BoxMesh.new()
-	lb.size = Vector3(0.58, 0.01, 1.18)
-	lens_mi.mesh = lb
-	tb.lens = StandardMaterial3D.new()
-	tb.lens.albedo_color = Color(0.85, 0.84, 0.8)
-	tb.lens.emission_enabled = true
-	tb.lens.emission = LIT_DIFFUSER
-	lens_mi.material_override = tb.lens
-	lens_mi.position = at - Vector3(0, 0.05, 0)
-	add_child(lens_mi)
+	_troffer(tb, at, state == "dead")
 	tb.light = SpotLight3D.new()
 	tb.light.position = at - Vector3(0, 0.12, 0)
 	tb.light.rotation_degrees = Vector3(-90, 0, 0)
@@ -305,14 +333,85 @@ func _tube(at: Vector3, state: String) -> Tube:
 	_show_tube(tb)
 	return tb
 
+## The level's troffer (level_fixtures.gd _build_fixture_meshes): the same model and materials, one instance.
+## Object_3 housing, Object_4 tray, Object_5 tubes, Object_2 diffuser lens; a dead one has the burnt tubes
+## and lens, a live one's tubes and lens are unshaded and take their colour from `glow` (_show_tube).
+func _troffer(tb: Tube, at: Vector3, burnt: bool) -> void:
+	if _troffer_scene == null:
+		_troffer_scene = load("res://models/lights/office_lighting_troffer_light_1x4.glb")
+	var root: Node3D = _troffer_scene.instantiate()
+	var parts := {}
+	for n in root.find_children("Object_*", "MeshInstance3D", true, false):
+		parts[String(n.name)] = n
+	var housing := StandardMaterial3D.new()
+	housing.albedo_color = Color("cfcabf")
+	housing.roughness = 0.65
+	housing.metallic = 0.2
+	var tray := StandardMaterial3D.new()
+	tray.albedo_color = Color("eeece4")
+	tray.roughness = 0.45
+	tray.metallic = 0.25
+	var tubes_mat: Material
+	var lens_mat: Material
+	if burnt:
+		var bt := StandardMaterial3D.new()
+		bt.albedo_color = Color("221f1a")
+		bt.roughness = 0.9
+		bt.metallic = 0.1
+		tubes_mat = bt
+		var bl := StandardMaterial3D.new()
+		bl.albedo_color = Color(0.2, 0.188, 0.157, 0.65)
+		bl.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		bl.roughness = 0.85
+		lens_mat = bl
+	else:
+		var tsh := Shader.new()
+		tsh.code = "shader_type spatial;\nrender_mode unshaded, shadows_disabled;\nuniform vec3 glow;\nvoid fragment() { ALBEDO = glow; }"
+		var tm := ShaderMaterial.new()
+		tm.shader = tsh
+		tubes_mat = tm
+		var lsh := Shader.new()
+		lsh.code = "shader_type spatial;\nrender_mode unshaded, blend_add, depth_draw_never, shadows_disabled;\nuniform vec3 glow;\nvoid fragment() { ALBEDO = glow; ALPHA = 0.35; }"
+		var lm := ShaderMaterial.new()
+		lm.shader = lsh
+		lens_mat = lm
+		tb.glow_tubes = tm
+		tb.glow_lens = lm
+	var mats := {"Object_3": housing, "Object_4": tray, "Object_5": tubes_mat, "Object_2": lens_mat}
+	var base := Transform3D(Basis(), at + Vector3(0, 0.03 - TROFFER_TOP_Y, 0))
+	for part in mats:
+		if not parts.has(part):
+			continue
+		var node: MeshInstance3D = parts[part]
+		var mi := MeshInstance3D.new()
+		mi.mesh = node.mesh
+		mi.material_override = mats[part]
+		mi.transform = base * _mesh_world(root, node)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	root.queue_free()
+
+func _mesh_world(root: Node, node: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var n: Node = node
+	while n != null:
+		if n is Node3D:
+			t = (n as Node3D).transform * t
+		if n == root:
+			break
+		n = n.get_parent()
+	return t
+
 func _show_tube(tb: Tube) -> void:
 	var v := tb.value * tb.energy
 	tb.light.light_energy = LIGHT_ENERGY * v
 	tb.light.visible = v > 0.002
 	tb.fill.light_energy = 0.35 * v
 	tb.fill.visible = v > 0.002
-	tb.lens.emission_energy_multiplier = maxf(v, 0.0)
-	tb.lens.albedo_color = Color(0.85, 0.84, 0.8) * (0.35 + 0.65 * v)
+	if tb.glow_tubes:
+		var g := Vector3(LIT_DIFFUSER.r * 1.0, LIT_DIFFUSER.g * 0.95, LIT_DIFFUSER.b * 0.85) * v
+		tb.glow_tubes.set_shader_parameter("glow", g)
+		tb.glow_lens.set_shader_parameter("glow", g * 0.45)
 
 ## Set a tube going on or off: it stutters for a moment either way, like a starter that won't take at once
 func _switch(tb: Tube, on: bool, quiet := false) -> void:
@@ -323,7 +422,8 @@ func _switch(tb: Tube, on: bool, quiet := false) -> void:
 	tb.step = 0.0
 	if not quiet:
 		strike_sfx.pitch_scale = randf_range(0.92, 1.08)
-		strike_sfx.play()
+		if _sound:
+			strike_sfx.play()
 
 func _update_tubes(dt: float) -> void:
 	var lit := 0.0
@@ -358,10 +458,12 @@ func _update_tubes(dt: float) -> void:
 		if tb.state == "place":
 			lit += tb.value
 	# the hum swells with every tube that is lit over the group
-	var want := -34.0 + 4.0 * lit if lit > 0.05 else -80.0
-	hum.volume_db = lerpf(hum.volume_db, want, minf(1.0, dt * 3.0))
+	var want := -56.0 + 2.0 * lit if lit > 0.05 and _sound else -80.0
+	hum.volume_db = lerpf(hum.volume_db, want, minf(1.0, dt * (3.0 if _sound else 1.6)))
 	if not hum.playing and want > -79.0:
 		hum.play()
+	elif hum.playing and not _sound and hum.volume_db < -70.0:
+		hum.stop()
 
 # ---- the survivors ------------------------------------------------------------------------
 ## `roster`: [{id, name, color, local}], you first. New ones take a place (you always place 0, at once the
@@ -438,6 +540,7 @@ func _person(id: int, place: int, r: Dictionary) -> Person:
 	pr.tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	pr.tag.position = Vector3(0, MODEL_HEIGHT + 0.28, 0)
 	pr.tag.fixed_size = false
+	pr.tag.line_spacing = -6.0
 	pr.root.add_child(pr.tag)
 	_tag(pr, r)
 	people[id] = pr
@@ -446,6 +549,8 @@ func _person(id: int, place: int, r: Dictionary) -> Person:
 func _tag(pr: Person, r: Dictionary) -> void:
 	var nm := str(r.get("name", "SURVIVOR"))
 	pr.tag.text = ("► " + nm) if r.get("local", false) else nm
+	if r.get("ready", false):
+		pr.tag.text += "\nREADY"
 	pr.tag.modulate = Color(0.9, 0.882, 0.804, 0.9) if not r.get("local", false) else Color(0.95, 0.85, 0.6, 1.0)
 
 ## remote_player.gd _tint: the suit takes a little of the survivor's colour
@@ -561,6 +666,10 @@ func pull_back(secs := 1.0) -> void:
 	_cam_tw.tween_property(self, "_drift", 0.0, 0.3)
 	_cam_tw.tween_property(self, "_cam_pos", CAM_FROM_POS, secs).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_cam_tw.tween_property(self, "_cam_look", CAM_FROM_LOOK, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+## The hum and the tubes' clicks on or off (off fades the hum out over about a second and a half)
+func set_sound(on: bool) -> void:
+	_sound = on
 
 func _kill_cam() -> void:
 	if _cam_tw and _cam_tw.is_valid():

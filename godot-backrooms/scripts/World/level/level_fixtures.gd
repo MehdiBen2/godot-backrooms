@@ -1075,6 +1075,12 @@ func flicker_fixtures(pos: Vector3, radius: float, duration: float) -> void:
 # All of it flickers with the tube and fades out as a real light fades in on it (_glow_real, from the light pool),
 # so walking up to a tube swaps the fake for the real thing.
 const GLOW_CELLS := 3               # the pool's quad, in cells: the tube's own and one each way
+# None of it near you. It knows no walls past its own cell's neighbours and ends on cell edges, so up close a
+# tube with no real light on it (round a corner, past a door) painted flat pools with hard square edges and
+# black cells between them. The real lights reach far enough now (level_light_pool.gd FAR_RADIUS, and the
+# shadowed slots for tubes out of sight) that the fake is only wanted where the far lights give out.
+const GLOW_NEAR := 40.0             # metres from the camera: none nearer than this
+const GLOW_NEAR_FULL := 60.0        # ...all of it from here out
 # the real lights these stand in for (level_light_pool.gd, declared below this script: keep in step with
 # LIGHT_RANGE / PANEL_RANGE, PANEL_ENERGY, the pool's spot_attenuation and CLASSIC_BOOST; the cone is SPOT_ANGLE)
 const GLOW_RANGE := 20.0
@@ -1110,13 +1116,17 @@ uniform float decay = 1.4;
 uniform float cone_cos = 0.1736;        // the real light's cone (level_fixtures.gd SPOT_ANGLE, as a cosine)
 uniform float cone_soft = 1.6;          // ...and how it falls off toward the edge (SPOT_SOFT)
 uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): back onto the level
+uniform float near_end = 40.0;          // metres: nearer than this the real lights do it all (level_fixtures.gd GLOW_NEAR)
+uniform float near_full = 60.0;
 varying vec2 lp;          // metres from the spot under the tube
 varying vec3 wp;
 varying vec4 info;        // x: which cells round it are open (bits), y: the tube's direction, z: 1 on tiles, w: the lamp's height
+varying float far_k;      // 0 near the camera .. 1 far off
 void vertex() {
 	lp = VERTEX.xz;
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	info = INSTANCE_CUSTOM;
+	far_k = smoothstep(near_end, near_full, distance((MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz, CAMERA_POSITION_WORLD));
 }
 void fragment() {
 	if (info.x < -0.5) discard;                 // the tube hangs over a pit
@@ -1148,7 +1158,7 @@ void fragment() {
 	float rim = cell * 1.45 * COLOR.a;
 	e *= 1.0 - smoothstep(rim * 0.52 * COLOR.a * COLOR.a, rim, length(lp));
 	vec3 base = info.z > 0.5 ? texture(tile_tex, wp.xz * tile_scale).rgb : texture(floor_tex, wp.xz * floor_scale).rgb * floor_tint;
-	ALBEDO = base * light_color * COLOR.rgb * e * strength;
+	ALBEDO = base * light_color * COLOR.rgb * e * strength * far_k;
 }""")
 	var mat := ShaderMaterial.new()
 	mat.shader = sh
@@ -1170,6 +1180,8 @@ void fragment() {
 	mat.set_shader_parameter("decay", GLOW_DECAY)
 	mat.set_shader_parameter("cone_cos", cone_cos)
 	mat.set_shader_parameter("cone_soft", SPOT_SOFT)
+	mat.set_shader_parameter("near_end", GLOW_NEAR)
+	mat.set_shader_parameter("near_full", GLOW_NEAR_FULL)
 	# the pool spreads GLOW_CELLS past its own cell, so its chunk's range is widened by that
 	# (not under a tube in a tall room: its real light falls broad and even from up there, and a pool this size
 	# reads as a blot on the floor, gaps of dark between them; the real and far lights light it)
@@ -1275,13 +1287,17 @@ uniform float decay = 1.4;
 uniform float cone_cos = 0.1736;
 uniform float cone_soft = 1.6;
 uniform vec3 world_shift = vec3(0.0);   // a copy of the level one period away (endless halls): its lamps are the level's
+uniform float near_end = 40.0;          // as the floor pools'
+uniform float near_full = 60.0;
 varying vec3 wp;
 varying vec3 wn;
 varying vec3 lamp;
+varying float far_k;
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_shift;
 	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	lamp = INSTANCE_CUSTOM.xyz;
+	far_k = smoothstep(near_end, near_full, distance(lamp - world_shift, CAMERA_POSITION_WORLD));
 }
 void fragment() {
 	vec3 l = lamp - wp;
@@ -1314,7 +1330,7 @@ void fragment() {
 	float along = abs(wn.x) > 0.5 ? wp.z : wp.x;
 	vec2 uv = vec2(along * wall_scale.x, wall_flip > 0.5 ? 1.0 - wp.y / h : wp.y * wall_scale.y);
 	vec3 base = (h > tall_from ? texture(tall_tex, uv).rgb : texture(wall_tex, uv).rgb) * wall_tint;
-	ALBEDO = base * light_color * COLOR.rgb * e * strength;
+	ALBEDO = base * light_color * COLOR.rgb * e * strength * far_k;
 }""")
 	var wmat := ShaderMaterial.new()
 	wmat.shader = wsh
@@ -1333,6 +1349,8 @@ void fragment() {
 	wmat.set_shader_parameter("decay", GLOW_DECAY)
 	wmat.set_shader_parameter("cone_cos", cone_cos)
 	wmat.set_shader_parameter("cone_soft", SPOT_SOFT)
+	wmat.set_shader_parameter("near_end", GLOW_NEAR)
+	wmat.set_shader_parameter("near_full", GLOW_NEAR_FULL)
 	var faces: Array = []            # [transform, the tube's light, the wall's height]
 	for f: Dictionary in lit:
 		f.glow_faces = []                # this tube's wall faces (each a dict, see below)

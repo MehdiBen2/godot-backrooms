@@ -81,6 +81,7 @@ var _rank_timer := 0.0
 var _candidates: Array = []
 var _lit_cap := POOL_SIZE
 var _shadow_cap := 4
+var _hidden_cap := 2               # extra shadowed slots for near tubes out of sight (Gfx `hidden_shadows`, _rank_slots)
 
 var far_pool: Array[SpotLight3D] = []
 var ceil_glow: Array[OmniLight3D] = []   # one per pool slot: lights only the ceiling layer
@@ -92,6 +93,7 @@ func _read_quality() -> void:
 	_lit_cap = clampi(int(Gfx.s.get("lights", POOL_SIZE)), 1, POOL_SIZE)
 	_far_cap = clampi(int(Gfx.s.get("far_lights", 16)), 0, FAR_MAX)
 	_shadow_cap = int(Gfx.s.get("light_shadows", 4)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
+	_hidden_cap = int(Gfx.s.get("hidden_shadows", 2)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
 	# High / Ultra: area-light soft shadows (PCSS). Medium keeps plain filtered shadows (cheaper) but blurs
 	# them wider so the stripes behind thin walls still read as soft.
 	var soft := int(Gfx.s.get("shadows", 1)) >= 2
@@ -231,7 +233,10 @@ func _rank(p: Vector3) -> void:
 	var scan_end := mini(_candidates.size(), i + _far_cap * FAR_SCAN)
 	while i < scan_end and _far_candidates.size() < _far_cap:
 		var fc: Dictionary = _candidates[i]
-		if _seen(fc):
+		# ...or out of sight with its floor in view, near enough to matter (a room at the end of a corridor, its tubes
+		# hidden by the corridor's walls). What leaks through a wall from one of these lands by the opening you see
+		# it through, where its light would come anyway.
+		if _seen(fc) or (fc.dsq < PEEK_FAR * PEEK_FAR and _peek(fc)):
 			fc.far_wanted = true
 			_far_candidates.append(fc)
 		i += 1
@@ -239,6 +244,7 @@ func _rank(p: Vector3) -> void:
 	while n < mini(_candidates.size(), POOL_SIZE) and _candidates[n].dsq < max_sq:
 		_candidates[n].wanted = true
 		_candidates[n].seen = _seen(_candidates[n])
+		_candidates[n].peek = not _candidates[n].seen and _peek(_candidates[n])
 		n += 1
 	_candidates.resize(n)
 
@@ -258,7 +264,14 @@ func _look_from(p: Vector3) -> void:
 	if key == _seen_key: return
 	_seen_key = key
 	_seen_of.clear()
-	_look_eyes = _eyes(Vector3((key.x + 0.5) * h, p.y, (key.y + 0.5) * h))
+	_peek_of.clear()
+	var mid := Vector3((key.x + 0.5) * h, p.y, (key.y + 0.5) * h)
+	_look_eyes = _eyes(mid)
+	# the middle of your cell too: a door sits in the middle of a cell's side, a gap a quarter of a cell wide, and the
+	# middles of the half cells are all a quarter cell off it, so no line from them went through an open door
+	var c := cell_of(p)
+	var own := Vector3(c.x * CELL, p.y, c.y * CELL)
+	if not _look_eyes.is_empty() and not _solid(c) and not sight_blocked(_flat(mid), _flat(own)): _look_eyes.append(own)
 
 func _seen(f: Dictionary) -> bool:
 	var i: int = f.index
@@ -287,7 +300,47 @@ func _seen_from(eyes: Array, f: Dictionary) -> bool:
 	var at: Vector3 = f.light_pos + _img(f)      # (seen where its light is: moved off a wall, the cell's middle may be in it)
 	for e in eyes:
 		if _line_clear(e, at, true) and not sight_blocked(_flat(e), _flat(at)): return true
+	# What counts is whether you can see what it lights, not the tube itself. A door is a gap a quarter of a cell
+	# wide and the eyes sit in the middle of a half cell, so the one line to the tube's middle missed it: the hall
+	# beyond an open door was left to the fake glow, flat pools with hard edges and black cells between them. Its
+	# floor round the tube is tried too (near tubes only: these are the walks that cost).
+	if f.dsq > SEEN_AROUND_RANGE * SEEN_AROUND_RANGE: return false
+	for o: Vector3 in SEEN_AROUND:
+		var q: Vector3 = at + o * CELL
+		for e in eyes:
+			if _line_clear(e, q, true) and not sight_blocked(_flat(e), _flat(q)): return true
 	return false
+
+const SEEN_AROUND_RANGE := 30.0       # metres
+const SEEN_AROUND: Array[Vector3] = [Vector3(0.35, 0.0, 0.0), Vector3(-0.35, 0.0, 0.0), Vector3(0.0, 0.0, 0.35), Vector3(0.0, 0.0, -0.35)]
+
+## A tube out of sight whose light you would see all the same: the floor of a cell next to it, or the one past that
+## (its light reaches two cells off), is in view. These are the tubes the shadowed hidden slots are for (_rank_slots):
+## a room off to the side of a corridor, lit by tubes the corridor's walls hide. (Cached with _seen.)
+func _peek(f: Dictionary) -> bool:
+	var i: int = f.index
+	var v = _peek_of.get(i)
+	if v == null:
+		v = false
+		var c := cell_of(f.light_pos)
+		for d: Vector2i in DIRS:
+			var prev := c
+			for k in range(1, 3):
+				var n := c + d * k
+				if _solid(n) or edge_blocked(prev, n): break
+				var q := Vector3(n.x * CELL, f.light_pos.y, n.y * CELL) + _img(f)
+				for e in _look_eyes:
+					if _line_clear(e, q, true) and not sight_blocked(_flat(e), _flat(q)):
+						v = true
+						break
+				if v: break
+				prev = n
+			if v: break
+		_peek_of[i] = v
+	return v
+
+var _peek_of := {}                  # lit index -> bool, for the eyes at _seen_key
+const PEEK_FAR := 40.0              # metres: how far off a far light takes a tube only its floor is seen of
 
 # Which slots are lit (the nearest `_lit_cap`) and which of those cast shadows (the nearest `_shadow_cap`)
 func _rank_slots() -> void:
@@ -297,11 +350,20 @@ func _rank_slots() -> void:
 		if slot_fixture[i] != null:
 			order.append(i)
 	order.sort_custom(func(a: int, b: int) -> bool: return slot_fixture[a].dsq < slot_fixture[b].dsq)
+	var hidden_left := _hidden_cap
 	for r in order.size():
 		var i := order[r]
 		var shadow := r < _shadow_cap
+		var seen: bool = slot_fixture[i].get("seen", true)
+		# A tube round a corner or past a door lights a floor you can see: left dark, the fake glow stood in for it,
+		# flat pools with hard cell-shaped edges. The nearest few of these cast a shadow too, so their real light
+		# lands where it would and goes nowhere a wall stops it (their maps are drawn once: nothing they see moves
+		# but the mannequins, and the player's body is left out of them, below).
+		if not shadow and not seen and r < _lit_cap and slot_fixture[i].get("peek", false) and hidden_left > 0:
+			shadow = true
+			hidden_left -= 1
 		# a shadowless light on a tube you can't see would only shine through the wall at you
-		slot_want[i] = r < _lit_cap and (shadow or slot_fixture[i].get("seen", true))
+		slot_want[i] = r < _lit_cap and (shadow or seen)
 		if pool[i].shadow_enabled != shadow:
 			pool[i].shadow_enabled = shadow
 		# your own body's shadow (player_shadow.gd) is cast by the nearest tube only. A shadow map is drawn again

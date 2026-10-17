@@ -691,7 +691,10 @@ func _parse(d: Dictionary) -> void:
 			if v.x > 0 and v.y > 0 and v.x < size - 1 and v.y < size - 1:
 				walls[v] = true
 				carved[v] = true
-	for sp: Array in wall_graph.nav_spans(): _block_segment(sp[0], sp[1], sp[2], sp[3])
+	_graph_segments.clear()
+	for sp: Array in wall_graph.nav_spans():
+		_block_segment(sp[0], sp[1], sp[2], sp[3])
+		_graph_segments.append(wall_segments.back())
 	for o: Dictionary in objects:
 		if o.type == "water": waters.append(o)
 		elif str(object_info(o.type).get("shape", "")) == "pool":
@@ -881,12 +884,18 @@ func crosses_wall_segment(a: Vector2, b: Vector2) -> bool:
 ## pool and the fixtures use (level_light_pool.gd _line_clear) only knows the grid; without these a tube behind a
 ## thin wall counted as in view, and its shadowless light shone through the wall.
 var _sight := {}                      # Vector2i -> Array of [a, b, half thickness in metres]
+## The wall graph's spans in wall_segments (the way through, where a door is shut). Sight takes the graph's own
+## spans instead (nav_spans(true, true)), which leave a door's gap open: with these in too, a door blocked the light
+## pool's sight lines open or not, and the hall beyond it was left to the fake glow
+var _graph_segments: Array = []
 
 func _build_sight() -> void:
 	_sight.clear()
 	var spans: Array = []
 	for s: Array in wall_segments:
-		if not s[3] and (s[0] as Vector2).distance_to(s[1]) > 1e-4: spans.append([s[0], s[1], s[2]])
+		if s[3] or (s[0] as Vector2).distance_to(s[1]) <= 1e-4: continue
+		if _graph_segments.any(func(g: Array) -> bool: return is_same(g, s)): continue
+		spans.append([s[0], s[1], s[2]])
 	for s: Array in wall_graph.nav_spans(true, true):
 		if not s[3]: spans.append([s[0], s[1], s[2]])
 	for sp: Array in spans:

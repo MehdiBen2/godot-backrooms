@@ -2153,6 +2153,8 @@ func stair_skin(o: Dictionary) -> Node3D:
 	s.build_outside(room_h, {
 		"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h),
 		"trim": door_frame_mat, "metal": door_hw_mat,
+		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
+		"room_floor": _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75)),
 		"skirt": _skirt_material()})
 	return s
 

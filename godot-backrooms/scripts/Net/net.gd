@@ -17,6 +17,8 @@ signal survivor_left(id: int, callsign: String)
 signal survivor_died(id: int, callsign: String, cause: String)
 ## Guest: the host opened / left its lobby screen (lobby_screen.gd), or pressed BEGIN there (`start`)
 signal lobby_changed(open: bool, start: bool)
+## Someone in the lobby readied up or cleared it (ready_peers)
+signal ready_changed
 ## Signal strength between survivors (signal_of): full this close, gone this far (or on another floor)
 const SIGNAL_FULL := 14.0
 const SIGNAL_LOST := 42.0
@@ -29,7 +31,7 @@ const MAX_PLAYERS := 5          # the host and four more: the lobby corridor has
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 9
+const PROTOCOL := 10
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -101,6 +103,7 @@ var _room_token := 0            # bumped on host()/leave(): a slow lookup/publis
 var _room_code := ""            # host: this lobby's code (shown at once, live once _room_live)
 var _room_live := false         # host: the relay has the tunnel link for it
 var _tunnel_url := ""           # host: cloudflared's link, once known (it is published once)
+var ready_peers := {}           # peer id -> true: guests who pressed READY in the lobby (the host keeps it, everyone gets it)
 var lobby_open := false         # host: on its lobby screen, so guests wait there with it / guest: what the host said
 
 func _ready() -> void:
@@ -215,6 +218,8 @@ func leave() -> void:
 	_set_share_link("")
 	_set_status("OFFLINE")
 	lobby_open = false
+	ready_peers.clear()
+	ready_changed.emit()
 
 ## Leave with a message, from inside a network callback (a signal the peer emits while it is being polled,
 ## or an RPC being dispatched): pulling the peer out from under SceneMultiplayer mid-poll can crash, so it
@@ -356,9 +361,39 @@ func set_lobby(open: bool) -> void:
 ## Host: BEGIN on the lobby screen takes every guest waiting there along into the run
 func start_lobby() -> void:
 	lobby_open = false
+	ready_peers.clear()
 	if hosting and is_online():
 		_level.rpc(Game.level_index)
 		_lobby_rpc.rpc(false, true)
+
+## Guest: READY / not ready in the host's lobby. The host is always ready; BEGIN waits for everyone else.
+func set_ready(on: bool) -> void:
+	if is_online() and not hosting:
+		_ready_rpc.rpc_id(1, on)
+
+## Host: is every survivor in the room ready? (alone, trivially)
+func all_ready() -> bool:
+	for id in multiplayer.get_peers():
+		if names.has(id) and not ready_peers.has(id):
+			return false
+	return true
+
+@rpc("any_peer", "call_remote", "reliable")
+func _ready_rpc(on: bool) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if not hosting or not _is_peer(id) or not lobby_open:
+		return
+	if on:
+		ready_peers[id] = true
+	else:
+		ready_peers.erase(id)
+	_ready_sync.rpc(ready_peers)
+	ready_changed.emit()
+
+@rpc("authority", "call_remote", "reliable")
+func _ready_sync(d: Dictionary) -> void:
+	ready_peers = d
+	ready_changed.emit()
 
 @rpc("authority", "call_remote", "reliable")
 func _lobby_rpc(open: bool, start: bool) -> void:
@@ -402,6 +437,7 @@ func _on_peer_connected(id: int) -> void:
 	if hosting:
 		_level.rpc_id(id, Game.level_index)
 		_lobby_rpc.rpc_id(id, lobby_open, false)
+		_ready_sync.rpc_id(id, ready_peers)
 		if mq_level >= 0:
 			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
 		_sent.clear()                                        # every monster goes out in full next frame, for the newcomer
@@ -421,6 +457,9 @@ func _on_peer_disconnected(id: int) -> void:
 		r.queue_free()
 	remotes.erase(id)
 	names.erase(id)
+	if ready_peers.erase(id) and hosting:
+		_ready_sync.rpc(ready_peers)
+		ready_changed.emit()
 	_deaths.erase(id)
 	_mq_view.erase(id)
 	_survivors_frame = -1
