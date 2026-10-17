@@ -166,7 +166,8 @@ func _panel_ceiling_material() -> StandardMaterial3D:
 	var lit := m.duplicate() as StandardMaterial3D
 	lit.emission_enabled = true
 	lit.set_meta("tile_panels", true)
-	lit.set_meta("panel_tiles", 4)
+	lit.set_meta("panel_tiles", 1)
+	lit.set_meta("round_spots", true)       # small round downlights, whatever the tile (its glaze may be dark: no block to light)
 	return lit
 
 func _mat(tex: String, per_metre: Vector3, tint := Color.WHITE) -> StandardMaterial3D:
@@ -321,13 +322,13 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 const SURF_CHUNK := 16
 const SURF_RANGE_SLACK := 6.0        # m: a ceiling's height varies from cell to cell
 const FOG_END := 170.0               # level_lighting.gd HORIZON_END (this script sits below it, so it can't read it)
-const FOG_END_CLASSIC := 260.0       # the found-footage (classic) levels: a long, clear view, so the horizon and the far plane go out
+const FOG_END_CLASSIC := 260.0       # the found-footage (classic) and pool levels: a long, clear view, so the horizon and the far plane go out
 const WRAP_FOG_END_MAX := 320.0     # the most an endless level's fog reaches (level_builder.gd _apply_wrap_view)
 
 ## How far the horizon fog reaches: past this nothing is seen
 func _fog_end() -> float:
 	if edge_wrap and not shell: return clampf(wrap_size() * 0.95, FOG_END, WRAP_FOG_END_MAX)
-	if atmosphere() == "classic": return FOG_END_CLASSIC
+	if atmosphere() == "classic" or atmosphere() == "pool": return FOG_END_CLASSIC
 	return FOG_END
 
 ## The visibility range of a floor, ceiling or panel chunk: the chunk's centre has to be this far off before its
@@ -460,6 +461,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
 			await _ranged_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
+		_build_collar_ceilings(ceil_m)
 		if not shell: await _build_ceiling_collision(solid_cells + cut_all)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
@@ -497,10 +499,22 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			groups.get_or_add(m, []).append_array(cut_keys[k])
 		_build_cut_floors(groups, polys)
 
+	# round a spiral stair coming up from the floor below: these cells' floor, cut round to its hole
+	var collar_tris := PackedVector3Array()
+	for col: Dictionary in _stair_collars(false):
+		var cut_polys := _collar_polys(col)
+		for c: Vector2i in cut_polys:
+			var m: Material = carpet
+			if pf.has(c): m = _painted_mat(pf[c])
+			elif tiles.has(c): m = _pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material()
+			collar_tris.append_array(_flat_polys(cut_polys[c], 0.0, m, false))
+		collar_tris.append_array(_collar_side(col, func(c: Vector2i) -> float: return float(hole_floor.get(c, WALL_H)) - STOREY_H, 0.0, null))
+
 	if shell: return
 	await _slice()
 	await _build_floor_collision(solid_cells)
 	_build_hole_collision()
+	_collar_solid(collar_tris)
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
 
@@ -732,16 +746,17 @@ func _build_ceiling_collision(floor_cells: Array) -> void:
 func _build_hole_collision() -> void:
 	var tris := PackedVector3Array()
 	var half := CELL / 2.0
-	for part: Array in [[through, WALL_H - STOREY_H, 0.0], [open_above, WALL_H, STOREY_H]]:
+	for part: Array in [[through, true], [open_above, false]]:
 		var holes: Dictionary = part[0]
 		for c: Vector2i in holes:
 			if climb_up.has(c) or climb_down.has(c): continue      # stairs run up through it: their rails do this
+			# from the ceiling of the room under the hole up to the floor over it
+			var lo := Vector3(0.0, float(hole_floor.get(c, WALL_H)) - STOREY_H if part[1] else ceiling_height(c), 0.0)
+			var hi := Vector3(0.0, 0.0 if part[1] else STOREY_H, 0.0)
 			for n: Vector2i in DIRS:
 				if holes.has(c + n): continue
 				var mid := Vector3(c.x * CELL + n.x * half, 0.0, c.y * CELL + n.y * half)
 				var along := Vector3(n.y, 0.0, n.x) * half
-				var lo := Vector3(0.0, part[1], 0.0)
-				var hi := Vector3(0.0, part[2], 0.0)
 				tris.append_array([mid - along + lo, mid + along + lo, mid + along + hi, mid - along + lo, mid + along + hi, mid - along + hi])
 	if tris.is_empty(): return
 	var body := StaticBody3D.new()
@@ -868,7 +883,7 @@ func _build_hotel_insets() -> void:
 
 func _build_walls() -> void:
 	_build_hotel_insets()
-	var groups := {WALL_H: [], TALL_H: [], GRAND_H: []}
+	var groups := {WALL_H: [], UNDER_SLAB_H: [], TALL_H: [], GRAND_H: []}
 	var n_done := 0
 	for c: Vector2i in walls.keys():
 		n_done += 1
@@ -881,6 +896,7 @@ func _build_walls() -> void:
 			if not _block_at(c + n): exposed = true
 			if grand.has(c + n): reach = GRAND_H
 			elif tall.has(c + n): reach = maxf(reach, TALL_H)
+			elif under_slab.has(c + n): reach = maxf(reach, UNDER_SLAB_H)
 		if exposed:
 			groups[reach].append(c)
 	if not shell: await _build_wall_collision(groups)
@@ -898,7 +914,7 @@ func _build_walls() -> void:
 				if pw.has(c): groups.get_or_add("%s|%s" % [height, pw[c]], []).append(c)
 				else: keep.append(c)
 			groups[height] = keep
-	var mats := {WALL_H: wall_mat, TALL_H: tall_wall_mat, GRAND_H: grand_wall_mat}
+	var mats := {WALL_H: wall_mat, UNDER_SLAB_H: tall_wall_mat, TALL_H: tall_wall_mat, GRAND_H: grand_wall_mat}
 	for key in groups.keys():
 		var list: Array = groups[key]
 		if list.is_empty(): continue
@@ -1108,6 +1124,152 @@ func _piece_mats() -> Dictionary:
 		"tile_uv": _wall_uv_mat(WALL_H) if _has_pbr("wall") else _tile_uv_mat(),
 		"column": _wall_uv_mat(WALL_H) if _has_pbr("wall") else null, "repeat": _wall_repeat()}
 
+# ---------------------------------------------------------------- round holes for spiral stairs
+## A spiral stair that climbs on through the slab (level_data.gd climb_cells) opens whole cells of it, but it
+## comes up in a round hole (props/vertical_pieces.gd hole_radius): the rest of those cells is closed again. On
+## the floor it stands on, its ceiling round the hole and the hole's round side up to the floor above; on that
+## floor, its floor round the hole, and the hole's lower half for its solids.
+const COLLAR_SUB := 12          # a cell is cut in this many strips each way; the ones the rim crosses are cut to it
+
+## Spiral stairs climbing through this floor's ceiling (`up`) or coming up through its floor:
+## [{at: the hole's middle (m), r: its radius, cells: {the cells it opens: true}}]
+func _stair_collars(up: bool) -> Array:
+	var out: Array = []
+	var opened: Dictionary = climb_up if up else climb_down
+	if opened.is_empty(): return out
+	var objs = floor_data(level_raw, floor_src(level_raw, floor_no if up else floor_no - 1)).get("objects")
+	if not (objs is Array): return out
+	for raw in objs:
+		if not (raw is Dictionary) or str(object_info(str(raw.get("type", ""))).get("shape", "")) != "spiral": continue
+		var o := load_object(raw)
+		if float(o.elev) + float(o.rise) < CLIMB_TOP: continue
+		var cells := {}
+		for c: Vector2i in footprint_cells(o, "spiral"):
+			if opened.has(c): cells[c] = true
+		if not cells.is_empty():
+			out.append({"at": Vector2(o.pos_x, o.pos_y) * CELL, "r": VerticalPieces.hole_radius(o), "cells": cells})
+	return out
+
+## The hole's rim: a polygon of HOLE_SIDES corners (x, z in metres)
+static func _collar_rim(col: Dictionary) -> PackedVector2Array:
+	var rim := PackedVector2Array()
+	for i in VerticalPieces.HOLE_SIDES:
+		rim.append((col.at as Vector2) + Vector2.from_angle(TAU * i / VerticalPieces.HOLE_SIDES) * float(col.r))
+	return rim
+
+## What is left of each opened cell with the hole cut out of it: cell -> Array of polygons (x, z in metres)
+func _collar_polys(col: Dictionary) -> Dictionary:
+	var at: Vector2 = col.at
+	var r: float = col.r
+	var rim := _collar_rim(col)
+	var inner := r * cos(PI / VerticalPieces.HOLE_SIDES)       # the rim's straight pieces come this close in
+	var s := CELL / COLLAR_SUB
+	var out := {}
+	for c: Vector2i in col.cells:
+		var polys: Array = []
+		var o := Vector2(c.x, c.y) * CELL - Vector2(CELL, CELL) * 0.5
+		for i in COLLAR_SUB:
+			for j in COLLAR_SUB:
+				var a := o + Vector2(i, j) * s
+				var sq := PackedVector2Array([a, a + Vector2(s, 0), a + Vector2(s, s), a + Vector2(0, s)])
+				var far := 0.0
+				for p: Vector2 in sq: far = maxf(far, p.distance_to(at))
+				if Vector2(clampf(at.x, a.x, a.x + s), clampf(at.y, a.y, a.y + s)).distance_to(at) >= r: polys.append(sq)
+				elif far > inner: polys.append_array(Geometry2D.clip_polygons(sq, rim))
+		out[c] = polys
+	return out
+
+## Lay `polys` (x, z in metres) flat at height `y`, facing down or up; returns their triangles, for a solid
+func _flat_polys(polys: Array, y: float, mat: Material, down: bool, layers := 1) -> PackedVector3Array:
+	var tris := PackedVector3Array()
+	var n := Vector3.DOWN if down else Vector3.UP
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for poly: PackedVector2Array in polys:
+		var idx := Geometry2D.triangulate_polygon(poly)
+		for t in range(0, idx.size(), 3):
+			var a := Vector3(poly[idx[t]].x, y, poly[idx[t]].y)
+			var b := Vector3(poly[idx[t + 1]].x, y, poly[idx[t + 1]].y)
+			var c := Vector3(poly[idx[t + 2]].x, y, poly[idx[t + 2]].y)
+			var order := [a, b, c] if (b - a).cross(c - a).dot(n) <= 0.0 else [a, c, b]     # (Godot's front faces are clockwise)
+			for v: Vector3 in order:
+				st.set_normal(n)
+				st.set_uv(Vector2(v.x, v.z))
+				st.add_vertex(v)
+			tris.append_array([a, b, c])
+	if tris.is_empty(): return tris
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.layers = layers
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	return tris
+
+## The hole's round side, from `bottom` (cell -> height) up to `top`, facing in; drawn in `mat` unless that is
+## null. Returns its triangles, for a solid.
+func _collar_side(col: Dictionary, bottom: Callable, top: float, mat: Material) -> PackedVector3Array:
+	var rim := _collar_rim(col)
+	var at: Vector2 = col.at
+	var tris := PackedVector3Array()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var u := 0.0
+	for i in rim.size():
+		var a2 := rim[i]
+		var b2 := rim[(i + 1) % rim.size()]
+		var mid := (a2 + b2) * 0.5
+		var y0: float = bottom.call(cell_of(Vector3(mid.x, 0.0, mid.y)))
+		var nrm := Vector3(at.x - mid.x, 0.0, at.y - mid.y).normalized()
+		var ln := a2.distance_to(b2)
+		var q := [[Vector3(a2.x, y0, a2.y), Vector2(u, y0)], [Vector3(b2.x, y0, b2.y), Vector2(u + ln, y0)],
+			[Vector3(b2.x, top, b2.y), Vector2(u + ln, top)], [Vector3(a2.x, top, a2.y), Vector2(u, top)]]
+		u += ln
+		var flip: bool = ((q[1][0] as Vector3) - (q[0][0] as Vector3)).cross((q[2][0] as Vector3) - (q[0][0] as Vector3)).dot(nrm) > 0.0
+		for k in ([0, 2, 1, 0, 3, 2] if flip else [0, 1, 2, 0, 2, 3]):
+			st.set_normal(nrm)
+			st.set_uv(q[k][1])
+			st.add_vertex(q[k][0])
+			tris.append(q[k][0])
+	if mat != null:
+		st.generate_tangents()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+	return tris
+
+## The ceiling round each hole a spiral climbs through to the floor above, and the hole's side up to that floor
+func _build_collar_ceilings(ceil_m: Material) -> void:
+	var cols := _stair_collars(true)
+	if cols.is_empty(): return
+	var pc := painted("ceiling")
+	var painted_m := {}
+	var tris := PackedVector3Array()
+	for col: Dictionary in cols:
+		var cut := _collar_polys(col)
+		for c: Vector2i in cut:
+			var m: Material = ceil_m
+			if pc.has(c):
+				if not painted_m.has(pc[c]): painted_m[pc[c]] = _fillable_ceiling(_painted_mat(pc[c]).duplicate())
+				m = painted_m[pc[c]]
+			tris.append_array(_flat_polys(cut[c], ceiling_height(c), m, true, CEIL_LAYER))
+		tris.append_array(_collar_side(col, func(c: Vector2i) -> float: return ceiling_height(c), STOREY_H, _wall_uv_mat(WALL_H)))
+	if not shell: _collar_solid(tris)
+
+func _collar_solid(tris: PackedVector3Array) -> void:
+	if tris.is_empty(): return
+	var body := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(tris)
+	shape.backface_collision = true
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
+
 ## Raised floors (a slab `elev` m up), straight flights and spiral stairs: all within this floor, walked up with no
 ## floor swap. A raised floor leaves its rail open wherever a flight's or a spiral's top arrives at its height.
 func _build_vertical(list: Array) -> void:
@@ -1117,8 +1279,14 @@ func _build_vertical(list: Array) -> void:
 	for o: Dictionary in list:
 		var shape := str(object_info(o.type).get("shape", ""))
 		if shape in ["flight", "spiral"]:
-			tops.append(VerticalPieces.top_exit(o, shape, object_transform(o)))
+			# a storey-high stair with no floor above has no hole to come out in: it would run you into the ceiling
+			# and wedge you there. It stops a head's height short of it instead (put a floor above to climb through).
+			if float(o.get("elev", 0.0)) + float(o.get("rise", 0.0)) >= CLIMB_TOP and not in_stack(level_raw, floor_no + 1):
+				var room_h := ceiling_height(Vector2i(roundi(o.pos_x), roundi(o.pos_y)))
+				o["rise"] = maxf(0.2, room_h - STAIR_HEADROOM - float(o.get("elev", 0.0)))
+				push_warning("Stair at (%s, %s) climbs a storey but there is no floor above it: cut to %.1f m" % [o.pos_x, o.pos_y, o.rise])
 			_set_landing(o, shape)
+			tops.append(VerticalPieces.top_exit(o, shape, object_transform(o)))
 	var solid := func(p: Vector3) -> bool: return _block_at(cell_of(p))
 	for o: Dictionary in list:
 		var vp := VerticalPieces.new()
@@ -1155,6 +1323,11 @@ func _build_climbers() -> void:
 func _set_landing(o: Dictionary, shape: String) -> void:
 	o["_landing"] = 0.0
 	if float(o.get("elev", 0.0)) + float(o.get("rise", 0.0)) < CLIMB_TOP: return
+	# it comes out exactly level with the floor above, whatever rise it was given past CLIMB_TOP
+	o["rise"] = STOREY_H - float(o.get("elev", 0.0))
+	if shape == "spiral":
+		o["_landing"] = 1.0                     # a round hole: its landing runs to the rim (vertical_pieces.gd _spiral_head)
+		return
 	var ex: Array = VerticalPieces.top_exit(o, shape, object_transform(o))
 	var p: Vector3 = ex[0]
 	var d: Vector3 = ex[3]
@@ -1395,6 +1568,7 @@ func _object_wall_h(o: Dictionary) -> float:
 		var cell: Vector2i = c + n
 		if grand.has(cell): top = GRAND_H
 		elif tall.has(cell): top = maxf(top, TALL_H)
+		elif under_slab.has(cell): top = maxf(top, UNDER_SLAB_H)
 		if not low.has(cell): all_low = false
 	if top > 0.0: return top
 	return LOW_H if all_low else WALL_H
@@ -2322,7 +2496,17 @@ func _build_pit_shafts() -> void:
 				depth = minf(depth, STOREY_H * 2.0 - WALL_H)
 				break
 	_pit_shaft(deep, [0.0, -0.32, -1.1, -2.4, -4.4, -7.0, -10.4, -depth])
-	_pit_shaft(through, [0.0, -0.32, -1.1, -2.4, WALL_H - STOREY_H], false)
+	# a hole through to the floor below: its side runs down to the ceiling of the room under it (a spiral's round
+	# hole has its own, _collar_side)
+	var by_h := {}
+	for c: Vector2i in through:
+		if not climb_down.has(c): by_h.get_or_add(float(hole_floor.get(c, WALL_H)), {})[c] = true
+	for h: float in by_h:
+		var lv: Array = [0.0]
+		for step: float in [-0.32, -1.1, -2.4]:
+			if step > h - STOREY_H + 0.05: lv.append(step)
+		lv.append(h - STOREY_H)
+		_pit_shaft(by_h[h], lv, false)
 
 ## `up`: a shaft rising from an open ceiling. Its walls stand a hair inside the cell (it passes through the
 ## wall of the floors above, whose own faces lie on the cell's edge) and are quite black at its end, so the

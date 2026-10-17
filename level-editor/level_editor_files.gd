@@ -6,7 +6,7 @@ extends "res://level_editor_gen.gd"
 const SLOTS := ["wall", "floor", "ceiling", "tiles"]
 const LEVEL_DOORS := ["wood", "old_wood", "metal", "office", "glass", "security"]   # "doors" in the .lvl
 const DOORS_HELP := "What the level's doors are: every door in a wall left on \"Level's\" style hangs this leaf (an office's, a hotel's doors all alike). A door given its own style keeps it"
-const ATMOS := ["dim", "classic", "liminal"]      # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
+const ATMOS := ["dim", "classic", "liminal", "day"]     # the level-wide look ("atmosphere" in the .lvl, level_data.gd atmosphere())
 ## The ceiling lights ("lights" in the .lvl, level_geometry.gd lights_mode()): the ceiling's own light panels (its
 ## tiles lit where it has none), hanging troffers with their ballasts, hanging fluorescent tubes (the new model), or none at all. Unset: panels.
 const LIGHTS := [["panels", "Ceiling panels"], ["troffers", "Troffers (ballast tubes)"], ["fluorescent", "Fluorescent (new model)"], ["none", "None"]]

@@ -79,6 +79,7 @@ const ICONS := {
 	# markers
 	"spawn": '<circle cx="12" cy="7" r="3.2"/><path d="M5.5 21v-2.5a6.5 6.5 0 0113 0V21"/>',
 	"exit": '<path d="M14 4h6v16h-6"/><path d="M3.5 12h11M11 8.5l3.5 3.5-3.5 3.5"/>',
+	"fake_exit": '<path d="M14 4h6v16h-6" stroke-dasharray="3 2"/><path d="M3.5 12h11M11 8.5l3.5 3.5-3.5 3.5"/>',
 	"entity": '<path d="M12 3c-4.5 0-7 3-7 7 0 3 1.5 4.5 3 5.5V20h8v-4.5c1.5-1 3-2.5 3-5.5 0-4-2.5-7-7-7z"/><circle cx="9.3" cy="10.5" r="1.5" fill="{c}"/><circle cx="14.7" cy="10.5" r="1.5" fill="{c}"/>',
 	"tv": '<rect x="3" y="6.5" width="18" height="12" rx="1.5"/><path d="M8.5 3l3.5 3.5L15.5 3M8 21h8"/>',
 	"drop_hole": '<ellipse cx="12" cy="15.5" rx="8.5" ry="4"/><path d="M12 3v8.5M8.5 8l3.5 3.5L15.5 8"/>',

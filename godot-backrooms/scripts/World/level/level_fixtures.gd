@@ -208,6 +208,7 @@ func _place_fixtures() -> void:
 	_seed_fixtures()
 	var lm := str(call("lights_mode"))
 	if lm != "troffers" and lm != "fluorescent": return       # hung only where the level asks for them (level_geometry.gd)
+	var steady := atmosphere() == "pool"                    # the pool rooms are kept up: every lamp works, none flickers
 	var min_sp := CELL * 1.9
 	# fixtures sit on cell centres and min_sp is under 2 cells, so only the 3x3 cells round one can be too
 	# close: a lookup by cell instead of a scan of every fixture so far (which went quadratic on big levels)
@@ -248,8 +249,9 @@ func _place_fixtures() -> void:
 			elif not (ns or ew or grid_node): continue
 			var is_liminal := liminal.has(c)
 			var chance := 1.0 if dark.has(c) else (0.75 if dim.has(c) else (LIMINAL_BURNT_CHANCE if is_liminal else BURNT_CHANCE))
-			var burnt := not (is_bright or is_classic) and rng.randf() < chance
-			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < (LIMINAL_FLICKER_CHANCE if is_liminal else FLICKER_CHANCE))
+			var kept := is_bright or is_classic or (steady and not (dark.has(c) or dim.has(c)))
+			var burnt := not kept and rng.randf() < chance
+			var flick := (not burnt) and not kept and (flicker.has(c) or rng.randf() < (LIMINAL_FLICKER_CHANCE if is_liminal else FLICKER_CHANCE))
 			if loop.has(c):                 # a corridor that repeats: every tube alike, or the repeat would show
 				burnt = false
 				flick = false
@@ -269,6 +271,7 @@ func _place_fixtures() -> void:
 # Panel ceilings: a fixture per open cell (its five panels), a real light only on the checkerboard cells
 func _place_panel_fixtures() -> void:
 	_seed_fixtures()
+	var steady := atmosphere() == "pool"                    # the pool rooms are kept up: every lamp works, none flickers
 	for x in range(1, size - 1):
 		await _slice()
 		for z in range(1, size - 1):
@@ -284,8 +287,9 @@ func _place_panel_fixtures() -> void:
 			# sit right on top of the wall and bleed through both faces
 			var on_grid := x % 2 == 0 and z % 2 == 0 and not carved.has(c)
 			var chance := 1.0 if dark.has(c) else (0.6 if dim.has(c) else PANEL_BURNT_CHANCE)
-			var burnt := not on_grid or (not (is_bright or is_classic) and rng.randf() < chance)
-			var flick := (not burnt) and not (is_bright or is_classic) and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
+			var kept := is_bright or is_classic or (steady and not (dark.has(c) or dim.has(c)))
+			var burnt := not on_grid or (not kept and rng.randf() < chance)
+			var flick := (not burnt) and not kept and (flicker.has(c) or rng.randf() < PANEL_FLICKER_CHANCE)
 			if loop.has(c):
 				burnt = not on_grid
 				flick = false
@@ -518,7 +522,8 @@ func _characterise(f: Dictionary, c: Vector2i) -> void:
 	var age := r.randf() * r.randf()                  # most nearly new, a few well down
 	var is_panel := f.has("cell")
 	var doomed := r.randf() < (PANEL_DYING_CHANCE if is_panel else DYING_CHANCE)
-	if f.bright or f.classic or liminal.has(c):
+	# (kept-up lights: the lit zones, and the pool look's outside its Dark / Dim zones: no tired or dying lamps)
+	if f.bright or f.classic or liminal.has(c) or (atmosphere() == "pool" and not (dark.has(c) or dim.has(c))):
 		f.warm = Color(1.0 + 0.012 * kelvin, 1.0, 1.0 - 0.025 * kelvin)
 		f.peak = 1.0 - 0.04 * age
 		return
@@ -567,6 +572,7 @@ func _build_panel_ceiling() -> void:
 		mat.set_shader_parameter("normal_tex", panel_ceiling.normal_texture)
 		mat.set_shader_parameter("rough_tex", panel_ceiling.roughness_texture)
 		mat.set_shader_parameter("panel_tiles", float(panel_ceiling.get_meta("panel_tiles", 4)))
+		mat.set_shader_parameter("round_spots", 1.0 if bool(panel_ceiling.get_meta("round_spots", false)) else 0.0)
 	elif drop:
 		mat.shader = load("res://shaders/drop_ceiling.gdshader")
 		mat.set_shader_parameter("tile_albedo", panel_ceiling.albedo_texture)
@@ -1365,7 +1371,7 @@ void fragment() {
 		for o: Vector2i in from:
 			for n: Vector2i in DIRS:
 				if not (walls.has(o + n) and _block_at(o + n)): continue
-				var hgt: float = GRAND_H if grand.has(o) else (TALL_H if tall.has(o) else WALL_H)
+				var hgt: float = GRAND_H if grand.has(o) else (TALL_H if tall.has(o) else (UNDER_SLAB_H if under_slab.has(o) else WALL_H))
 				var nrm := Vector3(-n.x, 0.0, -n.y)                      # the face looks back into the open cell
 				var at := Vector3(o.x * CELL, hgt * 0.5, o.y * CELL) - nrm * (CELL * 0.5 - 0.012)
 				var xf := Transform3D(Basis(Vector3.UP.cross(nrm) * CELL, Vector3.UP * hgt, nrm), at)

@@ -22,8 +22,9 @@ const ROT_FROM := 4.0              # m over the ceiling: the damp and the dying 
 const ROT_TO := 45.0               # ...and are at their worst
 const HAZE_FROM := 5.0             # m over the ceiling: the haze starts
 const HAZE_K := 0.05               # per metre: 95 % haze 60 m further up
-## what the tubes turn to up there, by the level's look: sick green, cold blue-white, burnt amber
-const HIGH_TINT := {"dim": Color(0.72, 0.95, 0.5), "liminal": Color(0.7, 0.88, 1.0), "classic": Color(1.0, 0.62, 0.32)}
+## what the tubes turn to up there, by the level's look: sick green, cold blue-white, burnt amber, pool aqua
+const HIGH_TINT := {"dim": Color(0.72, 0.95, 0.5), "liminal": Color(0.7, 0.88, 1.0), "classic": Color(1.0, 0.62, 0.32),
+	"pool": Color(0.75, 1.0, 0.95)}
 
 var level: Node3D
 var cells := {}                    # the cells it rises from
@@ -195,6 +196,7 @@ func _material() -> ShaderMaterial:
 	var tube: Color = level.LIGHT_COLOR
 	if look == "liminal": tube = level.ATMOSPHERES.liminal.light
 	elif look == "classic": tube = Color(1.0, 0.99, 0.96)
+	elif look == "pool": tube = level.ATMOSPHERES.pool.light
 	m.set_shader_parameter("tube_color", tube)
 	var r := RandomNumberGenerator.new()
 	r.seed = hash(str(level.level_meta.get("id", "")) + ":up:" + str(level.floor_no))

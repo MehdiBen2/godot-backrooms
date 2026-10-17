@@ -19,6 +19,8 @@ signal survivor_died(id: int, callsign: String, cause: String)
 signal lobby_changed(open: bool, start: bool)
 ## Someone in the lobby readied up or cleared it (ready_peers)
 signal ready_changed
+## The lobby's camera falls and somebody picks it up (lobby_corridor.gd): everyone in the lobby sees it
+signal lobby_egg
 ## Signal strength between survivors (signal_of): full this close, gone this far (or on another floor)
 const SIGNAL_FULL := 14.0
 const SIGNAL_LOST := 42.0
@@ -31,7 +33,7 @@ const MAX_PLAYERS := 5          # the host and four more: the lobby corridor has
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 10
+const PROTOCOL := 11
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -103,7 +105,8 @@ var _room_token := 0            # bumped on host()/leave(): a slow lookup/publis
 var _room_code := ""            # host: this lobby's code (shown at once, live once _room_live)
 var _room_live := false         # host: the relay has the tunnel link for it
 var _tunnel_url := ""           # host: cloudflared's link, once known (it is published once)
-var ready_peers := {}           # peer id -> true: guests who pressed READY in the lobby (the host keeps it, everyone gets it)
+var _egg_last := -INF
+var ready_peers := {}          # peer id -> true: guests who pressed READY in the lobby (the host keeps it, everyone gets it)
 var lobby_open := false         # host: on its lobby screen, so guests wait there with it / guest: what the host said
 
 func _ready() -> void:
@@ -151,6 +154,10 @@ func host(local_only := false) -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	hosting = true
+	# Hosting from the title (not from a run): guests who join wait in the lobby for READY / BEGIN instead of
+	# being sent straight into the game, which is what a closed lobby means to them
+	var scene := get_tree().current_scene
+	lobby_open = scene != null and scene.scene_file_path.ends_with("main_menu.tscn")
 	if local_only:
 		_set_share_link(_lan_address())
 		_set_status("LOCAL LOBBY OPEN ON PORT %d" % PORT)
@@ -399,6 +406,31 @@ func _ready_sync(d: Dictionary) -> void:
 func _lobby_rpc(open: bool, start: bool) -> void:
 	lobby_open = open
 	lobby_changed.emit(open, start)
+
+## Anyone in the lobby: drop the camera on every screen in it (the host relays it)
+func send_lobby_egg() -> void:
+	if not is_online():
+		lobby_egg.emit()
+	elif hosting:
+		_egg.rpc()
+		lobby_egg.emit()
+	else:
+		_egg_req.rpc_id(1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _egg_req() -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()) or not lobby_open:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _egg_last < 12.0:                 # (the fall takes about ten seconds)
+		return
+	_egg_last = now
+	_egg.rpc()
+	lobby_egg.emit()
+
+@rpc("authority", "call_remote", "reliable")
+func _egg() -> void:
+	lobby_egg.emit()
 
 ## Host: everyone follows when the level changes (called from Game.change_level)
 func broadcast_level(idx: int) -> void:

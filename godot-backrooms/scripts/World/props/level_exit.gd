@@ -33,6 +33,7 @@ const SIGN_GREEN := Color(0.04, 0.5, 0.22)      # a sign whose texture is missin
 
 var backing: Material        # set before _ready: the wall material of a slab to stand in (null: there is a wall)
 var backing_h := 5.4
+var fake := false            # a decoy: the same door, but walking into it does nothing
 var pivot: Node3D
 var open_amount := 0.0
 var used := false
@@ -139,7 +140,7 @@ func _process(delta: float) -> void:
 	open_amount = clampf(open_amount + (1.0 if near else -1.0) * delta / SWING_TIME, 0.0, 1.0)
 	var eased := open_amount * open_amount * (3.0 - 2.0 * open_amount)
 	pivot.rotation.y = lerpf(AJAR_ANGLE, OPEN_ANGLE, eased)
-	if used or Game.dead or not Game.playing:
+	if fake or used or Game.dead or not Game.playing:
 		return
 	if local.x > 0.0 and local.x < TRIGGER_DEPTH and absf(local.z) < DOOR_W * 0.5 + 0.2:
 		used = true

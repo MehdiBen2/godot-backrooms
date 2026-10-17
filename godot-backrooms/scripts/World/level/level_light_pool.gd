@@ -62,6 +62,26 @@ const TUBE_LIGHT_SIZE := 0.5        # metres: a troffer (Godot's emitter is a sp
 # its panels (a sparse, regular grid); the other cells' panel squares are drawn as plain ceiling tiles.
 const PANEL_ENERGY := 2.3
 const PANEL_RANGE := 16.0
+# A lamp hung high (a panel or tiled ceiling's lamps sit on the ceiling itself: 10.8 m up under a Tall zone, 16.2 m
+# under a Grand one) lights the floor as well as one under a plain ceiling: its range grows with its height and its
+# energy makes up the falloff over the extra distance (LAMP_ATTEN), so a high hall is lit, not a dark well under
+# far-off dots. A tube on a chain hangs at the plain height and is left as it is.
+const REACH_REF := 4.9              # metres: a lamp's height under a plain 5.4 m ceiling
+const LAMP_ATTEN := 1.15            # the lamps' spot_attenuation
+var lamp_gain := 1.0                # the look's strength for every ceiling lamp (level_lighting.gd: the pool look's)
+
+## How many times higher than under a plain ceiling fixture `f`'s light hangs (at least 1; cached on it)
+static func _reach(f: Dictionary) -> float:
+	if not f.has("reach"): f["reach"] = maxf(1.0, float(f.light_pos.y) / REACH_REF)
+	return f.reach
+
+## Fixture `f`'s energy multiplier: the look's gain, and the falloff over its extra height made up
+func _lamp_power(f: Dictionary) -> float:
+	return lamp_gain * pow(_reach(f), LAMP_ATTEN)
+
+static func _range(l: SpotLight3D, r: float) -> void:
+	if absf(l.spot_range - r) > 0.01:
+		l.spot_range = r
 # ---- light pool
 # Spots pointing straight down, their cone like a diffuser's spread (level_fixtures.gd SPOT_ANGLE): a troffer
 # lights the room under it, not the ceiling round it or the top of the wall beside it
@@ -109,7 +129,7 @@ func _lamp_light() -> SpotLight3D:
 	l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 	l.light_color = LIGHT_COLOR
 	l.spot_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
-	l.spot_attenuation = 1.15
+	l.spot_attenuation = LAMP_ATTEN
 	l.spot_angle = SPOT_ANGLE
 	l.spot_angle_attenuation = SPOT_SOFT
 	l.light_energy = 0.0
@@ -439,7 +459,10 @@ func _update_pool(delta: float) -> void:
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
 		var dist_fade := 1.0 - t * t * (3.0 - 2.0 * t)
 		var cast := lamp_out(f)          # (a dead tube keeps a faint ember but lights nothing)
-		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * SPOT_GAIN * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i]
+		var energy: float = (PANEL_ENERGY if panels_mm else LIGHT_ENERGY) * SPOT_GAIN * (CLASSIC_BOOST if f.classic else 1.0) * cast * slot_weight[i] * dist_fade * slot_on[i] * _lamp_power(f)
+		var reach: float = (PANEL_RANGE if panels_mm else LIGHT_RANGE) * _reach(f)
+		_range(l, reach)
+		_range(lb, reach)
 		l.visible = energy > 0.002
 		# its own lamp's white (written only when it changes: a slot taking a new tube, the zone's white moving)
 		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)      # (events' tint: every light, not just the tubes' faces)
@@ -523,7 +546,8 @@ func _update_far(k: float) -> void:
 		far_weight[i] = _ease_to(far_weight[i], 1.0 if f.far_wanted else 0.0, k)
 		var t := clampf((sqrt(f.dsq) - FAR_FADE) / fade_range, 0.0, 1.0)
 		var far_fade := 1.0 - t * t * (3.0 - 2.0 * t)
-		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * lamp_out(f) * far_weight[i] * far_fade
+		var energy: float = base * (CLASSIC_BOOST if f.classic else 1.0) * lamp_out(f) * far_weight[i] * far_fade * _lamp_power(f)
+		_range(fl, (PANEL_RANGE if panels_mm else LIGHT_RANGE) * _reach(f))
 		_glow_real(f, "rw_far", far_weight[i] * far_fade)
 		fl.visible = energy > 0.002
 		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)

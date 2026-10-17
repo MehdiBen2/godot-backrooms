@@ -37,6 +37,7 @@ var entries: Array[Dictionary] = []     # {button, inner, label, mark, hint, act
 var sel := -1
 var tape_sel := 0                       # the tape BEGIN plays (host / solo)
 var erase_armed := false
+var egg_wait := 30.0                    # s until the next roll for the camera falling by itself
 var am_ready := false                   # guest: pressed READY
 var tag_label: Label
 var rec_dot: ColorRect
@@ -69,6 +70,9 @@ func _ready() -> void:
 	Net.share_link_changed.connect(func(_s: String) -> void: _refresh_room())
 	Net.lobby_changed.connect(_on_lobby_changed)
 	Net.ready_changed.connect(_refresh_crew)
+	Net.lobby_egg.connect(func() -> void:
+		if shown:
+			corridor.drop_camera())
 	Saves.changed.connect(_refresh_tapes)
 	# a frame of the corridor while the title is up, hidden: its shaders compile then, not in the PLAY push
 	get_tree().create_timer(1.5).timeout.connect(func() -> void:
@@ -662,6 +666,9 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_ESCAPE:
 			if not e.echo:
 				_on_back()
+		KEY_P:
+			if not e.echo:
+				Net.send_lobby_egg()
 		KEY_UP, KEY_W, KEY_Z:
 			_step(-1)
 		KEY_DOWN, KEY_S:
@@ -674,6 +681,12 @@ func _process(dt: float) -> void:
 	t += dt
 	if not visible:
 		return
+	# rare: now and then the host's lobby drops the camera by itself
+	egg_wait -= dt
+	if shown and egg_wait <= 0.0:
+		egg_wait = 30.0
+		if not guest and randf() < 0.04:
+			Net.send_lobby_egg()
 	rec_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
 	if wait_label.visible:
 		wait_label.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 2.4))

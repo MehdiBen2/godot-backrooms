@@ -23,7 +23,7 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e"), "hotel": Color("b8443a"),
 	"clean": Color("e9f7ff"), "dirty": Color("5e4a2c"), "moist": Color("3f8f86")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
-const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
+const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "fake_exit": Color("8fb8bd"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 # Entity marks are objects (object_types.json "entity"): any number per floor, each with its own kind and behavior
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
 	THIN: Color("7a7364"), ARCH: Color("8a7a52"), DOOR: Color("6b4a2e")}

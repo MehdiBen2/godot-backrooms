@@ -18,6 +18,7 @@ const HOTEL_H := 4.5          # a hotel corridor: a low ceiling, well under the 
 const CRAWL_H := 1.2         # a crawl space's ceiling: low enough that you have to get right down (player.gd)
 const PIT_DEPTH := 14.0
 const STOREY_H := 9.0     # floor to floor (props/stairs.gd STOREY): the room, and the slab up to the next floor
+const UNDER_SLAB_H := STOREY_H - 0.6   # the highest a ceiling goes with another floor over it (its slab's underside is at STOREY_H - 0.4)
 const SEE_OVER_H := 1.8  # a wall object lower than this (its "height") is seen over: it blocks feet, not eyes
 
 @export var level_index := 0
@@ -116,6 +117,8 @@ var blocked_edges := {}   # Vector4i(a.x, a.y, b.x, b.y), a < b -> true
 var wall_segments: Array = []
 var tall := {}
 var grand := {}      # Vector2i -> true: a grand hall's GRAND_H ceiling (beats tall)
+var under_slab := {} # Vector2i -> true: a tall / grand cell with a room of the floor above over it: UNDER_SLAB_H (load_floor)
+var hole_floor := {} # Vector2i -> m: under each hole in this floor (`through`), the ceiling height of the room below it
 var low := {}
 var crawl := {}      # Vector2i -> true: a crawl space (the editor's CRAWL zone): CRAWL_H ceiling, you crawl through it
 var tiles := {}
@@ -354,7 +357,7 @@ static func seen_over(o: Dictionary) -> bool:
 ## One floor of a level as a plain level: floor 0 is the file itself, any other its "floors" entry laid over
 ## it (grid, zones, paint, objects and markers are per floor; size, materials and the look are shared).
 ## A floor that doesn't exist falls back to the ground floor.
-const FLOOR_KEYS := ["grid", "zones", "paint", "objects", "walls", "spawn", "exit", "entity", "tv"]
+const FLOOR_KEYS := ["grid", "zones", "paint", "objects", "walls", "spawn", "exit", "fake_exit", "entity", "tv"]
 static func floor_data(d: Dictionary, f: int) -> Dictionary:
 	if f == 0: return d
 	var fl = d.get("floors", {}).get(str(f))
@@ -462,10 +465,24 @@ static func through_cells(d: Dictionary, f: int) -> Dictionary:
 				for c in stair_footprint(load_object(o)): out.erase(c)
 	return out
 
+## Of `cells` (tall / grand ones on floor `f`), those with something of the floor above over them or beside them
+static func slab_capped(d: Dictionary, f: int, cells: Array) -> Dictionary:
+	var out := {}
+	if cells.is_empty() or not in_stack(d, f + 1): return out
+	var grid: Array = floor_data(d, floor_src(d, f + 1))["grid"]
+	for c: Vector2i in cells:
+		for dz in range(-1, 2):
+			for dx in range(-1, 2):
+				var q := Vector2i(c.x + dx, c.y + dz)
+				if q.y < 0 or q.y >= grid.size() or q.x < 0 or q.x >= (grid[q.y] as String).length(): continue
+				if grid[q.y][q.x] != "#": out[c] = true
+	return out
+
 ## Straight and spiral stairs (props/vertical_pieces.gd) whose top reaches CLIMB_TOP go on up to the floor above:
 ## the cells their footprint covers on floor `f` have no ceiling over them, the floor above has a hole there
 ## (through_cells), and you walk up them out onto it (level_builder.gd hands the floor over as you come out)
 const CLIMB_TOP := STOREY_H - 0.6
+const STAIR_HEADROOM := 2.4   # m: the most a stair with no floor above it climbs to, under the ceiling
 static func climb_cells(d: Dictionary, f: int) -> Dictionary:
 	var out := {}
 	if not (in_stack(d, f) and in_stack(d, f + 1)): return out
@@ -536,9 +553,30 @@ func load_floor(f: int, raw := {}) -> void:
 	climb_down = climb_cells(level_raw, f - 1)
 	holes_below.merge(climb_down)
 	_parse(level_data)
+	# A tall or grand room can't rise on through the floor above where that floor has a room (or a wall facing one,
+	# which is drawn) over it: its ceiling would cut through them. There it stops just short of the slab, and the
+	# step up to the full height (ceiling_height differs) is closed off as any other (_build_ceiling_steps).
+	under_slab = slab_capped(level_raw, f, tall.keys() + grand.keys())
+	for c: Vector2i in under_slab:
+		tall.erase(c)
+		grand.erase(c)
 	# a stairwell, or a wall object square on the cell, takes the cell over on this floor
 	through = through_cells(level_raw, f)
 	open_above = through_cells(level_raw, f + 1)
+	# how far down the side of each hole in this floor goes: to the ceiling of the room under it (as that floor's
+	# ceiling_height gives it, a tall or grand one stopped under this floor's slab)
+	hole_floor.clear()
+	if not through.is_empty():
+		var below: Array = []
+		for z: Array in [["crawl", CRAWL_H], ["grand", UNDER_SLAB_H], ["tall", UNDER_SLAB_H], ["low", LOW_H], ["hotel", HOTEL_H]]:
+			below.append([zone_cells(level_raw, f - 1, z[0]), z[1]])
+		for c: Vector2i in through:
+			var h := WALL_H
+			for z: Array in below:
+				if (z[0] as Dictionary).has(c):
+					h = z[1]
+					break
+			hole_floor[c] = h
 	climb_up.clear()
 	for c: Vector2i in climb_cells(level_raw, f):
 		if open_above.has(c): climb_up[c] = true
@@ -796,7 +834,8 @@ func _first_open() -> Array:
 
 ## "dim" (the default: failing tubes, light that dies in the fog), "classic" (the whole level lit bright
 ## and steady, clear air) or "liminal" (every tube on and steady, flat pale light, halls that fade into a
-## haze far away instead of the dark). New level-wide looks go here and in scripts/Render/atmospheres.gd.
+## haze far away instead of the dark) or "day" (the pool rooms at noon: daylight and a sun over everything, the
+## tubes or no). New level-wide looks go here and in scripts/Render/atmospheres.gd.
 func atmosphere() -> String:
 	return str(level_data.get("atmosphere", "dim"))
 
@@ -805,6 +844,7 @@ static func cell_of(p: Vector3) -> Vector2i:
 
 func ceiling_height(c: Vector2i) -> float:
 	if crawl.has(c): return CRAWL_H
+	if under_slab.has(c): return UNDER_SLAB_H
 	if grand.has(c): return GRAND_H
 	if tall.has(c): return TALL_H
 	if low.has(c): return LOW_H

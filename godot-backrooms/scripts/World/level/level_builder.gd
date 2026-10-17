@@ -350,10 +350,15 @@ func _goto_exit() -> void:
 	p.look_at(Vector3(c.x * CELL, p.global_position.y, c.y * CELL), Vector3.UP)
 
 func _build_exit() -> void:
-	var e = level_data.get("exit")
+	_build_exit_door("exit", false)
+	_build_exit_door("fake_exit", true)    # looks the same, goes nowhere
+
+func _build_exit_door(key: String, fake: bool) -> void:
+	var e = level_data.get(key)
 	if not (e is Array) or e.size() < 2:
 		return
 	var door := LevelExit.new()
+	door.fake = fake
 	var c := Vector2i(e[0], e[1])
 	var mount := _exit_mount(c)
 	if mount.is_empty():
@@ -367,7 +372,8 @@ func _build_exit() -> void:
 		var d: Vector2i = mount[1]
 		door.position = Vector3((from.x + d.x * 0.5) * CELL, 0.0, (from.y + d.y * 0.5) * CELL)
 		door.rotation.y = atan2(d.y, -d.x)
-	exit_door = door
+	if not fake:
+		exit_door = door
 	add_child(door)
 
 const EXIT_REACH := 8                # cells from the exit cell a wall is looked for
@@ -595,6 +601,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	_loop_of.clear()
 	tall.clear()
 	grand.clear()
+	under_slab.clear()
 	low.clear()
 	crawl.clear()
 	tiles.clear()

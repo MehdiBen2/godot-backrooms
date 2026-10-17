@@ -53,6 +53,7 @@ uniform float threat = 0.0;
 uniform float glitch = 0.0;
 uniform float pulse = 0.0;
 uniform float classic = 0.0;
+uniform float pool = 0.0;              // 0..1 the pool look (Game.fx_pool): bright white tile everywhere, so the glass stays clean
 uniform float corrupt = 0.0;           // 0..1 the recording breaking up into blocks (Game.fx_corrupt)
 uniform float mood = 0.0;             // 0..1 the cheap dark-atmosphere look (Gfx.mood)
 uniform float banding = 0.0;         // fluorescent banding: 0 off, else how much tube light the picture is lit by
@@ -275,24 +276,26 @@ void fragment() {
 		luma_local = dot(local_light, LUMA);
 		vec3 light_tint = mix(vec3(1.0), min(local_light / max(luma_local, 0.001), vec3(1.6)), 0.5);
 		vec3 dirt_rgb = dirt_l * light_tint;
-		float lens_clean = 1.0 - 0.7 * classic;
+		// (in the pool look every pixel is "strong light": the dirt, smudges and halation would veil the whole frame in milk,
+		// so the glass is wiped clean; a little dirt still catches a lamp you look straight into)
+		float lens_clean = (1.0 - 0.7 * classic) * (1.0 - 0.9 * pool);
 		float lens_t = 0.58 - 0.18 * glare;
 		// the dirt on the glass only shows against strong light: a light in or near the frame (glare), or a patch of
 		// the picture blown near white. A wall in the torch or a dim hall leaves the lens looking clean.
 		float strong = max(smoothstep(0.62, 0.95, luma_local), glare);
 		col += dirt_rgb * local_light * dirt_base * lens_clean * strong;
-		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90);
+		col += dirt_rgb * smoothstep(lens_t, 0.95, luma_local) * dirt_amt * (1.0 + 3.0 * glare) * vec3(1.10, 1.05, 0.90) * (1.0 - 0.9 * pool);
 		float smudge = texture(lens_smudge_tex, clamp(dirt_uv, 0.0, 1.0)).r * lens_clean;
 		if (smudge > 0.004) {
 			col = mix(col, textureLod(screen_tex, uvg, 2.0).rgb, clamp(smudge * smudge_soft, 0.0, 0.5));
 			float smudge_lit = (smudge_base + smoothstep(lens_t - 0.3, 0.95, luma_local) * (1.0 + 2.5 * glare)) * strong;
 			col += smudge * light_tint * local_light * smudge_lit * smudge_amt;
 		}
-		if (luma_local > lens_t) {
-			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - lens_t) * halation_amt * (1.0 + 2.0 * glare);
+		if (luma_local > lens_t && pool < 0.999) {
+			col += local_light * vec3(1.12, 0.98, 0.75) * (luma_local - lens_t) * halation_amt * (1.0 + 2.0 * glare) * (1.0 - pool);
 		}
 	}
-	if (post_quality >= 2 && glare_amt > 0.01) {
+	if (post_quality >= 2 && glare_amt > 0.01 && pool < 0.999) {     // (streaks and ghosts are lamps in the dark: not in white tile)
 		float st = 0.68 - 0.15 * glare;
 		// Fast threshold gate: only compute horizontal streak when local region has sufficient luminance
 		if (luma_local > st * 0.45) {
@@ -305,7 +308,7 @@ void fragment() {
 				float sl = dot(sc, LUMA);
 				if (sl > st) glare_streak += sc * (sl - st) * exp(-abs(fi) * 0.45);
 			}
-			col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt * (1.0 + 1.5 * glare);
+			col += glare_streak * vec3(1.15, 1.02, 0.78) * 0.035 * glare_amt * (1.0 + 1.5 * glare) * (1.0 - pool);
 		}
 		if (luma_local > 0.45 || glare > 0.1) {
 			vec2 ghost_vec = vec2(0.5) - uvg;
@@ -319,7 +322,7 @@ void fragment() {
 					ghosts += gc * (gl - 0.78) * g_tint * (1.0 - smoothstep(0.0, 0.6, length(guv - 0.5)));
 				}
 			}
-			col += ghosts * 0.04 * glare_amt;
+			col += ghosts * 0.04 * glare_amt * (1.0 - pool);
 		}
 	}
 
@@ -387,7 +390,8 @@ void fragment() {
 	col *= mix(grade_digital, grade, cam_mode) * wb;
 	col = col * (1.0 - black_lift) + black_lift * vec3(0.8, 0.75, 0.58);
 	float luma = dot(col, LUMA);
-	float sat = clamp(mix(0.86, 0.92, cam_mode) - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
+	// (in the pool look the colour is full: the aqua water and the white tile are the look, not a washed fluorescent read)
+	float sat = clamp(mix(mix(0.86, 0.92, cam_mode), 1.0, pool) - fear * 0.3 - threat * 0.2, 0.4, 1.0) * (1.0 - burst * 0.8);
 	col = mix(vec3(luma), col, sat);
 	col = mix(col, col * 0.965 + vec3(0.015, 0.012, 0.005), cam_mode);    // tape's lifted amber blacks
 	if (fx_contrast != 1.0 || fx_sat != 1.0 || fx_hue != 0.0) {
@@ -406,7 +410,7 @@ void fragment() {
 	vec2 q = (uv - 0.5) * vec2(1.0, 1.15);
 	float vig = 1.0 - smoothstep(0.32 - tunnel * 0.12 - insanity * 0.08, 0.88 - tunnel * 0.3 - insanity * 0.18, length(q));
 	float edge = 1.0 - vig;
-	col *= mix(mix(vignette_amt, 0.9, classic) - tunnel * 0.3, 1.0, vig);
+	col *= mix(mix(mix(vignette_amt, 0.9, classic), 0.9, pool) - tunnel * 0.3, 1.0, vig);
 	// ---- mood (Gfx.mood): the dark, heavy air Ultra gets from ambient occlusion, GI and volumetric fog, faked in
 	// the post pass for next to nothing: corners and distance sink, mid-tones fall toward the shadows
 	col *= mix(1.0, mix(0.72, 1.0, vig), mood);

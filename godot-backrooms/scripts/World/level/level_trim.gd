@@ -164,6 +164,8 @@ static func _profile_normals(prof: Array) -> Array[Vector2]:
 	return out
 
 func _build_skirting() -> void:
+	# tiled walls run down to the floor: a rubber cove base on glazed tile is wrong
+	if _has_pbr("wall") and _mat_id("wall").to_lower().contains("tile"): return
 	_skirt_normals = _profile_normals(SKIRT)
 	# one mesh per chunk (_chunk_st): every wall face of the level in one mesh was drawn whole whenever any of it showed
 	var sts := {}

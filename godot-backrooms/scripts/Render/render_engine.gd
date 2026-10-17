@@ -91,6 +91,9 @@ func _process_timed(dt: float) -> void:
 		"camcorder": want = 1.0
 		"bodycam": want_clean = clampf(Game.fx_classic * 1.3, 0.0, 1.0)   # a Classic zone films clean
 		_: want = clampf(Game.fx_classic * 1.3, 0.0, 1.0)                 # auto: the old tape look in a Classic zone
+	if Gfx.camera != "camcorder" and Game.fx_pool > 0.0:                    # the pool rooms film on the clean camera
+		want = 0.0
+		want_clean = Game.fx_pool
 	mode_mix = move_toward(mode_mix, want, dt * MODE_SPEED)
 	clean_mix = move_toward(clean_mix, want_clean, dt * MODE_SPEED)
 	var a: Dictionary = _blend(PROFILES.bodycam, PROFILES.clean, clean_mix)
@@ -116,8 +119,9 @@ func _process_timed(dt: float) -> void:
 	mat.set_shader_parameter("iso", _sensor_gain())
 	# fluorescent banding (Gfx `banding`, the CAMERA menu): as strong as the tube light on the player, none outdoors
 	# (full strength under any ordinary lamp: the tube light on the player is rarely over a half)
-	var tubes := 0.0 if Game.outdoors else clampf(Game.fx_tubes * 2.5, 0.0, 1.0)
-	mat.set_shader_parameter("mood", 0.0 if Game.outdoors or not Gfx.mood else 1.0)
+	var tubes := 0.0 if Game.outdoors else clampf(Game.fx_tubes * 2.5, 0.0, 1.0) * (1.0 - Game.fx_pool)
+	mat.set_shader_parameter("mood", 0.0 if Game.outdoors or not Gfx.mood else 1.0 - Game.fx_pool)   # (the dark grade would grey the white tile)
+	mat.set_shader_parameter("pool", Game.fx_pool)                         # a clean lens, full colour, a light vignette
 	mat.set_shader_parameter("banding", tubes if bool(Gfx.s.get("banding", true)) else 0.0)
 	mat.set_shader_parameter("cctv", 0.35 if Gfx.cctv else 0.0)       # the CCTV filter (Gfx `cctv`, the CAMERA menu)
 

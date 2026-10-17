@@ -84,6 +84,10 @@ var _cam_tw: Tween
 var _cam_pos := CAM_REST_POS            # where the camera is meant to be; the drift rides on top
 var _cam_look := CAM_REST_LOOK
 var _drift := 1.0                       # 0..1 how much camcorder drift is on (none while it travels)
+var _roll := 0.0                        # rad the camera is tipped on its side (drop_camera)
+var _shake := 0.0                       # 0..1 the knock of a fall or a grab, dying away
+var _egg := false                       # the camera is down or being picked up
+var thud_sfx: AudioStreamPlayer
 var _model: PackedScene
 var _troffer_scene: PackedScene
 var _sound := true                      # false: the hum fades out (BEGIN, BACK) and the tubes stop clicking
@@ -146,6 +150,11 @@ func _ready() -> void:
 	strike_sfx.volume_db = -34.0
 	strike_sfx.bus = "Master"
 	add_child(strike_sfx)
+	thud_sfx = AudioStreamPlayer.new()
+	thud_sfx.stream = load("res://audio/player/body/land_thud.wav")
+	thud_sfx.volume_db = -6.0
+	thud_sfx.bus = "Master"
+	add_child(thud_sfx)
 
 # ---- the hall ---------------------------------------------------------------------------
 ## main.tscn's WorldEnvironment, as the level starts it (dim): the same tonemap, glow, fog and SSAO
@@ -686,6 +695,53 @@ func pull_back(secs := 1.0) -> void:
 	_cam_tw.tween_property(self, "_cam_pos", CAM_FROM_POS, secs).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_cam_tw.tween_property(self, "_cam_look", CAM_FROM_LOOK, secs).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
+## Easter egg: the camera slips and hits the carpet, sits there on its side looking along the floor at the
+## survivors' boots, then somebody picks it up (it swings up, rights itself and goes back to being held still)
+func drop_camera() -> void:
+	if _egg or _drift < 0.99:
+		return
+	_kill_cam()
+	_egg = true
+	var floor_pos := Vector3(-1.05, 0.11, 4.6)
+	var floor_look := Vector3(1.4, 0.15, -3.5)
+	var tw := create_tween().set_parallel(true)
+	_cam_tw = tw
+	tw.tween_property(self, "_drift", 0.0, 0.1)
+	# the slip: a flinch up and away, then down fast
+	tw.chain().tween_property(self, "_cam_pos", CAM_REST_POS + Vector3(0.05, 0.12, 0.1), 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "_roll", -0.25, 0.18)
+	tw.chain().tween_property(self, "_cam_pos", floor_pos, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "_cam_look", floor_look, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "_roll", 1.25, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(_thud.bind(1.0, 0.0)).set_delay(0.5)
+	# the bounce
+	tw.chain().tween_property(self, "_cam_pos", floor_pos + Vector3(0.0, 0.1, -0.05), 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "_roll", 1.05, 0.12)
+	tw.chain().tween_property(self, "_cam_pos", floor_pos, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_property(self, "_roll", 1.3, 0.14)
+	tw.tween_callback(_thud.bind(0.45, 0.0)).set_delay(0.14)
+	# it lies there a while
+	tw.chain().tween_interval(3.2)
+	# the grab: a jolt, then up in a clumsy arc
+	tw.chain().tween_callback(_thud.bind(0.6, -5.0))
+	tw.tween_property(self, "_cam_pos", floor_pos + Vector3(0.1, 0.35, 0.35), 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "_roll", 0.6, 0.5)
+	tw.chain().tween_property(self, "_cam_pos", CAM_REST_POS + Vector3(-0.1, -0.35, 0.2), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "_cam_look", CAM_REST_LOOK + Vector3(-1.0, -1.3, 1.5), 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "_roll", -0.18, 0.7)
+	tw.chain().tween_property(self, "_cam_pos", CAM_REST_POS, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "_cam_look", CAM_REST_LOOK, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "_roll", 0.0, 0.9)
+	tw.chain().tween_property(self, "_drift", 1.0, 0.6)
+	tw.tween_callback(func() -> void: _egg = false)
+
+func _thud(power: float, db: float) -> void:
+	_shake = maxf(_shake, power)
+	if _sound:
+		thud_sfx.volume_db = -6.0 + db + (power - 1.0) * 8.0
+		thud_sfx.pitch_scale = randf_range(0.85, 1.0) if power > 0.8 else randf_range(1.0, 1.2)
+		thud_sfx.play()
+
 ## The hum and the tubes' clicks on or off (off fades the hum out over about a second and a half)
 func set_sound(on: bool) -> void:
 	_sound = on
@@ -693,6 +749,8 @@ func set_sound(on: bool) -> void:
 func _kill_cam() -> void:
 	if _cam_tw and _cam_tw.is_valid():
 		_cam_tw.kill()
+	_egg = false
+	_roll = 0.0
 
 func _process(dt: float) -> void:
 	_t += dt
@@ -701,5 +759,7 @@ func _process(dt: float) -> void:
 	var wander := Vector3(sin(_t * 0.31) * 0.05 + sin(_t * 0.83) * 0.012, sin(_t * 0.47) * 0.03 + sin(_t * 1.3) * 0.006, sin(_t * 0.23) * 0.04) * _drift
 	var look_wander := Vector3(sin(_t * 0.27 + 1.0) * 0.12, sin(_t * 0.39 + 2.0) * 0.06, 0.0) * _drift
 	cam.position = _cam_pos + wander
-	cam.look_at(_cam_look + look_wander, Vector3.UP)
-	cam.rotate_object_local(Vector3.FORWARD, sin(_t * 0.21) * 0.006 * _drift)
+	_shake = maxf(0.0, _shake - dt * 1.6)
+	var knock := Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), 0.0) * 0.06 * _shake * _shake
+	cam.look_at(_cam_look + look_wander + knock, Vector3.UP)
+	cam.rotate_object_local(Vector3.FORWARD, sin(_t * 0.21) * 0.006 * _drift + _roll)

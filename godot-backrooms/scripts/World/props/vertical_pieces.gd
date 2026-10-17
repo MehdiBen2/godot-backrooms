@@ -22,6 +22,8 @@ const POST_EVERY := 1.5           # m: the most between two posts of a rail
 const PARAPET_H := 1.05
 const PARAPET_T := 0.2
 const POST_W := 0.32              # m: a raised floor's square legs
+const HOLE_GAP := 0.1             # m: between a spiral's outer edge and the rim of the round hole it climbs through
+const HOLE_SIDES := 64            # the round hole's rim, in this many straight pieces (level_geometry.gd cuts the same)
 const MAX_WALK := 40.0            # degrees: steeper than this a flight / spiral can't be walked up (CharacterBody3D floor angle 45)
 const SURFACE := {"tile": "tile", "floor": "carpet", "concrete": "concrete"}
 
@@ -198,7 +200,7 @@ func _flight(o: Dictionary, top_mat: Material, mats: Dictionary) -> void:
 	for q: Vector2 in prof:
 		pts.append(Vector3(q.x, q.y, -hw))
 		pts.append(Vector3(q.x, q.y, hw))
-	_hull(pts)
+	_hull(pts, rh, base)
 	# chrome rails up either side, posts on the steps
 	var which := str(o.get("railing", "both"))
 	if which == "none": return
@@ -224,6 +226,10 @@ func _flight(o: Dictionary, top_mat: Material, mats: Dictionary) -> void:
 ## anticlockwise seen from above: on the map (+x east, +z south) that is from +x round towards -z.
 static func _polar(a: float, r: float, turn: float) -> Vector3:
 	return Vector3(cos(a) * r, 0.0, -sin(a) * r * turn)
+
+## The radius of the round hole spiral `o` climbs up through (level_geometry.gd _stair_collars), metres
+static func hole_radius(o: Dictionary) -> float:
+	return maxf(float(o.scale) * CELL * 0.5, 0.6) + HOLE_GAP
 
 static func _turn(o: Dictionary) -> float:
 	return -1.0 if str(o.get("turn", "left")) == "right" else 1.0
@@ -265,22 +271,23 @@ func _spiral(o: Dictionary, top_mat: Material, mats: Dictionary, ceiling: float)
 		var b_in := _polar(a1, r_in, turn)
 		var b_out := _polar(a1, r_out, turn)
 		_quad(mats.tile, b_in + Vector3(0, y0, 0), b_out + Vector3(0, y0, 0), b_out + Vector3(0, y1, 0), b_in + Vector3(0, y1, 0), -front.rotated(Vector3.UP, da * turn))
+		# stood on as it is drawn, a real step: the player steps up each riser (player.gd _step_up). A helical
+		# ramp through the noses would be too steep to walk anywhere near the column.
+		if _body != null:
+			var pts := PackedVector3Array()
+			for k in arcs + 1:
+				var b := lerpf(a0, a1, float(k) / arcs)
+				for r: float in ([r_in, r_out] if k == 0 or k == arcs else [r_out]):
+					pts.append(_polar(b, r, turn) + Vector3(0, y1, 0))
+					pts.append(_polar(b, r, turn) + Vector3(0, y0, 0))
+			_hull(pts)
 	# the column, floor to ceiling (or a storey past the top step, under an open ceiling)
 	var col_h := maxf(base + rise + 2.4, ceiling if ceiling > base + rise else base + rise + 2.4)
-	# up through the ceiling: a landing off the top step to the edge of the hole (level_geometry.gd _set_landing)
-	var land := float(o.get("_landing", 0.0))
-	if land > 0.01:
-		var top := base + rise
-		var ahead := (_polar(sweep + 0.01, 1.0, turn) - _polar(sweep, 1.0, turn)).normalized()
-		var e_in := _polar(sweep, r_in, turn)
-		var e_out := _polar(sweep, r_out, turn)
-		var lift := Vector3(0, top, 0)
-		var q := [e_in + lift, e_out + lift, e_out + ahead * land + lift, e_in + ahead * land + lift]
-		_quad(top_mat, q[0], q[1], q[2], q[3], Vector3.UP)
-		var dn := Vector3(0, -0.3, 0)
-		_quad(mats.under, q[0] + dn, q[1] + dn, q[2] + dn, q[3] + dn, Vector3.DOWN)
-		var across := (e_out - e_in).normalized()
-		_solid((e_in + e_out) * 0.5 + ahead * land * 0.5 + Vector3(0, top - 0.15, 0), Vector3(r_out - r_in, 0.3, land + 0.02), Basis(across, Vector3.UP, across.cross(Vector3.UP)))
+	if float(o.get("_landing", 0.0)) > 0.01: col_h = base + rise + RAIL_H + 0.1     # up through a floor: a newel post above it
+	# up through the ceiling into a round hole (level_geometry.gd _set_landing, _stair_collars): a landing off the
+	# top step out to the hole's rim, level with the floor above, and a rail round the rest of the rim up there
+	if float(o.get("_landing", 0.0)) > 0.01:
+		_spiral_head(o, top_mat, mats, base + rise, sweep, r_in, turn)
 	var col: Material = mats.get("column")
 	if solids_only: pass
 	elif col != null: _cylinder_uv(col, r_in, col_h, float(mats.get("repeat", 2.2)))
@@ -294,33 +301,25 @@ func _spiral(o: Dictionary, top_mat: Material, mats: Dictionary, ceiling: float)
 		cs.position = Vector3(0, col_h * 0.5, 0)
 		cs.set_meta("surface", _surface)
 		_body.add_child(cs)
-	# the walking surface: a helical ramp through the middle of every tread at its height (a slab a little thick,
-	# so it can't be fallen through), from half a step before the first riser (flush with the floor) up to the
-	# middle of the last tread, then flat over the rest of it: the straight flight's wedge, wound round
-	var faces := PackedVector3Array()
-	var samples := maxi(12, n * 3)
+	# a fence up the open side (no higher than the floor above, where it comes up through one: the rail round the
+	# hole up there takes over), so a misstep doesn't drop you off the edge
+	var rail_cap := base + rise if float(o.get("_landing", 0.0)) > 0.01 else INF
 	var ramp := func(a: float) -> float: return clampf(base + rh * (a / da + 0.5), base, base + rise)
-	var prev := -0.5 * da
-	for s in range(1, samples + 1):
-		var a := lerpf(-0.5 * da, sweep, float(s) / samples)
-		var ya: float = ramp.call(prev)
-		var yb: float = ramp.call(a)
-		var pi0 := _polar(prev, r_in, turn) + Vector3(0, ya, 0)
-		var po0 := _polar(prev, r_out, turn) + Vector3(0, ya, 0)
-		var pi1 := _polar(a, r_in, turn) + Vector3(0, yb, 0)
-		var po1 := _polar(a, r_out, turn) + Vector3(0, yb, 0)
-		var dn := Vector3(0, -0.3, 0)
-		faces.append_array([pi0, po0, po1, pi0, po1, pi1])
-		faces.append_array([pi0 + dn, po1 + dn, po0 + dn, pi0 + dn, pi1 + dn, po1 + dn])
-		faces.append_array([po0, po0 + dn, po1 + dn, po0, po1 + dn, po1])
-		if bool(o.get("rail", true)):
-			# a fence up the open side, so a misstep doesn't drop you off the edge
-			var lift := Vector3(0, RAIL_H, 0)
-			var ro0 := _polar(prev, r_out - 0.06, turn) + Vector3(0, ya, 0)
-			var ro1 := _polar(a, r_out - 0.06, turn) + Vector3(0, yb, 0)
-			faces.append_array([ro0, ro1, ro1 + lift, ro0, ro1 + lift, ro0 + lift])
-		prev = a
-	if _body != null:
+	if bool(o.get("rail", true)) and _body != null:
+		var faces := PackedVector3Array()
+		var samples := maxi(12, n * 3)
+		var prev := 0.0
+		for s in range(1, samples + 1):
+			var a := lerpf(0.0, sweep, float(s) / samples)
+			var ya: float = ramp.call(prev)
+			var yb: float = ramp.call(a)
+			if ya < rail_cap:
+				var ro0 := _polar(prev, r_out - 0.06, turn) + Vector3(0, ya - rh, 0)
+				var ro1 := _polar(a, r_out - 0.06, turn) + Vector3(0, yb - rh, 0)
+				var t0 := Vector3(ro0.x, minf(ya + RAIL_H, rail_cap), ro0.z)
+				var t1 := Vector3(ro1.x, minf(yb + RAIL_H, rail_cap), ro1.z)
+				faces.append_array([ro0, ro1, t1, ro0, t1, t0])
+			prev = a
 		var cs := CollisionShape3D.new()
 		var shape := ConcavePolygonShape3D.new()
 		shape.set_faces(faces)
@@ -332,17 +331,71 @@ func _spiral(o: Dictionary, top_mat: Material, mats: Dictionary, ceiling: float)
 	if not bool(o.get("rail", true)): return
 	var rr := r_out - 0.08
 	var lift := Vector3(0, RAIL_H, 0)
+	# up through a floor, it ends where it reaches that floor (the hole's own rail goes on round from there)
+	var end := sweep - 0.5 * da
+	if rail_cap < INF: end = minf(end, ((rail_cap - RAIL_H - base) / rh - 0.5) * da)
 	for i in range(0, n, 2):
 		var a := (i + 0.5) * da
+		if a > end + 0.001: break
 		var foot := _polar(a, rr, turn) + Vector3(0, base + (i + 1) * rh, 0)
 		var head := _polar(a, rr, turn) + Vector3(0, ramp.call(a), 0) + lift
 		_tube(mats.chrome, foot, head, RAIL_R * 1.1)
-	var steps := maxi(8, ceili(sweep / deg_to_rad(8.0)))
+	var steps := maxi(8, ceili((end - 0.5 * da) / deg_to_rad(8.0)))
 	var last := _polar(0.5 * da, rr, turn) + Vector3(0, ramp.call(0.5 * da), 0) + lift
 	for s in range(1, steps + 1):
-		var a := lerpf(0.5 * da, sweep - 0.5 * da, float(s) / steps)
+		var a := lerpf(0.5 * da, end, float(s) / steps)
 		var p := _polar(a, rr, turn) + Vector3(0, ramp.call(a), 0) + lift
 		_tube(mats.chrome, last, p, RAIL_R)
+		last = p
+
+## The head of a spiral that comes out on the floor above: its landing runs on from the top step's edge to the
+## round hole's rim (the circle's segment ahead of that edge, between the column and the rim),
+## and a guard rail goes round the rim everywhere else, so nobody upstairs walks into the stairwell
+func _spiral_head(o: Dictionary, top_mat: Material, mats: Dictionary, top: float, sweep: float, r_in: float, turn: float) -> void:
+	var hole_r := hole_radius(o)
+	var ahead := (_polar(sweep + 0.01, 1.0, turn) - _polar(sweep, 1.0, turn)).normalized()
+	var rim: Array[Vector3] = [_polar(sweep, r_in, turn), _polar(sweep, hole_r, turn)]
+	for k in range(1, 13):                       # the far edge: on the rim, from the outside in
+		var r := lerpf(hole_r, r_in, k / 12.0)
+		rim.append(_polar(sweep, r, turn) + ahead * sqrt(maxf(hole_r * hole_r - r * r, 0.0)))
+	var mid := Vector3.ZERO
+	for p: Vector3 in rim: mid += p
+	mid /= rim.size()
+	var up := Vector3(0, top, 0)
+	var dn := Vector3(0, top - 0.3, 0)
+	var pts := PackedVector3Array()
+	for k in rim.size():
+		var a: Vector3 = rim[k]
+		var b: Vector3 = rim[(k + 1) % rim.size()]
+		_tri(top_mat, mid + up, a + up, b + up, Vector3.UP)
+		_tri(mats.under, mid + dn, a + dn, b + dn, Vector3.DOWN)
+		var out := ((a + b) * 0.5 - mid).normalized()
+		_quad(mats.tile, a + dn, b + dn, b + up, a + up, out)
+		pts.append(a + up)
+		pts.append(a + dn)
+	_hull(pts)
+	# its inner edge, off the side of the column out to the rim, looks down the stairwell: a rail along it
+	_rail(mats.chrome, rim[0] + up, rim[rim.size() - 1] + up, true)
+	# the rail round the rim, from where the landing meets it on round to the top step
+	var open := acos(clampf(r_in / hole_r, -1.0, 1.0))      # how far round the rim the landing's far edge reaches
+	var from := sweep + open
+	var to := sweep + TAU - 0.02
+	var segs := maxi(8, ceili((to - from) / (TAU / HOLE_SIDES)))
+	var rr := hole_r + 0.06
+	var lift := Vector3(0, RAIL_H, 0)
+	var last := _polar(from, rr, turn) + up
+	var since := 0.0
+	_tube(mats.chrome, last, last + lift, RAIL_R * 1.1)
+	for k in range(1, segs + 1):
+		var p := _polar(lerpf(from, to, float(k) / segs), rr, turn) + up
+		_tube(mats.chrome, last + lift, p + lift, RAIL_R)
+		_tube(mats.chrome, last + lift * 0.5, p + lift * 0.5, RAIL_R * 0.8)
+		var len := last.distance_to(p)
+		_solid((last + p) * 0.5 + lift * 0.5, Vector3(len + 0.02, RAIL_H, 0.08), _along((p - last) / len))
+		since += len
+		if since >= POST_EVERY or k == segs:
+			_tube(mats.chrome, p, p + lift, RAIL_R * 1.1)
+			since = 0.0
 		last = p
 
 # ---------------------------------------------------------------- mesh pieces
@@ -359,6 +412,14 @@ func _quad(m: Material, a: Vector3, b: Vector3, c: Vector3, d: Vector3, n: Vecto
 	var order := [a, b, c, a, c, d]
 	if (b - a).cross(c - a).dot(n) > 0.0:
 		order = [a, c, b, a, d, c]
+	for v: Vector3 in order:
+		st.set_normal(n)
+		st.add_vertex(v)
+
+## A triangle a-b-c facing `n` (either winding given)
+func _tri(m: Material, a: Vector3, b: Vector3, c: Vector3, n: Vector3) -> void:
+	var st := _tool(m)
+	var order := [a, b, c] if (b - a).cross(c - a).dot(n) <= 0.0 else [a, c, b]
 	for v: Vector3 in order:
 		st.set_normal(n)
 		st.add_vertex(v)
@@ -448,13 +509,16 @@ func _fence(a: Vector3, b: Vector3, h: float) -> void:
 	var up := Vector3(0, h, 0)
 	_hull(PackedVector3Array([a - side, a + side, b - side, b + side, a - side + up, a + side + up, b - side + up, b + side + up]))
 
-func _hull(pts: PackedVector3Array) -> void:
+func _hull(pts: PackedVector3Array, tread := 0.0, tread_base := 0.0) -> void:
 	if _body == null: return
 	var cs := CollisionShape3D.new()
 	var shape := ConvexPolygonShape3D.new()
 	shape.points = pts
 	cs.shape = shape
 	cs.set_meta("surface", _surface)
+	if tread > 0.0:
+		cs.set_meta("tread", tread)
+		cs.set_meta("tread_base", tread_base)
 	_body.add_child(cs)
 
 ## One MeshInstance3D per material, and the solids (added to the body before it joins the tree: each shape added

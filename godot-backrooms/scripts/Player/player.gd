@@ -153,6 +153,10 @@ var bob_rate := 5.3              # how fast `bob` runs right now (rad/s): one st
 var stair_w := 0.0               # eased 0..1: how much of a stair flight is underfoot
 var stair_vy := 0.0              # smoothed climb rate on a flight (m/s, + up)
 var stair_prev_y := 0.0
+var stair_tread := 0.0           # m: the riser of the flight underfoot (0 = none that says), and where its first tread sits
+var stair_tread_base := 0.0
+var stair_snap := 0.0            # eased m: the view's catch-up to the tread underfoot, so each step lands as a distinct step
+var step_ease := 0.0             # m the view still trails the body by after stepping up or down a real step (_step_up)
 var stair_hold := 0.0            # s left of counting as on a flight after the last frame the slope was felt (the contact flickers)
 var breath := 0.0
 var click_player: AudioStreamPlayer
@@ -604,7 +608,14 @@ func _physics_process_timed(dt: float) -> void:
 	elif not is_on_floor():
 		velocity.y = maxf(velocity.y - GRAVITY * dt, -fall_speed_max)
 	last_vy = velocity.y
+	var was_floor := is_on_floor()
+	var y_was := global_position.y
+	if was_floor and velocity.y <= 0.0 and not swimming and _climb_out <= 0.0: _step_up(dt)
 	move_and_slide()
+	# down a real step: the floor snap drops the body onto the tread below at once, so the view follows it down
+	if was_floor and is_on_floor() and get_floor_normal().y > 0.97:
+		var drop := y_was - global_position.y
+		if drop > 0.03 and drop < STEP_UP + 0.05: step_ease += drop
 	# Landing: both feet down, thud scales with the drop
 	if is_on_floor():
 		if was_airborne and air_time > 0.15 and last_vy < -2.0:
@@ -786,6 +797,16 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 		y += stair_lift * stair_h * stair_w * head_bob * 0.8
 		if stair_vy > 0.0:
 			bob_nod -= stair_lift * stair_h * stair_w * head_bob * 0.2    # leaning into the climb as you push up
+	# The slope is smooth but treads are not: the view holds at the tread you are on and the next one pulls it up
+	# (or down) in a quick eased step as the foot crosses the nosing, so a flight reads as steps, not a ramp.
+	var snap_goal := 0.0
+	if on_flight and stair_tread > 0.05 and absf(dy) < 0.5:
+		var v := (global_position.y - stair_tread_base) / stair_tread
+		snap_goal = (roundf(v) - v) * stair_tread * 0.9
+	stair_snap = lerpf(stair_snap, snap_goal, minf(1.0, dt * (16.0 if on_flight else 8.0)))
+	y += stair_snap * head_bob
+	step_ease *= exp(-dt * 14.0)
+	y += step_ease
 	land_dip *= exp(-dt * 9.0)
 	# the floor shaking under something heavy: a short low rumble, not a wobble. Squared so light steps
 	# barely register and the close ones hit; scaled by the head-bob setting like the rest of the motion.
@@ -896,6 +917,29 @@ func _update_fall_fx(dt: float) -> void:
 	post.set_shader_parameter("fall_blur", FALL_BLUR * fall_fx * fall_fx)
 	post.set_shader_parameter("fall_warp", FALL_WARP * fall_fx)
 
+## Real steps (a spiral's treads, props/vertical_pieces.gd): walking into a riser no higher than STEP_UP lifts you
+## onto the tread, as a foot would. Only into something wall-like with a floor on top of it: a slope you walk up
+## anyway, and a wall is still a wall. The view trails the lift and eases up after it (step_ease).
+const STEP_UP := 0.32
+func _step_up(dt: float) -> void:
+	var motion := Vector3(velocity.x, 0.0, velocity.z) * dt
+	if motion.length_squared() < 0.000001: return
+	var from := global_transform
+	var hit := KinematicCollision3D.new()
+	if not test_move(from, motion): return                                        # nothing ahead
+	var lift := STEP_UP
+	if test_move(from, Vector3(0, STEP_UP, 0), hit): lift = hit.get_travel().y   # (a ceiling over you)
+	if lift < 0.05: return
+	var raised := from.translated(Vector3(0, lift, 0))
+	if test_move(raised, motion): return                                          # still blocked: a wall
+	if not test_move(raised.translated(motion), Vector3(0, -lift, 0), hit): return   # nothing to stand on up there
+	if hit.get_normal().y < cos(floor_max_angle): return
+	var rise := lift + hit.get_travel().y
+	# a slope you could walk up gains less than this over the same stride: move_and_slide takes those
+	if rise < maxf(0.04, motion.length() * tan(floor_max_angle)): return
+	global_position.y += rise
+	step_ease -= rise
+
 ## Walking up or down a stairwell flight (its sloped solid underfoot, props/stairs.gd tags it), not a landing
 func _on_stair_flight() -> bool:
 	if get_floor_normal().y > 0.97:
@@ -905,6 +949,8 @@ func _on_stair_flight() -> bool:
 		if c.get_normal().y > 0.5:
 			var sh = c.get_collider_shape()
 			if sh is Node and sh.has_meta("surface"):
+				stair_tread = float(sh.get_meta("tread", 0.0))
+				stair_tread_base = float(sh.get_meta("tread_base", 0.0)) + (sh as Node3D).global_position.y   # (world height)
 				return true
 	return false
 
@@ -972,11 +1018,13 @@ func _back_to_spawn() -> void:
 	was_airborne = false
 	air_time = 0.0
 
-## How lit the spot you stand on is: the level's tubes in the backrooms, the sky (day / night cycle) outdoors
+## How lit the spot you stand on is: the level's tubes in the backrooms, the sky (day / night cycle) outdoors,
+## and daylight everywhere in a level with the day look
 func ambient_light() -> float:
 	if Game.outdoors:
 		return Game.day_light
-	return level.tube_light_at(global_position) if level != null else 1.0
+	if level == null: return 1.0
+	return maxf(level.tube_light_at(global_position), Game.fx_pool)
 
 ## Crouched, crawling or squeezed through a slit: no room to hold the torch up, the head lamp is on instead
 func _tight_spot() -> bool:
