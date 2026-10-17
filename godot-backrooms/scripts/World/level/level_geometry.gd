@@ -1869,43 +1869,9 @@ func _plaster_mat() -> StandardMaterial3D:
 	return _plaster
 
 ## The dark vinyl cove base / skirting material: a matte near-black strip with fine grain noise and cellular rubber bump
-static var _skirt_mat: StandardMaterial3D
-func _skirt_material() -> StandardMaterial3D:
-	if _skirt_mat != null: return _skirt_mat
-	var m := StandardMaterial3D.new()
-	_skirt_mat = m
-	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
-	m.roughness = 0.92
-	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera
-	var grain := FastNoiseLite.new()
-	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	grain.frequency = 0.35                 # fine: it was big blotches at the wall's scale, which read as marble
-	grain.fractal_octaves = 3
-	var tex := NoiseTexture2D.new()
-	tex.noise = grain
-	tex.width = 256
-	tex.height = 256
-	tex.seamless = true
-	m.albedo_texture = tex                  # the scuffs and the dirt: light and dark patches over the brown
-	var pebble := FastNoiseLite.new()
-	pebble.noise_type = FastNoiseLite.TYPE_CELLULAR
-	pebble.frequency = 0.22
-	pebble.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	var bump := NoiseTexture2D.new()
-	bump.noise = pebble
-	bump.width = 256
-	bump.height = 256
-	bump.seamless = true
-	bump.as_normal_map = true
-	bump.bump_strength = 6.0
-	m.normal_enabled = true
-	m.normal_texture = bump                 # the pebbled rubber: catches a torch beam in a fine grain
-	m.normal_scale = 0.45
-	m.ao_enabled = false
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * 2.5
-	return m
+const _SkirtMaterial := preload("res://scripts/World/level/skirt_material.gd")
+func _skirt_material() -> Material:
+	return _SkirtMaterial.get_material()
 
 
 # An invisible event trigger (props/event_trigger.gd): the box `depth` cells along its arrow by `scale`
@@ -2132,6 +2098,7 @@ func _build_stairs(o: Dictionary, veiled := false) -> Node3D:
 		"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h),
 		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
 		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat,
+		"room_floor": _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75)),
 		"skirt": _skirt_material()})
 	if not veiled: stairwells.append(s)
 	return s

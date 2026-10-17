@@ -67,6 +67,7 @@ func _ready() -> void:
 	_sync_shells()
 	_build_wrap_copies()
 	Stability.trace("level: level fully built")
+	_prewarm_floors()
 
 func _process(delta: float) -> void:
 	var _pt := Time.get_ticks_usec()
@@ -74,7 +75,7 @@ func _process(delta: float) -> void:
 	Perf.add("Level", _pt)
 
 func _process_timed(delta: float) -> void:
-	if rebuilding:                     # no fixtures to light with until the floor is built
+	if rebuilding or _stub:            # no fixtures to light with until the floor is built
 		_pace_build(delta)
 		return
 	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
@@ -94,6 +95,10 @@ func _physics_process_timed(_delta: float) -> void:
 	if Game.noclip: return
 	if not _loops.is_empty(): _walk_loops()
 	var p := player.global_position
+	if _stub:
+		if not through.has(cell_of(p)): _realize_stub()
+		elif fell_through(p): Game.change_floor(built_floor - 1, Vector2(p.x, p.z) / CELL, "fall", STOREY_H)
+		return
 	var standing: bool = player is CharacterBody3D and (player as CharacterBody3D).is_on_floor()
 	# up a flight or spiral that runs on through the ceiling (level_data.gd climb_cells): the floor above takes over
 	# as you come up level with it, and you walk on out onto it
@@ -454,6 +459,8 @@ var built_floor := 0               # the floor that stands (Game.level_floor is 
 ## falling. Any other way (a drop hole, a level change) it is built at once. `fresh`: another level altogether.
 func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> void:
 	if rebuilding: return
+	_stub = false
+	_stub_cover = null
 	var was := built_floor
 	built_floor = f
 	Game.level_floor = f
@@ -477,9 +484,16 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	load_floor(f, {} if fresh else level_raw)
 	_place_shells()
 	if cover != null: Shell.set_height(cover, 0.0)
+	var lift := Vector3(0, float(link.get("lift", 0.0)), 0)
+	if falling and cover != null and through_cells(level_raw, f).has(cell_of(p.global_position)):
+		# the hole goes on through this floor too: you are only passing it. Its look-only copy stands in for it and
+		# nothing of it is built; the floor you come to rest on is (_realize_stub, or the next fall's build)
+		p.global_position += lift
+		_stub = true
+		_stub_cover = cover
+		return
 	_step_mask = PackedByteArray()      # the nav table: cached by grid size, and every floor has the same size
 	step_mask()
-	var lift := Vector3(0, float(link.get("lift", 0.0)), 0)
 	if well != null or cover != null:
 		# the same well, or the same shaft, stands on this floor a storey higher or lower: the player goes there with it
 		if well != null: well.global_position += lift
@@ -499,6 +513,21 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 			(p as CharacterBody3D).velocity = Vector3.ZERO
 	_floor_ready()
 	if falling: prime_pool()
+	_sync_shells()
+
+var _stub := false                 # the floor that stands is only its look-only copy, passed on a fall through a chain of holes
+var _stub_cover: Node3D = null
+
+## The player has left the hole's line in a floor that was only passed: build it now, whole, and show it
+func _realize_stub() -> void:
+	_stub = false
+	if is_instance_valid(_stub_cover): _stub_cover.free()
+	_stub_cover = null
+	_step_mask = PackedByteArray()
+	step_mask()
+	for stage: Callable in _build_stages(null): stage.call()
+	_floor_ready()
+	prime_pool()
 	_sync_shells()
 
 ## Everything of the old floor (floor `was`) goes, bar the marks, the light pool, the baked GI node and the
@@ -806,7 +835,38 @@ func _sync_shells() -> void:
 		shells[k] = s
 		_place_shells()
 
-## The new floor stands: its tape and sketches, and the entity on its grid
+## The other floors of the level, built whole out of sight one after another as soon as this one stands, then
+## freed with their materials, textures, meshes and sounds held (_hold): the first trip up the stairs or down a pit
+## finds all of it in memory, as a floor you have been on before does. Stops if the level or the floor changes.
+const PREWARM_FLOORS := 6
+const PREWARM_SLICE_MS := 3.0
+
+func _prewarm_floors() -> void:
+	var ask := _level_ask
+	var floors: Array[int] = []
+	for k in level_raw.get("floors", {}):
+		var f := int(k)
+		if f != built_floor and has_floor(level_raw, f): floors.append(f)
+	if has_floor(level_raw, 0) and built_floor != 0: floors.append(0)
+	floors.sort_custom(func(a: int, b: int) -> bool: return absi(a - built_floor) < absi(b - built_floor))
+	for f in floors.slice(0, PREWARM_FLOORS):
+		if _held.has(f): continue
+		var s := Shell.new()
+		s.warm = true
+		s.slice_usec = int(PREWARM_SLICE_MS * 1000.0)
+		for stage: Callable in s.build_stages(level_meta, level_raw, f):
+			await get_tree().process_frame
+			while rebuilding: await get_tree().process_frame     # (never while a real floor is being built)
+			if ask != _level_ask or not is_inside_tree() or Game.level_floor != built_floor:
+				s.free()
+				return
+			s._slice_from = Time.get_ticks_usec()
+			await stage.call()
+		var mats: Array = []
+		_hold(s, mats)
+		_held[f] = mats
+		s.free()
+
 func _floor_ready() -> void:
 	_find_loops()
 	_build_wrap_copies()

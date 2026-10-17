@@ -79,3 +79,14 @@ PavingStones111 -> Paving_Stones_A
 Tiles012 -> Tile_Set_012
 Concrete034 -> Concrete_Grey_034
 OfficeCeiling002 -> Ceiling_Office_Lit
+
+Concrete046        -> Concrete_046
+Fabric081C         -> Fabric_081C
+PaintedPlaster017  -> Plaster_Painted_017
+Paper001           -> Paper_001
+Plaster001         -> Plaster_001
+Plaster007         -> Plaster_007
+Plastic010         -> Plastic_White_010
+Styrofoam005       -> Styrofoam_005
+Wallpaper001A      -> Wallpaper_001A
+Rubber004          -> Rubber_004

@@ -47,11 +47,31 @@ func _ready() -> void:
 	_load()
 	_build()
 	_scale_text(panel, PANEL_TEXT_SCALE)
+	if not embedded:
+		_add_vhs()
 	panel.custom_minimum_size.x *= PANEL_TEXT_SCALE
 	panel.visible = false
 	_show_panel("")
 	if embedded:
 		_embed_setup()
+
+## Pause-menu mode: the title screen's VHS smear (shaders/vhs_smear.gdshader) over the whole menu. It reads the
+## screen under it, so it is added last; the fresh copy is for the camera / grade passes that already took theirs.
+func _add_vhs() -> void:
+	var copy := BackBufferCopy.new()
+	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(copy)
+	var vhs := ColorRect.new()
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/vhs_smear.gdshader")
+	m.set_shader_parameter("smear", 0.3)
+	m.set_shader_parameter("wiggle", 0.012)
+	m.set_shader_parameter("blur_samples", 9)
+	m.set_shader_parameter("fisheye", 0.03)       # subtle: the buttons keep their flat hit boxes
+	vhs.material = m
+	vhs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vhs)
+	vhs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 ## Title-screen mode: keep only the side panel. _build() adds blur, veil, then a margin whose HBox holds
 ## the main column and the panel, so hide the first three and push the panel to the right edge.

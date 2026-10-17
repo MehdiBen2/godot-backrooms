@@ -1,8 +1,7 @@
 extends RefCounted
 ## Tape and sketches kept on disk, per level, so they are still there next launch. <level id>.json holds
-## {"tape": [...], "sketch": [...]}, one key per tool, so a level's .lvl is never touched by it. From the
-## Godot editor or a level-editor test launch it goes in the project's levels/marks/; an exported game
-## can't write res://, so there it goes in user://marks/.
+## {"tape": [...], "sketch": [...]}, one key per tool, so a level's .lvl is never touched by it. Only a
+## level-editor test launch writes: it goes in the project's levels/marks/.
 ##
 ## Marks are kept in world metres, but the level editor can move every cell (growing the map up / left,
 ## TRIM): the .lvl counts how far in "mark_shift" ([x, z] cells, level_editor_canvas.gd _reframe), and each
@@ -17,7 +16,7 @@ static var shift := Vector2i.ZERO    # the loaded level's mark_shift (use_level(
 ## Only level-editor test launches save marks: there they are part of the level being built, and every
 ## run (exported or not) loads them with the level. What a player lays in a normal run is never saved.
 static func active() -> bool:
-	return Game.editor_test or Game.dev_keys or OS.has_feature("editor")
+	return Game.editor_test
 
 ## Marks belong to one floor of one level: the key the static lists are filed under (Net sends it as the
 ## strip's "level" too, so survivors on the same floor see each other's tape)

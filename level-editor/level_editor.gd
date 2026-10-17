@@ -112,7 +112,24 @@ func _scan_pbr() -> void:
 	if d == null: return
 	for n in d.get_directories():
 		pbr_names.append(n)
-	pbr_names.sort()
+	pbr_names.sort_custom(func(a, b): return _pbr_group(a) < _pbr_group(b) or (_pbr_group(a) == _pbr_group(b) and a < b))
+
+## Which heading a material sits under in PAINT MATERIALS (the number orders the groups)
+func _pbr_group(n: String) -> String:
+	for g: Array in PBR_GROUPS:
+		for pre: String in g[1]:
+			if n.begins_with(pre): return g[0]
+	return "9 Other"
+
+const PBR_GROUPS := [
+	["1 Wallpaper", ["Wallpaper_", "Paper_"]],
+	["2 Walls", ["Brick_", "Plaster_", "Concrete_", "Metal_", "Styrofoam_"]],
+	["3 Ceilings", ["Ceiling_"]],
+	["4 Floors: tile", ["Tile_"]],
+	["5 Floors: carpet and fabric", ["Carpet_", "Fabric_", "Rubber_", "Plastic_"]],
+	["6 Floors: wood", ["Wood_"]],
+	["7 Floors: ground and road", ["Asphalt_", "Road_", "Paving_", "Ground_", "Grass_"]],
+]
 
 # ---------------------------------------------------------------- theme
 ## A box style: `bg` filled, `border` round it (`widths`: left, top, right, bottom; default all 1)
@@ -858,12 +875,18 @@ func _build_right_dock() -> Control:
 	scrow.add_child(sc)
 	scrow.add_child(sc_lbl)
 	pnt.add_child(_note("Ctrl+click swatches to mix materials: each painted cell takes one of them at random."))
-	var sgrid := GridContainer.new()
-	sgrid.columns = 4
-	sgrid.add_theme_constant_override("h_separation", 4)
-	sgrid.add_theme_constant_override("v_separation", 4)
-	pnt.add_child(sgrid)
+	var sgrid: GridContainer = null
+	var cur_group := ""
 	for n in pbr_names:
+		var grp := _pbr_group(n)
+		if grp != cur_group:
+			cur_group = grp
+			pnt.add_child(_label(grp.substr(2), 12, GOLD))
+			sgrid = GridContainer.new()
+			sgrid.columns = 4
+			sgrid.add_theme_constant_override("h_separation", 4)
+			sgrid.add_theme_constant_override("v_separation", 4)
+			pnt.add_child(sgrid)
 		var b := Button.new()
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE

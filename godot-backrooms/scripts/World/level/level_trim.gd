@@ -139,8 +139,11 @@ func _build_trim() -> void:
 # A vinyl cove base, in cross-section from its top edge against the wall down to its toe on the carpet
 # (x: out from the wall, y: up; metres): 10 cm tall, a few millimetres thick, a rounded top edge, and the cove
 # that curls out at the foot so a mop can't catch it.
-const SKIRT := [Vector2(0.0, 0.102), Vector2(0.0025, 0.1015), Vector2(0.0041, 0.0998), Vector2(0.0046, 0.0965),
-	Vector2(0.0046, 0.019), Vector2(0.0056, 0.0115), Vector2(0.0081, 0.0052), Vector2(0.0118, 0.0014), Vector2(0.0146, 0.0)]
+const SKIRT := [Vector2(0.0, 0.102), Vector2(0.0015, 0.1019), Vector2(0.0033, 0.1011), Vector2(0.0047, 0.0997),
+	Vector2(0.0054, 0.0978), Vector2(0.0056, 0.0955), Vector2(0.0052, 0.0935), Vector2(0.0046, 0.0918),
+	Vector2(0.0050, 0.0902), Vector2(0.0062, 0.0890), Vector2(0.0080, 0.0882), Vector2(0.0098, 0.0872),
+	Vector2(0.0108, 0.0850), Vector2(0.0112, 0.0820), Vector2(0.0112, 0.022), Vector2(0.0116, 0.0135),
+	Vector2(0.0124, 0.0075), Vector2(0.0134, 0.0030), Vector2(0.0146, 0.0)]
 var _skirt_normals: Array[Vector2] = []
 const MITRE := [0.0, -1.0, 1.0]     # by end (END_ON, END_IN, END_OUT): how far along the wall a vertex at depth d moves, times d
 

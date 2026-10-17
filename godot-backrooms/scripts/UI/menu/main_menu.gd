@@ -395,6 +395,22 @@ func _build() -> void:
 	add_child(fx)
 	_full(fx)
 
+	# VHS smear (wiggle, tracking band, chroma bleed) over the whole title screen: it reads the screen under it, so it
+	# comes after the lens. A fresh screen copy, as the lens already took this frame's.
+	var vhs_copy := BackBufferCopy.new()
+	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(vhs_copy)
+	var vhs := ColorRect.new()
+	var vhs_mat := ShaderMaterial.new()
+	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
+	vhs_mat.set_shader_parameter("smear", MENU_SMEAR)
+	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
+	vhs_mat.set_shader_parameter("blur_samples", 9)
+	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
+	vhs.material = vhs_mat
+	add_child(vhs)
+	_full(vhs)
+
 	click = AudioStreamPlayer.new()
 	click.stream = load("res://audio/ui/ui_click.wav")
 	click.volume_db = -6.0

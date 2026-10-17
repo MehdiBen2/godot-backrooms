@@ -602,16 +602,13 @@ func interact(player: Node3D) -> bool:
 		is_open = false
 	_opening = will_open
 	_hit_played = false
-	var scene := player != null and player.has_method("trigger_door_camera_animation")
-	_delay = WAIT if scene or will_open else REACH_CLOSE
-	_knob_in = REACH_OPEN if will_open and not scene else -1.0
+	# no camera scene: the door just opens or shuts on its own, the player keeps control throughout
+	_delay = WAIT if will_open else REACH_CLOSE
+	_knob_in = REACH_OPEN if will_open else -1.0
 	_from = angle
 	_t = 0.0
 	_moving = true
 	blocked = false
-	if player != null and player.has_method("trigger_door_camera_animation"):
-		scene_body = player
-		player.trigger_door_camera_animation(self, will_open, swing_dir)
 	return true
 
 func can_interact(from_pos: Vector3) -> bool:

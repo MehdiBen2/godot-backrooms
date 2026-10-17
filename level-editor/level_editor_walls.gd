@@ -99,6 +99,8 @@ func _walls_changed() -> void:
 		if not wall_graph.edges.has(e): wsel_edges.erase(e)
 	if wsel_node >= 0 and not wall_graph.nodes.has(wsel_node): wsel_node = -1
 	if not _op_valid(wsel_op): wsel_op = {}
+	if not whover_op.is_empty() and not _op_valid(whover_op): whover_op = {}
+	if not wop_ghost.is_empty() and not wall_graph.edges.has(wop_ghost.get("e", -1)): wop_ghost = {}
 	_wall_insp_sync()
 	_op_insp_sync()
 	if canvas != null: canvas.queue_redraw()
@@ -1534,6 +1536,7 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 
 func _draw_op_ghost() -> void:
 	var g := wop_ghost
+	if not wall_graph.edges.has(g.get("e", -1)): return
 	if g.get("bad", false):
 		var e: int = g.e
 		var c: Dictionary = WallGeom.closest(wall_graph.curve_of(e), _pos_at(mouse_px))

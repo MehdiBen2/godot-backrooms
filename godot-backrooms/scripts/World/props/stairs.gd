@@ -161,8 +161,11 @@ func _shell(room_h: float, lo: float, hi: float) -> void:
 		if part[3] - part[2] > 0.01:
 			_solid(Vector3(X0 + WALL * 0.5, (part[2] + part[3]) * 0.5, (part[0] + part[1]) * 0.5), Vector3(WALL, part[3] - part[2], part[1] - part[0]))
 	# the doorway's frame: lining boards through the wall, casing on both faces, a strip across the floor.
-	# In the wallpaper, so it reads as part of the wall
-	var trim: Material = _per_storey(_mats.wall)
+	# In the same plaster as the skirting along the bottom of the walls
+	var skirt: Material = _mats.get("skirt") if _mats != null else null
+	if skirt == null:
+		skirt = _skirt_material()
+	var trim: Material = _per_storey(skirt)
 	var zc := (z0 + z1) * 0.5
 	var through := WALL + 0.02
 	for z: float in [z0, z1]:
@@ -172,7 +175,9 @@ func _shell(room_h: float, lo: float, hi: float) -> void:
 		for z: float in [z0, z1]:
 			_box(trim, Vector3(x, (dh + 0.09) * 0.5, z + signf(z - zc) * 0.045), Vector3(0.025, dh + 0.09, 0.09))
 		_box(trim, Vector3(x, dh + 0.045, zc), Vector3(0.025, 0.09, DOOR_W + 0.18))
-	_box(_mats.metal, Vector3(X0 + WALL * 0.5, 0.0, zc), Vector3(WALL + 0.06, 0.024, DOOR_W))
+	# the floor runs on through the doorway (no threshold strip), so the stairs and the room read as one floor
+	var fl := _per_storey(_mats.get("room_floor", _mats.floor))
+	_quad(fl, Vector3(X0, 0.0005, z0), Vector3(IN0, 0.0005, z0), Vector3(IN0, 0.0005, z1), Vector3(X0, 0.0005, z1), Vector3.UP)
 
 ## The landing of floor `k` (floors up from this one): its floor, ceiling, walls, lamp and sign. A lane it
 ## has no flight in is walled off. `door`: this floor's own landing, with the doorway in its front wall.
@@ -184,26 +189,26 @@ func _front_landing(k: int, o: Dictionary, lane_up: bool, lane_down: bool, door:
 	# half a tread under the flights, to where their walking slope comes level with it (any further and its edge is a kerb across the slope)
 	_solid(Vector3((X0 + XA + TREAD * 0.5) * 0.5, y - 0.15, 0), Vector3(XA + TREAD * 0.5 - X0, 0.3, HW * 2.0))
 	_solid(Vector3((IN0 + XA) * 0.5, top + 0.1, 0), Vector3(LANDING, 0.2, HW * 2.0))
-	_quad(look.floor, Vector3(IN0, y, -HW), Vector3(XA, y, -HW), Vector3(XA, y, HW), Vector3(IN0, y, HW), Vector3.UP)
+	_quad(look.floor_top, Vector3(IN0, y, -HW), Vector3(XA, y, -HW), Vector3(XA, y, HW), Vector3(IN0, y, HW), Vector3.UP)
 	_quad(look.ceil, Vector3(IN0, top, -HW), Vector3(XA, top, -HW), Vector3(XA, top, HW), Vector3(IN0, top, HW), Vector3.DOWN)
 	for s: float in [-1.0, 1.0]:
-		_wall(look, Vector3(IN0, y, s * HW), Vector3(XA, y, s * HW), Vector3(0, 0, -s))
+		_wall(look, Vector3(IN0, y, s * HW), Vector3(XA, y, s * HW), Vector3(0, 0, -s), true)
 	_wall(look, Vector3(XA, y, -SPINE * 0.5), Vector3(XA, y, SPINE * 0.5), Vector3.LEFT)       # the end of the wall between the lanes
 	for lane: Array in [[SIDE, lane_up], [-SIDE, lane_down]]:
 		if lane[1]: continue
 		var s: float = lane[0]
-		_wall(look, Vector3(XA, y, s * SPINE * 0.5), Vector3(XA, y, s * HW), Vector3.LEFT)
+		_wall(look, Vector3(XA, y, s * SPINE * 0.5), Vector3(XA, y, s * HW), Vector3.LEFT, false, true)
 		_solid(Vector3(XA + 0.1, y + HEADROOM * 0.5, s * LANE_MID), Vector3(0.2, HEADROOM, LANE))
 	# the front wall, from inside
 	if door:
 		var dh := minf(DOOR_H, top - y - 0.1)
 		var a := minf(SIDE * DOOR_Z0, SIDE * DOOR_Z1)
 		var b := maxf(SIDE * DOOR_Z0, SIDE * DOOR_Z1)
-		_wall(look, Vector3(IN0, y, -HW), Vector3(IN0, y, a), Vector3.RIGHT)
-		_wall(look, Vector3(IN0, y, b), Vector3(IN0, y, HW), Vector3.RIGHT)
+		_wall(look, Vector3(IN0, y, -HW), Vector3(IN0, y, a), Vector3.RIGHT, true)
+		_wall(look, Vector3(IN0, y, b), Vector3(IN0, y, HW), Vector3.RIGHT, false, true)
 		_quad(look.wall, Vector3(IN0, y + dh, a), Vector3(IN0, y + dh, b), Vector3(IN0, top, b), Vector3(IN0, top, a), Vector3.RIGHT)
 	else:
-		_wall(look, Vector3(IN0, y, -HW), Vector3(IN0, y, HW), Vector3.RIGHT)
+		_wall(look, Vector3(IN0, y, -HW), Vector3(IN0, y, HW), Vector3.RIGHT, true, true)
 	for s: float in [-1.0, 1.0]:
 		_lamp(o, Vector3((IN0 + XA) * 0.5, top, s * LANE_MID), (floor_no + k) * 4 + (0 if s < 0.0 else 1))
 	if bool(o.get("sign", true)):
@@ -223,11 +228,11 @@ func _storey(k: int, o: Dictionary) -> void:
 	await _slice()
 	_solid(Vector3((XB - TREAD * 0.5 + X1) * 0.5, mid - 0.15, 0), Vector3(X1 - XB + TREAD * 0.5, 0.3, HW * 2.0))
 	_solid(Vector3((XB + IN1) * 0.5, top + 0.1, 0), Vector3(LANDING, 0.2, HW * 2.0))
-	_quad(look.floor, Vector3(XB, mid, -HW), Vector3(IN1, mid, -HW), Vector3(IN1, mid, HW), Vector3(XB, mid, HW), Vector3.UP)
+	_quad(look.floor_top, Vector3(XB, mid, -HW), Vector3(IN1, mid, -HW), Vector3(IN1, mid, HW), Vector3(XB, mid, HW), Vector3.UP)
 	_quad(look.ceil, Vector3(XB, top, -HW), Vector3(IN1, top, -HW), Vector3(IN1, top, HW), Vector3(XB, top, HW), Vector3.DOWN)
 	for s: float in [-1.0, 1.0]:
-		_wall(look, Vector3(XB, mid, s * HW), Vector3(IN1, mid, s * HW), Vector3(0, 0, -s))
-	_wall(look, Vector3(IN1, mid, -HW), Vector3(IN1, mid, HW), Vector3.LEFT)
+		_wall(look, Vector3(XB, mid, s * HW), Vector3(IN1, mid, s * HW), Vector3(0, 0, -s), false, true)
+	_wall(look, Vector3(IN1, mid, -HW), Vector3(IN1, mid, HW), Vector3.LEFT, true, true)
 	_wall(look, Vector3(XB, mid, -SPINE * 0.5), Vector3(XB, mid, SPINE * 0.5), Vector3.RIGHT)
 	for s: float in [-1.0, 1.0]:
 		_lamp(o, Vector3((XB + IN1) * 0.5, top, s * LANE_MID), (floor_no + k) * 4 + (2 if s < 0.0 else 3))
@@ -243,7 +248,7 @@ func _flight(look: Dictionary, o: Dictionary, s: float, xs: float, xe: float, y:
 		var x := xs + d * i * TREAD
 		var t := y + (i + 1) * RISE
 		_quad(look.floor, Vector3(x, t - RISE, z_in), Vector3(x, t - RISE, z_out), Vector3(x, t, z_out), Vector3(x, t, z_in), Vector3(-d, 0, 0))
-		_quad(look.floor, Vector3(x, t, z_in), Vector3(x, t, z_out), Vector3(x + d * TREAD, t, z_out), Vector3(x + d * TREAD, t, z_in), Vector3.UP)
+		_quad(look.floor_top, Vector3(x, t, z_in), Vector3(x, t, z_out), Vector3(x + d * TREAD, t, z_out), Vector3(x + d * TREAD, t, z_in), Vector3.UP)
 		# a nosing strip along the edge of each step: from above, all in one carpet, they are what tells the steps apart
 		_box(look.nosing, Vector3(x + d * 0.012, t - 0.008, (z_in + z_out) * 0.5), Vector3(0.05, 0.03, LANE - 0.06))
 	var run := Vector3(xe - xs, HALF, 0)
@@ -253,21 +258,15 @@ func _flight(look: Dictionary, o: Dictionary, s: float, xs: float, xe: float, y:
 	var a := Vector3(xs, y, 0)
 	var b := Vector3(xe, y + HALF, 0)
 	_quad(look.ceil, a + head + Vector3(0, 0, z_in), a + head + Vector3(0, 0, z_out), b + head + Vector3(0, 0, z_out), b + head + Vector3(0, 0, z_in), -out)
-	var board := Vector3(0, RISE + 0.1, 0)                     # the skirting's top edge, clear of the step noses
 	for wall: Array in [[z_out, -s], [z_in, s]]:
 		var z: float = wall[0]
 		var n := Vector3(0, 0, wall[1])
 		_quad(look.wall, a + Vector3(0, 0, z), b + Vector3(0, 0, z), b + head + Vector3(0, 0, z), a + head + Vector3(0, 0, z), n)
-		var zf := Vector3(0, 0, z) + n * 0.02
-		# the board starts the landing's own 0.1 tall and rises to its height along the flight, and comes
-		# back down to it at the far end: it meets the landing's skirting flush, with no step
-		var ramp := minf(0.7, run.length() * 0.25) / run.length()
-		var low := Vector3(0, 0.1, 0)
-		var edge: Array[Vector3] = [a + low, a.lerp(b, ramp) + board, a.lerp(b, 1.0 - ramp) + board, b + low]
-		var foot: Array[Vector3] = [a, a.lerp(b, ramp), a.lerp(b, 1.0 - ramp), b]
-		for i in 3:
-			_quad(look.trim, foot[i] + zf, foot[i + 1] + zf, edge[i + 1] + zf, edge[i] + zf, n)
-			_quad(look.trim, edge[i] + Vector3(0, 0, z), edge[i + 1] + Vector3(0, 0, z), edge[i + 1] + zf, edge[i] + zf, out)
+		# the skirting steps up with the stair, as a real one is fitted: one board along each tread, capped at both ends
+		for i in RISERS:
+			var x := xs + d * i * TREAD
+			var t := y + (i + 1) * RISE
+			_skirting(look.trim, Vector3(x, t, z), Vector3(x + d * TREAD, t, z), n, false, false)
 	if bool(o.get("rail", true)):
 		var lift := Vector3(0, RISE + 0.92, 0)
 		for wall: Array in [[z_out, -s], [z_in, s]]:
@@ -286,12 +285,42 @@ func _flight(look: Dictionary, o: Dictionary, s: float, xs: float, xe: float, y:
 	_solid((a + b) * 0.5 + head + zc + out * 0.1, Vector3(run.length(), 0.2, LANE), tilt)
 
 ## A landing wall from `a` to `b` along the floor, HEADROOM tall, facing `n`, with its skirting board
-func _wall(look: Dictionary, a: Vector3, b: Vector3, n: Vector3) -> void:
+## (`corner_a` / `corner_b`: the wall runs into another one there, so its skirting is mitred into the corner)
+func _wall(look: Dictionary, a: Vector3, b: Vector3, n: Vector3, corner_a := false, corner_b := false) -> void:
 	var h := Vector3(0, HEADROOM, 0)
 	_quad(look.wall, a, b, b + h, a + h, n)
-	var mid := (a + b) * 0.5 + n * 0.01 + Vector3(0, 0.05, 0)
-	var along := (b - a).abs()
-	_box(look.trim, mid, Vector3(maxf(along.x, 0.02), 0.1, maxf(along.z, 0.02)))
+	_skirting(look.trim, a, b, n, corner_a, corner_b)
+
+## The skirting's cross-section, from its top edge against the wall down to its toe (x: out from the wall,
+## y: up; the same profile level_trim.gd sweeps along the maze's walls)
+const SKIRT := [Vector2(0.0, 0.102), Vector2(0.0015, 0.1019), Vector2(0.0033, 0.1011), Vector2(0.0047, 0.0997),
+	Vector2(0.0054, 0.0978), Vector2(0.0056, 0.0955), Vector2(0.0052, 0.0935), Vector2(0.0046, 0.0918),
+	Vector2(0.0050, 0.0902), Vector2(0.0062, 0.0890), Vector2(0.0080, 0.0882), Vector2(0.0098, 0.0872),
+	Vector2(0.0108, 0.0850), Vector2(0.0112, 0.0820), Vector2(0.0112, 0.022), Vector2(0.0116, 0.0135),
+	Vector2(0.0124, 0.0075), Vector2(0.0134, 0.0030), Vector2(0.0146, 0.0)]
+
+## That profile swept along the foot of a wall from `a` to `b` facing `n`. An end in a corner is cut on the mitre
+## (its vertex at depth d pulled d back along the wall) so it meets the next wall's board with no notch; any
+## other end is closed with a cap.
+func _skirting(mat: Material, a: Vector3, b: Vector3, n: Vector3, corner_a: bool, corner_b: bool) -> void:
+	var along := (b - a).normalized()
+	var up := Vector3.UP
+	for k in SKIRT.size() - 1:
+		var p0: Vector2 = SKIRT[k]
+		var p1: Vector2 = SKIRT[k + 1]
+		var d := (p1 - p0).normalized()
+		var nm := n * -d.y + up * d.x
+		var sa0 := along * p0.x if corner_a else Vector3.ZERO
+		var sa1 := along * p1.x if corner_a else Vector3.ZERO
+		var sb0 := along * p0.x if corner_b else Vector3.ZERO
+		var sb1 := along * p1.x if corner_b else Vector3.ZERO
+		_quad(mat, a + sa0 + n * p0.x + up * p0.y, b - sb0 + n * p0.x + up * p0.y,
+			b - sb1 + n * p1.x + up * p1.y, a + sa1 + n * p1.x + up * p1.y, nm)
+		for end: Array in [[a, along, corner_a, -1.0], [b, -along, corner_b, 1.0]]:
+			if end[2]: continue
+			var e: Vector3 = end[0]
+			var cap_n: Vector3 = (end[1] as Vector3) * -1.0
+			_quad(mat, e + up * p0.y, e + n * p0.x + up * p0.y, e + n * p1.x + up * p1.y, e + up * p1.y, cap_n)
 
 ## A tube lamp under a landing's ceiling at `at`, one over each lane, lit the way stairs object `o` says
 ## ("light": on, flicker, off). `id`: which lamp of the whole well it is, the same number on every floor.
@@ -405,6 +434,7 @@ func _look(o: Dictionary) -> Dictionary:
 	if style == "concrete":
 		look.wall = _concrete(Color(0.78, 0.77, 0.72), 0.42)
 		look.floor = _concrete(Color(0.5, 0.5, 0.48), 0.6)
+		look.floor_top = look.floor
 		look.ceil = look.wall
 		look.trim = look.wall                  # skirting in the wall's own finish
 		look.rail = _paint(Color(0.62, 0.52, 0.12), 0.45)
@@ -414,6 +444,7 @@ func _look(o: Dictionary) -> Dictionary:
 	else:
 		look.wall = _per_storey(_mats.wall)
 		look.floor = _per_storey(_mats.floor)
+		look.floor_top = _per_storey(_mats.get("room_floor", _mats.floor))
 		look.ceil = _per_storey(_mats.plaster)
 		var skirt: Material = _mats.get("skirt") if _mats != null else null
 		if skirt == null:
@@ -464,44 +495,10 @@ func _wood() -> Material:
 		_wood_mat = _per_storey(m)
 	return _wood_mat
 
-## The dark vinyl cove base / skirting material: matching the level walls' own baseboard band
-static var _skirt_mat: StandardMaterial3D
-static func _skirt_material() -> StandardMaterial3D:
-	if _skirt_mat != null: return _skirt_mat
-	var m := StandardMaterial3D.new()
-	_skirt_mat = m
-	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
-	m.roughness = 0.92
-	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera
-	var grain := FastNoiseLite.new()
-	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	grain.frequency = 0.35                 # fine: it was big blotches at the wall's scale, which read as marble
-	grain.fractal_octaves = 3
-	var tex := NoiseTexture2D.new()
-	tex.noise = grain
-	tex.width = 256
-	tex.height = 256
-	tex.seamless = true
-	m.albedo_texture = tex                  # the scuffs and the dirt: light and dark patches over the brown
-	var pebble := FastNoiseLite.new()
-	pebble.noise_type = FastNoiseLite.TYPE_CELLULAR
-	pebble.frequency = 0.22
-	pebble.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	var bump := NoiseTexture2D.new()
-	bump.noise = pebble
-	bump.width = 256
-	bump.height = 256
-	bump.seamless = true
-	bump.as_normal_map = true
-	bump.bump_strength = 6.0
-	m.normal_enabled = true
-	m.normal_texture = bump                 # the pebbled rubber: catches a torch beam in a fine grain
-	m.normal_scale = 0.45
-	m.ao_enabled = false
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * 2.5
-	return m
+## The skirting material (skirt_material.gd): matching the level walls' own baseboard band
+const _SkirtMaterial := preload("res://scripts/World/level/skirt_material.gd")
+static func _skirt_material() -> Material:
+	return _SkirtMaterial.get_material()
 
 func _paint(col: Color, rough := 0.6) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
