@@ -94,10 +94,12 @@ func _ready() -> void:
 	compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
 	_load()
 	apply()
+	_build_vhs()
 
 func _process(dt: float) -> void:
 	_log_hitch(dt)
 	_guard_physics(dt)
+	_update_vhs()
 
 ## Every frame longer than HITCH_LOG seconds is appended to user://hitches.log with what the game was
 ## doing, so a random freeze can be traced afterwards. (The frame time is the freeze's length.)
@@ -209,6 +211,43 @@ func set_cctv(on: bool) -> void:
 		cctv = on
 		_save()
 		changed.emit()
+
+## VHS filter (not a quality preset): the title screen's tape smear (shaders/vhs_smear.gdshader) over the run, under
+## the HUD so its text stays sharp. Off by default. No fish-eye here: the camera shader already has its lens.
+var vhs := false
+const VHS_LAYER := 4                    # over the camera pass (hud.gd post 1, grade 2), under the HUD (5)
+var _vhs_layer: CanvasLayer
+
+func set_vhs(on: bool) -> void:
+	if on != vhs:
+		vhs = on
+		_save()
+		changed.emit()
+
+func _build_vhs() -> void:
+	_vhs_layer = CanvasLayer.new()
+	_vhs_layer.layer = VHS_LAYER
+	_vhs_layer.visible = false
+	add_child(_vhs_layer)
+	var fresh := BackBufferCopy.new()            # the camera pass took this frame's screen copy already
+	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	_vhs_layer.add_child(fresh)
+	var r := ColorRect.new()
+	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/vhs_smear.gdshader")
+	m.set_shader_parameter("smear", 0.3)
+	m.set_shader_parameter("wiggle", 0.012)
+	m.set_shader_parameter("blur_samples", 9)
+	r.material = m
+	_vhs_layer.add_child(r)
+
+## Only during a run: the title screen has its own VHS layer
+func _update_vhs() -> void:
+	var on := vhs and Game.main != null and is_instance_valid(Game.main)
+	if _vhs_layer.visible != on:
+		_vhs_layer.visible = on
 
 func set_camera(c: String) -> void:
 	if c in CAMERAS and c != camera:
@@ -418,6 +457,7 @@ func _load() -> void:
 		carpet_soft = bool(cf.get_value("gfx", "carpet_soft", true))
 		mood = bool(cf.get_value("gfx", "mood", true))
 		cctv = bool(cf.get_value("gfx", "cctv", false))
+		vhs = bool(cf.get_value("gfx", "vhs", false))
 		# a settings file from before bodycam became the default holds the old default ("auto"): start on bodycam
 		if int(cf.get_value("gfx", "camera_rev", 0)) >= CAMERA_REV:
 			var c := str(cf.get_value("gfx", "camera", camera))
@@ -455,6 +495,7 @@ func _save() -> void:
 	cf.set_value("gfx", "carpet_soft", carpet_soft)
 	cf.set_value("gfx", "mood", mood)
 	cf.set_value("gfx", "cctv", cctv)
+	cf.set_value("gfx", "vhs", vhs)
 	for k in s:
 		cf.set_value("gfx", k, s[k])
 	cf.save(PATH)

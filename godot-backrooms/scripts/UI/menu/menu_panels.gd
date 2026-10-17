@@ -197,6 +197,8 @@ func _build_graphics() -> Control:
 	v.add_child(_cycle_row("Fluorescent banding", "banding", off_on))
 	v.add_child(_choice_row("CCTV filter", func(): return Gfx.cctv, [false, true], func(x: bool): Gfx.set_cctv(x),
 		{false: "Off", true: "On"}))
+	v.add_child(_choice_row("VHS filter", func(): return Gfx.vhs, [false, true], func(x: bool): Gfx.set_vhs(x),
+		{false: "Off", true: "On"}))
 
 	v.add_child(_section_title("IMAGE"))
 	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"], [3, "FSR 2"]]))

@@ -12,6 +12,10 @@ uniform sampler2D Source : hint_screen_texture, filter_linear_mipmap, repeat_dis
 
 group_uniforms Blur;
 uniform int blur_samples : hint_range(3, 15, 1) = 15;
+group_uniforms Lens;
+// barrel bend: the centre is magnified by 1 / (1 - fisheye / 2), the corners stay exactly where they are
+// (so it never samples off screen). Keep it small on screens with buttons: they must stay where they look.
+uniform float fisheye : hint_range(0.0, 0.3, 0.005) = 0.0;
 
 float onOff(float a, float b, float c, float framecount) {
     return step(c, sin((framecount * 0.001) + a * cos((framecount * 0.001) * b)));
@@ -66,7 +70,8 @@ vec3 Blur(vec2 uv, float d, int samples) {
 }
 
 void fragment() {
-    vec2 uv = UV;
+    vec2 lc = UV - 0.5;
+    vec2 uv = 0.5 + lc * (1.0 - fisheye * 0.5 + fisheye * dot(lc, lc));
 
     float d = 0.1 - round(mod(TIME / 3.0, 1.0)) * .1;
     uv = jumpy(uv, mod(TIME * wiggle_speed, 7.0));

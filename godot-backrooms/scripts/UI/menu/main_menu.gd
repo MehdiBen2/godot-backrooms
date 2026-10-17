@@ -20,6 +20,10 @@ const XFADE := 3.0                      # seconds the intro takes to hand over t
 const PUSH_TIME := 2.2                  # PLAY: seconds the picture pushes in and goes dark before the loading screen
 const PUSH_ZOOM := 1.7                  # how far in it gets
 const MAIN_SCENE := "res://scenes/main.tscn"
+const MENU_SMEAR := 0.3                 # title screen VHS layer: a quarter-ish of the loading screen's bleed
+const MENU_WIGGLE := 0.012
+const MENU_FISHEYE := 0.03              # subtle on purpose: it only bends the picture, the buttons keep their flat hit boxes
+                                        # (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")      # Kit.logo(): the T.S.R.A. emblem
@@ -383,9 +387,25 @@ func _build() -> void:
 	var fx := ColorRect.new()
 	var mat := ShaderMaterial.new()
 	mat.shader = _fx_shader()
+	mat.set_shader_parameter("fisheye", 0.0)      # the bend comes from the VHS layer below instead (one warp, not two)
 	fx.material = mat
 	add_child(fx)
 	_full(fx)
+	# The loading screen's VHS smear, turned well down so every line of the menu stays readable, with a slight
+	# fish-eye. A fresh screen copy first: the lens above already took this frame's.
+	var fresh := BackBufferCopy.new()
+	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(fresh)
+	var vhs := ColorRect.new()
+	var vhs_mat := ShaderMaterial.new()
+	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
+	vhs_mat.set_shader_parameter("smear", MENU_SMEAR)
+	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
+	vhs_mat.set_shader_parameter("blur_samples", 9)
+	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
+	vhs.material = vhs_mat
+	add_child(vhs)
+	_full(vhs)
 
 	click = AudioStreamPlayer.new()
 	click.stream = load("res://audio/ui/ui_click.wav")
@@ -654,11 +674,11 @@ func _build_loading() -> void:
 	agency.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mid.add_child(agency)
 	mid.add_child(_spacer(6))
-	var full := _label("THRESHOLD SPATIAL RESEARCH AGENCY", 10, Color(CREAM, 0.32), 5)
+	var full := _label("THRESHOLD SPATIAL RESEARCH AGENCY", 11, Color(CREAM, 0.42), 5)
 	full.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mid.add_child(full)
 	mid.add_child(_spacer(40))
-	load_status = _label("LOADING", 12, Color(CREAM, 0.5), 8)
+	load_status = _label("LOADING", 13, Color(CREAM, 0.62), 8)
 	load_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	load_status.custom_minimum_size = Vector2(420, 0)
 	mid.add_child(load_status)
@@ -699,10 +719,10 @@ func _build_loading() -> void:
 	note.add_theme_constant_override("separation", 10)
 	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_child(note)
-	var head := _label("FIELD NOTE", 11, Color(AMBER, 0.7), 6)
+	var head := _label("FIELD NOTE", 12, Color(AMBER, 0.8), 6)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	note.add_child(head)
-	load_tip = _label(TIPS[randi() % TIPS.size()], 15, Color(CREAM, 0.6), 2)
+	load_tip = _label(TIPS[randi() % TIPS.size()], 16, Color(CREAM, 0.72), 2)
 	load_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	load_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	load_tip.custom_minimum_size = Vector2(440, 0)
@@ -716,6 +736,10 @@ func _build_loading() -> void:
 	var vhs := ColorRect.new()
 	var vhs_mat := ShaderMaterial.new()
 	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
+	vhs_mat.set_shader_parameter("smear", MENU_SMEAR * 0.8)     # the small centred lines must stay readable
+	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
+	vhs_mat.set_shader_parameter("blur_samples", 9)
+	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
 	vhs.material = vhs_mat
 	loading_root.add_child(vhs)
 	_full(vhs)

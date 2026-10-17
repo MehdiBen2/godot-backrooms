@@ -708,10 +708,7 @@ func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 	for stage: Callable in _build_stages(old_well):
 		if slice_usec > 0: await get_tree().process_frame
 		_slice_from = Time.get_ticks_usec()
-		var _ps := Time.get_ticks_usec() #PROBE
 		await stage.call()
-		print("SLICEPROBE stage %s: %.1f ms since last slice, slice_usec %d" % [str(stage), (Time.get_ticks_usec() - _slice_from) / 1000.0, slice_usec]) #PROBE
-		if slice_usec > 0 and Time.get_ticks_usec() - _slice_from > 30000: print("SLICEPROBE %.1f ms at end of stage %s" % [(Time.get_ticks_usec() - _slice_from) / 1000.0, str(stage)]) #PROBE
 	slice_usec = 0
 	_build_cover = null
 	if cover != null:
@@ -720,12 +717,9 @@ func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 		for c in veiled:
 			if is_instance_valid(c): (c as Node3D).visible = true
 	rebuilding = false
-	var _pt := Time.get_ticks_usec() #PROBE
 	_floor_ready()
-	print("SLICEPROBE floor_ready %.1f ms" % ((Time.get_ticks_usec() - _pt) / 1000.0)); _pt = Time.get_ticks_usec() #PROBE
 	if cover != null: prime_pool()
 	_sync_shells()
-	print("SLICEPROBE sync_shells %.1f ms" % ((Time.get_ticks_usec() - _pt) / 1000.0)) #PROBE
 
 ## While a floor is built a slice a frame: the next frames' share of time, or the rest of it at once when it is
 ## wanted now (_build_in_stages)
@@ -803,16 +797,12 @@ func _sync_shells() -> void:
 				s.free()
 				return
 			s._slice_from = Time.get_ticks_usec()
-			var _pt := Time.get_ticks_usec() #PROBE
 			await stage.call()
-			if Time.get_ticks_usec() - s._slice_from > 20000: print("SLICEPROBE shell %d stage %s: %.1f ms since its last slice (%.1f total)" % [k, str(stage), (Time.get_ticks_usec() - s._slice_from) / 1000.0, (Time.get_ticks_usec() - _pt) / 1000.0]) #PROBE
 			if run != _shell_run:
 				s.free()
 				return
 		s.slice_usec = 0
-		var _pa := Time.get_ticks_usec() #PROBE
 		add_child(s)
-		print("SLICEPROBE shell add_child %.1f ms" % ((Time.get_ticks_usec() - _pa) / 1000.0)) #PROBE
 		shells[k] = s
 		_place_shells()
 

@@ -55,7 +55,7 @@ const DOOR_Z1 := LANE_MID + DOOR_W * 0.5
 const SWAP_UP := -2.2
 const SWAP_DOWN := -1.2
 
-const LAMP_COLOR := Color(1.0, 0.78, 0.38)   # a tired yellow
+const LAMP_COLOR := Color(1.0, 0.88, 0.62)   # a warm, faintly yellow white
 const LAMP_ENERGY := 1.7
 const LAMP_RANGE := 9.0
 const LAMP_LENGTH := 1.25
@@ -116,7 +116,7 @@ func _slice() -> void:
 	if _level != null: await _level._slice()
 
 ## Only the box the room sees, for a floor that is looked at and not walked on (level_shell.gd): its stair is
-## the one the floor you are on builds, right through this floor. `mats`: room_wall, trim, metal.
+## the one the floor you are on builds, right through this floor. `mats`: wall, room_wall, trim, metal.
 func build_outside(room_h: float, mats: Dictionary) -> void:
 	_mats = mats
 	_body = StaticBody3D.new()
@@ -160,8 +160,9 @@ func _shell(room_h: float, lo: float, hi: float) -> void:
 	for part: Array in [[-OUT, minf(z0, z1), lo, hi], [maxf(z0, z1), OUT, lo, hi], [minf(z0, z1), maxf(z0, z1), dh, hi], [minf(z0, z1), maxf(z0, z1), lo, 0.0]]:
 		if part[3] - part[2] > 0.01:
 			_solid(Vector3(X0 + WALL * 0.5, (part[2] + part[3]) * 0.5, (part[0] + part[1]) * 0.5), Vector3(WALL, part[3] - part[2], part[1] - part[0]))
-	# the doorway's frame: lining boards through the wall, casing on both faces, a strip across the floor
-	var trim: Material = _wood()
+	# the doorway's frame: lining boards through the wall, casing on both faces, a strip across the floor.
+	# In the wallpaper, so it reads as part of the wall
+	var trim: Material = _per_storey(_mats.wall)
 	var zc := (z0 + z1) * 0.5
 	var through := WALL + 0.02
 	for z: float in [z0, z1]:
@@ -317,7 +318,10 @@ func _lamp(o: Dictionary, at: Vector3, id: int) -> void:
 	l.set_meta("gfx_managed", true)              # Gfx.apply_scene leaves it alone
 	l.position = at - Vector3(0, 0.45, 0)
 	add_child(l)
-	_lamps.append([l, tube, 1 if mode == "flicker" else 2, id + roundi(_from.x) * 7 + roundi(_from.y) * 13])
+	var key := id + roundi(_from.x) * 7 + roundi(_from.y) * 13
+	# an "on" lamp is one of the few that ever stutters (by its place in the well, so every floor agrees), and then rarely
+	var kind := 1 if mode == "flicker" else (2 if _hash(key * 3.7) < 0.35 else 0)
+	_lamps.append([l, tube, kind, key])
 
 static func _fluor_shader() -> Shader:
 	if _fluor_sh == null:
@@ -402,7 +406,7 @@ func _look(o: Dictionary) -> Dictionary:
 		look.wall = _concrete(Color(0.78, 0.77, 0.72), 0.42)
 		look.floor = _concrete(Color(0.5, 0.5, 0.48), 0.6)
 		look.ceil = look.wall
-		look.trim = _paint(Color(0.2, 0.21, 0.2))
+		look.trim = look.wall                  # skirting in the wall's own finish
 		look.rail = _paint(Color(0.62, 0.52, 0.12), 0.45)
 		look.bracket = look.rail
 		look.plate = _paint(Color(0.16, 0.3, 0.2))
@@ -411,7 +415,7 @@ func _look(o: Dictionary) -> Dictionary:
 		look.wall = _per_storey(_mats.wall)
 		look.floor = _per_storey(_mats.floor)
 		look.ceil = _per_storey(_mats.plaster)
-		look.trim = _wood()
+		look.trim = look.wall                  # skirting in the wallpaper, as the walls it runs along
 		look.rail = _wood()
 		look.bracket = _mats.metal
 		look.plate = _paint(Color(0.2, 0.17, 0.1))
@@ -446,7 +450,7 @@ func _concrete(tint: Color, per_metre: float) -> StandardMaterial3D:
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return _per_storey(m) as StandardMaterial3D
 
-## The dark-grain wood of the well's frame, skirting and handrails (world triplanar: the meshes have no UVs)
+## The dark-grain wood of the well's handrails (world triplanar: the meshes have no UVs)
 func _wood() -> Material:
 	if _wood_mat == null:
 		var m := (load("res://textures/pbr/Wood_Dark_Grain/Wood_Dark_Grain.tres") as StandardMaterial3D).duplicate() as StandardMaterial3D
@@ -529,7 +533,8 @@ var _rank_wait := 0.0
 func _process(delta: float) -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	for lamp: Array in _lamps:
-		var level := _flicker(t, lamp[3], 0.4 if lamp[2] == 1 else 0.93)
+		if lamp[2] == 0: continue
+		var level := _flicker(t, lamp[3], 0.4 if lamp[2] == 1 else 0.96)
 		(lamp[0] as OmniLight3D).light_energy = LAMP_ENERGY * level
 		(lamp[1] as ShaderMaterial).set_shader_parameter("glow", LAMP_GLOW * level)
 	var player: Node3D = _level.player

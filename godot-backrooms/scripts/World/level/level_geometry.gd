@@ -2088,20 +2088,23 @@ func _build_stairs(o: Dictionary, veiled := false) -> Node3D:
 		s.visible = false
 		s.process_mode = Node.PROCESS_MODE_DISABLED     # (its colliders stay out of the physics too)
 	add_child(s)
-	# inside, the plain wallpaper, without the room walls' baked skirting and ceiling shadow (the well has its own
-	# boards, and they would hang in mid-air beside a flight)
+	await s.build(self, ends, f, room_h, {
+		"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h),
+		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
+		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
+	if not veiled: stairwells.append(s)
+	return s
+
+## A stairwell's wallpaper, inside and on its doorway's frame: the plain one, without the room walls' baked
+## skirting and ceiling shadow (the well has its own boards, and they would hang in mid-air beside a flight)
+func _stair_paper() -> StandardMaterial3D:
 	var paper: StandardMaterial3D = _pbr_or("wall")
 	if paper == null:
 		paper = _mat("l0_wallpaper", Vector3.ONE / 2.25, Color(1.0, 0.98, 0.88))
 		paper.roughness = 0.95
 		paper.normal_scale = 0.95
 		paper.metallic_specular = 0.28
-	await s.build(self, ends, f, room_h, {
-		"wall": paper, "room_wall": _wall_mat_for(room_h),
-		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
-		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
-	if not veiled: stairwells.append(s)
-	return s
+	return paper
 
 ## The stairwell kept from the floor before (level_builder.gd: the one you are standing in, moved a storey with
 ## you) gives way to this floor's, built out of sight (_build_stairs `veiled`): the same frame, so there is never
@@ -2135,7 +2138,7 @@ func stair_skin(o: Dictionary) -> Node3D:
 	var room_h := _stair_room_h(o)
 	var s := Stairs.new()
 	s.transform = _stair_xf(o)
-	s.build_outside(room_h, {"room_wall": _wall_mat_for(room_h), "trim": door_frame_mat, "metal": door_hw_mat})
+	s.build_outside(room_h, {"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h), "trim": door_frame_mat, "metal": door_hw_mat})
 	return s
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap

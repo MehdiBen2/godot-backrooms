@@ -33,12 +33,21 @@ var glitch_tick := 0.0
 var next_glitch := 2.5
 
 var embedded := false                   # title-screen mode: only the side panel
+const PANEL_TEXT_SCALE := 1.3           # the side panel's text, scaled up from the sizes it is built with (readability)
+
+## Every font size set inside `root` times `k`, once, after the panel is built (the rows set theirs one by one)
+func _scale_text(root: Node, k: float) -> void:
+	for c in root.find_children("*", "Control", true, false):
+		if c.has_theme_font_size_override("font_size"):
+			c.add_theme_font_size_override("font_size", roundi(c.get_theme_font_size("font_size") * k))
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE      # clicks on the empty veil fall through to "resume"
 	_load()
 	_build()
+	_scale_text(panel, PANEL_TEXT_SCALE)
+	panel.custom_minimum_size.x *= PANEL_TEXT_SCALE
 	panel.visible = false
 	_show_panel("")
 	if embedded:
@@ -382,7 +391,8 @@ func _on_name_changed(s: String) -> void:
 
 func _process(dt: float) -> void:
 	# watchdog: a closed menu whose fade is gone (killed / never finished) must not stay up as a ghost over the live game
-	if not shown and visible and (fade == null or not fade.is_valid() or not fade.is_running()):
+	# (not on the title screen: embedded, the panel is never "shown" through show_menu and must stay up)
+	if not embedded and not shown and visible and (fade == null or not fade.is_valid() or not fade.is_running()):
 		modulate.a = 0.0
 		visible = false
 	if not is_visible_in_tree():

@@ -65,7 +65,6 @@ var slice_usec := 0
 var _slice_from := 0
 
 func _slice() -> void:
-	if slice_usec > 0 and Time.get_ticks_usec() - _slice_from > 30000: print("SLICEPROBE %.1f ms before %s" % [(Time.get_ticks_usec() - _slice_from) / 1000.0, str(get_stack().slice(1, 3))]) #PROBE
 	if slice_usec <= 0 or Time.get_ticks_usec() - _slice_from < slice_usec: return
 	await (Engine.get_main_loop() as SceneTree).process_frame      # (a look-only floor is built out of the tree)
 	_slice_from = Time.get_ticks_usec()
