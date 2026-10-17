@@ -42,6 +42,8 @@ func _process(dt: float) -> void:
 	since_fired += dt
 
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	var mb := e as InputEventMouseButton
 	var pressed: bool = e.is_action_pressed("flash") \
 		or (mb != null and mb.pressed and mb.button_index == MOUSE_BUTTON_RIGHT)

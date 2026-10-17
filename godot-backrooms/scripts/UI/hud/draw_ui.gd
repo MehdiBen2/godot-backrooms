@@ -477,6 +477,8 @@ func _say(text: String) -> void:
 
 # ---------------------------------------------------------------- open / close, mouse
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if open and e is InputEventKey and e.pressed and e.ctrl_pressed and e.physical_keycode in [KEY_Z, KEY_Y]:
 		if e.physical_keycode == KEY_Y or e.shift_pressed:
 			_redo()

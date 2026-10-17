@@ -1055,7 +1055,7 @@ func _input(e: InputEvent) -> void:
 		KEY_PAGEUP: _scroll_page(-1)
 		KEY_PAGEDOWN: _scroll_page(1)
 		_: return
-	get_viewport().set_input_as_handled()
+	if is_inside_tree(): get_viewport().set_input_as_handled()
 
 func _process(dt: float) -> void:
 	if not is_visible_in_tree():

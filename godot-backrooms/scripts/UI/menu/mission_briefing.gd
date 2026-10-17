@@ -450,6 +450,8 @@ func _draw_scope() -> void:
 	scope.draw_polyline(pts, Color(0.851, 0.643, 0.255, 0.75), 1.5)
 
 func _input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if not visible or not e.is_pressed() or e.is_echo():
 		return
 	if not (e is InputEventKey or e is InputEventMouseButton):

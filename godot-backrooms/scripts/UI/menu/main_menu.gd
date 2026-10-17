@@ -128,6 +128,7 @@ var idle_tw: Tween
 var idle_root: Control
 var idle_prompt: Label
 var corner_tw: Tween
+var last_tick_time := 0.0               # cooldown: the hover tick must not fire faster than this
 var group := "main"                     # which entry list is up: "main" or "sub" (Settings categories)
 var group_tw: Tween
 var group_filler: Control
@@ -154,6 +155,9 @@ var music: AudioStreamPlayer             # the looping bed (ambient1), created o
 var intro_music: AudioStreamPlayer      # the one-shot intro track
 var music_fade: Tween                   # the live volume tween on whichever track(s) are audible
 var handover: Tween                     # the scheduled intro -> bed crossfade
+static var _load_music_player: AudioStreamPlayer
+static var _load_music_tween: Tween
+static var _load_music_fading := false
 var push_black: ColorRect               # PLAY: fades in over the whole title screen before the loading screen
 var settings_menu                       # scripts/UI/menu.gd instance in embedded mode
 var crt: Control
@@ -383,29 +387,13 @@ func _build() -> void:
 	add_child(settings_menu)
 	settings_menu.panel_changed.connect(_on_panel_changed)
 
-	# Camcorder lens over everything (text included): fisheye, chroma fringe, tape tear, grain
+	# Camcorder lens over everything (text included): chroma fringe, tape tear, grain
 	var fx := ColorRect.new()
 	var mat := ShaderMaterial.new()
 	mat.shader = _fx_shader()
-	mat.set_shader_parameter("fisheye", 0.0)      # the bend comes from the VHS layer below instead (one warp, not two)
 	fx.material = mat
 	add_child(fx)
 	_full(fx)
-	# The loading screen's VHS smear, turned well down so every line of the menu stays readable, with a slight
-	# fish-eye. A fresh screen copy first: the lens above already took this frame's.
-	var fresh := BackBufferCopy.new()
-	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	add_child(fresh)
-	var vhs := ColorRect.new()
-	var vhs_mat := ShaderMaterial.new()
-	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs_mat.set_shader_parameter("smear", MENU_SMEAR)
-	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
-	vhs_mat.set_shader_parameter("blur_samples", 9)
-	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
-	vhs.material = vhs_mat
-	add_child(vhs)
-	_full(vhs)
 
 	click = AudioStreamPlayer.new()
 	click.stream = load("res://audio/ui/ui_click.wav")
@@ -475,7 +463,7 @@ func _menu_item(col: Control, text: String, hint: String, panel: String, action:
 		b.add_theme_stylebox_override(n, StyleBoxEmpty.new())
 	var f := _font(8)
 	var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 34).x
-	b.custom_minimum_size = Vector2(w + SLIDE + 12, ROW_H)
+	b.custom_minimum_size = Vector2(620, ROW_H)
 	col.add_child(b)
 
 	var inner := Control.new()
@@ -505,8 +493,18 @@ func _menu_item(col: Control, text: String, hint: String, panel: String, action:
 	items.append({"button": b, "inner": inner, "label": l, "mark": mark, "hint": h, "panel": panel, "action": action, "group": group, "tw": null})
 	b.mouse_entered.connect(func(): _select(i))
 	b.mouse_exited.connect(func():
-		if sel == i: _select(-1))
+		if sel == i:
+			call_deferred("_check_mouse_leave", i))
 	b.pressed.connect(_activate.bind(i))
+
+func _check_mouse_leave(i: int) -> void:
+	if sel == i:
+		for it in items:
+			var btn: Button = it["button"]
+			if btn.visible and btn.get_global_rect().has_point(btn.get_global_mouse_position()):
+				return
+		if active_panel == "":
+			_select(-1)
 
 func _select(i: int) -> void:
 	if i == sel or busy:
@@ -517,8 +515,11 @@ func _select(i: int) -> void:
 		_item_state(prev)
 	if i >= 0:
 		_item_state(i)
-		tick.pitch_scale = randf_range(1.45, 1.55)
-		tick.play()
+		var now := Time.get_ticks_msec() / 1000.0
+		if now - last_tick_time >= 0.08:          # debounce: don't spam when the mouse wobbles on an edge
+			last_tick_time = now
+			tick.pitch_scale = randf_range(1.45, 1.55)
+			tick.play()
 
 ## Lit = selected, or its panel is open. Only the selected one shows its caption.
 func _item_state(i: int) -> void:
@@ -807,12 +808,8 @@ void fragment() {
 	float tear = smoothstep(0.045, 0.0, abs(UV.y - band)) * tear_on;
 	float jitter = (h(vec2(tt, floor(UV.y * 90.0))) - 0.5) * 0.02 * tear + wobble;
 
-	// barrel / fish-eye: centre magnified slightly, edges squeezed. Scale is 0.985 in the middle and
-	// exactly 1.0 at the corners, so it never samples outside the screen. Kept subtle (as opposed to the
-	// original 0.94/0.12) so the visual warp stays close enough to true layout for buttons near the edges
-	// (e.g. the panel's CLOSE link) to still be clickable where they look clickable.
-	vec2 uv = 0.5 + c * (0.985 + fisheye * r2);
-	uv.x += jitter;
+	// Keep 1:1 screen mapping so buttons and sliders match their exact physical hitboxes
+	vec2 uv = UV;
 
 	// chromatic aberration: a hair of split growing with r^2, so text near the edge stays readable
 	vec2 dir = c * r2 * fringe;
@@ -841,6 +838,7 @@ void fragment() {
 func _start_music() -> void:
 	if not ResourceLoader.exists(INTRO_PATH) or not ResourceLoader.exists(BED_PATH):
 		return
+	_stop_loading_music()
 	# Coming back from a run leaves the game's Master bus effects (compressor, low-pass, death muffle)
 	# behind. The menu music is played clean, so strip them.
 	while AudioServer.get_bus_effect_count(0) > 0:
@@ -999,23 +997,67 @@ func _start_loading(fade := false) -> void:
 	_preload_game()
 	_play_loading_music()
 
-## The menu's start track again, under the loading screen: it fades in, plays to its end and fades out over the
-## last LOAD_FADE seconds. It lives on the root and a tree-wide tween, so it carries on into the run.
+## The menu's start track again, under the loading screen: it fades in while loading, and fades out over LOAD_FADE
+## seconds once the level finishes loading (or on entering the level).
 func _play_loading_music() -> void:
 	if not ResourceLoader.exists(INTRO_PATH):
 		return
+	_stop_loading_music()
 	var p := AudioStreamPlayer.new()
+	p.name = "LoadingMusicPlayer"
 	p.stream = load(INTRO_PATH)
 	p.bus = "Master"
 	p.volume_db = -60.0
 	get_tree().root.add_child.call_deferred(p)     # (the root is still setting up children when an editor launch gets here from _ready)
 	p.play.call_deferred()
+	_load_music_player = p
+	_load_music_fading = false
 	var secs := p.stream.get_length()
 	var tw := get_tree().create_tween()
+	_load_music_tween = tw
 	tw.tween_property(p, "volume_db", MUSIC_DB, minf(1.0, secs * 0.25))
+	# Fallback fade-out if the screen is kept open for the track's entire duration
 	tw.tween_interval(maxf(secs - LOAD_FADE - 1.0, 0.0))
 	tw.tween_property(p, "volume_db", -80.0, LOAD_FADE)
-	tw.tween_callback(p.queue_free)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(p):
+			p.queue_free()
+		if _load_music_player == p:
+			_load_music_player = null)
+
+static func _fade_loading_music(fade_time: float = LOAD_FADE) -> void:
+	if _load_music_fading:
+		return
+	_load_music_fading = true
+	if _load_music_tween and _load_music_tween.is_valid():
+		_load_music_tween.kill()
+		_load_music_tween = null
+	var p := _load_music_player
+	if not is_instance_valid(p):
+		_load_music_player = null
+		return
+	p.set_meta("fading", true)
+	if p.is_inside_tree():
+		var tw := p.create_tween()
+		_load_music_tween = tw
+		tw.tween_property(p, "volume_db", -80.0, fade_time)
+		tw.tween_callback(func() -> void:
+			if is_instance_valid(p):
+				p.queue_free()
+			if _load_music_player == p:
+				_load_music_player = null)
+	else:
+		p.queue_free()
+		_load_music_player = null
+
+static func _stop_loading_music() -> void:
+	_load_music_fading = false
+	if _load_music_tween and _load_music_tween.is_valid():
+		_load_music_tween.kill()
+		_load_music_tween = null
+	if is_instance_valid(_load_music_player):
+		_load_music_player.queue_free()
+	_load_music_player = null
 
 ## The run, loading on loader threads from the moment the title screen is up (and again here, for a level other
 ## than the one asked for then). Loading main.tscn compiles every script the run uses, ~57,000 lines of GDScript:
@@ -1098,6 +1140,7 @@ func _finish_loading() -> void:
 	var tree := get_tree()
 	var cover := _cover_from_screen()
 	LoadManifest.record(Game.level_index)      # (main.gd stops it once the run is up)
+	_fade_loading_music(LOAD_FADE)
 	tree.change_scene_to_packed(packed)
 	Stability.trace("play: change_scene_to_packed returned")
 	_fade_cover(tree, cover)
@@ -1136,6 +1179,8 @@ static func _fade_cover(tree: SceneTree, layer: CanvasLayer) -> void:
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if load_ready and e.is_pressed() and not e.is_echo() and (e is InputEventKey or e is InputEventMouseButton):
 		get_viewport().set_input_as_handled()
 		load_ready = false
@@ -1247,6 +1292,7 @@ func _loading_ready() -> void:
 	tw.tween_property(load_glow, "scale", Vector2(1.25, 1.25), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.chain().tween_property(load_glow, "scale", Vector2.ONE, 1.2).set_trans(Tween.TRANS_SINE)
 	load_status.text = "PRESS ANY KEY TO CONTINUE"
+	_fade_loading_music(LOAD_FADE)
 
 ## Slow life on an otherwise still screen: the halo breathes, LOADING's dots tick, the field note changes
 func _loading_motion(dt: float) -> void:

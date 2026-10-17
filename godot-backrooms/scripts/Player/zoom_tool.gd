@@ -103,6 +103,8 @@ func magnification() -> float:
 	return pow(zoom, smoothstep(0.0, 1.0, up))
 
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	var mb := e as InputEventMouseButton
 	if mb == null or not mb.pressed or not holding:
 		return

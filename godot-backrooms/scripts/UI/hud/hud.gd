@@ -674,6 +674,8 @@ func use_battery() -> void:
 	player.swap_battery(BatteryPickup.CHARGE)
 
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	var k := e as InputEventKey
 	var is_batt: bool = e.is_action_pressed("battery")
 	if is_batt and Game.playing and not Game.dead and player.lens_up <= 0.0 \

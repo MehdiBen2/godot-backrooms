@@ -150,12 +150,12 @@ func _section_title(text: String, first := false) -> Control:
 # ---- settings section (js/game/settings.js) -----------------------------------------
 func _slider_theme(s: HSlider) -> void:
 	var track := _box(Color(0.9, 0.882, 0.804, 0.25))
-	track.content_margin_top = 1; track.content_margin_bottom = 1
+	track.content_margin_top = 2; track.content_margin_bottom = 2
 	s.add_theme_stylebox_override("slider", track)
 	s.add_theme_stylebox_override("grabber_area", StyleBoxEmpty.new())
 	s.add_theme_stylebox_override("grabber_area_highlight", StyleBoxEmpty.new())
 	for pair in [["grabber", TITLE], ["grabber_highlight", RED]]:
-		var img := Image.create(8, 14, false, Image.FORMAT_RGBA8)
+		var img := Image.create(10, 18, false, Image.FORMAT_RGBA8)
 		img.fill(pair[1])
 		s.add_theme_icon_override(pair[0], ImageTexture.create_from_image(img))
 
@@ -163,7 +163,7 @@ func _slider_row(name: String, lo: int, hi: int, value: int, on_change: Callable
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var n := _label(name.to_upper(), 12, Color(0.9, 0.882, 0.804, 0.75), 2)
-	n.custom_minimum_size = Vector2(104, 0)
+	n.custom_minimum_size = Vector2(136, 0)
 	n.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(n)
 	var s := HSlider.new()
@@ -174,12 +174,13 @@ func _slider_row(name: String, lo: int, hi: int, value: int, on_change: Callable
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	# the row band is the target, not the 2px line drawn in the middle of it
-	s.custom_minimum_size = Vector2(0, 26)
+	s.custom_minimum_size = Vector2(0, 28)
 	s.focus_mode = Control.FOCUS_NONE
+	s.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_slider_theme(s)
 	row.add_child(s)
 	var v := _label(str(value), 12, Color(0.9, 0.882, 0.804, 0.6), 2)
-	v.custom_minimum_size = Vector2(30, 0)
+	v.custom_minimum_size = Vector2(36, 0)
 	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(v)

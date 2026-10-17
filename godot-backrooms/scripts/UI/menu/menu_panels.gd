@@ -297,6 +297,8 @@ var controls_hint: Label = null
 var keybind_buttons := {}
 
 func _input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if rebinding_action == "":
 		return
 	if not (e is InputEventKey and e.pressed and not e.echo):

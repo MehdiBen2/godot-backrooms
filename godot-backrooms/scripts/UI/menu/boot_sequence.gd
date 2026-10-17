@@ -232,6 +232,8 @@ func _wait(sec: float) -> void:
 		await get_tree().process_frame
 
 func _input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if not (e is InputEventKey or e is InputEventMouseButton or e is InputEventJoypadButton):
 		return
 	get_viewport().set_input_as_handled()  # nothing reaches the menu underneath while this runs

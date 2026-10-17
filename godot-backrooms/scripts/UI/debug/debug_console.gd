@@ -1464,6 +1464,8 @@ func _toggle(on: bool) -> void:
 func _input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):
 		return
+	if not is_inside_tree():
+		return
 
 	# code prompt up: only F1 / ESC are ours, everything else is typing into it
 	if gate.visible:

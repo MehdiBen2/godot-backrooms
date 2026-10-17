@@ -16,6 +16,8 @@ var return_yaw := 0.0
 var shapes: Array[CollisionShape3D] = []
 
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if not (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_F2 and not e.shift_pressed):
 		return
 	if not Game.playing or Game.dead or Death.respawn_busy:

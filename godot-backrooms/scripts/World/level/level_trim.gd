@@ -364,44 +364,7 @@ static func _area(pts: Array) -> float:
 ## Dark brown vinyl, matte: a pebbled rubber strip, scuffed and uneven, that takes the light like the wall
 ## above it. Kept rough with little specular: a glossy one mirrored the bright ceiling at a low camera
 ## (crawling) and read as a white stripe whatever the light on it.
-## The same on every floor: made once (its two noise textures are worked out pixel by pixel)
-static var _skirt_mat: StandardMaterial3D
-func _skirt_material() -> StandardMaterial3D:
-	if _skirt_mat != null: return _skirt_mat
-	var m := StandardMaterial3D.new()
-	_skirt_mat = m
-	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
-	m.roughness = 0.92
-	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera
-	var grain := FastNoiseLite.new()
-	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	grain.frequency = 0.35                 # fine: it was big blotches at the wall's scale, which read as marble
-	grain.fractal_octaves = 3
-	var tex := NoiseTexture2D.new()
-	tex.noise = grain
-	tex.width = 256
-	tex.height = 256
-	tex.seamless = true
-	m.albedo_texture = tex                  # the scuffs and the dirt: light and dark patches over the brown
-	var pebble := FastNoiseLite.new()
-	pebble.noise_type = FastNoiseLite.TYPE_CELLULAR
-	pebble.frequency = 0.22
-	pebble.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
-	var bump := NoiseTexture2D.new()
-	bump.noise = pebble
-	bump.width = 256
-	bump.height = 256
-	bump.seamless = true
-	bump.as_normal_map = true
-	bump.bump_strength = 6.0
-	m.normal_enabled = true
-	m.normal_texture = bump                 # the pebbled rubber: catches a torch beam in a fine grain
-	m.normal_scale = 0.45
-	m.ao_enabled = false
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3.ONE * 2.5
-	return m
+
 
 # ---------------------------------------------------------------- the drop ceiling's wall angle
 # A suspended ceiling's grid doesn't keep to the walls: the tiles round a room's edge are cut to fit, and their cut

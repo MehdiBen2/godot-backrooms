@@ -890,6 +890,8 @@ func _scatter(make: Callable, per_cells: int, lo: int, hi: int) -> void:
 ## Level keys: F1 previous level, PageDown next level (F2 is the hills portal, hills_portal.gd), F3 teleport to this level's exit.
 ## Also on for editor test launches (--noclip), so they work in a released build.
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if not (Game.dev_keys or Game.noclip) or not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	if not e.shift_pressed:

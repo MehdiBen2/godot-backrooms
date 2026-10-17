@@ -35,6 +35,12 @@ func _ready() -> void:
 	else:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
+	var lm = get_tree().root.get_node_or_null("LoadingMusicPlayer")
+	if lm and is_instance_valid(lm) and not lm.has_meta("fading"):
+		lm.set_meta("fading", true)
+		var tw := lm.create_tween()
+		tw.tween_property(lm, "volume_db", -80.0, 1.5)
+		tw.tween_callback(lm.queue_free)
 	preload("res://scripts/GameLogicEngine/load_manifest.gd").finish(get_tree())    # what this build read, kept for next time
 
 ## Co-op: a player who died comes back beside the nearest living teammate instead of at the level's start
@@ -82,7 +88,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		# left button, so scrolling the wheel or a stray right click never drops you back into the run.
 		if not ui.menu.close_panel():
 			set_paused(false)
-		get_viewport().set_input_as_handled()   # the click that closes the menu must not also respawn you
+		if is_inside_tree(): get_viewport().set_input_as_handled()   # the click that closes the menu must not also respawn you
 
 # Alt-tab or a click on another window mid-run: pause, rather than leave you unable to move while
 # it keeps hunting

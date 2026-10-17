@@ -378,7 +378,7 @@ func play_sfx(k: String) -> void:
 
 # ---------------------------------------------------------------- input
 func _input(e: InputEvent) -> void:
-	if not session:
+	if not is_inside_tree() or not session:
 		return
 	if e is InputEventKey:
 		var k := e as InputEventKey

@@ -1868,6 +1868,46 @@ func _plaster_mat() -> StandardMaterial3D:
 		_plaster.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	return _plaster
 
+## The dark vinyl cove base / skirting material: a matte near-black strip with fine grain noise and cellular rubber bump
+static var _skirt_mat: StandardMaterial3D
+func _skirt_material() -> StandardMaterial3D:
+	if _skirt_mat != null: return _skirt_mat
+	var m := StandardMaterial3D.new()
+	_skirt_mat = m
+	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
+	m.roughness = 0.92
+	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera
+	var grain := FastNoiseLite.new()
+	grain.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	grain.frequency = 0.35                 # fine: it was big blotches at the wall's scale, which read as marble
+	grain.fractal_octaves = 3
+	var tex := NoiseTexture2D.new()
+	tex.noise = grain
+	tex.width = 256
+	tex.height = 256
+	tex.seamless = true
+	m.albedo_texture = tex                  # the scuffs and the dirt: light and dark patches over the brown
+	var pebble := FastNoiseLite.new()
+	pebble.noise_type = FastNoiseLite.TYPE_CELLULAR
+	pebble.frequency = 0.22
+	pebble.cellular_return_type = FastNoiseLite.RETURN_DISTANCE
+	var bump := NoiseTexture2D.new()
+	bump.noise = pebble
+	bump.width = 256
+	bump.height = 256
+	bump.seamless = true
+	bump.as_normal_map = true
+	bump.bump_strength = 6.0
+	m.normal_enabled = true
+	m.normal_texture = bump                 # the pebbled rubber: catches a torch beam in a fine grain
+	m.normal_scale = 0.45
+	m.ao_enabled = false
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3.ONE * 2.5
+	return m
+
+
 # An invisible event trigger (props/event_trigger.gd): the box `depth` cells along its arrow by `scale`
 # across, watching for the player
 func _build_trigger(o: Dictionary) -> void:
@@ -2091,7 +2131,8 @@ func _build_stairs(o: Dictionary, veiled := false) -> Node3D:
 	await s.build(self, ends, f, room_h, {
 		"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h),
 		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
-		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
+		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat,
+		"skirt": _skirt_material()})
 	if not veiled: stairwells.append(s)
 	return s
 
@@ -2138,7 +2179,10 @@ func stair_skin(o: Dictionary) -> Node3D:
 	var room_h := _stair_room_h(o)
 	var s := Stairs.new()
 	s.transform = _stair_xf(o)
-	s.build_outside(room_h, {"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h), "trim": door_frame_mat, "metal": door_hw_mat})
+	s.build_outside(room_h, {
+		"wall": _stair_paper(), "room_wall": _wall_mat_for(room_h),
+		"trim": door_frame_mat, "metal": door_hw_mat,
+		"skirt": _skirt_material()})
 	return s
 
 # Where two open cells have different ceiling heights, a wallpapered drop closes the gap
@@ -2231,15 +2275,7 @@ func _build_ceiling_steps() -> void:
 		body.add_child(cs)
 	if trims.is_empty(): return
 	# the same dark vinyl as the skirting (level_trim.gd), so it is lit like it: a cream one read as a glowing white bar
-	var tm: Material
-	if has_method("_skirt_material"):
-		tm = call("_skirt_material")
-	else:
-		var sm := StandardMaterial3D.new()
-		sm.albedo_color = Color(0.17, 0.145, 0.12)
-		sm.roughness = 1.0
-		sm.metallic_specular = 0.0
-		tm = sm
+	var tm: Material = _skirt_material()
 	var box := BoxMesh.new()
 	_chunked(trims, func(t: Dictionary) -> Vector3: return Vector3(t.x, t.y, t.z), "", func(list: Array) -> MultiMeshInstance3D:
 		var mm := MultiMesh.new()

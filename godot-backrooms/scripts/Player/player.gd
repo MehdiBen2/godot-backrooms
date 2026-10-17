@@ -453,7 +453,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		if focused_door != null and focused_door.has_method("interact"):
 			focused_door.interact(self)
 			_sync_flashlight_aim(0.35)
-			get_viewport().set_input_as_handled()
+			if is_inside_tree(): get_viewport().set_input_as_handled()
 
 func _process(delta: float) -> void:
 	var _pt := Time.get_ticks_usec()

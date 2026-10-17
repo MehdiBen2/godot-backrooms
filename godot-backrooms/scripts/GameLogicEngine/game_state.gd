@@ -245,6 +245,8 @@ func _clear_overlay() -> void:
 	_overlay = null
 
 func _unhandled_input(e: InputEvent) -> void:
+	if not is_inside_tree():
+		return
 	if not dead or not playing:     # the pause menu is open over the death screen: it has the input
 		return
 	if _death_t < RESPAWN_READY:
