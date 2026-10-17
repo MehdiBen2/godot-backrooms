@@ -65,8 +65,9 @@ var slice_usec := 0
 var _slice_from := 0
 
 func _slice() -> void:
+	if slice_usec > 0 and Time.get_ticks_usec() - _slice_from > 30000: print("SLICEPROBE %.1f ms before %s" % [(Time.get_ticks_usec() - _slice_from) / 1000.0, str(get_stack().slice(1, 3))]) #PROBE
 	if slice_usec <= 0 or Time.get_ticks_usec() - _slice_from < slice_usec: return
-	await get_tree().process_frame
+	await (Engine.get_main_loop() as SceneTree).process_frame      # (a look-only floor is built out of the tree)
 	_slice_from = Time.get_ticks_usec()
 var through := {}         # Vector2i -> true: this floor's pits that open into the floor below
 var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
@@ -893,20 +894,25 @@ func sight_blocked(a: Vector2, b: Vector2) -> bool:
 	if _sight.is_empty(): return false
 	for x in range(floori(minf(a.x, b.x)), floori(maxf(a.x, b.x)) + 1):
 		for z in range(floori(minf(a.y, b.y)), floori(maxf(a.y, b.y)) + 1):
-			for sp: Array in _sight.get(Vector2i(x, z), []):
+			var here = _sight.get(Vector2i(x, z))      # (no default: a .get(k, []) makes an Array every miss)
+			if here == null: continue
+			for sp: Array in here:
 				if Geometry2D.segment_intersects_segment(a, b, sp[0], sp[1]) != null: return true
 	return false
 
 ## How far (metres) floor-plan point `p` (world x / z, metres) is from the face of the nearest such wall within
 ## `reach` metres (INF: none that near)
 func wall_gap(p: Vector2, reach := 6.0) -> float:
+	if _sight.is_empty(): return INF
 	var q := p / CELL
 	var r := ceili(reach / CELL)
 	var c := Vector2i(floori(q.x), floori(q.y))
 	var best := INF
 	for x in range(c.x - r, c.x + r + 1):
 		for z in range(c.y - r, c.y + r + 1):
-			for sp: Array in _sight.get(Vector2i(x, z), []):
+			var here = _sight.get(Vector2i(x, z))
+			if here == null: continue
+			for sp: Array in here:
 				var d := Geometry2D.get_closest_point_to_segment(q, sp[0], sp[1]).distance_to(q) * CELL - float(sp[2])
 				best = minf(best, d)
 	return best

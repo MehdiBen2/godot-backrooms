@@ -1317,7 +1317,7 @@ func _op_measure(kind: String, v: float, undo := true) -> void:
 	var op: Dictionary = wall_graph.edges[e].ops[wsel_op.i]
 	var l: float = wall_graph.length_of(e) * CELL_M
 	# (a model window keeps its own proportions: its width and height go together)
-	var model := str(op.kind) == "window" and WallGraph.MODEL_WINDOWS.has(str(op.get("style", "")))
+	var model: bool = str(op.kind) == "window" and WallGraph.MODEL_WINDOWS.has(str(op.get("style", "")))
 	if model and kind == "op_h":
 		kind = "op_w"
 		v = maxf(v, 0.3) / WallGraph.model_window_h(str(op.style), 1.0)

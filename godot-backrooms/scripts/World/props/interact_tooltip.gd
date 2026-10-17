@@ -63,26 +63,36 @@ func _label3d(text: String, size: int, px: float, color: Color) -> Label3D:
 	l.set_meta("gfx_managed", true)
 	return l
 
+## The soft dark pad behind every tooltip: one texture for all of them. Each tooltip made its own 640 px
+## GradientTexture2D, worked out pixel by pixel on the CPU the frame after it was made, so the dozen pickups a
+## new floor scatters cost a few hundred milliseconds in one frame. A soft radial blur needs far fewer pixels.
+const PAD_PX := 128
+static var _pad: GradientTexture2D
+
+static func _pad_texture() -> GradientTexture2D:
+	if _pad != null: return _pad
+	var grad := Gradient.new()
+	grad.set_color(0, Color(0, 0, 0, 0.95))
+	grad.set_color(1, Color(0, 0, 0, 0))
+	grad.add_point(0.55, Color(0, 0, 0, 0.85))
+	_pad = GradientTexture2D.new()
+	_pad.gradient = grad
+	_pad.fill = GradientTexture2D.FILL_RADIAL
+	_pad.fill_from = Vector2(0.5, 0.5)
+	_pad.fill_to = Vector2(1.0, 0.5)
+	_pad.width = PAD_PX
+	_pad.height = PAD_PX
+	return _pad
+
 func _build_prompt() -> void:
 	prompt = Node3D.new()
 	prompt.top_level = true              # positioned in world space so it can trail the camera
 	prompt.visible = false
 	add_child(prompt)
 	# soft dark pad behind the text so the flashlight's glare on the carpet can't wash it out
-	var grad := Gradient.new()
-	grad.set_color(0, Color(0, 0, 0, 0.95))
-	grad.set_color(1, Color(0, 0, 0, 0))
-	grad.add_point(0.55, Color(0, 0, 0, 0.85))
-	var tex := GradientTexture2D.new()
-	tex.gradient = grad
-	tex.fill = GradientTexture2D.FILL_RADIAL
-	tex.fill_from = Vector2(0.5, 0.5)
-	tex.fill_to = Vector2(1.0, 0.5)
-	tex.width = 640
-	tex.height = 640
 	backdrop = Sprite3D.new()
-	backdrop.texture = tex
-	backdrop.pixel_size = 0.00042
+	backdrop.texture = _pad_texture()
+	backdrop.pixel_size = 0.00042 * 640.0 / PAD_PX     # (the size a 640 px pad had)
 	backdrop.scale = Vector3(1.0, 0.3, 1.0)    # squashed into a wide soft ellipse
 	backdrop.position = Vector3(0, -0.03, 0)
 	backdrop.billboard = BaseMaterial3D.BILLBOARD_ENABLED

@@ -643,13 +643,21 @@ func _default_tile_material() -> StandardMaterial3D:
 func _merge_rects(must: Dictionary, may := {}) -> Array[Rect2i]:
 	var free := must.duplicate()
 	var fill := may.duplicate()
-	var keys := free.keys()
-	keys.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
+	# row by row: sorted as packed numbers (row << 20 | column), a native sort; a sort_custom with a GDScript
+	# comparison was tens of milliseconds on a big floor
+	var order := PackedInt64Array()
+	order.resize(free.size())
+	var k := 0
+	for c: Vector2i in free:
+		order[k] = (c.y << 20) | c.x
+		k += 1
+	order.sort()
 	var out: Array[Rect2i] = []
-	var i := 0
-	for c: Vector2i in keys:
-		i += 1
-		if i % 128 == 0: await _slice()
+	var n_done := 0
+	for key in order:
+		n_done += 1
+		if n_done % 128 == 0: await _slice()
+		var c := Vector2i(key & 0xFFFFF, key >> 20)
 		if not free.has(c): continue
 		var x_end := (floori(float(c.x) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
 		var y_end := (floori(float(c.y) / COLLIDER_CHUNK) + 1) * COLLIDER_CHUNK
@@ -677,7 +685,10 @@ func _merge_rects(must: Dictionary, may := {}) -> Array[Rect2i]:
 
 ## One box per merged rectangle of cells, `thick` tall and centred at height `y`
 func _add_merged_boxes(body: StaticBody3D, rects: Array[Rect2i], thick: float, y: float) -> void:
+	var n_done := 0
 	for r in rects:
+		n_done += 1
+		if n_done % 64 == 0: await _slice()
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = Vector3(r.size.x * CELL, thick, r.size.y * CELL)
@@ -694,7 +705,7 @@ func _build_floor_collision(floor_cells: Array) -> void:
 	# Floor collision: thin slabs merged over runs of floor cells (pits stay open)
 	var body := StaticBody3D.new()
 	add_child(body)
-	_add_merged_boxes(body, await _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
+	await _add_merged_boxes(body, await _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
 ## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
@@ -708,7 +719,7 @@ func _build_ceiling_collision(floor_cells: Array) -> void:
 		if open_above.has(c): continue   # a hole in the floor above: you come down through here
 		by_height.get_or_add(ceiling_height(c), {})[c] = true
 	for ch: float in by_height:
-		_add_merged_boxes(body, await _merge_rects(by_height[ch]), 0.4, ch + 0.2)
+		await _add_merged_boxes(body, await _merge_rects(by_height[ch]), 0.4, ch + 0.2)
 
 ## The sides of the holes through the slabs: under this floor's own through-pits down to the ceiling of the
 ## floor below, and over this floor's ceiling up to the hole in the floor above. Someone falling through is
@@ -753,6 +764,7 @@ func _build_occluder(groups: Dictionary) -> void:
 			chunks.get_or_add(ch, []).append([c, h_val])
 
 	for ch in chunks:
+		await _slice()
 		var cell_list: Array = chunks[ch]
 		var verts := PackedVector3Array()
 		var idx := PackedInt32Array()
@@ -853,10 +865,10 @@ func _build_hotel_insets() -> void:
 func _build_walls() -> void:
 	_build_hotel_insets()
 	var groups := {WALL_H: [], TALL_H: [], GRAND_H: []}
-	var i := 0
+	var n_done := 0
 	for c: Vector2i in walls.keys():
-		i += 1
-		if i % 512 == 0: await _slice()
+		n_done += 1
+		if n_done % 512 == 0: await _slice()
 		if not _block_at(c): continue     # a door / thin wall object or a stairwell stands here instead of a solid block
 		var exposed := false
 		var reach := WALL_H               # as high as the tallest room it faces
@@ -872,7 +884,7 @@ func _build_walls() -> void:
 	if edge_wrap:
 		for height in groups.keys():
 			groups[height] = (groups[height] as Array).filter(func(c: Vector2i) -> bool: return not wrap_ring.has(c))
-	_build_occluder(groups)
+	await _build_occluder(groups)
 	# cells painted with a material get their own group per (height, material)
 	var pw := painted("wall")
 	if not pw.is_empty():
@@ -997,7 +1009,10 @@ func _wall_block(height: float, round_mask: int) -> Mesh:
 ## let a thick wall become one box instead of a ring of them.
 func _build_wall_collision(groups: Dictionary) -> void:
 	var buried := {}
+	var n_done := 0
 	for c: Vector2i in walls.keys():
+		n_done += 1
+		if n_done % 512 == 0: await _slice()
 		if _block_at(c): buried[c] = true
 	for height in groups.keys():
 		for c in groups[height]: buried.erase(c)
@@ -1005,7 +1020,7 @@ func _build_wall_collision(groups: Dictionary) -> void:
 	add_child(body)
 	for height: float in groups.keys():
 		if groups[height].is_empty(): continue
-		_add_merged_boxes(body, await _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
+		await _add_merged_boxes(body, await _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,
 # facing +X (the way you walk through it) and spanning `scale` cells along Z, then placed with
@@ -1020,12 +1035,20 @@ func _build_objects() -> void:
 	var pools: Array = []
 	var pipes: Array = []
 	var risers: Array = []
+	# the stairwells first. Built a slice at a time they are kept out of sight and out of the physics until all
+	# of them stand, then a well kept from the floor before (the one you are standing in) gives way to its
+	# replacement in one frame (_swap_wells)
+	var wells: Array = []
 	for o: Dictionary in objects:
+		if o.type == "stairs_up" or o.type == "stairs_down": wells.append(await _build_stairs(o, slice_usec > 0))
+	_swap_wells(wells)
+	for o: Dictionary in objects:
+		await _slice()
 		match o.type:
 			"door": _build_door(o)
 			"arch": arch.append(o)
 			"squeeze_gap": _build_squeeze(o)
-			"stairs_up", "stairs_down": _build_stairs(o)
+			"stairs_up", "stairs_down": pass
 			"survey_note":
 				if not shell: _build_survey_note(o)
 			"entity":
@@ -1569,12 +1592,23 @@ func _build_openings(sol: Dictionary, holes: Dictionary) -> void:
 				var mi := MeshInstance3D.new()
 				mi.mesh = OpeningTrim.build(h, cv, trim)
 				mi.material_override = door_frame_mat
+				if kind == "window" and WindowPiece.fits_by_glass(str(op.get("style", ""))):
+					mi.material_override = _model_lining_mat()   # (seen between its sash and its sill: part of its frame)
 				add_child(mi)
 			var xf := WallOpenings.frame_of(h, cv)
 			var clear := (WallGeom.point(cv, h.t0) as Vector2).distance_to(WallGeom.point(cv, h.t1))
 			match kind:
 				"door": _build_wall_door(op, h, xf, clear)
 				"window": _build_wall_window(op, h, cv, xf)
+
+## The lining in the hole of a window model (props/window.gd MODEL_FRAMES "open"): its old dark-stained wood
+var _model_lining: StandardMaterial3D
+func _model_lining_mat() -> StandardMaterial3D:
+	if _model_lining == null:
+		_model_lining = StandardMaterial3D.new()
+		_model_lining.albedo_color = Color(0.2, 0.11, 0.06)
+		_model_lining.roughness = 0.7
+	return _model_lining
 
 func _build_wall_door(op: Dictionary, h: Dictionary, xf: Transform3D, clear: float) -> void:
 	var leaf_w := clear - LINING_T * 2.0
@@ -2034,10 +2068,13 @@ func _build_door(o: Dictionary) -> void:
 # flight up to the next floor wherever that floor has a stairwell on the same cells, and a flight down likewise.
 # What it is given of the floors above and below is their end of the well, so the part the two floors share
 # is built the same on both: the floor is swapped under you half way up, and nothing you can see changes.
-func _build_stairs(o: Dictionary) -> void:
+## `veiled`: built a slice at a time (level_data.gd _slice), out of sight and out of the physics until
+## _swap_wells puts it in place
+func _build_stairs(o: Dictionary, veiled := false) -> Node3D:
 	if shell:
-		add_child(stair_skin(o))
-		return
+		var skin := stair_skin(o)
+		add_child(skin)
+		return skin
 	var f := floor_no
 	var ends := {}                          # floors up from here (-1, 0, 1) -> that floor's end of the well
 	ends[0] = o
@@ -2047,6 +2084,9 @@ func _build_stairs(o: Dictionary) -> void:
 	var room_h := _stair_room_h(o)
 	var s := Stairs.new()
 	s.transform = _stair_xf(o)
+	if veiled:
+		s.visible = false
+		s.process_mode = Node.PROCESS_MODE_DISABLED     # (its colliders stay out of the physics too)
 	add_child(s)
 	# inside, the plain wallpaper, without the room walls' baked skirting and ceiling shadow (the well has its own
 	# boards, and they would hang in mid-air beside a flight)
@@ -2056,11 +2096,27 @@ func _build_stairs(o: Dictionary) -> void:
 		paper.roughness = 0.95
 		paper.normal_scale = 0.95
 		paper.metallic_specular = 0.28
-	s.build(self, ends, f, room_h, {
+	await s.build(self, ends, f, room_h, {
 		"wall": paper, "room_wall": _wall_mat_for(room_h),
 		"floor": _pbr_or("floor") if _has_pbr("floor") else _mat("l0_carpet", Vector3(0.5, 0.5, 0.5), Color(1.0, 0.94, 0.75)),
 		"plaster": _plaster_mat(), "trim": door_frame_mat, "wood": door_leaf_mat, "metal": door_hw_mat})
-	stairwells.append(s)
+	if not veiled: stairwells.append(s)
+	return s
+
+## The stairwell kept from the floor before (level_builder.gd: the one you are standing in, moved a storey with
+## you) gives way to this floor's, built out of sight (_build_stairs `veiled`): the same frame, so there is never
+## a frame with both drawn or with neither under your feet
+var well_to_replace: Node = null
+func _swap_wells(wells: Array) -> void:
+	if well_to_replace != null and is_instance_valid(well_to_replace):
+		stairwells.erase(well_to_replace)
+		well_to_replace.free()
+	well_to_replace = null
+	for s: Node3D in wells:
+		if shell or not (s is Stairs) or s.process_mode != Node.PROCESS_MODE_DISABLED: continue
+		s.visible = true
+		s.process_mode = Node.PROCESS_MODE_INHERIT
+		stairwells.append(s)
 
 ## The ceiling a stairwell's box has to reach: the highest round it
 func _stair_room_h(o: Dictionary) -> float:

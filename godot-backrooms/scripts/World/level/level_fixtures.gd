@@ -322,10 +322,10 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 	var by_cell := {}
 	for f: Dictionary in fx: by_cell[Vector2i(roundi(f.pos.x / CELL), roundi(f.pos.z / CELL))] = f
 	# 1: off the walls
-	var i := 0
+	var n_done := 0
 	for f: Dictionary in fx:
-		i += 1
-		if i % 64 == 0: await _slice()
+		n_done += 1
+		if n_done % 64 == 0: await _slice()
 		if not real.call(f): continue
 		var lp := Vector2(f.light_pos.x, f.light_pos.z)
 		if wall_gap(lp) >= LIGHT_CLEAR: continue
@@ -446,7 +446,9 @@ func _lit_near(lights: Dictionary, p: Vector2, reach: float) -> bool:
 	var c := Vector2i(floori(p.x / CELL), floori(p.y / CELL))
 	for x in range(c.x - 2, c.x + 3):
 		for z in range(c.y - 2, c.y + 3):
-			for q: Vector2 in lights.get(Vector2i(x, z), []):
+			var here = lights.get(Vector2i(x, z))      # (no default: a .get(k, []) makes an Array every miss)
+			if here == null: continue
+			for q: Vector2 in here:
 				if q.distance_to(p) <= reach and _open_between(p, q): return true
 	return false
 

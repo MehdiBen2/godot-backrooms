@@ -68,12 +68,13 @@ void fragment() {
 			col = mix(col, f.rgb * figure_light * exp(-figure_depth * 0.9), f.a);
 		}
 	}
-	// the glass: a film of dust and dried spots on it, catching the room's light
+	// the glass: no colour of its own (light goes through it, into the dark), only a mirror; small dried spots and
+	// a faint film of dust soften the highlights a little and catch a trace of the room's light
 	vec3 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec2 gp = world.xz * 0.7 + world.yy * 1.3;
-	float spots = smoothstep(0.62, 0.8, noise(gp * 9.0)) * 0.5 + smoothstep(0.55, 0.9, fbm(gp * 2.0)) * 0.5;
-	ALBEDO = vec3(0.012) + vec3(0.05) * spots;
-	ROUGHNESS = 0.05 + spots * 0.3;
+	float spots = smoothstep(0.7, 0.85, noise(gp * 26.0)) * 0.6 + smoothstep(0.6, 0.9, fbm(gp * 5.0)) * 0.4;
+	ALBEDO = vec3(0.006) * spots;
+	ROUGHNESS = 0.03 + spots * 0.08;
 	METALLIC = 0.0;
 	SPECULAR = 0.5;
 	EMISSION = col;

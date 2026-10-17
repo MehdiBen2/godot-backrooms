@@ -100,14 +100,20 @@ func build(level: Node, ends: Dictionary, f: int, room_h: float, mats: Dictionar
 	var lo := -STOREY if down else 0.0
 	var hi := maxf(room_h, (STOREY if up else 0.0) + HEADROOM)
 	_shell(room_h, lo, hi)
+	await _slice()
 	_front_landing(0, me, up, down, true)
 	if up:
-		_storey(0, me)
+		await _storey(0, me)
 		_front_landing(1, ends[1], false, true, false)
 	if down:
-		_storey(-1, ends[-1])
+		await _storey(-1, ends[-1])
 		_front_landing(-1, ends[-1], true, false, false)
-	_commit()
+	await _commit()
+
+## A floor built while you walk on is built a slice a frame (level_data.gd _slice): so is its stairwell, out of
+## sight, then put in place of the one you are standing in all in one frame (level_geometry.gd _build_objects)
+func _slice() -> void:
+	if _level != null: await _level._slice()
 
 ## Only the box the room sees, for a floor that is looked at and not walked on (level_shell.gd): its stair is
 ## the one the floor you are on builds, right through this floor. `mats`: room_wall, trim, metal.
@@ -122,6 +128,7 @@ func build_outside(room_h: float, mats: Dictionary) -> void:
 
 func _commit() -> void:
 	for mat: Material in _st:
+		await _slice()
 		var mi := MeshInstance3D.new()
 		mi.mesh = (_st[mat] as SurfaceTool).commit()
 		mi.material_override = mat
@@ -210,7 +217,9 @@ func _storey(k: int, o: Dictionary) -> void:
 	var mid := y + HALF
 	var top := mid + HEADROOM
 	_flight(look, o, SIDE, XA, XB, y)
+	await _slice()
 	_flight(look, o, -SIDE, XB, XA, mid)
+	await _slice()
 	_solid(Vector3((XB - TREAD * 0.5 + X1) * 0.5, mid - 0.15, 0), Vector3(X1 - XB + TREAD * 0.5, 0.3, HW * 2.0))
 	_solid(Vector3((XB + IN1) * 0.5, top + 0.1, 0), Vector3(LANDING, 0.2, HW * 2.0))
 	_quad(look.floor, Vector3(XB, mid, -HW), Vector3(IN1, mid, -HW), Vector3(IN1, mid, HW), Vector3(XB, mid, HW), Vector3.UP)

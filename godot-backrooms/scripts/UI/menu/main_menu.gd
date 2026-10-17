@@ -22,6 +22,7 @@ const PUSH_ZOOM := 1.7                  # how far in it gets
 const MAIN_SCENE := "res://scenes/main.tscn"
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
+const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")      # Kit.logo(): the T.S.R.A. emblem
 const TIPS := [
 	"The hum is not always the lights.",
 	"Batteries stack. Tab to use them.",
@@ -80,10 +81,12 @@ const TIPS := [
 	"Minimize sudden movements.",
 	"Await further instructions.",
 ]
-const MIN_LOAD_TIME := 1.2       # s: the screen stays up at least this long, so the log reads and a fast load does not flash
-const CREEP_RATE := 0.04         # bar creep per second while the loaders report nothing new
+const MIN_LOAD_TIME := 1.6       # s: the screen stays up at least this long, so a fast load does not flash
+const CREEP_RATE := 0.04         # emblem fill creep per second while the loaders report nothing new
 const CREEP_AHEAD := 0.15        # ...never further than this past what is really loaded
-const TIP_EVERY := 6.0           # s between tips
+const TIP_EVERY := 7.0           # s between field notes
+const AMBER := Color("f5a623")   # the emblem's own colour
+const EMBLEM_PX := 176.0
 const LOAD_FADE := 2.5           # s: the loading music fades out over the end of its own track
 const DIM := Color(0.9, 0.882, 0.804, 0.6)
 const SLIDE := 30.0               # how far a menu entry steps right when it is selected
@@ -126,22 +129,15 @@ var group_tw: Tween
 var group_filler: Control
 var briefing: Control                   # PLAY: the T.S.R.A. mission briefing, between the push-in and the loading screen
 var loading_root: Control
-var load_title: Label
-var load_bar: ColorRect
-var load_pct: Label
-var load_tip: Label
-var load_dot: ColorRect
-var load_bg: TextureRect
-var load_log: Label
-var load_track: ColorRect
-var load_counter: Label
-var load_prompt: Label
+var load_emblem: TextureRect            # the T.S.R.A. emblem: it fills with amber from the bottom as the level loads
+var load_glow: TextureRect              # soft amber halo behind it, breathing
+var load_status: Label                  # under the emblem: LOADING, then PRESS ANY KEY
+var load_name: Label
+var load_sub: Label
+var load_tip: Label                     # bottom right: a field note, changed every TIP_EVERY seconds
 var load_ready := false                 # everything is in memory: waiting for a key (the gate) before the run starts
 var load_gate := true                   # false when launched straight from the level editor: no key press needed
 var tip_clock := 0.0
-var _warm_kind := PackedInt32Array()    # per _warm entry: index into STAGES
-var _scripts_done := false
-const STAGES := ["SCRIPTS", "TEXTURES", "MODELS", "SHADERS", "AUDIO", "DATA"]     # the log's lines; SCRIPTS is the main scene itself
 var loading := false
 var busy := false                       # PLAY / QUIT transition running: ignore further input
 var shown_progress := 0.0
@@ -628,95 +624,124 @@ func _build_loading() -> void:
 	loading_root.add_child(black)
 	_full(black)
 
-	# the level's own stills, dimmed, creeping forward like the title screen's
-	load_bg = TextureRect.new()
-	load_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	load_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	load_bg.modulate = Color(0.42, 0.40, 0.34)
-	loading_root.add_child(load_bg)
-	_full(load_bg)
-	var veil := ColorRect.new()
-	veil.color = Color(0.012, 0.012, 0.008, 0.62)
-	loading_root.add_child(veil)
-	_full(veil)
-	var vig := TextureRect.new()
-	vig.texture = _gradient(PackedColorArray([Color(0, 0, 0, 0), Color(0, 0, 0, 0.15), Color(0, 0, 0, 0.85)]), PackedFloat32Array([0.35, 0.7, 1.0]), true)
-	vig.stretch_mode = TextureRect.STRETCH_SCALE
-	loading_root.add_child(vig)
-	_full(vig)
+	# centre: the emblem over its halo, the agency's name, one status word
+	var center := CenterContainer.new()
+	loading_root.add_child(center)
+	_full(center)
+	var mid := VBoxContainer.new()
+	mid.alignment = BoxContainer.ALIGNMENT_CENTER
+	mid.add_theme_constant_override("separation", 0)
+	mid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(mid)
+	load_emblem = Kit.logo(EMBLEM_PX)
+	load_emblem.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var mat := ShaderMaterial.new()
+	mat.shader = _emblem_shader()
+	load_emblem.material = mat
+	mid.add_child(load_emblem)
+	load_glow = TextureRect.new()
+	load_glow.texture = _gradient(PackedColorArray([Color(AMBER, 0.13), Color(AMBER, 0.04), Color(AMBER, 0.0)]), PackedFloat32Array([0.0, 0.45, 1.0]), true)
+	load_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	load_glow.stretch_mode = TextureRect.STRETCH_SCALE
+	load_glow.size = Vector2(EMBLEM_PX, EMBLEM_PX) * 3.4
+	load_glow.position = (Vector2(EMBLEM_PX, EMBLEM_PX) - load_glow.size) * 0.5
+	load_glow.pivot_offset = load_glow.size * 0.5
+	load_glow.show_behind_parent = true
+	load_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	load_emblem.add_child(load_glow)
+	mid.add_child(_spacer(34))
+	var agency := _label("T.S.R.A.", 15, Color(CREAM, 0.75), 12)
+	agency.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mid.add_child(agency)
+	mid.add_child(_spacer(6))
+	var full := _label("THRESHOLD SPATIAL RESEARCH AGENCY", 10, Color(CREAM, 0.32), 5)
+	full.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mid.add_child(full)
+	mid.add_child(_spacer(40))
+	load_status = _label("LOADING", 12, Color(CREAM, 0.5), 8)
+	load_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	load_status.custom_minimum_size = Vector2(420, 0)
+	mid.add_child(load_status)
 
+	# corners: the level card bottom left, the field note bottom right
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 110 if side in ["left", "right"] else 72)
+		margin.add_theme_constant_override("margin_" + side, 110 if side in ["left", "right"] else 84)
 	loading_root.add_child(margin)
 	_full(margin)
-	var page := VBoxContainer.new()
-	page.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margin.add_child(page)
 
-	# top row: REC on the left, the tape counter on the right
-	var top := HBoxContainer.new()
-	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top.add_theme_constant_override("separation", 10)
-	page.add_child(top)
-	load_dot = ColorRect.new()
-	load_dot.color = RED
-	load_dot.custom_minimum_size = Vector2(9, 9)
-	load_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var dc := CenterContainer.new()
-	dc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	dc.add_child(load_dot)
-	top.add_child(dc)
-	top.add_child(_label("REC", 13, Color(0.9, 0.882, 0.804, 0.7), 4))
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	top.add_child(gap)
-	load_counter = _label("LOADING  0:00:00:00", 13, Color(0.9, 0.882, 0.804, 0.55), 4)
-	top.add_child(load_counter)
+	var place := VBoxContainer.new()
+	place.size_flags_vertical = Control.SIZE_SHRINK_END
+	place.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	place.add_theme_constant_override("separation", 0)
+	place.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(place)
+	place.add_child(_label("NOW ENTERING", 11, Color(CREAM, 0.4), 6))
+	place.add_child(_spacer(12))
+	load_name = _label("LEVEL 0", 46, TITLE, 10)
+	load_name.add_theme_constant_override("outline_size", 2)    # VCR has no bold
+	load_name.add_theme_color_override("font_outline_color", TITLE)
+	place.add_child(load_name)
+	place.add_child(_spacer(10))
+	load_sub = _label("", 15, Color(AMBER, 0.85), 7)
+	place.add_child(load_sub)
+	place.add_child(_spacer(18))
+	var accent := ColorRect.new()
+	accent.color = AMBER
+	accent.custom_minimum_size = Vector2(56, 2)
+	accent.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	place.add_child(accent)
 
-	var fill := Control.new()
-	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	page.add_child(fill)
-
-	# bottom column: title, the stage log, the bar, a tip, the "press any key" line
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	page.add_child(box)
-	load_title = _label("LOADING", 26, TITLE, 6)
-	box.add_child(load_title)
-	load_log = _label("", 13, Color(0.9, 0.882, 0.804, 0.6), 3)
-	load_log.custom_minimum_size = Vector2(0, 5 * 20)
-	box.add_child(load_log)
-	var track := ColorRect.new()
-	track.color = Color(0.9, 0.882, 0.804, 0.15)
-	track.custom_minimum_size = Vector2(0, 2)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(track)
-	load_track = track
-	load_bar = ColorRect.new()
-	load_bar.color = CREAM
-	load_bar.size = Vector2(0, 2)
-	load_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	track.add_child(load_bar)
-	load_pct = _label("0%", 12, Color(0.9, 0.882, 0.804, 0.55), 4)
-	box.add_child(load_pct)
-	load_tip = _label(TIPS[randi() % TIPS.size()], 14, Color(0.9, 0.882, 0.804, 0.45), 1)
+	var note := VBoxContainer.new()
+	note.size_flags_vertical = Control.SIZE_SHRINK_END
+	note.size_flags_horizontal = Control.SIZE_SHRINK_END
+	note.add_theme_constant_override("separation", 10)
+	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margin.add_child(note)
+	var head := _label("FIELD NOTE", 11, Color(AMBER, 0.7), 6)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	note.add_child(head)
+	load_tip = _label(TIPS[randi() % TIPS.size()], 15, Color(CREAM, 0.6), 2)
+	load_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	load_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(load_tip)
-	load_prompt = _label("PRESS ANY KEY", 16, CREAM, 6)
-	load_prompt.modulate.a = 0.0
-	box.add_child(load_prompt)
+	load_tip.custom_minimum_size = Vector2(440, 0)
+	note.add_child(load_tip)
 
-	# the same camcorder lens as the title screen, over all of it
-	var fx := ColorRect.new()
-	var mat := ShaderMaterial.new()
-	mat.shader = _fx_shader()
-	fx.material = mat
-	loading_root.add_child(fx)
-	_full(fx)
+	# VHS smear over all of it (wiggle, tracking band, chroma bleed): reads the screen under it, so it goes last.
+	# The title's lens already took this frame's screen copy (the menu): a fresh copy, so it smears the loading screen
+	var fresh := BackBufferCopy.new()
+	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	loading_root.add_child(fresh)
+	var vhs := ColorRect.new()
+	var vhs_mat := ShaderMaterial.new()
+	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
+	vhs.material = vhs_mat
+	loading_root.add_child(vhs)
+	_full(vhs)
+
+## The emblem as a progress meter: the part below `progress` (from the bottom) is lit in its own amber, the rest
+## is a dim grey ghost of it, and a thin bright line rides the boundary. `flash` whitens it for the READY beat.
+func _emblem_shader() -> Shader:
+	var sh := Shader.new()
+	sh.code = """
+shader_type canvas_item;
+uniform float progress = 0.0;
+uniform float flash = 0.0;
+
+void fragment() {
+	vec4 c = COLOR;
+	float line = 1.0 - progress;
+	float lit = step(line, UV.y);
+	float live = step(0.002, progress) * (1.0 - step(0.998, progress));
+	float edge = smoothstep(0.03, 0.0, abs(UV.y - line)) * live;
+	vec3 ghost = vec3(dot(c.rgb, vec3(0.3, 0.59, 0.11))) * 0.32;
+	vec3 col = mix(ghost, c.rgb, lit) + vec3(1.0, 0.9, 0.7) * edge * 0.8;
+	col = mix(col, vec3(1.0, 0.95, 0.85), flash * 0.7);
+	COLOR = vec4(col, c.a * mix(0.4, 1.0, max(lit, edge)));
+}
+"""
+	return sh
 
 ## Quit overlay: two black shutters and the bright line a CRT collapses to when it is switched off
 func _build_crt() -> void:
@@ -930,26 +955,24 @@ func _start_loading(fade := false) -> void:
 	for c in loading_root.get_children().slice(1):          # child 0 is the opaque black backdrop
 		c.modulate.a = 0.0 if fade else 1.0
 		if fade:
-			create_tween().tween_property(c, "modulate:a", 1.0, 0.9).set_trans(Tween.TRANS_SINE)
-	load_bg.texture = bg_tex[bg_i]
-	load_bg.pivot_offset = loading_root.size * 0.5
-	load_bg.scale = Vector2.ONE
-	load_bg.create_tween().tween_property(load_bg, "scale", Vector2(1.12, 1.12), 40.0).set_trans(Tween.TRANS_SINE)
-	load_title.text = "LOADING // %s" % _level_name().to_upper()
-	load_title.visible_characters = -1
+			create_tween().tween_property(c, "modulate:a", 1.0, 1.1).set_trans(Tween.TRANS_SINE)
+	# "LEVEL 0: FLOOR ZERO" -> the name big, what follows the colon under it
+	var full := _level_name().to_upper()
+	var colon := full.find(":")
+	load_name.text = full if colon < 0 else full.substr(0, colon).strip_edges()
+	load_sub.text = "" if colon < 0 else full.substr(colon + 1).strip_edges()
+	load_sub.visible = load_sub.text != ""
 	load_tip.text = TIPS[randi() % TIPS.size()]
 	load_tip.modulate.a = 1.0
-	load_prompt.modulate.a = 0.0
-	load_pct.modulate = Color.WHITE
-	load_bar.size.x = 0.0
-	load_pct.text = "0%"
+	load_status.text = "LOADING"
+	load_status.modulate = Color.WHITE
+	load_emblem.material.set_shader_parameter("progress", 0.0)
+	load_emblem.material.set_shader_parameter("flash", 0.0)
 	shown_progress = 0.0
 	creep_progress = 0.0
 	load_elapsed = 0.0
 	tip_clock = 0.0
-	_scripts_done = false
 	_preload_game()
-	_warm_kind = PackedInt32Array()
 	_play_loading_music()
 
 ## The menu's start track again, under the loading screen: it fades in, plays to its end and fades out over the
@@ -961,8 +984,8 @@ func _play_loading_music() -> void:
 	p.stream = load(INTRO_PATH)
 	p.bus = "Master"
 	p.volume_db = -60.0
-	get_tree().root.add_child(p)
-	p.play()
+	get_tree().root.add_child.call_deferred(p)     # (the root is still setting up children when an editor launch gets here from _ready)
+	p.play.call_deferred()
 	var secs := p.stream.get_length()
 	var tw := get_tree().create_tween()
 	tw.tween_property(p, "volume_db", MUSIC_DB, minf(1.0, secs * 0.25))
@@ -1144,15 +1167,15 @@ func _process(dt: float) -> void:
 
 func _process_loading(dt: float) -> void:
 	load_elapsed += dt
-	_loading_chrome(dt)
+	_loading_motion(dt)
 	if load_ready:
-		load_prompt.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 4.0))
+		load_status.modulate.a = 0.4 + 0.6 * (0.5 + 0.5 * sin(t * 3.2))
 		return
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		load_pct.text = "LOAD FAILED // CHECK THE LOG // ENTER TO RETRY"
-		load_pct.modulate = RED
+		load_status.text = "SIGNAL LOST  //  ENTER TO RETRY"
+		load_status.modulate = Color(1.0, 0.32, 0.26)
 		loading = false
 		busy = false                  # Enter tries again
 		return
@@ -1162,105 +1185,63 @@ func _process_loading(dt: float) -> void:
 		scene_progress = 1.0
 	elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 		scene_progress = prog[0] if not prog.is_empty() else 0.05
-	_scripts_done = status == ResourceLoader.THREAD_LOAD_LOADED
 
-	# Per stage: how much of its files are in (the main scene is the SCRIPTS stage), and the blended real progress
-	if _warm_kind.size() != _warm.size():
-		_warm_kind = PackedInt32Array()
-		for p in _warm:
-			_warm_kind.append(_stage_of(p))
-	var stage_done := PackedFloat32Array()
-	var stage_total := PackedInt32Array()
-	stage_done.resize(STAGES.size())
-	stage_total.resize(STAGES.size())
+	# the pre-warmed level files (textures, meshes, shaders, sounds)
 	var warm_total: float = 0.0
 	var warm_pending := false
-	for i in _warm.size():
+	for p in _warm:
 		var wp := []
-		var ws := ResourceLoader.load_threaded_get_status(_warm[i], wp)
-		var v := 1.0
+		var ws := ResourceLoader.load_threaded_get_status(p, wp)
 		if ws == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			warm_pending = true
-			v = wp[0] if not wp.is_empty() else 0.0
-		warm_total += v
-		stage_done[_warm_kind[i]] += v
-		stage_total[_warm_kind[i]] += 1
-	stage_done[0] = scene_progress
-	stage_total[0] = 1
-	_draw_log(stage_done, stage_total)
-
+			warm_total += wp[0] if not wp.is_empty() else 0.0
+		else:
+			warm_total += 1.0
 	var warm_progress: float = (warm_total / float(_warm.size())) if not _warm.is_empty() else 1.0
-	var loaded := _scripts_done and not warm_pending
+	var loaded := status == ResourceLoader.THREAD_LOAD_LOADED and not warm_pending
 	var done := loaded and load_elapsed >= MIN_LOAD_TIME
 	var real_progress: float = 1.0 if loaded else (scene_progress * 0.4 + warm_progress * 0.6)
 
-	# creep: the bar keeps moving a little while a loader reports nothing, but never far past the real figure
+	# creep: the fill keeps moving a little while a loader reports nothing, but never far past the real figure
 	creep_progress = minf(creep_progress + dt * CREEP_RATE, real_progress + CREEP_AHEAD)
 	var target := 1.0 if done else minf(maxf(real_progress, creep_progress), 0.95)
-	shown_progress = maxf(shown_progress, move_toward(shown_progress, target, dt * (6.0 if done else 3.5)))
-	_set_bar(shown_progress)
+	shown_progress = maxf(shown_progress, move_toward(shown_progress, target, dt * (1.6 if done else 0.9)))
+	load_emblem.material.set_shader_parameter("progress", shown_progress)
 
 	if done and shown_progress >= 0.999:
-		_set_bar(1.0)
-		var all_in := PackedFloat32Array()
-		for n in stage_total:
-			all_in.append(float(n))
-		_draw_log(all_in, stage_total)
+		load_emblem.material.set_shader_parameter("progress", 1.0)
 		if load_gate:
-			load_ready = true
-			load_title.text = "LOADING // %s // READY" % _level_name().to_upper()
+			_loading_ready()
 		else:
 			_finish_loading()
 
-func _set_bar(v: float) -> void:
-	load_bar.size.x = load_track.size.x * v
-	load_pct.text = "%d%%" % int(v * 100.0)
+## The emblem is full: it flashes once, the halo swells, and the status line asks for a key
+func _loading_ready() -> void:
+	load_ready = true
+	var tw := create_tween().set_parallel(true)
+	tw.tween_method(func(v: float) -> void: load_emblem.material.set_shader_parameter("flash", v), 1.0, 0.0, 0.9).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(load_glow, "scale", Vector2(1.25, 1.25), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_property(load_glow, "scale", Vector2.ONE, 1.2).set_trans(Tween.TRANS_SINE)
+	load_status.text = "PRESS ANY KEY TO CONTINUE"
 
-## REC dot, the tape counter (h:mm:ss:ff at 24 fps), and the tip, which changes every TIP_EVERY seconds
-func _loading_chrome(dt: float) -> void:
-	load_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
-	var s := int(load_elapsed)
-	load_counter.text = "LOADING  %d:%02d:%02d:%02d" % [int(s / 3600.0), int(s / 60.0) % 60, s % 60, int(fmod(load_elapsed, 1.0) * 24.0)]
+## Slow life on an otherwise still screen: the halo breathes, LOADING's dots tick, the field note changes
+func _loading_motion(dt: float) -> void:
+	var breath := 0.5 + 0.5 * sin(t * 1.3)
+	load_glow.modulate.a = 0.65 + 0.35 * breath
+	if not load_ready and load_status.text.contains("LOADING"):
+		var n := int(t * 2.0) % 4                # the dots tick; padded both sides so the word never shifts
+		load_status.text = "   LOADING" + ".".repeat(n) + " ".repeat(3 - n)
 	tip_clock += dt
 	if tip_clock >= TIP_EVERY:
 		tip_clock = 0.0
 		var tw := create_tween()
-		tw.tween_property(load_tip, "modulate:a", 0.0, 0.4)
+		tw.tween_property(load_tip, "modulate:a", 0.0, 0.5).set_trans(Tween.TRANS_SINE)
 		tw.tween_callback(func() -> void:
 			var nxt: String = TIPS[randi() % TIPS.size()]
 			while nxt == load_tip.text:
 				nxt = TIPS[randi() % TIPS.size()]
 			load_tip.text = nxt)
-		tw.tween_property(load_tip, "modulate:a", 1.0, 0.4)
-
-## Which log line a warmed file belongs to
-func _stage_of(path: String) -> int:
-	match path.get_extension().to_lower():
-		"png", "jpg", "jpeg", "webp", "tres", "res", "exr", "hdr":
-			return 1
-		"glb", "gltf", "obj", "mesh", "scn":
-			return 2
-		"gdshader", "gdshaderinc":
-			return 3
-		"wav", "mp3", "ogg":
-			return 4
-	return 5
-
-## One line per stage that has files: WAIT, then a figure as it loads, then OK. Each is real loader state.
-func _draw_log(done: PackedFloat32Array, total: PackedInt32Array) -> void:
-	var lines := PackedStringArray()
-	for i in STAGES.size():
-		if total[i] == 0:
-			continue
-		var state := "WAIT"
-		if done[i] >= total[i] - 0.001:
-			state = "OK"
-		elif i == 0:
-			state = "%d%%" % int(done[i] / total[i] * 100.0)
-		elif done[i] > 0.0:
-			state = "%d/%d" % [int(done[i]), total[i]]
-		lines.append("> %s %s" % [(STAGES[i] + " ").rpad(14, "."), state])
-	load_log.text = "\n".join(lines)
+		tw.tween_property(load_tip, "modulate:a", 1.0, 0.6).set_trans(Tween.TRANS_SINE)
 
 # ---- AFK screen: the column fades away, the logo sits in the middle, a click brings the menu back ----
 const IDLE_AFTER := 15.0

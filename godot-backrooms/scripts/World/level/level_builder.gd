@@ -74,7 +74,9 @@ func _process(delta: float) -> void:
 	Perf.add("Level", _pt)
 
 func _process_timed(delta: float) -> void:
-	if rebuilding: return              # no fixtures to light with until the floor is built
+	if rebuilding:                     # no fixtures to light with until the floor is built
+		_pace_build(delta)
+		return
 	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
 	update_lighting(delta)
 
@@ -637,36 +639,37 @@ func _hold(n: Node, mats: Array) -> void:
 	for c in n.get_children():
 		_hold(c, mats)
 
-## The floor's build, in order, as steps small enough to take one a frame. `old_well`: the stairwell kept
-## from the floor before; it goes in the same step that builds its replacement, so the two are never both drawn.
+## The floor's build, in order. Each stage starts on a frame of its own, and its long loops are cut into slices
+## (level_data.gd _slice) when it is built as you walk on. `old_well`: the stairwell kept from the floor before;
+## it gives way to its replacement in one frame (level_geometry.gd _swap_wells), so the two are never both drawn
+## and never neither.
 func _build_stages(old_well: Node) -> Array[Callable]:
 	return [
 		func() -> void:
 			_make_materials()
-			_build_surfaces(true, false),
-		func() -> void: _build_surfaces(false, true),
+			await _build_surfaces(true, false),
+		func() -> void: await _build_surfaces(false, true),
 		_build_walls,
 		func() -> void:
-			if old_well != null and is_instance_valid(old_well):
-				stairwells.erase(old_well)
-				old_well.free()
-			_build_objects()
-			_build_trim(),
+			well_to_replace = old_well         # (goes when its replacement stands: _swap_wells)
+			await _build_objects()
+			await _build_trim(),
 		func() -> void:
 			_build_ceiling_steps()
 			_build_pit_shafts(),
 		_build_dirt,
 		func() -> void:
 			if panel_ceiling != null:
-				_place_panel_fixtures()
+				await _place_panel_fixtures()
 				_build_panel_ceiling()
 			else:
-				_place_fixtures()
+				await _place_fixtures()
 				_build_fixture_meshes()
+			await _slice()
 			_build_floor_reflections()
-			_build_floor_glow()
+			await _build_floor_glow()
 			grid_gi = null                 # (the old floor's surfaces, which it was laid over, are gone)
-			_apply_gi(),
+			await _apply_gi(),
 		func() -> void:
 			_build_exit()
 			_spawn_batteries()
@@ -677,28 +680,69 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 
 ## `cover`: the look-only copy of this floor, in view down the hole the player is falling through. What is
 ## built is kept out of sight until all of it stands, then the copy goes and the real floor shows, lit.
+##
+## The build takes a few milliseconds of each frame (BUILD_SLICE_MS, growing by BUILD_RAMP_MS a second it has
+## gone on) rather than a whole stage a frame: a big floor's stages ran to a few hundred milliseconds each, every
+## one a dropped frame. Whatever is left is built at once (_pace_build) when the floor is about to be seen or
+## stood on: you come down to the stairwell's front landing, from which its doorway shows the floor; the floor
+## you are falling to is close under you; or BUILD_DEADLINE has passed.
+const BUILD_SLICE_MS := 4.0
+const BUILD_RAMP_MS := 6.0
+const BUILD_DEADLINE := 4.0
+const FALL_LANDING_Y := 3.5            # m over the new floor: falling to it, it is all there by then
+var _build_t := 0.0                    # s the build has been going
+var _build_cover: Node = null
+
 func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 	rebuilding = true
+	_build_t = 0.0
+	_build_cover = cover
+	slice_usec = int(BUILD_SLICE_MS * 1000.0)
 	var veiled: Array = []
+	# (out of sight under the cover as each piece comes, not at the end of its stage: a stage spans frames now)
+	var veil := func(c: Node) -> void:
+		if c is Node3D and (c as Node3D).visible:
+			(c as Node3D).visible = false
+			veiled.append(c)
+	if cover != null: child_entered_tree.connect(veil)
 	for stage: Callable in _build_stages(old_well):
-		await get_tree().process_frame
-		var before := {}
-		if cover != null:
-			for c in get_children(): before[c] = true
-		stage.call()
-		if cover == null: continue
-		for c in get_children():
-			if not before.has(c) and c is Node3D and (c as Node3D).visible:
-				(c as Node3D).visible = false
-				veiled.append(c)
+		if slice_usec > 0: await get_tree().process_frame
+		_slice_from = Time.get_ticks_usec()
+		var _ps := Time.get_ticks_usec() #PROBE
+		await stage.call()
+		print("SLICEPROBE stage %s: %.1f ms since last slice, slice_usec %d" % [str(stage), (Time.get_ticks_usec() - _slice_from) / 1000.0, slice_usec]) #PROBE
+		if slice_usec > 0 and Time.get_ticks_usec() - _slice_from > 30000: print("SLICEPROBE %.1f ms at end of stage %s" % [(Time.get_ticks_usec() - _slice_from) / 1000.0, str(stage)]) #PROBE
+	slice_usec = 0
+	_build_cover = null
 	if cover != null:
+		child_entered_tree.disconnect(veil)
 		cover.free()
 		for c in veiled:
 			if is_instance_valid(c): (c as Node3D).visible = true
 	rebuilding = false
+	var _pt := Time.get_ticks_usec() #PROBE
 	_floor_ready()
+	print("SLICEPROBE floor_ready %.1f ms" % ((Time.get_ticks_usec() - _pt) / 1000.0)); _pt = Time.get_ticks_usec() #PROBE
 	if cover != null: prime_pool()
 	_sync_shells()
+	print("SLICEPROBE sync_shells %.1f ms" % ((Time.get_ticks_usec() - _pt) / 1000.0)) #PROBE
+
+## While a floor is built a slice a frame: the next frames' share of time, or the rest of it at once when it is
+## wanted now (_build_in_stages)
+func _pace_build(delta: float) -> void:
+	if slice_usec <= 0: return
+	_build_t += delta
+	slice_usec = int((BUILD_SLICE_MS + BUILD_RAMP_MS * _build_t) * 1000.0)
+	if _build_t > BUILD_DEADLINE or _floor_wanted_now(): slice_usec = 0
+
+func _floor_wanted_now() -> bool:
+	var p: Node3D = player if player != null else Game.player
+	if p == null or not is_instance_valid(p): return true
+	if _build_cover != null: return p.global_position.y < FALL_LANDING_Y
+	for s in stairwells:
+		if is_instance_valid(s) and s.holds(p.global_position):
+			return s.to_local(p.global_position).x < Stairs.XA + 1.0     # coming onto the landing behind its doorway
+	return true                        # out of the well: it is all in view
 
 # ---------------------------------------------------------------- the floors above and below
 ## The other floors of the level that can be seen from this one, through the holes in the slabs (a pit over an
@@ -710,6 +754,7 @@ const SHELLS_BELOW := 12           # 108 m: past where the horizon fog has close
 const SHELLS_ABOVE := 12
 
 var shells := {}                   # floor -> its look-only copy
+const SHELL_SLICE_MS := 4.0        # ms a frame a look-only floor's build may take
 var _shell_run := 0                # goes up whenever the stack changes: a build still under way for the old one stops
 
 ## The floors to show from floor `f`: down while each floor opens into the next, and up likewise, nearest first
@@ -751,13 +796,23 @@ func _sync_shells() -> void:
 	for k in want:
 		if shells.has(k): continue
 		var s := Shell.new()
+		s.slice_usec = int(SHELL_SLICE_MS * 1000.0)     # (out of sight till whole: no hurry, a few ms a frame)
 		for stage: Callable in s.build_stages(level_meta, level_raw, k):
 			await get_tree().process_frame
 			if run != _shell_run:
 				s.free()
 				return
-			stage.call()
+			s._slice_from = Time.get_ticks_usec()
+			var _pt := Time.get_ticks_usec() #PROBE
+			await stage.call()
+			if Time.get_ticks_usec() - s._slice_from > 20000: print("SLICEPROBE shell %d stage %s: %.1f ms since its last slice (%.1f total)" % [k, str(stage), (Time.get_ticks_usec() - s._slice_from) / 1000.0, (Time.get_ticks_usec() - _pt) / 1000.0]) #PROBE
+			if run != _shell_run:
+				s.free()
+				return
+		s.slice_usec = 0
+		var _pa := Time.get_ticks_usec() #PROBE
 		add_child(s)
+		print("SLICEPROBE shell add_child %.1f ms" % ((Time.get_ticks_usec() - _pa) / 1000.0)) #PROBE
 		shells[k] = s
 		_place_shells()
 

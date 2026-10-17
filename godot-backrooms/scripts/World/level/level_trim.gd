@@ -108,7 +108,9 @@ func _gather_obstacles() -> void:
 ## placed wall, pillar and column
 func _clear_of_objects(p: Vector3, margin: float) -> bool:
 	var q := Vector2(p.x, p.z)
-	for ob: Array in _obstacle_grid.get(Vector2i(floori(q.x / CELL), floori(q.y / CELL)), []):
+	var here = _obstacle_grid.get(Vector2i(floori(q.x / CELL), floori(q.y / CELL)))     # (a .get(k, []) makes an Array every miss)
+	if here == null: return true
+	for ob: Array in here:
 		var poly: PackedVector2Array = ob[0]
 		if ob[1] and Geometry2D.is_point_in_polygon(q, poly): return false
 		for i in poly.size():
@@ -159,10 +161,10 @@ func _build_skirting() -> void:
 	var sts := {}
 	# the maze's walls, a face at a time: its ends cut square where the wall runs straight on, mitred into an
 	# inside corner, and mitred round an outside one (the vertex at depth d moves d along the wall)
-	var i := 0
+	var n_done := 0
 	for f: Dictionary in _faces:
-		i += 1
-		if i % 32 == 0: await _slice()
+		n_done += 1
+		if n_done % 32 == 0: await _slice()
 		var fr := _face_frame(f)
 		var mid: Vector3 = fr[0]
 		var out: Vector3 = fr[1]
@@ -362,8 +364,12 @@ static func _area(pts: Array) -> float:
 ## Dark brown vinyl, matte: a pebbled rubber strip, scuffed and uneven, that takes the light like the wall
 ## above it. Kept rough with little specular: a glossy one mirrored the bright ceiling at a low camera
 ## (crawling) and read as a white stripe whatever the light on it.
+## The same on every floor: made once (its two noise textures are worked out pixel by pixel)
+static var _skirt_mat: StandardMaterial3D
 func _skirt_material() -> StandardMaterial3D:
+	if _skirt_mat != null: return _skirt_mat
 	var m := StandardMaterial3D.new()
+	_skirt_mat = m
 	m.albedo_color = Color(0.17, 0.155, 0.14)     # (times the grain's ~0.5: near black, the walls' own baseboard band)
 	m.roughness = 0.92
 	m.metallic_specular = 0.0              # none at all: screen-space reflections mirror the lit ceiling in it at a low camera

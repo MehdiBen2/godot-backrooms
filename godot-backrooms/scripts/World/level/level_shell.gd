@@ -24,8 +24,9 @@ const CLASSIC_BOOST := 1.6
 static func layer_of(f: int) -> int:
 	return 1 << (10 + posmod(f, 2))
 
-## Floor `f` of level `meta` (`raw`: its .lvl, already read), as steps small enough to take one a frame. The
-## node goes into the tree when the last one is done, so the floor appears whole.
+## Floor `f` of level `meta` (`raw`: its .lvl, already read), as steps taken one a frame (and, with slice_usec,
+## cut into slices within them: level_data.gd _slice). The node goes into the tree when the last one is done, so
+## the floor appears whole.
 func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 	var holes: Array = []
 	return [
@@ -38,14 +39,14 @@ func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 			holes.append_array(through.keys() + open_above.keys())
 			_make_materials()
 			# the tubes are dealt out over the whole floor, as on the floor you walk on, and only then is it cut down
-			if panel_ceiling != null: _place_panel_fixtures()
-			else: _place_fixtures()
+			if panel_ceiling != null: await _place_panel_fixtures()
+			else: await _place_fixtures()
 			_crop_to(holes),
-		func() -> void: _build_surfaces(),
+		func() -> void: await _build_surfaces(),
 		_build_walls,
 		func() -> void:
-			_build_objects()
-			_build_trim()
+			await _build_objects()
+			await _build_trim()
 			_build_ceiling_steps()
 			_build_pit_shafts(),
 		func() -> void:
