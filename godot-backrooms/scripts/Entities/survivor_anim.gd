@@ -7,8 +7,8 @@ extends RefCounted
 ##   walk             moving normally (the player's 2.6 m/s, a survivor's walk)
 ##   run              sprinting
 ##   crouch_idle      squatting still        crouch_walk   creeping, heel to toe
-##   lobby_idle_*     idle variants for the lobby corridor (tools/blender/add_survivor_lobby_idles.py): slump,
-##                    sway, adjust (a hand to the hood), hips, glance. Each is its own role.
+##   lobby_idle_*     standing idles for the lobby corridor (tools/blender/add_survivor_lobby_idles.py): shift, hips, hood,
+##                    slump, glance, crossed, wrist, lookup, straps. Each is its own role.
 ##   death            falls onto its back and holds the last frame
 ##   death_neck_snap  THE MANNEQUIN's kill seen from outside (tools/blender/add_survivor_neck_snap.py), timed
 ##                    to mannequin_snap.gd: frozen, the head wrenched round, hanging limp in its grip, then

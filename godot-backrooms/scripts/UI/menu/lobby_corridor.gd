@@ -45,10 +45,11 @@ const PLACES := [
 	Vector3(1.2, 0.0, -5.6), Vector3(5.2, 0.0, -3.4),
 ]
 const FACING := [0.12, -0.3, 0.35, -0.1, -0.45]
-## What each place does while it stands (survivor_anim.gd's lobby_idle_* clips: a hand to the hood, a shift of
-## weight, hands on hips, jumpy glances, a slump) and the colour of its suit (SurvivorAnim.apply_suit_variant;
-## "" = the yellow it comes in): so no two of them stand or look alike
-const IDLES := ["lobby_idle_hips", "lobby_idle_sway", "lobby_idle_adjust", "lobby_idle_glance", "lobby_idle_slump"]
+## How a survivor stands while they wait (survivor_anim.gd's lobby_idle_* clips: each takes one nobody else in the
+## lobby has) and the colour of the suit at each place (SurvivorAnim.apply_suit_variant; "" = the yellow it comes in):
+## so no two of them stand or look alike
+const IDLES := ["lobby_idle_shift", "lobby_idle_hips", "lobby_idle_hood", "lobby_idle_slump", "lobby_idle_glance",
+	"lobby_idle_crossed", "lobby_idle_wrist", "lobby_idle_lookup", "lobby_idle_straps"]
 const SUITS := ["", "blue", "orange", "green", "red"]
 ## The tubes down the hall that belong to no one: [x, z, state] (on / flicker: failing most of the time /
 ## dying: dim and unsteady / dead)
@@ -111,6 +112,7 @@ class Person:
 	var clips := {}
 	var tag: Label3D
 	var walk_tw: Tween
+	var idle := ""                          # the lobby_idle_* clip they stand in
 	var leaving := false
 
 func _ready() -> void:
@@ -514,6 +516,16 @@ func _free_place() -> int:
 			return i
 	return -1
 
+## A standing idle nobody in the lobby is in yet (any, once there are more people than clips)
+func _pick_idle() -> String:
+	var taken := {}
+	for pr: Person in people.values():
+		taken[pr.idle] = true
+	var free: Array = IDLES.filter(func(n: String) -> bool: return not taken.has(n))
+	if free.is_empty():
+		free = IDLES
+	return free[randi() % free.size()]
+
 func _person(id: int, place: int, r: Dictionary) -> Person:
 	var pr := Person.new()
 	pr.id = id
@@ -535,7 +547,8 @@ func _person(id: int, place: int, r: Dictionary) -> Person:
 		if not aps.is_empty():
 			pr.anim = aps[0]
 			pr.clips = SurvivorAnim.find_clips(pr.anim)
-			_play(pr, IDLES[place], 0.0)
+			pr.idle = _pick_idle()
+			_play(pr, pr.idle, 0.0)
 			pr.anim.seek(randf() * pr.anim.current_animation_length, true)    # nobody breathes in step
 	pr.tag = Label3D.new()
 	pr.tag.font = load("res://fonts/vcr.ttf")
@@ -593,7 +606,7 @@ func _arrive(pr: Person) -> void:
 	pr.walk_tw.tween_interval(STRIKE_TIME * 0.6)
 	_walk(pr.walk_tw, pr.root, path)
 	pr.walk_tw.tween_callback(func() -> void:
-		_play(pr, IDLES[pr.place])
+		_play(pr, pr.idle)
 		if pr.anim:
 			pr.anim.speed_scale = 1.0
 		pr.tag.visible = true)
