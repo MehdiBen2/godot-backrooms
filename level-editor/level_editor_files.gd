@@ -544,6 +544,25 @@ func _step_floor(d: int) -> void:
 	var i := fs.find(floor_idx) + d
 	if i >= 0 and i < fs.size(): _switch_floor(fs[i])
 
+## Everything that hangs off the floors' numbers, brought up to date after the floors were reordered, inserted into, closed up
+## or renumbered: the stairwells (each is joined to the one on the next floor by where it stands, so they pair up again with
+## whatever is now beside them), the file list and panels, then the sketches / tape / cables files (and the level is saved)
+func _floors_reordered() -> void:
+	_rewire_stairs()
+	_floors_changed()
+	_update_info()
+	_mark_dirty()
+	_marks_follow()
+
+## Stairwells joined again by where they stand: every stairs end forgets its number and takes that of the end on the floor
+## below it that stands on the same cells (_wells_adopt), so a stairwell follows its floors wherever they have gone
+func _rewire_stairs() -> void:
+	var all := _all_floors()
+	for f: int in all:
+		for o: Dictionary in all[f].objects:
+			if _is_stairs(str(o.type)): o["well"] = 0
+	_wells_adopt()
+
 ## The floors have been given new numbers (old -> new): each floor's id goes to its new number
 func _remap_uid(remap: Dictionary) -> void:
 	var fresh := {}
@@ -656,8 +675,7 @@ func _renumber_floors() -> bool:
 	for f: int in all: fresh[remap[f]] = all[f]
 	_remap_uid(remap)
 	_set_floors(fresh, remap[floor_idx])
-	_mark_dirty()
-	_marks_follow()
+	_floors_reordered()
 	return true
 
 ## The floors beyond number `gone` (a floor just deleted) moved one number toward the ground floor, to close the hole
@@ -680,8 +698,7 @@ func _close_gap(gone: int) -> bool:
 	if gone > 0 and at > gone: at -= 1
 	elif gone < 0 and at < gone: at += 1
 	_set_floors(fresh, at)
-	_mark_dirty()
-	_marks_follow()
+	_floors_reordered()
 	return true
 
 ## Renumber (the Layers tab's button, undoable)
@@ -709,9 +726,8 @@ func _insert_floor(dir: int) -> void:
 	fresh[at] = _new_floor()
 	_remap_uid(remap)
 	_set_floors(fresh, at)
-	_mark_dirty()
-	_marks_follow()
-	_status("Inserted %s %s %s; the floors %s it are renumbered. Stairwells that crossed this spot now skip a floor: put stairs on it to join them again (Ctrl+Z undoes it)%s" % [
+	_floors_reordered()
+	_status("Inserted %s %s %s; the floors %s it are renumbered. Stairwells were re-joined by where they stand; ones that crossed this spot now skip a floor, so put stairs on it to join them (Ctrl+Z undoes it)%s" % [
 		_floor_name(at), "above" if dir > 0 else "below", _floor_name(at - 1 if dir > 0 else at + 1), "above" if at > 0 else "below", _marks_note()])
 
 ## This floor swapped with the one above it (d = 1) or below it (-1), everything on it going with it (its map, its
@@ -729,11 +745,10 @@ func _move_floor(d: int) -> void:
 	all[g] = t
 	_remap_uid({f: g, g: f})
 	_set_floors(all, g)
-	_mark_dirty()
-	_marks_follow()
+	_floors_reordered()
 	var lost := _unreachable_floors()
 	_status("Moved to %s (it swapped places with %s). %s (Ctrl+Z undoes it)" % [_floor_name(g), _floor_name(f),
-		"Stairwells between floors are not rewired: %d floor%s cannot be reached now" % [lost.size(), "" if lost.size() == 1 else "s"] if not lost.is_empty() else "Stairs and pits join the floors they now sit between"]
+		"Stairwells re-joined by where they stand, but %d floor%s cannot be reached now (no stairwell lines up with the floor beside it)" % [lost.size(), "" if lost.size() == 1 else "s"] if not lost.is_empty() else "Stairwells, stairs and pits re-joined to the floors they now sit between"]
 		+ _marks_note())
 
 # ---------------------------------------------------------------- materials

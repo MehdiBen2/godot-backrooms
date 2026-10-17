@@ -10,6 +10,10 @@ func _initialize() -> void:
 	ed = (load("res://level_editor.tscn") as PackedScene).instantiate()
 	root.add_child(ed)
 	for i in 10: await process_frame
+	# (a reorder saves the level and moves its marks files: on a throwaway id, so nothing real is touched)
+	var keep: Dictionary = ed.index[ed.current].duplicate()
+	ed.index[ed.current]["id"] = "zz_order_test"
+	ed.index[ed.current]["file"] = "zz_order_test.lvl"
 	print("start: floors ", ed._floor_numbers(), " on ", ed.floor_idx)
 	ed._renumber_floors()                          # (level 0 has gaps of its own: start from tidy numbers)
 	_check("tidy start", _contiguous(ed._floor_numbers()))
@@ -60,10 +64,18 @@ func _initialize() -> void:
 		_check("gap exists", not _contiguous(ed._floor_numbers()))
 		ed._renumber_button()
 		_check("renumber closes it", _contiguous(ed._floor_numbers()))
+	# 5b. rewiring the stairs from where they stand keeps the pairs the file already had
+	var pairs_before := _well_pairs()
+	ed._rewire_stairs()
+	_check("stair pairs unchanged by a rewire", _well_pairs() == pairs_before)
 	# 6. save payload carries the right floor keys
 	var payload: Dictionary = ed._current_payload()
 	var keys: Array = payload.get("floors", {}).keys()
 	print("saved floor keys: ", keys)
+	for fn in DirAccess.get_files_at(ed.GAME.path_join("levels/marks/")):
+		if fn.begins_with("zz_order_test"): DirAccess.remove_absolute(ed.GAME.path_join("levels/marks/") + fn)
+	DirAccess.remove_absolute(ed.GAME.path_join("levels/zz_order_test.lvl"))
+	ed.index[ed.current] = keep
 	print("RESULT: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(0 if fails == 0 else 1)
 
@@ -86,3 +98,19 @@ func _contiguous(fs: Array) -> bool:
 func _check(what: String, ok: bool) -> void:
 	if not ok: fails += 1
 	print("  [%s] %s" % ["ok" if ok else "FAIL", what])
+
+## Which stairs share a well, as sorted "floor:index" groups (the numbers themselves are arbitrary)
+func _well_pairs() -> Array:
+	var groups := {}
+	var all: Dictionary = ed._all_floors()
+	for f: int in all:
+		for i in (all[f].objects as Array).size():
+			var o: Dictionary = all[f].objects[i]
+			if ed._is_stairs(str(o.type)):
+				var w := int(o.get("well", 0))
+				if not groups.has(w): groups[w] = []
+				groups[w].append("%d:%d" % [f, i])
+	var out: Array = []
+	for w in groups: out.append(",".join(PackedStringArray(groups[w])))
+	out.sort()
+	return out
