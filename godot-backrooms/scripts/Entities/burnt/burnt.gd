@@ -77,6 +77,8 @@ const CREEP_TIME := 14.0
 const KEEP_DIST := 11.0             # metres: until it commits it shadows you from about here, and comes no nearer
 const COMMIT_AFTER := Vector2(70.0, 130.0)  # seconds of hunting before it stops shadowing you and closes in
 const SHADOW_SHIFT := Vector2(7.0, 14.0)    # seconds stood shadowing before it slips off to come at you from elsewhere
+const SFX_LOUD := 0.2               # every sound it makes is matched to this loudness before its own level (_sfx)
+const BREATH := "res://audio/entity/burnt/breath_"   # its breaths: recordings, baked at SFX_LOUD (audio/CREDITS.txt)
 
 @export var charge_watch := 4.0     # seconds of being stared at, from afar, before it stops waiting and runs at you
 @export var charge_min := 9.0       # metres: nearer than this it simply stalks
@@ -132,6 +134,7 @@ var _hunt_t := 0.0                  # seconds it has hunted since it came
 var _commit_at := 90.0              # ...when it stops shadowing you and closes in
 var _shadow_t := 0.0                # seconds stood shadowing you at KEEP_DIST
 var _shadow_for := 10.0
+static var _loud := {}              # "name:arg" -> a sound's loudness (_match)
 var _lamp_t := 0.0
 var _fwd := Vector3.FORWARD         # its facing when it took you
 var _from := Transform3D.IDENTITY   # your view when it took you
@@ -441,7 +444,7 @@ func _peek(delta: float) -> void:
 				_peek_phase = "out"
 				_peek_t = 0.0
 				if scares != null:                         # the scrape of it snatching back round the edge
-					scares.spawn3d(scares.synth("creak"), _peek_head + Vector3.UP * 3.0, 0.5, "Scares", 4.0, randf_range(1.15, 1.35))
+					_sfx("creak", _peek_head + Vector3.UP * 3.0, 0.5, 4.0, randf_range(1.15, 1.35))
 	else:
 		_watch_t = maxf(0.0, _watch_t - delta * 0.6)
 		_caught_t = 0.0
@@ -469,7 +472,7 @@ func _peek(delta: float) -> void:
 				_peek_phase = "in"
 				_peek_t = 0.0
 				if scares != null:                         # its nails finding the edge
-					scares.spawn3d(scares.synth("creak"), _peek_head + Vector3.UP * 3.0, 0.35, "Scares", 3.0, randf_range(0.8, 0.95))
+					_sfx("creak", _peek_head + Vector3.UP * 3.0, 0.35, 3.0, randf_range(0.8, 0.95))
 		"in":
 			if _is_seen: _peek_t -= delta
 			elif _peek_t >= PEEK_IN:
@@ -568,7 +571,7 @@ func _withdraw(delta: float) -> void:
 			_shadow_t = 0.0
 			_shadow_for = randf_range(SHADOW_SHIFT.x, SHADOW_SHIFT.y)
 			if scares != null:                             # somewhere out there, it has started back
-				scares.spawn3d(scares.synth("creak"), p + Vector3.UP * 2.0, 0.3, "Scares", 8.0, randf_range(0.55, 0.7))
+				_sfx("creak", p + Vector3.UP * 2.0, 0.3, 8.0, randf_range(0.55, 0.7))
 	rotation.y = yaw
 
 ## Hanging off a corner, what shows is its face: that is what you see it by, not its middle (behind the wall)
@@ -588,7 +591,7 @@ func _begin_charge() -> void:
 	_braking = false
 	_brake_t = 0.0
 	if scares != null:
-		scares.spawn3d(scares.synth("breath_close", 0.0), _face(), 0.9, "Scares", 8.0, 0.55)
+		_sfx(BREATH + "charge.wav", _face(), 0.9, 8.0, randf_range(0.95, 1.03))
 
 ## The run: nothing like its walk. Very fast, lurching and uneven (_process), straight at you, every tube round it
 ## dying as it comes. It never catches you on its own: as it closes it throws itself into a skid and stops short of
@@ -608,7 +611,7 @@ func _charge(delta: float) -> void:
 		rotation.y = yaw
 		return
 	# the start of the run: air drawn in sharply
-	_once("go", true, func(): scares.spawn3d(scares.synth("stinger"), global_position + Vector3.UP * 2.0, 0.6, "Scares", 8.0, 0.7))
+	_once("go", true, func(): _sfx("stinger", global_position + Vector3.UP * 2.0, 0.6, 8.0, 0.7))
 	if d < GRAB_DIST:
 		_start_grab(tgt)
 		return
@@ -641,8 +644,8 @@ func _begin_brake() -> void:
 	_tw_next = 0.0
 	Game.fx_shock = maxf(Game.fx_shock, 0.9)         # the picture punches in on the near miss
 	if scares != null:
-		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 1.5, 0.8, "Scares", 6.0, 0.6)
-		scares.spawn3d(scares.synth("breath_close", 0.0), _face(), 1.0, "Scares", 8.0, 0.6)
+		_sfx("bone_crack", global_position + Vector3.UP * 1.5, 0.8, 6.0, 0.6)
+		_sfx(BREATH + ("rasp1.wav" if randf() < 0.5 else "rasp2.wav"), _face(), 1.0, 8.0, randf_range(0.9, 0.98))
 		scares.heartbeat(1.3)
 	if _pl != null: _pl.quake(0.6)
 
@@ -829,7 +832,7 @@ func _hitches(delta: float) -> void:
 	_hitch_t = randf_range(0.1, 0.18) if running else randf_range(0.12, 0.22)
 	_hitch_next = randf_range(0.5, 1.2) if running else randf_range(2.5, 6.0)
 	if running and scares != null:
-		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 1.5, 0.35, "Scares", 6.0, randf_range(0.9, 1.2))
+		_sfx("bone_crack", global_position + Vector3.UP * 1.5, 0.35, 6.0, randf_range(0.9, 1.2))
 
 ## Which clip, how fast and how it blends in, from what it is doing; then the clip is advanced by hand and a foot
 ## that comes down in it is heard (and in the run, felt).
@@ -912,9 +915,9 @@ func _animate(delta: float) -> void:
 func _footfall(running: bool) -> void:
 	if scares == null: return
 	if not running:
-		scares.spawn3d(scares.synth("thump"), global_position, 0.32, "Scares", 3.0, randf_range(0.9, 1.0))
+		_sfx("thump", global_position, 0.32, 3.0, randf_range(0.9, 1.0))
 		return
-	scares.spawn3d(scares.synth("thump"), global_position, 0.6, "Scares", 7.0, randf_range(0.72, 0.9))
+	_sfx("thump", global_position, 0.6, 7.0, randf_range(0.72, 0.9))
 	var near := clampf(1.0 - global_position.distance_to(_pl.global_position) / 22.0, 0.0, 1.0)
 	_pl.jolt(0.9 * near)
 	Game.fx_shock = maxf(Game.fx_shock, 0.12 * near)
@@ -1053,7 +1056,7 @@ func _begin_sequence() -> void:
 		state = "hug"
 		# no hit yet: a slow breath at the back of your head, and its joints as its arms come round
 		if scares != null:
-			scares.spawn3d(scares.synth("breath_close", 0.0), cam.global_position - _hug_dir * 0.4 + Vector3.UP * 0.3, 1.0, "Scares", 2.0, 0.62)
+			_sfx(BREATH + "neck.wav", cam.global_position - _hug_dir * 0.4 + Vector3.UP * 0.3, 1.0, 2.0, randf_range(0.96, 1.02))
 	_quiet()
 	Game.fear = 1.0
 
@@ -1100,7 +1103,7 @@ func _hit() -> void:
 	Game.fx_shock = 1.0
 	if scares != null:
 		scares.seize()
-		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 2.0, 1.0, "Scares", 4.0, 0.7)
+		_sfx("bone_crack", global_position + Vector3.UP * 2.0, 1.0, 4.0, 0.7)
 
 ## Then the world drops away: the hum dies, everything goes muffled and far off, and what is left is its body,
 ## close (_sequence). No screams and no stacked stingers: it is the quiet that gets you.
@@ -1171,7 +1174,7 @@ func _sequence(delta: float) -> void:
 			look = _from.origin - _from.basis.z * 3.0 - Vector3.UP * 0.35 * tight
 			shake = 0.003 + 0.012 * tight
 			_set_black(smoothstep(HUG_TIME - HUG_FADE, HUG_TIME, t))
-			_once("joints", t > 0.6, func(): scares.spawn3d(scares.synth("creak"), _shoulders(), 0.6, "Scares", 2.0, 0.62))
+			_once("joints", t > 0.6, func(): _sfx("creak", _shoulders(), 0.6, 2.0, 0.62))
 			if t >= HUG_TIME:
 				_turn_round()
 				return
@@ -1187,7 +1190,7 @@ func _sequence(delta: float) -> void:
 			shake = 0.07 * pow(1.0 - clampf(t / GRAB_TIME, 0.0, 1.0), 2.0) + 0.01
 			fov = _from_fov + 16.0 * exp(-t * 8.0)
 			roll = 0.12 * exp(-t * 6.0)
-			_once("slam", true, func(): scares.spawn3d(scares.synth("thump"), _body_at(0.0), 0.9, "Scares", 6.0, 0.5))
+			_once("slam", true, func(): _sfx("thump", _body_at(0.0), 0.9, 6.0, 0.5))
 			if t >= GRAB_TIME: _next("lift")
 		"lift":
 			# raised up the length of it, your light on it all the way, until you are level with its face
@@ -1199,14 +1202,14 @@ func _sequence(delta: float) -> void:
 			shake = 0.008 + 0.004 * sin(t * 1.7)
 			roll = 0.03 * sin(t * 0.9)                                     # hung from its arms: a slow swing
 			# its own laboured breath, over you, twice on the way up
-			_once("lb1", s > 0.45, func(): scares.spawn3d(scares.synth("breath_close", 0.0), face, 0.6, "Scares", 3.0, 0.55))
-			_once("lb2", s > 0.85, func(): scares.spawn3d(scares.synth("breath_close", 0.0), face, 0.8, "Scares", 2.0, 0.5))
+			_once("lb1", s > 0.45, func(): _sfx(BREATH + "rasp1.wav", face, 0.6, 3.0, 0.97))
+			_once("lb2", s > 0.85, func(): _sfx(BREATH + "rasp2.wav", face, 0.8, 2.0, 0.93))
 			# the camera already struggling near its face: a block or two breaking up, now and then
 			if s > 0.6 and randf() < delta * 1.2 * s: Game.fx_corrupt = maxf(Game.fx_corrupt, 0.12)
 			# its charred joints taking your weight, right by you, now and then; your heart, quietly
 			var at := pos
 			_cue(delta, randf_range(1.0, 1.8), func() -> void:
-				scares.spawn3d(scares.synth("creak"), at, 0.55, "Scares", 2.0, randf_range(0.6, 0.75))
+				_sfx("creak", at, 0.55, 2.0, randf_range(0.6, 0.75))
 				scares.heartbeat(0.6 + 0.6 * s)
 			)
 			if t >= LIFT_TIME: _next("stare")
@@ -1221,8 +1224,8 @@ func _sequence(delta: float) -> void:
 			shake = 0.004
 			# your view leans over to meet its tilted head: the room goes crooked
 			roll = 0.2 * smoothstep(1.2, STARE_TIME, t)
-			_once("tin", true, func(): scares.spawn_flat(scares.synth("tinnitus"), 0.15))
-			_once("hold", t > 2.0, func(): scares.spawn3d(scares.synth("bone_crack"), face, 0.5, "Scares", 2.0, 0.8))
+			_once("tin", true, func(): _sfx_flat("tinnitus", 0.15))
+			_once("hold", t > 2.0, func(): _sfx("bone_crack", face, 0.5, 2.0, 0.8))
 			Game.fx_contrast = 1.0 + 0.2 * k
 			Game.fx_sat = 1.0 - 0.4 * k
 			if randf() < delta * 1.5: Game.add_glitch(0.15)
@@ -1230,7 +1233,7 @@ func _sequence(delta: float) -> void:
 			if randf() < delta * (0.8 + 3.0 * k): Game.fx_corrupt = maxf(Game.fx_corrupt, 0.15 + 0.35 * k)
 			# dead silence (even your heart), then it breathes in, slowly, right in your face
 			_once("breath", t > 1.5, func():
-				scares.spawn3d(scares.synth("breath_close", 0.0), face, 1.0, "Scares", 2.0, 0.62))
+				_sfx(BREATH + "in.wav", face, 1.0, 2.0, 0.97))
 			if t >= STARE_TIME: _next("corrupt")
 		"corrupt":
 			# the tape can't hold it: tearing, warping, static, the frame jumping closer to its face
@@ -1248,7 +1251,7 @@ func _sequence(delta: float) -> void:
 			Game.fx_hue = randf_range(-0.3, 0.3) * k if randf() < 0.3 else Game.fx_hue
 			Game.fx_shock = maxf(Game.fx_shock, 0.4 * k)
 			# a low swell under it, and the signal breaking up faster and faster
-			_once("drone", true, func(): scares.spawn_flat(scares.synth("drone", 3.0), 0.9))
+			_once("drone", true, func(): _sfx_flat("drone", 0.9, 3.0))
 			_cue(delta, 0.45 - 0.3 * k, func(): scares.play_scare("staticHit", 0.4 + 0.6 * k))
 			if t >= CORRUPT_TIME:
 				_die()
@@ -1312,6 +1315,44 @@ func _die() -> void:
 	_pl.frozen = false
 	Game.kill_player("THE BURNT")
 	_despawn_quietly()
+
+# ---------------------------------------------------------------- its sounds
+## One of its sounds at `pos`, matched in loudness to the rest (_match), then at `level`. Nearer you than `ref` it is
+## not boosted past `level`: a breath at the back of your neck stays a breath. `name`: a scare_synth.gd sound, or a
+## recording (res://...), already baked at SFX_LOUD.
+func _sfx(name: String, pos: Vector3, level: float, ref: float, pitch := 1.0, arg := 0.0) -> void:
+	if scares == null: return
+	var near := ref if _pl == null else (_pl.cam as Camera3D).global_position.distance_to(pos)
+	if name.begins_with("res://"):
+		scares.spawn3d(load(name), pos, level, "Scares", clampf(near, 0.5, ref), pitch)
+		return
+	var w: AudioStreamWAV = scares.synth(name, arg)
+	scares.spawn3d(w, pos, level * _match(name, arg, w), "Scares", clampf(near, 0.5, ref), pitch)
+
+func _sfx_flat(name: String, level: float, arg := 0.0) -> void:
+	if scares == null: return
+	var w: AudioStreamWAV = scares.synth(name, arg)
+	scares.spawn_flat(w, level * _match(name, arg, w))
+
+## The gain that brings `w` to SFX_LOUD: scare_synth.gd peak-normalizes, so a breath (all body) plays far louder than
+## a joint cracking (one click) at the same level. Loudness here: its loudest ~50 ms, RMS. Worked out once a sound.
+static func _match(name: String, arg: float, w: AudioStreamWAV) -> float:
+	var key := "%s:%s" % [name, arg]
+	if not _loud.has(key):
+		var d := w.data
+		var n := d.size() / 2
+		var win := mini(1102, n)
+		var best := 0.0001
+		var i := 0
+		while i + win <= n:
+			var sum := 0.0
+			for j in range(i, i + win, 4):
+				var v := d.decode_s16(j * 2) / 32768.0
+				sum += v * v
+			best = maxf(best, sqrt(sum / ceilf(win / 4.0)))
+			i += maxi(1, win / 2)
+		_loud[key] = best
+	return minf(SFX_LOUD / _loud[key], 3.0)
 
 ## Off, without touching the player (their death owns the camera from here)
 # ---------------------------------------------------------------- T.S.R.A. scanner

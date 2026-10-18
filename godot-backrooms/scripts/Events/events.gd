@@ -10,8 +10,8 @@ extends Node
 const GridNav := preload("res://scripts/World/grid_nav.gd")
 const MachineVoice := preload("res://scripts/Audio/machine_voice_lines.gd")
 
-const FIRST_MIN := 40.0
-const FIRST_MAX := 90.0
+const FIRST_MIN := 150.0
+const FIRST_MAX := 240.0
 const GAP_MIN := 55.0
 const GAP_MAX := 130.0
 const DISABLED := false               # set true to switch off every director/trigger event (crash hunting)
@@ -64,7 +64,7 @@ func define(def: Dictionary) -> void:
 	events.append(d)
 
 func _define_events() -> void:
-	define({"name": "powerCut", "weight": 3.0, "cooldown": 480.0, "duration": POWER_CUT_SECONDS + 5.0, "intensity": 1.0,
+	define({"name": "powerCut", "weight": 3.0, "cooldown": 720.0, "duration": POWER_CUT_SECONDS + 5.0, "intensity": 1.0,
 		"when": func(_c): return level.lit.size() > 0,
 		# hits hardest when you're relying on the tubes, not your own light
 		"score": func(c): return (1.4 if c.dark else 1.0) * (1.3 if c.battery < 25.0 else 1.0),

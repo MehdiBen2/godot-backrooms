@@ -444,7 +444,7 @@ func _voice_scream() -> void:
 	var at := global_position + Vector3.UP * 3.8
 	var blocked := not nav.clear_line(global_position.x, global_position.z, player.global_position.x, player.global_position.z)
 	scares.set_entity_occlusion(blocked)
-	scares.entity_call("scream", at, true, 1.7, 0.7)
+	scares.entity_call("tall_scream", at, true, 1.7, 1.0)
 	Game.fx_shock = maxf(Game.fx_shock, 0.35)
 	Game.fear = maxf(Game.fear, 0.8)
 
@@ -1005,7 +1005,7 @@ func _tear(delta: float, cam_pos: Vector3, k: float) -> void:
 	_once("scream", t >= 1.5, func():
 		if scares != null:
 			scares.set_entity_occlusion(false)
-			scares.entity_call("scream", _hand_pos("Head") + Vector3.UP * 0.3, true, 1.5, 0.62)
+			scares.entity_call("tall_scream", _hand_pos("Head") + Vector3.UP * 0.3, true, 1.5, 1.0)
 	)
 	if t < TEAR_AT: return
 	# your breath: caught as it studies you, at the pause, as its hands come for your face, and choking at the end
@@ -1152,7 +1152,7 @@ func _ripped(cam_pos: Vector3) -> void:
 	Death.face_pool(Vector3(cam_pos.x, global_position.y, cam_pos.z))
 	if scares != null:
 		scares.set_entity_occlusion(false)
-		scares.entity_call("scream", _hand_pos("Head") + Vector3.UP * 0.2, true, 1.6, 0.7)
+		scares.entity_call("tall_scream", _hand_pos("Head") + Vector3.UP * 0.2, true, 1.6, 1.0)
 
 func _cue(delta: float, every: float, call: Callable) -> void:
 	_cue_t -= delta

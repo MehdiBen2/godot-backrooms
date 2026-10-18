@@ -29,3 +29,13 @@ credit is not required, but given. Outdoor footsteps and ambience: footsteps/CRE
     "Walking on Hard Floor 2" by NachtmahrTV, CC0, https://freesound.org/people/NachtmahrTV/sounds/571802
     "footsteps concrete" by Yuval, CC0, https://freesound.org/people/Yuval/sounds/205748
     "mco_walk_b02.wav" by Fantozzi, CC0, https://freesound.org/people/Fantozzi/sounds/166290
+- audio/entity/tall_scream.mp3 "creature wail and whimper" (distancingmyselffromthis, Pixabay)
+
+- audio/entity/burnt/breath_charge.wav  (its tell: a sharp deep intake), breath_in.wav (breathes in, in your face),
+  breath_neck.wav (exhales on the back of your neck), breath_rasp1/2.wav (rasping breaths in the kill and after the run).
+  Layered from (cue sheets: .claude/skills/claude-opus-layer/cues/burnt_breath/):
+    "Deep Inhale & Exhale 1.wav" by EverydayEldritch.com, CC0, https://freesound.org/people/EverydayEldritch.com/sounds/615047
+    "BORIERO_Nolwen_2020_2021_Monster breathing.wav" by iut_Paris8, CC0, https://freesound.org/people/iut_Paris8/sounds/567723
+    "Monster Breathe" by vg386, CC0, https://freesound.org/people/vg386/sounds/646412
+    "Inhale.wav" by guitargeorge-2, CC0, https://freesound.org/people/guitargeorge-2/sounds/608216
+    "creature breathing (short).wav" by Destinyaholic, CC0, https://freesound.org/people/Destinyaholic/sounds/641280

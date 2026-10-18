@@ -38,8 +38,6 @@ const DECEL_GROUND := 22.0        # a touch snappier when letting go, so stops f
 const ACCEL_AIR := 5.0            # limited steering in the air
 const COYOTE_TIME := 0.10         # can still jump this long after walking off an edge
 const JUMP_BUFFER := 0.12         # a press this soon before landing still jumps
-const LEAN_WALK := 0.010          # camera roll into a strafe (rad)
-const LEAN_SPRINT := 0.018
 const SPRINT_SECONDS := 30.0
 const STAMINA_REGEN := 18.0
 # Adrenaline (ADRENALINE in js/config.js): hunted by the bacteria up close, you get a burst of speed
@@ -107,6 +105,9 @@ var _fall_post := false          # the post shader's fall streaks were left on
 var handheld := Handheld.new()   # camcorder-in-the-hands offsets: tremor, slow wander, uneven steps (handheld.gd)
 var peek := Peek.new()           # facing a wall edge, the view leans out round it on its own (peek.gd)
 var gait_cam := CameraGait.new() # the walking bob's carry style and per-step variation (camera_gait.gd)
+## Roll / pitch with strafing, turning, speed and jumps, the landing nod, idle sway and trauma shake, each
+## with its own multiplier to tune here (camera_feel.gd)
+@export var camera_feel := CameraFeel.new()
 var cam_shake := 1.0             # 0 = no handheld camcorder shake while walking / running, 1 = full
 var lens_up := 0.0               # 0..1 the camcorder raised to your eye (zoom_tool.gd, hold X)
 var lens_zoom := 1.0             # magnification it gives at that raise: narrows the field of view, slows the aim
@@ -191,8 +192,6 @@ var coyote := 0.0
 var land_dip := 0.0
 var quake_amt := 0.0          # 0..1: something heavy walking nearby shaking the floor (and the view)
 var quake_t := 0.0
-var lean := 0.0
-const TURN_ROLL_MAX := 0.045
 # Corner peek (peek.gd): on top of the sideways lean, the view dips, edges forward, rolls and turns a little
 const PEEK_DIP := 0.035           # m
 const PEEK_FWD := 0.03            # m
@@ -283,10 +282,7 @@ var _swinging := false
 const PEEK_HOLD_SPEED := 1.8      # m/s: slower than this a hand in reach takes hold of the edge
 var look_from := -1          # msec the mouse was captured at: the jump that comes with capturing is dropped
 var turn_accum := 0.0         # mouse yaw since the last physics tick (rad)
-var turn_roll := 0.0
-var idle_time := 0.0
-var idle_amt := 0.0
-var pitch_off := 0.0          # motion pitch offset currently added onto cam.rotation.x
+var pitch_accum := 0.0        # mouse pitch since the last physics tick (rad)
 # How far the view tips down (rad, ~66°): your own legs (player_shadow.gd) fill the bottom of the
 # view, and past this you'd stare down into the cut where the body ends. Up stays the old 1.49.
 const LOOK_DOWN_MAX := 1.4
@@ -442,6 +438,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		var aim := sens / pow(lens_zoom, 0.8)
 		rotate_y(-e.relative.x * aim)
 		turn_accum += -e.relative.x * aim
+		pitch_accum += -e.relative.y * aim
 		# set the Euler pitch directly: rotate_x() on a camera with lean/roll (rotation.z) mixes axes,
 		# so the clamp read back a wrapped angle and let the view flip past straight down
 		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * aim, -LOOK_DOWN_MAX, LOOK_UP_MAX)
@@ -628,6 +625,7 @@ func _physics_process_timed(dt: float) -> void:
 			var strength := minf(1.0, absf(last_vy) / 12.0)
 			landed.emit(strength)
 			land_dip = 0.04 + 0.10 * strength
+			camera_feel.land(strength)
 			footsteps.step(true, false, 1.0)
 		was_airborne = false
 		air_time = 0.0
@@ -725,7 +723,7 @@ func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
 
 # Head bob + footfalls (web updateHeadBob): a step lands at the bottom of each bob. The bob, the lean
 # and the landing dip are scaled by the head-bob setting; the footfalls keep their rhythm regardless.
-func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: bool) -> void:
+func _update_head(dt: float, _dir: Vector2, sprint: bool, crouch: bool, moving: bool) -> void:
 	var horiz := Vector2(velocity.x, velocity.z).length()
 	var walking := moving and horiz > 0.3
 	var y := eye
@@ -822,11 +820,11 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var qx := (sin(quake_t * 31.0) + 0.6 * sin(quake_t * 53.0 + 1.7)) * 0.625
 	var qy := (sin(quake_t * 37.0 + 0.4) + 0.6 * sin(quake_t * 61.0 + 2.9)) * 0.625
 	cam.position = Vector3(qx * 0.025 * qk + bob_side, y- land_dip * head_bob + qy * 0.035 * qk, bob_fwd)
-	var lean_target := -dir.x * (LEAN_SPRINT if sprint else LEAN_WALK) * head_bob if walking else 0.0
-	lean = lerpf(lean, lean_target, minf(1.0, dt * 7.0))
-	# turning banks the view into the turn (smoothed mouse yaw rate); rate is in rad/s
-	var yaw_rate := turn_accum / maxf(dt, 0.0001)
+	# strafe / turn roll, speed and jump pitch, the landing nod, idle sway, trauma shake (camera_feel.gd)
+	camera_feel.update(dt, velocity, global_transform.basis, is_on_floor(), moving, SPEED,
+			turn_accum / maxf(dt, 0.0001), pitch_accum / maxf(dt, 0.0001))
 	turn_accum = 0.0
+	pitch_accum = 0.0
 	# the camcorder in your hands: it shakes more out of breath or with your heart pounding
 	var shake := 1.0 + adrenaline * 1.5 + (1.0 if exhausted else 0.0)
 	var motion := (1.8 if sprint else (0.6 if crouch else 1.0)) if walking else 0.0
@@ -845,30 +843,19 @@ func _update_head(dt: float, dir: Vector2, sprint: bool, crouch: bool, moving: b
 	var sq_hb := maxf(head_bob, 0.3)
 	cam.position += Vector3(0.0, _sq_cam[3], _sq_cam[4]) * sq_hb
 	cam.position += _door_cam_pos
-	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_side * _sq_cam[0] * sq_hb + _door_cam_rot.y
-	turn_roll = lerpf(turn_roll, clampf(yaw_rate * 0.012, -TURN_ROLL_MAX, TURN_ROLL_MAX), minf(1.0, dt * 6.0))
-	# idle: after a moment of standing still the view drifts in a slow breathing sway
-	idle_time = 0.0 if (moving or not is_on_floor()) else idle_time + dt
-	idle_amt = lerpf(idle_amt, clampf((idle_time - 1.0) / 1.5, 0.0, 1.0), minf(1.0, dt * 2.0))
-	var sway_z := (sin(idle_time * 0.55) * 0.010 + sin(idle_time * 0.9 + 1.3) * 0.005) * idle_amt
-	var sway_x := (sin(idle_time * 0.42 + 0.7) * 0.007 + sin(idle_time * 0.77) * 0.003) * idle_amt
+	cam.rotation.y = handheld.yaw - peek.side * PEEK_YAW * peek.amount + _sq_side * _sq_cam[0] * sq_hb + _door_cam_rot.y \
+			+ camera_feel.yaw * head_bob
 	# the rush of air in a long fall shakes the view, more the faster you go
 	var buffet := fall_fx * fall_fx * head_bob
 	cam.position += Vector3(sin(quake_t * 23.0) + 0.5 * sin(quake_t * 41.0 + 1.3), sin(quake_t * 29.0 + 0.7), 0.0) * 0.012 * buffet
-	cam.rotation.z = lean + (turn_roll + sway_z) * head_bob + qy * 0.01 * qk + handheld.roll + bob_roll \
+	cam.rotation.z = camera_feel.roll * head_bob + qy * 0.01 * qk + handheld.roll + bob_roll \
 			- peek.side * PEEK_ROLL * peek.amount * lerpf(0.5, 1.0, head_bob) \
 			+ (sin(quake_t * 17.0) + 0.6 * sin(quake_t * 31.0 + 2.1)) * FALL_BUFFET * buffet \
 			+ _sq_side * _sq_cam[1] * sq_hb \
 			+ _door_cam_rot.z
-	# pitch: dip into forward motion, rise on the jump, nose down while falling. Added on top of the
-	# mouse pitch as an offset (previous offset removed first) so aiming and other readers stay intact.
-	var fwd := -velocity.dot(global_transform.basis.z)
-	var pitch_target := -clampf(fwd / SPEED, -1.0, 1.6) * 0.018
-	if not is_on_floor():
-		pitch_target += clampf(velocity.y * 0.008, -0.07, 0.05)
-	pitch_target = (pitch_target + sway_x) * head_bob
-	pitch_off = lerpf(pitch_off, pitch_target, minf(1.0, dt * 6.0))
-	var pitch_total: float = pitch_off + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb + _door_cam_rot.x
+	# pitch: all of it added on top of the mouse pitch as an offset (previous offset removed first) so aiming
+	# and other readers stay intact
+	var pitch_total: float = camera_feel.pitch * head_bob + qx * 0.006 * qk + handheld.pitch + bob_nod + float(_sq_cam[2]) * sq_hb + _door_cam_rot.x
 	cam.rotation.x = clampf(cam.rotation.x - pitch_applied + pitch_total, -LOOK_DOWN_MAX - 0.05, LOOK_UP_MAX)
 	pitch_applied = pitch_total
 	# FOV: the base, +2.5 sprinting, +2 in the air (web updateFov), wider on adrenaline
@@ -972,6 +959,15 @@ func jolt(amount: float) -> void:
 func quake(amount: float) -> void:
 	quake_amt = maxf(quake_amt, clampf(amount, 0.0, 1.0))
 
+## A blast, a heavy impact, a big footfall: amount 0..1 of trauma shakes the view and dies away
+## (camera_feel.gd). from: where it came from (world), to throw the head away from it; leave it out for a
+## shake with no direction.
+func add_trauma(amount: float, from := Vector3.INF) -> void:
+	var push := Vector3.ZERO
+	if from.is_finite():
+		push = cam.global_basis.inverse() * (cam.global_position - from).normalized()
+	camera_feel.add_trauma(amount, push)
+
 # Face to face with the bacteria up close: your torch arm jerks up in front of your face
 func flinch() -> void:
 	if torch != null and not dead and not frozen:
@@ -1021,6 +1017,7 @@ func _back_to_spawn() -> void:
 	velocity = Vector3.ZERO
 	land_dip = 0.0
 	quake_amt = 0.0
+	camera_feel.reset()
 	was_airborne = false
 	air_time = 0.0
 

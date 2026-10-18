@@ -11,11 +11,12 @@ const CALLS := {
 	"flee": [7, 10, 17],
 	"hurt": [11, 19],
 	"scream": [0],                         # 0 = scream.mp3
+	"tall_scream": [-1],                   # -1 = tall_scream.mp3 (the Tall One)
 }
 # volume, ref distance (m of full volume); the reverb is left to the World bus
 const MIX := {
 	"idle": [1.0, 6.0], "stalk": [0.7, 5.0], "chase": [1.3, 6.0],
-	"flee": [1.1, 6.0], "hurt": [1.2, 5.0], "scream": [1.3, 8.0], "whisper": [1.0, 6.0],
+	"flee": [1.1, 6.0], "hurt": [1.2, 5.0], "scream": [1.3, 8.0], "tall_scream": [1.3, 12.0], "whisper": [1.0, 6.0],
 }
 const ScareSynth := preload("res://scripts/Audio/scares/scare_synth.gd")
 const SfxPool := preload("res://scripts/Audio/sfx_pool.gd")
@@ -78,6 +79,8 @@ func _process(dt: float) -> void:
 
 # ---------------------------------------------------------------- calls
 func _clip(n: int) -> AudioStream:
+	if n < 0:
+		return SfxPool.get_stream("res://audio/entity/tall_scream.mp3")
 	if n == 0:
 		return SfxPool.get_stream("res://audio/entity/scream.mp3")
 	return SfxPool.get_stream("res://audio/entity/entity_%d.wav" % n)

@@ -1,0 +1,29 @@
+{
+ "duration_s": 1.3,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "C2",
+     "t": 0.0,
+     "sound": "audio/work/burnt_breath/src/C2.wav",
+     "align": "start",
+     "pitch": -4
+    }
+   ]
+  },
+  {
+   "gain_db": -10,
+   "cues": [
+    {
+     "id": "E2",
+     "t": 0.0,
+     "sound": "audio/work/burnt_breath/src/E2.wav",
+     "align": "start",
+     "pitch": -2
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "duration_s": 0.9,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "Dc",
+     "t": 0.02,
+     "sound": "audio/work/burnt_breath/src/Dc.wav",
+     "align": "start",
+     "pitch": -3
+    }
+   ]
+  },
+  {
+   "gain_db": -10,
+   "cues": [
+    {
+     "id": "B1s",
+     "t": 0.05,
+     "sound": "audio/work/burnt_breath/src/B1s.wav",
+     "align": "start",
+     "pitch": -2
+    }
+   ]
+  },
+  {
+   "gain_db": -9,
+   "cues": [
+    {
+     "id": "E1",
+     "t": 0.0,
+     "sound": "audio/work/burnt_breath/src/E1.wav",
+     "align": "start",
+     "pitch": -1
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "duration_s": 2.3,
+ "groups": [
+  {
+   "gain_db": 0,
+   "cues": [
+    {
+     "id": "Aout",
+     "t": 0.0,
+     "sound": "audio/work/burnt_breath/src/Aout.wav",
+     "align": "start",
+     "pitch": -3
+    }
+   ]
+  },
+  {
+   "gain_db": -9,
+   "cues": [
+    {
+     "id": "B2s",
+     "t": 0.05,
+     "sound": "audio/work/burnt_breath/src/B2s.wav",
+     "align": "start",
+     "pitch": -2
+    }
+   ]
+  },
+  {
+   "gain_db": -10,
+   "cues": [
+    {
+     "id": "E2",
+     "t": 0.0,
+     "sound": "audio/work/burnt_breath/src/E2.wav",
+     "align": "start",
+     "pitch": -1
+    }
+   ]
+  }
+ ]
+}
