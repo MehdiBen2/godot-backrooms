@@ -55,6 +55,7 @@ const ROUTE_TRAIL_MAX := 100     # ... up to this
 const ROUTE_EXIT_MARKED := 25    # one of your strips within ROUTE_EXIT_NEAR of the exit
 const ROUTE_EXIT_NEAR := 8.0
 const LOG_MAX := 12              # filings kept in the log, newest first
+const SCAN_STEP := 0.025        # of a reading's time, off per rank (scan_time_scale)
 
 ## Where yield comes from, in the order the [F5] page lists it: [key, label]. The first three are
 ## a filing's core amount (its kind), then the markups on it, then hazard-tape mapping (file_survey)
@@ -64,7 +65,7 @@ const SOURCES := [
 	["momentum", "FIELD MOMENTUM"], ["survey", "CORRIDOR MAPPED"], ["survey_bonus", "SURVEY MILESTONES"],
 ]
 
-var unit := "RY"
+var unit := "XP"
 var tiers: Array = []            # [{code, title, yield, brief}], ascending
 
 var total := 0                   # lifetime Research Yield
@@ -95,7 +96,7 @@ func _read_tiers() -> void:
 		tiers = parsed.get("tiers", [])
 	if tiers.is_empty():
 		push_error("cannot read " + DATA_PATH)
-		tiers = [{"code": "C-0", "title": "CONTRACTOR", "yield": 0, "brief": ""}]
+		tiers = [{"code": "RANK 0", "title": "RECRUIT", "yield": 0, "brief": ""}]
 
 # ---- tiers ----------------------------------------------------------------------
 func tier_index(at_total := -1) -> int:
@@ -121,9 +122,10 @@ func tier_progress() -> float:
 	var hi := int(tiers[i + 1].get("yield", lo + 1))
 	return clampf(float(total - lo) / float(maxi(hi - lo, 1)), 0.0, 1.0)
 
-## Scanner calibration: each tier shaves 5% off a reading's time (scanner.gd SCAN_TIME)
-func scan_time_scale() -> float:
-	return 1.0 - 0.05 * tier_index()
+## Scanner calibration: each rank shaves SCAN_STEP off a reading's time (scanner.gd SCAN_TIME); the top rank
+## reads in a little over half the time
+func scan_time_scale(i := -1) -> float:
+	return 1.0 - SCAN_STEP * (tier_index() if i < 0 else i)
 
 ## The tier whose "unlock" has this id (-1 if none does): classified / rangefinder / deep_scan
 func unlock_tier(id: String) -> int:
@@ -137,20 +139,28 @@ func has_unlock(id: String) -> bool:
 	var i := unlock_tier(id)
 	return i >= 0 and tier_index() >= i
 
-## "C-2" for the tier that grants `id`
+## "RANK 2" for the tier that grants `id`
 func unlock_code(id: String) -> String:
 	var i := unlock_tier(id)
-	return str(tiers[i].get("code", "")) if i >= 0 else "C-?"
+	return str(tiers[i].get("code", "")) if i >= 0 else "RANK ?"
 
 ## Yield the next tier needs in all (the current total at the top)
 func next_threshold() -> int:
 	var i := tier_index()
 	return total if i >= tiers.size() - 1 else int(tiers[i + 1].get("yield", total))
 
-## "C-2 // FIELD ANALYST"
+## "RANK 2 // SURVEYOR"
 func tier_label(i := -1) -> String:
 	var t := tier(i)
 	return "%s // %s" % [str(t.get("code", "")), str(t.get("title", ""))]
+
+## The rank's own colour (levels/tsra_clearance.json "color"): its name, badge and rank-up stamp show in it
+func tier_color(i := -1) -> Color:
+	return Color.from_string(str(tier(i).get("color", "")), Color("f0a838"))
+
+## What the rank's name does on its rank-up stamp (xp_popup.gd): glow, shine, wave, pulse, flicker
+func tier_effects(i := -1) -> Array:
+	return tier(i).get("effects", [])
 
 # ---- yield ----------------------------------------------------------------------
 func base_yield(entity_id: String) -> int:
@@ -310,12 +320,12 @@ func file_route(strips: Array, exit_pos: Vector3) -> Dictionary:
 	yield_filed.emit(report)
 	return report
 
-## Debug console `clearance add <n>`
-func grant(amount: int) -> Dictionary:
+## Debug console `clearance add <n>`; a survey clipboard's recovered log (survey_clipboard.gd) under its own title
+func grant(amount: int, title := "ADMINISTRATIVE ADJUSTMENT") -> Dictionary:
 	var from := tier_index()
 	total = maxi(0, total + amount)
-	var report := {"id": "", "kind": "grant", "title": "ADMINISTRATIVE ADJUSTMENT",
-		"lines": [["ADMINISTRATIVE ADJUSTMENT", amount]], "total": amount, "tier_from": from, "tier_to": tier_index()}
+	var report := {"id": "", "kind": "grant", "title": title,
+		"lines": [[title, amount]], "total": amount, "tier_from": from, "tier_to": tier_index()}
 	_log({"t": int(Time.get_unix_time_from_system()), "id": "", "kind": "grant", "total": amount,
 		"level": Archive.current_level_id(), "dist": -1.0})
 	_save()

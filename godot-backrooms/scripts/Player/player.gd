@@ -165,6 +165,8 @@ var click_off: AudioStream = load("res://audio/items/torch/off.mp3")
 
 # --- Door interaction & camera animation ---
 var focused_door: Node = null
+var hidden := false              # climbed into a hiding place (props/hide_spot.gd): THE TALL ONE cannot see you (tall_one.gd _player_hidden)
+var hiding_in: Node3D = null     # ...which one (its hide_spot.gd), so it can come to the door if it saw you get in
 var _door_anim_active := false   # in the scripted scene through a door (_door_scene): it has the body, the eyes and the left hand
 var _ds: Node3D = null            # the door
 var _ds_t := 0.0                  # s into the scene
@@ -446,18 +448,22 @@ func _unhandled_input(e: InputEvent) -> void:
 		_sync_flashlight_aim(0.35)
 	elif e.is_action_pressed("flashlight") and lens_up <= 0.0 \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if not flash_on and battery <= 0.0:
-			dead_click.emit()          # dead battery: a dry hollow click, nothing else
-			return
-		flash_on = not flash_on
-		click_player.stream = click_on if flash_on else click_off
-		click_player.play()
+		toggle_flashlight()
 	elif (e.is_action_pressed("interact") or (e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_E)) \
 			and lens_up <= 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if focused_door != null and focused_door.has_method("interact"):
 			focused_door.interact(self)
 			_sync_flashlight_aim(0.35)
 			if is_inside_tree(): get_viewport().set_input_as_handled()
+
+## F, or a click with the torch selected on the hotbar (item_strip.gd)
+func toggle_flashlight() -> void:
+	if not flash_on and battery <= 0.0:
+		dead_click.emit()          # dead battery: a dry hollow click, nothing else
+		return
+	flash_on = not flash_on
+	click_player.stream = click_on if flash_on else click_off
+	click_player.play()
 
 func _process(delta: float) -> void:
 	var _pt := Time.get_ticks_usec()

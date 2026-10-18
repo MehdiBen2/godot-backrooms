@@ -178,6 +178,8 @@ func _thick_cells(o: Dictionary) -> float:
 			return (d * n + float(_param(o, "gap", 0.08)) * (n - 1)) / CELL_M
 		"riser":
 			return float(_param(o, "diameter", 0.3)) / CELL_M
+		"cable":
+			return float(_info(o.type).get("thickness", 0.3)) / CELL_M
 	return float(_param(o, "thick", _info(o.type).get("thickness", 0.3))) / CELL_M
 
 ## A model prop's real footprint in cells at its scale ([along its arrow, across]), Vector2.ZERO for a type with
@@ -206,7 +208,7 @@ const BOX_SHAPES := ["zone", "water", "platform", "flight"]
 ## How far from its origin an object reaches, in cells (for culling and picking)
 func _obj_reach(o: Dictionary) -> float:
 	match _shape(o.type):
-		"spline", "pool", "pipe":
+		"spline", "pool", "pipe", "cable":
 			var r := 1.0
 			for q in _shape_path(o): r = maxf(r, q.length())
 			return r
@@ -235,7 +237,7 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 			return pts
 		"spline":
 			return _spline_path(o)
-		"pipe":
+		"pipe", "cable":
 			# a pipe run: straight between its points (the game rounds the corners into bends)
 			var line := PackedVector2Array()
 			var rawp = o.get("points", [])
@@ -257,7 +259,7 @@ func _shape_path(o: Dictionary) -> PackedVector2Array:
 
 ## Shapes edited point by point (their "points" in object space): spline walls and pools
 func _pointy(t: String) -> bool:
-	return _shape(t) in ["spline", "pool", "pipe"]
+	return _shape(t) in ["spline", "pool", "pipe", "cable"]
 
 ## A spline wall's centre line: the game's level_data.gd spline_path() (its "points", straight or smoothed
 ## through them, round to the first again when "closed")
@@ -2345,7 +2347,7 @@ func _obj_bounds(o: Dictionary) -> Rect2:
 	if foot != Vector2.ZERO:                         # a model prop: as big as it really is, centred on its origin
 		return Rect2(-foot * 0.5, foot).grow(minf(2.0 / zoom, 0.05))
 	match _shape(o.type):
-		"corner", "arc", "spline", "pool", "pipe":
+		"corner", "arc", "spline", "pool", "pipe", "cable":
 			var pts := _shape_path(o)
 			if pts.is_empty(): return Rect2(-0.5, -0.5, 1.0, 1.0)
 			var r := Rect2(pts[0], Vector2.ZERO)
@@ -2370,7 +2372,7 @@ func _obj_hit(o: Dictionary, p: Vector2) -> bool:
 	if _shape(o.type) == "pool":
 		var poly := _shape_path(o)
 		if poly.size() >= 4 and Geometry2D.is_point_in_polygon(l, poly): return true
-	if _shape(o.type) in ["corner", "arc", "spline", "pool", "pipe"]:
+	if _shape(o.type) in ["corner", "arc", "spline", "pool", "pipe", "cable"]:
 		var pts := _shape_path(o)
 		var reach := maxf(_obj_depth(o) * 0.5, slack)
 		for i in pts.size() - 1:
@@ -2436,7 +2438,7 @@ func _grips(o: Dictionary) -> Array:
 			out.append({"kind": "depth", "at": Vector2(-float(_param(o, "depth", 2.0)) * 0.5, 0), "dir": Vector2(-1, 0)})
 		"spiral":
 			out.append({"kind": "diameter", "at": Vector2(half, 0), "dir": Vector2(1, 0)})
-		"spline", "pool", "pipe":
+		"spline", "pool", "pipe", "cable":
 			# one per point the curve goes through: drag it to bend the wall
 			var raw = o.get("points", [])
 			if raw is Array:
@@ -2684,6 +2686,7 @@ func _object_press(mb: InputEventMouseButton) -> void:
 			_select(objects.size() - 1)
 			drag = "spline"
 			if _shape(t) == "pipe": _status("Drawing a pipe: click each point it runs through (straight and square; Alt: any angle). Click on another pipe or a riser to join it. Double click / right click / Enter to finish")
+			elif _shape(t) == "cable": _status("Drawing a ceiling cable run: click each point it runs through (square turns; Alt: any angle). Double click / right click / Enter to finish")
 			else: _status("Drawing a spline wall: click each point it bends through, double click / right click / Enter to finish")
 			_mark_dirty()
 			return
@@ -2780,7 +2783,7 @@ func _object_drag(p: Vector2) -> void:
 	if drag == "spline":
 		# the point following the mouse
 		var q := _snap_pos(_pos_at(p))
-		if _shape(o.type) == "pipe": q = _pipe_route(o, q)
+		if _shape(o.type) in ["pipe", "cable"]: q = _pipe_route(o, q)
 		var l := (q - Vector2(o.pos_x, o.pos_y)).rotated(-deg_to_rad(float(o.rotation)))
 		var pts: Array = o.points
 		pts[pts.size() - 1] = [snappedf(l.x, 0.001), snappedf(l.y, 0.001)]
@@ -3019,7 +3022,7 @@ func _sync_inspector() -> void:
 	else:
 		insp_scale.suffix = ""
 		insp_scale.tooltip_text = "span in cells"
-	insp_scale_label.visible = sh not in ["pillar", "column", "spline", "pool", "pipe", "riser"] and not _is_stairs(str(o.type))
+	insp_scale_label.visible = sh not in ["pillar", "column", "spline", "pool", "pipe", "cable", "riser"] and not _is_stairs(str(o.type))
 	insp_scale.visible = insp_scale_label.visible
 	if insp_trigger_btn != null:
 		insp_trigger_btn.visible = (o.type == "trigger")
@@ -3213,6 +3216,16 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 	var h := float(_param(o, "height", 0.0))
 	var low := h > 0.0 and h < 1.8
 	match _shape(o.type):
+		"cable":
+			var cl := PackedVector2Array()
+			for q in _shape_path(o): cl.append(xf * (q * zoom))
+			if cl.size() < 2: return
+			var cw := maxf(_thick_cells(o) * zoom, 2.5)
+			canvas.draw_polyline(cl, Color(0.75, 0.75, 0.8, alpha * 0.8), cw + 2.0)
+			canvas.draw_polyline(cl, Color(Color(str(_info(o.type).color)), alpha), cw)
+			for i in cl.size() - 1:
+				canvas.draw_dashed_line(cl[i], cl[i + 1], Color(1, 1, 1, alpha * 0.55), 1.0, maxf(zoom * 0.15, 3.0))
+			return
 		"pipe":
 			# the run in its finish's colour, a dot at each turn; hanging from the ceiling: a dashed centre line
 			var pts := _shape_path(o)
@@ -3576,6 +3589,8 @@ func _end_spline() -> void:
 	o["points"] = clean
 	if _shape(o.type) == "pipe" and _pipe_attach(o):
 		_status("Pipe run of %d points, on a pipe piece's opening: its Hang, Off floor and Diameter now match it" % clean.size())
+	elif _shape(o.type) == "cable":
+		_status("Cable run of %d points, hung under the ceiling. Drag its squares to reroute it" % clean.size())
 	elif _shape(o.type) == "pipe":
 		_status("Pipe run of %d points. Its ends join any pipe or riser they touch; drag its squares to reroute it. Hang, Count, Material in the inspector" % clean.size())
 	else:
@@ -3847,7 +3862,7 @@ func _pipe_snap(q: Vector2, skip: int) -> Vector2:
 ## The next point of the pipe being drawn: onto a pipe or riser it reaches, else straight on from the last point,
 ## along the map's axes as pipework runs (Alt: any angle)
 func _pipe_route(o: Dictionary, q: Vector2) -> Vector2:
-	var snapped := _pipe_snap(q, selected)
+	var snapped := _pipe_snap(q, selected) if _shape(o.type) == "pipe" else q
 	if snapped != q: return snapped
 	if Input.is_key_pressed(KEY_ALT): return q
 	var pts: Array = o.points

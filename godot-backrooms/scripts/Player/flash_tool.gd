@@ -25,6 +25,7 @@ const COLOR := Color(0.92, 0.95, 1.0)
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd
+var hotbar: Node                 # item_strip.gd: a click with the flash selected fires it (use())
 var charging := 0.0              # s left until it can fire again
 var last_hit := false            # the last flash caught the Bacteria (for the tests / debug)
 var since_fired := INF           # s since the last one went off (the HUD's noise meter shows the pop)
@@ -51,6 +52,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	fire()
+
+## A click with the flash selected on the hotbar
+func use() -> void:
+	if _can():
+		fire()
 
 func _can() -> bool:
 	return player != null and inventory != null and Game.playing and not Game.dead and not player.dead \

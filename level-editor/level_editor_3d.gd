@@ -744,6 +744,8 @@ func _object(o: Dictionary, unit: Mesh, parent: Node3D) -> void:
 							parts.append([Vector3(mid2.x, 0.006, mid2.y), Vector3(run2.length() + 0.07, 0.012, 0.07), rim, atan2(-run2.y, run2.x)])
 				"pipe", "riser":
 					_pipe_preview(o, h, Transform3D(Basis(Vector3.UP, yaw_rad), pos), parent)
+				"cable":
+					_cable_preview(o, h, Transform3D(Basis(Vector3.UP, yaw_rad), pos), parent)
 				"zone":
 					var zc := col
 					zc.a = 0.22
@@ -821,6 +823,44 @@ func _pipe_preview(o: Dictionary, roof: float, xf: Transform3D, parent: Node3D) 
 			leg.call(pts[i], pts[i + 1])
 			if i > 0: put.call(ball, Transform3D(Basis.from_scale(Vector3.ONE * r * 2.5), pts[i]))
 
+# ---------------------------------------------------------------- cable runs
+## A cable run as the game's level_geometry.gd _build_cables lays it: 1 m pieces of the cable model end to end along
+## each leg (a hair stretched to fill it), flat against the ceiling `roof`, 20% bigger than the file
+func _cable_preview(o: Dictionary, roof: float, xf: Transform3D, parent: Node3D) -> void:
+	var model := _model(str(o.type))
+	if model.is_empty(): return
+	var k := float(ed._info(o.type).get("cable_scale", 1.0))
+	var tall := (model.bounds as AABB).size.y * k
+	var path: PackedVector2Array = ed._shape_path(o)
+	for i in path.size() - 1:
+		var d: Vector2 = path[i + 1] - path[i]
+		var metres: float = d.length() * ed.CELL_M
+		if metres < 0.05: continue
+		var n := maxi(1, roundi(metres))
+		var piece := metres / n
+		var yaw := atan2(-d.y, d.x)
+		for j in n:
+			var mid: Vector2 = path[i] + d * ((j + 0.5) / n)
+			var at := Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(piece * M, k * M * 0.5 * vscale, k * M)), Vector3(mid.x, roof - _up(tall), mid.y))
+			for mp: Array in model.parts:
+				var pm := MeshInstance3D.new()
+				pm.mesh = mp[0]
+				pm.transform = xf * at * (mp[1] as Transform3D)
+				if model.mat != null: pm.material_override = model.mat
+				parent.add_child(pm)
+	# a bolted junction box at every turn, as in the game
+	var corner := _model(str(o.type), 1, "cable_corner_model")
+	if corner.is_empty(): return
+	for i in range(1, path.size() - 1):
+		var din: Vector2 = path[i] - path[i - 1]
+		var at := Transform3D(Basis(Vector3.UP, atan2(-din.y, din.x)) * Basis.from_scale(Vector3(M, M * 0.5 * vscale, M)), Vector3(path[i].x, roof - _up((corner.bounds as AABB).size.y), path[i].y))
+		for mp: Array in corner.parts:
+			var pm := MeshInstance3D.new()
+			pm.mesh = mp[0]
+			pm.transform = xf * at * (mp[1] as Transform3D)
+			if corner.mat != null: pm.material_override = corner.mat
+			parent.add_child(pm)
+
 # ---------------------------------------------------------------- prop models
 ## Metres up -> this view's height (squashed to half in the overview, true in walk mode, like the walls)
 func _up(m: float) -> float:
@@ -834,14 +874,16 @@ func _up(m: float) -> float:
 func _model_of(o: Dictionary) -> Dictionary:
 	return _model(str(o.type), int(ed._param(o, "variant", 1)))
 
-func _model(t: String, variant := 1) -> Dictionary:
+func _model(t: String, variant := 1, field := "model") -> Dictionary:
 	var info: Dictionary = ed.OBJ_INFO.get(t, {})
 	var variants: Array = info.get("variants", [])
 	var key := t if variants.is_empty() else "%s#%d" % [t, clampi(variant, 1, variants.size())]
+	if field != "model": key += "/" + field
 	if _models.has(key): return _models[key]
 	_models[key] = {}
-	if not info.has("model"): return {}
-	var path: String = ed.GAME.path_join(str(info.model).trim_prefix("res://"))
+	var file := str(info.get(field, info.get("cable_model", "")))
+	if file == "": return {}
+	var path: String = ed.GAME.path_join(file.trim_prefix("res://"))
 	var fbx := path.get_extension().to_lower() == "fbx"
 	if fbx and not ClassDB.class_exists("FBXDocument"): return {}
 	var doc: GLTFDocument = ClassDB.instantiate("FBXDocument") if fbx else GLTFDocument.new()

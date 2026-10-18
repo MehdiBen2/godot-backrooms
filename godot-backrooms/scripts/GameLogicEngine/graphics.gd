@@ -90,9 +90,27 @@ func _aa() -> int:
 	if aa >= 2 and _no_temporal > 0: aa = 1
 	return aa
 
+## Test runs in the background (`-- --bg`, or `-- --bg-offscreen` when the frames must be drawn: Godot draws nothing
+## while every window is minimized): the Low preset, in memory only (graphics.cfg is left alone), a window that
+## never takes the focus, and no pause when it has none (main.gd)
+var background := ""
+
 func _ready() -> void:
 	compat = RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	for a in OS.get_cmdline_user_args() + OS.get_cmdline_args():
+		if a == "--bg" or a == "--bg-offscreen":
+			background = a.trim_prefix("--")
 	_load()
+	if background != "":
+		fullscreen = false
+		preset = "low"
+		s = PRESETS["low"].duplicate()
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+		if background == "bg":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MINIMIZED)
+		else:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_position(Vector2i(-20000, -20000))
 	apply()
 	_build_vhs()
 
@@ -486,6 +504,8 @@ func set_preset_silent(name: String) -> void:
 	_save()
 
 func _save() -> void:
+	if background != "":
+		return
 	var cf := ConfigFile.new()
 	cf.set_value("gfx", "rev", GFX_REV)
 	cf.set_value("gfx", "preset", preset)

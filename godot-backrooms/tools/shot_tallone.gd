@@ -51,7 +51,7 @@ func _save(name: String) -> void:
 	await process_frame
 	await process_frame
 	root.get_texture().get_image().save_png("%s_%s.png" % [prefix, name])
-	print("  saved %s_%s.png  (state %s, clip %s @ %.2f)" % [prefix, name, tall.state, tall._clip, tall._ap.current_animation_position])
+	print("  saved %s_%s.png  (state %s, clip %s @ %.2f)" % [prefix, name, tall.state, tall._clip, tall._ap.current_animation_position if tall._ap.current_animation != "" else 0.0])
 
 func _face(at: Vector3, away := false) -> void:
 	var d: Vector3 = at - player.cam.global_position
@@ -134,7 +134,7 @@ func _kill() -> void:
 	tall._hunt_t = 0.0
 	tall._sp = 1.0
 	tall._clip = ""
-	var marks := [0.15, 0.45, 0.8, 1.2, 1.8, 3.0, 4.5, 6.0, 7.5, 8.6]
+	var marks := [0.3, 0.8, 1.3, 2.9, 3.08, 3.25, 4.4, 5.6, 6.2, 6.85, 7.2, 7.86, 8.45, 9.1]
 	var started := false
 	var t0 := Time.get_ticks_msec()
 	var i := 0
@@ -145,14 +145,28 @@ func _kill() -> void:
 				print("kill began after %.2f s, you were frozen: %s" % [(Time.get_ticks_msec() - t0) / 1000.0, player.frozen])
 			if tall.t >= float(marks[i]):
 				var eye: Vector3 = player.cam.global_position
-				print("  t %.2f: cam %s fov %.0f, blood %.2f" % [tall.t, eye, player.cam.fov, root.get_node("Game").fx_blood])
+				print("  t %.2f: cam %s fov %.0f, blood %.2f, blows %d, rips %d, head %s turn %s" % [tall.t, eye, player.cam.fov,
+					root.get_node("Game").fx_blood, tall._blows, tall._pulls, tall._head, tall._turn])
 				await _save("kill_%02d" % int(float(marks[i]) * 10.0))
 				i += 1
 		await process_frame
 	var t1 := Time.get_ticks_msec()
 	while not player.dead and Time.get_ticks_msec() - t1 < 12000:
 		await process_frame
-	print("kill: player dead = %s, reason %s (state %s)" % [player.dead, root.get_node("Game").death_reason, tall.state])
+	print("kill: player dead = %s, reason %s (state %s), %d blows, %d rips" % [player.dead, root.get_node("Game").death_reason, tall.state, tall._blows, tall._pulls])
+	# the death camera: lifting off you, lying where it left you (Death.lying: chest at its root, head along the leap)
+	var fx = root.get_node("Death")._fx
+	await process_frame
+	if fx._skel != null:
+		var chest: Vector3 = fx.body_point(Vector3.ZERO)
+		var head: Vector3 = fx._skel.global_transform * fx._skel.get_bone_global_pose(fx._skel.find_bone("Head")).origin
+		print("body: chest %s (its root %s), head dir %s (the leap %s), contact_time %.2f" % [chest, tall.global_position,
+			(head - chest).normalized(), tall._kill_dir, fx.contact_time])
+	var td := Time.get_ticks_msec()
+	for at in [0.4, 2.0, 4.5]:
+		while Time.get_ticks_msec() - td < int(at * 1000.0):
+			await process_frame
+		await _save("dead_%02d" % int(at * 10.0))
 
 ## The whole sequence from the first sighting, with the time of every state
 func _chain() -> void:

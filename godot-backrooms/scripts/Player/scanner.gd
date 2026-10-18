@@ -16,19 +16,21 @@ extends Node
 ## `tape_info` says how long ago the strip went down and who stuck it, so you can tell whether the
 ## corridor you're in is one you've already walked.
 
+signal reading_filed(report: Dictionary)   # each XP filing a completed reading made (xp_popup.gd shows it)
+
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 
 const RANGE := 32.0
 const CONE_COS := 0.9877         # cos 9 deg: the target has to be close to the crosshair
 const SCAN_TIME := 2.0
 const LOCK_GRACE := 0.4          # a lock survives this long out of view (a doorframe, a flicker)
-const RESULT_TIME := 1.6         # the reticle shows the result this long after Q is let go
 const MAX_RAYS := 4              # line-of-sight checks per frame, best-aimed candidates first
 const WORLD_MASK := 1            # level geometry only: an entity's own body never blocks its reading
 const SIGNAL_COS := 0.55         # the signal meter starts to pick things up within ~57 deg of the view
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd: no scanner item, no scanning
+var hotbar: Node                 # item_strip.gd: a held click with the scanner selected scans too
 
 var holding := false             # Q is down and scanning is possible
 var state := "idle"              # idle / search / lock / logged / on_file
@@ -44,7 +46,6 @@ var raw_bearing := 0.0
 var target_node: Node            # the entity locked on (the C-4 deep scan asks it scan_behavior())
 var progress := 0.0              # 0..1 through the current reading
 var last_yield := 0              # RY the last completed reading filed (Clearance.file), 0 for none
-var result_t := 0.0
 var latched := false             # a reading finished: Q has to be let go before the next one
 var lost_t := 0.0
 var ping_t := 0.0
@@ -64,11 +65,10 @@ func _player(path: String, db: float) -> AudioStreamPlayer:
 	return p
 
 func _process(dt: float) -> void:
-	result_t = maxf(0.0, result_t - dt)
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and inventory.has_item("scanner") \
 		and player.lens_up <= 0.0       # the camcorder is at your eye: both hands are on it
-	var down := can and Input.is_action_pressed("scanner")
+	var down: bool = can and (Input.is_action_pressed("scanner") or (hotbar != null and hotbar.using("scanner")))
 	if not down:
 		holding = false
 		latched = false
@@ -76,12 +76,9 @@ func _process(dt: float) -> void:
 		progress = 0.0
 		signal_strength = 0.0
 		signal_dist = 0.0
-		if state == "search" or state == "lock" or result_t <= 0.0:
-			state = "idle"
-			target_id = ""
-			target_node = null
-		else:
-			_update_target_tracking()
+		state = "idle"               # the reticle goes the moment Q is let go (what the reading earned stays: xp_popup.gd)
+		target_id = ""
+		target_node = null
 		return
 	holding = true
 	if latched:
@@ -119,11 +116,18 @@ func _process(dt: float) -> void:
 
 func _complete() -> void:
 	latched = true
-	result_t = RESULT_TIME
+	# every filing this reading makes, the target's own included (a survey clipboard grants its own XP)
+	var filed: Array = []
+	var catch := func(r: Dictionary) -> void: filed.append(r)
+	Clearance.yield_filed.connect(catch)
 	if target_node != null and target_node.has_method("on_scanned"):
 		target_node.on_scanned()
 	# Research Yield first: the NEW ENTRY toast reads the report Archive.discover() then announces
 	last_yield = int(Clearance.file(target_id, target_dist, player).get("total", 0))
+	Clearance.yield_filed.disconnect(catch)
+	for r in filed:
+		if int(r.get("total", 0)) > 0:
+			reading_filed.emit(r)
 	if Archive.is_discovered(target_id):
 		state = "on_file"
 		if last_yield <= 0:

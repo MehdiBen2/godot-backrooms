@@ -80,6 +80,8 @@ func _ready() -> void:
 	mat.set_shader_parameter("vignette_amt", 0.1)
 	mat.set_shader_parameter("chroma_amt", 0.0012)
 	mat.set_shader_parameter("bloom_damp", 0.88)
+	mat.set_shader_parameter("vhs_amt", Term.VHS)           # the terminal's tape smear
+	mat.set_shader_parameter("vhs_smear", Term.VHS_SMEAR)
 	_build()
 	running = true
 

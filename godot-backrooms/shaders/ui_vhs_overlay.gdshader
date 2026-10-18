@@ -47,6 +47,20 @@ uniform float ghost_px = 0.0;
 uniform float ghost_amt = 0.0;
 uniform float flicker_amt = 0.0;
 
+// Analogue tape smear (off by default; the terminal, the vitals and the item strip switch it on). After a VHS
+// shader that smears a picture sideways in YIQ: luma barely, chroma a long way, so colour trails off the
+// right of every bright shape like a tape's weak colour channel while the shapes themselves stay sharp
+// enough to read. Widths are in texture pixels (x vhs_smear); vhs_wiggle is the tracking sway, the picture
+// leaning a hair off true toward the bottom and the odd vertical hop.
+uniform float vhs_amt : hint_range(0.0, 1.0) = 0.0;
+uniform float vhs_smear : hint_range(0.0, 2.0) = 1.0;
+uniform float vhs_wiggle : hint_range(0.0, 1.5) = 0.03;
+uniform float vhs_wiggle_speed : hint_range(0.0, 100.0) = 25.0;
+uniform int vhs_samples : hint_range(3, 15, 1) = 6;
+const float VHS_Y_PX = 1.5;      // how far each channel trails to the right, in px
+const float VHS_I_PX = 6.0;
+const float VHS_Q_PX = 10.0;
+
 const vec3 PHOSPHOR = vec3(1.0, 0.7, 0.234);   // the terminal's amber, brightest channel at 1
 
 // the node's modulate (its own and its parents'): writing COLOR in fragment() would drop it, so it is
@@ -69,8 +83,22 @@ float inside(vec2 uv) {
 	return (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) ? 0.0 : 1.0;
 }
 
+// the tape's head-switching sway: the whole picture leans a little, and now and then hops a row
+vec2 vhs_sway(vec2 uv, float t) {
+	float fc = mod(t * vhs_wiggle_speed, 7.0);
+	float hop = (0.1 * vhs_wiggle) * 0.4 * (sin(fc) * sin(fc * 20.0) + (0.5 + 0.1 * sin(fc * 200.0) * cos(fc)));
+	uv.y = mod(uv.y - 0.01 * hop, 1.0);
+	float s = 0.0001 * vhs_wiggle * sin(t * vhs_wiggle_speed);
+	float lean = min(0.003, -uv.y + 0.01 * mod(t, 5.0)) * 3.0;
+	uv.x += abs(500.0 * s * lean * lean) * vhs_wiggle;
+	return uv;
+}
+
 void fragment() {
 	vec2 uv = UV;
+	if (vhs_amt > 0.0) {
+		uv = mix(uv, vhs_sway(uv, TIME), vhs_amt);
+	}
 
 	// VHS tracking glitch: row offsets first, so the tear moves the picture itself
 	float jit = 0.0;
@@ -122,6 +150,31 @@ void fragment() {
 		vec4 gh = texture(TEXTURE, clamp(gq, 0.0, 1.0)) * inside(gq);
 		col += gh.rgb * ghost_amt;
 		alpha = max(alpha, gh.a * ghost_amt);
+	}
+	if (vhs_amt > 0.0) {
+		// each of Y, I and Q is its own trailing blur to the right of the lens-warped point; TEXTURE can't go
+		// through a helper, so the three loops are spelled out
+		float n = float(vhs_samples);
+		float px = TEXTURE_PIXEL_SIZE.x * vhs_smear;
+		vec4 sy = vec4(0.0);
+		vec4 si = vec4(0.0);
+		vec4 sq = vec4(0.0);
+		for (int k = 0; k < vhs_samples; k++) {
+			float f = (float(k) + 0.5) / n;
+			vec2 uy = pg - vec2(f * VHS_Y_PX * px, 0.0);
+			vec2 ui = pg - vec2(f * VHS_I_PX * px, 0.0);
+			vec2 uq = pg - vec2(f * VHS_Q_PX * px, 0.0);
+			sy += texture(TEXTURE, clamp(uy, 0.0, 1.0)) * inside(uy);
+			si += texture(TEXTURE, clamp(ui, 0.0, 1.0)) * inside(ui);
+			sq += texture(TEXTURE, clamp(uq, 0.0, 1.0)) * inside(uq);
+		}
+		sy /= n; si /= n; sq /= n;
+		float yy = dot(sy.rgb, vec3(0.299, 0.587, 0.114));
+		float ii = dot(si.rgb, vec3(0.596, -0.274, -0.322));
+		float qq = dot(sq.rgb, vec3(0.211, -0.523, 0.312));
+		vec3 tape = max(vec3(yy + 0.956 * ii + 0.621 * qq, yy - 0.272 * ii - 0.647 * qq, yy - 1.106 * ii + 1.703 * qq), vec3(0.0));
+		col = mix(col, tape, vhs_amt);
+		alpha = mix(alpha, max(sy.a, si.a), vhs_amt);
 	}
 	col *= 1.0 - flicker_amt * hash12(vec2(floor(TIME * 24.0), 7.0));
 

@@ -11,7 +11,7 @@ extends Control
 ## one another.
 ##
 ## A line is either the plain [text, color, font size, wrap?] array, or a row dictionary by "kind":
-##   head   {code, name, tag?, tag_color?, size?}  a big name over a small code line (tag after it, in its colour)
+##   head   {code, name, tag?, tag_color?, size?, color?}  a big name (in `color`) over a small code line (tag after it, in its colour)
 ##   pair   {left, right, color?, strong?}         a name and a value on the sheet's right edge
 ##   rule   {}                                     a hairline that draws out
 ##   bar    {left, right, from, to}                a segmented gauge that fills from `from` to `to` (0..1)
@@ -158,7 +158,7 @@ func _head_row(d: Dictionary) -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 3)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var n := _label(str(d.get("name", "")), int(d.get("size", 24)), Term.TEXT)
+	var n := _label(str(d.get("name", "")), int(d.get("size", 24)), d.get("color", Term.TEXT))
 	_fit.append(n)
 	v.add_child(n)
 	var meta := HBoxContainer.new()
@@ -193,6 +193,9 @@ func _pair_row(d: Dictionary) -> Control:
 	h.add_child(l)
 	var r := _label(str(d.get("right", "")), 16 if strong else 15, d.get("color", Term.AMBER))
 	r.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	if d.has("count"):               # the value counts up from 0 as it comes in (`fmt` with one %d)
+		r.set_meta("count", int(d.count))
+		r.set_meta("fmt", str(d.get("fmt", "%d")))
 	h.add_child(r)
 	_stretch.append(h)
 	return h
@@ -256,6 +259,10 @@ func _draw_gauge(g: Control) -> void:
 		elif e <= now + 0.0001 or i == head:
 			c = Term.TEXT if (i == head and fill < 1.0) else Term.AMBER   # this filing; the leading segment runs hot
 		g.draw_rect(Rect2(i * (sw + gap), 0.0, sw, g.size.y), c)
+
+func _count(v: float, l: Label) -> void:
+	if is_instance_valid(l):
+		l.text = str(l.get_meta("fmt")) % roundi(v)
 
 func _set_fill(v: float, g: Control) -> void:
 	if is_instance_valid(g):
@@ -387,6 +394,9 @@ func _next() -> void:
 		var l: Label = labels[i]
 		l.visible_ratio = 0.0
 		anim.tween_property(l, "visible_ratio", 1.0, clampf(l.text.length() * 0.012, 0.08, 0.3)).set_delay(0.08 + i * 0.06)
+		if l.has_meta("count"):
+			anim.tween_method(_count.bind(l), 0.0, float(l.get_meta("count")), 0.6).set_delay(0.08 + i * 0.06) \
+					.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	for i in _rules.size():
 		anim.tween_property(_rules[i], "scale:x", 1.0, 0.35).set_delay(0.15 + i * 0.1) \
 				.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)

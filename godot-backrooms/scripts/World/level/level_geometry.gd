@@ -10,6 +10,7 @@ extends "res://scripts/World/level/level_data.gd"
 ## own position, rotation and width, and the walls their own thickness and height.
 
 const Door := preload("res://scripts/World/props/door.gd")
+const HideSpot := preload("res://scripts/World/props/hide_spot.gd")
 const VerticalPieces := preload("res://scripts/World/props/vertical_pieces.gd")
 const WindowPiece := preload("res://scripts/World/props/window.gd")
 const WaterBody := preload("res://scripts/World/props/water_body.gd")
@@ -1055,6 +1056,7 @@ func _build_objects() -> void:
 	var pools: Array = []
 	var pipes: Array = []
 	var risers: Array = []
+	var cables: Array = []
 	# the stairwells first. Built a slice at a time they are kept out of sight and out of the physics until all
 	# of them stand, then a well kept from the floor before (the one you are standing in) gives way to its
 	# replacement in one frame (_swap_wells)
@@ -1089,6 +1091,7 @@ func _build_objects() -> void:
 					"pool": pools.append(o)
 					"pipe": pipes.append(o)
 					"riser": risers.append(o)
+					"cable": cables.append(o)
 					"zone":
 						if not shell: _build_trigger(o)
 	await _slice()
@@ -1100,6 +1103,7 @@ func _build_objects() -> void:
 	_build_props(props)
 	await _slice()
 	_build_pipes(pipes, risers, props)
+	_build_cables(cables)
 	_build_vertical(vertical)
 	if not shell: _build_climbers()
 	_build_water(water)
@@ -1557,8 +1561,53 @@ func _build_props(list: Array) -> void:
 		p.position.y += float(o.get("elev", 0.0))       # lifted off the floor: a sign on a wall, a box on a shelf
 		add_child(p)
 		p.build_info(info, not shell)
+		if str(info.get("smart", "")) == "hide" and not shell:      # a smart prop: you can climb in and hide
+			var spot := HideSpot.new()
+			p.add_child(spot)
+			spot.setup(p, info)
 		for l in p.find_children("*", "Light3D", true, false):
 			(l as Light3D).light_cull_mask &= ~SHELL_LAYERS      # a work lamp lights its own floor, not the ones under it
+
+## Ceiling cable runs (object_types.json "shape": "cable", drawn point by point): 1 m pieces of the cable model end
+## to end along each leg, a hair stretched to fill it, flat against the ceiling of the cell they are over
+func _build_cables(list: Array) -> void:
+	for o: Dictionary in list:
+		var info := object_info(o.type)
+		var k := float(info.get("cable_scale", 1.0))
+		var binfo := {"model": info.get("cable_model", ""), "center": true, "collide": "none"}
+		var xf := object_transform(o)
+		var raw = o.get("points", [])
+		if not (raw is Array): continue
+		var pts: Array[Vector3] = []
+		for q in raw:
+			if q is Array and q.size() >= 2:
+				var w := xf * (Vector3(float(q[0]), 0.0, float(q[1])) * CELL)
+				if pts.is_empty() or pts[-1].distance_to(w) > 0.02: pts.append(w)
+		var tall := 0.0
+		for i in pts.size() - 1:
+			var d := pts[i + 1] - pts[i]
+			d.y = 0.0
+			var metres := d.length()
+			var n := maxi(1, roundi(metres))
+			var yaw := atan2(-d.z, d.x)
+			for j in n:
+				var mid := pts[i] + d * ((j + 0.5) / n)
+				var p := IndustrialProp.new()
+				p.transform = Transform3D(Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(metres / n, k, k)), Vector3(mid.x, 0.0, mid.z))
+				add_child(p)
+				p.build_info(binfo, false)
+				p.position.y += ceiling_height(cell_of(mid)) - p.bounds.size.y * k - 0.005
+				tall = p.bounds.size.y * k
+		# a bolted junction box at every turn, so the legs meet in something instead of leaving the corner open
+		var cinfo := {"model": info.get("cable_corner_model", ""), "center": true, "collide": "none"}
+		if tall <= 0.0 or str(cinfo.model) == "": continue
+		for i in range(1, pts.size() - 1):
+			var din := pts[i] - pts[i - 1]
+			var cp := IndustrialProp.new()
+			cp.transform = Transform3D(Basis(Vector3.UP, atan2(-din.z, din.x)), Vector3(pts[i].x, 0.0, pts[i].z))
+			add_child(cp)
+			cp.build_info(cinfo, false)
+			cp.position.y += ceiling_height(cell_of(pts[i])) - cp.bounds.size.y - 0.002
 
 func _object_wall_h(o: Dictionary) -> float:
 	var c := Vector2i(roundi(o.pos_x), roundi(o.pos_y))

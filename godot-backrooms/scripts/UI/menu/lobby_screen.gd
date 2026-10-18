@@ -594,9 +594,10 @@ func _refresh_room() -> void:
 	room_label.visible = room_label.text != ""
 	_set_entry("host", "", "INVITE UP TO %d SURVIVORS" % (Net.MAX_PLAYERS - 1), not guest and not Net.hosting)
 	_set_entry("copy", "", "TO THE CLIPBOARD", not guest and Net.hosting and Net.share_link != "")
-	_set_entry("close", "", "SEND EVERYONE HOME" if multiplayer.get_peers().size() > 0 else "PLAY ON YOUR OWN", not guest and Net.hosting)
+	var peers: PackedInt32Array = multiplayer.get_peers() if multiplayer.has_multiplayer_peer() else PackedInt32Array()   # (no peer while leaving: get_peers() errors)
+	_set_entry("close", "", "SEND EVERYONE HOME" if peers.size() > 0 else "PLAY ON YOUR OWN", not guest and Net.hosting)
 	var waiting := 0
-	for id in multiplayer.get_peers():
+	for id in peers:
 		if Net.names.has(id) and not Net.ready_peers.has(id):
 			waiting += 1
 	_set_entry("begin", "", entries[_entry_of("begin")].hint.text if waiting == 0 else "WAITING FOR %d SURVIVOR%s TO READY UP" % [waiting, "" if waiting == 1 else "S"], not guest)

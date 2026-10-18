@@ -153,7 +153,7 @@ func _build_boot() -> void:
 	for line in [
 			["T.S.R.A. // CONTRACTOR SERVICES", 22, CREAM, 0.2],
 			["ROUTING ............. RELAY %d" % (3 + absi(str(data.get("file_no", "")).hash()) % 9), 16, DIMC, 0.25],
-			["CONTRACTOR .......... %s" % str(tier.get("code", "C-0")), 16, DIMC, 0.15],
+			["RANK ................ %s" % str(tier.get("code", "RANK 0")), 16, DIMC, 0.15],
 			["LIABILITY WAIVER .... ON FILE", 16, DIMC, 0.15],
 			["NEXT OF KIN ......... NOT REQUIRED", 16, DIMC, 0.2],
 			["RETRIEVING DEPLOYMENT FILE %s" % str(data.get("file_no", "SR-0000")), 16, CREAM, 0.3]]:

@@ -20,8 +20,8 @@ func refresh() -> void:
 	var cur := Clearance.tier()
 	var unit := Clearance.unit
 	var top := Clearance.is_max_tier()
-	heading(out, "PERSONNEL FILE", "FIELD CLEARANCE")
-	out.add_child(leader("CLEARANCE HELD", Clearance.tier_label(), AMBER, 18))
+	heading(out, "PERSONNEL FILE", "FIELD RANK")
+	out.add_child(leader("RANK HELD", Clearance.tier_label(), Clearance.tier_color(), 18))
 	if str(cur.get("brief", "")) != "":
 		para(out, str(cur.brief), TEXT_DIM, 16)
 	out.add_child(spacer(8))
@@ -37,7 +37,7 @@ func refresh() -> void:
 	gauge.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gauge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	gauge.custom_minimum_size.y = 12
-	set_cells(gauge, CL_BAR if top else roundi(Clearance.tier_progress() * CL_BAR), GREEN if top else AMBER)
+	set_cells(gauge, CL_BAR if top else roundi(Clearance.tier_progress() * CL_BAR), Clearance.tier_color())
 	bar.add_child(gauge)
 	bar.add_child(label("%d %s" % [Clearance.total, unit] if top else "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), unit], 16, TEXT, 2))
 	out.add_child(bar)
@@ -46,14 +46,15 @@ func refresh() -> void:
 		out.add_child(leader("NEXT PROMOTION", "%s IN %d %s" % [str(nxt.get("title", "")).to_upper(), Clearance.next_threshold() - Clearance.total, unit], TEXT, 17))
 
 	# the ladder: every tier, and where you stand on it
-	section(out, "CLEARANCE LADDER")
+	section(out, "RANK LADDER")
 	for i in Clearance.tiers.size():
 		var td: Dictionary = Clearance.tiers[i]
 		var col := GREEN if i < ti else (AMBER if i == ti else TEXT_DIM)
 		var row := leader("%s  %s" % [str(td.get("code", "")), str(td.get("title", "")).to_upper()],
 			"[HELD]" if i < ti else ("[CURRENT]" if i == ti else "[%d %s]" % [int(td.get("yield", 0)), unit]), col, 17)
-		if i > ti:
-			(row.get_child(0) as Label).add_theme_color_override("font_color", Color(TEXT_DIM, 0.5))
+		# each rank's name in its own colour: full once reached, faint ahead (so you can see what's coming)
+		var rank_col := Clearance.tier_color(i)
+		(row.get_child(0) as Label).add_theme_color_override("font_color", rank_col if i <= ti else Color(rank_col, 0.35))
 		out.add_child(row)
 
 	# privileges: what each unlock is, and whether it is yours
@@ -72,7 +73,7 @@ func refresh() -> void:
 	var on_file := 0
 	for id in Archive.entities():
 		if Clearance.sites.has(id): on_file += 1
-	out.add_child(leader("LIFETIME YIELD", "%d %s" % [Clearance.total, unit], AMBER, 17))
+	out.add_child(leader("LIFETIME XP","%d %s" % [Clearance.total, unit], AMBER, 17))
 	out.add_child(leader("READINGS FILED", str(Clearance.filings()), TEXT, 17))
 	out.add_child(leader("ENTITIES ON FILE", "%d / %d" % [on_file, Archive.entities().size()], TEXT, 17))
 	out.add_child(leader("SITES CONFIRMED", str(Clearance.sites_confirmed()), TEXT, 17))

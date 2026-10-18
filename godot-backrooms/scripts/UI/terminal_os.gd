@@ -313,7 +313,7 @@ func _emblem() -> void:
 	col.add_child(Kit.spacer(18))
 	var auth := Kit.label("AUTHENTICATING OPERATIVE ...", 18, MUTED, 3)
 	col.add_child(_center(auth))
-	var granted := Kit.label("ACCESS GRANTED // CLEARANCE %s" % _tier_code(), 20, GREEN, 3)
+	var granted := Kit.label("ACCESS GRANTED // %s" % _tier_code(), 20, GREEN, 3)
 	col.add_child(_center(granted))
 	for l in [name_lbl, full, auth, granted]:
 		l.visible_ratio = 0.0
@@ -500,7 +500,7 @@ func _detail_archive(eid: String) -> void:
 		return
 	_rule()
 	if not Clearance.has_unlock("classified"):
-		_d("CLASSIFIED ANNEX // REQUIRES CLEARANCE %s" % Clearance.unlock_code("classified"), 16, RED, 2, true)
+		_d("CLASSIFIED ANNEX // REQUIRES %s" % Clearance.unlock_code("classified"), 16, RED, 2, true)
 		return
 	_d("CLASSIFIED ANNEX", 16, RED, 2)
 	if annex.has("origin"):
@@ -521,7 +521,7 @@ func _detail_mission(m: Dictionary) -> void:
 	var n := int(k * 20.0)
 	_d("[%s%s] %s" % ["#".repeat(n), ".".repeat(20 - n), str(m.get("show", "%d / %d" % [mini(int(m.have), int(m.need)), int(m.need)]))], 18, GREEN if done else AMBER, 1)
 	if str(m.get("reward", "")) != "":
-		_d("YIELD", 16, MUTED, 2)
+		_d("REWARD", 16, MUTED, 2)
 		_d(str(m.reward), 17, TEXT_DIM, 1, true)
 
 func _detail_supply(it: Dictionary) -> void:
@@ -573,23 +573,23 @@ func _missions() -> Array:
 		{"code": "MS-01", "name": "RECOVER KESTREL'S NOTES",
 			"brief": "Survey Team KESTREL left their clipboards scattered through this sector before contact was lost. One lies a few steps from this terminal.",
 			"goal": "Scan a survey clipboard with the field scanner [Q].",
-			"have": 1 if Archive.is_discovered("survey_clipboard") else 0, "need": 1, "reward": "40 RY per clipboard. Decrypts file KST-07."},
+			"have": 1 if Archive.is_discovered("survey_clipboard") else 0, "need": 1, "reward": "40 %s per clipboard. Decrypts file KST-07." % Clearance.unit},
 		{"code": "MS-02", "name": "CATALOGUE THE RESIDENTS",
 			"brief": "Every entity logged sharpens the agency's picture of this level. Readings taken closer, or under duress, are worth more.",
 			"goal": "Log three entities with the field scanner [Q].",
-			"have": _logged_count(), "need": 3, "reward": "100-260 RY per new entity, by threat class."},
+			"have": _logged_count(), "need": 3, "reward": "100-260 %s per new entity, by threat class." % Clearance.unit},
 		{"code": "MS-03", "name": "MAP THE THRESHOLD",
 			"brief": "Corridors here do not stay where they were. Tape is the only map that holds. Mark junctions, doorways and dead ends as you go.",
 			"goal": "Mark a quarter of the sector's open floor with hazard tape [T].",
-			"have": mapped, "need": 25, "show": "%d%% / 25%%" % mapped, "reward": "1 RY per new cell, bonuses at 25 / 50 / 75%."},
+			"have": mapped, "need": 25, "show": "%d%% / 25%%" % mapped, "reward": "1 %s per new cell, bonuses at 25 / 50 / 75%%." % Clearance.unit},
 		{"code": "MS-04", "name": "DOCUMENT AN EGRESS",
 			"brief": "Find the way out of this sector and prove it can be walked again. A route counts once your tape leads to the exit and you leave by it.",
 			"goal": "Tape a route to the exit and take it.",
-			"have": 1 if Clearance.routes.has(level) else 0, "need": 1, "reward": "40 RY plus 0.5 RY per metre of trail."},
-		{"code": "MS-05", "name": "EARN THE NEXT CLEARANCE",
-			"brief": "Clearance opens the classified annexes, the scanner's rangefinder and its deep-scan mode. It is earned in Research Yield, nothing else.",
-			"goal": "Reach %s." % ("the top tier" if Clearance.is_max_tier() else str(Clearance.tier(Clearance.tier_index() + 1).get("code", "the next tier"))),
-			"have": Clearance.total, "need": next if not Clearance.is_max_tier() else Clearance.total, "show": "%d / %d RY" % [Clearance.total, next], "reward": ""},
+			"have": 1 if Clearance.routes.has(level) else 0, "need": 1, "reward": "40 %s plus 0.5 %s per metre of trail." % [Clearance.unit, Clearance.unit]},
+		{"code": "MS-05", "name": "EARN THE NEXT RANK",
+			"brief": "Each rank opens more: the classified annexes, the scanner's rangefinder and its deep-scan mode. It is earned in XP, nothing else.",
+			"goal": "Reach %s." % ("the top rank" if Clearance.is_max_tier() else str(Clearance.tier(Clearance.tier_index() + 1).get("code", "the next tier"))),
+			"have": Clearance.total, "need": next if not Clearance.is_max_tier() else Clearance.total, "show": "%d / %d %s" % [Clearance.total, next, Clearance.unit], "reward": ""},
 	]
 
 func _files() -> Array:
@@ -601,7 +601,7 @@ func _files() -> Array:
 		if lock.begins_with("clear:"):
 			var id := lock.substr(6)
 			open = Clearance.has_unlock(id)
-			hint = "DECRYPTION KEY ISSUED AT CLEARANCE %s." % Clearance.unlock_code(id)
+			hint = "DECRYPTION KEY ISSUED AT %s." % Clearance.unlock_code(id)
 		elif lock != "":
 			open = Archive.is_discovered(lock)
 			hint = "KEY FRAGMENT RECOVERABLE IN THE FIELD. LOG: %s." % str(Archive.entity_info(lock).get("code", lock))
@@ -623,7 +623,7 @@ func _carried(id: String) -> int:
 	return inv.item_count(id) if inv and inv.has_method("item_count") else 0
 
 func _tier_code() -> String:
-	return str(Clearance.tier().get("code", "C-1")) if not Clearance.tiers.is_empty() else "C-1"
+	return str(Clearance.tier().get("code", "RANK 0")) if not Clearance.tiers.is_empty() else "RANK 0"
 
 func _sector() -> String:
 	return "L%d-F%d" % [Game.level_index, Game.level_floor]
@@ -780,7 +780,7 @@ func _chrome(title: String, sub: String) -> VBoxContainer:
 	var ops := HBoxContainer.new()
 	ops.add_theme_constant_override("separation", 10)
 	ops.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for pair in [["OPERATIVE", "FIELD SURVEYOR", TEXT], ["CLEARANCE", _tier_code(), AMBER], ["CREDITS", "%d CR" % credit_balance, GREEN],
+	for pair in [["OPERATIVE", str(Clearance.tier().get("title", "RECRUIT")), TEXT], ["RANK", _tier_code(), Clearance.tier_color()], ["CREDITS", "%d CR" % credit_balance, GREEN],
 			["LINK", "STABLE" if Game.terror < 0.2 else "DEGRADED", GREEN if Game.terror < 0.2 else ORANGE]]:
 		ops.add_child(Kit.label(pair[0], 15, MUTED, 2))
 		var v := Kit.label(pair[1], 15, pair[2], 2)

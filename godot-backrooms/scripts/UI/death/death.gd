@@ -19,6 +19,7 @@ extends Node
 ## mannequin_snap.gd), BEFORE kill_player() is called. The only sound made here is the body landing.
 
 const DeathFx := preload("res://scripts/UI/death/death_fx.gd")
+const LensBlood := preload("res://scripts/UI/death/lens_blood.gd")
 const RespawnFade := preload("res://scripts/UI/death/respawn_fade.gd")
 const PULL_SECONDS  := 2.2      # out of the body and round into the orbit
 const ORBIT_LAP     := 28.0     # seconds per slow lap; it keeps turning until you respawn
@@ -72,6 +73,8 @@ var _land_t := -1.0            # seconds since the body hit the floor (drives th
 var _fall_sounded := false
 var _body_light: OmniLight3D = null
 var _caught := false            # something attacked you: the last breath already went out at the bite/snap
+var _lens: LensBlood            # blood on the glass (THE TALL ONE's claws)
+var _down := {}                 # lying(): you were already down on your back when you died (chest, head_dir)
 
 func _ready() -> void:
 	_blood_tex = load("res://textures/blood/PsoSI8.png") if ResourceLoader.exists("res://textures/blood/PsoSI8.png") else null
@@ -79,6 +82,8 @@ func _ready() -> void:
 	add_child(_fx)
 	_fade = RespawnFade.new()
 	add_child(_fade)
+	_lens = LensBlood.new()
+	add_child(_lens)
 
 # Autoloads only leave the tree when the game quits: drop the synth cache that outlives scene reloads
 func _exit_tree() -> void:
@@ -118,13 +123,21 @@ func start(killer: String, p_pos: Vector3, cam_start_global: Vector3, p_yaw: flo
 	# Nothing attacked you in a psychological collapse: no blood, you just go down
 	var bloody := killer != "PSYCHOLOGICAL COLLAPSE"
 	_caught = bloody
-	if bloody:
+	if bloody and killer != "THE TALL ONE":      # (its blood is all in the world: death_fx)
 		_show_blood_screen()
+	var down := _down
+	_down = {}
 	# The killer is right in front of the view: the bite / snap sprays from about there
 	var fwd := Vector3(-sin(p_yaw), 0.0, -cos(p_yaw))
-	if bloody and killer != "THE BACTERIA" and killer != "THE MANNEQUIN":   # those two already sprayed at the bite / snap (bite())
+	if bloody and killer != "THE BACTERIA" and killer != "THE MANNEQUIN" and down.is_empty():   # those already bled (bite(), face_tear())
 		_fx.feast(cam_start_global + fwd * 0.8, p_pos)
 	_fx.spawn_ragdoll(p_pos, p_yaw)
+	if not down.is_empty():
+		# already on your back: the body is lying there from the first frame, and there is no fall to hear
+		_fx.lay_down(down.chest, down.head_dir)
+		_fall_sounded = true
+		_landed = true
+	_lens.wipe(1.8)                               # the view lifts off you: the blood on the glass goes with it
 	# Add a dim light above the dead body so the player can see their character
 	_add_body_light(p_pos)
 
@@ -176,6 +189,30 @@ func friend_pool(body: Vector3, dir: Vector3) -> void:
 ## The grab begins: clear last run's blood
 func grab_begin() -> void:
 	_fx.clear()
+	_lens.clear()
+
+## You die lying on your back where you already are (THE TALL ONE sat on you): call before Game.kill_player. The
+## body is laid with its chest at `chest` and its head toward `head_dir` instead of standing and falling.
+func lying(chest: Vector3, head_dir: Vector3) -> void:
+	_down = {"chest": chest, "head_dir": head_dir}
+
+## Claws through your face (THE TALL ONE: tall_one.gd). Blood thrown up off it along the blow, falling back round
+## your head, and heavy drops that stain the floor where they land. `strength` 0..1
+func face_tear(face: Vector3, floor_y: float, dir: Vector3, strength: float) -> void:
+	_fx.floor_y = floor_y
+	var flat := Vector3(dir.x, 0.0, dir.z)
+	var up := (flat.normalized() * 0.7 + Vector3.UP).normalized() if flat.length() > 0.01 else Vector3.UP
+	_fx.burst(face, up, (0.5 + 0.8 * strength) * Gfx.particle_scale(), 0.45 + 0.35 * strength)
+	for i in int(3 + 5 * strength):
+		_fx.drop(face, flat.normalized() * randf_range(0.3, 1.4) + Vector3(randf_range(-0.6, 0.6), randf_range(1.0, 2.8), randf_range(-0.6, 0.6)), randf_range(0.015, 0.04))
+
+## The pool spreading under your head (the face is gone): laid on the floor at `head`
+func face_pool(head: Vector3) -> void:
+	_fx.feast(head + Vector3(0.0, 0.25, 0.0), head)
+
+## Blood thrown on the lens at `uv` (0..1 of the screen) along `dir` (screen space, y down); `size` 0..~0.2
+func lens_splat(uv: Vector2, dir: Vector2, size: float) -> void:
+	_lens.splat(uv, dir, size)
 
 ## A single droplet (js bloodDrop): flies, falls and stains where it lands
 func bite_drop(pos: Vector3, vel: Vector3, size: float) -> void:
@@ -190,6 +227,8 @@ func stop() -> void:
 	_hide_blood_screen()
 	_remove_body_light()
 	_fx.clear()
+	_lens.clear()
+	_down = {}
 	_cam    = null
 	_player = null
 	_scares = null

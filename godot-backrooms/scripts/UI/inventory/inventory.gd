@@ -74,6 +74,8 @@ const BAR_GAP := 4.0             # dark space between a bar's outline and its se
 const LENS_CURVE := 0.04         # CRT bulge: ui_vhs_overlay `distortion`, corner-fitted
 const LINE := Kit.LINE
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
+const VHS := 1.0                 # ui_vhs_overlay tape smear (vhs_amt); the HUD's vitals and item strip use it too
+const VHS_SMEAR := 0.7           # how far it trails: short enough that the text stays readable
 const BLOOM := 1.15              # phosphor glow strength (ui_vhs_overlay bloom_amt)
 const BLOOM_WIDE := 0.42         # the neon halo's strength (a broad blur added over the tight glow)
 const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 1080p
@@ -225,6 +227,8 @@ func _build() -> void:
 	overlay_mat.set_shader_parameter("bloom_hot", 0.0)
 	overlay_mat.set_shader_parameter("bloom_tint", 0.85)   # glow in the pure amber, not washed out
 	overlay_mat.set_shader_parameter("saturation", 1.25)
+	overlay_mat.set_shader_parameter("vhs_amt", VHS)
+	overlay_mat.set_shader_parameter("vhs_smear", VHS_SMEAR)
 
 	var screen := Control.new()
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -337,7 +341,7 @@ func _build_header() -> Control:
 	var sub := Kit.label("FIELD TERMINAL  //  MK-IV", 15, MUTED, 3)
 	sub.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(_centered(sub))
-	h.add_child(_centered(Kit.label("CLEARANCE:", 15, MUTED, 3)))
+	h.add_child(_centered(Kit.label("RANK:", 15, MUTED, 3)))
 	clearance_label = Kit.label("", 18, AMBER, 2)
 	h.add_child(_centered(clearance_label))
 	clearance_cells = Kit.cells(10, 3.0, false)
@@ -365,7 +369,8 @@ func _refresh_clearance(report := {}) -> void:
 			clearance_new = true
 			if readout: readout.queue_redraw()
 	_refresh_page("CLEARANCE")
-	clearance_label.text = str(Clearance.tier().get("code", "C-0"))
+	clearance_label.text = Clearance.tier_label()
+	clearance_label.add_theme_color_override("font_color", Clearance.tier_color())
 	Kit.set_cells(clearance_cells, roundi(Clearance.tier_progress() * 10.0), GREEN if Clearance.is_max_tier() else AMBER)
 
 ## The function-key strip along the bottom: each [KEY] lit, then what it does; the clock

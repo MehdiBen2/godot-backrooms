@@ -13,12 +13,21 @@ Model space: it faces -Y (+Z once exported), its left side is +X, it stands 4.45
 (tall_one.gd shows it at scale 1). Clips (30 fps; walk / run are in place, tall_one.gd moves it):
     idle      4 s loop     stood, head cocked, fingers working, breath you can barely see
     walk      2.0 s loop   the roam: slow, long strides, arms hanging to the knees (1.7 m/s)
-    run       0.8 s loop   the flee and the hunt: folded forward, long strides, arms pumping (10 m/s)
+    run       0.8 s loop   the flee and the hunt: a low predatory sprint, torso driven forward, the head level on its target,
+                           long low strides, the arms swept back and loose (10 m/s)
     spot      0.9 s        it sees you: the head snaps round, the body recoils, hands come up
     scream    3.6 s        head thrown back, arms flung wide, the whole body shaking (holds its last frame)
-    kill      9.0 s        pounce 0-1.05 (hips fly in from 6 m behind the root), land and sit astride you 1.05-1.7,
-                           then tear at your face to the end. The root is where your chest ends up; "KillEye" is
-                           where your eyes are, lying under it looking up. tall_one.gd rides the camera there.
+    peer      5.1 s        it saw you hide: it folds down into a wide squat in front of the door, its face level with the
+                           vent, stares in for 3 s with the head cocking over, fingers laid on the door, then stands
+    kill      9.6 s        pounce 0-1.05 (hips fly in from 6 m behind the root, hands driving into your chest), it lands
+                           kneeling astride you with one long hand planted on the floor beside your head; then the tear
+                           (kill_hands: wound-up claw blows, a pause to look at its fingers, both hands hooked in your
+                           cheeks and pulled apart in jerks, a frenzy of blows out of step, and its face coming down to
+                           yours, both hands slammed on the floor either side of your head). The root is where your chest
+                           ends up; "KillEye" is where your eyes are, lying under it looking up. tall_one.gd rides the
+                           camera there and reads the blows straight off the hands (their speed and nearness to KillEye).
+
+Preview: blender -b tools/blender/tall_one.blend --python tools/blender/preview_tallone.py -- OUT.png clip=kill t=1,2,3 view=side
 """
 import bpy
 import math
@@ -108,7 +117,61 @@ def prepare():
     bpy.ops.object.mode_set(mode='OBJECT')
     for pb in arm.pose.bones:
         pb.rotation_mode = 'QUATERNION'
+        pb.rotation_quaternion = Quaternion()
+        pb.location = Vector()
+    build_eyes()
     load_rest()
+
+
+EYE_CX = 0.072                      # the eyes' distance either side of the face's midline (a clear gap between them), and their height
+EYE_CZ = 4.195
+EYE_W = 0.068
+EYE_H = 0.049
+EYE_U = ((0.021, 0.351), (0.654, 0.976))   # tall_eyes.png: where each eye is in the picture (left to right)
+
+
+def build_eyes():
+    """The two eyes (tall_eyes.png) laid on the face and skinned to the Head bone, so they ride the head wherever it goes.
+    (A bone-parented mesh sits off the bone's TAIL in Blender: lengthening the Head bone once sent them down to the chest.)"""
+    old = bpy.data.objects.get("TallOne_Eyes_Mesh")
+    mat = old.data.materials[0] if old is not None and old.data.materials else bpy.data.materials.get("TallOne_Eyes")
+    if old is not None:
+        bpy.data.objects.remove(old, do_unlink=True)
+    body = bpy.data.objects["TallOne_Body"]
+    verts, uvs, faces = [], [], []
+    nx, nz = 12, 8
+    for (u0, u1), side in zip(EYE_U, (-1, 1)):
+        base = len(verts)
+        for j in range(nz + 1):
+            for i in range(nx + 1):
+                fx, fz = i / nx, j / nz
+                x = side * EYE_CX + (fx - 0.5) * EYE_W
+                z = EYE_CZ + (fz - 0.5) * EYE_H
+                ok, loc, nrm, _ = body.ray_cast(Vector((x, -1.0, z)), Vector((0, 1, 0)))
+                if not ok:
+                    loc = Vector((x, -0.18, z))
+                verts.append(loc + Vector((0, -0.003, 0)))
+                uvs.append((u0 + (u1 - u0) * fx, fz))
+        for j in range(nz):
+            for i in range(nx):
+                a = base + j * (nx + 1) + i
+                faces.append((a, a + 1, a + nx + 2, a + nx + 1))
+    me = bpy.data.meshes.new("TallOne_Eyes")
+    me.from_pydata(verts, [], faces)
+    uvl = me.uv_layers.new(name="UVMap")
+    for poly in me.polygons:
+        poly.use_smooth = True
+        for li in poly.loop_indices:
+            uvl.data[li].uv = uvs[me.loops[li].vertex_index]
+    if mat is not None:
+        me.materials.append(mat)
+    eo = bpy.data.objects.new("TallOne_Eyes_Mesh", me)
+    bpy.context.scene.collection.objects.link(eo)
+    eo.parent = arm
+    vg = eo.vertex_groups.new(name="Head")
+    vg.add(list(range(len(verts))), 1.0, 'REPLACE')
+    m = eo.modifiers.new("Armature", 'ARMATURE')
+    m.object = arm
 
 
 def load_rest():
@@ -366,29 +429,32 @@ RUN_STRIDE = RUN_V * RUN_T * RUN_DUTY * 0.5
 
 
 def run(u):
+    """A low predatory sprint: the torso driven forward over its feet, the head held level on whatever it is running at,
+    long strides with the feet kept close to the floor, the arms swept back and swinging loose (never pumping)"""
     p = Pose()
     w = math.tau * u
-    fl = gait(u % 1.0, RUN_STRIDE * 2, RUN_DUTY, 1.1, 0.35)
-    fr = gait((u + 0.5) % 1.0, RUN_STRIDE * 2, RUN_DUTY, 1.1, 0.35)
-    lean = 24.0
-    # up in the flight, down on the landing
-    hz = 2.02 + 0.20 * (0.5 + 0.5 * math.cos(2 * w - 2 * math.pi * RUN_DUTY / 2 + math.pi)) - 0.05
-    hips_at(p, -0.05 * math.sin(w), -0.06 - 0.45, hz)
-    legs(p, None, ((0.28, -0.55 - fl[0], 0.2 + fl[1]), (-0.28, -0.55 - fr[0], 0.2 + fr[1])), knees=0.12,
-         pitch=(-30.0 * ramp(fl[1], 0.0, 0.8) + 25.0 * (1 - ramp(fl[1], 0.0, 0.2)), -30.0 * ramp(fr[1], 0.0, 0.8) + 25.0 * (1 - ramp(fr[1], 0.0, 0.2))))
-    p.turn("Hips", (X, 6.0), (Z, 9.0 * math.sin(w)), (Y, -3.0 * math.sin(w)))
-    p.turn("Spine", (X, lean * 0.35), (Z, -7.0 * math.sin(w)))
-    p.turn("Spine1", (X, lean * 0.35), (Z, -6.0 * math.sin(w)))
-    p.turn("Spine2", (X, lean * 0.3), (Z, -4.0 * math.sin(w)))
-    p.turn("Neck", (X, -8.0))
-    p.turn("Head", (X, -14.0 + 4.0 * math.cos(2 * w)), (Y, 10.0 * math.sin(w * 2.0 + 1.0)), (Z, 9.0 * math.sin(w) + 7.0))
+    fl = gait(u % 1.0, RUN_STRIDE * 2, RUN_DUTY, 0.62, 0.0)
+    fr = gait((u + 0.5) % 1.0, RUN_STRIDE * 2, RUN_DUTY, 0.62, 0.0)
+    peak = 2 * w - math.tau * (RUN_DUTY + (0.5 - RUN_DUTY) / 2.0)          # highest in the middle of the flight
+    hz = 2.02 + 0.08 * math.cos(peak)
+    hips_at(p, -0.04 * math.sin(w), -0.55, hz)
+    legs(p, None, ((0.27, -0.22 - fl[0], 0.2 + fl[1]), (-0.27, -0.22 - fr[0], 0.2 + fr[1])), knees=0.10,
+         pitch=(-26.0 * ramp(fl[1], 0.05, 0.5), -26.0 * ramp(fr[1], 0.05, 0.5)))
     sw = math.sin(w)
-    # arms drive: upper arms thrown back and forward, forearms folded hard, the hands trailing and clawed
-    arms_fk(p, 38.0 * sw + 8.0, 12.0, 78.0 - 22.0 * sw, -38.0 * sw + 8.0, 14.0, 78.0 + 22.0 * sw)
-    p.curl["L"] = [0.5, 0.7, 0.8, 0.7, 0.75]
-    p.curl["R"] = [0.5, 0.75, 0.7, 0.8, 0.7]
-    p.spread["L"] = 1.0
-    p.spread["R"] = 1.0
+    p.turn("Hips", (X, 10.0), (Z, 8.0 * sw), (Y, -2.5 * sw))
+    p.turn("Spine", (X, 8.0), (Z, -6.0 * sw))
+    p.turn("Spine1", (X, 8.0), (Z, -6.0 * sw))
+    p.turn("Spine2", (X, 8.0), (Z, -4.0 * sw))
+    p.turn("LeftShoulder", (X, -4.0 * sw))
+    p.turn("RightShoulder", (X, 4.0 * sw))
+    # the neck reaches out, the head stays level and keeps its eyes on the front: the body does not agree with it
+    p.turn("Neck", (X, -4.0))
+    p.turn("Head", (X, -28.0 + 2.0 * math.cos(2 * w)), (Y, 5.0 * math.sin(w * 2.0 + 1.0)), (Z, 3.0 * sw))
+    arms_fk(p, -26.0 + 14.0 * sw, 9.0, 24.0 + 8.0 * sw, -26.0 - 14.0 * sw, 10.0, 24.0 - 8.0 * sw)
+    p.curl["L"] = [0.35, 0.5, 0.55, 0.5, 0.55]
+    p.curl["R"] = [0.35, 0.55, 0.5, 0.55, 0.5]
+    p.spread["L"] = 0.8
+    p.spread["R"] = 0.8
     return p
 
 
@@ -447,72 +513,279 @@ def scream(t):
     return p
 
 
+# ---------------------------------------------------------------- peer
+PEER_T = (1.2, 3.0, 0.9)                        # folding down, the stare, back up
+PEER_DOOR = 1.78                                # m in front of the root: the door it peers at (tall_one.gd PEER_DOOR)
+PEER_FEET = ((0.66, -0.34, 0.20), (-0.66, -0.26, 0.20))    # wide: the knees thrown out either side of it
+PEER_HAND = Vector((-0.66, -(PEER_DOOR - 0.42), 1.22))     # its right wrist, out to its side: the fingers laid on the door below the vent
+_IDLE_HAND = []
+
+
+def peer(t):
+    """It watched you get in. It folds right down in front of the door, knees out wide like something about to jump,
+    bends its long body over them and brings its face level with the vent, the head straightened to look in. It stares
+    for three seconds, the head slowly cocking over, one tick at the middle of it; its right hand comes up and lays its
+    fingers on the door beside the vent, tapping. Then it unfolds and stands (the root does not move)."""
+    T0, T1, T2 = PEER_T
+    d = ease5((t / T0)) * (1.0 - ease(((t - T0 - T1) / T2)))           # how far down it is
+    stare = ramp(t, T0 * 0.7, T0 + 0.2) * (1.0 - ramp(t, T0 + T1 - 0.3, T0 + T1 + 0.1))
+    reach = ramp(t, T0 + 0.3, T0 + 0.9) * (1.0 - ramp(t, T0 + T1 - 0.5, T0 + T1))
+    tick = ramp(t, T0 + 1.55, T0 + 1.62) * (1.0 - ramp(t, T0 + 2.0, T0 + 2.4))
+    cock = ramp(t, T0, T0 + T1) * stare
+    br = math.sin(t * 2.4)
+    if not _IDLE_HAND:
+        _IDLE_HAND.append(solve(idle(0.0))[1]["RightHand"].translation.copy())
+    p = Pose()
+    hips_at(p, 0.0, lerp(-0.06, 0.22, d), lerp(2.60, 1.16, d) - 0.012 * br * d)
+    legs(p, None, tuple(tuple(lerp(a, b, d) for a, b in zip(i0, i1)) for i0, i1 in
+                        zip(((0.30, 0.02, 0.20), (-0.30, 0.0, 0.20)), PEER_FEET)), knees=lerp(0.1, 1.1, d))
+    p.turn("Hips", (X, 31.0 * d), (Y, 1.2))
+    p.turn("Spine", (X, lerp(5.0, 22.0, d) + 0.6 * br))
+    p.turn("Spine1", (X, lerp(4.0, 20.0, d) + 0.6 * br))
+    p.turn("Spine2", (X, lerp(3.0, 14.0, d)))
+    p.turn("LeftShoulder", (X, -1.0 * br))
+    p.turn("RightShoulder", (X, -6.0 * reach))
+    # the head comes up level as the body goes down: it never takes its eyes off the vent
+    p.turn("Neck", (X, lerp(10.0, -18.0, d)), (Y, 3.0))
+    p.turn("Head", (X, lerp(8.0, -34.0, d) + 1.5 * math.sin(t * 1.3)),
+           (Y, lerp(13.0, 6.0, d) + 22.0 * cock + 9.0 * tick), (Z, -4.0 * tick + 2.0 * math.sin(t * 0.9)))
+    # the left arm hangs between its knees, the knuckles near the floor; the right reaches for the door
+    p.aim["LeftArm"] = dirn(lerp(4.0, 38.0, d), lerp(5.0, 12.0, d), 1)
+    p.aim["LeftForeArm"] = dirn(lerp(13.0, 30.0, d), 8.0, 1)
+    hang = Vector((-0.42, -0.95, 0.42))
+    p.ik["armR"] = (_IDLE_HAND[0].lerp(hang, d).lerp(PEER_HAND, reach), Vector((-1.0, 0.3, -0.6)))
+    tap = [0.5 + 0.5 * math.sin(t * 9.0 - i * 0.9) for i in range(5)]
+    p.curl["L"] = [0.35, 0.45, 0.5, 0.45, 0.5]
+    p.curl["R"] = [lerp(0.4, 0.15 + 0.12 * tap[i] * reach, reach) for i in range(5)]
+    p.spread["L"] = 0.4
+    p.spread["R"] = lerp(0.4, 1.1, reach)
+    return p
+
+
+def peer_eye(t):
+    """Where its eyes are at `t` (model space) and its right wrist: to check the stare lines up with the vent"""
+    P = solve(peer(t))[1]
+    eye = P["Head"] @ REST["Head"].inverted() @ Vector((0.0, -0.18, EYE_CZ))
+    return eye, P["RightHand"].translation
+
+
 # ---------------------------------------------------------------- the kill
-KILL_T = (1.05, 0.65, 7.3)                      # pounce, settle, tear
+KILL_T = (1.05, 0.65, 7.9)                      # pounce, settle, tear
 KILL_N = int(round(sum(KILL_T) * FPS))
 EYE = Vector((0.0, -0.62, 0.18))                # your eyes, lying on your back with your head toward its front
-SIT = Vector((0.0, 0.02, 0.78))                 # its hips, sat astride your chest
+SIT = Vector((0.0, 0.30, 0.92))                 # its hips, kneeling astride your chest
 POUNCE_FROM = 6.0                               # m behind the root its hips start (tall_one.gd starts the clip that far out)
+KNEE_X = 0.50                                   # its knees either side of your ribs, its shins along the floor behind them
+SHIN_Y = 1.25
+FACE_Y = EYE.y                                  # your face; -Y from it is your brow and the top of your head, +Y your chin
+CLAW_Z = 0.46                                   # wrist height with the claws in your face (the fingers are ~0.45 m long)
+BRACE = Vector((0.58, -0.82, 0.07))             # the hand it plants on the floor beside your head
+HOVER = Vector((-0.12, -0.55, 0.85))            # the other, held over your face, fingers hanging
+LOOK = Vector((-0.30, -0.66, 1.30))             # raised to its own face: it looks at what is on its fingers
+GRIP_L = Vector((0.17, FACE_Y - 0.02, 0.50))    # the rip: both hands hooked into your cheeks, either side of your eyes
+GRIP_R = Vector((-0.17, FACE_Y + 0.03, 0.50))
+
+
+def seg(k, a, b):
+    return ease((k - a) / (b - a))
+
+
+EASES = {"io": ease, "lin": lambda u: u, "in": lambda u: u * u, "in3": lambda u: u * u * u,
+         "out": lambda u: 1.0 - (1.0 - u) ** 2, "out3": lambda u: 1.0 - (1.0 - u) ** 3}
+
+
+class Track:
+    """One hand's tear, keyed: (k, wrist position, finger curl, spread, drive, the ease INTO this key). `drive` is the
+    shoulder's part in it: +1 cocked back for a blow, -1 thrown through it (the body twists and dips with it)."""
+
+    def __init__(s, pos, curl, spread):
+        s.keys = [(0.0, Vector(pos), curl, spread, 0.0, "io")]
+
+    def add(s, k, pos, curl, spread, drive=0.0, ez="io"):
+        assert k >= s.keys[-1][0] - 1e-6, (k, s.keys[-1][0])
+        s.keys.append((k, Vector(pos), curl, spread, drive, ez))
+
+    def around(s, k, pos, curl, spread, drive=0.0, ez="io"):
+        """add(), but a hand crossing from one side of you to the other goes up over your face, not through it"""
+        a = s.keys[-1]
+        p0, p1 = a[1], Vector(pos)
+        d = p1 - p0
+        u = 0.0 if d.length_squared < 1e-9 else max(0.0, min(1.0, (EYE - p0).dot(d) / d.length_squared))
+        c = p0 + d * u
+        if (c - EYE).length < 0.62 and 0.05 < u < 0.95:
+            w = Vector((c.x, c.y, max(c.z, EYE.z + 0.9)))
+            s.add(a[0] + (k - a[0]) * max(0.35, min(0.65, u)), w, lerp(a[2], curl, 0.5), lerp(a[3], spread, 0.5),
+                  lerp(a[4], drive, 0.5), "in" if ez in ("io", "in") else "lin")
+            ez = "out" if ez in ("io", "out") else ez
+        s.add(k, pos, curl, spread, drive, ez)
+
+    def hold(s, k):
+        """Stay where it is until k"""
+        a = s.keys[-1]
+        if k > a[0]:
+            s.keys.append((k, a[1].copy(), a[2], a[3], a[4], "lin"))
+
+    def end(s):
+        return s.keys[-1][0]
+
+    def at(s, k):
+        ks = s.keys
+        if k <= ks[0][0]:
+            return ks[0][1:5]
+        for a, b in zip(ks, ks[1:]):
+            if k <= b[0]:
+                e = EASES[b[5]]((k - a[0]) / max(1e-6, b[0] - a[0]))
+                return a[1].lerp(b[1], e), lerp(a[2], b[2], e), lerp(a[3], b[3], e), lerp(a[4], b[4], e)
+        return ks[-1][1:5]
+
+
+def swipe(T, sx, at, wind=0.30, follow=0.36):
+    """One claw stroke by the hand on side sx (+1 its left), its claws landing on your brow at k = `at`: cocked up by its
+    shoulder (ease-out into a held beat), slammed down (ease-in: fastest as it lands), dragged down across your face to
+    the far cheek with the claws in (slow, it is pulling through you), then flung out past you (ease-out)"""
+    cocked = Vector((sx * 0.62, FACE_Y + 0.22, 1.30))
+    hit = Vector((sx * 0.15, FACE_Y - 0.17, CLAW_Z))
+    rake = Vector((-sx * 0.20, FACE_Y + 0.22, CLAW_Z - 0.03))
+    mid = hit.lerp(rake, 0.5) + Vector((0.0, 0.0, 0.05))         # (over your eyes, not through them)
+    out = Vector((-sx * 0.60, FACE_Y + 0.48, 0.70))
+    T.hold(at - 0.12 - wind)
+    T.around(at - 0.14, cocked, 0.5, 1.4, 1.0, "out")
+    T.add(at - 0.11, cocked + Vector((sx * 0.03, 0.02, 0.05)), 0.5, 1.4, 1.0, "io")
+    T.add(at, hit, 0.85, 0.9, -0.3, "in3")
+    T.add(at + 0.09, mid, 0.95, 0.7, -0.6, "lin")
+    T.add(at + 0.18, rake, 0.98, 0.6, -0.8, "lin")
+    T.add(at + follow, out, 0.55, 1.1, -1.0, "out")
+
+
+# k (seconds into the tear) of every blow, for tall_one.gd to cross-check against what it measures off the hands
+KILL_BLOWS = []
+
+
+def kill_hands():
+    """The tear, beat by beat (k = seconds into it): it studies you, the right hand sinking over your face; a slow,
+    wound-up rake with the right; the left lets go of the floor for one of its own; a pause, the right hand raised to
+    its face to look at its fingers; then the rip: both hands hooked into your cheeks and pulled apart (out to the sides
+    of your view) in three jerks that grow until it tears free and both arms fly up; then it can't stop, rakes out of step, faster and
+    faster; and last it plants both hands on the floor either side of your head while its face comes down to yours"""
+    del KILL_BLOWS[:]
+    L = Track(BRACE, 0.25, 1.2)
+    R = Track(HOVER, 0.45, 1.0)
+    R.add(0.8, HOVER + Vector((0.02, -0.04, -0.18)), 0.55, 1.1)
+    for T, sx, at, w in ((R, -1, 1.35, 0.35), (L, 1, 2.2, 0.32)):
+        swipe(T, sx, at, w)
+        KILL_BLOWS.append(at)
+    R.around(2.75, LOOK, 0.35, 1.3)
+    L.around(3.15, BRACE, 0.3, 1.2)
+    R.hold(3.35)
+    L.hold(3.45)
+    R.add(3.75, GRIP_R, 0.8, 1.2, -0.3, "in")
+    L.add(3.85, GRIP_L, 0.9, 1.1, -0.3, "in")
+    R.hold(4.05)
+    L.hold(4.05)
+    gl, gr = GRIP_L.copy(), GRIP_R.copy()
+    for at, d in ((4.15, 0.07), (4.5, 0.10), (4.8, 0.13)):
+        gl += Vector((d, -0.2 * d, 0.5 * d))
+        gr += Vector((-d, 0.2 * d, 0.5 * d))
+        for T, to, home, c in ((R, gr, GRIP_R, 0.95), (L, gl, GRIP_L, 0.98)):
+            T.hold(at - 0.07)
+            T.add(at, to, c, 0.8, -0.7, "out")
+            T.add(at + 0.12, to.lerp(home, 0.25 * d / 0.13), c, 0.8, -0.3, "io")
+        KILL_BLOWS.append(at)
+    for T, to in ((R, Vector((-0.55, FACE_Y - 0.40, 1.10))), (L, Vector((0.58, FACE_Y + 0.40, 1.05)))):
+        T.hold(4.92)
+        T.add(5.06, to, 0.6, 1.4, 1.0, "out")
+    KILL_BLOWS.append(5.0)
+    at, gap, sx = 5.45, 0.36, -1
+    while at < 6.95:
+        T = R if sx < 0 else L
+        free = at - T.end() - 0.12
+        swipe(T, sx, at, max(0.04, min(0.3, free - 0.02)), follow=0.26)
+        KILL_BLOWS.append(at)
+        at += gap
+        gap = max(0.27, gap * 0.9)
+        sx = -sx
+    for T, sx in ((L, 1), (R, -1)):
+        T.around(max(T.end(), 6.95) + 0.35, Vector((sx * 0.48, FACE_Y - 0.12, 0.10)), 0.3, 1.3)
+    return {"L": L, "R": R}
+
+
+HANDS = kill_hands()
 
 
 def kill(t):
-    """Pounce, land astride you, then tear. Root = your chest on the floor; it faces -Y; you lie along -Y"""
+    """Pounce, land kneeling astride you, then take your face apart (kill_hands has the beats). Root = your chest on the
+    floor; it faces -Y; you lie along -Y. The body works with the hands: each blow is cocked from the shoulder (the
+    trunk twists back and rises) and thrown through (it twists the other way and dips into you); the head stays on
+    your face the whole time but for the one pause where it looks at its fingers."""
     t1 = KILL_T[0]
     t2 = t1 + KILL_T[1]
     p = Pose()
     fly = min(1.0, t / t1)
-    # hips fly in on a rising then falling arc from 4.5 m behind
-    fy = lerp(POUNCE_FROM, SIT.y, 1.0 - (1.0 - fly) ** 2)      # out of the run at its own speed, braking into you
-    arc = math.sin(math.pi * min(1.0, fly * 1.0)) ** 1.0
-    # run height at the start -> thrown up -> down on you
-    fz = lerp(2.0, SIT.z, ease(fly)) + 0.9 * math.sin(math.pi * fly) ** 1.2
-    land = ramp(t, t1 - 0.12, t1 + 0.15)         # the hit: the weight drops into the squat
-    sq = ramp(t, t1 - 0.2, t1 + 0.3)
-    bounce = -0.10 * math.exp(-((t - (t1 + 0.12)) / 0.09) ** 2)
-    settle = ramp(t, t1, t2)
-    tear = ramp(t, t2 - 0.1, t2 + 0.4)
+    fy = lerp(POUNCE_FROM, SIT.y, 1.0 - (1.0 - fly) ** 2)                # out of the run at its own speed, braking into you
+    arc = 0.62 * math.sin(math.pi * min(1.0, fly * 1.04)) ** 1.4
+    fz = lerp(1.95, SIT.z, ease(fly)) + arc
+    bounce = -0.07 * math.exp(-((t - (t1 + 0.1)) / 0.1) ** 2)
+    settle = seg(t, t1, t2)
     k = max(0.0, t - t2)
-    heave = math.sin(k * 6.0) * 0.5 + math.sin(k * 11.0 + 1.0) * 0.3
-    hips_at(p, 0.0, fy, fz + bounce + 0.03 * heave * tear)
-    # feet: trailing behind in the air, then planted either side of your ribs, knees out like a spider's
-    air = 1.0 - sq
-    ay = lerp(0.9, 0.25, sq)
-    fl = Vector((lerp(0.30, 0.78, sq), fy + ay + 0.9 * air * (0.6 if fly < 1 else 0.0), lerp(0.2 + 0.5 * math.sin(math.pi * fly), 0.2, sq)))
-    fr = Vector((-lerp(0.30, 0.78, sq), fy + ay + 1.1 * air * (0.6 if fly < 1 else 0.0), lerp(0.2 + 0.2 * math.sin(math.pi * fly), 0.2, sq)))
-    p.ik["legL"] = (fl, Vector((1.0 + 0.8 * sq, -0.4 * (1 - sq) - 0.1, 0.2 + 1.2 * sq)))
-    p.ik["legR"] = (fr, Vector((-1.0 - 0.8 * sq, -0.4 * (1 - sq) - 0.1, 0.2 + 1.2 * sq)))
-    p.foot_pitch["L"], p.foot_pitch["R"] = (-10.0 * air, -10.0 * air)
-    # the body: stooped over the run, thrown out flat in the leap, then bent right over you
-    lean = lerp(lerp(24.0, 58.0, ease(fly)), 66.0, settle)
-    p.turn("Hips", (X, 6.0 + 18.0 * ease(fly) - 14.0 * settle))
-    p.turn("Spine", (X, lean * 0.30 - 4.0 * settle))
-    p.turn("Spine1", (X, lean * 0.34), (Z, 4.0 * heave * tear))
-    p.turn("Spine2", (X, lean * 0.36 + 6.0 * settle), (Z, -3.0 * heave * tear))
-    p.turn("Neck", (X, lerp(-8.0, 34.0, settle) + 8.0 * tear * heave))
-    # the head: on you the whole way; once sat it cocks and ticks over your face
-    cock = 16.0 * math.sin(k * 1.9) + 9.0 * math.sin(k * 5.3 + 2.0)
-    p.turn("Head", (X, lerp(-20.0, 62.0, settle)), (Y, cock * 0.6 * tear), (Z, 6.0 * math.sin(k * 3.1) * tear))
-    # arms: out in front, reaching for you through the leap; once sat, both hands on your face, raking
-    reach = ease(fly)
-    shoulder = lambda sx: Vector((sx * 0.45, lerp(fy - 0.15, fy - 0.1, 1) - 0.0, 0.0))
-    hand_l = Vector((0.35, fy - 2.2, fz + 0.25)).lerp(Vector((0.26, EYE.y - 0.15, EYE.z + 0.36)), settle)
-    hand_r = Vector((-0.35, fy - 2.2, fz + 0.1)).lerp(Vector((-0.26, EYE.y - 0.15, EYE.z + 0.36)), settle)
-    # the raking: each hand drags down across your face (toward you, then back up and away), alternating, faster as it goes
-    rate = 3.4 + 1.8 * ramp(k, 0.0, 4.0)
-    for sgn, hand in ((1, hand_l), (-1, hand_r)):
-        ph = rate * k + (0.0 if sgn > 0 else 0.5)
-        sweep = math.sin(math.tau * ph)
-        down = max(0.0, math.sin(math.tau * ph + 0.5))
-        hand.y += 0.10 * sweep * tear
-        hand.z += 0.14 * (down - 0.5) * tear * (1.0 - 0.4 * math.cos(math.tau * ph))
-        hand.x += sgn * (-0.08 * sweep) * tear
-    p.ik["armL"] = (hand_l, Vector((1.0, 0.2, 0.6)))
-    p.ik["armR"] = (hand_r, Vector((-1.0, 0.2, 0.6)))
-    c = lerp(0.35, 0.9, ease(fly)) + 0.1 * math.sin(k * 14.0) * tear
-    p.curl["L"] = [c * 0.9, c, c, c, c * 0.95]
-    p.curl["R"] = [c * 0.9, c, c, c, c * 0.95]
-    p.spread["L"] = lerp(1.2, 0.3, tear)
-    p.spread["R"] = lerp(1.2, 0.3, tear)
+    tear = seg(t, t2 - 0.1, t2 + 0.4)
+    pos_l, cl, spl, dl = HANDS["L"].at(k)
+    pos_r, cr, spr, dr = HANDS["R"].at(k)
+    dip = min(1.0, max(0.0, -dl) + max(0.0, -dr)) * tear       # thrown into a blow: the body drops onto you
+    cock = min(1.0, max(0.0, dl) + max(0.0, dr)) * tear        # wound up: it rises off you
+    twist = (dr - dl) * tear                                     # + the right shoulder back
+    look = seg(k, 2.4, 2.75) * (1.0 - seg(k, 3.3, 3.6))         # the pause: it looks at its fingers
+    # effort: how hard it is working (the breathing, the rocking)
+    effort = 0.3 + 0.7 * seg(k, 5.0, 6.8)
+    rock = math.sin(k * (4.0 + 3.0 * effort)) * 0.35 * effort * tear
+    dive = seg(k, 7.0, 7.75)                                             # the last moments: its face comes down to yours
+    hips_at(p, 0.0, fy - 0.05 * rock + 0.05 * dip - 0.12 * dive,
+            fz + bounce - 0.05 * dip + 0.04 * cock + 0.025 * math.sin(k * 5.0) * effort * tear - 0.32 * dive)
+    # legs: trailing in the leap, the knees swung forward to land either side of your ribs, shins flat behind them
+    kneel = seg(t, t1 - 0.30, t1 + 0.30)
+    for sx, name in ((1, "L"), (-1, "R")):
+        lag = 0.0 if sx > 0 else 0.15
+        air = Vector((sx * 0.30, fy + 0.85 + lag, 0.30 + 0.30 * math.sin(math.pi * fly)))
+        down = Vector((sx * KNEE_X, SHIN_Y, 0.11))
+        p.ik["leg" + name] = (air.lerp(down, kneel), Vector((sx * 0.35, -1.0, 0.15 + 0.35 * kneel)))
+        p.foot_pitch[name] = lerp(-12.0, 55.0, kneel)                    # toes tucked under, the shin along the floor
+    # the body: stretched out in the leap, then folded right over you; each blow twists the trunk back with the cocked
+    # shoulder and throws it through, dipping onto you
+    lean = lerp(lerp(28.0, 52.0, ease(fly)), 60.0, settle) + 4.0 * rock + 9.0 * dip - 7.0 * cock + 24.0 * dive
+    p.turn("Hips", (X, lerp(10.0 + 12.0 * ease(fly), 18.0, settle) + 2.0 * rock), (Z, 4.0 * twist))
+    p.turn("Spine", (X, lean * 0.24), (Z, 3.0 * math.sin(k * 0.9) * tear + 6.0 * twist))
+    p.turn("Spine1", (X, lean * 0.26), (Z, 8.0 * twist), (Y, -4.0 * twist))
+    p.turn("Spine2", (X, lean * 0.22), (Z, 5.0 * twist))
+    p.turn("LeftShoulder", (X, -6.0 * effort * tear), (Y, -12.0 * max(0.0, dl) * tear))
+    p.turn("RightShoulder", (X, -6.0 * effort * tear), (Y, 12.0 * max(0.0, dr) * tear))
+    # the head: on your face the whole way, cocking slowly, nodding into every blow; at the pause it turns to its hand
+    tilt = 15.0 * math.sin(k * 0.8) * (1.0 - look) * (1.0 - 0.6 * dive)
+    p.turn("Neck", (X, lerp(-6.0, 22.0, settle) + 4.0 * rock - 12.0 * look + 6.0 * dive), (Z, -10.0 * look))
+    p.turn("Head", (X, lerp(-22.0, 46.0, settle) + 5.0 * dip - 20.0 * look + 16.0 * dive),
+           (Y, (tilt + 10.0 * look) * tear), (Z, (5.0 * math.sin(k * 0.55 + 1.0) - 26.0 * look) * tear))
+    # arms: reaching in the leap, driving into your chest as it lands, then the tear (kill_hands)
+    reach = Vector((0.30, fy - 2.1, fz + 0.12))
+    chest = Vector((0.27, 0.62, 0.27))
+    drive = seg(t, 0.28, 0.42)
+    hand_l = Vector((reach.x, reach.y, reach.z)).lerp(chest, drive)
+    hand_r = Vector((-reach.x, reach.y, reach.z)).lerp(Vector((-chest.x, chest.y, chest.z)), drive)
+    into = seg(t, t1 + 0.05, t2 + 0.25)
+    shake = 0.006 + 0.01 * effort                                        # it trembles: worse as it goes on
+    pos_l = pos_l + Vector((0.0, shake * math.sin(k * 19.0), shake * math.sin(k * 23.0 + 1.0)))
+    pos_r = pos_r + Vector((0.0, shake * math.sin(k * 21.0 + 2.0), shake * math.sin(k * 17.0)))
+    hand_l = hand_l.lerp(pos_l, into)
+    hand_r = hand_r.lerp(pos_r, into)
+    # elbows out and up; cocked, the elbow goes high and back behind the shoulder
+    p.ik["armL"] = (hand_l, Vector((1.0, 0.25 + 0.5 * max(0.0, dl), 0.8 + 0.6 * max(0.0, dl))))
+    p.ik["armR"] = (hand_r, Vector((-1.0, 0.25 + 0.5 * max(0.0, dr), 0.8 + 0.6 * max(0.0, dr))))
+    # fingers: open in the reach, then the track's: spread flat on the floor, claws cocked open, hooked in the rake
+    hook = lerp(0.4, 0.95, ease(fly))
+    work = 0.06 * math.sin(k * 14.0) * effort
+    cl = lerp(hook, cl + work, into)
+    cr = lerp(hook, cr - work, into)
+    p.curl["L"] = [cl * 0.9, cl, cl * 1.05, cl * 1.05, cl * 1.1]
+    p.curl["R"] = [cr * 0.9, cr, cr * 1.05, cr * 1.05, cr * 1.1]
+    p.spread["L"] = lerp(1.2, spl, into)
+    p.spread["R"] = lerp(1.2, spr, into)
     return p
 
 
@@ -560,6 +833,7 @@ def build_all():
     make_loop("run", int(RUN_T * FPS), run)
     make_once("spot", 0.9, spot)
     make_once("scream", 3.6, scream)
+    make_once("peer", sum(PEER_T), peer)
     make_once("kill", sum(KILL_T), kill)
     kill_eye()
 
@@ -597,3 +871,4 @@ def export():
 if __name__ == "__main__":
     build_all()
     export()
+    bpy.ops.wm.save_as_mainfile(filepath=BLEND)

@@ -1,6 +1,6 @@
 extends Node3D
 ## Abandoned Survey Clipboard. Left behind by previous T.S.R.A. exploration teams.
-## Scannable with the Field Scanner (hold Q) to extract lost surveyor notes and earn Research Yield (+40 YLD).
+## Scannable with the Field Scanner (hold Q) to extract lost surveyor notes and earn XP (+40 XP).
 ## Built with distance-based visibility culling.
 
 const ArchiveScript := preload("res://scripts/GameLogicEngine/tsra_archive.gd")
@@ -141,11 +141,11 @@ func scan_behavior(_at: Vector3) -> Dictionary:
 	return {
 		"state": "RECOVERED LOG" if inspected else "UNFILED LOG",
 		"danger": 0,
-		"detail": "Survey Yield Fragment (+%d YLD) // Team Kestrel Log" % YIELD_AMOUNT
+		"detail": "Survey Fragment (+%d %s) // Team Kestrel Log" % [YIELD_AMOUNT, Clearance.unit]
 	}
 
 ## Called when scan completes
 func on_scanned() -> void:
 	if not inspected:
 		inspected = true
-		Clearance.grant(YIELD_AMOUNT)
+		Clearance.grant(YIELD_AMOUNT, "SURVEY LOG RECOVERED")

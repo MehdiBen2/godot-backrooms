@@ -107,7 +107,7 @@ const ACTIONS: Array[Dictionary] = [
 	{
 		"id": "inventory",
 		"name": "Inventory",
-		"desc": "Open dossier, items and clearance",
+		"desc": "Open dossier, items and rank",
 		"default_qwerty": KEY_TAB,
 		"default_azerty": KEY_TAB,
 		"alt_keys": []

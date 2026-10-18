@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## Camcorder HUD + pause menu, replicating the web game's #hud (backrooms.html / style.css):
-## REC block + objective (top-left), level / timecode / tape mode (top-right), the vitals on the
-## terminal's amber CRT (bottom-left, vitals_panel.gd), key hints (bottom-right), viewfinder corner
+## REC dot (top-left), play timer (top-right), the vitals on the
+## terminal's amber CRT (bottom-left, vitals_panel.gd), hotbar and terminal hint (bottom-right, item_strip.gd), viewfinder corner
 ## brackets and the crosshair dot.
 ## Designed for a 1920x1080 canvas so pixel sizes match the browser.
 ## Also owns the TAB terminal (inventory.gd), the T.S.R.A. field scanner (scanner.gd, hold Q) with
@@ -13,6 +13,7 @@ const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Scanner := preload("res://scripts/Player/scanner.gd")
 const ScanReadout := preload("res://scripts/UI/hud/scan_readout.gd")
 const TerminalToast := preload("res://scripts/UI/hud/terminal_toast.gd")
+const XpPopup := preload("res://scripts/UI/hud/xp_popup.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
 const TapePickup := preload("res://scripts/World/props/tape_pickup.gd")
 const DrawUI := preload("res://scripts/UI/hud/draw_ui.gd")
@@ -26,6 +27,7 @@ const ZoomTool := preload("res://scripts/Player/zoom_tool.gd")
 const ZoomReadout := preload("res://scripts/UI/hud/zoom_readout.gd")
 const TapeReadout := preload("res://scripts/UI/hud/tape_readout.gd")
 const VitalsPanel := preload("res://scripts/UI/hud/vitals_panel.gd")
+const ItemStrip := preload("res://scripts/UI/hud/item_strip.gd")
 const PlayerScript := preload("res://scripts/Player/player.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
 const EventTrigger := preload("res://scripts/World/props/event_trigger.gd")
@@ -50,10 +52,8 @@ var toast: Control
 var hud_root: Control
 var hud_fade: Tween
 var t := 0.0
-var playing_label: Label
 var time_label: Label
 var rec_dot: Control
-var rec_label: Label      # "REC", or "LOW BATT" now and then once the torch battery is critical
 var osd: CrtLayer         # the camcorder's burned-in text and viewfinder corners, dirtied (_build_hud)
 var post_mat: ShaderMaterial
 var threat_s := 0.0
@@ -100,6 +100,7 @@ func _ready() -> void:
 	_build_scanner()
 	_build_tape()
 	_build_flash()
+	_build_item_strip()
 	_build_zoom()
 	_show_pending_route.call_deferred()
 
@@ -320,40 +321,20 @@ func _build_hud() -> void:
 	door_prompt.modulate.a = 0.0
 	hud.add_child(door_prompt)
 
-	# --- top-left: REC + objective ---
-	var tl := _vbox(5)
-	tl.position = Vector2(42, 32)
-	osd_root.add_child(tl)
-	var rec := _hbox(8)
-	rec_dot = _round_dot(8 * SCALE, REC_RED)
+	# --- top-left: the blinking REC dot, nothing else ---
 	var dot_c := CenterContainer.new()
+	rec_dot = _round_dot(8 * SCALE, REC_RED)
 	dot_c.add_child(rec_dot)
+	dot_c.position = Vector2(42, 32)
 	dot_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rec.add_child(dot_c)
-	rec_label = _label("REC", 15, REC_RED, 3)
-	rec.add_child(rec_label)
-	rec.add_child(_label("CAM 04", 15, CREAM, 2))
-	tl.add_child(rec)
-	tl.add_child(_gradient_rect(1, Color(1, 0.231, 0.188, 0.8), Color(1, 0.231, 0.188, 0.15)))
+	osd_root.add_child(dot_c)
 
-	# --- top-right: level title, timecode, tape mode ---
-	var tr := _vbox(4)
-	tr.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	tr.offset_left = -42 - 320; tr.offset_right = -42; tr.offset_top = 32; tr.offset_bottom = 32
-	osd_root.add_child(tr)
-	var title := _label(str(level.level_name).to_upper(), 13, TAPE)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	tr.add_child(title)
+	# --- top-right: how long you have been playing, nothing else ---
 	time_label = _label("00:00:00", 13, TAPE)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	tr.add_child(time_label)
-	var mode := _hbox(14)
-	mode.alignment = BoxContainer.ALIGNMENT_END
-	playing_label = _label("► PLAY", 13, CREAM)
-	mode.add_child(playing_label)
-	mode.add_child(_label("SP", 13, CREAM))
-	tr.add_child(mode)
-	tr.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.788, 0.745, 0.627, 0.6)))
+	time_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	time_label.offset_left = -42 - 320; time_label.offset_right = -42; time_label.offset_top = 32
+	osd_root.add_child(time_label)
 
 	# --- bottom-left: vitals, on the terminal's amber CRT (vitals_panel.gd) ---
 	vitals = VitalsPanel.new()
@@ -365,24 +346,7 @@ func _build_hud() -> void:
 	vitals.fade_src = hud
 	hud.add_child(vitals)
 
-	# --- bottom-right: key hints ---
-	var br := _vbox(6)
-	br.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	br.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	br.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	osd_root.add_child(br)
-	var row := _hbox(12)
-	row.alignment = BoxContainer.ALIGNMENT_END
-	var hints := ["TAB // T.S.R.A Terminal"]
-	for i in hints.size():
-		row.add_child(_label(hints[i], 13, HINT))
-		if i < hints.size() - 1: row.add_child(_label("•", 13, HINT))
-	br.add_child(row)
-	br.add_child(_gradient_rect(1, Color(0, 0, 0, 0), Color(0.612, 0.573, 0.408, 0.5)))
-	br.offset_left = -42 - 360
-	br.offset_top = -32 - 44
-	br.offset_right = -42
-	br.offset_bottom = -32
+	# (the bottom-right TAB hint lives on the item strip, item_strip.gd)
 
 # ---- pause menu (same look as the web menu) ----------------------------------------
 func _build_pause() -> void:
@@ -422,6 +386,10 @@ func _build_scanner() -> void:
 	toast = TerminalToast.new()
 	toast.player = player
 	hud_root.add_child(toast)
+	var xp := XpPopup.new()          # what each reading earned, under the crosshair
+	xp.player = player
+	hud_root.add_child(xp)
+	scanner.reading_filed.connect(xp.show_report)
 	Archive.entity_discovered.connect(_on_entity_logged)
 	Clearance.yield_filed.connect(_on_yield_filed)
 	Net.survivor_joined.connect(_on_survivor_joined)
@@ -448,11 +416,7 @@ func _build_tape() -> void:
 	cable_tool.player = player
 	add_child(cable_tool)
 	if Game.test_level != "" or Game.dev_keys:      # the mouse-driven draw tools panel (Y)
-		inventory.add_item("cable_spool", "Equipment Cable Spool",
-			"Heavy-duty industrial equipment cables for field machinery, relays, and portable equipment. " \
-			+ "Hold U looking at floors or walls to unspool and place permanent 3D cables, or press Y to open the Draw Tools panel. " \
-			+ "Cables roll, stack in 3D piles, and remain permanent on the level.", 1, "CBL", 1,
-			"res://scripts/World/props/cable_roll.gd")
+		# (the cable spool is a level-building tool, not a carried item: U / the panel, nothing in the pack)
 		var draw := DrawUI.new()
 		draw.player = player
 		draw.tape = tape
@@ -478,6 +442,22 @@ func _build_flash() -> void:
 	flash.inventory = inventory
 	add_child(flash)
 	vitals.flash = flash
+
+## What you carry, bottom-right above the key hint: icons and counts that read without opening the terminal
+## (item_strip.gd). Built after the starting kit is in the pack, so none of it counts as a pickup.
+func _build_item_strip() -> void:
+	var strip := ItemStrip.new()
+	strip.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	strip.offset_left = -44 - ItemStrip.PANEL.x; strip.offset_right = -44
+	strip.offset_top = -22 - ItemStrip.PANEL.y; strip.offset_bottom = -22
+	strip.player = player
+	strip.inventory = inventory
+	strip.flash = flash
+	strip.fade_src = hud_root
+	hud_root.add_child(strip)
+	scanner.hotbar = strip           # a held click with the item in hand does what its key does
+	tape.hotbar = strip
+	flash.hotbar = strip
 
 ## The camcorder's zoom lens (zoom_tool.gd). Its lens grade reads the finished picture, so it gets a canvas
 ## layer of its own between the post pass and the HUD: the OSD's text and brackets stay sharp under it. The
@@ -564,11 +544,12 @@ func _yield_lines(report: Dictionary) -> Array:
 	for ln in report.get("lines", []):
 		out.append({"kind": "pair", "left": str(ln[0]), "right": "+%d %s" % [int(ln[1]), unit]})
 	var filed := int(report.get("total", 0))
-	out.append({"kind": "pair", "left": "FILED", "right": "+%d %s" % [filed, unit], "color": Term.TEXT, "strong": true})
+	out.append({"kind": "pair", "left": "FILED", "right": "+%d %s" % [filed, unit], "color": Term.TEXT, "strong": true,
+		"count": filed, "fmt": "+%d " + unit})
 	var i := Clearance.tier_index()
 	var code := str(Clearance.tier().get("code", ""))
 	if Clearance.is_max_tier():
-		out.append({"kind": "bar", "left": code + "  //  MAX CLEARANCE", "right": "%d %s" % [Clearance.total, unit],
+		out.append({"kind": "bar", "left": code + "  //  MAX RANK", "right": "%d %s" % [Clearance.total, unit],
 			"from": 1.0, "to": 1.0})
 		return out
 	var lo := int(Clearance.tier(i).get("yield", 0))
@@ -576,7 +557,7 @@ func _yield_lines(report: Dictionary) -> Array:
 	var before := Clearance.total - filed
 	# a filing that crossed into this tier starts its gauge empty
 	var from := 0.0 if Clearance.tier_index(before) < i else float(before - lo) / span
-	out.append({"kind": "bar", "left": "CLEARANCE " + code, "from": from, "to": Clearance.tier_progress(),
+	out.append({"kind": "bar", "left": Clearance.tier_label(), "from": from, "to": Clearance.tier_progress(),
 		"right": "%d / %d %s" % [Clearance.total, Clearance.next_threshold(), unit]})
 	return out
 
@@ -586,7 +567,8 @@ func _promotion(report: Dictionary) -> void:
 		return
 	var t := Clearance.tier(to)
 	var lines: Array = [
-		{"kind": "head", "code": str(t.get("code", "")), "name": str(t.get("title", "")).to_upper(), "size": 22},
+		{"kind": "head", "code": "NEW RANK", "tag": str(t.get("code", "")), "tag_color": Clearance.tier_color(to),
+			"name": str(t.get("title", "")).to_upper(), "color": Clearance.tier_color(to), "size": 24},
 		{"kind": "text", "text": str(t.get("brief", "")), "wrap": true},
 	]
 	# every tier passed on the way up, in case one filing jumps more than one
@@ -597,8 +579,8 @@ func _promotion(report: Dictionary) -> void:
 			lines.append({"kind": "pair", "left": "UNLOCKED", "right": str(u.get("name", "")).to_upper(), "color": Term.GREEN})
 			lines.append({"kind": "text", "text": str(u.get("text", "")), "size": 15, "color": Term.TEXT_DIM, "wrap": true})
 	lines.append({"kind": "rule"})
-	lines.append({"kind": "pair", "left": "SCANNER CALIBRATION", "right": "READING TIME -%d%%" % roundi(5.0 * to)})
-	toast.push("CLEARANCE ELEVATED", lines)
+	lines.append({"kind": "pair", "left": "SCANNER CALIBRATION", "right": "READING TIME -%d%%" % roundi((1.0 - Clearance.scan_time_scale(to)) * 100.0)})
+	toast.push("RANK UP", lines)
 
 # ---- the expedition roster ------------------------------------------------------------------
 ## Someone came into the co-op game: their callsign big, as a field researcher, and how many are out here now
@@ -684,21 +666,15 @@ func _unhandled_input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 ## The REC dot blinks every 1.2 s; like a real camcorder it hurries as the battery runs down (low:
-## 0.8 s), and once it is critical it blinks every 0.5 s and flips REC to LOW BATT for a moment in
-## every four seconds
+## 0.8 s, critical: 0.5 s)
 func _update_rec() -> void:
 	var bat: float = float(player.get("battery")) if player else 100.0
 	var period := 1.2
-	var text := "REC"
 	if bat < PlayerScript.BATTERY_CRIT:
 		period = 0.5
-		if fmod(t, 4.0) > 2.6:
-			text = "LOW BATT"
 	elif bat < PlayerScript.BATTERY_LOW:
 		period = 0.8
 	rec_dot.modulate.a = 1.0 if fmod(t, period) < period * 0.5 else 0.0
-	if rec_label.text != text:
-		rec_label.text = text
 
 ## TAB terminal (inventory.gd) fills the screen, so the camcorder OSD steps out while it is up.
 ## Opening the pause menu closes the terminal first, then set_paused() takes the fade over.
@@ -743,7 +719,6 @@ func set_paused(on: bool, start := false) -> void:
 			menu.set_text("THE BACKROOMS", sub, "CLICK OR PRESS ESC TO RESUME")
 	else:
 		menu.release_focus_all()
-	playing_label.text = "|| PAUSE" if on else "► PLAY"
 
 # ---- per-frame values -----------------------------------------------------------------
 func _process(dt: float) -> void:

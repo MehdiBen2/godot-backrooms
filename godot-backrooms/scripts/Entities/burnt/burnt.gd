@@ -19,7 +19,7 @@ const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const LURK_WAKE := 14.0             # metres: a Burnt placed to lurk starts to stalk when you come this close
 const BurntError := preload("res://scripts/Entities/burnt/burnt_error.gd")
 const BurntNet := preload("res://scripts/Entities/burnt/burnt_net.gd")
-const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug", "peek"]
+const STATES := ["off", "stalk", "windup", "charge", "held", "grab", "lift", "stare", "corrupt", "hug", "peek", "withdraw"]
 const PEEK_PHASES := ["", "go", "set", "in", "hold", "out"]
 const HELD_MAX := 40.0              # co-op host: seconds it waits on the victim's machine before it lets go
 const CELL := 4.5
@@ -61,6 +61,22 @@ const PEEK_IN := 1.6                # the peek_r / peek_l clips
 const PEEK_OUT := 1.3               # (the same, backwards and a little faster)
 const PEEK_LOST := 2.0              # seconds you are out of its sight before it lets go of the edge
 const PEEK_COOLDOWN := 14.0
+const RETREAT_WATCH := 1.2          # seconds stared at before it may walk off to hide (the smart move: not stand and be watched)
+const FLANK_TIME := 25.0            # seconds it keeps working round behind you after it has hidden
+const FLANK_BEHIND := 5.0           # metres behind you it aims for
+const FLANK_NEAR := 6.0             # ...and the nearest it goes round before it comes straight at you
+const CAUGHT_HOLD := 0.5            # seconds caught hanging off its corner, dead still, before it whips back behind the wall
+const CAUGHT_BACK := 2.4            # ...that many times faster than it lets go of the edge on its own
+const HIDE_MIN := 12.0              # metres from you it goes to hide, out of your sight (withdraw)
+const HIDE_MAX := 32.0
+const HIDE_STEPS := 9               # cells it will walk, at most, to get there
+const HIDE_WAIT := Vector2(5.0, 11.0)       # seconds it stays hidden before it comes back
+const WITHDRAW_PACE := 1.25         # walking off: a little quicker than its stalk (it never runs from you)
+const CREEP_PACE := 0.55            # coming back: slower than its stalk
+const CREEP_TIME := 14.0
+const KEEP_DIST := 11.0             # metres: until it commits it shadows you from about here, and comes no nearer
+const COMMIT_AFTER := Vector2(70.0, 130.0)  # seconds of hunting before it stops shadowing you and closes in
+const SHADOW_SHIFT := Vector2(7.0, 14.0)    # seconds stood shadowing before it slips off to come at you from elsewhere
 
 @export var charge_watch := 4.0     # seconds of being stared at, from afar, before it stops waiting and runs at you
 @export var charge_min := 9.0       # metres: nearer than this it simply stalks
@@ -103,6 +119,19 @@ var _peek_hold := 4.0               # seconds it hangs there watching
 var _peek_lost := 0.0               # seconds you have been out of its sight from the edge
 var _peek_cd := 4.0
 var _peek_scan := 0.0
+var _retreat := false               # the peek began because it was stared at: it walks off in plain sight, not only unseen
+var _flank_t := 0.0                 # after hiding, seconds left that it circles round to come at you from behind
+var _caught_t := 0.0                # seconds it has been seen hanging off the edge
+var _caught := false                # caught peeking: it whips back behind the wall, then withdraws
+var _hide_at := Vector3.ZERO        # withdraw: where it goes to be out of your sight
+var _hide_wait := 0.0               # ...and how long it stays there
+var _reach := PackedInt32Array()    # (steps from where it stands to every cell, for finding _hide_at)
+var _pace := 1.0                    # its walk as a fraction of STALK_SPEED (the walk clip follows it)
+var _creep_t := 0.0                 # back from hiding: seconds left it comes on at CREEP_PACE
+var _hunt_t := 0.0                  # seconds it has hunted since it came
+var _commit_at := 90.0              # ...when it stops shadowing you and closes in
+var _shadow_t := 0.0                # seconds stood shadowing you at KEEP_DIST
+var _shadow_for := 10.0
 var _lamp_t := 0.0
 var _fwd := Vector3.FORWARD         # its facing when it took you
 var _from := Transform3D.IDENTITY   # your view when it took you
@@ -176,6 +205,18 @@ func _spawn_from_mark() -> void:
 	_walk = 0.0
 	_lamp_t = 0.0
 	_lurk = EntityMarks.lurks(marks[0])
+	_fresh_hunt()
+
+## Come anew: it shadows you for a long while before it closes in
+func _fresh_hunt() -> void:
+	_hunt_t = 0.0
+	_commit_at = randf_range(COMMIT_AFTER.x, COMMIT_AFTER.y)
+	_creep_t = 0.0
+	_shadow_t = 0.0
+	_shadow_for = randf_range(SHADOW_SHIFT.x, SHADOW_SHIFT.y)
+	_caught = false
+	_caught_t = 0.0
+	_pace = 1.0
 
 func _build() -> bool:
 	if not super._build(): return false
@@ -235,8 +276,12 @@ func _physics_process_timed(delta: float) -> void:
 	if state == "charge":
 		_charge(delta)
 		return
+	if state in ["stalk", "peek", "withdraw"]: _hunt_t += delta
 	if state == "peek":
 		_peek(delta)
+		return
+	if state == "withdraw":
+		_withdraw(delta)
 		return
 	if state != "stalk": return
 	var tgt := _target()
@@ -256,6 +301,13 @@ func _physics_process_timed(delta: float) -> void:
 		_walk = move_toward(_walk, 0.0, delta * 8.0)      # caught moving: it stops dead
 		# ...but hold its eye long enough, from far enough off, and it stops waiting: it runs
 		_watch_t += delta
+		# ...or, smarter, it gives up being watched: walks off to a wall corner, hides, and comes round behind you
+		_peek_scan -= delta
+		if _watch_t >= RETREAT_WATCH and _peek_cd <= 0.0 and _peek_scan <= 0.0 and d >= PEEK_MIN and d <= PEEK_MAX:
+			_peek_scan = 0.5
+			if randf() < 0.6 and _find_peek(pp):
+				_begin_peek(true)
+				return
 		if _watch_t >= charge_watch and _charge_cd <= 0.0 and d >= charge_min and d <= charge_max and _can_take(tgt):
 			_begin_charge()
 			return
@@ -268,8 +320,25 @@ func _physics_process_timed(delta: float) -> void:
 			if not nav.clear_line(p.x, p.z, pp.x, pp.z) and _find_peek(pp):
 				_begin_peek()
 				return
+		_creep_t = maxf(0.0, _creep_t - delta)
+		_pace = CREEP_PACE if _creep_t > 0.0 else 1.0
+		if _hunt_t < _commit_at and d < KEEP_DIST:
+			# not yet: it shadows you from the dark, no nearer, turned on you. Come at it, or let it stand long enough,
+			# and it slips away out of your sight, to come at you again from somewhere else
+			_shadow_t += delta
+			if (d < KEEP_DIST * 0.6 or _shadow_t > _shadow_for) and _begin_withdraw(pp):
+				return
+			_walk = move_toward(_walk, 0.0, delta * 3.0)
+			yaw = lerp_angle(yaw, _yaw_to(pp), minf(1.0, delta * 1.5))
+			rotation.y = yaw
+			return
 		_walk = move_toward(_walk, 1.0, delta * 2.5)
-		_move_toward(pp, STALK_SPEED * _walk * (0.0 if _hitch_t > 0.0 else 1.0), delta)
+		var goal := pp
+		if _flank_t > 0.0:                                    # working round behind you
+			_flank_t -= delta
+			if d > FLANK_NEAR: goal = _flank_point(tgt)
+			else: _flank_t = 0.0
+		_move_toward(goal, STALK_SPEED * _pace * _walk * (0.0 if _hitch_t > 0.0 else 1.0), delta)
 	rotation.y = yaw
 
 # ---------------------------------------------------------------- the peek
@@ -284,8 +353,8 @@ func _find_peek(pp: Vector3) -> bool:
 	var cz := GridNav.cell(p.z)
 	var h := CELL * 0.5
 	var best := INF
-	for ox in range(-2, 3):
-		for oz in range(-2, 3):
+	for ox in range(-3, 4):
+		for oz in range(-3, 4):
 			var w := Vector2i(cx + ox, cz + oz)
 			if not nav.is_wall(w.x, w.y): continue
 			for n: Vector2i in GridNav.NEIGHBOURS:              # the face it would stand before (n: out of the block)
@@ -300,7 +369,7 @@ func _find_peek(pp: Vector3) -> bool:
 					var at := corner - e3 * PEEK_EDGE.x * k - fwd * PEEK_EDGE.y * k
 					var head := corner + e3 * PEEK_HEAD.x * k + n3 * PEEK_HEAD.y * k
 					var dsq := at.distance_squared_to(p)
-					if dsq >= best or dsq > 100.0: continue
+					if dsq >= best or dsq > 225.0: continue
 					if (pp - corner).dot(fwd) < 1.0: continue    # you are on its side of the wall, not beyond it
 					if not nav.open_at(at.x, at.z) or nav.resolve(at, RADIUS).distance_to(at) > 0.05: continue
 					if nav.clear_line(at.x, at.z, pp.x, pp.z): continue           # it would be stood in plain sight
@@ -313,22 +382,42 @@ func _find_peek(pp: Vector3) -> bool:
 					_peek_side = 1 if fwd.cross(Vector3.UP).dot(e3) > 0.0 else -1
 	return best < INF
 
-func _begin_peek() -> void:
+## A point behind the survivor (the way they face), where it comes at them from: the unseen side
+func _flank_point(tgt: Dictionary) -> Vector3:
+	var pp: Vector3 = tgt.pos
+	var look: Vector3 = tgt.get("fwd", Vector3.FORWARD)
+	if tgt.local: look = -(_pl.cam as Camera3D).global_transform.basis.z
+	look = Vector3(look.x, 0.0, look.z).normalized()
+	for r in [FLANK_BEHIND, FLANK_BEHIND * 0.5]:
+		var c: Vector3 = pp - look * r
+		if nav.open_at(c.x, c.z): return c
+	return pp
+
+func _begin_peek(retreat := false) -> void:
 	state = "peek"
+	_retreat = retreat
 	_peek_phase = "go"
 	_peek_t = 0.0
 	_peek_lost = 0.0
 	_peek_hold = randf_range(3.5, 7.0)
+	_caught = false
+	_caught_t = 0.0
+	_pace = 1.0
 
 func _end_peek() -> void:
 	state = "stalk"
 	_peek_phase = ""
 	_peek_cd = PEEK_COOLDOWN * randf_range(0.8, 1.5)
 	_walk = 0.0
+	if _retreat or randf() < 0.5: _flank_t = FLANK_TIME     # hid: now it comes round behind you
+	_retreat = false
+	_caught = false
+	_caught_t = 0.0
 
 ## Goes to the spot, turns square to the wall, reaches round the edge and leans out (in), hangs there watching you
 ## (hold), and pulls back behind the wall (out) once it has watched long enough, or you have gone from its sight.
-## Like everything else it does, it only moves unwatched: caught at it, it holds where it is, even half out.
+## Caught at it, it holds dead still a beat, then whips back behind the wall and withdraws out of your sight
+## (_withdraw): it never runs at you from a corner.
 func _peek(delta: float) -> void:
 	_peek_t += delta
 	var tgt := _target()
@@ -344,17 +433,21 @@ func _peek(delta: float) -> void:
 		return
 	_is_seen = _seen()
 	if _is_seen:
-		# stared at, hanging off the edge: the same as anywhere, it gives up waiting and runs at you
 		_watch_t += delta
-		if _peek_phase != "go" and _watch_t >= charge_watch and _charge_cd <= 0.0 and d >= charge_min and d <= charge_max and _can_take(tgt):
-			_peek_phase = ""
-			_begin_charge()
-			return
+		if _peeking() and not _caught:
+			_caught_t += delta
+			if _caught_t >= CAUGHT_HOLD:                  # it has seen you see it
+				_caught = true
+				_peek_phase = "out"
+				_peek_t = 0.0
+				if scares != null:                         # the scrape of it snatching back round the edge
+					scares.spawn3d(scares.synth("creak"), _peek_head + Vector3.UP * 3.0, 0.5, "Scares", 4.0, randf_range(1.15, 1.35))
 	else:
 		_watch_t = maxf(0.0, _watch_t - delta * 0.6)
+		_caught_t = 0.0
 	match _peek_phase:
 		"go":
-			if _is_seen:
+			if _is_seen and not _retreat:
 				_walk = move_toward(_walk, 0.0, delta * 8.0)
 				_end_peek()                                    # seen getting there: the hiding place is no good
 				return
@@ -388,8 +481,94 @@ func _peek(delta: float) -> void:
 				_peek_phase = "out"
 				_peek_t = 0.0
 		"out":
-			if _is_seen: _peek_t -= delta
+			if _caught:
+				if _peek_t >= PEEK_OUT / CAUGHT_BACK:
+					_end_peek()
+					_begin_withdraw(pp)
+			elif _is_seen: _peek_t -= delta
 			elif _peek_t >= PEEK_OUT: _end_peek()
+	rotation.y = yaw
+
+## Off out of your sight: somewhere HIDE_MIN-HIDE_MAX from you that you can't see, further from you than it is now if
+## it can, the fewest steps away it can walk to (HIDE_STEPS at most). In the open, with nowhere you can't see, it
+## backs off into the dark as far from you as it can walk (its lamps die round it). False if it can't get further off.
+func _begin_withdraw(pp: Vector3) -> bool:
+	var p := global_position
+	var n: int = nav.n
+	var cx := GridNav.cell(p.x)
+	var cz := GridNav.cell(p.z)
+	if not nav.bfs(cx, cz, _reach): return false
+	var now := Vector2(pp.x - p.x, pp.z - p.z).length()
+	var best := HIDE_STEPS + 1
+	var best_any := HIDE_STEPS + 1
+	var any := Vector3.ZERO
+	var far := now + 4.0
+	var far_at := Vector3.INF
+	for ox in range(-HIDE_STEPS, HIDE_STEPS + 1):
+		for oz in range(-HIDE_STEPS, HIDE_STEPS + 1):
+			var x := cx + ox
+			var z := cz + oz
+			if x < 0 or z < 0 or x >= n or z >= n: continue
+			var steps := _reach[x * n + z]
+			if steps < 1 or (steps >= best_any and steps >= best): continue
+			var c := Vector3(x * CELL, p.y, z * CELL)
+			var dp := Vector2(c.x - pp.x, c.z - pp.z).length()
+			if dp > far and dp <= HIDE_MAX:
+				far = dp
+				far_at = c
+			if dp < HIDE_MIN or dp > HIDE_MAX or nav.clear_line(c.x, c.z, pp.x, pp.z): continue
+			if dp > now and steps < best:
+				best = steps
+				_hide_at = c
+			if steps < best_any:
+				best_any = steps
+				any = c
+	if best > HIDE_STEPS:
+		if best_any <= HIDE_STEPS: _hide_at = any
+		elif far_at != Vector3.INF: _hide_at = far_at
+		else: return false
+	state = "withdraw"
+	_peek_phase = ""
+	t = 0.0
+	_watch_t = 0.0
+	_shadow_t = 0.0
+	_caught = false
+	_caught_t = 0.0
+	_pace = WITHDRAW_PACE
+	_hide_wait = randf_range(HIDE_WAIT.x, HIDE_WAIT.y)
+	return true
+
+## Walks off to _hide_at, seen or not, its head still turned back on you; waits there, still, out of your sight;
+## then comes back for you slowly (CREEP_PACE), working round behind you, ready to peek again from a new corner.
+func _withdraw(delta: float) -> void:
+	t += delta
+	var tgt := _target()
+	if tgt.is_empty():
+		state = "stalk"
+		return
+	var pp: Vector3 = tgt.pos
+	var p := global_position
+	if Vector2(pp.x - p.x, pp.z - p.z).length() < GRAB_DIST and _can_take(tgt):   # you ran it down
+		state = "windup"
+		t = 0.0
+		return
+	_is_seen = _seen()
+	if Vector2(_hide_at.x - p.x, _hide_at.z - p.z).length() > 0.5 and t < 20.0:
+		_pace = WITHDRAW_PACE
+		_walk = move_toward(_walk, 1.0, delta * 2.5)
+		_move_toward(_hide_at, STALK_SPEED * _pace * _walk * (0.0 if _hitch_t > 0.0 else 1.0), delta)
+	else:
+		_walk = move_toward(_walk, 0.0, delta * 3.0)
+		if not _is_seen: _hide_wait -= delta
+		if _hide_wait <= 0.0:
+			state = "stalk"
+			_creep_t = CREEP_TIME
+			_flank_t = FLANK_TIME
+			_peek_cd = randf_range(5.0, 9.0)
+			_shadow_t = 0.0
+			_shadow_for = randf_range(SHADOW_SHIFT.x, SHADOW_SHIFT.y)
+			if scares != null:                             # somewhere out there, it has started back
+				scares.spawn3d(scares.synth("creak"), p + Vector3.UP * 2.0, 0.3, "Scares", 8.0, randf_range(0.55, 0.7))
 	rotation.y = yaw
 
 ## Hanging off a corner, what shows is its face: that is what you see it by, not its middle (behind the wall)
@@ -642,7 +821,7 @@ func _process_timed(delta: float) -> void:
 ## beat, a dropped frame, then go on. In the run a joint cracks with it.
 func _hitches(delta: float) -> void:
 	_hitch_t = maxf(0.0, _hitch_t - delta)
-	var walking := (state == "stalk" or (state == "peek" and _peek_phase == "go")) and _walk > 0.6
+	var walking := (state == "stalk" or state == "withdraw" or (state == "peek" and _peek_phase == "go")) and _walk > 0.6
 	var running := state == "charge" and t > CHARGE_PREP and not _braking and _sp > 0.5
 	if not (walking or running): return
 	_hitch_next -= delta
@@ -662,9 +841,9 @@ func _animate(delta: float) -> void:
 	var fade := 0.4
 	var back := false
 	_still_t = 0.0 if _walk > 0.02 else _still_t + delta
-	var walk_speed := _walk * STALK_SPEED / (WALK_CLIP_SPEED * k)
+	var walk_speed := _walk * STALK_SPEED * _pace / (WALK_CLIP_SPEED * k)
 	match state:
-		"stalk":
+		"stalk", "withdraw":
 			# caught mid-stride it holds the stride, dead still; only after a while does it settle into its stance
 			if _walk > 0.02 or (_clip == "walk" and _still_t < FREEZE_HOLD):
 				clip = "walk"
@@ -702,9 +881,9 @@ func _animate(delta: float) -> void:
 				"out":
 					clip = c
 					back = true
-					speed = PEEK_IN / PEEK_OUT
-					fade = 0.2
-			if _is_seen and _peek_phase != "go": speed = 0.0          # caught at it: frozen where it is
+					speed = PEEK_IN / PEEK_OUT * (CAUGHT_BACK if _caught else 1.0)
+					fade = 0.1 if _caught else 0.2
+			if _is_seen and _peek_phase != "go" and not _caught: speed = 0.0   # caught at it: frozen where it is (a beat)
 		"hug":
 			fade = 0.3                                               # (stood, its arms posed round you on top)
 		"grab", "lift", "stare", "corrupt":
@@ -760,7 +939,7 @@ func _pose_head(delta: float) -> void:
 	if skel == null: return
 	var fwd := Vector3(sin(rotation.y), 0.0, cos(rotation.y))
 	_tw_next -= delta
-	var may_tick := state == "stalk" or state == "charge" or (state == "peek" and _peek_phase == "hold")
+	var may_tick := state == "stalk" or state == "withdraw" or state == "charge" or (state == "peek" and _peek_phase == "hold")
 	if _tw_next <= 0.0 and may_tick:
 		if state == "charge": _tw_next = randf_range(0.12, 0.35)
 		elif _watch_t > charge_watch * 0.5: _tw_next = randf_range(0.8, 1.6)
@@ -772,11 +951,12 @@ func _pose_head(delta: float) -> void:
 	_tw_amt = move_toward(_tw_amt, _tw_goal, delta * 14.0)      # snaps...
 	_tw_goal = move_toward(_tw_goal, 0.0, delta * 0.05)         # ...and creeps back over seconds
 	var look_at := 0.0
-	var tracking := state == "stalk" or state == "charge" or (state == "peek" and _peek_phase != "set")
-	if tracking and player != null and not (state == "peek" and _is_seen and _peek_phase != "go"):
+	var tracking := state == "stalk" or state == "withdraw" or state == "charge" or (state == "peek" and _peek_phase != "set")
+	if tracking and player != null and not (state == "peek" and _is_seen and _peek_phase != "go" and not _caught):
 		var aim := player.global_position
 		var from := _peek_head if _peeking() else global_position
-		look_at = clampf(wrapf(atan2(aim.x - from.x, aim.z - from.z) - rotation.y, -PI, PI), -1.0, 1.0)
+		var reach := 1.6 if state == "withdraw" else 1.0     # walking off, it looks back over its shoulder further than it should
+		look_at = clampf(wrapf(atan2(aim.x - from.x, aim.z - from.z) - rotation.y, -PI, PI), -reach, reach)
 	elif state == "peek" and _is_seen:
 		look_at = _head_yaw                                      # (caught: it doesn't move, not even its eyes)
 	_head_yaw = lerpf(_head_yaw, look_at, 1.0 - exp(-4.0 * delta))
@@ -1134,6 +1314,32 @@ func _die() -> void:
 	_despawn_quietly()
 
 ## Off, without touching the player (their death owns the camera from here)
+# ---------------------------------------------------------------- T.S.R.A. scanner
+# Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
+func _enter_tree() -> void:
+	add_to_group(Archive.SCANNABLE)
+	set_meta("tsra_id", "burnt")
+
+## Where the scanner can take a reading off it right now: its chest and its head; empty while it is away
+func scan_points() -> Array:
+	if not present or body == null or not visible:
+		return []
+	var h := height * size
+	return [global_position + Vector3.UP * h * 0.55, global_position + Vector3.UP * h * 0.9]
+
+## C-4 deep scan (scan_readout.gd)
+func scan_behavior(_at: Vector3) -> Dictionary:
+	match state:
+		"windup", "charge":
+			return {"state": "CHARGING", "detail": "RUNNING AT THE SUBJECT // BREAK LINE OF SIGHT", "danger": 2}
+		"grab", "lift", "stare", "corrupt", "hug", "held":
+			return {"state": "FEEDING", "detail": "SUBJECT IN ITS GRIP", "danger": 2}
+		"peek":
+			return {"state": "WATCHING", "detail": "AT A WALL CORNER // HEAD LEANED OUT", "danger": 1}
+		"withdraw":
+			return {"state": "WITHDRAWN", "detail": "OUT OF SIGHT // IT WILL COME BACK", "danger": 1}
+	return {"state": "STALKING", "detail": "MOVES ONLY UNOBSERVED // LAMPS DEAD AROUND IT", "danger": 2}
+
 func _despawn_quietly() -> void:
 	if _net_taken:                        # our sequence is over: tell the host, and ignore its stale snapshots a moment
 		_net_taken = false
@@ -1151,6 +1357,8 @@ func _despawn_quietly() -> void:
 	_sp = 0.0
 	_peek_phase = ""
 	_is_seen = false
+	_caught = false
+	_pace = 1.0
 	_rush_clear()
 	if _black != null: _set_black(0.0)
 	_clip = ""
@@ -1173,7 +1381,152 @@ func debug_spawn() -> bool:
 	_peek_phase = ""
 	_peek_cd = 4.0
 	_clip = ""
+	_fresh_hunt()
 	return true
+
+## Console: it hides at a wall corner and leans out to watch you. retreat: it starts where you can see it and walks
+## off to the corner in plain sight (then works round behind you, the flank). Moved to a spot that has a corner if
+## where it stands has none.
+func debug_peek(retreat := false) -> bool:
+	if not _debug_ready(): return false
+	var pp: Vector3 = _target().pos
+	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
+	var in_sight := nav.clear_line(global_position.x, global_position.z, pp.x, pp.z)
+	if not (d >= PEEK_MIN and d <= PEEK_MAX and in_sight == retreat and _find_peek(pp)) and not _debug_corner(pp, retreat):
+		last_error = "no wall corner within %d-%d m of you to peek round: stand in a corridor, near a corner" % [int(PEEK_MIN), int(PEEK_MAX)]
+		return false
+	_watch_t = 0.0
+	_begin_peek(retreat)
+	return true
+
+## Console: it runs at you, from at least charge_min off down a straight line (the way you look, else the nearest
+## way round that has one)
+func debug_charge() -> bool:
+	if not _debug_ready(): return false
+	var pp: Vector3 = _target().pos
+	if Vector2(pp.x - global_position.x, pp.z - global_position.z).length() < charge_min or not nav.clear_line(global_position.x, global_position.z, pp.x, pp.z):
+		var look := -(_pl.cam as Camera3D).global_transform.basis.z
+		var a0 := atan2(look.x, look.z)
+		var at := Vector3.INF
+		for i in 8:                                       # 0, +45, -45, +90, -90... degrees off your view
+			var dir := Vector3(sin(a0 + PI / 4.0 * ceilf(i / 2.0) * (1 - 2 * (i % 2))), 0.0, cos(a0 + PI / 4.0 * ceilf(i / 2.0) * (1 - 2 * (i % 2))))
+			var r := 22.0
+			while r >= charge_min:
+				var c := pp + dir * r
+				if nav.open_at(c.x, c.z) and nav.clear_line(pp.x, pp.z, c.x, c.z):
+					at = c
+					break
+				r -= 0.5
+			if at != Vector3.INF: break
+		if at == Vector3.INF:
+			last_error = "no straight run of %d m from you in any direction: go into a long hall" % int(charge_min)
+			return false
+		global_position = Vector3(at.x, global_position.y, at.z)
+		yaw = _yaw_to(pp)
+		rotation.y = yaw
+	_begin_charge()
+	return true
+
+## Console: it works round to come at you from behind (what it does after it has hidden)
+func debug_flank() -> bool:
+	if not _debug_ready(): return false
+	var pp: Vector3 = _target().pos
+	if Vector2(pp.x - global_position.x, pp.z - global_position.z).length() <= FLANK_NEAR and not _debug_corner(pp, false, false):
+		last_error = "too close (%d m or nearer it just comes straight at you) and nowhere out of your sight to start from" % int(FLANK_NEAR)
+		return false
+	state = "stalk"
+	_peek_phase = ""
+	_flank_t = FLANK_TIME
+	return true
+
+## Console: it walks off out of your sight, waits, and comes back slowly
+func debug_hide() -> bool:
+	if not _debug_ready(): return false
+	if not _begin_withdraw(_target().pos):
+		last_error = "nowhere %d-%d m from you out of your sight" % [int(HIDE_MIN), int(HIDE_MAX)]
+		return false
+	return true
+
+## Console: stop shadowing you, close in now
+func debug_commit() -> bool:
+	if not _debug_ready(): return false
+	_hunt_t = _commit_at
+	return true
+
+## Console: it takes you where it stands (face on if you see it, the hug from behind if not)
+func debug_grab() -> bool:
+	if not _debug_ready(): return false
+	var tgt := _target()
+	if not tgt.local or _pl.dead:
+		last_error = "only the host's own player"
+		return false
+	_peek_phase = ""
+	_start_grab(tgt)
+	return true
+
+## Console: what it is doing, and each gate that keeps it from peeking / retreating / charging / flanking now
+func debug_status() -> String:
+	if not present: return "burnt: not in the scene (lod %s)" % EntityLOD.tier_name(self)
+	var tgt := _target()
+	if tgt.is_empty(): return "burnt: %s, nobody to hunt" % state
+	var pp: Vector3 = tgt.pos
+	var p := global_position
+	var d := Vector2(pp.x - p.x, pp.z - p.z).length()
+	var los := nav.clear_line(p.x, p.z, pp.x, pp.z)
+	var keep := [_peek_at, _peek_yaw, _peek_head, _peek_side]     # (_find_peek writes over the spot it may be using)
+	var corner := _find_peek(pp)
+	_peek_at = keep[0]; _peek_yaw = keep[1]; _peek_head = keep[2]; _peek_side = keep[3]
+	var why: Array[String] = []
+	if Game.freeze_ai: why.append("monsters frozen")
+	if _lurk: why.append("lurking until you are within %d m" % int(LURK_WAKE))
+	if d < PEEK_MIN or d > PEEK_MAX: why.append("peek needs %d-%d m" % [int(PEEK_MIN), int(PEEK_MAX)])
+	if _peek_cd > 0.0: why.append("peek cooldown %.0f s" % _peek_cd)
+	if not corner: why.append("no wall corner near it to peek round")
+	if los and not _is_seen: why.append("unseen peek needs a wall between you")
+	if not _can_take(tgt): why.append("can't take you (god mode / grace / frozen): no charge, no grab")
+	if d < charge_min or d > charge_max: why.append("charge needs %d-%d m" % [int(charge_min), int(charge_max)])
+	if _hunt_t < _commit_at: why.append("shadowing from %d m for %.0f s more" % [int(KEEP_DIST), _commit_at - _hunt_t])
+	if _charge_cd > 0.0: why.append("charge cooldown %.0f s" % _charge_cd)
+	return "burnt: %s%s  d %.1f m  seen %s  line to you %s  watched %.1f s (retreat %.1f, charge %.1f)  flank %.0f s  lod %s\n  blocked: %s" % [
+			state, "/" + _peek_phase if _peek_phase != "" else "", d, _is_seen, los, _watch_t, RETREAT_WATCH, charge_watch,
+			_flank_t, EntityLOD.tier_name(self), ", ".join(why) if not why.is_empty() else "nothing"]
+
+## Spawned (or already here), hunting, and nothing running that a debug action would cut into
+func _debug_ready() -> bool:
+	if not present and not debug_spawn(): return false
+	if state in ["hug", "grab", "lift", "stare", "corrupt", "held"]:
+		last_error = "busy (%s)" % state
+		return false
+	if _target().is_empty():
+		last_error = "nobody to hunt"
+		return false
+	_lurk = false
+	_peek_cd = 0.0
+	return true
+
+## Moves it to the nearest open cell PEEK_MIN-PEEK_MAX from you that has a corner to peek from (corner) or any: out of
+## your line of sight, or (seen) in it. Puts it back if there is none.
+func _debug_corner(pp: Vector3, seen: bool, corner := true) -> bool:
+	var was := global_position
+	var cx := GridNav.cell(pp.x)
+	var cz := GridNav.cell(pp.z)
+	var r := ceili(PEEK_MAX / CELL)
+	var cells: Array[Vector3] = []
+	for ox in range(-r, r + 1):
+		for oz in range(-r, r + 1):
+			var c := Vector3((cx + ox) * CELL, was.y, (cz + oz) * CELL)
+			var d := Vector2(c.x - pp.x, c.z - pp.z).length()
+			if d >= PEEK_MIN and d <= PEEK_MAX and nav.open_at(c.x, c.z) and nav.clear_line(c.x, c.z, pp.x, pp.z) == seen:
+				cells.append(c)
+	cells.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.distance_squared_to(pp) < b.distance_squared_to(pp))
+	for c in cells:
+		global_position = c
+		if not corner or _find_peek(pp):
+			yaw = _yaw_to(pp)
+			rotation.y = yaw
+			return true
+	global_position = was
+	return false
 
 func debug_despawn() -> void:
 	if state in ["hug", "grab", "lift", "stare", "corrupt"] and player != null and not _pl.dead:

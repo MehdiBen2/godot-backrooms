@@ -69,6 +69,7 @@ const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstea
 # other things you might type for a name
 const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt", "tall": "tallone", "tallone": "tallone"}
 const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
+const BURNT_ACTIONS := ["peek", "retreat", "hide", "charge", "flank", "commit", "grab", "status"]
 # the first-person arms' one-shots (torch_model.gd): console name -> clip. "swap" goes the way R does,
 # sound and light with it, but spends no battery pack.
 const HAND_ANIMS := {
@@ -86,8 +87,14 @@ const HAND_ANIM_LABELS := {"swap": "BATTERY SWAP", "smack": "SMACK TORCH", "sque
 	"regrip": "REGRIP", "flinch": "FLINCH", "look": "LOOK AT HAND", "flex": "FLEX HAND", "rub": "RUB FINGERS"}
 const HAND_ANIM_WAIT := 0.35      # s from the menu closing to the clip, so its start is seen
 
+const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")
 const FONT_PATH := "res://fonts/vcr.ttf"
-var font: FontFile
+const AMBER := Kit.AMBER
+const TEXT := Kit.TEXT
+const MUTED := Kit.MUTED
+const GREEN := Kit.GREEN
+const RED := Kit.RED
+var font: Font
 
 # The console stays locked until the code is typed once; static, so it holds until the game is closed
 const ACCESS_CODE := "200021"
@@ -142,6 +149,13 @@ var dbg_anim: AnimationPlayer
 var dbg_anims: Array[String] = []
 var dbg_anims_idx := 0
 
+const LevelData := preload("res://scripts/World/level/level_data.gd")
+var marks := {}                   # bookmark name -> [position, yaw]
+var marks_flow: HFlowContainer
+var level_buttons: Array = []
+var time_label: Label
+var time_slider: HSlider
+var hint_label: Label
 var hand_anim_last := "swap"      # the arm clip P plays again
 
 # Animation test walker (ANIMATION tab)
@@ -153,8 +167,7 @@ func _ready() -> void:
 	layer = 120
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	root = get_parent()
-	if ResourceLoader.exists(FONT_PATH):
-		font = load(FONT_PATH)
+	font = Kit.font(2)
 	_build_ui()
 	menu_window.visible = false
 	Game.hud_visibility_changed.connect(func(_v: bool):
@@ -164,7 +177,7 @@ func _ready() -> void:
 		_sync_hud_state()
 	)
 	_sync_hud_state()
-	_print("[color=gray]T.S.R.A. Diagnostic Matrix online. Press [b]F1[/b] or [b]~[/b] for visual menu, [b]help[/b] for commands.[/color]")
+	_print("[color=#b3a57a]T.S.R.A. Diagnostic Matrix online. Press [b]F1[/b] or [b]~[/b] for visual menu, [b]help[/b] for commands.[/color]")
 
 # ---------------------------------------------------------------- the event director panel (WORLD & EVENTS)
 ## Every event, by what it does to you. Button label, events.gd name.
@@ -196,16 +209,16 @@ func _event_desc(ev_name: String) -> String:
 func _fire_event(ev_name: String) -> void:
 	var ev := _events_node()
 	if ev == null:
-		_print("[color=orange]no event director in this scene[/color]")
+		_print("[color=#e8702c]no event director in this scene[/color]")
 		return
 	if ev.run_event(ev_name):
 		_ev_last = ev_name
-		_print("[color=#5fc9b8]event[/color] %s  [color=gray]%s[/color]" % [ev_name, _event_desc(ev_name)])
+		_print("[color=#5fc9b8]event[/color] %s  [color=#b3a57a]%s[/color]" % [ev_name, _event_desc(ev_name)])
 	else:
-		_print("[color=orange]event %s didn't start[/color]" % ev_name)
+		_print("[color=#e8702c]event %s didn't start[/color]" % ev_name)
 
 func _ev_style(b: Button, col: Color, on: bool) -> void:
-	b.add_theme_stylebox_override("normal", _make_box(Color(col, 0.16) if on else Color(0.06, 0.09, 0.11, 0.9), Color(col, 1.0 if on else 0.45), 2 if on else 1, 3, 7))
+	b.add_theme_stylebox_override("normal", _make_box(Color(col, 0.16) if on else Color(0.110, 0.086, 0.044, 0.9), Color(col, 1.0 if on else 0.45), 2 if on else 1, 3, 7))
 	b.add_theme_stylebox_override("hover", _make_box(Color(col, 0.12), Color(col, 0.95), 1, 3, 7))
 	b.add_theme_stylebox_override("pressed", _make_box(Color(col, 0.25), col, 2, 3, 7))
 	b.add_theme_color_override("font_color", col.lightened(0.25) if on else Color(0.82, 0.86, 0.84))
@@ -213,7 +226,7 @@ func _ev_style(b: Button, col: Color, on: bool) -> void:
 
 func _build_event_panel() -> Control:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _make_box(Color(0.02, 0.04, 0.05, 0.75), Color(0.25, 0.45, 0.45, 0.45), 1, 4, 12))
+	panel.add_theme_stylebox_override("panel", _make_box(Color(0.050, 0.039, 0.020, 0.75), Color(0.450, 0.306, 0.099, 0.45), 1, 4, 12))
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	panel.add_child(v)
@@ -221,7 +234,7 @@ func _build_event_panel() -> Control:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 8)
 	v.add_child(bar)
-	_ev_status = _label("IDLE", 12, Color(0.55, 0.75, 0.7))
+	_ev_status = _label("IDLE", 12, Color(0.712, 0.675, 0.525))
 	_ev_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ev_status.clip_text = true
 	bar.add_child(_ev_status)
@@ -236,7 +249,7 @@ func _build_event_panel() -> Control:
 	bar.add_child(rnd)
 	var again := _action_btn("REPEAT LAST", func():
 		if _ev_last != "": _fire_event(_ev_last)
-		else: _print("[color=gray]nothing fired yet[/color]"))
+		else: _print("[color=#b3a57a]nothing fired yet[/color]"))
 	again.tooltip_text = "Fire the last event again"
 	bar.add_child(again)
 	var stop := _action_btn("STOP ALL EVENTS", func():
@@ -254,7 +267,7 @@ func _build_event_panel() -> Control:
 	find.clear_button_enabled = true
 	if font: find.add_theme_font_override("font", font)
 	find.add_theme_font_size_override("font_size", 11)
-	find.add_theme_stylebox_override("normal", _make_box(Color(0.03, 0.05, 0.06, 0.9), Color(0.25, 0.45, 0.45, 0.4), 1, 3, 6))
+	find.add_theme_stylebox_override("normal", _make_box(Color(0.060, 0.047, 0.024, 0.9), Color(0.450, 0.306, 0.099, 0.4), 1, 3, 6))
 	find.text_changed.connect(_filter_events)
 	v.add_child(find)
 	# the groups
@@ -293,7 +306,7 @@ func _build_event_panel() -> Control:
 			restore.tooltip_text = "Every tube back on, white, right now (doesn't stop the event that cut them)"
 			flow.add_child(restore)
 		_ev_groups.append([head, flow])
-	v.add_child(_label("Hover a button for what it does. In co-op, the host's events play for everyone; each one is logged on the CONSOLE tab.", 10, Color(0.5, 0.6, 0.58)))
+	v.add_child(_label("Hover a button for what it does. In co-op, the host's events play for everyone; each one is logged on the CONSOLE tab.", 10, Color(0.570, 0.540, 0.420)))
 	return panel
 
 func _filter_events(q: String) -> void:
@@ -328,7 +341,7 @@ func _update_event_status() -> void:
 		var k := clampf(float(ev.tension) / th, 0.0, 1.0) if th > 0.0 else 0.0
 		var tail := ("   //   LAST: %s" % (_ev_buttons[cur][2] if _ev_buttons.has(cur) else cur)) if cur != "" else ""
 		_ev_status.text = "IDLE   //   NEXT EVENT %d%%%s" % [roundi(k * 100.0), tail]
-		_ev_status.add_theme_color_override("font_color", Color(0.55, 0.75, 0.7))
+		_ev_status.add_theme_color_override("font_color", Color(0.712, 0.675, 0.525))
 	for k2 in _ev_buttons:
 		var e: Array = _ev_buttons[k2]
 		var on: bool = running and k2 == cur
@@ -351,7 +364,7 @@ func _open_voice_picker() -> void:
 
 func _build_voice_picker() -> void:
 	_mv_panel = PanelContainer.new()
-	_mv_panel.add_theme_stylebox_override("panel", _make_box(Color(0.02, 0.035, 0.045, 0.98), Color(VOICE_COL, 0.6), 1, 4, 16))
+	_mv_panel.add_theme_stylebox_override("panel", _make_box(Color(0.045, 0.035, 0.018, 0.98), Color(VOICE_COL, 0.6), 1, 4, 16))
 	_mv_panel.visible = false
 	menu_window.add_child(_mv_panel)                    # (a PanelContainer: it lies over the whole menu)
 	var v := VBoxContainer.new()
@@ -366,7 +379,7 @@ func _build_voice_picker() -> void:
 	head.add_child(_action_btn("CLOSE", func(): _mv_panel.visible = false))
 	v.add_child(head)
 	# the voices
-	v.add_child(_label("VOICE", 11, Color(0.55, 0.7, 0.66)))
+	v.add_child(_label("VOICE", 11, Color(0.665, 0.630, 0.490)))
 	var voices := HFlowContainer.new()
 	voices.add_theme_constant_override("h_separation", 6)
 	voices.add_theme_constant_override("v_separation", 6)
@@ -381,14 +394,14 @@ func _build_voice_picker() -> void:
 	# the lines
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
-	row.add_child(_label("LINE", 11, Color(0.55, 0.7, 0.66)))
+	row.add_child(_label("LINE", 11, Color(0.665, 0.630, 0.490)))
 	var find := LineEdit.new()
 	find.placeholder_text = "filter lines... (words, or a tag: dark, alone, group...)"
 	find.clear_button_enabled = true
 	find.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if font: find.add_theme_font_override("font", font)
 	find.add_theme_font_size_override("font_size", 11)
-	find.add_theme_stylebox_override("normal", _make_box(Color(0.03, 0.05, 0.06, 0.9), Color(VOICE_COL, 0.35), 1, 3, 6))
+	find.add_theme_stylebox_override("normal", _make_box(Color(0.060, 0.047, 0.024, 0.9), Color(VOICE_COL, 0.35), 1, 3, 6))
 	find.text_changed.connect(_filter_lines)
 	row.add_child(find)
 	row.add_child(_action_btn("RANDOM LINE", func(): _play_line(randi() % MachineVoice.LINES.size())))
@@ -418,7 +431,7 @@ func _build_voice_picker() -> void:
 		lb.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		if font: lb.add_theme_font_override("font", font)
 		lb.add_theme_font_size_override("font_size", 11)
-		lb.add_theme_stylebox_override("normal", _make_box(Color(0.04, 0.06, 0.07, 0.7), Color(0, 0, 0, 0), 0, 2, 6))
+		lb.add_theme_stylebox_override("normal", _make_box(Color(0.070, 0.055, 0.028, 0.7), Color(0, 0, 0, 0), 0, 2, 6))
 		lb.add_theme_stylebox_override("hover", _make_box(Color(VOICE_COL, 0.12), Color(VOICE_COL, 0.7), 1, 2, 6))
 		lb.add_theme_stylebox_override("pressed", _make_box(Color(VOICE_COL, 0.25), VOICE_COL, 1, 2, 6))
 		lb.add_theme_color_override("font_color", Color(0.9, 0.55, 0.45) if tag != "" else Color(0.82, 0.86, 0.84))
@@ -426,7 +439,7 @@ func _build_voice_picker() -> void:
 		lb.pressed.connect(func(): _play_line(idx))
 		list.add_child(lb)
 		_mv_rows.append([lb, str(line.text), tag])
-	v.add_child(_label("In co-op the host's line plays for everyone. Lines in red have a tag: the director prefers them when that is true of you.", 10, Color(0.5, 0.6, 0.58)))
+	v.add_child(_label("In co-op the host's line plays for everyone. Lines in red have a tag: the director prefers them when that is true of you.", 10, Color(0.570, 0.540, 0.420)))
 
 func _pick_voice(vid: String) -> void:
 	_mv_voice = vid
@@ -438,9 +451,9 @@ func _play_line(idx: int) -> void:
 	if ev == null or not ev.has_method("play_machine_voice"):
 		return
 	if ev.play_machine_voice(_mv_voice, idx):
-		_print("[color=#5fc9b8]voice[/color] %s  [color=gray]%s[/color]" % [_mv_voice, str(MachineVoice.LINES[idx].text)])
+		_print("[color=#5fc9b8]voice[/color] %s  [color=#b3a57a]%s[/color]" % [_mv_voice, str(MachineVoice.LINES[idx].text)])
 	else:
-		_print("[color=orange]that line isn't imported yet: open the project in the Godot editor once[/color]")
+		_print("[color=#e8702c]that line isn't imported yet: open the project in the Godot editor once[/color]")
 
 func _filter_lines(q: String) -> void:
 	q = q.strip_edges().to_lower()
@@ -495,10 +508,10 @@ func _build_screen_overlay(parent: Control) -> void:
 	screen_overlay.position = Vector2(20, 20)
 	screen_overlay.custom_minimum_size = Vector2(340, 0)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.04, 0.05, 0.07, 0.82)
-	sb.border_color = Color(0.2, 0.8, 0.65, 0.7)
+	sb.bg_color = Color(0.070, 0.055, 0.028, 0.82)
+	sb.border_color = Color(0.800, 0.544, 0.176, 0.7)
 	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(4)
+	sb.set_corner_radius_all(0)
 	sb.set_content_margin_all(8)
 	screen_overlay.add_theme_stylebox_override("panel", sb)
 	screen_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -507,7 +520,7 @@ func _build_screen_overlay(parent: Control) -> void:
 	overlay_label = Label.new()
 	if font: overlay_label.add_theme_font_override("font", font)
 	overlay_label.add_theme_font_size_override("font_size", 12)
-	overlay_label.add_theme_color_override("font_color", Color(0.85, 0.95, 0.9))
+	overlay_label.add_theme_color_override("font_color", Color(0.902, 0.855, 0.665))
 	screen_overlay.add_child(overlay_label)
 
 # Top-Right On-Screen Clickable Badge Button
@@ -524,12 +537,12 @@ func _build_quick_badge(parent: Control) -> void:
 	quick_badge_btn.offset_bottom = 44
 	quick_badge_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
-	var normal_sb := _make_box(Color(0.06, 0.08, 0.11, 0.75), Color(0.2, 0.8, 0.65, 0.6), 1, 4, 6)
-	var hover_sb := _make_box(Color(0.1, 0.16, 0.2, 0.9), Color(0.3, 1.0, 0.8, 0.95), 1, 4, 6)
+	var normal_sb := _make_box(Color(0.110, 0.086, 0.044, 0.75), Color(0.800, 0.544, 0.176, 0.6), 1, 4, 6)
+	var hover_sb := _make_box(Color(0.200, 0.156, 0.080, 0.9), Color(1.000, 0.680, 0.220, 0.95), 1, 4, 6)
 	quick_badge_btn.add_theme_stylebox_override("normal", normal_sb)
 	quick_badge_btn.add_theme_stylebox_override("hover", hover_sb)
 	quick_badge_btn.add_theme_stylebox_override("pressed", hover_sb)
-	quick_badge_btn.add_theme_color_override("font_color", Color(0.7, 0.95, 0.85))
+	quick_badge_btn.add_theme_color_override("font_color", Color(0.902, 0.855, 0.665))
 	quick_badge_btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 	quick_badge_btn.pressed.connect(toggle_menu)
 	parent.add_child(quick_badge_btn)
@@ -538,16 +551,16 @@ func _build_quick_badge(parent: Control) -> void:
 func _build_menu_window(parent: Control) -> void:
 	menu_window = PanelContainer.new()
 	menu_window.set_anchors_preset(Control.PRESET_CENTER)
-	menu_window.custom_minimum_size = Vector2(860, 600)
+	menu_window.custom_minimum_size = Vector2(1000, 660)
 	menu_window.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	menu_window.grow_vertical = Control.GROW_DIRECTION_BOTH
-	menu_window.position = Vector2(-430, -300)
+	menu_window.position = Vector2(-500, -330)
 
 	var win_sb := StyleBoxFlat.new()
-	win_sb.bg_color = Color(0.045, 0.055, 0.075, 0.96)
-	win_sb.border_color = Color(0.2, 0.8, 0.68, 0.9)
+	win_sb.bg_color = Color(0.075, 0.058, 0.030, 0.96)
+	win_sb.border_color = Color(0.800, 0.544, 0.176, 0.9)
 	win_sb.set_border_width_all(2)
-	win_sb.set_corner_radius_all(6)
+	win_sb.set_corner_radius_all(0)
 	win_sb.set_content_margin_all(14)
 	win_sb.shadow_color = Color(0, 0, 0, 0.6)
 	win_sb.shadow_size = 16
@@ -568,33 +581,33 @@ func _build_menu_window(parent: Control) -> void:
 	header.add_child(title_vbox)
 
 	var title_lbl := Label.new()
-	title_lbl.text = "T.S.R.A. FIELD DIAGNOSTIC & DEBUG MATRIX // V4.7"
+	title_lbl.text = "T.S.R.A.  FIELD DIAGNOSTIC  //  MK-IV"
 	if font: title_lbl.add_theme_font_override("font", font)
 	title_lbl.add_theme_font_size_override("font_size", 16)
-	title_lbl.add_theme_color_override("font_color", Color(0.25, 0.95, 0.8))
+	title_lbl.add_theme_color_override("font_color", Color(0.950, 0.646, 0.209))
 	title_vbox.add_child(title_lbl)
 
 	var subtitle_lbl := Label.new()
-	subtitle_lbl.text = "PRESS F1, ~ (TILDE), OR ESC TO TOGGLE MENU • GAME RUNS IN BACKGROUND"
+	subtitle_lbl.text = "[F1] [~] [ESC] TOGGLE   //   [1] COMMAND LINE   //   THE GAME KEEPS RUNNING BEHIND IT"
 	if font: subtitle_lbl.add_theme_font_override("font", font)
 	subtitle_lbl.add_theme_font_size_override("font_size", 10)
-	subtitle_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.72, 0.75))
+	subtitle_lbl.add_theme_color_override("font_color", Color(0.712, 0.675, 0.525, 0.75))
 	title_vbox.add_child(subtitle_lbl)
 
 	btn_header_hud = Button.new()
-	btn_header_hud.text = "📷 HIDE HUD & HANDS"
+	btn_header_hud.text = "HIDE HUD & HANDS"
 	if font: btn_header_hud.add_theme_font_override("font", font)
 	btn_header_hud.add_theme_font_size_override("font_size", 12)
 	btn_header_hud.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn_header_hud.pressed.connect(func():
 		Game.hide_hud = not Game.hide_hud
 		_sync_hud_state()
-		_print("HUD & Hands: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=#e8702c]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=#5de08f]VISIBLE[/color]"))
 	)
 	header.add_child(btn_header_hud)
 
 	var close_btn := Button.new()
-	close_btn.text = "✕ CLOSE"
+	close_btn.text = "[ESC] CLOSE"
 	if font: close_btn.add_theme_font_override("font", font)
 	close_btn.add_theme_font_size_override("font_size", 12)
 	close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -608,7 +621,7 @@ func _build_menu_window(parent: Control) -> void:
 	quick_bar.add_theme_constant_override("separation", 6)
 	main_vbox.add_child(quick_bar)
 
-	btn_noclip = _make_toggle_btn("NOCLIP (FLY)", Color(0.1, 0.85, 1.0), func(on):
+	btn_noclip = _make_toggle_btn("NOCLIP (FLY)", Color(1.000, 0.680, 0.220), func(on):
 		Game.noclip = on
 		_sync_quick_buttons()
 	)
@@ -656,10 +669,11 @@ func _build_menu_window(parent: Control) -> void:
 	main_vbox.add_child(nav_bar)
 
 	var tabs := [
-		{"id": "cheats", "label": "CHEATS & PLAYER"},
-		{"id": "entities", "label": "MONSTERS & BEHAVIOR"},
-		{"id": "world", "label": "WORLD & EVENTS"},
-		{"id": "teleport", "label": "TELEPORTATION"},
+		{"id": "cheats", "label": "PLAYER"},
+		{"id": "entities", "label": "ENTITIES"},
+		{"id": "world", "label": "EVENTS"},
+		{"id": "teleport", "label": "TELEPORT"},
+		{"id": "game", "label": "LEVEL & GAME"},
 		{"id": "anim", "label": "ANIMATION"},
 		{"id": "console", "label": "CONSOLE"}
 	]
@@ -677,7 +691,7 @@ func _build_menu_window(parent: Control) -> void:
 	# --- Tab Content Container ---
 	var tab_content := PanelContainer.new()
 	tab_content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var content_sb := _make_box(Color(0.03, 0.04, 0.05, 0.7), Color(0.2, 0.4, 0.35, 0.4), 1, 4, 10)
+	var content_sb := _make_box(Color(0.050, 0.039, 0.020, 0.7), Color(0.400, 0.272, 0.088, 0.4), 1, 4, 10)
 	tab_content.add_theme_stylebox_override("panel", content_sb)
 	main_vbox.add_child(tab_content)
 
@@ -685,6 +699,7 @@ func _build_menu_window(parent: Control) -> void:
 	tab_panels["entities"] = _build_entities_tab()
 	tab_panels["world"] = _build_world_tab()
 	tab_panels["teleport"] = _build_teleport_tab()
+	tab_panels["game"] = _build_game_tab()
 	tab_panels["anim"] = _build_anim_tab()
 	tab_panels["console"] = _build_console_tab()
 
@@ -705,8 +720,8 @@ func _build_anim_tab() -> Control:
 	v.add_theme_constant_override("separation", 12)
 	scroll.add_child(v)
 
-	v.add_child(_label("A survivor walks a %d m lane in front of you, turns round at each end and keeps the same step." % int(AnimWalker.LANE), 12, Color(0.75, 0.85, 0.8)))
-	v.add_child(_label("Menu closed:  [ ]  previous / next move     ;  walk / run / crouch     '  next head test     /  slow motion", 11, Color(0.55, 0.65, 0.62)))
+	v.add_child(_label("A survivor walks a %d m lane in front of you, turns round at each end and keeps the same step." % int(AnimWalker.LANE), 12, Color(0.807, 0.765, 0.595)))
+	v.add_child(_label("Menu closed:  [ ]  previous / next move     ;  walk / run / crouch     '  next head test     /  slow motion", 11, Color(0.617, 0.585, 0.455)))
 	walker_status = _label("WALKER: none", 12, Color(0.95, 0.85, 0.5))
 	v.add_child(walker_status)
 
@@ -865,14 +880,14 @@ func _build_cheats_tab() -> Control:
 	hud_row.add_theme_constant_override("separation", 8)
 	v.add_child(hud_row)
 
-	btn_toggle_hud = _make_toggle_btn("HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0), func(on):
+	btn_toggle_hud = _make_toggle_btn("HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(1.000, 0.680, 0.220), func(on):
 		Game.hide_hud = on
 		_sync_hud_state()
-		_print("HUD & Hands: " + ("[color=orange]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=#e8702c]HIDDEN (Screenshot Mode)[/color]" if Game.hide_hud else "[color=#5de08f]VISIBLE[/color]"))
 	)
 	hud_row.add_child(btn_toggle_hud)
 
-	var snap_btn := _action_btn("📷 TAKE SCREENSHOT", func():
+	var snap_btn := _action_btn("TAKE SCREENSHOT", func():
 		_take_screenshot()
 	)
 	hud_row.add_child(snap_btn)
@@ -884,7 +899,7 @@ func _build_cheats_tab() -> Control:
 
 	var crash_btn := _action_btn("SHOW LAST CRASH", func():
 		if not Crash.show_last_crash():
-			_print("[color=orange]no crash report saved yet[/color]")
+			_print("[color=#e8702c]no crash report saved yet[/color]")
 	)
 	hud_row.add_child(crash_btn)
 
@@ -900,7 +915,7 @@ func _build_entities_tab() -> Control:
 	scroll.add_child(v)
 
 	v.add_child(_section_header("MASTER MONSTER CONTROLS"))
-	btn_freeze_ai = _make_toggle_btn("FREEZE ALL MONSTERS (PAUSE)", Color(0.2, 0.8, 1.0), func(on):
+	btn_freeze_ai = _make_toggle_btn("FREEZE ALL MONSTERS (PAUSE)", Color(1.000, 0.680, 0.220), func(on):
 		Game.freeze_ai = on
 		_sync_quick_buttons()
 	)
@@ -958,7 +973,7 @@ func _build_entities_tab() -> Control:
 	eyes_box.add_child(eyes_row)
 	eyes_row.add_child(_label("EYES IN THE DARK:", 12, Color(0.9, 0.8, 0.6), 160))
 
-	eyes_count_label = _label("COUNT: AUTO", 12, Color(0.8, 0.9, 0.85), 110)
+	eyes_count_label = _label("COUNT: AUTO", 12, Color(0.855, 0.810, 0.630), 110)
 	eyes_row.add_child(eyes_count_label)
 	eyes_row.add_child(_action_btn("AUTO (SANITY)", func():
 		var ey = root.get_node_or_null("Eyes")
@@ -997,10 +1012,13 @@ func _build_entities_tab() -> Control:
 		mdl_box.add_child(_label(row[0], 12, Color(0.9, 0.8, 0.6), 160))
 		mdl_box.add_child(_action_btn("SPAWN", func(): _apply(row[1], true)))
 		mdl_box.add_child(_action_btn("DESPAWN", func(): _apply(row[1], false)))
+		if row[1] == "burnt":
+			for act in BURNT_ACTIONS:
+				mdl_box.add_child(_action_btn(act.to_upper(), func(): _burnt(act)))
 
 	# the model-only entities and characters (entity_roster.gd): stood in front of you, no AI
 	for grp in [["entity", "MODEL ENTITIES (NO AI)"], ["new", "NEW ENTITIES (NO AI YET)"], ["character", "CHARACTERS (NO AI)"]]:
-		v.add_child(_label(grp[1], 12, Color(0.75, 0.85, 0.95)))
+		v.add_child(_label(grp[1], 12, Color(0.902, 0.855, 0.665)))
 		for id: String in EntityRoster.ROSTER:
 			var e: Array = EntityRoster.ROSTER[id]
 			if e[3] != grp[0]: continue
@@ -1139,82 +1157,462 @@ func _build_teleport_tab() -> Control:
 	coord_row.add_child(_action_btn("TELEPORT TO (X, Z)", func():
 		var pl := _get_player()
 		if pl != null and tp_x_input.text.is_valid_float() and tp_z_input.text.is_valid_float():
-			pl.global_position = Vector3(tp_x_input.text.to_float(), pl.global_position.y, tp_z_input.text.to_float())
+			_tp_to(Vector3(tp_x_input.text.to_float(), pl.global_position.y, tp_z_input.text.to_float()))
 	))
+	coord_row.add_child(_action_btn("FILL FROM ME", func():
+		var pl := _get_player() as Node3D
+		if pl != null:
+			tp_x_input.text = "%.1f" % pl.global_position.x
+			tp_z_input.text = "%.1f" % pl.global_position.z
+	))
+	coord_row.add_child(_action_btn("COPY POSITION", func(): _copy_position()))
+
+	v.add_child(_section_header("NUDGE (METRES, RELATIVE TO WHERE YOU FACE)"))
+	var nudge := HFlowContainer.new()
+	nudge.add_theme_constant_override("h_separation", 6)
+	v.add_child(nudge)
+	for d in [["FWD 5", Vector3(0, 0, -5)], ["BACK 5", Vector3(0, 0, 5)], ["LEFT 5", Vector3(-5, 0, 0)], ["RIGHT 5", Vector3(5, 0, 0)],
+			["UP 2", Vector3(0, 2, 0)], ["DOWN 2", Vector3(0, -2, 0)], ["FWD 20", Vector3(0, 0, -20)]]:
+		nudge.add_child(_action_btn(d[0], func():
+			var pl := _get_player() as Node3D
+			if pl != null:
+				_tp_to(pl.global_position + pl.global_transform.basis * (d[1] as Vector3))))
+	nudge.add_child(_action_btn("BACK TO BEFORE LAST WARP", func(): _tp_undo()))
+
+	v.add_child(_section_header("BOOKMARKS (THIS RUN)"))
+	var mark_row := HBoxContainer.new()
+	mark_row.add_theme_constant_override("separation", 8)
+	v.add_child(mark_row)
+	var mark_name := LineEdit.new()
+	mark_name.placeholder_text = "name (optional)"
+	mark_name.custom_minimum_size = Vector2(180, 0)
+	_style_line_edit(mark_name)
+	mark_row.add_child(mark_name)
+	mark_row.add_child(_action_btn("MARK HERE", func():
+		_mark_here(mark_name.text.strip_edges())
+		mark_name.clear()))
+	mark_row.add_child(_action_btn("CLEAR ALL", func():
+		marks.clear()
+		_refresh_marks()))
+	marks_flow = HFlowContainer.new()
+	marks_flow.add_theme_constant_override("h_separation", 6)
+	marks_flow.add_theme_constant_override("v_separation", 6)
+	v.add_child(marks_flow)
+	_refresh_marks()
 
 	return scroll
 
-# TAB 5: CLI Command Console
+# TAB: command line
 func _build_console_tab() -> Control:
 	var v := VBoxContainer.new()
 	v.set_anchors_preset(Control.PRESET_FULL_RECT)
 	v.add_theme_constant_override("separation", 6)
 
+	var log_box := PanelContainer.new()
+	log_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log_box.add_theme_stylebox_override("panel", _make_box(Kit.FILL, Color(AMBER, 0.35), 1, 0, 8))
+	v.add_child(log_box)
 	log_label = RichTextLabel.new()
 	log_label.bbcode_enabled = true
 	log_label.scroll_following = true
-	log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	log_label.add_theme_font_size_override("normal_font_size", 13)
-	v.add_child(log_label)
+	log_label.selection_enabled = true
+	log_label.add_theme_font_override("normal_font", Kit.font(1))
+	log_label.add_theme_font_override("bold_font", Kit.font(1))
+	log_label.add_theme_font_override("mono_font", Kit.font(0))
+	log_label.add_theme_font_size_override("normal_font_size", 15)
+	log_label.add_theme_font_size_override("bold_font_size", 15)
+	log_label.add_theme_font_size_override("mono_font_size", 15)
+	log_label.add_theme_color_override("default_color", TEXT)
+	log_box.add_child(log_label)
 
+	hint_label = _label("", 12, MUTED)
+	hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(hint_label)
+
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	v.add_child(line)
+	line.add_child(_label(">", 18, AMBER))
 	input = LineEdit.new()
-	input.placeholder_text = "type a command (e.g. help, list, spawn bacteria, lightout)"
+	input.placeholder_text = "type a command  (TAB completes, UP/DOWN recalls, help lists)"
+	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	input.text_submitted.connect(_submit)
-	v.add_child(input)
+	input.text_changed.connect(_update_hint)
+	_style_line_edit(input)
+	line.add_child(input)
 
-	var chips_row := HBoxContainer.new()
-	chips_row.add_theme_constant_override("separation", 6)
+	var chips_row := HFlowContainer.new()
+	chips_row.add_theme_constant_override("h_separation", 6)
+	chips_row.add_theme_constant_override("v_separation", 4)
 	v.add_child(chips_row)
-
-	for cmd in ["help", "list", "events", "hud", "spawn all", "kill all", "screenshot", "stalk", "lightout", "clear"]:
-		var chip := Button.new()
-		chip.text = cmd
-		if font: chip.add_theme_font_override("font", font)
-		chip.add_theme_font_size_override("font_size", 10)
-		chip.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		chip.pressed.connect(func():
+	for cmd in ["help", "list", "pos", "marks", "levels", "events", "hud", "spawn all", "kill all", "screenshot", "lightout", "lighton", "entities", "clear"]:
+		chips_row.add_child(_action_btn(cmd, func():
 			input.text = cmd
-			_submit(cmd)
-		)
-		chips_row.add_child(chip)
-
+			_submit(cmd)))
+	_update_hint("")
 	return v
+
+func _style_line_edit(le: LineEdit) -> void:
+	le.add_theme_font_override("font", Kit.font(1))
+	le.add_theme_font_size_override("font_size", 15)
+	le.add_theme_color_override("font_color", TEXT)
+	le.add_theme_color_override("caret_color", AMBER)
+	le.add_theme_color_override("font_placeholder_color", Color(TEXT, 0.3))
+	le.add_theme_stylebox_override("normal", _make_box(Kit.FILL, Color(AMBER, 0.35), 1, 0, 6))
+	le.add_theme_stylebox_override("focus", _make_box(Kit.FILL, AMBER, 1, 0, 6))
+
+# ---------------------------------------------------------------- command table, completion
+## name -> [usage, what it does]; grouped for `help`
+const COMMANDS := {
+	"help": ["[command]", "list the commands, or describe one"],
+	"clear": ["", "empty the log"],
+	"copy": ["", "copy the log to the clipboard"],
+	"echo": ["<text>", "print text (a note for a screenshot)"],
+	"noclip": ["", "fly through walls"],
+	"god": ["", "nothing can kill you"],
+	"invisible": ["", "hidden from players and monsters (god too)"],
+	"fullbright": ["", "light everything"],
+	"stamina": ["", "infinite stamina"],
+	"sanity": ["<0-100|off>", "set or pin sanity"],
+	"health": ["<0-100>", "set health"],
+	"heal": ["", "health, sanity, stamina, torch to full"],
+	"battery": ["<0-100>", "torch charge"],
+	"speed": ["<0.5-10>", "movement multiplier"],
+	"suicide": ["", "kill yourself (the death screen)"],
+	"spawn": ["<entity|all>", "stand an entity in front of you"],
+	"despawn": ["<entity|all>", "take it away"],
+	"kill": ["<entity|all>", "same as despawn"],
+	"list": ["", "which entities are active"],
+	"entities": ["", "every entity's tier and distance"],
+	"freeze": ["", "stop every monster"],
+	"stalk": ["", "send the bacteria stalking"],
+	"eyes": ["[n|off|auto|clear]", "the watchers in the dark"],
+	"grabber": ["<hunch|peek|chase|drag>", "the grabber, into a state"],
+	"burnt": ["<peek|retreat|hide|charge|flank|commit|grab|status>", "the burnt, into a move (status: why it isn't)"],
+	"tallone": ["<scream|hunt>", "the tall one, into a state"],
+	"events": ["", "list the scare events"],
+	"event": ["<name|stop>", "fire a scare event, or end them all"],
+	"lightout": ["", "blackout"],
+	"lighton": ["", "restore the grid"],
+	"tp": ["<x z | spawn | mannequin>", "teleport"],
+	"pos": ["", "where you are (copied too)"],
+	"mark": ["[name]", "bookmark this spot"],
+	"goto": ["<name>", "go to a bookmark"],
+	"back": ["", "return to before the last teleport"],
+	"marks": ["", "list the bookmarks"],
+	"levels": ["", "list the playlist"],
+	"level": ["<number|id|next>", "load a level"],
+	"reload": ["", "reload this level from disk"],
+	"timescale": ["<0.05-4>", "slow motion / fast forward"],
+	"gfx": ["[low|medium|high|ultra]", "graphics preset"],
+	"overlay": ["", "toggle the telemetry overlay"],
+	"hud": ["[on|off]", "hide / show the HUD and hands"],
+	"hands": ["[on|off]", "hide / show the hands"],
+	"screenshot": ["", "save a PNG to user://screenshots"],
+	"amb": ["[status|silence <s>|bed]", "ambience"],
+	"archive": ["[list|reset]", "entity dossiers"],
+	"clearance": ["[reset|add <n>]", "clearance tier"],
+	"anim": ["<name>", "play a first-person hand clip"],
+	"walker": ["[move|gait|look|die|snap|revive|slow|off]", "animation test survivor"],
+	"model": ["[next|prev|off|clip]", "raw survivor clips"],
+	"watchkill": ["", "a friend's death by the mannequin"],
+	"fardeath": ["", "a friend dies far away"],
+	"neardeath": ["", "a friend dies near you"],
+	"lastcrash": ["", "show the last crash report"],
+	"crash": ["", "take the game down on purpose"],
+}
+const HELP_GROUPS := [
+	["CONSOLE", ["help", "clear", "copy", "echo"]],
+	["PLAYER", ["noclip", "god", "invisible", "fullbright", "stamina", "sanity", "health", "heal", "battery", "speed", "suicide"]],
+	["ENTITIES", ["spawn", "despawn", "kill", "list", "entities", "freeze", "stalk", "eyes", "grabber", "burnt", "tallone"]],
+	["EVENTS & WORLD", ["events", "event", "lightout", "lighton"]],
+	["MOVEMENT", ["tp", "pos", "mark", "goto", "back", "marks"]],
+	["LEVEL & GAME", ["levels", "level", "reload", "timescale", "gfx", "overlay"]],
+	["SCREEN", ["hud", "hands", "screenshot"]],
+	["TESTING", ["amb", "archive", "clearance", "anim", "walker", "model", "watchkill", "fardeath", "neardeath", "lastcrash", "crash"]],
+]
+
+func _matches(prefix: String) -> Array:
+	var out: Array = []
+	for k in COMMANDS:
+		if str(k).begins_with(prefix):
+			out.append(k)
+	out.sort()
+	return out
+
+func _update_hint(text: String) -> void:
+	if hint_label == null:
+		return
+	var t := text.strip_edges(false, true).to_lower()
+	if t == "":
+		hint_label.text = "TAB complete   //   UP / DOWN history   //   help"
+		return
+	var first := t.get_slice(" ", 0)
+	if t.contains(" ") and COMMANDS.has(first):
+		hint_label.text = "%s %s   -   %s" % [first, COMMANDS[first][0], COMMANDS[first][1]]
+		return
+	var m := _matches(first)
+	if m.is_empty():
+		hint_label.text = "no command starts with '%s'" % first
+		return
+	var bits: PackedStringArray = []
+	for k in m.slice(0, 8):
+		bits.append("%s %s" % [k, COMMANDS[k][0]])
+	hint_label.text = "   |   ".join(bits) + ("   ..." if m.size() > 8 else "")
+
+func _complete() -> void:
+	var t := input.text.to_lower()
+	if t.contains(" "):
+		var cmd := t.get_slice(" ", 0)
+		var arg := t.substr(cmd.length() + 1)
+		var pool: Array = []
+		match cmd:
+			"spawn", "despawn", "kill": pool = ORDER + EntityRoster.ROSTER.keys() + ["all"]
+			"event": pool = EVENTS.keys() + ["stop"]
+			"goto": pool = marks.keys()
+			"gfx": pool = Gfx.PRESETS.keys()
+			"grabber": pool = GRABBER_STATES
+			"anim": pool = HAND_ANIMS.keys()
+		var hits := pool.filter(func(k): return str(k).begins_with(arg))
+		if hits.size() == 1:
+			input.text = "%s %s" % [cmd, hits[0]]
+		elif hits.size() > 1:
+			_print("[color=#b3a57a]%s[/color]" % "  ".join(hits))
+	else:
+		var m := _matches(t)
+		if m.size() == 1:
+			input.text = str(m[0]) + " "
+		elif m.size() > 1:
+			var common := str(m[0])
+			for k in m:
+				while not str(k).begins_with(common):
+					common = common.left(common.length() - 1)
+			input.text = common
+			_print("[color=#b3a57a]%s[/color]" % "  ".join(m))
+	input.caret_column = input.text.length()
+	_update_hint(input.text)
+
+func _help(arg: String) -> void:
+	if arg != "" and COMMANDS.has(arg):
+		_print("[color=#f0a838]%s[/color] %s" % [arg, COMMANDS[arg][0]])
+		_print("  " + str(COMMANDS[arg][1]))
+		return
+	for g in HELP_GROUPS:
+		_print("[color=#f0a838]-- %s --[/color]" % g[0])
+		for k in g[1]:
+			_print("  [color=#dccd9f]%-10s[/color] [color=#b3a57a]%-26s[/color] %s" % [k, COMMANDS[k][0], COMMANDS[k][1]])
+	_print("Entities: " + ", ".join(ORDER) + "   Models: " + ", ".join(EntityRoster.ROSTER.keys()))
+	_print("Hands: " + ", ".join(HAND_ANIMS.keys()))
+
+# ---------------------------------------------------------------- LEVEL & GAME tab
+func _build_game_tab() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", 10)
+	scroll.add_child(v)
+
+	v.add_child(_section_header("LEVELS"))
+	var lv := HFlowContainer.new()
+	lv.add_theme_constant_override("h_separation", 6)
+	lv.add_theme_constant_override("v_separation", 6)
+	v.add_child(lv)
+	level_buttons.clear()
+	var idx := 0
+	for l in LevelData.read_index():
+		var i := idx
+		var b := _action_btn("%d  %s" % [i, str(l.get("name", l.get("id", "?")))], func(): _load_level(i))
+		lv.add_child(b)
+		level_buttons.append(b)
+		idx += 1
+	var lrow := HBoxContainer.new()
+	lrow.add_theme_constant_override("separation", 8)
+	v.add_child(lrow)
+	lrow.add_child(_action_btn("RELOAD (LATEST EDITOR SAVE)", func(): _load_level(Game.level_index)))
+	lrow.add_child(_action_btn("NEXT LEVEL", func(): _load_level(Game.level_index + 1)))
+
+	v.add_child(_section_header("TIME"))
+	var trow := HBoxContainer.new()
+	trow.add_theme_constant_override("separation", 8)
+	v.add_child(trow)
+	time_label = _label("TIME SCALE: 1.00x", 12, TEXT, 190)
+	trow.add_child(time_label)
+	for t in [0.1, 0.25, 0.5, 1.0, 2.0, 4.0]:
+		trow.add_child(_action_btn("%sx" % str(t), func(): _set_time_scale(t)))
+	time_slider = HSlider.new()
+	time_slider.min_value = 0.05
+	time_slider.max_value = 4.0
+	time_slider.step = 0.05
+	time_slider.value = Engine.time_scale
+	time_slider.value_changed.connect(func(x): _set_time_scale(x))
+	v.add_child(time_slider)
+
+	v.add_child(_section_header("GRAPHICS PRESET"))
+	var grow := HBoxContainer.new()
+	grow.add_theme_constant_override("separation", 8)
+	v.add_child(grow)
+	for k in Gfx.PRESETS:
+		grow.add_child(_action_btn(str(k).to_upper(), func():
+			Gfx.set_preset(k)
+			_print("graphics: " + k)))
+	grow.add_child(_action_btn("TOGGLE VHS", func(): Gfx.set_vhs(not Gfx.vhs)))
+	grow.add_child(_action_btn("TOGGLE CCTV", func(): Gfx.set_cctv(not Gfx.cctv)))
+
+	v.add_child(_section_header("RUN"))
+	var rrow := HFlowContainer.new()
+	rrow.add_theme_constant_override("h_separation", 8)
+	rrow.add_theme_constant_override("v_separation", 6)
+	v.add_child(rrow)
+	rrow.add_child(_action_btn("FULL HEAL", func(): _heal()))
+	rrow.add_child(_action_btn("KILL ME (DEATH SCREEN)", func(): Game.kill_player("debug console")))
+	rrow.add_child(_action_btn("ENTITY REPORT", func(): _entity_report()))
+	rrow.add_child(_action_btn("PRINT POSITION", func(): _copy_position()))
+	rrow.add_child(_action_btn("OPEN SCREENSHOT FOLDER", func():
+		DirAccess.make_dir_recursive_absolute("user://screenshots")
+		OS.shell_open(ProjectSettings.globalize_path("user://screenshots"))))
+	return scroll
+
+func _refresh_game_tab() -> void:
+	for i in level_buttons.size():
+		var on: bool = i == Game.level_index
+		var b: Button = level_buttons[i]
+		b.add_theme_stylebox_override("normal", _make_box(Color(AMBER, 0.2) if on else Color(0.06, 0.05, 0.03, 0.85), Color(AMBER, 1.0 if on else 0.4), 1, 0, 6))
+	if time_label:
+		time_label.text = "TIME SCALE: %.2fx" % Engine.time_scale
+
+func _load_level(i: int) -> void:
+	var n := LevelData.read_index().size()
+	if n == 0:
+		return
+	i = posmod(i, n)
+	var meta: Dictionary = LevelData.read_index()[i]
+	_print("loading level %d: %s" % [i, str(meta.get("name", meta.get("id", "?")))])
+	_toggle(false)
+	Game.change_level(i)
+
+func _set_time_scale(x: float) -> void:
+	Engine.time_scale = clampf(x, 0.05, 4.0)
+	if time_label: time_label.text = "TIME SCALE: %.2fx" % Engine.time_scale
+	if time_slider and not is_equal_approx(time_slider.value, Engine.time_scale): time_slider.value = Engine.time_scale
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+
+func _heal() -> void:
+	var pl := _get_player()
+	if pl == null: return
+	pl.health = 100.0
+	pl.sanity = 100.0
+	pl.insanity = 0.0
+	pl.stamina = 100.0
+	pl.battery = 100.0
+	_print("health, sanity, stamina and torch restored")
+
+func _entity_report() -> void:
+	var any := false
+	for e in EntityLOD.entities:
+		if is_instance_valid(e):
+			any = true
+			var tier := EntityLOD.tier_name(e) if e.is_visible_in_tree() or not EntityLOD.is_spawned(e) else "hidden"
+			_print("  %-12s %-10s %6.1f m" % [e.name, tier, EntityLOD.distance_of(e)])
+	if not any:
+		_print("[color=#b3a57a]no entities registered[/color]")
+
+# ---------------------------------------------------------------- teleport helpers, bookmarks
+var _tp_back: Array = []          # [position, yaw] before the last teleport
+
+func _tp_to(pos: Vector3) -> void:
+	var pl := _get_player() as Node3D
+	if pl == null: return
+	_tp_back = [pl.global_position, pl.rotation.y]
+	pl.global_position = pos
+	if "velocity" in pl: pl.velocity = Vector3.ZERO
+
+func _copy_position() -> void:
+	var pl := _get_player() as Node3D
+	if pl == null: return
+	var p := pl.global_position
+	var text := "%.2f, %.2f, %.2f" % [p.x, p.y, p.z]
+	DisplayServer.clipboard_set(text)
+	_print("pos %s  yaw %d  [color=#b3a57a](copied)[/color]" % [text, roundi(rad_to_deg(pl.rotation.y))])
+
+func _mark_here(mark_name: String) -> void:
+	var pl := _get_player() as Node3D
+	if pl == null: return
+	if mark_name == "":
+		mark_name = "m%d" % (marks.size() + 1)
+	marks[mark_name] = [pl.global_position, pl.rotation.y]
+	_refresh_marks()
+	_print("marked '%s' at %.1f, %.1f, %.1f" % [mark_name, pl.global_position.x, pl.global_position.y, pl.global_position.z])
+
+func _goto_mark(mark_name: String) -> void:
+	if not marks.has(mark_name):
+		_print("[color=#e8702c]no bookmark '%s'. marks lists them[/color]" % mark_name)
+		return
+	var pl := _get_player() as Node3D
+	_tp_to(marks[mark_name][0])
+	if pl != null: pl.rotation.y = marks[mark_name][1]
+	_print("at '%s'" % mark_name)
+
+func _refresh_marks() -> void:
+	if marks_flow == null: return
+	Kit.clear(marks_flow)
+	if marks.is_empty():
+		marks_flow.add_child(_label("none yet: MARK HERE, or  mark <name>  on the command line", 11, MUTED))
+	for k in marks:
+		var name_k: String = k
+		marks_flow.add_child(_action_btn("GO: " + name_k, func(): _goto_mark(name_k)))
+
+func _tp_undo() -> void:
+	if _tp_back.is_empty():
+		_print("[color=#b3a57a]nowhere to go back to[/color]")
+		return
+	var pl := _get_player() as Node3D
+	var to: Vector3 = _tp_back[0]
+	_tp_back = [pl.global_position, pl.rotation.y] if pl != null else []
+	if pl != null:
+		pl.global_position = to
+		if "velocity" in pl: pl.velocity = Vector3.ZERO
+	_print("back")
 
 # ---------------------------------------------------------------- Quick Helpers & Styles
 func _switch_tab(id: String) -> void:
 	current_tab = id
+	if id == "game" and not level_buttons.is_empty():
+		_refresh_game_tab()
 	for k in tab_panels:
 		tab_panels[k].visible = (k == id)
 	for k in tab_buttons:
 		var tb: Button = tab_buttons[k]
 		var active: bool = (str(k) == id)
-		var bg := Color(0.12, 0.22, 0.26, 0.95) if active else Color(0.06, 0.08, 0.1, 0.8)
-		var bdr := Color(0.3, 0.95, 0.8, 0.95) if active else Color(0.2, 0.35, 0.35, 0.5)
+		var bg := Color(0.260, 0.203, 0.104, 0.95) if active else Color(0.100, 0.078, 0.040, 0.8)
+		var bdr := Color(0.950, 0.646, 0.209, 0.95) if active else Color(0.350, 0.238, 0.077, 0.5)
 		tb.add_theme_stylebox_override("normal", _make_box(bg, bdr, 1, 4, 6))
-		tb.add_theme_stylebox_override("hover", _make_box(Color(0.16, 0.26, 0.3, 0.95), Color(0.4, 1.0, 0.85, 1.0), 1, 4, 6))
+		tb.add_theme_stylebox_override("hover", _make_box(Color(0.300, 0.204, 0.066, 0.95), Color(1.000, 0.680, 0.220, 1.0), 1, 4, 6))
 		tb.add_theme_stylebox_override("pressed", _make_box(bg, bdr, 1, 4, 6))
-		tb.add_theme_color_override("font_color", Color(0.9, 1.0, 0.95) if active else Color(0.65, 0.75, 0.72))
+		tb.add_theme_color_override("font_color", Color(0.950, 0.900, 0.700) if active else Color(0.712, 0.675, 0.525))
 
 func _sync_quick_buttons() -> void:
-	_update_toggle_btn(btn_noclip, Game.noclip, "NOCLIP (FLY)", Color(0.1, 0.85, 1.0))
+	_update_toggle_btn(btn_noclip, Game.noclip, "NOCLIP (FLY)", Color(1.000, 0.680, 0.220))
 	_update_toggle_btn(btn_fullbright, Game.fullbright, "FULLBRIGHT", Color(1.0, 0.95, 0.3))
 	_update_toggle_btn(btn_godmode, Game.god_mode, "GOD MODE", Color(1.0, 0.7, 0.15))
 	_update_toggle_btn(btn_inf_stamina, Game.infinite_stamina, "INF STAMINA", Color(0.3, 1.0, 0.45))
 	_update_toggle_btn(btn_inf_sanity, Game.infinite_sanity, "INF SANITY", Color(0.85, 0.4, 1.0))
 	_update_toggle_btn(btn_inf_torch, Game.infinite_battery, "INF TORCH", Color(1.0, 0.8, 0.25))
 	if btn_freeze_ai != null:
-		_update_toggle_btn(btn_freeze_ai, Game.freeze_ai, "❄ FREEZE ALL MONSTERS (PAUSE)", Color(0.2, 0.8, 1.0))
+		_update_toggle_btn(btn_freeze_ai, Game.freeze_ai, "FREEZE ALL MONSTERS (PAUSE)", Color(1.000, 0.680, 0.220))
 	_sync_hud_state()
 
 func _sync_hud_state() -> void:
 	if btn_header_hud != null:
-		btn_header_hud.text = "📷 SHOW HUD & HANDS" if Game.hide_hud else "📷 HIDE HUD & HANDS"
-		var bg := Color(0.18, 0.45, 0.35, 0.9) if Game.hide_hud else Color(0.1, 0.14, 0.18, 0.8)
-		var bdr := Color(0.3, 0.95, 0.7, 0.9) if Game.hide_hud else Color(0.3, 0.5, 0.5, 0.6)
+		btn_header_hud.text = "SHOW HUD & HANDS" if Game.hide_hud else "HIDE HUD & HANDS"
+		var bg := Color(0.450, 0.306, 0.099, 0.9) if Game.hide_hud else Color(0.180, 0.140, 0.072, 0.8)
+		var bdr := Color(0.950, 0.646, 0.209, 0.9) if Game.hide_hud else Color(0.500, 0.340, 0.110, 0.6)
 		btn_header_hud.add_theme_stylebox_override("normal", _make_box(bg, bdr, 1, 4, 8))
-		btn_header_hud.add_theme_stylebox_override("hover", _make_box(bg * 1.3, Color(0.4, 1.0, 0.85), 1, 4, 8))
+		btn_header_hud.add_theme_stylebox_override("hover", _make_box(bg * 1.3, Color(1.000, 0.680, 0.220), 1, 4, 8))
 	if btn_toggle_hud != null:
-		_update_toggle_btn(btn_toggle_hud, Game.hide_hud, "HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(0.2, 0.85, 1.0))
+		_update_toggle_btn(btn_toggle_hud, Game.hide_hud, "HIDE ALL HUD & HANDS (SCREENSHOT MODE)", Color(1.000, 0.680, 0.220))
 
 func _make_toggle_btn(label: String, tint: Color, callback: Callable) -> Button:
 	var btn := Button.new()
@@ -1240,12 +1638,12 @@ func _make_toggle_btn(label: String, tint: Color, callback: Callable) -> Button:
 func _update_toggle_btn(btn: Button, active: bool, label: String, tint: Color) -> void:
 	if btn == null: return
 	btn.text = ("● " if active else "○ ") + label
-	var bg := tint * Color(1, 1, 1, 0.22) if active else Color(0.06, 0.08, 0.1, 0.8)
-	var bdr := tint if active else Color(0.25, 0.35, 0.35, 0.5)
+	var bg := tint * Color(1, 1, 1, 0.22) if active else Color(0.100, 0.078, 0.040, 0.8)
+	var bdr := tint if active else Color(0.350, 0.238, 0.077, 0.5)
 	btn.add_theme_stylebox_override("normal", _make_box(bg, bdr, 1, 4, 6))
 	btn.add_theme_stylebox_override("hover", _make_box(bg * 1.3, tint, 1, 4, 6))
 	btn.add_theme_stylebox_override("pressed", _make_box(bg, bdr, 1, 4, 6))
-	btn.add_theme_color_override("font_color", tint if active else Color(0.7, 0.75, 0.75))
+	btn.add_theme_color_override("font_color", tint if active else Color(0.712, 0.675, 0.525))
 
 func _action_btn(label: String, callback: Callable) -> Button:
 	var b := Button.new()
@@ -1253,8 +1651,8 @@ func _action_btn(label: String, callback: Callable) -> Button:
 	if font: b.add_theme_font_override("font", font)
 	b.add_theme_font_size_override("font_size", 11)
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	b.add_theme_stylebox_override("normal", _make_box(Color(0.08, 0.12, 0.15, 0.85), Color(0.25, 0.45, 0.45, 0.7), 1, 4, 6))
-	b.add_theme_stylebox_override("hover", _make_box(Color(0.12, 0.2, 0.25, 0.95), Color(0.4, 0.9, 0.8, 1.0), 1, 4, 6))
+	b.add_theme_stylebox_override("normal", _make_box(Color(0.150, 0.117, 0.060, 0.85), Color(0.450, 0.306, 0.099, 0.7), 1, 4, 6))
+	b.add_theme_stylebox_override("hover", _make_box(Color(0.250, 0.195, 0.100, 0.95), Color(0.900, 0.612, 0.198, 1.0), 1, 4, 6))
 	b.pressed.connect(callback)
 	return b
 
@@ -1263,7 +1661,7 @@ func _section_header(title: String) -> Control:
 	h.text = "— " + title + " —"
 	if font: h.add_theme_font_override("font", font)
 	h.add_theme_font_size_override("font_size", 12)
-	h.add_theme_color_override("font_color", Color(0.4, 0.85, 0.75))
+	h.add_theme_color_override("font_color", Color(0.850, 0.578, 0.187))
 	return h
 
 func _label(text: String, size := 12, color := Color.WHITE, min_w := 0) -> Label:
@@ -1280,7 +1678,7 @@ func _make_box(bg: Color, bdr: Color, bdr_w := 1, rad := 4, pad := 6) -> StyleBo
 	s.bg_color = bg
 	s.border_color = bdr
 	s.set_border_width_all(bdr_w)
-	s.set_corner_radius_all(rad)
+	s.set_corner_radius_all(0)         # the terminal's boxes are square
 	s.set_content_margin_all(pad)
 	return s
 
@@ -1312,11 +1710,12 @@ func _update_overlay_text() -> void:
 		var d: float = ent.global_position.distance_to(pl.global_position)
 		ent_str = "%s (%.1fm)" % [str(ent.get("state")), d]
 
-	overlay_label.text = "FPS: %d | POS: (%.1f, %.1f, %.1f) | YAW: %d°\nSPEED: %.1f m/s (x%.1f) | HP: %d%% | SAN: %d%% | STM: %d%% | TORCH: %d%%\nCHEATS: [%s]\nBACTERIA: %s" % [
+	overlay_label.text = "FPS: %d | POS: (%.1f, %.1f, %.1f) | YAW: %d°\nSPEED: %.1f m/s (x%.1f) | HP: %d%% | SAN: %d%% | STM: %d%% | TORCH: %d%%\nCHEATS: [%s]\nBACTERIA: %s\nLEVEL: %s | TIME x%.2f | PLAY %ds | MARKS %d" % [
 		fps, pos.x, pos.y, pos.z, rot_y,
 		spd, Game.speed_mult, hp, san, stm, bat,
 		cheats_str,
-		ent_str
+		ent_str,
+		LevelData.current_level_tag(), Engine.time_scale, int(Game.time), marks.size()
 	]
 
 # ---------------------------------------------------------------- Controls & Handlers
@@ -1362,7 +1761,7 @@ func _trigger_blackout() -> void:
 			lvl.cut_power(60.0)
 			_print("grid power cut (direct)")
 		else:
-			_print("[color=orange]Events/Level node not found[/color]")
+			_print("[color=#e8702c]Events/Level node not found[/color]")
 
 func _restore_grid() -> void:
 	var lvl = root.get_node_or_null("Level")
@@ -1400,14 +1799,14 @@ func _build_gate(parent: Control) -> void:
 	gate.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	gate.grow_vertical = Control.GROW_DIRECTION_BOTH
 	gate.position = Vector2(-190, -60)
-	gate.add_theme_stylebox_override("panel", _make_box(Color(0.045, 0.055, 0.075, 0.97), Color(0.2, 0.8, 0.68, 0.9), 2, 6, 14))
+	gate.add_theme_stylebox_override("panel", _make_box(Color(0.075, 0.058, 0.030, 0.97), Color(0.800, 0.544, 0.176, 0.9), 2, 6, 14))
 	gate.visible = false
 	parent.add_child(gate)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	gate.add_child(v)
-	v.add_child(_label("T.S.R.A. DIAGNOSTIC // ACCESS CODE", 14, Color(0.25, 0.95, 0.8)))
+	v.add_child(_label("T.S.R.A. DIAGNOSTIC // ACCESS CODE", 14, Color(0.950, 0.646, 0.209)))
 
 	gate_input = LineEdit.new()
 	gate_input.secret = true
@@ -1415,7 +1814,7 @@ func _build_gate(parent: Control) -> void:
 	gate_input.text_submitted.connect(_try_unlock)
 	v.add_child(gate_input)
 
-	gate_msg = _label("ENTER to confirm, ESC to cancel", 10, Color(0.65, 0.75, 0.72))
+	gate_msg = _label("ENTER to confirm, ESC to cancel", 10, Color(0.712, 0.675, 0.525))
 	v.add_child(gate_msg)
 
 func _try_unlock(code: String) -> void:
@@ -1443,7 +1842,7 @@ func _toggle(on: bool) -> void:
 	gate_input.editable = true
 	if on and not unlocked and gate_msg.text.begins_with("LOCKED"):
 		gate_msg.text = "ENTER to confirm, ESC to cancel"
-		gate_msg.add_theme_color_override("font_color", Color(0.65, 0.75, 0.72))
+		gate_msg.add_theme_color_override("font_color", Color(0.712, 0.675, 0.525))
 	var requires_code = not unlocked and Net.is_online()
 	if on and requires_code:
 		gate.visible = true
@@ -1505,6 +1904,10 @@ func _input(e: InputEvent) -> void:
 		_toggle(false)
 		get_viewport().set_input_as_handled()
 		return
+	elif menu_window.visible and current_tab == "console" and e.physical_keycode == KEY_TAB:
+		_complete()
+		get_viewport().set_input_as_handled()
+		return
 	elif menu_window.visible and current_tab == "console" and e.physical_keycode == KEY_UP:
 		_recall(-1)
 		get_viewport().set_input_as_handled()
@@ -1560,34 +1963,34 @@ func _submit(line: String) -> void:
 	if line == "": return
 	history.append(line)
 	history_at = history.size()
-	_print("[color=cyan]> " + line + "[/color]")
+	_print("[color=#f0a838]> " + line + "[/color]")
 	var raw_lower := line.to_lower().strip_edges()
 	if raw_lower in ["hide all hud", "hide hud", "hide all", "hide all huds", "hide all hud and hands", "hide hud and hands", "hide all hud and hand"]:
 		Game.hide_hud = true
 		_sync_hud_state()
-		_print("HUD & Hands: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+		_print("HUD & Hands: [color=#e8702c]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
 		return
 	elif raw_lower in ["show all hud", "show hud", "show all", "show all huds", "show all hud and hands", "show hud and hands", "show all hud and hand"]:
 		Game.hide_hud = false
 		_sync_hud_state()
-		_print("HUD & Hands: [color=lime]VISIBLE[/color]")
+		_print("HUD & Hands: [color=#5de08f]VISIBLE[/color]")
 		return
 	elif raw_lower in ["toggle hud", "toggle all hud", "toggle hud and hands", "toggle hud and hand"]:
 		Game.hide_hud = not Game.hide_hud
 		_sync_hud_state()
-		_print("HUD & Hands: " + ("[color=orange]HIDDEN[/color] (Screenshot Mode)" if Game.hide_hud else "[color=lime]VISIBLE[/color]"))
+		_print("HUD & Hands: " + ("[color=#e8702c]HIDDEN[/color] (Screenshot Mode)" if Game.hide_hud else "[color=#5de08f]VISIBLE[/color]"))
 		return
 	elif raw_lower in ["hide hand", "hide hands", "hand off", "hands off"]:
 		Game.hide_hands = true
-		_print("Hands: [color=orange]HIDDEN[/color]")
+		_print("Hands: [color=#e8702c]HIDDEN[/color]")
 		return
 	elif raw_lower in ["show hand", "show hands", "hand on", "hands on"]:
 		Game.hide_hands = false
-		_print("Hands: [color=lime]VISIBLE[/color]")
+		_print("Hands: [color=#5de08f]VISIBLE[/color]")
 		return
 	elif raw_lower in ["toggle hand", "toggle hands"]:
 		Game.hide_hands = not Game.hide_hands
-		_print("Hands: " + ("[color=orange]HIDDEN[/color]" if Game.hide_hands else "[color=lime]VISIBLE[/color]"))
+		_print("Hands: " + ("[color=#e8702c]HIDDEN[/color]" if Game.hide_hands else "[color=#5de08f]VISIBLE[/color]"))
 		return
 	elif raw_lower in ["restore grid", "restore the grid", "restore lights", "restore grid lights", "restore grid light", "restore light", "restore power"]:
 		_restore_grid()
@@ -1601,19 +2004,71 @@ func _submit(line: String) -> void:
 	var arg := parts[1] if parts.size() > 1 else ""
 	match cmd:
 		"help", "?":
-			_print("Cheats: noclip, invisible, fullbright, god, stamina, sanity <0-100|off>, health <0-100>, speed <mult>")
-			_print("Hands: anim <%s> (the menu closes to play it; P plays it again)" % "|".join(HAND_ANIMS.keys()))
-			_print("Walker: walker [%s|walk|run|crouch|look [%s]|die|snap|revive|slow|off]" % ["|".join(AnimWalker.MOVES.keys()), "|".join(AnimWalker.LOOKS.keys())])
-			_print("Mannequin kill as a friend sees it: watchkill (a stand-in survivor, the mannequin and your blink)")
-			_print("Friend's death by ear: fardeath (voice echoing and fading), neardeath (gasp + neck crack)")
-			_print("Entities: spawn <name|all>, despawn <name|all>, stalk, eyes [n|off|auto|clear], grabber <hunch|peek|chase|drag>, freeze")
-			_print("Events: event <name>, event stop (ends them all), events (lists them)")
-			_print("World: restore grid, lighton, lightout, tp <spawn|mannequin>, archive [list|reset], clearance [reset|add n]")
-			_print("Sound: amb [status|silence <seconds>|bed]")
-			_print("HUD / Screenshots: hud [on|off], hands [on|off], screenshot")
-			_print("Names: " + ", ".join(ORDER))
-			_print("Models (no AI): " + ", ".join(EntityRoster.ROSTER.keys()))
-			_print("Crash reports: lastcrash (shows the newest saved report), crash (takes the game down on purpose, to see the crash window)")
+			_help(arg)
+		"copy":
+			DisplayServer.clipboard_set(log_label.get_parsed_text())
+			_print("log copied")
+		"echo":
+			_print(line.substr(4).strip_edges())
+		"heal":
+			_heal()
+		"battery":
+			var pl := _get_player()
+			if pl != null and arg.is_valid_float():
+				pl.battery = clampf(arg.to_float(), 0.0, 100.0)
+			_print("torch %d%%" % int(pl.battery) if pl != null else "no player")
+		"suicide":
+			Game.kill_player("debug console")
+		"entities":
+			_entity_report()
+		"pos", "where":
+			_copy_position()
+		"mark":
+			_mark_here(arg)
+		"goto":
+			_goto_mark(arg)
+		"back":
+			_tp_undo()
+		"marks":
+			if marks.is_empty():
+				_print("[color=#b3a57a]no bookmarks: mark <name>[/color]")
+			for k in marks:
+				var p: Vector3 = marks[k][0]
+				_print("  %-10s %.1f, %.1f, %.1f" % [k, p.x, p.y, p.z])
+		"levels":
+			var idx := 0
+			for l in LevelData.read_index():
+				_print("  %s%d  %-24s %s" % [">" if idx == Game.level_index else " ", idx, str(l.get("id", "")), str(l.get("name", ""))])
+				idx += 1
+		"level":
+			var all := LevelData.read_index()
+			var target := -1
+			if arg == "next":
+				target = Game.level_index + 1
+			elif arg.is_valid_int():
+				target = arg.to_int()
+			else:
+				for i in all.size():
+					if str(all[i].get("id", "")).contains(arg) and arg != "":
+						target = i
+						break
+			if target < 0 and arg != "next":
+				_print("[color=#e8702c]level what? levels lists them[/color]")
+			else:
+				_load_level(target)
+		"reload":
+			_load_level(Game.level_index)
+		"timescale", "ts":
+			if arg.is_valid_float():
+				_set_time_scale(arg.to_float())
+			_print("time scale %.2fx" % Engine.time_scale)
+		"gfx":
+			if Gfx.PRESETS.has(arg):
+				Gfx.set_preset(arg)
+			_print("graphics: %s  (%s)" % [Gfx.preset, ", ".join(Gfx.PRESETS.keys())])
+		"overlay":
+			Game.show_debug_overlay = not Game.show_debug_overlay
+			_print("telemetry overlay: " + ("ON" if Game.show_debug_overlay else "OFF"))
 		"watchkill":
 			_watch_kill()
 		"fardeath":
@@ -1622,9 +2077,9 @@ func _submit(line: String) -> void:
 			_friend_death_sound(false)
 		"lastcrash":
 			if not Crash.show_last_crash():
-				_print("[color=orange]no crash report saved yet[/color]")
+				_print("[color=#e8702c]no crash report saved yet[/color]")
 		"crash":
-			_print("[color=red]crashing on purpose...[/color]")
+			_print("[color=#ff4636]crashing on purpose...[/color]")
 			Crash.test_crash.call_deferred()
 		"noclip":
 			Game.noclip = not Game.noclip
@@ -1659,7 +2114,7 @@ func _submit(line: String) -> void:
 		"list":
 			for n in ORDER:
 				var on := _active(n)
-				_print("  %-10s %s" % [n, "[color=lime]active[/color]" if on else "[color=gray]off[/color]"])
+				_print("  %-10s %s" % [n, "[color=#5de08f]active[/color]" if on else "[color=#b3a57a]off[/color]"])
 		"amb", "ambience":
 			var amb = root.get_node_or_null("Audio/Ambience")
 			if amb == null:
@@ -1675,6 +2130,8 @@ func _submit(line: String) -> void:
 				_print("ambience: " + amb.status())
 		"grabber":
 			_grabber_state(arg)
+		"burnt", "theburnt":
+			_burnt(arg)
 		"tallone", "tall":
 			if arg in ["scream", "hunt"]: _tallone("debug_" + arg)
 			else: _print("tallone what? scream, hunt (or spawn tallone / despawn tallone)")
@@ -1691,7 +2148,7 @@ func _submit(line: String) -> void:
 				ev.run_event(EVENTS[key][0])
 				_print("event: %s" % EVENTS[key][0])
 			else:
-				_print("[color=orange]event what? 'events' lists them, 'event stop' ends them all[/color]")
+				_print("[color=#e8702c]event what? 'events' lists them, 'event stop' ends them all[/color]")
 		"spawn":
 			_each(arg, true)
 		"despawn", "kill":
@@ -1710,8 +2167,11 @@ func _submit(line: String) -> void:
 				if pl != null and lvl != null and "spawn_pos" in lvl:
 					pl.global_position = lvl.spawn_pos
 					_print("warped to spawn")
+			elif arg.is_valid_float() and parts.size() > 2 and parts[2].is_valid_float() and pl != null:
+				_tp_to(Vector3(arg.to_float(), pl.global_position.y, parts[2].to_float()))
+				_print("warped to %s, %s" % [arg, parts[2]])
 			else:
-				_print("[color=orange]tp mannequin | tp spawn[/color]")
+				_print("[color=#e8702c]tp <x> <z> | tp mannequin | tp spawn[/color]")
 		"eyes":
 			var ey: Node = root.get_node("Eyes")
 			if arg == "off":
@@ -1754,21 +2214,21 @@ func _submit(line: String) -> void:
 					pl.insanity = 0.0
 				_print("sanity restored to 100%")
 			else:
-				_print("[color=orange]restore <grid|health|sanity>[/color]")
+				_print("[color=#e8702c]restore <grid|health|sanity>[/color]")
 		"grid":
 			if arg in ["restore", "on", "reset", "up"]:
 				_restore_grid()
 			elif arg in ["cut", "off", "out", "blackout", "down"]:
 				_trigger_blackout()
 			else:
-				_print("[color=orange]grid <on|off|restore>[/color]")
+				_print("[color=#e8702c]grid <on|off|restore>[/color]")
 		"light", "lights", "power":
 			if arg in ["on", "restore", "reset", "up"]:
 				_restore_grid()
 			elif arg in ["off", "out", "cut", "down"]:
 				_trigger_blackout()
 			else:
-				_print("[color=orange]light <on|off>[/color]")
+				_print("[color=#e8702c]light <on|off>[/color]")
 		"archive":
 			if arg == "reset":
 				Archive.forget_all()
@@ -1776,7 +2236,7 @@ func _submit(line: String) -> void:
 			else:
 				for id in Archive.entities():
 					var on := Archive.is_discovered(str(id))
-					_print("  %-10s %s" % [id, "[color=lime]logged[/color]" if on else "[color=gray]not logged[/color]"])
+					_print("  %-10s %s" % [id, "[color=#5de08f]logged[/color]" if on else "[color=#b3a57a]not logged[/color]"])
 		"clearance":
 			if arg == "reset":
 				Clearance.reset()
@@ -1785,7 +2245,7 @@ func _submit(line: String) -> void:
 			_print("clearance %s  %d %s  (next tier at %d)" % [Clearance.tier_label(), Clearance.total, Clearance.unit, Clearance.next_threshold()])
 		"stalk":
 			var ok: bool = root.get_node("Entity").debug_stalk()
-			_print("bacteria stalking" if ok else "[color=orange]no stalk spot found here, try another spot[/color]")
+			_print("bacteria stalking" if ok else "[color=#e8702c]no stalk spot found here, try another spot[/color]")
 		"model":
 			_model_command(arg)
 		"walker":
@@ -1805,9 +2265,9 @@ func _submit(line: String) -> void:
 				Game.hide_hud = not Game.hide_hud
 			_sync_hud_state()
 			if Game.hide_hud:
-				_print("HUD & Hands: [color=orange]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
+				_print("HUD & Hands: [color=#e8702c]HIDDEN[/color] (Screenshot Mode). Press [b]F1[/b], [b]1[/b] or [b]ESC[/b] to close console and take screenshots.")
 			else:
-				_print("HUD & Hands: [color=lime]VISIBLE[/color]")
+				_print("HUD & Hands: [color=#5de08f]VISIBLE[/color]")
 		"hand", "hands", "hidehand", "showhand", "togglehand":
 			if arg == "off" or arg == "hide" or arg == "0":
 				Game.hide_hands = true
@@ -1819,13 +2279,13 @@ func _submit(line: String) -> void:
 				Game.hide_hands = false
 			else:
 				Game.hide_hands = not Game.hide_hands
-			_print("Hands: " + ("[color=orange]HIDDEN[/color]" if Game.hide_hands else "[color=lime]VISIBLE[/color]"))
+			_print("Hands: " + ("[color=#e8702c]HIDDEN[/color]" if Game.hide_hands else "[color=#5de08f]VISIBLE[/color]"))
 		"screenshot", "shot", "snap":
 			_take_screenshot()
 		"clear":
 			log_label.clear()
 		_:
-			_print("[color=orange]unknown command: " + cmd + "[/color]")
+			_print("[color=#e8702c]unknown command: " + cmd + "[/color]")
 
 func _take_screenshot() -> void:
 	var was_visible := menu_window.visible
@@ -1846,13 +2306,13 @@ func _take_screenshot() -> void:
 	var err := img.save_png(full_path)
 	if err == OK:
 		var global_path := ProjectSettings.globalize_path(full_path)
-		_print("[color=lime]Screenshot saved:[/color] " + global_path)
+		_print("[color=#5de08f]Screenshot saved:[/color] " + global_path)
 	else:
-		_print("[color=red]Failed to save screenshot (error %d)[/color]" % err)
+		_print("[color=#ff4636]Failed to save screenshot (error %d)[/color]" % err)
 
 func _each(arg: String, spawn: bool) -> void:
 	if arg == "":
-		_print("[color=orange]%s what? %s, or all[/color]" % ["spawn" if spawn else "despawn", ", ".join(ORDER)])
+		_print("[color=#e8702c]%s what? %s, or all[/color]" % ["spawn" if spawn else "despawn", ", ".join(ORDER)])
 		return
 	if arg == "all":
 		for n in ORDER:
@@ -1863,7 +2323,7 @@ func _each(arg: String, spawn: bool) -> void:
 		_roster_apply(arg, spawn)
 		return
 	if not ORDER.has(arg):
-		_print("[color=orange]unknown entity: " + arg + "[/color]")
+		_print("[color=#e8702c]unknown entity: " + arg + "[/color]")
 		return
 	_apply(arg, spawn)
 
@@ -1871,12 +2331,12 @@ func _each(arg: String, spawn: bool) -> void:
 func _roster_apply(id: String, spawn: bool) -> void:
 	var n := EntityRoster.node_for(root, id)
 	if n == null:
-		_print("[color=orange]unknown entity: " + id + "[/color]")
+		_print("[color=#e8702c]unknown entity: " + id + "[/color]")
 		return
 	if spawn:
 		if not n.debug_spawn():
 			var why = n.get("last_error")
-			_print("[color=orange]%s: %s[/color]" % [id, why if why else "no room to spawn here, try another spot"])
+			_print("[color=#e8702c]%s: %s[/color]" % [id, why if why else "no room to spawn here, try another spot"])
 			return
 	else:
 		n.debug_despawn()
@@ -1893,37 +2353,57 @@ func _active(name: String) -> bool:
 func _tallone(method: String) -> void:
 	var n := _node("tallone")
 	if n == null:
-		_print("[color=orange]tallone is not in the scene[/color]")
+		_print("[color=#e8702c]tallone is not in the scene[/color]")
 		return
 	if n.call(method):
 		_print("tallone: " + method.trim_prefix("debug_"))
 	else:
-		_print("[color=orange]tallone: %s[/color]" % n.get("last_error"))
+		_print("[color=#e8702c]tallone: %s[/color]" % n.get("last_error"))
+
+## THE BURNT into one of its moves, or its status (console: burnt <action>)
+func _burnt(act: String) -> void:
+	var n := _node("burnt")
+	if n == null:
+		_print("[color=#e8702c]burnt is not in the scene[/color]")
+		return
+	if act == "status":
+		_print(n.debug_status())
+		return
+	if not BURNT_ACTIONS.has(act):
+		_print("[color=#e8702c]burnt what? %s[/color]" % ", ".join(BURNT_ACTIONS))
+		return
+	var was: bool = n.present
+	var ok: bool = n.debug_peek(act == "retreat") if act in ["peek", "retreat"] else n.call("debug_" + act)
+	if ok:
+		_print("burnt: " + act)
+		return
+	_print("[color=#e8702c]burnt: %s[/color]" % n.get("last_error"))
+	if not was and n.present: n.debug_despawn()          # (spawned for it: not left stood next to you)
 
 ## THE GRABBER straight into hunch / peek / chase / drag (console: grabber <state>)
 func _grabber_state(st: String) -> void:
 	if not GRABBER_STATES.has(st):
-		_print("[color=orange]grabber what? %s[/color]" % ", ".join(GRABBER_STATES))
+		_print("[color=#e8702c]grabber what? %s[/color]" % ", ".join(GRABBER_STATES))
 		return
 	var n := _node("grabber")
 	if n == null:
-		_print("[color=orange]grabber is not in the scene[/color]")
+		_print("[color=#e8702c]grabber is not in the scene[/color]")
 		return
 	if n.debug_state(st):
 		_print("grabber: " + st)
 	else:
-		_print("[color=orange]grabber: no room to %s here, try another spot[/color]" % st)
+		_print("[color=#e8702c]grabber: no room to %s here, try another spot[/color]" % st)
 
 func _apply(name: String, spawn: bool) -> void:
 	var n := _node(name)
 	if n == null:
-		_print("[color=orange]%s is not in the scene[/color]" % name)
+		_print("[color=#e8702c]%s is not in the scene[/color]" % name)
 		return
 	if spawn:
 		var ok = n.debug_spawn()
 		if ok == false:
 			var why = n.get("last_error")
-			_print("[color=orange]%s: %s[/color]" % [name, why if why else "no room to spawn here, try another spot"])
+			_print("[color=#e8702c]%s: %s[/color]" % [name, why if why else "no room to spawn here, try another spot"])
 			return
 	else:
 		n.debug_despawn()
@@ -1933,7 +2413,7 @@ func _apply(name: String, spawn: bool) -> void:
 ## and the clip held back a moment, so it's watched from its start.
 func _hand_anim(what: String) -> void:
 	if not HAND_ANIMS.has(what):
-		_print("[color=orange]anim what? %s[/color]" % ", ".join(HAND_ANIMS.keys()))
+		_print("[color=#e8702c]anim what? %s[/color]" % ", ".join(HAND_ANIMS.keys()))
 		return
 	hand_anim_last = what
 	if menu_window.visible:
@@ -1942,7 +2422,7 @@ func _hand_anim(what: String) -> void:
 	var pl := _get_player()
 	var torch = pl.get("torch") if pl != null else null
 	if torch == null:
-		_print("[color=orange]anim %s: no torch model on the player[/color]" % what)
+		_print("[color=#e8702c]anim %s: no torch model on the player[/color]" % what)
 		return
 	var why := ""
 	if what == "swap":
@@ -1953,7 +2433,7 @@ func _hand_anim(what: String) -> void:
 	else:
 		why = torch.debug_play(HAND_ANIMS[what])
 	if why != "":
-		_print("[color=orange]anim %s: %s[/color]" % [what, why])
+		_print("[color=#e8702c]anim %s: %s[/color]" % [what, why])
 	else:
 		_print("anim: " + what)
 
@@ -1967,14 +2447,14 @@ func _model_command(arg: String) -> void:
 		_print("model dismissed")
 		return
 	if not is_instance_valid(dbg_model) and not _summon_model(pl):
-		_print("[color=orange]survivor model missing or has no animations[/color]")
+		_print("[color=#e8702c]survivor model missing or has no animations[/color]")
 		return
 	if arg == "next" or arg == "prev":
 		dbg_anims_idx = posmod(dbg_anims_idx + (1 if arg == "next" else -1), dbg_anims.size())
 	elif arg != "" and dbg_anims.has(arg):
 		dbg_anims_idx = dbg_anims.find(arg)
 	elif arg != "":
-		_print("[color=orange]unknown clip: %s. clips: %s[/color]" % [arg, ", ".join(dbg_anims)])
+		_print("[color=#e8702c]unknown clip: %s. clips: %s[/color]" % [arg, ", ".join(dbg_anims)])
 		return
 	_play_model_clip()
 
@@ -2029,7 +2509,7 @@ func _walker_summon(fresh: bool) -> bool:
 	if not walker.build(pl.global_rotation.y):
 		walker.queue_free()
 		walker = null
-		_print("[color=orange]survivor model missing or has no animations[/color]")
+		_print("[color=#e8702c]survivor model missing or has no animations[/color]")
 		return false
 	# 3.5 m in front of you, so its lane crosses your view
 	var fwd := -pl.global_transform.basis.z
@@ -2092,7 +2572,7 @@ func _walker_command(arg: String) -> void:
 			if AnimWalker.MOVES.has(a):
 				_walker_do(func(w): w.set_move(a), false)
 			else:
-				_print("[color=orange]walker what? %s[/color]" % ", ".join(keys))
+				_print("[color=#e8702c]walker what? %s[/color]" % ", ".join(keys))
 				return
 	_walker_report()
 

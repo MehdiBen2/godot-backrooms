@@ -96,7 +96,7 @@ func annex(into: VBoxContainer, _key: String, sections: Array, px: int) -> void:
 	var code := Clearance.unlock_code("classified")
 	if not open:
 		section(into, "CLASSIFIED ANNEX", "", RED)
-		into.add_child(leader("ACCESS", "[DENIED // %s CLEARANCE]" % code, RED, 16))
+		into.add_child(leader("ACCESS", "[DENIED // NEEDS %s]" % code, RED, 16))
 		return
 	section(into, "CLASSIFIED ANNEX", "RELEASED AT %s" % code)
 	for sec in sections:

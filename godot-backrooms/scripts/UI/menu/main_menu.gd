@@ -15,7 +15,8 @@ const BG_SET := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]     # hand-picked screenshots, bg
 const ZOOM := 1.14                      # slow push-in over each frame's lifetime
 const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
-const MUSIC_DB := -20.0                 # quiet bed, not a soundtrack
+const LOAD_MUSIC_DB := -32.0           # the loading-screen bed, well under the menu's
+const MUSIC_DB := -20.0                # quiet bed, not a soundtrack
 const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # plays once, then fades into the bed
 const BED_PATH := "res://audio/ambients/ambient1.mp3"          # the usual menu loop
 const XFADE := 3.0                      # seconds the intro takes to hand over to the bed
@@ -1076,7 +1077,7 @@ func _play_loading_music() -> void:
 	var secs := p.stream.get_length()
 	var tw := get_tree().create_tween()
 	_load_music_tween = tw
-	tw.tween_property(p, "volume_db", MUSIC_DB, minf(1.0, secs * 0.25))
+	tw.tween_property(p, "volume_db", LOAD_MUSIC_DB, minf(1.0, secs * 0.25))
 	# Fallback fade-out if the screen is kept open for the track's entire duration
 	tw.tween_interval(maxf(secs - LOAD_FADE - 1.0, 0.0))
 	tw.tween_property(p, "volume_db", -80.0, LOAD_FADE)

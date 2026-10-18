@@ -35,6 +35,7 @@ const GRAINS := ["items/tape/tape_grain_0.wav", "items/tape/tape_grain_1.wav", "
 
 var player: Node                 # player.gd (set by hud.gd)
 var inventory: Node              # inventory.gd
+var hotbar: Node                 # item_strip.gd: a held click with the tape selected lays it too
 var cursor_aim := false          # the draw tools panel is open: aim with the mouse cursor (draw_ui.gd)
 var ui_down := false             # ...and the panel's TAPE tool has the left button held
 
@@ -76,7 +77,7 @@ func _process(dt: float) -> void:
 	var can: bool = player != null and inventory != null and Game.playing and not Game.dead \
 		and not player.dead and not player.frozen and not Game.outdoors and player.lens_up <= 0.0 \
 		and (Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or cursor_aim)
-	var down := can and (Input.is_action_pressed("tape") or ui_down)
+	var down: bool = can and (Input.is_action_pressed("tape") or ui_down or (hotbar != null and hotbar.using("tape")))
 	if not down:
 		latched = false
 		if pulling:

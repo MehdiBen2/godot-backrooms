@@ -214,11 +214,11 @@ func _build(killer: String, stats: Dictionary) -> void:
 	_rec.add_child(_spacer(18))
 
 	_rec.add_child(_rule())
-	var unit := str(stats.get("unit", "RY"))
+	var unit := str(stats.get("unit", "XP"))
 	_row("CAUSE", killer.to_upper(), "text")
 	_row("DISTANCE", float(stats.get("distance", 0.0)), "metres")
 	_row("ENTRIES LOGGED", float(stats.get("logged", 0)), "count")
-	_row("RESEARCH YIELD", float(stats.get("yield", 0)), "yield:" + unit)
+	_row("XP EARNED", float(stats.get("yield", 0)), "yield:" + unit)
 	_row("TAPE LAID", float(stats.get("tape", 0.0)), "tape")
 	_rec.add_child(_rule())
 	_rec.add_child(_spacer(30))

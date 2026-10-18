@@ -4,6 +4,7 @@ extends SceneTree
 ##   Godot_v4.7.2-stable_win64_console.exe --path level-editor --script res://tools/render_prop_thumbs.gd
 ## It needs a real window (not --headless): it renders with the editor's own 3D code (level_editor_3d.gd, prop_thumb).
 ## The game folder is the same one the editor uses: BACKROOMS_GAME_DIR, else ../godot-backrooms.
+## THUMBS_ONLY="prop_painting_,prop_hide_cabinet" draws just the types starting with one of those (default: all).
 
 const Host := preload("res://tools/thumb_host.gd")
 const View := preload("res://level_editor_3d.gd")
@@ -29,8 +30,10 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	var done := 0
 	var failed: Array = []
+	var only: Array = Array(OS.get_environment("THUMBS_ONLY").split(",", false))
 	for t in host.OBJ_INFO:
 		if not host.OBJ_INFO[t].has("model"): continue
+		if not only.is_empty() and not only.any(func(o: String) -> bool: return str(t).begins_with(o)): continue
 		var tex: Texture2D = await view.prop_thumb(t)
 		if tex == null:
 			failed.append(t)

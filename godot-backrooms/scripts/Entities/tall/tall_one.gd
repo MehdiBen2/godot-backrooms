@@ -5,12 +5,21 @@ extends "res://scripts/Entities/model_entity.gd"
 ##   flee     ...and it runs from you, out of sight
 ##   away     it stands where it stopped, out of sight, for a few seconds
 ##   scream   out of nowhere you hear it scream. You have WINDOW seconds from the first note
-##   (hide)   hiding is not in the game yet: player.hidden (any truthy field on the player) stands in for it
+##   (hide)   player.hidden: you climbed into a hiding place (props/hide_spot.gd: the metal cabinet, the locker). It cannot
+##            see you in there. If it watched you get in, it comes for the door:
+##   stalk    it carries its run in and slows to a creep as it nears the door you went through (if it did not see you go
+##            in: to where it last had you, where it stands and looks about, then roams)
+##   peer     it folds down in front of the door, its face level with the vent, and stares in at you for three seconds,
+##            its fingers tapping on the door. Climb out now and it has you
+##   circle   it unfolds, walks round the side and stands behind it a moment, then goes back to roaming
 ##   hunt     the window is over and you are not hidden: running footsteps (it has moved to ~40 m of path from you,
 ##            unseen), coming, faster than you can run
 ##   kill     it leaps (the kill clip), knocks you flat, sits astride your chest and tears your face apart. The
-##            camera is yours the whole way, lying on your back: pushed over, then looking straight up at it
-## and then you are dead (Game.kill_player). Placed with an Entity mark of Kind "tallone" in the level editor
+##            camera is yours the whole way, lying on your back: pushed over, then looking straight up at it. Your
+##            head is knocked about by its hands, read straight off the clip (_hands): every blow it lands kicks the
+##            view the way the claws were going and throws blood up off your face and onto the lens; the rip yanks
+##            it; you gasp, it screams, and the last breath goes out of you as its face comes down
+## and then you are dead (Game.kill_player), lying where it left you (Death.lying). Placed with an Entity mark of Kind "tallone" in the level editor
 ## (roam: it wanders from the mark; lurk: it waits there until you come within LURK_WAKE).
 ## Its clips are baked in tall_one.glb (tools/blender/animate_tallone.py): idle, walk, run, spot, scream, kill. They
 ## are played here, by hand (_animate). The kill's "KillEye" node is where your eyes are, lying under it.
@@ -19,7 +28,7 @@ extends "res://scripts/Entities/model_entity.gd"
 
 const EntityMarks := preload("res://scripts/Entities/entity_marks.gd")
 const TallNet := preload("res://scripts/Entities/tall/tall_net.gd")
-const STATES := ["off", "roam", "spot", "flee", "away", "scream", "hunt", "kill"]
+const STATES := ["off", "roam", "spot", "flee", "away", "scream", "hunt", "kill", "stalk", "peer", "circle"]
 const CELL := 4.5
 const RADIUS := 0.9
 
@@ -30,6 +39,9 @@ const RADIUS := 0.9
 @export var see_cos := 0.15             # ...if you are within ~80 degrees of where it faces
 @export var scream_window := 7.0        # seconds from the first note of the scream to the hunt
 @export var kill_shake := 1.0           # 0..1 scales the camera shake in the kill (reduced motion)
+@export var hand_push := 3.0            # how hard a hand moving at your face drags your head along with it
+@export var hand_twist := 1.5           # ...and turns it
+@export var blow_kick := 1.0            # how hard a blow knocks your head (the view) the way the claws were going
 
 const WALK_CLIP_SPEED := 1.7
 const RUN_CLIP_SPEED := 10.0
@@ -52,8 +64,27 @@ const POUNCE_FROM := 6.0                # the kill clip's hips start this far be
 const POUNCE_DIST := 5.2                # so it leaps when it is this far from you
 const HIT_AT := 0.30                    # seconds into the kill that its hands reach you
 const FALL_END := 1.0                   # ... and you are flat on the floor
-const KILL_T := 9.0                     # the clip's length
+const KILL_T := 9.6                     # the clip's length
+# the clip's beats (animate_tallone.py kill_hands, k + 1.7): the blows themselves are read off the hands, not timed
+const TEAR_AT := 1.7                    # sat on you: its hands go to work
+const LOOK_AT := 4.15                   # it stops to look at its fingers
+const GRIP_AT := 5.45                   # both hands hooked into your face...
+const RIP_AT := 6.76                    # ...torn free
+const LIDS_AT := 8.55                   # its face coming down: your eyes start to close for good
+const LAST_BREATH := 8.95
+const HANDS := ["LeftHand", "RightHand"]
+const BLOW_NEAR := 0.6                  # a wrist closing on your eyes this near...
+const BLOW_CLOSING := 3.0               # ...at this speed (m/s) is a blow (from the clip: 9-15 m/s for a real one)
+const FACE_ABOVE := 0.12                # higher over your eyes than this it is your face; lower, the floor beside it
 const MARK_SPAWN_DIST := 60.0
+# when you hide (props/hide_spot.gd)
+const PEER_T := 5.1                     # the peer clip (animate_tallone.py PEER_T): folding down, the 3 s stare, standing
+const PEER_DOOR := 1.78                 # m from the door its root stands: its face ~0.55 m off the vent, clear of the door (animate_tallone.py)
+const PEER_TAPS := [2.3, 2.55, 2.8, 3.6, 3.75]    # its fingers on the door
+const STALK_JOG := 4.0                  # m/s: going to where it last had you
+const STALK_CREEP := 0.9                # m/s: the last few metres to the door
+const STALK_RUN := 3.6                  # above this it runs (the run clip), below it walks
+const LOOK_ABOUT := 4.0                 # s it stands where it lost you, looking about
 const MARK_ARRIVE_AFTER := 240.0
 
 var state := "off"
@@ -81,8 +112,18 @@ var _from := Transform3D.IDENTITY       # your view when it leapt
 var _from_fov := 75.0
 var _kill_dir := Vector3.FORWARD
 var _eye: Node3D                        # "KillEye" in the model
-var _near := [false, false]             # a hand close to your face (a stroke)
 var _trauma := 0.0
+var _hand_prev := [Vector3.ZERO, Vector3.ZERO]
+var _hand_v := [Vector3.ZERO, Vector3.ZERO]
+var _hands_on := false
+var _armed := [true, true]              # a hand away from you (or slow): its next fast approach is a blow
+var _gripped := false                   # both hands holding your face: the next jerk away is a rip
+var _head := Vector3.ZERO               # your head knocked off true by its hands: an offset in the view's own axes...
+var _head_v := Vector3.ZERO
+var _turn := Vector3.ZERO               # ...and a turn (pitch, yaw, roll)
+var _turn_v := Vector3.ZERO
+var _blows := 0
+var _pulls := 0
 var _sounded := {}
 var _cue_t := 0.0
 var _hit_done := false
@@ -100,6 +141,16 @@ var _victim_id := -1                    # host: the guest it has leapt at (their
 var _net_taken := false                 # guest: the host's Tall One killed this machine's player: the sequence runs here
 var _snub := 0.0                        # guest: ignore the host's snapshots for a moment after our sequence
 var _victim_t := 0.0
+# hiding (props/hide_spot.gd)
+var _was_hidden := false
+var _seen_hide := false                 # it watched you get in: it goes to the door, not just to where you were
+var _hide: Node3D                       # the hiding place you are in (hide_spot.gd)
+var _goal := Vector3.ZERO               # stalk: where it is going (when it did not see you get in)
+var _route: Array[Vector3] = []         # circle: the way round behind the hiding place
+var _hold := 0.0                        # circle: s to stand behind it
+var _stalk_top := 4.0                   # stalk: m/s it goes at, at most (from a chase: all out; from a walk: a jog)
+## stalk / circle: _walk is the speed it is moving at (m/s), so a co-op guest sees the same walk or run (tall_net.gd)
+var _kill_light: OmniLight3D            # your torch guttering on its face, from where your eyes are
 
 func _ready() -> void:
 	super._ready()
@@ -166,6 +217,9 @@ func _physics_process(delta: float) -> void:
 		_finish()
 		return
 	t += delta
+	var hid := _player_hidden()
+	if hid and not _was_hidden: _on_player_hid()
+	_was_hidden = hid
 	match state:
 		"roam": _roam(delta)
 		"spot": _spot(delta)
@@ -174,6 +228,9 @@ func _physics_process(delta: float) -> void:
 		"scream": _scream(delta)
 		"hunt": _hunt(delta)
 		"kill": _kill_wait(delta)
+		"stalk": _stalk(delta)
+		"peer": _peer(delta)
+		"circle": _circle(delta)
 
 func _begin_roam() -> void:
 	state = "roam"
@@ -246,7 +303,7 @@ func _sees(sv: Dictionary) -> bool:
 	if fwd.dot(flat) < see_cos: return false
 	return nav.clear_line(eye.x, eye.z, tgt.x, tgt.z)
 
-## Hiding is not in the game yet. Anything that sets a truthy `hidden` on the player stands in for it.
+## Hiding: player.hidden is set while you are inside a hiding place (props/hide_spot.gd).
 func _player_hidden() -> bool:
 	var h = _pl.get("hidden")
 	return h != null and bool(h)
@@ -422,8 +479,11 @@ func _begin_hunt() -> void:
 func _hunt(delta: float) -> void:
 	_hunt_t += delta
 	var tgt := _target()
-	if tgt.is_empty() or (tgt.local and _player_hidden()) or _hunt_t > HUNT_MAX:
+	if tgt.is_empty():
 		_begin_roam()
+		return
+	if (tgt.local and _player_hidden()) or _hunt_t > HUNT_MAX:     # lost you: it runs on a little, slowing, and looks about
+		_begin_stalk(global_position + Vector3(sin(yaw), 0.0, cos(yaw)) * 6.0, false)
 		return
 	var pp: Vector3 = tgt.pos
 	var p := global_position
@@ -444,6 +504,186 @@ func _can_take(tgt: Dictionary) -> bool:
 func _target_hidden() -> bool:
 	var tgt := _target()
 	return not tgt.is_empty() and tgt.local and _player_hidden()
+
+# ---------------------------------------------------------------- when you hide (props/hide_spot.gd)
+## You just got into a hiding place. Chasing you, or roaming with you in front of it, it may have seen you go in
+func _on_player_hid() -> void:
+	if not state in ["roam", "hunt", "stalk", "circle"]: return       # (fleeing, screaming, out of sight: it does not know)
+	_hide = _pl.get("hiding_in") as Node3D
+	var saw := _saw_you_hide(state != "roam")
+	if saw and _hide != null:
+		_begin_stalk(Vector3.ZERO, true)
+	elif state == "hunt":
+		_begin_stalk(player.global_position, false)         # it had you a moment ago: it goes to where you were
+
+## Eyes on you as you got in: a clear line, in range (chasing, it is looking at you whichever way it faces)
+func _saw_you_hide(chasing: bool) -> bool:
+	var eye := global_position + Vector3.UP * 4.0
+	var pp: Vector3 = player.global_position
+	var to := Vector3(pp.x - eye.x, 0.0, pp.z - eye.z)
+	if to.length() > see_range: return false
+	if not chasing and Vector3(sin(yaw), 0.0, cos(yaw)).dot(to.normalized()) < see_cos: return false
+	return nav.clear_line(eye.x, eye.z, pp.x, pp.z)
+
+## The hiding place's door, where you went in (world, on the floor), and the way out of it
+func _hide_door() -> Vector3:
+	var at: Vector3 = _hide.get_handle_global_pos()
+	return Vector3(at.x, global_position.y, at.z)
+
+func _hide_out() -> Vector3:
+	var prop: Node3D = _hide.get("prop")
+	var f := prop.global_transform.basis.x
+	return Vector3(f.x, 0.0, f.z).normalized()
+
+## Where it stands to peer in: PEER_DOOR out from the door, so its face comes down level with the vent
+func _peer_stand() -> Vector3:
+	var at := _hide_door() + _hide_out() * PEER_DOOR
+	var np := nav.resolve(at, RADIUS)
+	return Vector3(np.x, global_position.y, np.z)
+
+func _hide_ok() -> bool:
+	return _hide != null and is_instance_valid(_hide) and _player_hidden() and _pl.get("hiding_in") == _hide
+
+## `seen`: to the door of the hiding place it watched you get into; else to `to`, where it lost you
+func _begin_stalk(to: Vector3, seen: bool) -> void:
+	var speed := hunt_speed * _sp if state == "hunt" else (roam_speed * _walk if state == "roam" else _walk)
+	_stalk_top = hunt_speed if state == "hunt" and seen else STALK_JOG
+	state = "stalk"
+	t = 0.0
+	_seen_hide = seen
+	_goal = to
+	_walk = maxf(speed, STALK_CREEP)
+	_sp = 0.0
+	_pause = 0.0
+
+func _stalk(delta: float) -> void:
+	if _came_out(): return
+	if _seen_hide and not _hide_ok(): _seen_hide = false              # (you got out unseen, or it is gone)
+	var goal := _peer_stand() if _seen_hide else _goal
+	var p := global_position
+	var d := Vector2(goal.x - p.x, goal.z - p.z).length()
+	if _pause > 0.0:                                                  # where it lost you: it stands and looks about
+		_pause -= delta
+		_walk = move_toward(_walk, 0.0, delta * 3.0)
+		yaw += sin(t * 0.9) * delta * 1.1
+		rotation.y = yaw
+		if _pause <= 0.0:
+			_begin_roam()
+			_pause = randf_range(1.0, 2.0)
+		return
+	if d < 0.4 or t > 30.0:
+		if _seen_hide:
+			# at the door: it turns square to it, stepping onto its mark (its face must not go through the door), then folds down
+			var face := atan2(-_hide_out().x, -_hide_out().z)
+			global_position = global_position.move_toward(goal, delta * 0.8)
+			_walk = move_toward(_walk, 0.0, delta * 3.0)
+			yaw = lerp_angle(yaw, face, minf(1.0, delta * 3.0))
+			rotation.y = yaw
+			if absf(angle_difference(yaw, face)) < 0.08 and _walk < 0.1 and global_position.distance_to(goal) < 0.05: _begin_peer()
+		else:
+			_pause = LOOK_ABOUT
+		return
+	# it comes on as fast as it was going and slows as it nears, the last few metres a creep
+	var want := clampf((d - 1.0) * 0.8, STALK_CREEP, _stalk_top)
+	_walk = move_toward(_walk, want, delta * (7.0 if want < _walk else 2.0))
+	_sp = clampf((_walk - STALK_RUN) / (hunt_speed - STALK_RUN), 0.0, 1.0)
+	_move_toward(goal, _walk, delta)
+	rotation.y = yaw
+	if _seen_hide: Game.fear = maxf(Game.fear, 0.5 + 0.5 * clampf(1.0 - d / 25.0, 0.0, 1.0))
+
+## You got out and it can see you (or you are right under it): the hunt is back on, and close, it has you at once
+func _came_out() -> bool:
+	if _player_hidden() or _pl.frozen: return false
+	if _sees_any() or _dist_to_player() < 8.0:
+		_begin_hunt()
+		_sp = 0.6
+		return true
+	return false
+
+func _begin_peer() -> void:
+	state = "peer"
+	t = 0.0
+	_walk = 0.0
+	_sp = 0.0
+	_sounded = {}
+	if scares != null:
+		scares.spawn3d(scares.synth("bone_crack"), global_position + Vector3.UP * 2.0, 0.45, "Scares", 4.0, randf_range(0.6, 0.7))
+
+func _peer(_delta: float) -> void:
+	rotation.y = yaw
+	if _came_out(): return
+	Game.fear = maxf(Game.fear, 0.9)
+	if scares != null and _hide_ok():
+		var door := _hide_door() + Vector3.UP * 1.3
+		_once("breath", t >= 1.3, func(): scares.spawn3d(scares.synth("breath_close"), door + Vector3.UP * 0.4, 0.55, "Scares", 2.5, 0.62, false))
+		for i in PEER_TAPS.size():
+			_once("tap%d" % i, t >= PEER_TAPS[i], func(): scares.spawn3d(scares.synth("wall_knock", 0.0), door, 0.25, "Scares", 2.0, randf_range(1.3, 1.5), false))
+	if t >= PEER_T:
+		_begin_circle()
+
+## Round the side of the hiding place to stand behind it (the side with room), then off. Against a wall: past it, along the wall
+func _begin_circle() -> void:
+	state = "circle"
+	t = 0.0
+	_walk = 0.0
+	_hold = randf_range(2.0, 3.5)
+	_route.clear()
+	if _hide != null and is_instance_valid(_hide):
+		var prop: Node3D = _hide.get("prop")
+		var b: AABB = prop.get("bounds")
+		var c := prop.global_position
+		var f := _hide_out()
+		var r := Vector3(-f.z, 0.0, f.x)
+		var hd := b.size.x * 0.5 * prop.scale.x
+		# either side (the one with more room first), as wide round it as the walls leave: kept off them by nav.resolve
+		var sides: Array[float] = [1.0, -1.0]
+		if randf() < 0.5: sides.reverse()
+		for side: float in sides:
+			for wide: float in [1.4, 1.0, 0.7]:
+				var hw := b.size.z * 0.5 * prop.scale.x + wide
+				var a := _floor_pt(nav.resolve(c + f * (hd + 1.0) + r * side * hw, RADIUS))
+				var bk := _floor_pt(nav.resolve(c - f * (hd + 1.0) + r * side * hw, RADIUS))
+				var p := global_position
+				if not (nav.clear_line(p.x, p.z, a.x, a.z) and nav.clear_line(a.x, a.z, bk.x, bk.z)): continue
+				if (bk - c).dot(f) > -hd * 0.5: continue                      # (the wall pushed it back round the front)
+				_route = [a, bk]
+				var behind := _floor_pt(nav.resolve(c - f * (hd + 1.8), RADIUS))
+				if (behind - c).dot(f) < -hd and nav.clear_line(bk.x, bk.z, behind.x, behind.z): _route.append(behind)
+				break
+			if not _route.is_empty(): break
+		if _route.is_empty():
+			# its back is to a wall: it brushes past along the side of it and goes on along the wall
+			for side: float in sides:
+				var a := _floor_pt(nav.resolve(c + f * (hd + 0.9) + r * side * (b.size.z * 0.5 * prop.scale.x + 1.2), RADIUS))
+				var on := _floor_pt(nav.resolve(a + r * side * 4.0, RADIUS))
+				var p := global_position
+				if nav.clear_line(p.x, p.z, a.x, a.z) and nav.clear_line(a.x, a.z, on.x, on.z) and a.distance_to(on) > 2.0:
+					_route = [a, on]
+					_hold = randf_range(1.0, 2.0)
+					break
+	if _route.is_empty(): _hold = 0.0                                 # (boxed in: nowhere round it to go)
+
+func _floor_pt(v: Vector3) -> Vector3:
+	return Vector3(v.x, global_position.y, v.z)
+
+func _circle(delta: float) -> void:
+	if _came_out(): return
+	if _route.is_empty():
+		_walk = move_toward(_walk, 0.0, delta * 2.0)
+		rotation.y = yaw
+		_hold -= delta
+		if _hold <= 0.0:
+			_begin_roam()
+			_pause = randf_range(0.5, 1.5)
+		return
+	var to: Vector3 = _route[0]
+	var p := global_position
+	if Vector2(to.x - p.x, to.z - p.z).length() < 0.6:
+		_route.remove_at(0)
+		return
+	_walk = move_toward(_walk, roam_speed, delta * 1.2)
+	_move_toward(to, _walk, delta)
+	rotation.y = yaw
 
 # ---------------------------------------------------------------- moving
 func _yaw_to(at: Vector3) -> float:
@@ -563,6 +803,18 @@ func _animate(delta: float) -> void:
 		"kill":
 			clip = "kill"
 			fade = 0.1
+		"stalk", "circle":
+			if _walk > STALK_RUN:
+				clip = "run"
+				speed = maxf(0.5, _walk / RUN_CLIP_SPEED)
+				fade = 0.3
+			elif _walk > 0.1:
+				clip = "walk"
+				speed = _walk / WALK_CLIP_SPEED
+				fade = 0.35
+		"peer":
+			clip = "peer"
+			fade = 0.3
 	if clip != _clip:
 		if not _ap.has_animation(clip): return
 		_ap.play(clip, fade)
@@ -622,8 +874,17 @@ func _start_kill_view() -> void:
 	_sounded = {}
 	_hit_done = false
 	_cue_t = 0.0
-	_near = [false, false]
 	_trauma = 0.0
+	_hands_on = false
+	_armed = [true, true]
+	_gripped = false
+	_head = Vector3.ZERO
+	_head_v = Vector3.ZERO
+	_turn = Vector3.ZERO
+	_turn_v = Vector3.ZERO
+	_blows = 0
+	_pulls = 0
+	Death.grab_begin()                  # last life's blood off the floor and the lens
 	_pl.frozen = true
 	player.velocity = Vector3.ZERO
 	var cam: Camera3D = _pl.cam
@@ -631,6 +892,13 @@ func _start_kill_view() -> void:
 	_from_fov = cam.fov
 	Game.fx_reset()
 	Game.fear = 1.0
+	if _kill_light == null:
+		_kill_light = OmniLight3D.new()
+		_kill_light.light_color = Color(0.82, 0.88, 1.0)
+		_kill_light.omni_range = 5.0
+		_kill_light.shadow_enabled = false
+		add_child(_kill_light)
+	_kill_light.visible = true
 
 ## Where your eyes are lying under it, looking up: the model's KillEye (else worked out from its root)
 func _eye_xf() -> Transform3D:
@@ -658,6 +926,7 @@ func _kill(delta: float) -> void:
 	var fov := _from_fov
 	var roll := 0.0
 	var shake := 0.0
+	_hands(delta, eye, cam)
 	if t < HIT_AT:
 		# it is on you: the view holds, and the picture starts to press in
 		fov = _from_fov + 8.0 * smoothstep(0.0, HIT_AT, t)
@@ -677,16 +946,24 @@ func _kill(delta: float) -> void:
 	else:
 		pos = eye.origin
 		q = eye.basis.get_rotation_quaternion()
-		var k2 := clampf((t - 1.7) / (KILL_T - 1.7), 0.0, 1.0)         # the tear: 0 at the start of it .. 1 at the end
-		fov = lerpf(_from_fov - 5.0, _from_fov - 26.0, smoothstep(0.0, 1.0, k2))
-		roll = 0.05 * sin(t * 3.0) + 0.04 * k2 * sin(t * 17.0)
-		shake = 0.006 + 0.02 * k2
+		var k2 := clampf((t - TEAR_AT) / (KILL_T - TEAR_AT), 0.0, 1.0)  # the tear: 0 at the start of it .. 1 at the end
+		# wide while its hands are on you; closing in on its face as it comes down at the last
+		fov = lerpf(_from_fov + 4.0, _from_fov - 16.0, smoothstep(LIDS_AT - 0.8, KILL_T, t))
+		roll = 0.04 * sin(t * 3.0)
+		shake = 0.003 + 0.006 * k2
 		_tear(delta, pos, k2)
+	# your head, knocked about by its hands (_hands): once you are down, an offset and a turn in the view's own axes
+	var held := smoothstep(FALL_END - 0.2, FALL_END + 0.3, t) * kill_shake
 	_trauma = maxf(0.0, _trauma - delta * 1.6)
 	var tr := _trauma * _trauma * kill_shake
-	var jit := Vector3(sin(Game.time * 37.0), sin(Game.time * 29.0 + 1.3), sin(Game.time * 23.0 + 2.1)) * (shake + 0.07 * tr) * kill_shake
-	var b := Basis(q) * Basis(Vector3.BACK, roll * kill_shake + 0.12 * tr * sin(Game.time * 41.0))
-	cam.global_transform = Transform3D(b, pos + jit)
+	var jit := Vector3(sin(Game.time * 37.0), sin(Game.time * 29.0 + 1.3), sin(Game.time * 23.0 + 2.1)) * (shake + 0.05 * tr) * kill_shake
+	var b := Basis(q) * Basis.from_euler(Vector3(_turn.x * held, _turn.y * held,
+		_turn.z * held + roll * kill_shake + 0.1 * tr * sin(Game.time * 41.0)))
+	cam.global_transform = Transform3D(b, pos + Basis(q) * (_head * held) + jit)
+	if _kill_light != null:                                   # it gutters: on the beat of every stroke, dying away at the end
+		_kill_light.global_position = pos + b.y * 0.1
+		var flick := 0.75 + 0.25 * sin(Game.time * 23.0) * sin(Game.time * 7.0 + 1.0)
+		_kill_light.light_energy = maxf(0.0, (2.6 * flick + 1.4 * _trauma) * (1.0 - smoothstep(KILL_T - 1.0, KILL_T - 0.1, t)))
 	cam.fov = fov
 	player.velocity = Vector3.ZERO
 	if t >= KILL_T:
@@ -700,6 +977,7 @@ func _hit() -> void:
 	_quiet()
 	if scares != null:
 		scares.seize()
+		scares.gasp(1.0)
 		scares.spawn3d(scares.synth("thump"), global_position + _kill_dir * -1.5, 1.2, "Scares", 8.0, 0.45)
 		scares.spawn3d(scares.synth("bone_crack"), (_pl.cam as Camera3D).global_position, 0.9, "Scares", 3.0, 0.7)
 
@@ -713,7 +991,8 @@ func _quiet() -> void:
 	var amb: Node = root.get_node_or_null("Audio/Ambience")
 	if amb != null: amb.hush_for(0.02, KILL_T + 2.0)
 
-## Sat on you, tearing: each time a hand comes down across your face is a stroke (camera jolt, a wet sound, more blood)
+## Sat on you, tearing. Its hands do the hurting (_hands reads them); this is the rest: the sounds on the clip's
+## beats, and the picture going as you do
 func _tear(delta: float, cam_pos: Vector3, k: float) -> void:
 	var landed := t >= 1.05
 	_once("land", landed, func():
@@ -728,40 +1007,152 @@ func _tear(delta: float, cam_pos: Vector3, k: float) -> void:
 			scares.set_entity_occlusion(false)
 			scares.entity_call("scream", _hand_pos("Head") + Vector3.UP * 0.3, true, 1.5, 0.62)
 	)
-	if t < 1.7: return
-	# the picture comes apart with you
-	Game.fx_blood = maxf(Game.fx_blood, 0.12 + 0.8 * k)
-	Game.fx_sat = 1.0 - 0.55 * k
-	Game.fx_contrast = 1.0 + 0.3 * k
-	Game.glitch = maxf(Game.glitch, 0.15 + 0.7 * k)
-	Game.fx_warp = 0.003 + 0.02 * k
-	Game.fx_static = 0.05 + 0.6 * k * k
-	if randf() < delta * (1.0 + 4.0 * k): Game.fx_corrupt = maxf(Game.fx_corrupt, 0.15 + 0.4 * k)
-	Game.fx_fade = smoothstep(7.4, KILL_T, t)                  # the edges close in, last
-	var hands := ["LeftHand", "RightHand"]
-	for i in 2:
-		var d := _hand_pos(hands[i]).distance_to(cam_pos)
-		if d < 0.6 and not _near[i]:
-			_near[i] = true
-			_stroke(cam_pos, k)
-		elif d > 0.8:
-			_near[i] = false
+	if t < TEAR_AT: return
+	# your breath: caught as it studies you, at the pause, as its hands come for your face, and choking at the end
+	for g: Array in [["gasp_study", 2.35, 0.8], ["gasp_look", LOOK_AT + 0.25, 0.9], ["gasp_grip", GRIP_AT - 0.4, 1.0], ["gasp_last", 8.3, 0.5]]:
+		_once(g[0], t >= g[1], func():
+			if scares != null: scares.gasp(g[2])
+		)
+	_once("ripped", t >= RIP_AT, _ripped.bind(cam_pos))
+	_once("last_breath", t >= LAST_BREATH, func():
+		if scares != null: scares.death_voice()
+	)
+	# The recording coming apart WITH you: the tape glitching (blocks, tracking tears, VHS colour bleed, dropouts, static)
+	# while it is you going: your eyelids fight to stay open and fall; the world swims, doubles and sags with every blow;
+	# the colour drains out of everything but the red, which creeps in from the edges; and at the last the lids close over
+	# its face coming down
+	var swim := 0.5 + 0.5 * sin(t * (1.3 + 1.7 * k))
+	Game.fx_sat = 1.0 - 0.72 * k
+	Game.fx_contrast = 1.0 + 0.28 * k
+	Game.fx_blur = (0.2 + 1.2 * k) * (0.6 + 0.4 * swim) + 0.7 * _trauma
+	Game.fx_warp = 0.003 + 0.012 * k * swim + 0.03 * _trauma * _trauma     # the room sags and wobbles
+	Game.fx_zoom = 1.0 + 0.045 * _trauma + 0.03 * k * swim                 # each blow punches the picture in, then it sinks back
+	Game.fx_skew = 2.5 * k * sin(t * 0.9)                                  # the world listing
+	var lids := 0.05 + 0.18 * k * (0.5 + 0.5 * sin(t * (2.0 + 3.0 * k)))   # trying to stay awake: sagging, snapping open
+	lids = maxf(lids, 0.28 * _trauma * _trauma)                            # a blow makes them flinch
+	lids = lerpf(lids, 1.0, smoothstep(LIDS_AT, KILL_T - 0.15, t))         # and then they don't open again
+	Game.fx_blink = clampf(lids, 0.0, 1.0)
+	Game.fx_fade = smoothstep(LIDS_AT - 0.3, KILL_T, t)                    # the edges close in, last
+	# the tape: Game.glitch drives the VHS damage (tracking band, line jitter, colour bleed, dropouts: render_engine.gd raises
+	# `vhs` with it and Game.terror), fx_static the snow; fx_corrupt (the codec blocks) only flashes on a blow (_blow).
+	# Kept under what its hands are doing: the tearing has to be seen
+	Game.glitch = maxf(Game.glitch, 0.3 + 0.4 * k)
+	Game.terror = maxf(Game.terror, 0.7 + 0.3 * k)
+	Game.fx_static = 0.03 + 0.3 * k * k
+	Game.fx_corrupt = maxf(0.0, Game.fx_corrupt - delta * 2.5)
+	if randf() < delta * 1.5: Game.fx_hue = randf_range(-0.2, 0.2) * k
 	_cue(delta, randf_range(0.7, 1.2), func():
 		if scares != null:
 			scares.spawn3d(scares.synth("wall_scratch", float(randi() % 3)), cam_pos + Vector3.UP * 0.1, 0.9, "Scares", 2.0, randf_range(0.5, 0.7), false)
-			scares.heartbeat(1.0 - 0.4 * k)
+			scares.heartbeat(1.0 - 0.5 * k, 1.0 - 0.45 * k)
 	)
 
-func _stroke(cam_pos: Vector3, k: float) -> void:
-	_trauma = minf(1.0, _trauma + 0.55)
-	Game.fx_shock = maxf(Game.fx_shock, 0.45)
-	Game.fx_flash = maxf(Game.fx_flash, 0.25)
-	Game.fx_blood = minf(1.0, Game.fx_blood + 0.05)
-	_pl.jolt(0.8)
+## Its hands, read off the clip every frame: how fast each moves, and how near your eyes. A hand moving at your face
+## drags your head along with it and turns it (two springs, a little loose so they overshoot). One closing on your face
+## fast is a blow (_blow); both holding your face, then one jerking away, is a rip (_pull); one coming down beside your
+## head is a slam on the floor (_slam). Nothing here is timed: it follows whatever the clip's hands do
+func _hands(delta: float, eye: Transform3D, cam: Camera3D) -> void:
+	if delta <= 0.0 or skel == null: return
+	var inv := eye.basis.inverse()
+	var force := Vector3.ZERO
+	var torque := Vector3.ZERO
+	var holding := 0
+	var wrench := Vector3.ZERO
+	for i in 2:
+		var p := _hand_pos(HANDS[i])
+		if not _hands_on: _hand_prev[i] = p
+		_hand_v[i] = (_hand_v[i] as Vector3).lerp((p - _hand_prev[i]) / delta, 0.6)
+		_hand_prev[i] = p
+		if t < FALL_END: continue
+		var rel := inv * (p - eye.origin)                       # the view's axes: x right, y up the screen, -z out of your eyes
+		var lv: Vector3 = inv * (_hand_v[i] as Vector3)
+		var d := rel.length()
+		var near := clampf(1.0 - (d - 0.3) / 0.7, 0.0, 1.0)
+		near *= near
+		force += lv * near * hand_push
+		torque += rel.normalized().cross(lv) * near * hand_twist
+		var speed := lv.length()
+		var closing := -lv.dot(rel / maxf(d, 0.001))
+		if _armed[i] and d < BLOW_NEAR and closing > BLOW_CLOSING:
+			_armed[i] = false
+			var s := clampf(closing / 12.0, 0.35, 1.0)
+			if p.y - eye.origin.y > FACE_ABOVE: _blow(p, lv, s, eye, cam)
+			else: _slam(p, s)
+		elif d > 0.8 or speed < 0.8:
+			_armed[i] = true
+		var on_face := d < 0.7 and p.y - eye.origin.y > FACE_ABOVE    # (not a hand braced on the floor beside you)
+		if on_face and speed < 1.0: holding += 1
+		if on_face and -closing > 1.4 and lv.length() > wrench.length(): wrench = lv
+	_hands_on = true
+	if holding == 2:
+		_gripped = true
+	elif _gripped and wrench != Vector3.ZERO:
+		_gripped = false
+		_pull(wrench, eye, cam)
+	_head_v += (force - _head * 140.0 - _head_v * 15.0) * delta
+	_head += _head_v * delta
+	_head = _head.clamp(Vector3(-0.12, -0.12, -0.05), Vector3(0.12, 0.12, 0.03))   # (+z is the floor behind your head)
+	_turn_v += (torque - _turn * 110.0 - _turn_v * 13.0) * delta
+	_turn += _turn_v * delta
+	_turn = _turn.clamp(Vector3(-0.35, -0.45, -0.5), Vector3(0.35, 0.45, 0.5))
+
+## Claws across your face (`lv`: the hand's velocity in the view's axes, `s` 0..1 how hard). The head is knocked the
+## way they were going (turned with them, rolled, pressed into the floor), the tape tears, blood goes up off your face
+## and onto the lens where they came down
+func _blow(at: Vector3, lv: Vector3, s: float, eye: Transform3D, cam: Camera3D) -> void:
+	_blows += 1
+	var flat := Vector2(lv.x, lv.y)
+	var dir := flat.normalized() if flat.length() > 0.01 else Vector2(randf_range(-1.0, 1.0), -1.0).normalized()
+	_head_v += Vector3(dir.x * 0.9, dir.y * 0.9, 0.8) * s * blow_kick
+	_turn_v += Vector3(dir.y * 2.5, -dir.x * 3.5, -dir.x * 4.0) * s * blow_kick
+	_trauma = minf(1.0, _trauma + 0.45 * s)
+	Game.glitch = 1.0                                         # the tape tears on every blow
+	Game.fx_corrupt = maxf(Game.fx_corrupt, 0.1 + 0.15 * s)
+	Game.fx_shock = maxf(Game.fx_shock, 0.35 + 0.2 * s)
+	Game.fx_flash = maxf(Game.fx_flash, 0.2)
+	_pl.jolt(0.6 + 0.5 * s)
+	var face := eye.origin + Vector3.UP * 0.05
+	Death.face_tear(face, global_position.y, eye.basis * Vector3(lv.x, lv.y, 0.0), s)
 	if scares != null:
-		scares.spawn3d(scares.synth("splat"), cam_pos, 1.0, "Scares", 2.0, randf_range(0.7, 1.0), false)
-		if randf() < 0.5:
-			scares.spawn3d(scares.synth("bone_crack"), cam_pos, 0.6, "Scares", 2.0, randf_range(0.6, 0.9), false)
+		scares.spawn3d(scares.synth("splat"), face, 1.0, "Scares", 2.0, randf_range(0.7, 1.0), false)
+		if randf() < 0.3 + 0.5 * s:
+			scares.spawn3d(scares.synth("bone_crack"), face, 0.5 + 0.3 * s, "Scares", 2.0, randf_range(0.6, 0.9), false)
+
+## A hand that had hold of your face wrenches away: your head is yanked with it, and something gives
+func _pull(lv: Vector3, eye: Transform3D, cam: Camera3D) -> void:
+	_pulls += 1
+	var flat := Vector2(lv.x, lv.y)
+	var dir := flat.normalized() if flat.length() > 0.01 else Vector2(0.0, 1.0)
+	_turn_v += Vector3(dir.y * 1.5, -dir.x * 2.0, -dir.x * 2.5) * blow_kick
+	_trauma = minf(1.0, _trauma + 0.35)
+	Game.glitch = 1.0
+	Game.fx_shock = maxf(Game.fx_shock, 0.4)
+	_pl.jolt(0.7)
+	var face := eye.origin + Vector3.UP * 0.05
+	Death.face_tear(face, global_position.y, eye.basis * Vector3(lv.x, lv.y, 0.0), 0.6)
+	if scares != null:
+		if not _sounded.has("blood_scream"):
+			_sounded["blood_scream"] = true
+			scares.splat()                                    # your scream, once, through blood (scares.gd BLOOD_SCREAM)
+		scares.spawn3d(scares.synth("splat"), face, 1.1, "Scares", 2.0, randf_range(0.55, 0.7), false)
+		scares.spawn3d(scares.synth("bone_crack"), face, 0.8, "Scares", 2.0, randf_range(0.5, 0.65), false)
+
+## A hand slammed down on the floor beside your head: the thud goes through the floor into your skull
+func _slam(at: Vector3, s: float) -> void:
+	_head_v += Vector3(0.0, 0.0, 0.6 * s) * blow_kick
+	_trauma = minf(1.0, _trauma + 0.3 * s)
+	_pl.jolt(0.8 * s)
+	if scares != null:
+		scares.spawn3d(scares.synth("thump"), at, 0.9 * s + 0.3, "Scares", 4.0, randf_range(0.55, 0.7), false)
+
+## The rip tears free: both arms fly up out of your face, and it screams; the blood under your head starts to spread
+func _ripped(cam_pos: Vector3) -> void:
+	_trauma = 1.0
+	Game.fx_flash = maxf(Game.fx_flash, 0.4)
+	Death.face_pool(Vector3(cam_pos.x, global_position.y, cam_pos.z))
+	if scares != null:
+		scares.set_entity_occlusion(false)
+		scares.entity_call("scream", _hand_pos("Head") + Vector3.UP * 0.2, true, 1.6, 0.7)
 
 func _cue(delta: float, every: float, call: Callable) -> void:
 	_cue_t -= delta
@@ -776,10 +1167,36 @@ func _once(key: String, when: bool, call: Callable) -> void:
 
 func _die() -> void:
 	_pl.frozen = false
+	Death.lying(global_position, _kill_dir)       # you die where it left you: on your back, chest at its root, head beyond
 	Game.kill_player("THE TALL ONE", Game.DeathType.RIPPED)
 	_despawn_quietly()
 
+# ---------------------------------------------------------------- T.S.R.A. scanner
+# Hold Q on it with the field scanner (scripts/Player/scanner.gd) to log it in the Threshold Dossier.
+func _enter_tree() -> void:
+	add_to_group(Archive.SCANNABLE)
+	set_meta("tsra_id", "tallone")
+
+## Where the scanner can take a reading off it right now: its chest and its head; empty while it is away
+func scan_points() -> Array:
+	if not present or body == null or not visible:
+		return []
+	var h := height * size
+	return [global_position + Vector3.UP * h * 0.6, global_position + Vector3.UP * h * 0.9]
+
+## C-4 deep scan (scan_readout.gd)
+func scan_behavior(_at: Vector3) -> Dictionary:
+	match state:
+		"spot", "flee":
+			return {"state": "SPOOKED", "detail": "BREAKING OFF // RUNNING FROM THE SUBJECT", "danger": 1}
+		"scream", "hunt", "kill":
+			return {"state": "HUNTING", "detail": "SCREAM ISSUED // CLOSING FASTER THAN A SPRINT", "danger": 2}
+		"stalk", "peer", "circle":
+			return {"state": "STALKING", "detail": "AT THE HIDING PLACE // WAITING FOR THE DOOR", "danger": 2}
+	return {"state": "ROAMING", "detail": "WANDERING // STOPS TO COCK ITS HEAD", "danger": 1}
+
 func _despawn_quietly() -> void:
+	if _kill_light != null: _kill_light.visible = false
 	if _net_taken:                        # our sequence is over: tell the host, and ignore its stale snapshots a moment
 		_net_taken = false
 		_snub = 2.0
@@ -843,6 +1260,7 @@ func debug_despawn() -> void:
 	if state == "kill" and player != null and not _pl.dead:
 		_pl.frozen = false
 		Game.fx_reset()
+		Death.grab_begin()                    # (the blood on the floor and the lens)
 		var au: Node = get_parent().get_node_or_null("Audio")
 		if au != null: au.set_muffled(false)
 	_despawn_quietly()

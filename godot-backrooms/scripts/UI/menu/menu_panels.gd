@@ -473,7 +473,8 @@ func _build_controls() -> Control:
 	other_box.add_theme_constant_override("separation", 6)
 	for item in [
 		[["Mouse"], "Look", "Aim camera / flashlight"],
-		[["Wheel"], "Zoom", "While the camcorder is raised"],
+		[["Wheel"], "Select Item", "Pick what is in hand (hotbar, bottom-right); zooms while the camcorder is raised"],
+		[["Click"], "Use Item", "Use the selected item: torch, flash, hold for scanner or tape"],
 		[["F11"], "Fullscreen", "Alt+Enter works too"],
 		[["Esc"], "Pause", "Resume or open settings"]
 	]:

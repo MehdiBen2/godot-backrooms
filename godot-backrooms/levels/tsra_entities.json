@@ -136,6 +136,48 @@
       "incident": "INCIDENT 4-117: A two-person survey team lost radio contact for 41 minutes. One surveyor was recovered 300 m from the last known position, lying in a dead-end corridor with a flat torch battery and no memory of the route. Her partner reported watching her pulled round a corner by the ankle. He did not see what was pulling."
     }
   },
+  "tallone": {
+    "code": "TSRA-EN-08",
+    "common_name": "The Tall One",
+    "threat_class": "Class 5",
+    "description": "A starved humanoid figure roughly 4.5 m tall, its body stretched wrong along every limb. The face is blank but for two ordinary human eyes. Wanders the level and stops to stand and cock its head.",
+    "behavior_vector": "Flees on sighting the subject, then screams from out of sight. Roughly seven seconds after the first note it runs the subject down, faster than a sprint. A subject in a hiding place is not safe if it watched them go in.",
+    "directive": "Break line of sight at first sighting. After a scream, get into a hiding place and stay in it. Do not climb out while it is at the door.",
+    "classified": {
+      "origin": "Every recovered account of the scream is the same length. No subject has been able to say what it sounded like, only that they knew what it meant.",
+      "survival": [
+        "If it sees you it runs. That is not mercy. Expect the scream within ten seconds.",
+        "From the first note you have about seven seconds. Find a cabinet or a locker and get in.",
+        "If it folds down at the vent and stares in, do not move. It taps on the door. Wait until it has gone round the side.",
+        "Running does not work. It is faster than you sprint."
+      ],
+      "field_notes": [
+        "\"It stared in for three seconds. I counted them twice, and the second count was longer.\" - Surveyor T. Marsh, C-2"
+      ],
+      "incident": "INCIDENT 5-012: A locker recovered from the Yellow Halls was found locked from the inside. The surveyor was not inside. The door had four sets of finger marks on the outside."
+    }
+  },
+  "burnt": {
+    "code": "TSRA-EN-09",
+    "common_name": "The Burnt",
+    "threat_class": "Class 5",
+    "description": "A charred humanoid figure twice the height of a surveyor. Every light tube within its reach goes out and stays out while it is near, and comes back on once it has gone.",
+    "behavior_vector": "Moves only while unobserved; watched, it stands still and only its head twitches. Stalks the subject, hides at wall corners to watch, and runs at a subject who stares at it from afar. Within its reach it takes the subject.",
+    "directive": "Do not stare at it from a distance. Keep moving and break its line of sight. Do not let it come within arm's reach.",
+    "classified": {
+      "origin": "Recording equipment does not survive a taking. The last frames from every recovered unit are the same: the picture tears, then static, then an error screen that no engineer has been able to explain.",
+      "survival": [
+        "If the lamps near you go out one by one, it is close. Move toward lit areas.",
+        "Do not hold your gaze on it from far off. It will run at you. Look away and break line of sight.",
+        "If it charges, it stops short of you. Use that gap to turn a corner.",
+        "It leans out round wall corners to watch. Keep your eyes on the corner and do not stop at it."
+      ],
+      "field_notes": [
+        "\"It never moved while I looked at it. I had to blink eventually.\" - Surveyor R. Okafor, C-3"
+      ],
+      "incident": "INCIDENT 5-031: A survey team's lamps were found out along a 300 m corridor, each one cold. The team's torches were still lit, lying on the floor in a row."
+    }
+  },
   "survey_clipboard": {
     "code": "TSRA-IT-01",
     "common_name": "Field Survey Clipboard",

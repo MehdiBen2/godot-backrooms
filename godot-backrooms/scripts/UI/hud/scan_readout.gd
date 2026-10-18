@@ -57,6 +57,7 @@ var unfold := 1.0                # 0..1: the scale drawing out from the middle a
 var peak := 0.0                  # the meter's peak-hold segment, 0..1
 var peak_hold := 0.0             # seconds before the peak starts to fall back
 var interference := 1.0          # eased (1 - signal): the grade's grain and slipping lines
+var yield_t := 0.0               # seconds since the reading filed: its +XP on the scale counts up
 var fit_cache := {}
 
 func _ready() -> void:
@@ -92,8 +93,8 @@ func _process(dt: float) -> void:
 	if not scanner:
 		return
 	t += dt
-	var want := 1.0 if scanner.holding or scanner.result_t > 0.0 else 0.0
-	alpha = move_toward(alpha, want, dt * (8.0 if want > alpha else 5.0))
+	var want := 1.0 if scanner.holding else 0.0
+	alpha = move_toward(alpha, want, dt * (8.0 if want > alpha else 16.0))   # off at once when Q is let go
 	var st: String = scanner.state
 	if st != last_state:
 		_on_state(last_state, st)
@@ -125,6 +126,7 @@ func _process(dt: float) -> void:
 	unfold = move_toward(unfold, 1.0, dt * 5.0)
 	snap = move_toward(snap, 1.0, dt * 4.5)
 	confirm = maxf(0.0, confirm - dt)
+	yield_t += dt
 	canvas.queue_redraw()
 
 func _on_state(from: String, to: String) -> void:
@@ -133,9 +135,11 @@ func _on_state(from: String, to: String) -> void:
 		layer.burst(0.25)
 	elif to == "logged":
 		confirm = 0.3
+		yield_t = 0.0
 		layer.burst(0.6)
 	elif to == "on_file":
 		confirm = 0.3
+		yield_t = 0.0
 
 # ---- drawing --------------------------------------------------------------------------
 func _draw_canvas() -> void:
@@ -215,7 +219,7 @@ func _draw_field(c: Vector2) -> void:
 		canvas.draw_line(m - Vector2(5.0, 0.0), m + Vector2(5.0, 0.0), k, LINE_W)
 	var ty := r.position.y - 10.0
 	_text(Vector2(r.position.x, ty), "T.S.R.A. FIELD SCANNER", 13, _a(Term.TEXT, 0.4), fs.x * 0.45)
-	_text(Vector2(r.end.x, ty), "CLEARANCE " + str(Clearance.tier().get("code", "C-0")), 13, _a(Term.TEXT, 0.4),
+	_text(Vector2(r.end.x, ty), Clearance.tier_label(), 13, _a(Clearance.tier_color(), 0.55),
 		fs.x * 0.45, HORIZONTAL_ALIGNMENT_RIGHT)
 
 ## Four corner brackets: the box, and how long their arms are
@@ -328,8 +332,9 @@ func _draw_scale(cx: float, by: float, st: String, col: Color) -> void:
 					detail += "  " + ("DEAD AHEAD" if absf(b) < BEARING_AHEAD else "%d DEG %s" % [roundi(absf(b)), "RIGHT" if b > 0.0 else "LEFT"])
 		"logged", "on_file":
 			detail = str(Archive.entity_info(scanner.target_id).get("code", "TSRA-EN-??"))
-			if scanner.last_yield > 0:
-				detail += "  +%d %s" % [scanner.last_yield, Clearance.unit]
+			if scanner.last_yield > 0:     # counting up, fast at first
+				var u := clampf(yield_t / 0.6, 0.0, 1.0)
+				detail += "  +%d %s" % [roundi(scanner.last_yield * (1.0 - pow(1.0 - u, 3.0))), Clearance.unit]
 	var sw := _text(Vector2(x0, by - 42.0), str(STATUS.get(st, "")), 18, _a(col), w * 0.4)
 	_text(Vector2(x0 + w, by - 42.0), detail, 15, _a(Term.TEXT, 0.8), w - sw - 24.0, HORIZONTAL_ALIGNMENT_RIGHT)
 

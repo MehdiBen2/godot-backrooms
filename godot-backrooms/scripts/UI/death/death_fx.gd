@@ -151,6 +151,32 @@ func spawn_ragdoll(pos: Vector3, yaw: float) -> void:
 			break
 	contact_time = _find_contact()
 
+## The body is already down (THE TALL ONE had you on your back): the fall clip's last frame, turned so the head lies
+## toward `head_dir` and moved so the chest is over `chest`. Nothing falls (contact_time 0).
+func lay_down(chest: Vector3, head_dir: Vector3) -> void:
+	if _ragdoll == null or not is_instance_valid(_ragdoll):
+		return
+	contact_time = 0.0
+	if not _clip_played or _skel == null:
+		_clip_played = true                  # (no clip: the procedural topple, already over)
+		_ragdoll.rotation.x = -1.5
+		return
+	for ap in _ragdoll.find_children("*", "AnimationPlayer", true, false):
+		var a := ap as AnimationPlayer
+		if a.current_animation != "":
+			a.seek(a.current_animation_length, true)
+	var head := _skel.find_bone("Head")
+	var c := body_point(chest)
+	if head >= 0:
+		var h := _skel.global_transform * _skel.get_bone_global_pose(head).origin
+		var have := Vector2(h.x - c.x, h.z - c.z)
+		var want := Vector2(head_dir.x, head_dir.z)
+		if have.length() > 0.05 and want.length() > 0.01:
+			# a yaw about Y turns a direction's atan2(x, z) by the same angle
+			_ragdoll.global_rotate(Vector3.UP, atan2(want.x, want.y) - atan2(have.x, have.y))
+			c = body_point(chest)
+	_ragdoll.global_position += Vector3(chest.x - c.x, 0.0, chest.z - c.z)
+
 # When does the body hit the floor? The clip first drops it to its knees, then it slams down flat on its
 # back: that slam is the moment. Read the upper back's height straight off the clip's bone tracks, find
 # where it comes down within 5% of where it finally rests, then the instant that drop stops dead (no

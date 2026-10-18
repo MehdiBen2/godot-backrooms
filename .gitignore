@@ -38,3 +38,4 @@ desktop.ini
 *.import
 *.import
 .vexp/manifest.json
+godot-backrooms/override.cfg
