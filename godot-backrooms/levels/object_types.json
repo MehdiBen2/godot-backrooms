@@ -548,7 +548,23 @@
       "lookTogether": "Director event: an advisory (do not look up... we will look together); the head tilts back by itself",
       "soundsToAvoid": "Director event: a card lists three sounds to avoid; a little later you hear the third",
       "countdown": "Director event: a timer counts down from 60; at zero nothing happens; then it counts up",
+      "noclip_death": "Noclip void death: fall through the floor into the bottomless void with howling wind and screams, and die",
       "custom": "Custom event (type custom event name)"
+    },
+    "category": "events"
+  },
+  "pain_area": {
+    "label": "Pain area (Noclip death)",
+    "color": "e82548",
+    "help": "A hazard pain area: when the player steps inside, the floor gives way and they fall through into the void with rushing wind and scream sound effects, then die",
+    "shape": "zone",
+    "align": false,
+    "max_scale": 40.0,
+    "params": {
+      "depth": 2.0,
+      "event": "noclip_death",
+      "once": true,
+      "delay": 0.0
     },
     "category": "events"
   },

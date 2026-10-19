@@ -158,7 +158,7 @@ func _show_text() -> void:
 ## (shared by everyone). Everything else here is what this player alone sees and hears.
 const HOST_EVENTS := ["spawn_bacteria", "spawn_mimic"]
 const LOCAL_EVENTS := ["message", "text", "alert", "context_voice", "lights_out", "flicker", "silence", "thump", "drone", "static",
-	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination"]
+	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination", "noclip_death", "void_death", "pain_death", "pain_area"]
 
 func _execute_event(ev: String) -> void:
 	if preload("res://scripts/Events/events.gd").DISABLED:
@@ -171,6 +171,10 @@ func _execute_event(ev: String) -> void:
 		Net.send_trigger(ev, p.global_position if p != null else global_position)
 		return
 	match ev:
+		"noclip_death", "void_death", "pain_death", "pain_area":
+			var NoclipDeathClass = load("res://scripts/World/level/noclip_death.gd")
+			if NoclipDeathClass != null and p is CharacterBody3D:
+				NoclipDeathClass.trigger_void_fall(p, level)
 		"message", "text", "alert":
 			pass                               # the caption/alert bar below is all it does
 		"lights_out":

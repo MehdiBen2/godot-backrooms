@@ -592,7 +592,7 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 	pillar_cells.clear()
 	blocked_edges.clear()
 	wall_segments.clear()
-	for zone: Dictionary in [safe, drain, loot, echo, hall_reverb, muffled, loop, open_ceiling, abyss, endless_ceiling, noclip, noclip_floor, climb_up, climb_down, pool_cells]: zone.clear()
+	for zone: Dictionary in [safe, drain, loot, echo, hall_reverb, muffled, loop, open_ceiling, abyss, endless_ceiling, noclip, noclip_floor, noclip_death, climb_up, climb_down, pool_cells]: zone.clear()
 	waters.clear()
 	underwater = 0.0
 	acoustics = null

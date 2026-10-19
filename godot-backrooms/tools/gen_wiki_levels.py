@@ -8,7 +8,7 @@ from collections import deque
 PROJ = sys.argv[1]
 LV = os.path.join(PROJ, "levels")
 ZONES = ["abyss", "bright", "classic", "crawl", "dark", "dim", "drain", "echo", "endless_ceiling", "flicker", "grand",
-         "grime", "hall_reverb", "liminal", "loop", "loot", "low", "mannequin", "muffled", "noclip", "noclip_floor",
+         "grime", "hall_reverb", "liminal", "loop", "loot", "low", "mannequin", "muffled", "noclip", "noclip_floor", "noclip_death",
          "open_ceiling", "safe", "tall", "tiles"]
 DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
 PASS = ".DA"

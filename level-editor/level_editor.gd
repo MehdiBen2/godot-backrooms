@@ -36,7 +36,7 @@ const PANEL := UI_PANEL
 const LINE := UI_LINE
 ## Zone names for their buttons (the rest: their key, capitalised)
 const ZONE_NAMES := {"open_ceiling": "Open ceiling", "endless_ceiling": "Endless ceiling", "noclip_floor": "Noclip floor",
-	"hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor"}
+	"noclip_death": "Pain area (Noclip death)", "hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor"}
 const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hall: a 16.2 m ceiling, three storeys of open air over you.\nThe tubes hang down on long chains; the walls round it rise to meet it",
 	"hall_reverb": "Hall reverb: every sound rings on in a long, bright, wet tail (a tiled rotunda, a pool hall), whatever the room's shape.\nAUTO ACOUSTICS paints it where the architecture calls for it",
 	"muffled": "Muffled: a dead, tight space. Short, dark and dull, the highs gone (a crawlway, a padded corridor).\nAUTO ACOUSTICS paints it in tight, low places", "low": "Crouch-height ceiling", "hotel": "Hotel corridor: a 4.5 m ceiling, red hotel carpet, and side walls that stand 0.9 m into the cells, so the hall is 2.7 m wide to walk. Paint it on one-cell halls", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
@@ -58,6 +58,7 @@ const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hal
 	"noclip_floor": "Noclip floor: looks like any floor. Stand on it a moment and it gives: you sink through the carpet and the slab,
 the picture tearing, fall through the nothing under the level, and wake up on the floor of another level.
 The Kane Pixels opening. Uses the same destination as this floor's Noclip zone (choosing this tool asks)",
+	"noclip_death": "Noclip death: paint it on floor or pits. The floor gives way or opens into the void: you noclip through reality and keep falling endlessly through the dark void with rushing wind and scream sound effects, then die falling into the void",
 	"endless_ceiling": "Endless ceiling: the pit's twin, turned upside down. No ceiling over these cells, and the walls and buzzing tubes go on up for ever,
 fading into the dark (it is only ever looked at, you cannot climb it). Paint it on open floor, ideally where the floor above is solid wall
 or there is none: it does not make a hole in the floor above, so up there it is just floor"}
@@ -933,7 +934,7 @@ func _build_right_dock() -> Control:
 		["Light", ["bright", "dark", "dim", "flicker"]],
 		["Look & surface", ["classic", "liminal", "tiles", "grime"]],
 		["Walls: wear & water", ["clean", "dirty", "moist"]],
-		["Pits & falls", ["abyss", "noclip", "noclip_floor"]],
+		["Pits & falls", ["abyss", "noclip", "noclip_floor", "noclip_death"]],
 		["Space & sound", ["hall_reverb", "muffled", "echo", "loop"]],
 		["Gameplay", ["safe", "drain", "loot", "mannequin"]],
 	]

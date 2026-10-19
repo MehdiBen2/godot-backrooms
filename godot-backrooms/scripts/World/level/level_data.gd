@@ -152,6 +152,7 @@ var wrap_ring := {}   # Vector2i -> true: the border cells, the other side's sta
 var endless_ceiling := {}      # no ceiling and a shaft up that never ends: the Endless zone (endless_shaft.gd)
 var noclip := {}      # pits painted Noclip: an abyss whose fall ends in another level (pit_fall.gd, noclip_wake.gd)
 var noclip_floor := {}  # Noclip Floor: plain floor you fall straight through (noclip_slip.gd), to the same destination
+var noclip_death := {}  # Noclip Death: pain area where you fall through reality into the void and die
 var noclip_to := ""   # ...which one: a levels.json id ("noclip_to" on the floor, set in the level editor)
 var abyss := {}       # pits with no bottom: the Abyss zone, and every pit with no floor under it (pit_fall.gd)
 ## No ceiling: you look up into the storey above, whose floor has a hole over these cells (the floor above
@@ -752,7 +753,7 @@ func _parse(d: Dictionary) -> void:
 	noclip_to = str(d.get("noclip_to", ""))
 	var zones: Dictionary = d.get("zones", {})
 	for zone in ["tall", "grand", "low", "crawl", "tiles", "hotel", "bright", "dark", "dim", "flicker", "classic", "liminal", "mannequin",
-			"safe", "drain", "loot", "echo", "hall_reverb", "muffled", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor"]:
+			"safe", "drain", "loot", "echo", "hall_reverb", "muffled", "loop", "open_ceiling", "abyss", "endless_ceiling", "noclip", "noclip_floor", "noclip_death"]:
 		var target: Dictionary = get(zone)
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
