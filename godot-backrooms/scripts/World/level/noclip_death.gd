@@ -2,21 +2,20 @@ extends Node3D
 ## NOCLIP DEATH / VOID FALL (level_data.gd `noclip_death`):
 ## A pain area / hazard zone painted on floor or pits, or placed as an event trigger.
 ## When the player steps on or falls through it:
-##   1. The floor gives way / destabilizes, slipping the player straight through reality.
-##   2. The player plunges into the bottomless void beneath the Backrooms.
-##   3. They keep falling through the void with howling rushing wind, abyssal hums, and a terror scream.
-##   4. Reality corrupts, the screen fades to black, and the player dies: "FALLING INTO THE VOID".
+##   1. The floor gives way and the player drops through reality.
+##   2. The second they go through the floor, the terror fall scream plays and they plunge into the void.
+##   3. They keep falling with the pit fall air wind rushing sound, with no ambient distractions.
+##   4. Screen fades to black and the player dies: "FALLING INTO THE VOID".
 
+const PitFallScript := preload("res://scripts/World/level/pit_fall.gd")
 const FALL_SCREAM_PATH := "res://audio/player/death/fall/fall_scream.mp3"
-const HUM_PATH := "res://audio/world/lights/hum_diffuse.wav"
-const DRONE_PATH := "res://audio/ambients/drone.wav"
 
 const STAND := 0.20           # s standing on floor before the floor gives under you
 const SINK := 0.35            # feet sinking into the surface
 const DROP := 0.45            # dropping through the floor into the void
 const VOID_FALL_SECS := 4.4   # total seconds falling in the void before death
 const FADE_OUT := 1.4         # fade to black duration at the end of the fall
-const SPEED_MAX := 60.0       # terminal falling speed (m/s)
+const SPEED_MAX := 55.0       # terminal falling speed (m/s, matching pit_fall.gd)
 
 var level: Node3D
 var _on := 0.0
@@ -27,14 +26,11 @@ var _eye := 1.6
 var _falling := false
 var _fall_t := 0.0
 var _fade := 0.0
-var _scream_played := false
 var _level_hidden := false
 var _hidden: Array = []
 var _saved := {}
 
 var _wind: AudioStreamPlayer
-var _hum: AudioStreamPlayer
-var _drone: AudioStreamPlayer
 var _scream: AudioStreamPlayer
 var _dome: MeshInstance3D
 var _gust := FastNoiseLite.new()
@@ -141,7 +137,6 @@ func _start_freefall(p: CharacterBody3D) -> void:
 	_falling = true
 	_fall_t = 0.0
 	_fade = 0.0
-	_scream_played = false
 	Game.freefall = true
 
 	# Save player parameters
@@ -205,34 +200,19 @@ func _start_freefall(p: CharacterBody3D) -> void:
 	_dome.extra_cull_margin = 16384.0
 	add_child(_dome)
 
-	# Sound effects
+	# Pit fall air wind rushing sound
 	var bus := "Ambience" if AudioServer.get_bus_index("Ambience") >= 0 else "Master"
 	if _wind_stream == null:
-		_wind_stream = _make_wind()
+		_wind_stream = PitFallScript._wind_stream if PitFallScript._wind_stream != null else _make_wind()
 	_wind = AudioStreamPlayer.new()
 	_wind.stream = _wind_stream
 	_wind.bus = bus
-	_wind.volume_db = -35.0
+	_wind.volume_db = -80.0
 	add_child(_wind)
 	_wind.play()
 
-	_hum = AudioStreamPlayer.new()
-	if ResourceLoader.exists(HUM_PATH):
-		_hum.stream = load(HUM_PATH)
-	_hum.bus = bus
-	_hum.volume_db = -30.0
-	_hum.pitch_scale = 0.55
-	add_child(_hum)
-	_hum.play()
-
-	if ResourceLoader.exists(DRONE_PATH):
-		_drone = AudioStreamPlayer.new()
-		_drone.stream = load(DRONE_PATH)
-		_drone.bus = bus
-		_drone.volume_db = -24.0
-		_drone.pitch_scale = 0.7
-		add_child(_drone)
-		_drone.play()
+	# The second the player goes through the floor: play fall scream immediately!
+	_play_scream()
 
 func _process_void_fall(dt: float, p: CharacterBody3D) -> void:
 	_fall_t += dt
@@ -250,35 +230,22 @@ func _process_void_fall(dt: float, p: CharacterBody3D) -> void:
 	if p.global_position.y < -10.0 and not _level_hidden:
 		_hide_level(true)
 
-	# Fall speed calculations
-	var speed_ratio := clampf(absf(p.velocity.y) / SPEED_MAX, 0.0, 1.0)
-	var noise_flutter := _gust.get_noise_1d(_fall_t * 9.0)
-
-	# Rushing wind sound effect
+	# Pit fall air wind sound scaling exactly like pit_fall.gd
+	var fall := smoothstep(4.0, SPEED_MAX, -p.velocity.y)
 	if _wind != null and is_instance_valid(_wind):
-		var wind_vol := speed_ratio * (0.8 + 0.2 * noise_flutter) * (1.0 - _fade)
-		_wind.volume_db = linear_to_db(clampf(wind_vol, 0.0001, 1.2))
-		_wind.pitch_scale = clampf(0.75 + 0.6 * speed_ratio, 0.6, 1.4)
-
-	# Deep void hum
-	if _hum != null and is_instance_valid(_hum):
-		_hum.volume_db = linear_to_db(clampf(0.85 * (1.0 - _fade), 0.0001, 1.0))
-
-	# Player terror scream after falling into the void
-	if _fall_t >= 0.85 and not _scream_played:
-		_scream_played = true
-		_play_scream()
+		_wind.volume_db = linear_to_db(maxf(fall * (0.75 + 0.25 * _gust.get_noise_1d(_fall_t * 10.0)) * (1.0 - _fade), 0.0001))
+		_wind.pitch_scale = 0.7 + 0.6 * fall
 
 	# High-speed camera rush & jitter
 	if p.cam != null:
 		var base_fov: float = float(_saved.get("fov", 75.0))
-		p.cam.fov = lerpf(base_fov, base_fov + 10.0, speed_ratio)
-		var shake := speed_ratio * 0.018 * (1.0 - _fade)
+		p.cam.fov = lerpf(base_fov, base_fov + 10.0, fall)
+		var shake := fall * 0.016 * (1.0 - _fade)
 		p.cam.h_offset = randf_range(-shake, shake)
 		p.cam.v_offset = randf_range(-shake, shake)
 
 	# VHS tape corruption & glitch from falling out of bounds
-	Game.fx_corrupt = maxf(Game.fx_corrupt, 0.15 + 0.35 * speed_ratio * (0.5 + 0.5 * randf()))
+	Game.fx_corrupt = maxf(Game.fx_corrupt, 0.15 + 0.35 * fall * (0.5 + 0.5 * randf()))
 	if randf() < dt * 4.0:
 		Game.glitch = maxf(Game.glitch, 0.4)
 
@@ -344,12 +311,12 @@ func _end(p: CharacterBody3D, kill := false) -> void:
 	if _dome != null:
 		_dome.queue_free()
 		_dome = null
-	for a: AudioStreamPlayer in [_wind, _hum, _drone]:
-		if a != null and is_instance_valid(a):
-			a.queue_free()
-	_wind = null
-	_hum = null
-	_drone = null
+	if _wind != null and is_instance_valid(_wind):
+		_wind.queue_free()
+		_wind = null
+	if _scream != null and is_instance_valid(_scream):
+		_scream.queue_free()
+		_scream = null
 
 	if kill:
 		Game.kill_player("FALLING INTO THE VOID", Game.DeathType.NONE)
@@ -383,6 +350,7 @@ func _exit_tree() -> void:
 	if Gfx.post_mat:
 		Gfx.post_mat.set_shader_parameter("fall_fade", 0.0)
 
+## The same wind stream synthesis as pit_fall.gd _make_wind()
 static func _make_wind() -> AudioStreamWAV:
 	var rate := 22050
 	var secs := 2.5
