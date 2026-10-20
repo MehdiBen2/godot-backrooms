@@ -23,7 +23,7 @@ const Breathing := preload("res://scripts/Audio/breathing.gd")
 # the switch clicked on an empty torch: three recorded takes (audio/CREDITS.txt), one at random each press
 const DEAD_CLICKS := ["items/torch/battery_dead_click_1.wav", "items/torch/battery_dead_click_2.wav",
 	"items/torch/battery_dead_click_3.wav"]
-const HUM_VOLUME := 0.061         # AUDIO.humVolume: gentle ballast buzz
+const HUM_VOLUME := 0.037        # gentle ballast buzz (web game's AUDIO.humVolume 0.061, backed off ~2 dB: the tubes sat a little loud)
 const HUM_HABITUATED := 0.35        # AUDIO.humHabituatedLevel
 const HUM_HABIT_TIME := 14.0        # AUDIO.humHabituationTime
 const DRONE_BASE := 0.15

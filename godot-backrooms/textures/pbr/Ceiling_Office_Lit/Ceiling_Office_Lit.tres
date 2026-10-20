@@ -23,6 +23,7 @@ emission_texture = ExtResource("4")
 metadata/shader_params = {
 "ao_light_affect": 0.3,
 "dead_lens": 1.0,
+"lens_edge": 0.45,
 "lens_gloss": 1.0,
 "panel_dim": 0.07,
 "panel_flicker": 0.01,

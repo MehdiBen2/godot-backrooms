@@ -156,6 +156,7 @@ void fragment() {
 	float keep = 1.0 - smoothstep(0.08, 0.25, tpp);
 	float px_m = length(fwidth(world));                         // metres a pixel (taken here: not inside a branch)
 	float pd = panel_dist(p, tsz * 0.5);
+	float lens_k = clamp(-pd / max(tsz * 0.5, 0.001), 0.0, 1.0);   // 0 at the lens frame, 1 at its middle
 
 	vec3 alb;
 	vec3 nm;
@@ -183,7 +184,7 @@ void fragment() {
 			float at = (floor(hash12(pid + 33.1) * 3.0) - 1.0) * 0.27;   // which lamp, across the panel
 			dead = 1.0 - 0.7 * (1.0 - smoothstep(0.05, 0.18, abs(l.y * flip.y - at)));
 		}
-		emit *= tone * gain * mix(0.82, 1.08, lamp) * dead * mix(lens_edge, 1.0, smoothstep(0.0, 0.2, -pd));
+		emit *= tone * gain * mix(0.82, 1.08, lamp) * dead * mix(lens_edge, 1.0, smoothstep(0.0, 1.0, lens_k));
 	} else {
 		alb = textureGrad(tile_albedo, uv, gx, gy).rgb * albedo_tint;
 		nm = textureGrad(tile_normal, uv, gx, gy).rgb;

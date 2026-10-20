@@ -222,7 +222,10 @@ void fragment() {
 	float pool = 1.0 - smoothstep(1.0, cell * 1.1, length(to_lit));
 	vec2 p = world - round(world / cell) * cell;
 	float pd = panel_dist(p, vec2(tile_size * 0.5));
-	emit *= mix(lens_edge, 1.0, smoothstep(0.0, 0.2, -pd));
+	// The diffuser: brightest over the middle of the lens and dimming smoothly out to its frame across the whole
+	// panel. (It faded over the last 0.2 m only, so the lens read as a flat lit rectangle with a thin border.)
+	float lens_k = clamp(-pd / max(tile_size * 0.5, 0.001), 0.0, 1.0);
+	emit *= mix(lens_edge, 1.0, smoothstep(0.0, 1.0, lens_k));
 	// each panel its own: a little more or less light than its neighbours, three tubes behind the diffuser
 	// (across the cell's x), now and then one of them out. Settled to an even glow far off, where the bands
 	// would only shimmer.

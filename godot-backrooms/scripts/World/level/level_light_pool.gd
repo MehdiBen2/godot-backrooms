@@ -96,6 +96,7 @@ var slot_weight: Array[float] = []
 var slot_target: Array[float] = []
 var slot_on: Array[float] = []     # 0..1: lit under the quality cap (eased, so a light never pops)
 var slot_want: Array[bool] = []
+var slot_shadow: Array[bool] = []  # slot rank says it should cast (shadow cap); _update_pool applies it only while lit
 var slot_single: Array[float] = [] # 0..1: how far a shadowed slot has pulled its two tube ends into one light
 var _rank_timer := 0.0
 var _candidates: Array = []
@@ -163,6 +164,7 @@ func _build_light_pool() -> void:
 		slot_target.append(0.0)
 		slot_on.append(0.0)
 		slot_want.append(false)
+		slot_shadow.append(false)
 		slot_single.append(0.0)
 		var g := OmniLight3D.new()
 		g.light_color = LIGHT_COLOR
@@ -367,6 +369,7 @@ func _rank_slots() -> void:
 	var order: Array[int] = []
 	for i in POOL_SIZE:
 		slot_want[i] = false
+		slot_shadow[i] = false
 		if slot_fixture[i] != null:
 			order.append(i)
 	order.sort_custom(func(a: int, b: int) -> bool: return slot_fixture[a].dsq < slot_fixture[b].dsq)
@@ -384,8 +387,9 @@ func _rank_slots() -> void:
 			hidden_left -= 1
 		# a shadowless light on a tube you can't see would only shine through the wall at you
 		slot_want[i] = r < _lit_cap and (shadow or seen)
-		if pool[i].shadow_enabled != shadow:
-			pool[i].shadow_enabled = shadow
+		# (recorded here; _update_pool casts only while the slot is actually lit, so a tube that has faded out
+		# down the hall, or whose lamp has gone, stops drawing a shadow map of the room every frame)
+		slot_shadow[i] = shadow
 		# your own body's shadow (player_shadow.gd) is cast by the nearest tube only. A shadow map is drawn again
 		# whenever anything in it moves, and the body moves every frame: cast into every shadowed tube it had all
 		# of them re-render the room each frame (~1 ms of GPU). The others now keep the map they have.
@@ -412,6 +416,12 @@ static func _move(l: Node3D, p: Vector3) -> void:
 static func _energy(l: Light3D, e: float) -> void:
 	if absf(l.light_energy - e) > 0.0005:
 		l.light_energy = e
+
+## Cast a shadow or not, written only when it changes: enabling one is a whole extra pass over the room. A slot
+## that has faded out, or lost its tube, was still holding its map (the rank only ever turned casting on).
+static func _shadow(l: Light3D, on: bool) -> void:
+	if l.shadow_enabled != on:
+		l.shadow_enabled = on
 
 func _update_pool(delta: float) -> void:
 	var p := player.global_position
@@ -450,6 +460,7 @@ func _update_pool(delta: float) -> void:
 		if f == null:
 			_energy(l, 0.0)
 			l.visible = false
+			_shadow(l, false)
 			lb.visible = false
 			ceil_glow[i].visible = false
 			continue
@@ -464,6 +475,8 @@ func _update_pool(delta: float) -> void:
 		_range(l, reach)
 		_range(lb, reach)
 		l.visible = energy > 0.002
+		# ...and its shadow map only while it is lit: it used to cast at any distance until the rank reshuffled it
+		_shadow(l, slot_shadow[i] and energy > 0.02)
 		# its own lamp's white (written only when it changes: a slot taking a new tube, the zone's white moving)
 		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)      # (events' tint: every light, not just the tubes' faces)
 		if not l.light_color.is_equal_approx(col):
@@ -491,7 +504,7 @@ func _update_pool(delta: float) -> void:
 		# so a shadowed slot eases both ends into one centred light instead. Far away the tube reads as a
 		# point anyway: no twin, and the single light carries all of the energy (it used to keep only half,
 		# so every tube doubled in brightness as you came within TWIN_RANGE).
-		slot_single[i] = _ease_to(slot_single[i], 1.0 if l.shadow_enabled else 0.0, k)
+		slot_single[i] = _ease_to(slot_single[i], 1.0 if slot_shadow[i] else 0.0, k)
 		var twin := (1.0 - slot_single[i]) if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0
 		lb.visible = l.visible and twin > 0.01
 		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin

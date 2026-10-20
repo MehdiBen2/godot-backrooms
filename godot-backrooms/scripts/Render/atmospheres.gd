@@ -27,7 +27,7 @@ const LOOKS := {
 	#   - the far end of a hall fades into the dim, slightly warm air of the room, not into a yellow haze.
 	"classic": {
 		"ambient_energy": 0.38, "ambient_color": Color(0.4, 0.37, 0.27),   # a low, warm bounce floor: gaps stay dim
-		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7), "gi_ceil": 0.0,       # the bounce's strength and tint (yellow walls, beige carpet); a faint lift on the ceiling
+		"gi": 0.4, "gi_tint": Color(1.0, 0.9, 0.7), "gi_ceil": 0.028,     # the bounce's strength and tint (yellow walls, beige carpet); a faint lift on the ceiling (level_lighting.gd GI_CEIL_DIM: 0.0 here lerped the ceiling's lift away in an open classic room)
 		"exposure": 1.0, "agx_white": 4.0,                                 # mid-tones in the middle; the panels clip, the walls don't
 		"glow_threshold": 1.0,                                             # only the HDR panels bloom (a lit wall, or a torch on one, does not)
 		"glow_intensity": 1.6, "glow_bloom": 0.1, "glow_wide": 0.8,        # each panel bleeds over its frame, a soft halo wider out

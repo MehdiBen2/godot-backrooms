@@ -19,6 +19,7 @@ uniform float tiles_across = 8.0;        // tiles in one repeat of it (Tile_Whit
 uniform float panel_tiles = 4.0;         // a panel is this many tiles square
 uniform float round_spots = 0.0;         // 1: the light is a small round downlight (any tile colour), not a block of tiles
 uniform float spot_radius = 0.17;        // m
+uniform float lens_edge = 0.78;          // a lit lens's brightness at its frame, of its middle (as panel_ceiling.gdshader)
 uniform float cell = 4.5;                // level_data.gd CELL
 uniform float ao_light_affect = 0.2;
 // Found-footage bounce light off the room below (level_lighting.gd drives it, as for the other ceilings), pooled
@@ -74,6 +75,10 @@ void fragment() {
 	float peak = max(glow, 1.0);
 	vec3 emit = COLOR.rgb * lit * mix(face, 0.8, far_k) * mix(1.0, 1.0 / peak, far_k);
 	emit *= mix(1.0, mix(1.0, plastic * 1.12, round_spots), 1.0 - far_k);   // the lit diffuser: brightest at the middle, fine ridges and grain in it
+	// the block of tiles is a diffuser too: brightest over its middle, dimming to its frame (it used to glow dead
+	// flat, so it read as a rectangle of light stuck on the ceiling). Settles flat far off, where it is a few pixels
+	float panel_k = clamp(1.0 - max(abs(local.x), abs(local.y)) / max(half_w, 0.001), 0.0, 1.0);
+	emit *= mix(1.0, mix(lens_edge, 1.0, smoothstep(0.0, 1.0, panel_k)), (1.0 - round_spots) * (1.0 - far_k));
 	vec2 to_lit = (fract(world / (2.0 * cell) + 0.5) - 0.5) * 2.0 * cell;
 	float pool = 1.0 - smoothstep(1.0, cell * 1.1, length(to_lit));
 	EMISSION = emit + ALBEDO * ceiling_fill * mix(fill_between, 1.0, pool);

@@ -321,7 +321,7 @@ const POCKET := 16
 const LIGHT_CLEAR := 0.6              # metres a light keeps off a wall's face
 const SPOT_CLEAR := 0.2               # metres off a wall's face a spot of floor has to be to count
 const GAP_REACH := 2.0 * 4.5          # metres: how far the tube lighting a spot may be (level_data.gd CELL): the
-                                      # grids' own spacing, so open floor is left as the grids lay it...
+									  # grids' own spacing, so open floor is left as the grids lay it...
 const GAP_REACH_WALLED := 5.0         # ...but within GAP_NEAR_WALL of a wall off the grid (a corridor between two,
 const GAP_NEAR_WALL := 2.5            # where light comes from one way only and the walls drink it): this near
 var gaps_lit := 0                     # lights this pass lit (for the tools: tools/probe_light.gd)
