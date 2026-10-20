@@ -11,8 +11,8 @@ const PAUSED_FPS := 60
 func _ready() -> void:
 	Stability.trace("main: level, player, UI and audio are built; wiring them up")
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Don't position the player yet: the first floor is built a slice a frame (level_builder.gd _ready).
-	# Physics would drop them through the not-yet-existing collision. Wait for the floor, then place them.
+	player.global_position = level.spawn_pos
+	if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
 	level.player = player
 	Game.bind(player, level, self)
 	Archive.forget_all()          # tapes only keep where you stand for now: every level start logs entities from scratch
@@ -27,21 +27,14 @@ func _ready() -> void:
 	$Entity.mannequin = $Mannequin
 	$Events.mimic = $Mimic
 	ui.inventory.close_requested.connect(func(): set_inventory(false))
-	# Initial spawn or respawn: wait until the floor is solid, then place the player and unpause.
 	if Game.respawned:
+		# respawn (death.js finishRespawn): straight back into the game, no title screen
 		Game.respawned = false
 		_respawn_beside_survivor()
-		Saves.apply(self)
+		Saves.apply(self)           # a loaded save tape: back where it left off (once; a death respawns at the start)
+		set_paused(false)
 	else:
-		set_paused(true, true)      # start screen up while floor streams in
-	await level.built
-	# Floor is whole: safe to position the player on it
-	if not Game.respawned:
-		player.global_position = level.spawn_pos
-		if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
-		if player is CharacterBody3D:
-			(player as CharacterBody3D).velocity = Vector3.ZERO
-	set_paused(false)
+		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
 	var lm = get_tree().root.get_node_or_null("LoadingMusicPlayer")
 	if lm and is_instance_valid(lm) and not lm.has_meta("fading"):

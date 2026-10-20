@@ -1854,51 +1854,6 @@
           "type": "wall_spline"
         },
         {
-          "height": 0.0,
-          "pos_x": 31.5,
-          "pos_y": 45.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "thick": 0.7,
-          "type": "column"
-        },
-        {
-          "height": 0.0,
-          "pos_x": 32.0,
-          "pos_y": 44.5,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "thick": 0.7,
-          "type": "column"
-        },
-        {
-          "height": 0.0,
-          "pos_x": 31.5,
-          "pos_y": 46.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "thick": 0.7,
-          "type": "column"
-        },
-        {
-          "height": 0.0,
-          "pos_x": 33.0,
-          "pos_y": 46.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "thick": 0.7,
-          "type": "column"
-        },
-        {
-          "height": 0.0,
-          "pos_x": 33.0,
-          "pos_y": 44.5,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "thick": 0.7,
-          "type": "column"
-        },
-        {
           "elev": 0.76,
           "pos_x": 26.557,
           "pos_y": 30.846,
@@ -1931,156 +1886,45 @@
           "type": "prop_desk_lamp"
         },
         {
-          "elev": 4.15,
-          "pos_x": 18.273,
-          "pos_y": 31.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 9.65,
-          "pos_x": 19.273,
-          "pos_y": 30.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 6.35,
-          "pos_x": 19.273,
-          "pos_y": 32.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 6.75,
-          "pos_x": 18.273,
-          "pos_y": 33.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 8.5,
-          "pos_x": 17.273,
-          "pos_y": 30.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 4.4,
-          "pos_x": 17.273,
-          "pos_y": 32.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 9.0,
-          "pos_x": 16.273,
-          "pos_y": 31.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 7.1,
-          "pos_x": 16.273,
-          "pos_y": 33.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 9.1,
-          "pos_x": 17.273,
-          "pos_y": 28.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 8.6,
-          "pos_x": 16.273,
-          "pos_y": 29.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 10.55,
-          "pos_x": 15.273,
-          "pos_y": 30.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 9.05,
-          "pos_x": 14.273,
-          "pos_y": 31.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 5.1,
-          "pos_x": 15.273,
-          "pos_y": 32.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 5.6,
-          "pos_x": 14.273,
-          "pos_y": 33.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 8.8,
-          "pos_x": 15.273,
-          "pos_y": 34.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
-          "elev": 7.35,
-          "pos_x": 13.273,
-          "pos_y": 32.0,
-          "rotation": 0.0,
-          "scale": 1.0,
-          "type": "prop_road_sign",
-          "variant": 1.0
-        },
-        {
           "elev": 0.0,
           "pos_x": 18.444,
           "pos_y": 30.944,
           "rotation": 0.0,
           "scale": 1.0,
           "type": "prop_stool"
+        },
+        {
+          "closed": false,
+          "height": 0.0,
+          "points": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              1.0,
+              0.0
+            ],
+            [
+              1.5,
+              -0.5
+            ],
+            [
+              1.5,
+              -1.0
+            ],
+            [
+              2.0,
+              -1.5
+            ]
+          ],
+          "pos_x": 30.0,
+          "pos_y": 44.5,
+          "rotation": 0.0,
+          "scale": 1.0,
+          "smooth": true,
+          "thick": 0.3,
+          "type": "wall_spline"
         }
       ],
       "paint": {
@@ -4081,6 +3925,24 @@
             "id": 326,
             "tl": 0.15,
             "tr": 0.15
+          },
+          {
+            "a": 330,
+            "b": 331,
+            "bulge": 0.5544,
+            "h": 0.0,
+            "id": 332,
+            "tl": 0.15,
+            "tr": 0.15
+          },
+          {
+            "a": 333,
+            "b": 334,
+            "bulge": -0.7099,
+            "h": 0.0,
+            "id": 335,
+            "tl": 0.15,
+            "tr": 0.15
           }
         ],
         "nodes": [
@@ -4928,6 +4790,26 @@
             "id": 325,
             "x": 29.1501,
             "y": 48.7896
+          },
+          {
+            "id": 330,
+            "x": 36.0,
+            "y": 42.0
+          },
+          {
+            "id": 331,
+            "x": 33.8902,
+            "y": 40.7819
+          },
+          {
+            "id": 333,
+            "x": 36.5,
+            "y": 47.5
+          },
+          {
+            "id": 334,
+            "x": 33.6983,
+            "y": 49.1176
           }
         ]
       },
@@ -4956,12 +4838,7 @@
         "moist": [],
         "muffled": [],
         "noclip": [],
-        "noclip_death": [
-          [
-            30,
-            31
-          ]
-        ],
+        "noclip_death": [],
         "noclip_floor": [],
         "open_ceiling": [],
         "safe": [],
