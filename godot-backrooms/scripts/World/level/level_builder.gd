@@ -39,9 +39,23 @@ func _ready() -> void:
 	rng.seed = _floor_seed()           # the same layout of burnt / flickering tubes every run
 	built_floor = Game.level_floor
 	load_current()
+	# different level file: in-memory floor cache is invalid
+	if _floor_cache.size() > 0 and level_index != _cached_level_index:
+		for c in _floor_cache.values():
+			if is_instance_valid(c): c.free()
+		_floor_cache.clear()
+	_cached_level_index = level_index
 	Stability.trace("level: level data loaded")
 	step_mask()                        # the nav table, now while loading, not on a monster's first flood fill
-	build_geometry()
+	# The first floor is built a slice a frame, not all at once before the first frame can be drawn: the start
+	# screen (or the death fade) is up while it streams in, instead of ~2 s of frozen screen. Same code, same
+	# slice points the floor changes already use (_build_in_stages). Only the geometry is sliced: build_lighting
+	# calls its fixture builders without awaiting them, so it has to stay straight through.
+	building_initial = true
+	slice_usec = int(INITIAL_SLICE_MS * 1000.0)
+	await build_geometry()
+	slice_usec = 0
+	building_initial = false
 	Stability.trace("level: geometry built")
 	build_lighting()
 	Stability.trace("level: lighting built")
@@ -67,6 +81,7 @@ func _ready() -> void:
 	_sync_shells()
 	_build_wrap_copies()
 	Stability.trace("level: level fully built")
+	built.emit()                       # (main.gd lets the player move again: the floor under them is whole)
 	_prewarm_floors()
 
 func _process(delta: float) -> void:
@@ -75,6 +90,7 @@ func _process(delta: float) -> void:
 	Perf.add("Level", _pt)
 
 func _process_timed(delta: float) -> void:
+	if building_initial: return        # (no fixtures to light with yet, and the floor is streaming in)
 	if rebuilding or _stub:            # no fixtures to light with until the floor is built
 		_pace_build(delta)
 		return
@@ -89,7 +105,7 @@ func _physics_process(_delta: float) -> void:
 	Perf.add("Level (physics)", _pt)
 
 func _physics_process_timed(_delta: float) -> void:
-	if rebuilding or player == null or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
+	if building_initial or rebuilding or player == null or Game.draw_mode or Game.dead or Death.respawn_busy or Game.freefall:
 		return
 	if edge_wrap: _wrap_player()          # (noclip too: flying off the edge of an endless level comes back round)
 	if Game.noclip: return
@@ -449,6 +465,9 @@ func _floor_seed() -> int:
 	return 1971 + Game.level_floor * 7919
 
 var rebuilding := false            # a floor is being built in stages (rebuild_floor_seamless): the lighting waits
+var building_initial := false      # the first floor is streaming in (level_builder.gd _ready): the lighting waits
+signal built                       # the first floor is whole (main.gd holds the player until then)
+const INITIAL_SLICE_MS := 10.0     # ms of the first floor's build a frame: the start screen still draws
 var built_floor := 0               # the floor that stands (Game.level_floor is already the next one when a rebuild is asked for)
 
 ## Seamless in-place floor transition: unloads the current floor and builds floor `f`, with no loading screen
@@ -485,9 +504,20 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	if cover != null and not falling:
 		cover.free()
 		cover = null
-	_tear_down(was, well, cover, not fresh and f != was and was in _wanted_shells(f))
+	_tear_down(was, well, cover, not fresh and (kind == "stairs" or was in _wanted_shells(f)))
 	# the same level: its file is already in memory, so the swap frame doesn't re-read and re-parse it off the disk
 	load_floor(f, {} if fresh else level_raw)
+	# in-memory cache: if we have a full floor saved for f, restore it and skip the build
+	if not fresh and f in _floor_cache and is_instance_valid(_floor_cache[f]):
+		var cached: Node3D = _floor_cache[f]
+		_floor_cache.erase(f)
+		cached.process_mode = Node.PROCESS_MODE_INHERIT
+		cached.remove_meta("cached_floor")
+		cached.remove_meta("floor_number")
+		_floor_ready()
+		if falling: prime_pool()
+		_sync_shells()
+		return
 	_place_shells()
 	if cover != null: Shell.set_height(cover, 0.0)
 	var lift := Vector3(0, float(link.get("lift", 0.0)), 0)
@@ -579,7 +609,23 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 			if is_stairs(o.type): away.add_child(stair_skin(o))
 		Shell.dress(away, Shell.layer_of(was))
 		Shell.add_lights(away, lit, through.keys() + open_above.keys(), Shell.layer_of(was), PANEL_ENERGY if panels_mm else LIGHT_ENERGY, liminal.duplicate())
-		shells[was] = away
+		if demote:
+			# Full floor cached: the cache entry has the entire floor geometry, not a cropped shell
+			# Limit cache size: evict oldest when full (floors further than FLOOR_CACHE_MAX from current)
+			if _floor_cache.size() >= FLOOR_CACHE_MAX:
+				var oldest := -1
+				var oldest_dist := 0
+				for k in _floor_cache.keys():
+					var d := absi(k - built_floor)
+					if d > oldest_dist:
+						oldest_dist = d
+						oldest = k
+				if oldest != -1 and is_instance_valid(_floor_cache[oldest]):
+					_floor_cache[oldest].free()
+				_floor_cache.erase(oldest)
+			_floor_cache[was] = away
+		else:
+			shells[was] = away
 		exit_door = null
 	stairwells.clear()
 	if keep != null: stairwells.append(keep)
@@ -649,6 +695,9 @@ func _tear_down(was: int, keep: Node, cover: Node, demote: bool) -> void:
 ## rebuild took.
 var _held := {}        # floor -> the materials its last build used
 var _kept := {}        # res:// path -> Resource
+var _floor_cache := {}  # floor -> full floor Node3D (disabled) for instant stair returns
+var _cached_level_index := -1
+const FLOOR_CACHE_MAX := 8     # keep at most this many full floors in memory
 
 func _keep(r: Resource, mats: Array) -> void:
 	if r == null: return
