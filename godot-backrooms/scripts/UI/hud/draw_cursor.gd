@@ -32,7 +32,7 @@ func _draw() -> void:
 		return
 	var n: Vector3 = (hit.normal as Vector3).normalized()
 	var p: Vector3 = hit.position
-	# a metre across the surface, so the ring matches what sketch_marks.ribbon() will draw there
+	# one line width across the surface, so the ring matches what sketch_marks.ribbon() will draw there
 	var right := n.cross(Vector3.UP)
 	if right.length() < 0.01:
 		right = n.cross(Vector3.RIGHT)
@@ -48,8 +48,10 @@ func _draw() -> void:
 	if r < 1.0:
 		r = 1.0
 	var c := get_viewport().get_mouse_position()
-	var col: Color = Color(sketch.color, 0.9) if ui.tool != "eraser" else Color(0.92, 0.9, 0.84, 0.9)
-	col.a = 0.75
+	var ink: Color = sketch.color
+	var col := Color(ink.r, ink.g, ink.b, 0.75)
+	if ui.tool == "eraser":
+		col = Color(0.92, 0.9, 0.84, 0.75)
 	draw_arc(c, r, 0.0, TAU, 48, Color(0.0, 0.0, 0.0, 0.5), 3.0, true)
 	draw_arc(c, r, 0.0, TAU, 48, col, 1.4, true)
 	draw_line(c - Vector2(3.0, 0.0), c + Vector2(3.0, 0.0), col, 1.0, true)

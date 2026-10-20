@@ -115,15 +115,16 @@ func add_many(lines: Array, n: Vector3, st: Dictionary) -> void:
 		_drop_mesh(placed[key].pop_front().id)
 	_done({"op": "addmany", "list": made})
 
-## Rub out the stroke under the point `p` on a surface facing `n` (the newest where they cross)
-func remove_near(p: Vector3, n: Vector3) -> bool:
+## Rub out the stroke under the point `p` on a surface facing `n` (the newest where they cross). `radius`
+## is how far from the point a line still counts: the panel's ERASER SIZE, or ERASE_RADIUS for H.
+func remove_near(p: Vector3, n: Vector3, radius := ERASE_RADIUS) -> bool:
 	var list: Array = placed.get(MarkStore.key(), [])
 	for i in range(list.size() - 1, -1, -1):
 		var s: Dictionary = list[i]
 		if (s.n as Vector3).dot(n) < 0.95 or absf((s.n as Vector3).dot(p - s.pts[0])) > 0.05:
 			continue
 		for q in s.pts:
-			if (q as Vector3).distance_to(p) <= maxf(ERASE_RADIUS, float(s.w)):
+			if (q as Vector3).distance_to(p) <= maxf(radius, float(s.w)):
 				list.remove_at(i)
 				_drop_mesh(s.id)
 				_done({"op": "del", "s": s, "i": i})

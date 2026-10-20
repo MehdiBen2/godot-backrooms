@@ -3,8 +3,9 @@ extends Node
 ##  - keys: hold B looking at a wall, floor or ceiling within REACH and drag your aim across it; N changes
 ##    the colour, hold H on a line to rub it out.
 ##  - the draw tools panel (draw_ui.gd, Y): the mouse cursor is the pen. The MARKER tool draws under the
-##    left button, the ERASER rubs out; the panel sets the colour, width, wobble, opacity, dashes and
-##    whether it is FREEHAND or a straight LINE.
+##    left button (hold SHIFT as you start for a straight line), the ERASER rubs out a line within the
+##    panel's ERASER SIZE; the panel sets the colour, width, wobble, opacity, dashes, whether it is
+##    FREEHAND or a straight LINE, and the stamp's size, rotation and random tilt.
 ## The line stays when you let go (sketch_marks.gd). No inventory needed and no limit but MAX_POINTS a
 ## line. A line can't jump onto another surface: it ends where the surface does. Built by hud.gd.
 
@@ -35,6 +36,9 @@ var shape := "freehand"          # freehand / line
 
 var stamp := "eye"               # the STAMP tool's design (scary_stamps.gd)
 var stamp_size := 1.0            # m across
+var stamp_rotation := 0.0        # degrees, on top of the surface's upright
+var stamp_jitter := true         # a little random tilt, so repeated stamps don't look printed
+var erase_radius := SketchMarks.ERASE_RADIUS   # m: the panel's ERASER SIZE
 
 var drawing := false
 var _pts: Array = []
@@ -77,7 +81,8 @@ func _process(dt: float) -> void:
 	_color_down = c_down
 	var pen_down: bool = can and (Input.is_physical_key_pressed(KEY) \
 		or (_cursor() and ui.tool == "marker" and ui.world_lmb))
-	var erase_down: bool = can and (Input.is_physical_key_pressed(KEY_ERASE) \
+	# with the panel open, H would otherwise erase at the cursor on its way to Ctrl+H (draw_ui hides the panel)
+	var erase_down: bool = can and ((not _cursor() and Input.is_physical_key_pressed(KEY_ERASE)) \
 		or (_cursor() and ui.tool == "eraser" and ui.world_lmb))
 	var stamp_now: bool = can and _cursor() and ui.tool == "stamp" and ui.world_lmb
 	if stamp_now and not _stamp_down:
@@ -94,10 +99,10 @@ func _process(dt: float) -> void:
 func _erase() -> void:
 	var hit := _aim()
 	if not hit.is_empty():
-		SketchMarks.live.remove_near(hit.position, (hit.normal as Vector3).normalized())
+		SketchMarks.live.remove_near(hit.position, (hit.normal as Vector3).normalized(), erase_radius)
 
 ## Press a scary design onto the surface under the cursor, upright on a wall and facing the way you look
-## on a floor or ceiling, with a little random tilt
+## on a floor or ceiling, turned by the panel's ROTATE and with a little random tilt unless it is off
 func _stamp() -> void:
 	var hit := _aim()
 	if hit.is_empty():
@@ -114,7 +119,7 @@ func _stamp() -> void:
 	else:
 		up = (up - n * up.dot(n)).normalized()
 	var right := up.cross(n).normalized()
-	var tilt := randf_range(-0.12, 0.12)
+	var tilt := deg_to_rad(stamp_rotation) + (randf_range(-0.12, 0.12) if stamp_jitter else 0.0)
 	var half := stamp_size * 0.5
 	var pen := {"col": Color(color, opacity), "w": width, "wob": wobble, "style": style, "shape": "freehand"}
 	var lines: Array = []
@@ -166,7 +171,9 @@ func _step() -> void:
 		drawing = true
 		_pts = [p]
 		_n = n
-		_pen = {"col": Color(color, opacity), "w": width, "wob": wobble, "style": style, "shape": shape}
+		# holding SHIFT as the stroke starts draws it as a straight line to where it ends
+		var started := "line" if Input.is_physical_key_pressed(KEY_SHIFT) else shape
+		_pen = {"col": Color(color, opacity), "w": width, "wob": wobble, "style": style, "shape": started}
 		_preview = MeshInstance3D.new()
 		_preview.mesh = _mesh
 		_preview.material_override = SketchMarks.material()
@@ -202,6 +209,6 @@ func _finish() -> void:
 func _show() -> void:
 	if _cursor():
 		return                   # the panel shows the pen
-	_label.text = "MARKER: " + SketchMarks.COLOR_NAMES[_palette] + "   (B draw, N colour, H erase, Y tools)"
+	_label.text = "MARKER: " + SketchMarks.COLOR_NAMES[_palette] + "   (B draw, N colour, H erase, Shift line, Y tools)"
 	_label.add_theme_color_override("font_color", color.lightened(0.25))
 	_label_t = 1.6
