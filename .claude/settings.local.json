@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem -Recurse -Path \"godot-backrooms/levels\" -Include \"*.gd\", \"*.tscn\", \"*.lvl\", \"*.json\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(git diff *)"
     ]
   },
   "enabledMcpjsonServers": [

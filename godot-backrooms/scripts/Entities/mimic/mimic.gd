@@ -79,7 +79,7 @@ const LURE_PATIENCE := Vector2(6.0, 9.0) # s it waits for you to show before it 
 const LURE_BOLT := 2.5               # m: catch up with it and it runs
 const LURE_BAIT_SHORT := 3           # cells short of the Bacteria it stops
 const LURE_HEAR := 35.0              # m: the noise it makes there, for the Bacteria
-const LURE_CUT_GAP := 480.0          # s since the last power cut before a dead end can cut the lights
+const LURE_CUT_GAP := 960.0          # s since the last power cut before a dead end can cut the lights
 
 var level: Node
 var player: CharacterBody3D

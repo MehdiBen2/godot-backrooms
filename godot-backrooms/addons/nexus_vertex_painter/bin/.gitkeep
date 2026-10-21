@@ -1,2 +1,0 @@
-# Compiled GDExtension libraries go here (windows/, linux/, macos/).
-# Build from project root: cd src && scons platform=windows target=editor
