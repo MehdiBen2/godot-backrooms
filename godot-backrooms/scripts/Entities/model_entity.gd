@@ -41,6 +41,8 @@ var last_error := ""          # why the last debug_spawn() failed, for the conso
 
 func _ready() -> void:
 	if placed: return
+	if model != "" and ResourceLoader.exists(model):
+		ResourceLoader.load_threaded_request(model)      # read ahead: its first spawn doesn't stall the frame on the disk
 	level = get_parent().get_node("Level")
 	player = get_parent().get_node("Player")
 	nav = GridNav.new(level)

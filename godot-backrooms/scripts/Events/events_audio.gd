@@ -375,6 +375,36 @@ func _event_hound_pacing() -> void:
 				return false
 		return t < 60.0)
 
+# ---------------------------------------------------------------- stalker's tell
+# Footsteps trail you from behind, one for each of yours. Keep the torch on and it holds its distance; switch it
+# off and it closes, step by step, until it is breathing at your neck.
+const STALK_START := 14.0       # m behind you
+const STALK_CLOSE := 1.4        # m/s it gains in the dark
+const STALK_ARRIVE := 2.0
+
+func _event_stalker_tell() -> void:
+	var st := {"last": player.global_position, "gap": STALK_START, "step": 0.0}
+	haunt(0.4)
+	watch(func(dt: float, t: float) -> bool:
+		var p := player.global_position
+		var b := player.global_transform.basis
+		var fwd := Vector3(-b.z.x, 0.0, -b.z.z).normalized()
+		var mv := Vector2(p.x - st.last.x, p.z - st.last.z).length()
+		st.last = p
+		var closed := 0.0 if player.flash_on else minf(STALK_CLOSE * dt, st.gap)
+		st.gap -= closed
+		st.step += mv + closed
+		if st.step >= 0.85:
+			st.step = 0.0
+			var at: Vector3 = p - fwd * st.gap + Vector3.UP * 0.1
+			var vol := clampf(1.0 - st.gap / 20.0, 0.3, 0.95)
+			later(rng.randf_range(0.1, 0.25), func(): _carpet_step(at, vol))
+		if st.gap <= STALK_ARRIVE:
+			scares.breath_behind(p - fwd * 1.2 + Vector3.UP * 1.2)
+			haunt(1.0)
+			return false
+		return t < 60.0)
+
 # ---------------------------------------------------------------- footsteps behind the walls
 # A recording of someone walking, heavy, on the far side of the wall beside you. It walks a line parallel to where
 # you face, a few metres off behind the drywall: from ahead of you to just past you, and fades out down the hall.

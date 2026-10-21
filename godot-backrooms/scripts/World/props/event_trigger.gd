@@ -19,7 +19,8 @@ const REARM := 5.0             # s: an every-time trigger waits at least this lo
 const CAPTION_IN := 1.2
 const CAPTION_HOLD := 3.5
 const CAPTION_OUT := 2.2
-const REACH := 2.25            # m past the box's edge a tube still counts as over it (lights_out / flicker)
+const STILL_SPEED := 0.2       # m/s: slower than this in the box counts as standing still (dwell)
+const REACH := 2.25           # m past the box's edge a tube still counts as over it (lights_out / flicker)
 
 var level: Node
 var key := ""                  # this trigger in level.fired_triggers
@@ -30,6 +31,14 @@ var text := ""
 var once := true
 var delay := 0.0
 var duration := 20.0
+var on_exit := false           # fires when you walk back out of the box instead of in
+var nth := 1                   # fires from this visit on: 1 = the first time in, 3 = the third
+var speed := "any"             # "run": only if you cross it sprinting; "creep": only if you cross it crouched
+var dwell := 0.0               # > 0: fires once you have stood still in the box this many seconds (not on_exit / speed)
+var _entries := 0              # times you have walked in (this load)
+var _still := 0.0              # s stood still in the box this visit
+var _dwelled := false          # (this visit's dwell has fired)
+var _last_pos := Vector3.ZERO
 var _was_in := false
 var _ready_at := 0.0
 var listen := false            # context_voice: watching what happens to you while you're in the box
@@ -82,11 +91,15 @@ func setup(l: Node, o: Dictionary, cell: float) -> void:
 	once = bool(o.get("once", true))
 	delay = maxf(0.0, float(o.get("delay", 0.0)))
 	duration = maxf(1.0, float(o.get("duration", 20.0)))
+	on_exit = bool(o.get("on_exit", false))
+	nth = maxi(1, int(o.get("nth", 1)))
+	speed = str(o.get("speed", "any"))
+	dwell = maxf(0.0, float(o.get("dwell", 0.0)))
 	key = "%d|%.3f|%.3f|%s" % [Game.level_floor, o.pos_x, o.pos_y, ",".join(event_list)]
 	listen = event_list.has("context_voice")
 	event_list = event_list.filter(func(e): return e != "context_voice")
 
-func _process(_dt: float) -> void:
+func _process(dt: float) -> void:
 	if not Game.playing or level == null: return
 	if once and level.fired_triggers.has(key):
 		set_process(false)
@@ -95,7 +108,21 @@ func _process(_dt: float) -> void:
 	if p == null or not is_instance_valid(p): return
 	var l := global_transform.affine_inverse() * p.global_position
 	var inside := absf(l.x) <= half.x and absf(l.z) <= half.z and l.y > -1.0 and l.y < half.y * 2.0
-	if inside and not _was_in and Game.time >= _ready_at and not _ran_once:
+	var entered := inside and not _was_in
+	if entered:
+		_entries += 1
+		_still = 0.0
+		_dwelled = false
+	var crossed: bool
+	if dwell > 0.0:
+		var moved := Vector2(p.global_position.x - _last_pos.x, p.global_position.z - _last_pos.z).length()
+		_still = _still + dt if inside and moved <= STILL_SPEED * dt else 0.0
+		crossed = inside and not _dwelled and _still >= dwell
+		if crossed: _dwelled = true
+	else:
+		crossed = ((_was_in and not inside) if on_exit else entered) and _speed_ok(p)
+	_last_pos = p.global_position
+	if crossed and _entries >= nth and Game.time >= _ready_at and not _ran_once:
 		_ready_at = Game.time + maxf(REARM, delay)
 		if once:
 			if listen: _ran_once = true            # (fired for good once the voice has said its line)
@@ -104,8 +131,15 @@ func _process(_dt: float) -> void:
 			if delay > 0.0: get_tree().create_timer(delay, false).timeout.connect(_run)
 			else: _run()
 	if listen:
-		_listen(inside, not _was_in)
+		_listen(inside, entered)
 	_was_in = inside
+
+## speed_gate: does the way you are moving as you cross the box's edge pass this trigger's Speed
+func _speed_ok(p: Node3D) -> bool:
+	match speed:
+		"run": return bool(p.get("is_sprinting"))
+		"creep": return bool(p.get("is_crouching"))
+	return true
 
 ## context_voice: a few times a second, what is true of you now that wasn't at the last look; the first chance
 ## the voice has (not mid-line, Duration since the last one), it says something about it
@@ -157,7 +191,7 @@ func _show_text() -> void:
 ## Run by the host in co-op: monsters (a guest's are puppets of the host's) and the director's events
 ## (shared by everyone). Everything else here is what this player alone sees and hears.
 const HOST_EVENTS := ["spawn_bacteria", "spawn_mimic"]
-const LOCAL_EVENTS := ["message", "text", "alert", "context_voice", "lights_out", "flicker", "silence", "thump", "drone", "static",
+const LOCAL_EVENTS := ["message", "text", "alert", "context_voice", "lights_out", "flicker", "silence", "reverse_ambience", "thump", "drone", "static",
 	"spawn_mannequin", "camera_shake", "sanity_drain", "hallucination", "noclip_death", "void_death", "pain_death", "pain_area"]
 
 func _execute_event(ev: String) -> void:
@@ -206,6 +240,9 @@ func _execute_event(ev: String) -> void:
 		"silence":
 			var amb := root.get_node_or_null("Audio/Ambience")
 			if amb != null: amb.hush_for(0.02, duration)
+		"reverse_ambience":
+			var amb := root.get_node_or_null("Audio/Ambience")
+			if amb != null: amb.play_reversed(minf(duration, 12.0))
 		"thump", "drone", "static":
 			var scares := root.get_node_or_null("Scares")
 			if scares == null: return

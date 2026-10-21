@@ -1,4 +1,4 @@
-extends "res://scripts/Player/player_squeeze.gd"
+extends "res://scripts/Player/player_body.gd"
 ## First-person controller. Values mirror PLAYER_DEFAULTS / JUMP in the web game.
 ## Movement reads PHYSICAL keys, so WASD works as ZQSD on AZERTY (and any other layout).
 ##
@@ -431,20 +431,6 @@ func _step_up(dt: float) -> void:
 	global_position.y += rise
 	step_ease -= rise
 
-## Walking up or down a stairwell flight (its sloped solid underfoot, props/stairs.gd tags it), not a landing
-func _on_stair_flight() -> bool:
-	if get_floor_normal().y > 0.97:
-		return false
-	for i in get_slide_collision_count():
-		var c := get_slide_collision(i)
-		if c.get_normal().y > 0.5:
-			var sh = c.get_collider_shape()
-			if sh is Node and sh.has_meta("surface"):
-				stair_tread = float(sh.get_meta("tread", 0.0))
-				stair_tread_base = float(sh.get_meta("tread_base", 0.0)) + (sh as Node3D).global_position.y   # (world height)
-				return true
-	return false
-
 ## How far your footsteps carry right now (the entity's hearing multiplies by this)
 func step_noise() -> float:
 	return footsteps.noise() if footsteps else 1.0
@@ -519,91 +505,6 @@ func _back_to_spawn() -> void:
 	was_airborne = false
 	air_time = 0.0
 
-## How lit the spot you stand on is: the level's tubes in the backrooms, the sky (day / night cycle) outdoors,
-## and daylight everywhere in a level with the day look
-func ambient_light() -> float:
-	if Game.outdoors:
-		return Game.day_light
-	if level == null: return 1.0
-	return level.tube_light_at(global_position)
-
-## Crouched, crawling or squeezed through a slit: no room to hold the torch up, the head lamp is on instead
-func _tight_spot() -> bool:
-	return is_crouching or crawl_k > 0.5 or tight_k > 0.4
-
-func _update_head_lamp(dt: float) -> void:
-	if head_lamp == null:
-		return
-	var goal := 1.0 if _tight_spot() and not dead else 0.0
-	_head_k = move_toward(_head_k, goal, dt * (4.0 if goal > _head_k else 2.5))
-	head_lamp.light_energy = HEAD_LAMP_ENERGY * _head_k
-	head_lamp.visible = _head_k > 0.01
-
-## Immediate partial alignment during rapid mouse motion to prevent TAA flashlight ghosting
-func _sync_flashlight_aim(factor: float) -> void:
-	if not is_instance_valid(flash) or not flash.visible:
-		return
-	var lens := cam.global_position
-	if torch != null and torch.visible:
-		lens = torch.lens()
-	var where := _lens_clear_of_walls(cam.global_position, lens)
-	beam_pos = beam_pos.lerp(where, factor)
-	flash.global_position = beam_pos
-	var fwd := -cam.global_transform.basis.z * 16.0
-	var tilt := 0.0 if (Game.hide_hud or Game.hide_hands) else beam_tilt
-	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -tilt)
-	flash_target = flash_target.lerp(want, factor)
-	if flash_target.distance_to(beam_pos) > 0.01:
-		flash.look_at(flash_target, Vector3.UP)
-
-## Dynamic velocity rejection tuning for flashlight beam:
-## Dynamically scales tracking rate with angular look delta. When turning rapidly, tracking ramps up
-## to 85.0/s to eliminate the multi-frame lag that creates temporal ghost trails, while easing down
-## to smooth organic 24.0/s during subtle breathing movement.
-func _update_flashlight_aim(dt: float) -> void:
-	if not is_instance_valid(flash) or not flash.visible:
-		return
-	var dip_target := 0.0
-	if torch != null and not (Game.hide_hud or Game.hide_hands):
-		dip_target = torch.lower * 0.28 + (1.0 - torch.raise) * 0.5
-	var tilt_target := 0.0 if (Game.hide_hud or Game.hide_hands) else clampf(dip_target, 0.0, BEAM_TILT_MAX)
-	beam_tilt = lerpf(beam_tilt, tilt_target, minf(1.0, 8.0 * dt))
-	var lens := cam.global_position
-	if torch != null and torch.visible:
-		lens = torch.lens()
-	var where := _lens_clear_of_walls(cam.global_position, lens)
-	var pos_rate := lerpf(30.0, 95.0, clampf(beam_pos.distance_to(where) * 4.0, 0.0, 1.0))
-	beam_pos = where if beam_pos.distance_to(where) > 2.0 else beam_pos.lerp(where, minf(1.0, pos_rate * dt))
-	flash.global_position = beam_pos
-	var fwd := -cam.global_transform.basis.z * 16.0
-	var current_tilt := 0.0 if (Game.hide_hud or Game.hide_hands) else beam_tilt
-	var want := beam_pos + fwd.rotated(cam.global_transform.basis.x, -current_tilt)
-	var look_delta := (want - flash_target).length()
-	var track_rate := lerpf(24.0, 85.0, clampf(look_delta * 3.0, 0.0, 1.0))
-	flash_target = flash_target.lerp(want, minf(1.0, track_rate * dt))
-	if flash_target.distance_to(beam_pos) > 0.01:
-		flash.look_at(flash_target, Vector3.UP)
-
-# The lens hangs ~0.4 m in front of your eye, so pressed up against a wall it sits inside the geometry
-# and the beam vanishes with it. Only level walls count: a creature passing between your eye and the
-# torch must not move your light.
-func _lens_clear_of_walls(from: Vector3, lens: Vector3) -> Vector3:
-	if from.distance_to(lens) < 0.01:
-		return lens
-	var space := get_world_3d().direct_space_state
-	if space == null:
-		return lens
-	var q := PhysicsRayQueryParameters3D.create(from, lens)
-	q.exclude = [get_rid()]
-	for i in 3:
-		var hit := space.intersect_ray(q)
-		if hit.is_empty():
-			return lens
-		if hit.collider is StaticBody3D:
-			return from
-		q.exclude.append(hit.rid)                       # a body in the way is not a wall: look past it
-	return lens
-
 ## Load a battery pack worth `charge` % (hud.gd, R). The hands change the cells (torch_model.gd swap()):
 ## the light is out while the cap is off, and the charge goes in when it's back on. Without the arms it
 ## just goes in.
@@ -628,53 +529,7 @@ func trigger_flicker(secs: float) -> void:
 	flicker_left = maxf(flicker_left, secs)
 	if torch: torch.smack()
 
-# Loose contact: long steady stretches, then a burst of dropouts
-func _contact_flicker(dt: float) -> float:
-	var fl := flash_flicker
-	fl.timer -= dt
-	if fl.timer > 0.0: return 1.0
-	if not fl.active:
-		fl.active = true
-		fl.step = 0.0
-		if torch: torch.smack()                         # a loose contact: knock it
-	fl.step -= dt
-	if fl.step <= 0.0:
-		fl.step = 0.03 + randf() * 0.05
-		var cut := randf() < 0.4
-		fl.value = 0.03 if cut else 0.2 + randf() * 0.8
-		var forced := flicker_left > 0.0
-		if forced: flicker_left -= fl.step
-		if (forced and flicker_left <= 0.0) or (not forced and randf() < 0.08):
-			flicker_left = 0.0
-			fl.active = false
-			fl.value = 1.0
-			fl.timer = 9.0 + randf() * 18.0
-	return fl.value
 
-
-# A slipping mind hurts. Below HURT_SANITY the body starts to fail (faster the lower it goes), the
-# picture smears and doubles (insanity, read by the post shader) and the heart runs. Recovering
-# sanity stops the bleed, and health then creeps back once you are properly calm again.
-func _update_mind(dt: float) -> void:
-	var target := clampf((INSANE_BELOW - sanity) / INSANE_BELOW, 0.0, 1.0)
-	insanity += (target - insanity) * minf(1.0, dt * 1.5)
-	if Game.god_mode:
-		health = 100.0
-		return
-	if sanity < HURT_SANITY:
-		var sev := 1.0 - sanity / HURT_SANITY
-		health = maxf(0.0, health - (0.6 + 3.0 * sev * sev) * dt)
-		hurt_tick -= dt
-		if hurt_tick <= 0.0:            # a throb of pain with the drain
-			hurt_tick = 2.2 - 1.4 * sev
-			Game.add_glitch(0.12 + 0.25 * sev)
-			Game.beat()
-		if Game.heart != null:
-			Game.heart.feed("mind", 0.25 + 0.5 * sev)
-		if health <= 0.0 and not dead and not frozen:
-			Game.kill_player("PSYCHOLOGICAL COLLAPSE")
-	elif sanity > CALM_SANITY and health < 100.0:
-		health = minf(100.0, health + 0.8 * dt)
 
 ## Player gasps in fright (e.g. when seized or startled by an entity)
 func gasp() -> void:

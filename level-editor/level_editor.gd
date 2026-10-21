@@ -88,6 +88,10 @@ var td_width: SpinBox
 var td_depth: SpinBox
 var td_delay: SpinBox
 var td_duration: SpinBox
+var td_nth: SpinBox
+var td_exit: CheckBox
+var td_dwell: SpinBox
+var td_speed: OptionButton
 
 func _ready() -> void:
 	_apply_ui_scale(_load_ui_scale())
@@ -1418,11 +1422,42 @@ func _build_trigger_dialog() -> void:
 	td_duration.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	opt_grid.add_child(td_duration)
 
+	opt_grid.add_child(_label("Fires on visit #:", 13, DIM))
+	td_nth = SpinBox.new()
+	td_nth.min_value = 1.0
+	td_nth.max_value = 20.0
+	td_nth.step = 1.0
+	td_nth.tooltip_text = "1 = the first time the player walks in, 3 = the third time (and after, unless Once)"
+	td_nth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_nth)
+
+	opt_grid.add_child(_label("Dwell (seconds):", 13, DIM))
+	td_dwell = SpinBox.new()
+	td_dwell.min_value = 0.0
+	td_dwell.max_value = 120.0
+	td_dwell.step = 0.5
+	td_dwell.suffix = " s"
+	td_dwell.tooltip_text = "0 = off. Otherwise fires once the player has stood still in the box this long (ignores Fire on exit and Speed)"
+	td_dwell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_dwell)
+
+	opt_grid.add_child(_label("Speed gate:", 13, DIM))
+	td_speed = OptionButton.new()
+	for s in ["any", "run", "creep"]:
+		td_speed.add_item(s.capitalize())
+	td_speed.tooltip_text = "Run: only fires if the player crosses the edge sprinting. Creep: only if crouched"
+	td_speed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opt_grid.add_child(td_speed)
+
 	tv.add_child(opt_grid)
 
 	td_once = CheckBox.new()
 	td_once.text = "Trigger only once (first time entered)"
 	tv.add_child(td_once)
+
+	td_exit = CheckBox.new()
+	td_exit.text = "Fire when the player walks out, not in"
+	tv.add_child(td_exit)
 
 	scroll.add_child(tv)
 	trigger_dialog.add_child(scroll)
@@ -1546,6 +1581,10 @@ func _open_trigger_dialog(idx: int) -> void:
 	td_depth.value = float(_param(o, "depth", 2.0))
 	td_delay.value = float(_param(o, "delay", 0.0))
 	td_duration.value = float(_param(o, "duration", 10.0))
+	td_nth.value = float(_param(o, "nth", 1))
+	td_exit.button_pressed = bool(_param(o, "on_exit", false))
+	td_dwell.value = float(_param(o, "dwell", 0.0))
+	td_speed.selected = maxi(0, ["any", "run", "creep"].find(str(_param(o, "speed", "any"))))
 
 	trigger_dialog.popup_centered(Vector2(500, 520))
 
@@ -1577,6 +1616,10 @@ func _on_trigger_dialog_confirmed() -> void:
 	o["depth"] = td_depth.value
 	o["delay"] = td_delay.value
 	o["duration"] = td_duration.value
+	o["nth"] = int(td_nth.value)
+	o["on_exit"] = td_exit.button_pressed
+	o["dwell"] = td_dwell.value
+	o["speed"] = ["any", "run", "creep"][td_speed.selected]
 	place_scales["trigger"] = o["scale"]
 	_sync_inspector()
 	_mark_dirty()

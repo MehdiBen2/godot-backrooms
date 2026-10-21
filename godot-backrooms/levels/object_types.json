@@ -504,7 +504,22 @@
       "text": "",
       "once": true,
       "delay": 0.0,
-      "duration": 20.0
+      "duration": 20.0,
+      "on_exit": false,
+      "nth": 1,
+      "speed": "any",
+      "dwell": 0.0
+    },
+    "choices": {
+      "speed": {
+        "any": "Fires however the player crosses the edge",
+        "run": "Only if the player crosses the edge sprinting",
+        "creep": "Only if the player crosses the edge crouched"
+      }
+    },
+    "ranges": {
+      "nth": [1, 20, 1, "", "fires from this visit on: 1 = the first time the player walks in, 3 = the third"],
+      "dwell": [0.0, 120.0, 0.5, " s", "0 = off. Otherwise fires once the player has stood still in the box this long (ignores Fire on exit and Speed)"]
     },
     "events": {
       "message": "Camcorder TV message with black box at top of screen",
@@ -513,6 +528,8 @@
       "lights_out": "The tubes over the box die for Duration seconds, then re-strike",
       "flicker": "The tubes over the box stutter",
       "silence": "The ambience drains away for Duration seconds; only the hum is left",
+      "reverse_ambience": "A stretch of the ambience plays backwards for Duration seconds (max 12)",
+      "stalkerTell": "Director event: footsteps trail you from behind, one for each of yours; torch on it holds back, torch off it closes until it breathes at your neck",
       "thump": "A heavy footstep behind you",
       "drone": "A low drone swells for Duration seconds",
       "static": "A burst of static",
@@ -1436,5 +1453,15 @@
   "prop_painting_21": {"label": "Painting 21", "color": "7a5a3a", "help": "A framed medieval painting for a wall (3.33 x 0.13 m, 1.40 m high). Point at a wall in the 3D view (F4) and click: it hangs on that wall", "thickness": 0.13, "model": "res://models/props/paintings/medieval_paintings.glb", "model_nodes": ["cuadro_21"], "center": true, "fit": ["h", 1.4], "model_yaw": 90, "mount": "wall", "collide": "none", "footprint": [0.13, 3.335], "params": {"elev": 1.2}, "category": "props"},
   "prop_painting_22": {"label": "Painting 22", "color": "7a5a3a", "help": "A framed medieval painting for a wall (2.77 x 0.13 m, 1.40 m high). Point at a wall in the 3D view (F4) and click: it hangs on that wall", "thickness": 0.13, "model": "res://models/props/paintings/medieval_paintings.glb", "model_nodes": ["cuadro_22"], "center": true, "fit": ["h", 1.4], "model_yaw": 90, "mount": "wall", "collide": "none", "footprint": [0.13, 2.769], "params": {"elev": 1.2}, "category": "props"},
   "prop_painting_23": {"label": "Painting 23", "color": "7a5a3a", "help": "A framed medieval painting for a wall (1.11 x 0.13 m, 1.40 m high). Point at a wall in the 3D view (F4) and click: it hangs on that wall", "thickness": 0.13, "model": "res://models/props/paintings/medieval_paintings.glb", "model_nodes": ["cuadro_23"], "center": true, "fit": ["h", 1.4], "model_yaw": 90, "mount": "wall", "collide": "none", "footprint": [0.13, 1.11], "params": {"elev": 1.2}, "category": "props"},
-  "prop_cables": {"label": "Hanging cables", "color": "2a2a2e", "help": "A swag of thin black cables sagging between two points. Off floor: where its bottom hangs (3.9 m puts its ends at a 5.4 m ceiling) (3.00 x 0.58 m, 1.52 m high)", "thickness": 3.0, "model": "res://models/props/cables/cables.glb", "center": true, "fit": ["x", 3.0], "collide": "none", "footprint": [3.0, 0.58], "params": {"elev": 3.88}, "category": "props"}
+  "prop_cables": {"label": "Hanging cables", "color": "2a2a2e", "help": "A swag of thin black cables sagging between two points. Off floor: where its bottom hangs (3.9 m puts its ends at a 5.4 m ceiling) (3.00 x 0.58 m, 1.52 m high)", "thickness": 3.0, "model": "res://models/props/cables/cables.glb", "center": true, "fit": ["x", 3.0], "collide": "none", "footprint": [3.0, 0.58], "params": {"elev": 3.88}, "category": "props"},
+  "outpost_glass_wall": {"label": "Outpost glass wall (4.5 m)", "color": "4a6a5a", "help": "Bulletproof laminated glass over a tan panel, steel mullions every 1.5 m. Its front (the arrow) is the visitor side. Line them up to make the T.S.R.A. outpost's security partition. (4.50 x 0.16 m, 3.1 m high)", "thickness": 0.16, "model": "res://models/props/tsra_outpost/outpost_glass_wall.glb", "center": true, "footprint": [0.16, 4.5], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_glass_wall_short": {"label": "Outpost glass wall (2.25 m)", "color": "4a6a5a", "help": "Bulletproof laminated glass over a tan panel, steel mullions every 1.5 m. Its front (the arrow) is the visitor side. Line them up to make the T.S.R.A. outpost's security partition. (2.25 x 0.16 m, 3.1 m high)", "thickness": 0.16, "model": "res://models/props/tsra_outpost/outpost_glass_wall_short.glb", "center": true, "footprint": [0.16, 2.25], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_glass_door": {"label": "Outpost glass door", "color": "4a6a5a", "help": "A steel-framed bulletproof glass doorway in the outpost partition: the gap is the way through, the grey leaf beside it is fixed. (1.80 x 0.16 m, 3.1 m high)", "thickness": 0.16, "model": "res://models/props/tsra_outpost/outpost_glass_door.glb", "center": true, "footprint": [0.16, 1.8], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_glass_counter": {"label": "Outpost service window", "color": "4a6a5a", "help": "A bulletproof glass panel with a speak grille and a document tray: the reception window of the outpost. (2.25 x 0.5 m, 3.1 m high)", "thickness": 0.5, "model": "res://models/props/tsra_outpost/outpost_glass_counter.glb", "center": true, "footprint": [0.5, 2.25], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_desk": {"label": "Outpost desk", "color": "8a8a80", "help": "A steel tanker desk: laminate top in an aluminium edge band, two putty-grey pedestals (a box drawer over a file drawer each), a pencil drawer over the kneehole. Its front (the arrow) is where you sit (1.52 x 0.76 m, 0.75 m high)", "thickness": 0.76, "model": "res://models/props/tsra_outpost/outpost_desk.glb", "center": true, "footprint": [0.76, 1.52], "surface_h": 0.75, "params": {"elev": 0.0}, "category": "props"},
+  "outpost_desk_single": {"label": "Outpost desk (single pedestal)", "color": "8a8a80", "help": "The outpost's steel tanker desk with one pedestal and a closed end panel. Its front (the arrow) is where you sit (1.20 x 0.76 m, 0.75 m high)", "thickness": 0.76, "model": "res://models/props/tsra_outpost/outpost_desk_single.glb", "center": true, "footprint": [0.76, 1.2], "surface_h": 0.75, "params": {"elev": 0.0}, "category": "props"},
+  "outpost_chair": {"label": "Outpost office chair", "color": "2a2a2a", "help": "An 80s office task chair: charcoal tweed cushions, a black steel back spine and loop arms, a five-star base on twin-wheel casters. Its front (the arrow) is where its knees point (0.74 x 0.74 m, 1.08 m high)", "thickness": 0.72, "model": "res://models/props/tsra_outpost/outpost_chair.glb", "center": true, "footprint": [0.72, 0.72], "collide": "none", "params": {"elev": 0.0}, "category": "props"},
+  "outpost_cabinet_tall": {"label": "Outpost steel cabinet", "color": "6f7a7a", "help": "A tall grey steel cabinet with glass upper doors and shelves (0.90 x 0.45 m, 1.90 m high)", "thickness": 0.45, "model": "res://models/props/tsra_outpost/outpost_cabinet_tall.glb", "center": true, "footprint": [0.45, 0.9], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_cabinet_low": {"label": "Outpost low cabinet", "color": "c8c5b8", "help": "A white low cabinet with a worktop and a glass-fronted wall unit (0.90 x 0.50 m, 1.15 m high)", "thickness": 0.5, "model": "res://models/props/tsra_outpost/outpost_cabinet_low.glb", "center": true, "footprint": [0.5, 0.9], "params": {"elev": 0.0}, "category": "props"},
+  "outpost_corkboard": {"label": "Outpost notice board", "color": "8a5a36", "help": "A framed cork notice board with pinned papers, for a wall. Its back sits on the wall and the arrow points out into the room (1.24 x 0.84 m). In the 3D view (F4) point at a wall and click: it goes on that wall, at that height", "thickness": 0.05, "model": "res://models/props/tsra_outpost/outpost_corkboard.glb", "footprint": [0.05, 1.24], "mount": "wall", "collide": "none", "params": {"elev": 1.0}, "category": "props"}
 }

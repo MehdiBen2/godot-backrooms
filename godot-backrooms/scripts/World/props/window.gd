@@ -81,7 +81,7 @@ const WINDOW_LAYER := 1 << 16      # the window's own frame, bars and glass: its
 const ALL_LAYERS := (1 << 20) - 1
 const SUN_MAX := 3.0               # the most a window's sun may be (a ceiling lamp's pool is about 1: sunlight is far brighter)
 const SUN_SOFT := 0.012            # how far the sun's width spreads a shadow's edge, per metre from what casts it
-const FADE := 34.0                 # m: past this the window's lights (and their shadows) fade out together
+const FADE := 60.0                 # m: past this the window's lights (and their shadows) fade out together
 
 ## `ceiling`: the ceiling height of the room it looks into (a panorama runs up to just under it). `solid`: is a
 ## point (in the level) inside a wall block (no bounce light is put in a wall)

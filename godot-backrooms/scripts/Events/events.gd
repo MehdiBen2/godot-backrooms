@@ -19,7 +19,7 @@ func _ready() -> void:
 
 # ---------------------------------------------------------------- definitions
 func define(def: Dictionary) -> void:
-	var d := {"weight": 1.0, "cooldown": 180.0, "duration": 10.0, "intensity": 0.5,
+	var d := {"random": true, "weight": 1.0, "cooldown": 180.0, "duration": 10.0, "intensity": 0.5,
 		"when": Callable(), "score": Callable()}
 	d.merge(def, true)
 	events.append(d)
@@ -79,6 +79,10 @@ func _define_events() -> void:
 	define({"name": "houndPacing", "weight": 1.1, "cooldown": 480.0, "duration": 60.0, "intensity": 0.6,
 		"when": func(c): return c.since_last > 40.0,
 		"run": _event_hound_pacing})
+	define({"name": "stalkerTell", "random": false, "weight": 0.9, "cooldown": 600.0, "duration": 60.0, "intensity": 0.6,
+		"when": func(c): return c.since_last > 40.0,
+		"score": func(c): return 1.3 if c.dark else 1.0,
+		"run": _event_stalker_tell})
 	define({"name": "wallFootsteps", "weight": 1.2, "cooldown": 360.0, "duration": 20.0, "intensity": 0.5,
 		"when": func(c): return c.since_last > 35.0,
 		"score": func(c): return (1.3 if c.dark else 1.0) * (1.2 if c.still > 3.0 else 1.0),

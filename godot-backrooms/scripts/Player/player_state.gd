@@ -1,7 +1,7 @@
 extends CharacterBody3D
 ## Player state: the constants, signals and fields shared by every part of the controller. Behaviour is
-## layered on top, each file extending the one before: player_view.gd (head, stamina, flashlight, sanity),
-## player_doors.gd (the door scene), player_squeeze.gd (slits, crawling, wall hands), player.gd (input and movement).
+## layered on top: player_body.gd (head and camera, flashlight, mind, door scene, squeeze and wall hands),
+## then player.gd (input, movement, physics tick).
 
 const Footsteps := preload("res://scripts/Player/footsteps.gd")
 const TorchModel := preload("res://scripts/Player/torch_model.gd")
@@ -326,3 +326,11 @@ static func beam_cookie() -> Texture2D:
 			img.set_pixel(x, y, Color(val, val, val, 1.0))
 	_beam_tex = ImageTexture.create_from_image(img)
 	return _beam_tex
+
+## Grabbed, snapped or dead: the camcorder drops from your eye at once, so the sequences that take the
+## view over start from the plain field of view
+func _drop_lens() -> void:
+	lens_up = 0.0
+	lens_zoom = 1.0
+	if is_instance_valid(cam):
+		cam.fov = fov_flat

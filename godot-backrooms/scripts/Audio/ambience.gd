@@ -134,6 +134,7 @@ var _silence_air := 0.0
 
 func _ready() -> void:
 	rng.randomize()
+	_prefetch()
 	audio = get_parent()
 	player = audio.player
 	lp = AudioServer.get_bus_effect(AudioServer.get_bus_index("Ambience"), 1) as AudioEffectLowPassFilter
@@ -150,6 +151,55 @@ func hush_for(level: float, seconds: float) -> void:
 	hush = minf(hush, level) if now < _hush_until else level
 	_hush_until = maxf(_hush_until, now + seconds)
 
+## A stretch of one of the 16-bit wav beds played backwards for `seconds`, the bed itself stepped back under it.
+## The reversing is a few hundred thousand samples, so it is done on a worker thread, not in the frame.
+func play_reversed(seconds: float) -> void:
+	var wavs: Array[int] = []
+	for i in TRACKS.size():
+		var w := _stream(i) as AudioStreamWAV
+		if w != null and w.format == AudioStreamWAV.FORMAT_16_BITS and not w.data.is_empty():
+			wavs.append(i)
+	if wavs.is_empty():
+		return
+	var idx := wavs[rng.randi() % wavs.size()]
+	var src := _stream(idx) as AudioStreamWAV
+	var ch := 2 if src.stereo else 1
+	var frames := src.data.size() / (2 * ch)
+	var take := mini(frames, int(seconds * src.mix_rate))
+	var start := rng.randi_range(0, frames - take)
+	var done := {"out": PackedByteArray()}          # (a lambda copies what it captures: the result goes back through this)
+	var task := WorkerThreadPool.add_task(func():
+		var d := src.data
+		var o := PackedByteArray()
+		o.resize(take * ch * 2)
+		for f in take:
+			var from := (start + take - 1 - f) * ch
+			for c in ch:
+				o.encode_s16((f * ch + c) * 2, d.decode_s16((from + c) * 2))
+		done.out = o)
+	while not WorkerThreadPool.is_task_completed(task):
+		await get_tree().process_frame
+	WorkerThreadPool.wait_for_task_completion(task)
+	var rev := AudioStreamWAV.new()
+	rev.format = AudioStreamWAV.FORMAT_16_BITS
+	rev.mix_rate = src.mix_rate
+	rev.stereo = src.stereo
+	rev.data = done.out
+	var secs := take / float(src.mix_rate)
+	var p := AudioStreamPlayer.new()
+	p.stream = rev
+	p.bus = "Ambience"
+	p.volume_linear = 0.0
+	add_child(p)
+	p.play()
+	hush_for(0.15, secs)
+	var gain: float = TRACKS[idx].gain * ClipLevels.gain(DIR + TRACKS[idx].file, BED_RMS, -1.0) * BASE * 1.6 * audio.vol.ambient
+	var tw := p.create_tween()
+	tw.tween_property(p, "volume_linear", gain, minf(2.0, secs * 0.3))
+	tw.tween_interval(maxf(0.0, secs * 0.7 - 2.0))
+	tw.tween_property(p, "volume_linear", 0.0, minf(2.0, secs * 0.3))
+	tw.tween_callback(p.queue_free)
+
 # ---------------------------------------------------------------- mood
 func _target_tension() -> float:
 	var dark := 1.0 - clampf(player.light_level / 0.5, 0.0, 1.0)
@@ -161,10 +211,31 @@ func _target_tension() -> float:
 		t = maxf(t, 0.7)
 	return clampf(t, 0.0, 1.0)
 
+## Read ahead on loader threads so the first _pick() doesn't decode every bed in one frame
+func _prefetch() -> void:
+	for t in TRACKS:
+		var path: String = DIR + t.file
+		if ResourceLoader.exists(path):
+			ResourceLoader.load_threaded_request(path, "AudioStream")
+
+## null while a bed is still loading (not cached: asked again next time) or not importable (cached)
 func _stream(i: int) -> AudioStream:
-	if not streams.has(i):
-		var path: String = DIR + TRACKS[i].file
-		streams[i] = load(path) if ResourceLoader.exists(path) else null    # null until Godot has imported it
+	if streams.has(i):
+		return streams[i]
+	var path: String = DIR + TRACKS[i].file
+	if not ResourceLoader.exists(path):
+		streams[i] = null                      # null until Godot has imported it
+		return null
+	match ResourceLoader.load_threaded_get_status(path):
+		ResourceLoader.THREAD_LOAD_LOADED:
+			streams[i] = ResourceLoader.load_threaded_get(path) as AudioStream
+		ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+			return null
+		ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
+			ResourceLoader.load_threaded_request(path, "AudioStream")    # never asked for
+			return null
+		_:
+			streams[i] = load(path)
 	return streams[i]
 
 # Weighted pick: tracks whose mood matches now, never the one just played, never one already up

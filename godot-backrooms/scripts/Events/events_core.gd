@@ -260,7 +260,7 @@ func trigger_random(force := false, c := {}) -> String:
 	var pool: Array = []
 	var total := 0.0
 	for e in events:
-		if not eligible(e, c, force):
+		if not e.random or not eligible(e, c, force):      # (random: false = only a trigger zone / debug call runs it)
 			continue
 		var s := score_of(e, c)
 		if s > 0.0:

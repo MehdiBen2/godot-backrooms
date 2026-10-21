@@ -5818,26 +5818,6 @@
       "type": "prop_work_light2"
     },
     {
-      "custom_event": "",
-      "delay": 0.0,
-      "depth": 12.5,
-      "duration": 20.0,
-      "event": "spawn_bacteria",
-      "events_list": [
-        {
-          "custom_event": "",
-          "event": "spawn_bacteria"
-        }
-      ],
-      "once": true,
-      "pos_x": 63.5,
-      "pos_y": 57.0,
-      "rotation": 90.0,
-      "scale": 4.0,
-      "text": "",
-      "type": "trigger"
-    },
-    {
       "elev": 0.0,
       "pos_x": 27.5,
       "pos_y": 14.5,

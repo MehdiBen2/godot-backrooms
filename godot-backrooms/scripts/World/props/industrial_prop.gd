@@ -98,8 +98,8 @@ func build_info(info: Dictionary, with_light := true) -> void:
 			mi.material_override = mat
 		elif glow > 0.0:
 			_set_glow(mi, glow)
-		mi.visibility_range_end = 45.0
-		mi.visibility_range_end_margin = 8.0
+		mi.visibility_range_end = 120.0           # well inside the horizon fog (170 m): clutter does not pop out down a corridor
+		mi.visibility_range_end_margin = 15.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		# the mesh in the model's own space, through every node between the two (a .glb often nests its mesh
 		# under nodes that turn and scale it)
@@ -279,8 +279,9 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		if cookie != null:
 			s.light_projector = cookie
 		s.distance_fade_enabled = true
-		s.distance_fade_begin = 30.0
-		s.distance_fade_length = 10.0
+		s.distance_fade_begin = 75.0
+		s.distance_fade_length = 20.0
+		s.distance_fade_shadow = 40.0           # its shadow drops first: the light's pool stays, the cost goes
 		s.position = spot_pos
 		s.rotation = Vector3(-deg_to_rad(spot_tilt), -PI * 0.5 + deg_to_rad(spot_yaw), 0.0)
 		add_child(s)
@@ -290,8 +291,8 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		glow.light_energy = float(cfg.get("glow_energy", 0.35))
 		glow.omni_range = float(cfg.get("glow_range", 1.2))
 		glow.distance_fade_enabled = true
-		glow.distance_fade_begin = 20.0
-		glow.distance_fade_length = 8.0
+		glow.distance_fade_begin = 55.0
+		glow.distance_fade_length = 12.0
 		glow.position = spot_pos + Vector3(0.04, 0.0, 0.0)
 		add_child(glow)
 
