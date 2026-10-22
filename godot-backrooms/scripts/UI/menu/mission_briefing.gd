@@ -254,12 +254,7 @@ func _build_crt() -> void:
 	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	add_child(vhs_copy)
 	var vhs := ColorRect.new()
-	var vhs_mat := ShaderMaterial.new()
-	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs_mat.set_shader_parameter("smear", 0.24)
-	vhs_mat.set_shader_parameter("wiggle", 0.012)
-	vhs_mat.set_shader_parameter("blur_samples", 9)
-	vhs.material = vhs_mat
+	vhs.material = Gfx.vhs_material()
 	add_child(vhs)
 	_full(vhs)
 

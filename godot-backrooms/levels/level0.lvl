@@ -5694,9 +5694,9 @@
       ],
       "once": false,
       "pos_x": 48.5,
-      "pos_y": 11.0,
+      "pos_y": 13.5,
       "rotation": 180.0,
-      "scale": 3.0,
+      "scale": 24.0,
       "text": "You have been here before.",
       "type": "trigger"
     },
@@ -6163,8 +6163,8 @@
       ],
       "fire_on": "enter",
       "lighting": "any",
-      "max_fires": 0,
-      "nth": 1,
+      "max_fires": 0.0,
+      "nth": 1.0,
       "once": true,
       "pos_x": 11.0,
       "pos_y": 25.0,
@@ -6199,8 +6199,8 @@
       ],
       "fire_on": "enter",
       "lighting": "any",
-      "max_fires": 0,
-      "nth": 1,
+      "max_fires": 0.0,
+      "nth": 1.0,
       "once": true,
       "pos_x": 12.0,
       "pos_y": 29.0,
@@ -6235,8 +6235,8 @@
       ],
       "fire_on": "enter",
       "lighting": "any",
-      "max_fires": 0,
-      "nth": 1,
+      "max_fires": 0.0,
+      "nth": 1.0,
       "once": true,
       "pos_x": 12.5,
       "pos_y": 33.0,
@@ -6271,8 +6271,8 @@
       ],
       "fire_on": "enter",
       "lighting": "any",
-      "max_fires": 0,
-      "nth": 1,
+      "max_fires": 0.0,
+      "nth": 1.0,
       "once": true,
       "pos_x": 12.0,
       "pos_y": 38.0,
@@ -6285,6 +6285,138 @@
       "text_style": "alert",
       "torch": "any",
       "type": "trigger"
+    },
+    {
+      "chain": "",
+      "chance": 100.0,
+      "cooldown": 5.0,
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.5,
+      "direction": "any",
+      "duration": 20.0,
+      "dwell": 3.0,
+      "event": "alert",
+      "event_mode": "all",
+      "events_list": [
+        {
+          "at": 0.0,
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "fire_on": "enter",
+      "lighting": "any",
+      "max_fires": 0,
+      "nth": 1,
+      "once": true,
+      "pos_x": 42.0,
+      "pos_y": 13.0,
+      "rotation": 0.0,
+      "sanity_below": 100.0,
+      "scale": 22.5,
+      "speed": "any",
+      "tag": "",
+      "text": "Proceed with caution.",
+      "text_style": "auto",
+      "torch": "any",
+      "type": "trigger"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.278,
+      "pos_y": 8.556,
+      "rotation": 0.0,
+      "scale": 1.5,
+      "type": "prop_box_d2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.167,
+      "pos_y": 8.611,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_box_b"
+    },
+    {
+      "elev": 0.295,
+      "pos_x": 44.162,
+      "pos_y": 8.624,
+      "rotation": 0.0,
+      "scale": 1.0,
+      "type": "prop_box_c"
+    },
+    {
+      "elev": 0.59,
+      "pos_x": 44.153,
+      "pos_y": 8.613,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_d2"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.444,
+      "pos_y": 8.556,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_b"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 43.611,
+      "pos_y": 8.556,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_box_b"
+    },
+    {
+      "elev": 0.295,
+      "pos_x": 43.615,
+      "pos_y": 8.554,
+      "rotation": 90.0,
+      "scale": 1.0,
+      "type": "prop_box_d"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 43.722,
+      "pos_y": 8.556,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_d"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 43.889,
+      "pos_y": 8.611,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_a"
+    },
+    {
+      "elev": 0.29,
+      "pos_x": 43.88,
+      "pos_y": 8.595,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_c"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 44.444,
+      "pos_y": 5.556,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_box_c"
+    },
+    {
+      "elev": 0.0,
+      "pos_x": 40.389,
+      "pos_y": 6.556,
+      "rotation": 180.0,
+      "scale": 1.0,
+      "type": "prop_stuffed_dino"
     }
   ],
   "sdfgi": true,

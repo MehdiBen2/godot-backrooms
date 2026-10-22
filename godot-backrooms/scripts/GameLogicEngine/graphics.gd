@@ -30,7 +30,7 @@ signal changed
 const PATH := "user://graphics.cfg"
 ## Bumped when the settings model changes: a graphics.cfg from an older model is replaced by the auto preset
 ## (the screen / camera / carpet choices are kept). Rev 3: render pipeline v3 (see above).
-const GFX_REV := 3
+const GFX_REV := 4
 const ORDER := ["low", "medium", "high", "ultra"]
 const SMOOTH_MAX_HZ := 165
 ## Physics at the display rate (`smooth`) on a PC that can't keep up runs several physics steps per drawn
@@ -42,13 +42,13 @@ const PHYS_WINDOW := 2.0
 ## `aniso` is not in the menu: 16x filtering costs nothing you can measure on a dedicated card and is what keeps
 ## the carpet and the ceiling grid sharp down a long hall; only Low (built for integrated GPUs) keeps it at 4x.
 const PRESETS := {
-	"low": {"scale": 100, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
+	"low": {"scale": 100, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": true, "post": 0, "aniso": 4,
 		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "hidden_shadows": 0, "far_lights": 12, "smooth": true, "banding": false, "reflections": 0, "area_lights": false},
-	"medium": {"scale": 100, "aa": 1, "shadows": 1, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+	"medium": {"scale": 100, "aa": 1, "shadows": 1, "ssao": 0, "bounce": false, "glow": true, "post": 0, "aniso": 16,
 		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "hidden_shadows": 2, "far_lights": 24, "smooth": true, "banding": false, "reflections": 2, "area_lights": false},
-	"high": {"scale": 100, "aa": 1, "shadows": 2, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+	"high": {"scale": 100, "aa": 1, "shadows": 2, "ssao": 0, "bounce": false, "glow": true, "post": 0, "aniso": 16,
 		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "hidden_shadows": 4, "far_lights": 40, "smooth": true, "banding": false, "reflections": 4, "area_lights": false},
-	"ultra": {"scale": 100, "aa": 1, "shadows": 3, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+	"ultra": {"scale": 100, "aa": 1, "shadows": 3, "ssao": 0, "bounce": false, "glow": true, "post": 0, "aniso": 16,
 		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "hidden_shadows": 6, "far_lights": 56, "smooth": true, "banding": false, "reflections": 6, "area_lights": false},
 }
 ## Per shadow tier (0 off .. 3 high): the positional shadow atlas, its filter, and whether the tubes are area
@@ -224,16 +224,34 @@ var _vhs_layer: CanvasLayer
 func set_vhs(on: bool) -> void:
 	vhs = false
 
+## The tape smear + lens material every screen shares (title, loading, briefing, a run)
+func vhs_material() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders/vhs_smear.gdshader")
+	mat.set_shader_parameter("smear", 0.15)
+	mat.set_shader_parameter("wiggle", 0.004)
+	mat.set_shader_parameter("blur_samples", 5)
+	mat.set_shader_parameter("fisheye", 0.1)
+	return mat
+
 func _build_vhs() -> void:
 	_vhs_layer = CanvasLayer.new()
 	_vhs_layer.layer = VHS_LAYER
 	_vhs_layer.visible = false
 	add_child(_vhs_layer)
+	var copy := BackBufferCopy.new()
+	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	_vhs_layer.add_child(copy)
+	var rect := ColorRect.new()
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.material = vhs_material()
+	_vhs_layer.add_child(rect)
 
 ## Only during a run: the title screen has its own VHS layer
 func _update_vhs() -> void:
-	if _vhs_layer != null and _vhs_layer.visible:
-		_vhs_layer.visible = false
+	if _vhs_layer != null:
+		_vhs_layer.visible = Game.main != null and is_instance_valid(Game.main)
 
 func set_camera(c: String) -> void:
 	if c in CAMERAS and c != camera:
@@ -276,7 +294,7 @@ func apply_scene(root: Node = null) -> void:
 		# compute effects on, and they are forced off in case an old scene or resource still has them
 		if not e.has_meta("gfx_keep"):
 			e.ssao_enabled = s.ssao > 0 and not compat
-		e.ssil_enabled = false
+		e.ssil_enabled = not compat
 		e.ssr_enabled = false
 		e.sdfgi_enabled = false
 		e.volumetric_fog_enabled = false
@@ -449,7 +467,7 @@ func _load() -> void:
 	s = PRESETS["high"].duplicate()
 	s["scale"] = 100
 	s["post"] = 0
-	s["glow"] = false
+	s["glow"] = true
 	s["bounce"] = false
 	s["banding"] = false
 

@@ -412,10 +412,7 @@ func _build() -> void:
 	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	add_child(vhs_copy)
 	var vhs := ColorRect.new()
-	var vhs_mat := ShaderMaterial.new()
-	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs.material = vhs_mat
-	vhs.visible = false
+	vhs.material = Gfx.vhs_material()
 	add_child(vhs)
 	_full(vhs)
 
@@ -759,10 +756,7 @@ func _build_loading() -> void:
 	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	loading_root.add_child(fresh)
 	var vhs := ColorRect.new()
-	var vhs_mat := ShaderMaterial.new()
-	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs.material = vhs_mat
-	vhs.visible = false
+	vhs.material = Gfx.vhs_material()
 	loading_root.add_child(vhs)
 	_full(vhs)
 
