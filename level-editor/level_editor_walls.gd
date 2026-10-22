@@ -382,7 +382,29 @@ func _wall_thick(t: String) -> float:
 
 func _wall_props(t: String) -> Dictionary:
 	var th := _wall_thick(t)
-	return {"tl": th * 0.5, "tr": th * 0.5, "h": float(_info(t).get("params", {}).get("height", 0.0))}
+	var p := {"tl": th * 0.5, "tr": th * 0.5, "h": float(_info(t).get("params", {}).get("height", 0.0))}
+	if _info(t).has("wall_mat"):                   # a wall that comes painted (the outpost's walls): both faces
+		p["mat_l"] = str(_info(t).wall_mat)
+		p["mat_r"] = str(_info(t).wall_mat)
+	return p
+
+## What a wall tool puts in each wall it lays (object_types.json "wall_fill"): "glazing" the outpost's glass the
+## length of the wall, "door" its sliding door in the middle. A wall it landed on that has openings already keeps them
+func _wall_fill(made: Array, t: String) -> void:
+	var fill := str(_info(t).get("wall_fill", ""))
+	if fill == "": return
+	for e in made:
+		if not wall_graph.edges.has(e) or not wall_graph.ops_of(e).is_empty(): continue
+		var len_m: float = wall_graph.length_of(e) * CELL_M
+		var op := {}
+		if fill == "glazing":
+			var w: float = len_m - (WallGraph.OP_GAP + 0.25) * 2.0
+			if w >= 0.6: op = WallGraph.new_opening("glazing", 0.5, {"w": w})
+		elif fill == "door" and len_m >= 1.8 + 0.4:
+			op = WallGraph.new_opening("door", 0.5, {"w": 1.8, "h": 2.45, "style": "outpost", "leaves": 1})
+		if not op.is_empty():
+			if not wall_graph.edges[e].has("ops"): wall_graph.edges[e]["ops"] = []
+			wall_graph.edges[e].ops.append(op)
 
 func _snap_opts(extra := {}) -> Dictionary:
 	var o := {"radius": wall_snap_px / zoom, "grid": SNAP_STEP if snap else 0.0, "angle_step": wall_angle_step,
@@ -564,6 +586,7 @@ func _wall_end_at(p: Vector2) -> void:
 func _wall_lay(a: Vector2, b: Vector2, bulge: float) -> void:
 	_push_undo()
 	var made: Array = wall_graph.add_wall(a, b, bulge, _wall_props(_wall_type()), WALL_TOL)
+	_wall_fill(made, _wall_type())
 	wtyped = ""
 	_walls_changed()
 	_mark_dirty()
@@ -1424,7 +1447,7 @@ func _draw_op_labels() -> void:
 	var n: Vector2 = WallGeom.normal(cv, u)
 	var at := _cells_px(WallGeom.point(cv, u)) - n * (float(ed.tr) / CELL_M * zoom + 30.0)
 	var items: Array = [["op_w", "w %.2f m" % float(op.w)], ["op_h", "h %.2f m" % float(op.h)]]
-	if str(op.kind) == "window": items.append(["op_sill", "sill %.2f m" % float(op.get("sill", 0.0))])
+	if str(op.kind) in ["window", "glazing"]: items.append(["op_sill", "sill %.2f m" % float(op.get("sill", 0.0))])
 	items.append(["op_at", "at %.2f m" % _op_from_a(wsel_op)])
 	var x := at.x - 90.0
 	for it: Array in items:
@@ -1473,13 +1496,13 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 		rs.append(_cells_px(WallGeom.point(rf, t)))
 		cs.append(_cells_px(WallGeom.point(cv, t)))
 	var kind := str(op.kind)
-	var col: Color = OBJ_INFO.get({"door": "door", "doorway": "doorway", "arch": "wall_arch", "window": "window"}.get(kind, ""), {}).get("col", CREAM)
+	var col: Color = OBJ_INFO.get({"door": "door", "doorway": "doorway", "arch": "wall_arch", "window": "window", "glazing": "outpost_glass"}.get(kind, ""), {}).get("col", CREAM)
 	var poly := PackedVector2Array(Array(ls))
 	var back := Array(rs)
 	back.reverse()
 	poly.append_array(PackedVector2Array(back))
 	if not Geometry2D.triangulate_polygon(poly).is_empty():
-		canvas.draw_colored_polygon(poly, Color(0.1, 0.095, 0.08, 0.95) if kind != "window" else Color(0.16, 0.22, 0.26, 0.95))
+		canvas.draw_colored_polygon(poly, Color(0.1, 0.095, 0.08, 0.95) if kind != "window" and kind != "glazing" else Color(0.16, 0.22, 0.26, 0.95))
 		if ghost: canvas.draw_colored_polygon(poly, Color(col, 0.35))
 	# the jambs
 	for k: int in [0, n]: canvas.draw_line(ls[k], rs[k], Color(CREAM, 0.9), 1.5)
@@ -1503,6 +1526,14 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 				canvas.draw_arc(h, len, a0, a0 + d, 16, Color(col, 0.7), 1.0)
 		"doorway":
 			canvas.draw_dashed_line(cs[0], cs[n], Color(col, 0.8), 1.0, 3.0)
+		"glazing":                        # the glass down the middle, a tick across at each mullion
+			for k in n:
+				canvas.draw_line(cs[k], cs[k + 1], Color(col, 0.95), 2.0)
+			var bays := int(op.get("panes", 0))
+			if bays <= 0: bays = maxi(1, roundi((float(op.w) - 0.14) / 1.5))
+			for k in range(1, bays):
+				var t := lerpf(t0, t1, float(k) / bays)
+				canvas.draw_line(_cells_px(WallGeom.point(lf, t)), _cells_px(WallGeom.point(rf, t)), Color(CREAM, 0.7), 1.0)
 		"arch":
 			for k in n:
 				canvas.draw_dashed_line(cs[k], cs[k + 1], Color(col, 0.9), 1.5, 4.0)

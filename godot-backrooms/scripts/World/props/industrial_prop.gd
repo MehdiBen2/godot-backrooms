@@ -8,6 +8,8 @@ extends Node3D
 ## with a "model" key). The whole instance is shifted up so the mesh's own lowest point sits on the floor,
 ## whatever unhelpful pivot the source file used - these packs don't agree on where "the ground" is.
 
+const BulletGlass := preload("res://scripts/World/props/bullet_glass.gd")
+
 static var _floodlight_cookie: Texture2D
 
 static func _get_cookie(path: String = "") -> Texture2D:
@@ -98,6 +100,8 @@ func build_info(info: Dictionary, with_light := true) -> void:
 			mi.material_override = mat
 		elif glow > 0.0:
 			_set_glow(mi, glow)
+		if info.has("glass_mats"):                 # its glass panes: the outpost's real glass (props/bullet_glass.gd)
+			BulletGlass.swap(mi, info.glass_mats)
 		mi.visibility_range_end = 120.0           # well inside the horizon fog (170 m): clutter does not pop out down a corridor
 		mi.visibility_range_end_margin = 15.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF

@@ -448,6 +448,8 @@ const WallMesh := preload("res://scripts/World/level/walls/wall_mesh.gd")
 const WallGeom := preload("res://scripts/World/level/walls/wall_geom.gd")
 const WallOpenings := preload("res://scripts/World/level/walls/wall_openings.gd")
 const OpeningTrim := preload("res://scripts/World/props/opening_trim.gd")
+const OutpostGlazing := preload("res://scripts/World/props/outpost_glazing.gd")
+const OutpostDoor := preload("res://scripts/World/props/outpost_door.gd")
 const WALL_CHUNK := 8                # cells a side: the wall graph's meshes are cut into chunks this big
 ## What wall_mesh.gd built of the floor's wall graph (not its meshes): the outlines of the walls' feet ("loops",
 ## for the skirting), their plans ("solids", for the trim to keep clear of) and their faces ("pieces", for the
@@ -535,7 +537,8 @@ func _build_openings(sol: Dictionary, holes: Dictionary) -> void:
 			var trim := {}
 			match kind:
 				"door", "doorway":
-					trim = {"lining": LINING_T, "casing_w": CASING_W, "casing_d": CASING_D, "faces": ["l", "r"]}
+					if str(op.get("style", "")) != "outpost":     # (the outpost's sliding door has its own steel frame)
+						trim = {"lining": LINING_T, "casing_w": CASING_W, "casing_d": CASING_D, "faces": ["l", "r"]}
 				"window":
 					var sky := str(op.get("glass", "sky")) == "sky"
 					var side := str(op.get("side", "l"))
@@ -553,8 +556,16 @@ func _build_openings(sol: Dictionary, holes: Dictionary) -> void:
 			var xf := WallOpenings.frame_of(h, cv)
 			var clear := (WallGeom.point(cv, h.t0) as Vector2).distance_to(WallGeom.point(cv, h.t1))
 			match kind:
-				"door": _build_wall_door(op, h, xf, clear)
+				"door":
+					if str(op.get("style", "")) == "outpost":
+						var de: Dictionary = wall_graph.edges[e]
+						add_child(OutpostDoor.make(xf, clear, float(h.y1), float(de.tl) + float(de.tr)))
+					else:
+						_build_wall_door(op, h, xf, clear)
 				"window": _build_wall_window(op, h, cv, xf)
+				"glazing":
+					var ed: Dictionary = wall_graph.edges[e]
+					add_child(OutpostGlazing.build(op, h, xf, clear, float(ed.tl) + float(ed.tr)))
 
 ## The lining in the hole of a window model (props/window.gd MODEL_FRAMES "open"): its old dark-stained wood
 var _model_lining: StandardMaterial3D

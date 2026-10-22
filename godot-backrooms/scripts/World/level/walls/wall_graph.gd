@@ -30,6 +30,9 @@ const OPENINGS := {
 	"arch": {"w": 1.8, "h": 3.0, "sill": 0.0, "walk": true, "see": true},
 	"window": {"w": 1.6, "h": 1.5, "sill": 0.9, "style": "pane", "glass": "sky", "panes": 3, "sky": "noon", "sun": 8.0,
 		"sun_angle": 35.0, "walk": false, "see": false},
+	# the T.S.R.A. outpost's bulletproof glass (props/outpost_glazing.gd): a long band of steel-framed panes over a
+	# solid dado, the wall cut through both faces; "panes" bays (0: one every 1.5 m), style "plain" / "service"
+	"glazing": {"w": 4.0, "h": 2.1, "sill": 1.05, "panes": 0, "style": "plain", "walk": false, "see": true},
 }
 const OP_MIN_W := 0.3                # metres: the narrowest opening
 const OP_GAP := 0.1                  # metres of wall kept between two openings, and between one and a corner

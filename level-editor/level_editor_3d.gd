@@ -548,7 +548,7 @@ func _graph_walls() -> void:
 		var cv: Dictionary = sol.edges[e].cv
 		for h: Dictionary in res.holes[e]:
 			var kind := str(h.kind)
-			if kind != "door" and kind != "window": continue
+			if kind != "door" and kind != "window" and kind != "glazing": continue
 			var xf: Transform3D = ed.WallOpenings.frame_of(h, cv)
 			var w: float = (ed.WallGeom.point(cv, h.t0) as Vector2).distance_to(ed.WallGeom.point(cv, h.t1))
 			var box := BoxMesh.new()

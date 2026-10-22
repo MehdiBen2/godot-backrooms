@@ -22,6 +22,7 @@ extends "res://level_editor_files.gd"
 
 const Icons := preload("res://editor_icons.gd")
 const PoseEditor := preload("res://pose_editor.gd")
+const TriggerDialog := preload("res://trigger_dialog.gd")
 ## The interface's colours: dark neutral greys and one blue accent (the map keeps its own palette)
 const UI_BG := Color("17181b")
 const UI_PANEL := Color("1f2023")
@@ -76,22 +77,10 @@ var seed_spin: SpinBox
 var swatch_buttons := {}             # pbr name -> its swatch in PAINT MATERIALS
 var mode_buttons := {}
 var view_buttons: Array = []         # [floor, ceiling]
-var trigger_dialog: ConfirmationDialog
+var trigger_dialog: TriggerDialog
 var noclip_dialog: ConfirmationDialog
 var noclip_pick: OptionButton
 var trigger_dialog_target_idx := -1
-var td_events_container: VBoxContainer
-var td_event_rows: Array = []
-var td_text: LineEdit
-var td_once: CheckBox
-var td_width: SpinBox
-var td_depth: SpinBox
-var td_delay: SpinBox
-var td_duration: SpinBox
-var td_nth: SpinBox
-var td_exit: CheckBox
-var td_dwell: SpinBox
-var td_speed: OptionButton
 
 func _ready() -> void:
 	_apply_ui_scale(_load_ui_scale())
@@ -985,6 +974,8 @@ const PROP_GROUPS := [
 		"prop_display_cabinet", "prop_sideboard", "prop_kitchen_wall", "prop_office_cubicle", "prop_hide_cabinet", "prop_metal_locker",
 		"prop_metal_shelf"]],
 	["HOME", ["prop_carpet", "prop_curtains", "prop_table_lamp", "prop_clock_radio", "prop_rotary_phone", "prop_desk_fan"]],
+	["T.S.R.A. OUTPOST", ["outpost_desk", "outpost_desk_single", "outpost_chair", "outpost_cabinet_tall", "outpost_cabinet_low",
+		"outpost_corkboard"]],
 	["DESK", ["prop_desk_lamp", "prop_ashtray", "prop_ashtray_glass", "prop_notepad", "prop_pen"]],
 	["OLD TECH", ["prop_crt_tv", "prop_vhs_player", "prop_vhs_tape", "prop_audio_reel", "prop_reel_recorder"]],
 	["SIGNS & LIGHTS", ["prop_exit_sign", "prop_exit_sign_medium", "prop_exit_sign_big", "prop_work_light", "prop_work_light2",
@@ -1345,212 +1336,11 @@ func _open_noclip_dialog() -> void:
 		noclip_pick.select(sel)
 	noclip_dialog.popup_centered(Vector2(520, 180))
 
+## The trigger dialog (trigger_dialog.gd): every option of one event trigger, applied as one undo step
 func _build_trigger_dialog() -> void:
-	trigger_dialog = ConfirmationDialog.new()
-	trigger_dialog.title = "Configure Event Trigger"
-	trigger_dialog.confirmed.connect(_on_trigger_dialog_confirmed)
-
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(460, 420)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-
-	var tv := VBoxContainer.new()
-	tv.add_theme_constant_override("separation", 10)
-	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var ev_section := VBoxContainer.new()
-	ev_section.add_theme_constant_override("separation", 6)
-	ev_section.add_child(_label("EVENT TYPE(S)", 14, GOLD))
-
-	td_events_container = VBoxContainer.new()
-	td_events_container.add_theme_constant_override("separation", 8)
-	ev_section.add_child(td_events_container)
-
-	var add_ev_btn := _button("+ ADD ANOTHER EVENT", func():
-		_add_td_event_row("message", "")
-	)
-	add_ev_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	ev_section.add_child(add_ev_btn)
-
-	tv.add_child(ev_section)
-	tv.add_child(HSeparator.new())
-
-	var opt_grid := GridContainer.new()
-	opt_grid.columns = 2
-	opt_grid.add_theme_constant_override("h_separation", 12)
-	opt_grid.add_theme_constant_override("v_separation", 6)
-
-	opt_grid.add_child(_label("Screen Text:", 13, DIM))
-	td_text = LineEdit.new()
-	td_text.placeholder_text = "Caption displayed on screen (optional)"
-	td_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_text)
-
-	opt_grid.add_child(_label("Width (cells):", 13, DIM))
-	td_width = SpinBox.new()
-	td_width.min_value = 0.5
-	td_width.max_value = 40.0
-	td_width.step = 0.5
-	td_width.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_width)
-
-	opt_grid.add_child(_label("Depth (cells):", 13, DIM))
-	td_depth = SpinBox.new()
-	td_depth.min_value = 0.5
-	td_depth.max_value = 40.0
-	td_depth.step = 0.5
-	td_depth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_depth)
-
-	opt_grid.add_child(_label("Delay (seconds):", 13, DIM))
-	td_delay = SpinBox.new()
-	td_delay.min_value = 0.0
-	td_delay.max_value = 60.0
-	td_delay.step = 0.1
-	td_delay.suffix = " s"
-	td_delay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_delay)
-
-	opt_grid.add_child(_label("Duration (seconds):", 13, DIM))
-	td_duration = SpinBox.new()
-	td_duration.min_value = 1.0
-	td_duration.max_value = 120.0
-	td_duration.step = 1.0
-	td_duration.suffix = " s"
-	td_duration.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_duration)
-
-	opt_grid.add_child(_label("Fires on visit #:", 13, DIM))
-	td_nth = SpinBox.new()
-	td_nth.min_value = 1.0
-	td_nth.max_value = 20.0
-	td_nth.step = 1.0
-	td_nth.tooltip_text = "1 = the first time the player walks in, 3 = the third time (and after, unless Once)"
-	td_nth.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_nth)
-
-	opt_grid.add_child(_label("Dwell (seconds):", 13, DIM))
-	td_dwell = SpinBox.new()
-	td_dwell.min_value = 0.0
-	td_dwell.max_value = 120.0
-	td_dwell.step = 0.5
-	td_dwell.suffix = " s"
-	td_dwell.tooltip_text = "0 = off. Otherwise fires once the player has stood still in the box this long (ignores Fire on exit and Speed)"
-	td_dwell.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_dwell)
-
-	opt_grid.add_child(_label("Speed gate:", 13, DIM))
-	td_speed = OptionButton.new()
-	for s in ["any", "run", "creep"]:
-		td_speed.add_item(s.capitalize())
-	td_speed.tooltip_text = "Run: only fires if the player crosses the edge sprinting. Creep: only if crouched"
-	td_speed.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	opt_grid.add_child(td_speed)
-
-	tv.add_child(opt_grid)
-
-	td_once = CheckBox.new()
-	td_once.text = "Trigger only once (first time entered)"
-	tv.add_child(td_once)
-
-	td_exit = CheckBox.new()
-	td_exit.text = "Fire when the player walks out, not in"
-	tv.add_child(td_exit)
-
-	scroll.add_child(tv)
-	trigger_dialog.add_child(scroll)
-	trigger_dialog.register_text_enter(td_text)       # Enter in the caption box = OK
+	trigger_dialog = TriggerDialog.new(OBJ_INFO.get("trigger", {}))
+	trigger_dialog.applied.connect(_on_trigger_dialog_applied)
 	add_child(trigger_dialog)
-
-func _add_td_event_row(ev_name: String = "flicker", custom_name: String = "") -> void:
-	var row_box := VBoxContainer.new()
-	row_box.add_theme_constant_override("separation", 3)
-
-	var top_h := HBoxContainer.new()
-	top_h.add_theme_constant_override("separation", 6)
-
-	var num_lbl := _label("Event 1:", 13, GOLD)
-	num_lbl.custom_minimum_size = Vector2(64, 0)
-	top_h.add_child(num_lbl)
-
-	var pick := OptionButton.new()
-	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
-	for e in evs:
-		pick.add_item(e)
-		pick.set_item_tooltip(pick.item_count - 1, str(evs[e]))
-	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var ev_keys: Array = evs.keys()
-	var sel_idx: int = ev_keys.find(ev_name)
-	if sel_idx < 0:
-		sel_idx = ev_keys.find("custom")
-		if sel_idx < 0: sel_idx = 0
-	pick.select(sel_idx)
-	top_h.add_child(pick)
-
-	var del_btn := Button.new()
-	del_btn.text = "X"
-	if font: del_btn.add_theme_font_override("font", font)
-	del_btn.custom_minimum_size = Vector2(28, 0)
-	del_btn.add_theme_color_override("font_color", RED)
-	top_h.add_child(del_btn)
-	row_box.add_child(top_h)
-
-	var active_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else ""
-	var hint := _label(str(evs.get(active_key, "")), 12, DIM)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row_box.add_child(hint)
-
-	var c_row := HBoxContainer.new()
-	c_row.add_child(_label("Custom Event: ", 13, CREAM))
-	var c_edit := LineEdit.new()
-	c_edit.placeholder_text = "e.g. secret_door_open"
-	c_edit.text = custom_name
-	c_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	c_row.add_child(c_edit)
-	c_row.visible = (active_key == "custom")
-	row_box.add_child(c_row)
-
-	pick.item_selected.connect(func(i):
-		var ek: Array = evs.keys()
-		if i >= 0 and i < ek.size():
-			hint.text = str(evs[ek[i]])
-			c_row.visible = (ek[i] == "custom")
-	)
-
-	var row_data := {
-		"root": row_box,
-		"header_lbl": num_lbl,
-		"pick": pick,
-		"hint": hint,
-		"custom_row": c_row,
-		"custom_edit": c_edit,
-		"remove_btn": del_btn
-	}
-
-	del_btn.pressed.connect(func():
-		_remove_td_event_row(row_data)
-	)
-
-	td_event_rows.append(row_data)
-	td_events_container.add_child(row_box)
-	_update_td_event_rows()
-
-func _remove_td_event_row(row_data: Dictionary) -> void:
-	if td_event_rows.size() <= 1: return
-	var idx := td_event_rows.find(row_data)
-	if idx >= 0:
-		td_event_rows.remove_at(idx)
-		row_data.root.queue_free()
-		_update_td_event_rows()
-
-func _update_td_event_rows() -> void:
-	for i in td_event_rows.size():
-		var r: Dictionary = td_event_rows[i]
-		r.header_lbl.text = "Event %d:" % (i + 1)
-		r.remove_btn.visible = td_event_rows.size() > 1
 
 func _open_trigger_dialog(idx: int) -> void:
 	if idx < 0 or idx >= objects.size(): return
@@ -1558,68 +1348,24 @@ func _open_trigger_dialog(idx: int) -> void:
 	if o.type != "trigger": return
 	_select(idx)
 	trigger_dialog_target_idx = idx
+	var vals := {"scale": float(o.get("scale", 2.0))}
+	for k in _info("trigger").get("params", {}):
+		vals[k] = _param(o, k)
+	var tags: Array = []                       # the other triggers' tags here, for its chain
+	for j in objects.size():
+		var tg := str(_param(objects[j], "tag", "")).strip_edges() if objects[j].type == "trigger" else ""
+		if j != idx and tg != "" and not tags.has(tg):
+			tags.append(tg)
+	tags.sort()
+	trigger_dialog.open(vals, tags)
 
-	for r in td_event_rows:
-		r.root.queue_free()
-	td_event_rows.clear()
-
-	var raw_list = o.get("events_list", [])
-	if raw_list is Array and not raw_list.is_empty():
-		for item in raw_list:
-			if item is Dictionary:
-				_add_td_event_row(str(item.get("event", "lights_out")), str(item.get("custom_event", "")))
-			elif item is String:
-				_add_td_event_row(str(item), "")
-	else:
-		var current_ev: String = str(_param(o, "event", "lights_out"))
-		var c_ev: String = str(_param(o, "custom_event", ""))
-		_add_td_event_row(current_ev, c_ev)
-
-	td_text.text = str(_param(o, "text", ""))
-	td_once.button_pressed = bool(_param(o, "once", true))
-	td_width.value = float(o.get("scale", 2.0))
-	td_depth.value = float(_param(o, "depth", 2.0))
-	td_delay.value = float(_param(o, "delay", 0.0))
-	td_duration.value = float(_param(o, "duration", 10.0))
-	td_nth.value = float(_param(o, "nth", 1))
-	td_exit.button_pressed = bool(_param(o, "on_exit", false))
-	td_dwell.value = float(_param(o, "dwell", 0.0))
-	td_speed.selected = maxi(0, ["any", "run", "creep"].find(str(_param(o, "speed", "any"))))
-
-	trigger_dialog.popup_centered(Vector2(500, 520))
-
-func _on_trigger_dialog_confirmed() -> void:
+func _on_trigger_dialog_applied(vals: Dictionary) -> void:
 	if trigger_dialog_target_idx < 0 or trigger_dialog_target_idx >= objects.size(): return
 	var o: Dictionary = objects[trigger_dialog_target_idx]
 	if o.type != "trigger": return
 	_push_undo()
-
-	var evs: Dictionary = OBJ_INFO.get("trigger", {}).get("events", {})
-	var ev_keys: Array = evs.keys()
-
-	var new_list: Array = []
-	for r in td_event_rows:
-		var sel_idx: int = r.pick.selected
-		var ev_key: String = ev_keys[sel_idx] if sel_idx >= 0 and sel_idx < ev_keys.size() else "message"
-		var c_name: String = r.custom_edit.text.strip_edges()
-		new_list.append({"event": ev_key, "custom_event": c_name})
-
-	if new_list.is_empty():
-		new_list.append({"event": "message", "custom_event": ""})
-
-	o["events_list"] = new_list
-	o["event"] = new_list[0]["event"]
-	o["custom_event"] = new_list[0]["custom_event"]
-	o["text"] = td_text.text
-	o["once"] = td_once.button_pressed
-	o["scale"] = td_width.value
-	o["depth"] = td_depth.value
-	o["delay"] = td_delay.value
-	o["duration"] = td_duration.value
-	o["nth"] = int(td_nth.value)
-	o["on_exit"] = td_exit.button_pressed
-	o["dwell"] = td_dwell.value
-	o["speed"] = ["any", "run", "creep"][td_speed.selected]
+	o.merge(vals, true)
+	o.erase("on_exit")                         # (replaced by fire_on)
 	place_scales["trigger"] = o["scale"]
 	_sync_inspector()
 	_mark_dirty()
@@ -1709,7 +1455,7 @@ func _build_inspector(side: VBoxContainer) -> void:
 	grid_box.add_child(once_lbl)
 	var once := CheckBox.new()
 	once.text = "only the first time"
-	once.tooltip_text = "Off: fires every time the player walks back in (at most every 5 s)"
+	once.tooltip_text = "Off: fires every time the player walks back in (at most every Cooldown seconds)"
 	once.toggled.connect(func(on): _set_prop("once", on))
 	grid_box.add_child(once)
 	insp_params["once"] = {"row": [once_lbl, once], "ctrl": once}
@@ -1865,7 +1611,8 @@ func _wall_insp_sync() -> void:
 var op_insp: PanelContainer
 var _oi := {}
 var _oi_rows := {}
-const DOOR_STYLES := ["level", "wood", "old_wood", "metal", "office", "glass", "security"]
+const DOOR_STYLES := ["level", "wood", "old_wood", "metal", "office", "glass", "security", "outpost"]
+const GLAZING_STYLES := ["plain", "service"]      # the outpost glass: plain panes / a reception window (speak grille, tray)
 const WINDOW_STYLES := ["pane", "arched", "porthole", "panorama", "casement", "casement_open", "shutters", "wood_night", "wood_sash"]
 const GLASSES := ["sky", "clear", "frosted"]
 const SKIES := ["noon", "golden", "overcast", "night"]
@@ -1936,12 +1683,12 @@ func _op_insp_sync() -> void:
 	if op.is_empty(): return
 	_wi_sync = true
 	var kind := str(op.kind)
-	(_oi.head as Label).text = "%s in wall %d" % [{"door": "Door", "doorway": "Doorway", "arch": "Arch", "window": "Window"}.get(kind, kind), wsel_op.e]
+	(_oi.head as Label).text = "%s in wall %d" % [{"door": "Door", "doorway": "Doorway", "arch": "Arch", "window": "Window", "glazing": "Outpost glass"}.get(kind, kind), wsel_op.e]
 	var style := str(op.get("style", ""))
 	var lit := kind == "window" and not (style in NIGHT_STYLES and str(op.get("glass", "sky")) == "sky")   # (a night one throws no light)
-	var shows := {"w": true, "h": true, "at": true, "sill": kind == "window", "leaves": kind == "door",
-		"panes": kind == "window" and not WallGraph.MODEL_WINDOWS.has(style), "sun": lit, "sun_angle": lit,
-		"style": kind == "door" or kind == "window", "glass": kind == "window", "sky": lit}
+	var shows := {"w": true, "h": true, "at": true, "sill": kind == "window" or kind == "glazing", "leaves": kind == "door",
+		"panes": (kind == "window" and not WallGraph.MODEL_WINDOWS.has(style)) or kind == "glazing", "sun": lit, "sun_angle": lit,
+		"style": kind == "door" or kind == "window" or kind == "glazing", "glass": kind == "window", "sky": lit}
 	if kind == "window" and not lit: (_oi.head as Label).text += "  (night: dark outside)"
 	for k in shows:
 		for c: Control in _oi_rows[k]: c.visible = shows[k]
@@ -1950,7 +1697,9 @@ func _op_insp_sync() -> void:
 	(_oi.sill as SpinBox).set_value_no_signal(float(op.get("sill", 0.0)))
 	(_oi.at as SpinBox).set_value_no_signal(_op_from_a(wsel_op))
 	(_oi.leaves as SpinBox).set_value_no_signal(float(op.get("leaves", 1)))
-	(_oi.panes as SpinBox).set_value_no_signal(float(op.get("panes", 3)))
+	var panes := int(op.get("panes", 3))
+	if kind == "glazing" and panes <= 0: panes = maxi(1, roundi((float(op.w) - 0.14) / 1.5))   # (0: a bay every 1.5 m)
+	(_oi.panes as SpinBox).set_value_no_signal(float(panes))
 	(_oi.sun as SpinBox).set_value_no_signal(float(op.get("sun", 8.0)))
 	(_oi.sun_angle as SpinBox).set_value_no_signal(float(op.get("sun_angle", 35.0)))
 	var fill := func(pick: OptionButton, list: Array, cur: String) -> void:
@@ -1961,7 +1710,8 @@ func _op_insp_sync() -> void:
 			pick.add_item(nm)
 			pick.set_item_metadata(i, list[i])
 		pick.select(maxi(list.find(cur), 0))
-	fill.call(_oi.style, DOOR_STYLES if kind == "door" else WINDOW_STYLES, str(op.get("style", "level" if kind == "door" else "pane")))
+	var styles: Array = DOOR_STYLES if kind == "door" else (GLAZING_STYLES if kind == "glazing" else WINDOW_STYLES)
+	fill.call(_oi.style, styles, str(op.get("style", {"door": "level", "glazing": "plain"}.get(kind, "pane"))))
 	fill.call(_oi.glass, GLASSES, str(op.get("glass", "sky")))
 	fill.call(_oi.sky, SKIES, str(op.get("sky", "noon")))
 	(_oi.btn_hinge as Button).visible = kind == "door"

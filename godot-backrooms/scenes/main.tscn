@@ -50,6 +50,7 @@ glow_strength = 1.25
 glow_bloom = 0.18
 glow_blend_mode = 0
 glow_hdr_scale = 2.6
+glow_hdr_luminance_cap = 4.0
 fog_enabled = true
 fog_light_color = Color(0.065, 0.052, 0.026, 1)
 fog_density = 0.035

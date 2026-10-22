@@ -1,5 +1,5 @@
-"""Builds the T.S.R.A. outpost prop kit (models/props/tsra_outpost/*.glb): bulletproof glass partitions, steel tanker
-desks, task chairs, cabinets, a notice board. Run inside Blender (the pieces get registered in levels/object_types.json):
+"""Builds the T.S.R.A. outpost prop kit (models/props/tsra_outpost/*.glb): steel tanker desks, task chairs, cabinets,
+a notice board. (The bulletproof glass is not a prop: it is the "glazing" opening of the smart walls, props/outpost_glazing.gd.) Run inside Blender (the pieces get registered in levels/object_types.json):
 
     blender --background --python tools/build_outpost_props.py
 
@@ -216,51 +216,6 @@ def export(name):
     parts = []
 
 
-def glass_wall(name, L, door=False, counter=False, H=3.0):
-    """A bulletproof partition: a tan painted dado with a cove base, a deep steel bezel all round (the end posts the
-    same depth and flush with the header and sill, nothing overhangs), each laminated pane held in a black gasket
-    and bolted through the steel."""
-    T, sill, top, P = 0.14, 0.95, H, 0.07                    # depth, sill height, glass head, post width
-    D = T + 0.04                                              # the bezel's depth
-    box((0, 0, 0.05), (T, L, 0.10), "base", "cove")
-    box((0, 0, 0.10 + (sill - 0.10 - 0.07) / 2), (T - 0.02, L - 2 * P, sill - 0.17), "tan", "dado")
-    box((0, 0, sill - 0.035), (D, L, 0.07), "steel", "sill")
-    box((0, 0, top + 0.07), (D, L, 0.14), "steel", "header")
-    for y in (-L / 2 + P / 2, L / 2 - P / 2):
-        box((0, y, (top + 0.14) / 2), (D, P, top + 0.14), "steel", "endpost")
-    n = max(1, round((L - 2 * P) / 1.5))
-    w = (L - 2 * P) / n                                       # pane pitch between the posts
-    for i in range(1, n):
-        box((0, -L / 2 + P + i * w, (sill + top) / 2), (D, P * 0.8, top - sill), "steel", "mullion")
-    for i in range(n):
-        y = -L / 2 + P + (i + 0.5) * w
-        if door and i == n // 2:
-            continue
-        gw, gh, gz = w - P * 0.8 - 0.02, top - sill - 0.02, (sill + top) / 2
-        box((0, y, gz), (0.035, gw, gh), "glass", "glass")
-        g = 0.02                                              # the gasket round the pane
-        for dz, sz in ((gh / 2 - g / 2, (0.05, gw, g)), (-gh / 2 + g / 2, (0.05, gw, g))):
-            box((0, y, gz + dz), sz, "gasket", "gasket")
-        for dy in (gw / 2 - g / 2, -gw / 2 + g / 2):
-            box((0, y + dy, gz), (0.05, g, gh), "gasket", "gasket")
-        for zz in (sill + 0.12, top - 0.12):                  # the bolts that hold the laminate
-            for yy in (-gw / 2 + 0.06, gw / 2 - 0.06):
-                cyl((D / 2 + 0.004, y + yy, zz), 0.014, 0.008, "bolt", "bolt", 12, rot=(0, math.pi / 2, 0))
-    if door:
-        y = -L / 2 + P + (n // 2 + 0.5) * w
-        gw, gh, gz = w - P * 0.8 - 0.02, top - sill - 0.02, (sill + top) / 2
-        box((0, y, gz), (0.04, gw, gh), "glass", "doorglass")
-        box((0, y, 0.55), (T - 0.02, gw, sill - 0.12), "grey", "doorpanel")
-        box((D / 2 + 0.03, y + gw / 2 - 0.12, 1.05), (0.05, 0.03, 0.22), "bolt", "pullhandle")
-    if counter:                                               # speak grille + document tray
-        box((0, 0, sill + 0.22), (T + 0.03, 0.3, 0.03), "gasket", "grille")
-        for k in range(5):
-            box((T / 2 + 0.02, 0, sill + 0.20 + k * 0.012), (0.006, 0.26, 0.004), "steel", "slat")
-        box((0.2, 0, sill - 0.02), (0.55, 0.5, 0.04), "steel", "tray")
-        box((0.2, 0, sill + 0.005), (0.5, 0.44, 0.012), "gasket", "traybed")
-    export(name)
-
-
 def desk(name, L, double):
     """A steel tanker desk (Steelcase 60 x 30 in, 29.5 in high): laminate top in an aluminium edge band, painted steel
     pedestals on a recessed toe kick, each a box drawer over a file drawer, a pencil drawer over the kneehole, a
@@ -372,10 +327,6 @@ def corkboard():
     export("outpost_corkboard")
 
 
-glass_wall("outpost_glass_wall", 4.5)
-glass_wall("outpost_glass_wall_short", 2.25)
-glass_wall("outpost_glass_door", 1.8, door=True)
-glass_wall("outpost_glass_counter", 2.25, counter=True)
 desk("outpost_desk", 1.52, True)
 desk("outpost_desk_single", 1.2, False)
 chair()

@@ -10,16 +10,25 @@ extends Node3D
 ## becomes true of you there (the lights die, your torch goes off or runs low, something comes close, a teammate
 ## dies, you freeze or bolt...) the machine voice says a line about it (events.gd play_context_voice). At most a
 ## line every Duration seconds; with Once, only the one.
+##
+## When it fires (`fire_on`): walking in, walking back out, or standing still inside for `dwell` seconds; from the
+## `nth` visit on. Gates, all of which must pass: how you cross the edge (`speed`: sprinting, walking, crouched;
+## `direction`: along or against the arrow), your torch, the light you stand in, your sanity, then a `chance`.
+## Repeats: Once, or every time (at most every `cooldown` s, up to `max_fires` times). Its events all run, or
+## one at random, or the next in turn (`event_mode`), each its own `at` seconds after the Delay. `chain` then
+## fires every trigger whose `tag` matches, as if you had walked into it (their own Delay and Once still hold).
 
 const Term := preload("res://scripts/UI/inventory/inventory.gd")
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")
 const CrtLayer := preload("res://scripts/UI/crt/crt_layer.gd")
 
-const REARM := 5.0             # s: an every-time trigger waits at least this long before it can fire again
+const REARM := 5.0             # s: an every-time trigger's default cooldown
 const CAPTION_IN := 1.2
 const CAPTION_HOLD := 3.5
 const CAPTION_OUT := 2.2
 const STILL_SPEED := 0.2       # m/s: slower than this in the box counts as standing still (dwell)
+const DARK_LEVEL := 0.2        # player.light_level under this counts as standing in the dark
+const GROUP := "event_triggers"
 const REACH := 2.25           # m past the box's edge a tube still counts as over it (lights_out / flicker)
 
 var level: Node
@@ -31,18 +40,32 @@ var text := ""
 var once := true
 var delay := 0.0
 var duration := 20.0
-var on_exit := false           # fires when you walk back out of the box instead of in
+var fire_on := "enter"         # enter | exit | dwell (stood still inside `dwell` seconds)
+var dwell := 3.0
 var nth := 1                   # fires from this visit on: 1 = the first time in, 3 = the third
-var speed := "any"             # "run": only if you cross it sprinting; "creep": only if you cross it crouched
-var dwell := 0.0               # > 0: fires once you have stood still in the box this many seconds (not on_exit / speed)
+var cooldown := REARM          # s an every-time trigger waits before it can fire again
+var max_fires := 0             # every-time trigger: stops after this many (0: never)
+var speed := "any"             # any | run | walk | creep: how you cross the edge (not for dwell)
+var direction := "any"         # any | along | against: which way you cross, by the arrow (not for dwell)
+var torch := "any"             # any | on | off
+var lighting := "any"          # any | lit | dark: the light where you stand
+var sanity_below := 100.0      # only while sanity is under this (100: always)
+var chance := 100.0            # % it goes ahead once everything else has passed
+var event_mode := "all"        # all | random (one of them) | cycle (the next one each time)
+var text_style := "auto"       # auto (alert bar if "alert" is one of the events, else camcorder) | camcorder | alert
+var tag := ""                  # a name other triggers' `chain` can point at
+var chain := ""                # tag of the trigger(s) this one sets off after its events
+var _steps: Array = []         # [{name, at}]: the events, each with its own seconds after the Delay
 var _entries := 0              # times you have walked in (this load)
+var _fires := 0
+var _cycle := 0
 var _still := 0.0              # s stood still in the box this visit
 var _dwelled := false          # (this visit's dwell has fired)
-var _last_pos := Vector3.ZERO
+var _last_pos := Vector3.INF
 var _was_in := false
 var _ready_at := 0.0
 var listen := false            # context_voice: watching what happens to you while you're in the box
-var _ran_once := false         # (Once with context_voice: the other events have run, the voice hasn't spoken)
+var _spent := false            # nothing more this load (Once with context_voice: the voice hasn't spoken yet; Max fires reached)
 var _heard: Array = []         # the voice's context tags at the last look
 var _pending: Array = []       # ones that became true in here and haven't been said yet
 var _look_at := 0.0
@@ -64,6 +87,7 @@ func setup(l: Node, o: Dictionary, cell: float) -> void:
 			text = ce
 
 	event_list.clear()
+	_steps.clear()
 	var raw_events = o.get("events_list", [])
 	if raw_events is Array and not raw_events.is_empty():
 		for entry in raw_events:
@@ -85,19 +109,34 @@ func setup(l: Node, o: Dictionary, cell: float) -> void:
 				ev_name = str(entry).strip_edges()
 			if ev_name != "":
 				event_list.append(ev_name)
+				_steps.append({"name": ev_name, "at": maxf(0.0, float(entry.get("at", 0.0))) if entry is Dictionary else 0.0})
 	if event_list.is_empty():
 		event_list.append(event)
+		_steps.append({"name": event, "at": 0.0})
 
 	once = bool(o.get("once", true))
 	delay = maxf(0.0, float(o.get("delay", 0.0)))
 	duration = maxf(1.0, float(o.get("duration", 20.0)))
-	on_exit = bool(o.get("on_exit", false))
+	fire_on = str(o.get("fire_on", "enter"))
+	dwell = maxf(0.5, float(o.get("dwell", 3.0)))
 	nth = maxi(1, int(o.get("nth", 1)))
+	cooldown = maxf(0.5, float(o.get("cooldown", REARM)))
+	max_fires = maxi(0, int(o.get("max_fires", 0)))
 	speed = str(o.get("speed", "any"))
-	dwell = maxf(0.0, float(o.get("dwell", 0.0)))
+	direction = str(o.get("direction", "any"))
+	torch = str(o.get("torch", "any"))
+	lighting = str(o.get("lighting", "any"))
+	sanity_below = clampf(float(o.get("sanity_below", 100.0)), 0.0, 100.0)
+	chance = clampf(float(o.get("chance", 100.0)), 0.0, 100.0)
+	event_mode = str(o.get("event_mode", "all"))
+	text_style = str(o.get("text_style", "auto"))
+	tag = str(o.get("tag", "")).strip_edges()
+	chain = str(o.get("chain", "")).strip_edges()
 	key = "%d|%.3f|%.3f|%s" % [Game.level_floor, o.pos_x, o.pos_y, ",".join(event_list)]
 	listen = event_list.has("context_voice")
 	event_list = event_list.filter(func(e): return e != "context_voice")
+	_steps = _steps.filter(func(s): return s.name != "context_voice")
+	add_to_group(GROUP)
 
 func _process(dt: float) -> void:
 	if not Game.playing or level == null: return
@@ -108,38 +147,73 @@ func _process(dt: float) -> void:
 	if p == null or not is_instance_valid(p): return
 	var l := global_transform.affine_inverse() * p.global_position
 	var inside := absf(l.x) <= half.x and absf(l.z) <= half.z and l.y > -1.0 and l.y < half.y * 2.0
+	if _last_pos == Vector3.INF:
+		_last_pos = p.global_position
+	var step := p.global_position - _last_pos      # this frame's move: its speed and which way it crossed
+	_last_pos = p.global_position
 	var entered := inside and not _was_in
 	if entered:
 		_entries += 1
 		_still = 0.0
 		_dwelled = false
 	var crossed: bool
-	if dwell > 0.0:
-		var moved := Vector2(p.global_position.x - _last_pos.x, p.global_position.z - _last_pos.z).length()
-		_still = _still + dt if inside and moved <= STILL_SPEED * dt else 0.0
-		crossed = inside and not _dwelled and _still >= dwell
-		if crossed: _dwelled = true
-	else:
-		crossed = ((_was_in and not inside) if on_exit else entered) and _speed_ok(p)
-	_last_pos = p.global_position
-	if crossed and _entries >= nth and Game.time >= _ready_at and not _ran_once:
-		_ready_at = Game.time + maxf(REARM, delay)
-		if once:
-			if listen: _ran_once = true            # (fired for good once the voice has said its line)
-			else: level.fired_triggers[key] = true
-		if not event_list.is_empty() or text != "":
-			if delay > 0.0: get_tree().create_timer(delay, false).timeout.connect(_run)
-			else: _run()
+	match fire_on:
+		"dwell":
+			_still = _still + dt if inside and Vector2(step.x, step.z).length() <= STILL_SPEED * dt else 0.0
+			crossed = inside and not _dwelled and _still >= dwell
+		"exit":
+			crossed = _was_in and not inside
+		_:
+			crossed = entered
+	if crossed and _entries >= nth and Game.time >= _ready_at and not _spent \
+			and _gates_ok(p, step, fire_on != "dwell"):
+		if fire_on == "dwell": _dwelled = true
+		_fire()
 	if listen:
 		_listen(inside, entered)
 	_was_in = inside
 
-## speed_gate: does the way you are moving as you cross the box's edge pass this trigger's Speed
-func _speed_ok(p: Node3D) -> bool:
-	match speed:
-		"run": return bool(p.get("is_sprinting"))
-		"creep": return bool(p.get("is_crouching"))
-	return true
+## Spent for now: the cooldown starts, Once / Max fires are counted, and its events go after the Delay
+func _fire() -> void:
+	_ready_at = Game.time + maxf(cooldown, delay)
+	_fires += 1
+	if once:
+		if listen: _spent = true                # (fired for good once the voice has said its line)
+		else: level.fired_triggers[key] = true
+	elif max_fires > 0 and _fires >= max_fires:
+		_spent = true
+	if _steps.is_empty() and text == "" and chain == "":
+		return
+	if delay > 0.0: get_tree().create_timer(delay, false).timeout.connect(_run)
+	else: _run()
+
+## Another trigger's Chain named this one's Tag: it goes as if walked into, box and gates aside
+func fire_chained() -> void:
+	if not Game.playing or _spent or Game.time < _ready_at or (once and level.fired_triggers.has(key)):
+		return
+	_fire()
+
+## Everything but the box itself: how you crossed (`edge`: entering / leaving, not dwelling), your torch, the
+## light, your sanity, and last the dice
+func _gates_ok(p: Node3D, step: Vector3, edge: bool) -> bool:
+	if edge:
+		var sprinting := bool(p.get("is_sprinting"))
+		var crouched := bool(p.get("is_crouching"))
+		if (speed == "run" and not sprinting) or (speed == "walk" and (sprinting or crouched)) \
+				or (speed == "creep" and not crouched):
+			return false
+		if direction != "any":
+			var along := (global_transform.basis.inverse() * step).x
+			if absf(along) < 0.0001 or (along > 0.0) != (direction == "along"):
+				return false
+	if torch != "any" and bool(p.get("flash_on")) != (torch == "on"):
+		return false
+	if lighting != "any" and p.get("light_level") != null:
+		if (float(p.get("light_level")) < DARK_LEVEL) != (lighting == "dark"):
+			return false
+	if sanity_below < 100.0 and p.get("sanity") != null and float(p.get("sanity")) >= sanity_below:
+		return false
+	return chance >= 100.0 or randf() * 100.0 < chance
 
 ## context_voice: a few times a second, what is true of you now that wasn't at the last look; the first chance
 ## the voice has (not mid-line, Duration since the last one), it says something about it
@@ -175,15 +249,33 @@ func _director() -> Node:
 	return root.get_node_or_null("Events") if root != null else null
 
 func _run() -> void:
-	for ev_name in event_list:
-		_execute_event(ev_name)
+	var steps := _steps
+	if not _steps.is_empty():
+		match event_mode:
+			"random": steps = [_steps.pick_random()]
+			"cycle":
+				steps = [_steps[_cycle % _steps.size()]]
+				_cycle += 1
+	var last := 0.0
+	for s in steps:
+		last = maxf(last, s.at)
+		if s.at > 0.0: get_tree().create_timer(s.at, false).timeout.connect(_execute_event.bind(s.name))
+		else: _execute_event(s.name)
 	_show_text()
+	if chain != "":
+		if last > 0.0: get_tree().create_timer(last, false).timeout.connect(_set_off_chain)
+		else: _set_off_chain()
+
+func _set_off_chain() -> void:
+	for t in get_tree().get_nodes_in_group(GROUP):
+		if t != self and t.tag == chain:
+			t.fire_chained()
 
 func _show_text() -> void:
 	if text.strip_edges() != "":
 		# "alert": the new prominent upper-center T.S.R.A. terminal CRT alert bar (chime, typewriter, 5s draining life bar)
 		# "message" / "text" (and default): TV camcorder message with black box at top of screen
-		if event_list.has("alert") or event == "alert":
+		if text_style == "alert" or (text_style == "auto" and event_list.has("alert")):
 			show_alert_bar(get_tree(), text, 5.0)
 		else:
 			_caption(text)

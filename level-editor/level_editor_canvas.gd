@@ -3035,8 +3035,9 @@ func _sync_inspector() -> void:
 				insp_trigger_btn.text = "CONFIGURE EVENT OPTIONS..."
 	var params: Dictionary = _info(o.type).get("params", {})
 	var is_custom_event: bool = (o.type == "trigger" and str(_param(o, "event")) == "custom")
+	var dialog_only: Array = _info(o.type).get("dialog_params", [])     # edited in its own dialog, not here
 	for k in insp_params:
-		var on := params.has(k)
+		var on := params.has(k) and not dialog_only.has(k)
 		if k == "custom_event":
 			on = on and is_custom_event
 		for n: Control in insp_params[k].row: n.visible = on
@@ -3102,10 +3103,30 @@ func _describe(o: Dictionary) -> String:
 				var c_ev := str(_param(o, "custom_event", "")).strip_edges()
 				if c_ev != "": ev_name = "custom (%s)" % c_ev
 			ev_names.append(ev_name)
-		t += "   events: %s%s" % [", ".join(ev_names), "  (once)" if bool(_param(o, "once", true)) else ""]
+		t += "   events: %s%s%s" % [", ".join(ev_names), "  (once)" if bool(_param(o, "once", true)) else "", _trigger_flags(o)]
 		var tx := str(_param(o, "text", "")).strip_edges()
 		if tx != "": t += '   text: "%s"' % tx
 	return t
+
+## A trigger's options that change when it fires, short, for its tag on the map and the status line:
+## " [exit] [visit 3] [50%] #hall_a -> hall_b" (nothing for the defaults)
+func _trigger_flags(o: Dictionary) -> String:
+	var f := ""
+	match str(_param(o, "fire_on", "enter")):
+		"exit": f += " [exit]"
+		"dwell": f += " [still %ss]" % str(_param(o, "dwell", 3.0))
+	if int(_param(o, "nth", 1)) > 1: f += " [visit %d]" % int(_param(o, "nth", 1))
+	for k in ["speed", "direction", "torch", "lighting"]:
+		var v := str(_param(o, k, "any"))
+		if v != "any": f += " [%s]" % v
+	if float(_param(o, "sanity_below", 100.0)) < 100.0: f += " [sanity<%d]" % int(_param(o, "sanity_below", 100.0))
+	if float(_param(o, "chance", 100.0)) < 100.0: f += " [%d%%]" % int(_param(o, "chance", 100.0))
+	if str(_param(o, "event_mode", "all")) != "all": f += " [%s]" % str(_param(o, "event_mode", "all"))
+	var tg := str(_param(o, "tag", "")).strip_edges()
+	var ch := str(_param(o, "chain", "")).strip_edges()
+	if tg != "": f += " #" + tg
+	if ch != "": f += " -> " + ch
+	return f
 
 ## A rectangle in the object's local space (cells), as canvas points
 func _local_rect(xf: Transform2D, x0: float, y0: float, x1: float, y1: float) -> PackedVector2Array:
@@ -3294,7 +3315,7 @@ func _draw_shaped(o: Dictionary, xf: Transform2D, col: Color, alpha: float) -> v
 				if tx != "":
 					var preview := tx if tx.length() <= 22 else tx.substr(0, 20) + ".."
 					summary += ' "%s"' % preview
-				var lbl := summary + ("" if bool(_param(o, "once", true)) else " [repeat]")
+				var lbl := summary + ("" if bool(_param(o, "once", true)) else " [repeat]") + _trigger_flags(o)
 				_tag(xf.origin + Vector2(-20, -8), lbl, Color(col, alpha), 10)
 		"water":
 			# a see-through blue box with ripples across it, and how deep it stands

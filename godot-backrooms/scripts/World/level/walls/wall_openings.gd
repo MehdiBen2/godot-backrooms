@@ -46,7 +46,7 @@ static func holes_of(g, spans: Dictionary) -> Dictionary:
 			var side := str(op.get("side", "l"))
 			list.append({"t0": s.x, "t1": s.y, "y0": y0, "y1": y1, "i": i, "op": op, "kind": kind, "w_m": float(op.get("w", 1.0)),
 				"round": kind == "arch" or (kind == "window" and style == "arched") or disc, "disc": disc,
-				"cut_l": not sky or side == "l", "cut_r": not sky or side == "r", "solid": kind == "window"})
+				"cut_l": not sky or side == "l", "cut_r": not sky or side == "r", "solid": kind == "window" or kind == "glazing"})
 		if not list.is_empty(): out[e] = list
 	return out
 
