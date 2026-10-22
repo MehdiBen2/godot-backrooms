@@ -355,12 +355,11 @@ func _build() -> void:
 
 	_menu_item(col, "PLAY", _level_name().to_upper(), "", _on_play)
 	_menu_item(col, "JOIN A GAME", "INPUT ROOM CODE", "multiplayer", _open_join_panel)
-	_menu_item(col, "SETTINGS", "GRAPHICS / CONTROLS / AUDIO", "", _set_group.bind("sub"))
+	_menu_item(col, "SETTINGS", "CONTROLS / AUDIO / SETTINGS", "", _set_group.bind("sub"))
 	_menu_item(col, "QUIT", "EJECT TAPE", "", _on_quit)
-	group_filler = _spacer(ROW_H)       # the Settings list is one row longer: keeps the title from jumping
+	group_filler = _spacer(0)
 	col.add_child(group_filler)
 	_menu_item(col, "GENERAL", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"), "sub")
-	_menu_item(col, "GRAPHICS", "PRESETS / DISPLAY / LIGHTING", "graphics", _open_panel.bind("graphics"), "sub")
 	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"), "sub")
 	_menu_item(col, "VOICE", "MICROPHONE / PROXIMITY", "voice", _open_panel.bind("voice"), "sub")
 	_menu_item(col, "GO BACK", "MAIN MENU", "", _set_group.bind("main"), "sub")
@@ -400,27 +399,23 @@ func _build() -> void:
 	add_child(settings_menu)
 	settings_menu.panel_changed.connect(_on_panel_changed)
 
-	# Camcorder lens over everything (text included): chroma fringe, tape tear, grain
+	# Camcorder lens and VHS effects disabled for clean vanilla visuals
 	var fx := ColorRect.new()
 	var mat := ShaderMaterial.new()
 	mat.shader = _fx_shader()
 	fx.material = mat
+	fx.visible = false
 	add_child(fx)
 	_full(fx)
 
-	# VHS smear (wiggle, tracking band, chroma bleed) over the whole title screen: it reads the screen under it, so it
-	# comes after the lens. A fresh screen copy, as the lens already took this frame's.
 	var vhs_copy := BackBufferCopy.new()
 	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
 	add_child(vhs_copy)
 	var vhs := ColorRect.new()
 	var vhs_mat := ShaderMaterial.new()
 	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs_mat.set_shader_parameter("smear", MENU_SMEAR)
-	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
-	vhs_mat.set_shader_parameter("blur_samples", 9)
-	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
 	vhs.material = vhs_mat
+	vhs.visible = false
 	add_child(vhs)
 	_full(vhs)
 
@@ -766,11 +761,8 @@ func _build_loading() -> void:
 	var vhs := ColorRect.new()
 	var vhs_mat := ShaderMaterial.new()
 	vhs_mat.shader = load("res://shaders/vhs_smear.gdshader")
-	vhs_mat.set_shader_parameter("smear", MENU_SMEAR * 0.8)     # the small centred lines must stay readable
-	vhs_mat.set_shader_parameter("wiggle", MENU_WIGGLE)
-	vhs_mat.set_shader_parameter("blur_samples", 9)
-	vhs_mat.set_shader_parameter("fisheye", MENU_FISHEYE)
 	vhs.material = vhs_mat
+	vhs.visible = false
 	loading_root.add_child(vhs)
 	_full(vhs)
 
@@ -820,46 +812,9 @@ func _fx_shader() -> Shader:
 	s.code = """
 shader_type canvas_item;
 uniform sampler2D screen_tex : hint_screen_texture, repeat_disable, filter_linear;
-uniform float fisheye = 0.03;       // edge bend; the mapping below stays inside the frame (no black rim)
-uniform float fringe = 0.012;       // red/blue split, only really visible right at the corners
-
-float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
 void fragment() {
-	vec2 c = UV - 0.5;
-	float r2 = dot(c, c);
-	float tt = floor(TIME * 12.0);
-
-	// slow tape wobble + an occasional horizontal tear that rolls down the frame
-	float wobble = sin(TIME * 0.9 + UV.y * 5.0) * 0.0006;
-	float band = fract(TIME * 0.11);
-	float tear_on = step(0.86, h(vec2(floor(TIME * 0.7), 3.0)));
-	float tear = smoothstep(0.045, 0.0, abs(UV.y - band)) * tear_on;
-	float jitter = (h(vec2(tt, floor(UV.y * 90.0))) - 0.5) * 0.02 * tear + wobble;
-
-	// Keep 1:1 screen mapping so buttons and sliders match their exact physical hitboxes
-	vec2 uv = UV;
-
-	// chromatic aberration: a hair of split growing with r^2, so text near the edge stays readable
-	vec2 dir = c * r2 * fringe;
-	vec2 lo = vec2(0.001);
-	vec2 hi = vec2(0.999);
-	float rr = texture(screen_tex, clamp(uv + dir, lo, hi)).r;
-	float gg = texture(screen_tex, clamp(uv, lo, hi)).g;
-	float bb = texture(screen_tex, clamp(uv - dir, lo, hi)).b;
-	vec3 col = vec3(rr, gg, bb);
-
-	// tape: luma noise, fine scanlines, slow brightness roll, warm lift
-	float grain = h(FRAGCOORD.xy + tt * 17.3) - 0.5;
-	float lines = 0.5 + 0.5 * sin(FRAGCOORD.y * 3.14159);
-	float roll = 1.0 - 0.05 * smoothstep(0.0, 0.5, abs(fract(UV.y * 0.6 - TIME * 0.06) - 0.5));
-	col += grain * 0.07;
-	col *= (0.94 + 0.06 * lines) * roll;
-	col += vec3(0.9, 0.85, 0.7) * 0.10 * tear;
-
-	// soft lens vignette: darkens the rim a little without turning it into a black frame
-	col *= 1.0 - smoothstep(0.2, 0.55, r2) * 0.35;
-	COLOR = vec4(col, 1.0);
+	COLOR = texture(screen_tex, SCREEN_UV);
 }
 """
 	return s

@@ -42,14 +42,14 @@ const PHYS_WINDOW := 2.0
 ## `aniso` is not in the menu: 16x filtering costs nothing you can measure on a dedicated card and is what keeps
 ## the carpet and the ceiling grid sharp down a long hall; only Low (built for integrated GPUs) keeps it at 4x.
 const PRESETS := {
-	"low": {"scale": 70, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
-		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "hidden_shadows": 0, "far_lights": 12, "smooth": true, "banding": true, "reflections": 0, "area_lights": false},
-	"medium": {"scale": 67, "aa": 3, "shadows": 1, "ssao": 1, "bounce": true, "glow": true, "post": 1, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "hidden_shadows": 2, "far_lights": 24, "smooth": true, "banding": true, "reflections": 2, "area_lights": true},
-	"high": {"scale": 77, "aa": 3, "shadows": 2, "ssao": 2, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "hidden_shadows": 4, "far_lights": 40, "smooth": true, "banding": true, "reflections": 4, "area_lights": true},
-	"ultra": {"scale": 87, "aa": 3, "shadows": 3, "ssao": 3, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "hidden_shadows": 6, "far_lights": 56, "smooth": true, "banding": true, "reflections": 6, "area_lights": true},
+	"low": {"scale": 100, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
+		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "hidden_shadows": 0, "far_lights": 12, "smooth": true, "banding": false, "reflections": 0, "area_lights": false},
+	"medium": {"scale": 100, "aa": 1, "shadows": 1, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "hidden_shadows": 2, "far_lights": 24, "smooth": true, "banding": false, "reflections": 2, "area_lights": false},
+	"high": {"scale": 100, "aa": 1, "shadows": 2, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "hidden_shadows": 4, "far_lights": 40, "smooth": true, "banding": false, "reflections": 4, "area_lights": false},
+	"ultra": {"scale": 100, "aa": 1, "shadows": 3, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 16,
+		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "hidden_shadows": 6, "far_lights": 56, "smooth": true, "banding": false, "reflections": 6, "area_lights": false},
 }
 ## Per shadow tier (0 off .. 3 high): the positional shadow atlas, its filter, and whether the tubes are area
 ## lights (PCSS: sharp where a thing meets the floor, softer further out, like a real 60 cm diffuser)
@@ -65,8 +65,8 @@ var fullscreen := false
 var compat := false             # OpenGL fallback renderer: no SSAO / bounce light
 var post_mat: ShaderMaterial
 ## Not a quality setting (presets leave it alone): which camera films the game (render_engine.gd)
-const CAMERAS := ["bodycam", "camcorder", "auto"]
-var camera := "bodycam"
+const CAMERAS := ["bodycam", "camcorder", "auto", "clean"]
+var camera := "clean"
 ## Bumped when the default camera changes, so a saved old default doesn't override the new one
 const CAMERA_REV := 2
 const CAMERA_SHADER := "res://shaders/render/camera.gdshader"
@@ -195,80 +195,45 @@ func particle_scale() -> float:
 	return [0.45, 0.75, 1.0][clampi(int(s.get("post", 2)), 0, 2)]
 
 ## Carpet look (not a quality preset, like the camera): soft = smoother, darker, cheaper than the original pile
-var carpet_soft := true
+var carpet_soft := false
 var _carpet_mats: Array = []
 
 ## level_geometry.gd hands over each carpet material so the menu option reaches the ones already built
 func register_carpet(mat: ShaderMaterial) -> void:
 	_carpet_mats = _carpet_mats.filter(func(w: WeakRef): return w.get_ref() != null)
 	_carpet_mats.append(weakref(mat))
-	mat.set_shader_parameter("soft", 1.0 if carpet_soft else 0.0)
+	mat.set_shader_parameter("soft", 0.0)
 
 func set_carpet_soft(on: bool) -> void:
-	if on == carpet_soft:
-		return
-	carpet_soft = on
-	for w in _carpet_mats:
-		var m = w.get_ref()
-		if m:
-			m.set_shader_parameter("soft", 1.0 if on else 0.0)
-	_save()
-	changed.emit()
+	carpet_soft = false
 
-## Dark atmosphere (not a quality preset): a heavier, darker grade done in the camera pass for ~free
-var mood := true
+var mood := false
 
 func set_mood(on: bool) -> void:
-	if on != mood:
-		mood = on
-		_save()
-		changed.emit()
+	mood = false
 
-## CCTV filter (not a quality preset): a faint surveillance-feed look over the camera (camera.gdshader `cctv`). Off by default.
 var cctv := false
 
 func set_cctv(on: bool) -> void:
-	if on != cctv:
-		cctv = on
-		_save()
-		changed.emit()
+	cctv = false
 
-## VHS filter (not a quality preset): the title screen's tape smear (shaders/vhs_smear.gdshader) over the run, under
-## the HUD so its text stays sharp. Off by default. No fish-eye here: the camera shader already has its lens.
 var vhs := false
-const VHS_LAYER := 4                    # over the camera pass (hud.gd post 1, grade 2), under the HUD (5)
+const VHS_LAYER := 4
 var _vhs_layer: CanvasLayer
 
 func set_vhs(on: bool) -> void:
-	if on != vhs:
-		vhs = on
-		_save()
-		changed.emit()
+	vhs = false
 
 func _build_vhs() -> void:
 	_vhs_layer = CanvasLayer.new()
 	_vhs_layer.layer = VHS_LAYER
 	_vhs_layer.visible = false
 	add_child(_vhs_layer)
-	var fresh := BackBufferCopy.new()            # the camera pass took this frame's screen copy already
-	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	_vhs_layer.add_child(fresh)
-	var r := ColorRect.new()
-	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var m := ShaderMaterial.new()
-	m.shader = load("res://shaders/vhs_smear.gdshader")
-	m.set_shader_parameter("smear", 0.3)
-	m.set_shader_parameter("wiggle", 0.012)
-	m.set_shader_parameter("blur_samples", 9)
-	r.material = m
-	_vhs_layer.add_child(r)
 
 ## Only during a run: the title screen has its own VHS layer
 func _update_vhs() -> void:
-	var on := vhs and Game.main != null and is_instance_valid(Game.main)
-	if _vhs_layer.visible != on:
-		_vhs_layer.visible = on
+	if _vhs_layer != null and _vhs_layer.visible:
+		_vhs_layer.visible = false
 
 func set_camera(c: String) -> void:
 	if c in CAMERAS and c != camera:
@@ -394,14 +359,11 @@ func physics_hz() -> int:
 ## Otherwise, under 100 it is upscaled with FSR 1 (cheap, and sharper than bilinear).
 func _render_scale() -> void:
 	var vp := get_viewport()
-	var live := clampf(float(s.get("scale", 100)) / 100.0, 0.5, 1.0)
+	var live := 1.0
 	var mode := Viewport.SCALING_3D_MODE_BILINEAR
-	if compat: pass
-	elif _aa() == 3: mode = Viewport.SCALING_3D_MODE_FSR2
-	elif live < 1.0: mode = Viewport.SCALING_3D_MODE_FSR
 	_put("scale_mode", mode, func(v): vp.scaling_3d_mode = v)
 	_put("scale", live, func(v): vp.scaling_3d_scale = v)
-	_put("fsr_sharp", 0.2, func(v): vp.fsr_sharpness = v)   # 0 = sharpest: FSR's own sharpening puts back what the upscale softens
+	_put("fsr_sharp", 0.0, func(v): vp.fsr_sharpness = v)
 
 func _apply_post() -> void:
 	if post_mat == null or _post_shaders.is_empty():
@@ -473,33 +435,23 @@ func _tune_for_weak_gpu() -> void:
 func _load() -> void:
 	var cf := ConfigFile.new()
 	var loaded := cf.load(PATH) == OK
+	fullscreen = false
+	carpet_soft = false
+	mood = false
+	cctv = false
+	vhs = false
+	camera = "clean"
 	if loaded:
 		fullscreen = bool(cf.get_value("gfx", "fullscreen", false))
-		carpet_soft = bool(cf.get_value("gfx", "carpet_soft", true))
-		mood = bool(cf.get_value("gfx", "mood", true))
-		cctv = bool(cf.get_value("gfx", "cctv", false))
-		vhs = bool(cf.get_value("gfx", "vhs", false))
-		# a settings file from before bodycam became the default holds the old default ("auto"): start on bodycam
-		if int(cf.get_value("gfx", "camera_rev", 0)) >= CAMERA_REV:
-			var c := str(cf.get_value("gfx", "camera", camera))
-			camera = c if c in CAMERAS else "bodycam"
 	if fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	if not loaded or int(cf.get_value("gfx", "rev", 0)) < GFX_REV:
-		# first launch, or saved by an older settings model (its keys mean other things now): start from the auto preset
-		set_preset_silent(_auto_preset())
-		_tune_for_weak_gpu()
-		return
-	preset = str(cf.get_value("gfx", "preset", _auto_preset()))
-	s = PRESETS.get(preset, PRESETS["high"]).duplicate()
-	# a named preset always uses its current values; only "custom" is restored key by key
-	if preset == "custom":
-		for k in s:
-			if cf.has_section_key("gfx", k):
-				var v = cf.get_value("gfx", k)
-				if typeof(v) == typeof(s[k]):
-					s[k] = v
-		preset = _matching_preset()
+	preset = "high"
+	s = PRESETS["high"].duplicate()
+	s["scale"] = 100
+	s["post"] = 0
+	s["glow"] = false
+	s["bounce"] = false
+	s["banding"] = false
 
 func set_preset_silent(name: String) -> void:
 	preset = name
