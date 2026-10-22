@@ -14,6 +14,9 @@ extends "res://scripts/World/level/level_lighting.gd"
 ##
 ## Dev keys: PageUp / PageDown switch level, Home reloads it from disk.
 
+const Surfaces := preload("res://scripts/Render/surfaces.gd")
+const ReflectionPool := preload("res://scripts/Render/reflection_pool.gd")
+var _reflections: Node3D                 # the room captures that follow the player (render/reflection_pool.gd)
 const LevelExit := preload("res://scripts/World/props/level_exit.gd")
 const TerminalMachine := preload("res://scripts/World/props/terminal_machine.gd")
 const BatteryPickup := preload("res://scripts/World/props/battery_pickup.gd")
@@ -66,6 +69,7 @@ func _ready() -> void:
 	_find_loops()
 	_sync_shells()
 	_build_wrap_copies()
+	_render_ready()
 	Stability.trace("level: level fully built")
 	_prewarm_floors()
 
@@ -874,7 +878,18 @@ func _prewarm_floors() -> void:
 		_held[f] = mats
 		s.free()
 
+## The render engine's share of a built floor: every material held to its class's gloss (render/surfaces.gd), and
+## the room captures that follow the player (render/reflection_pool.gd; a floor torn down took the old ones with it)
+func _render_ready() -> void:
+	Surfaces.limit(self)
+	if not is_instance_valid(_reflections):
+		_reflections = ReflectionPool.new()
+		_reflections.name = "Reflections"
+		_reflections.level = self
+		add_child(_reflections)
+
 func _floor_ready() -> void:
+	_render_ready()
 	_find_loops()
 	_build_wrap_copies()
 	var marks := get_node_or_null("TapeMarks")

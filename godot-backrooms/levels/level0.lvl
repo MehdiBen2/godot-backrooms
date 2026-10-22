@@ -6075,8 +6075,8 @@
       "event": "message",
       "events_list": [],
       "once": false,
-      "pos_x": 2.0,
-      "pos_y": 32.0,
+      "pos_x": 2.5,
+      "pos_y": 33.5,
       "rotation": 0.0,
       "scale": 5.5,
       "text": "THRESHOLD POWER SEVERED. SEPARATION PERMANENT.",
@@ -6149,38 +6149,6 @@
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_exit_sign_medium"
-    },
-    {
-      "elev": 0.0,
-      "pos_x": 4.389,
-      "pos_y": 30.889,
-      "rotation": 180.0,
-      "scale": 1.0,
-      "type": "outpost_desk"
-    },
-    {
-      "elev": 0.0,
-      "pos_x": 4.167,
-      "pos_y": 30.889,
-      "rotation": 17.0,
-      "scale": 1.0,
-      "type": "outpost_chair"
-    },
-    {
-      "elev": 0.0,
-      "pos_x": 4.389,
-      "pos_y": 31.333,
-      "rotation": 180.0,
-      "scale": 1.0,
-      "type": "outpost_cabinet_low"
-    },
-    {
-      "elev": 0.0,
-      "pos_x": 4.444,
-      "pos_y": 32.889,
-      "rotation": 180.0,
-      "scale": 1.0,
-      "type": "outpost_cabinet_low"
     }
   ],
   "sdfgi": true,
@@ -7468,93 +7436,21 @@
         "tr": 0.15
       },
       {
-        "a": 311,
-        "b": 316,
+        "a": 329,
+        "b": 330,
         "bulge": 0.0,
         "h": 0.0,
-        "id": 317,
+        "id": 331,
         "mat_l": "Outpost_Wall",
         "mat_r": "Outpost_Wall",
         "ops": [
           {
-            "h": 2.05,
+            "h": 2.1,
             "hinge": "a",
             "kind": "glazing",
             "panes": 0.0,
             "side": "l",
-            "sill": 0.95,
-            "style": "plain",
-            "u": 0.5,
-            "w": 3.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 300,
-        "b": 318,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 319,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.05,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 0.95,
-            "style": "plain",
-            "u": 0.5,
-            "w": 8.3
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 316,
-        "b": 318,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 320,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.3,
-            "hinge": "a",
-            "kind": "door",
-            "leaves": 1.0,
-            "side": "l",
-            "sill": 0.0,
-            "style": "outpost",
-            "u": 0.5,
-            "w": 1.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 300,
-        "b": 321,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 322,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.05,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 0.95,
+            "sill": 1.05,
             "style": "plain",
             "u": 0.5,
             "w": 12.8
@@ -7564,64 +7460,88 @@
         "tr": 0.15
       },
       {
-        "a": 311,
-        "b": 323,
+        "a": 330,
+        "b": 332,
         "bulge": 0.0,
         "h": 0.0,
-        "id": 324,
+        "id": 333,
         "mat_l": "Outpost_Wall",
         "mat_r": "Outpost_Wall",
         "ops": [
           {
-            "h": 2.05,
+            "h": 2.1,
             "hinge": "a",
             "kind": "glazing",
             "panes": 0.0,
             "side": "l",
-            "sill": 0.95,
+            "sill": 1.05,
             "style": "plain",
             "u": 0.5,
-            "w": 3.8
+            "w": 8.3
           }
         ],
         "tl": 0.15,
         "tr": 0.15
       },
       {
-        "a": 325,
-        "b": 326,
+        "a": 334,
+        "b": 335,
         "bulge": 0.0,
         "h": 0.0,
-        "id": 327,
+        "id": 336,
         "mat_l": "Outpost_Wall",
         "mat_r": "Outpost_Wall",
         "ops": [
           {
-            "h": 2.05,
+            "h": 2.1,
             "hinge": "a",
             "kind": "glazing",
             "panes": 0.0,
             "side": "l",
-            "sill": 0.95,
+            "sill": 1.05,
             "style": "plain",
             "u": 0.5,
-            "w": 3.8
+            "w": 12.8
           }
         ],
         "tl": 0.15,
         "tr": 0.15
       },
       {
-        "a": 323,
-        "b": 325,
+        "a": 335,
+        "b": 337,
         "bulge": 0.0,
         "h": 0.0,
-        "id": 328,
+        "id": 338,
         "mat_l": "Outpost_Wall",
         "mat_r": "Outpost_Wall",
         "ops": [
           {
-            "h": 2.3,
+            "h": 2.1,
+            "hinge": "a",
+            "kind": "glazing",
+            "panes": 0.0,
+            "side": "l",
+            "sill": 1.05,
+            "style": "plain",
+            "u": 0.5,
+            "w": 12.8
+          }
+        ],
+        "tl": 0.15,
+        "tr": 0.15
+      },
+      {
+        "a": 332,
+        "b": 334,
+        "bulge": 0.0,
+        "h": 0.0,
+        "id": 339,
+        "mat_l": "Outpost_Wall",
+        "mat_r": "Outpost_Wall",
+        "ops": [
+          {
+            "h": 2.45,
             "hinge": "a",
             "kind": "door",
             "leaves": 1.0,
@@ -8478,44 +8398,34 @@
         "y": 17.75
       },
       {
-        "id": 300,
-        "x": 4.5,
-        "y": 34.5
+        "id": 329,
+        "x": 1.5,
+        "y": 30.5
       },
       {
-        "id": 311,
+        "id": 330,
         "x": 4.5,
         "y": 30.5
       },
       {
-        "id": 316,
-        "x": 4.5,
-        "y": 31.5
-      },
-      {
-        "id": 318,
+        "id": 332,
         "x": 4.5,
         "y": 32.5
       },
       {
-        "id": 321,
+        "id": 334,
+        "x": 4.5,
+        "y": 33.5
+      },
+      {
+        "id": 335,
+        "x": 4.5,
+        "y": 36.5
+      },
+      {
+        "id": 337,
         "x": 1.5,
-        "y": 34.5
-      },
-      {
-        "id": 323,
-        "x": 3.5,
-        "y": 30.5
-      },
-      {
-        "id": 325,
-        "x": 2.5,
-        "y": 30.5
-      },
-      {
-        "id": 326,
-        "x": 1.5,
-        "y": 30.5
+        "y": 36.5
       }
     ]
   },

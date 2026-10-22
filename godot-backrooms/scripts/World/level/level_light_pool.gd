@@ -54,8 +54,22 @@ const FAR_SCAN := 4                 # far lights look at up to this many times t
 # Real ceiling lights are big: a 60 cm diffuser panel or a 1.2 m tube. A 30 cm thin wall under one only
 # throws a faint, very soft shadow, where a point light throws a hard black stripe. light_size is the size of
 # the emitter for PCSS (contact-hardening soft shadows): sharp where things meet the floor, soft further out.
+# It is the emitter's size for the highlights too: Godot widens a light's specular lobe by the angle its emitter
+# fills, so a sized light shows on glass, steel or a glossy floor as a soft panel-sized glare where a size-0 one
+# was a pin-point far brighter than the screen (and glow blew that into a white ball). Every lamp keeps its size
+# on every preset; only the shadow softness (PCSS) follows the preset.
 const PANEL_LIGHT_SIZE := 0.6       # metres: a lit panel
 const TUBE_LIGHT_SIZE := 0.5        # metres: a troffer (Godot's emitter is a sphere, so a bit under the tube length)
+# Area lights (Gfx `area_lights`, Medium and up): the pool's lamps are the lit rectangle itself (AreaLight3D) instead of
+# a spot standing in for it, so glass, steel and a glossy floor show a tube's glare as a bar and a panel's as a
+# square, where a spot's was a disc clipped round by its cone (and the tube needs no twin for its length). Same
+# falloff as the spots (LAMP_ATTEN): under the lamp it lights the floor exactly as the spot does, but with no cone
+# it spreads wider (+20% 3 m out, +50% 6 m out), which AREA_GAIN takes back over a row of lamps. More GPU than a
+# spot, on everything drawn while one is in view, so only the near pool has them: the far lights stay spots.
+const TUBE_AREA := Vector2(1.2, 0.3)    # metres: a troffer's lit diffuser (x along the tube)
+const PANEL_AREA := Vector2(0.6, 0.6)   # metres: a lit panel
+const AREA_GAIN := 0.85
+var _area_lamps := false
 # ---- panel ceilings (a ceiling material with baked light panels, see level_geometry.gd panel_ceiling)
 # Every open cell is a fixture that owns its five panels (the texture repeats once per cell: one panel
 # in the middle, four on the diagonals). Only every other cell each way glows and hides a real light behind
@@ -79,13 +93,19 @@ static func _reach(f: Dictionary) -> float:
 func _lamp_power(f: Dictionary) -> float:
 	return lamp_gain * pow(_reach(f), LAMP_ATTEN)
 
-static func _range(l: SpotLight3D, r: float) -> void:
-	if absf(l.spot_range - r) > 0.01:
-		l.spot_range = r
+static func _range(l: Light3D, r: float) -> void:
+	var a := l as AreaLight3D
+	if a != null:
+		if absf(a.area_range - r) > 0.01:
+			a.area_range = r
+		return
+	var s := l as SpotLight3D
+	if absf(s.spot_range - r) > 0.01:
+		s.spot_range = r
 # ---- light pool
 # Spots pointing straight down, their cone like a diffuser's spread (level_fixtures.gd SPOT_ANGLE): a troffer
 # lights the room under it, not the ceiling round it or the top of the wall beside it
-var pool: Array[SpotLight3D] = []
+var pool: Array[Light3D] = []          # spots, or area lights (_area_lamps)
 var pool_b: Array[SpotLight3D] = []     # a twin for each slot: the two ends of the long tube (Godot has no area lights)
 ## The tubes' white for the zone the player is in (level_lighting.gd); each light takes it times its own lamp's
 var tube_color := LIGHT_COLOR
@@ -97,7 +117,14 @@ var slot_target: Array[float] = []
 var slot_on: Array[float] = []     # 0..1: lit under the quality cap (eased, so a light never pops)
 var slot_want: Array[bool] = []
 var slot_shadow: Array[bool] = []  # slot rank says it should cast (shadow cap); _update_pool applies it only while lit
+var slot_shade: Array[float] = []  # 0..1: how strong its shadow is now (shadow_opacity), fading after slot_shadow
 var slot_single: Array[float] = [] # 0..1: how far a shadowed slot has pulled its two tube ends into one light
+# Only the nearest few tubes cast (Gfx `light_shadows`), so walking under a row of them hands the shadow from one lit
+# tube to the next. Switched in one frame, every shadow round you vanished and another set appeared; it fades over
+# SHADOW_FADE instead. A tube casting now keeps it until another is SHADOW_HOLD (of the squared distance) nearer,
+# so standing between two the shadow doesn't hop back and forth.
+const SHADOW_FADE := 0.6           # s
+const SHADOW_HOLD := 0.7
 var _rank_timer := 0.0
 var _candidates: Array = []
 var _lit_cap := POOL_SIZE
@@ -115,44 +142,65 @@ func _read_quality() -> void:
 	_far_cap = clampi(int(Gfx.s.get("far_lights", 16)), 0, FAR_MAX)
 	_shadow_cap = int(Gfx.s.get("light_shadows", 4)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
 	_hidden_cap = int(Gfx.s.get("hidden_shadows", 2)) if int(Gfx.s.get("shadows", 1)) > 0 else 0
+	var area := bool(Gfx.s.get("area_lights", false)) and not Gfx.compat     # (Compatibility: no area light shadows)
+	if area != _area_lamps:
+		_area_lamps = area
+		for i in pool.size():               # a new light of the other kind in each slot; _update_pool lights it again
+			var l := _pool_light()
+			add_child(l)
+			pool[i].queue_free()
+			pool[i] = l
 	# High / Ultra: area-light soft shadows (PCSS). Medium keeps plain filtered shadows (cheaper) but blurs
 	# them wider so the stripes behind thin walls still read as soft.
 	var soft := int(Gfx.s.get("shadows", 1)) >= 2
 	for l in pool:
-		l.light_size = (PANEL_LIGHT_SIZE if panels_mm else TUBE_LIGHT_SIZE) if soft else 0.0
 		l.shadow_blur = 1.0 if soft else 2.6
 	_rank_timer = 0.0
 
 # ---------------------------------------------------------------- light pool
-## A ceiling lamp's light: a spot hung pointing straight down (its -Z), shadowless and dark until a tube takes it
-func _lamp_light() -> SpotLight3D:
-	var l := SpotLight3D.new()
+## A ceiling lamp's light: a spot hung pointing straight down (its -Z), or with `area` the lamp's lit rectangle
+## facing down (TUBE_AREA), shadowless and dark until a tube takes it
+func _lamp_light(area := false) -> Light3D:
+	var l: Light3D
+	if area:
+		var a := AreaLight3D.new()
+		a.area_size = PANEL_AREA if panels_mm else TUBE_AREA
+		a.area_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
+		a.area_attenuation = LAMP_ATTEN
+		l = a
+	else:
+		var s := SpotLight3D.new()
+		s.spot_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
+		s.spot_attenuation = LAMP_ATTEN
+		s.spot_angle = SPOT_ANGLE
+		s.spot_angle_attenuation = SPOT_SOFT
+		l = s
 	l.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 	l.light_color = LIGHT_COLOR
-	l.spot_range = PANEL_RANGE if panels_mm else LIGHT_RANGE
-	l.spot_attenuation = LAMP_ATTEN
-	l.spot_angle = SPOT_ANGLE
-	l.spot_angle_attenuation = SPOT_SOFT
 	l.light_energy = 0.0
+	l.light_size = PANEL_LIGHT_SIZE if panels_mm else TUBE_LIGHT_SIZE     # (its highlight's size: see PANEL_LIGHT_SIZE)
 	l.shadow_enabled = false
 	l.light_cull_mask &= 4294702079       # the ceiling gets its glow from ceil_glow instead (no hotspot)
 	l.visible = false
 	l.set_meta("gfx_managed", true)      # Gfx.apply_scene leaves these to us
 	return l
 
+## A pool slot's main light (_area_lamps: an area light), set up to cast when the rank says so
+func _pool_light() -> Light3D:
+	var l := _lamp_light(_area_lamps)
+	# A spot's shadow is one map (an omni's took six renders, and dual paraboloid bent the straight edge of
+	# a thin wall into a banana-shaped shadow). Only the nearest `light_shadows` tubes cast at all (Gfx preset).
+	l.shadow_bias = 0.04
+	l.shadow_normal_bias = 1.2
+	l.shadow_blur = 1.6
+	return l
+
 func _build_light_pool() -> void:
 	for i in POOL_SIZE:
-		var l := _lamp_light()
-		l.light_size = 0.0                   # set by _read_quality (soft area-light shadows on High / Ultra)
-		# A spot's shadow is one map (an omni's took six renders, and dual paraboloid bent the straight edge of
-		# a thin wall into a banana-shaped shadow). Only the nearest `light_shadows` tubes cast at all (Gfx preset).
-		l.shadow_bias = 0.04
-		l.shadow_normal_bias = 1.2
-		l.shadow_blur = 1.6
+		var l := _pool_light()
 		add_child(l)
 		pool.append(l)
-		var lb := l.duplicate() as SpotLight3D           # the tube's other end; unshadowed (only the first casts)
-		lb.set_meta("gfx_managed", true)
+		var lb := _lamp_light() as SpotLight3D           # the tube's other end; unshadowed (only the first casts)
 		# Bounce light (VoxelGI) re-lights its voxels from every dynamic light, every frame. Only the slot's main light
 		# feeds it: the twin end sits 1.3 m from it, and the ceiling glows and far lights add nothing you can see in
 		# the bounce. That keeps ~10 lights in the GI update instead of ~50.
@@ -165,6 +213,7 @@ func _build_light_pool() -> void:
 		slot_on.append(0.0)
 		slot_want.append(false)
 		slot_shadow.append(false)
+		slot_shade.append(0.0)
 		slot_single.append(0.0)
 		var g := OmniLight3D.new()
 		g.light_color = LIGHT_COLOR
@@ -179,7 +228,7 @@ func _build_light_pool() -> void:
 		add_child(g)
 		ceil_glow.append(g)
 	for i in FAR_MAX:
-		var fl := _lamp_light()
+		var fl := _lamp_light() as SpotLight3D
 		if not Perf.skip("gi_trim"): fl.light_bake_mode = Light3D.BAKE_DISABLED
 		add_child(fl)
 		far_pool.append(fl)
@@ -368,11 +417,12 @@ const PEEK_FAR := 40.0              # metres: how far off a far light takes a tu
 func _rank_slots() -> void:
 	var order: Array[int] = []
 	for i in POOL_SIZE:
-		slot_want[i] = false
-		slot_shadow[i] = false
 		if slot_fixture[i] != null:
 			order.append(i)
-	order.sort_custom(func(a: int, b: int) -> bool: return slot_fixture[a].dsq < slot_fixture[b].dsq)
+	order.sort_custom(func(a: int, b: int) -> bool: return _rank_dsq(a) < _rank_dsq(b))
+	for i in POOL_SIZE:
+		slot_want[i] = false
+		slot_shadow[i] = false
 	var hidden_left := _hidden_cap
 	for r in order.size():
 		var i := order[r]
@@ -397,6 +447,10 @@ func _rank_slots() -> void:
 		if pool[i].shadow_caster_mask != mask:
 			pool[i].shadow_caster_mask = mask
 
+## Slot `i`'s distance for the rank (squared): a slot casting now counts as nearer (SHADOW_HOLD)
+func _rank_dsq(i: int) -> float:
+	return slot_fixture[i].dsq * (SHADOW_HOLD if slot_shadow[i] else 1.0)
+
 const PLAYER_SHADOW_LAYER := 1 << 19   # player_shadow.gd SHADOW_LAYER
 const ALL_CASTERS := 0xFFFFFFFF
 
@@ -411,17 +465,28 @@ static func _move(l: Node3D, p: Vector3) -> void:
 	if not l.global_position.is_equal_approx(p):
 		l.global_position = p
 
+## Lay an area lamp's rectangle along its tube (turned `rot` about up, as the fixture is), facing down; written only
+## when it changes, like _move
+static func _turn(l: Node3D, rot: float) -> void:
+	var r := Vector3(-PI * 0.5, rot, 0.0)
+	if not l.rotation.is_equal_approx(r):
+		l.rotation = r
+
 ## Set a light's energy only when it really changed: every write is a renderer update, and the pool has up to
 ## 68 lights whose energy, once faded in, sits still
 static func _energy(l: Light3D, e: float) -> void:
 	if absf(l.light_energy - e) > 0.0005:
 		l.light_energy = e
 
-## Cast a shadow or not, written only when it changes: enabling one is a whole extra pass over the room. A slot
-## that has faded out, or lost its tube, was still holding its map (the rank only ever turned casting on).
-static func _shadow(l: Light3D, on: bool) -> void:
+## Cast a shadow of strength `v` (0: none), written only when it changes: enabling one is a whole extra pass over the
+## room, its strength (shadow_opacity) only how dark it lands (the map is kept). A slot that has faded out, or lost
+## its tube, was still holding its map (the rank only ever turned casting on).
+static func _shadow(l: Light3D, v: float) -> void:
+	var on := v > 0.0
 	if l.shadow_enabled != on:
 		l.shadow_enabled = on
+	if on and absf(l.shadow_opacity - v) > 0.002:
+		l.shadow_opacity = v
 
 func _update_pool(delta: float) -> void:
 	var p := player.global_position
@@ -437,6 +502,7 @@ func _update_pool(delta: float) -> void:
 				_glow_real(f, "rw_slot", 0.0)
 				f.slot = -1
 				slot_fixture[i] = null
+				slot_shadow[i] = false          # (its next tube doesn't inherit the rank's hold)
 		for f in _candidates:
 			if f.slot != -1: continue
 			var free := slot_fixture.find(null)
@@ -460,11 +526,19 @@ func _update_pool(delta: float) -> void:
 		if f == null:
 			_energy(l, 0.0)
 			l.visible = false
-			_shadow(l, false)
+			_shadow(l, 0.0)
 			lb.visible = false
 			ceil_glow[i].visible = false
 			continue
 		slot_weight[i] = _ease_to(slot_weight[i], slot_target[i], k)
+		# the shadow fades in and out (SHADOW_FADE). A dark light takes or drops it at once (nothing to see), and so
+		# does one taking it behind a wall (its shadow is all that stops it shining through at you); one fading out
+		# keeps what it has until it is dark (a shadowless light leaks through every wall round it)
+		var shade_to := 1.0 if slot_shadow[i] else 0.0
+		if slot_weight[i] * slot_on[i] < 0.05 or (shade_to > slot_shade[i] and not f.get("seen", true)):
+			slot_shade[i] = shade_to
+		elif slot_want[i] and slot_target[i] > 0.0:
+			slot_shade[i] = move_toward(slot_shade[i], shade_to, delta / SHADOW_FADE)
 		var lp: Vector3 = f.light_pos + _img(f)         # (the copy nearest the player on an endless level)
 		var d := sqrt(f.dsq)
 		var t := clampf((d - FADE_START) / fade_range, 0.0, 1.0)
@@ -476,7 +550,7 @@ func _update_pool(delta: float) -> void:
 		_range(lb, reach)
 		l.visible = energy > 0.002
 		# ...and its shadow map only while it is lit: it used to cast at any distance until the rank reshuffled it
-		_shadow(l, slot_shadow[i] and energy > 0.02)
+		_shadow(l, slot_shade[i] if energy > 0.02 else 0.0)
 		# its own lamp's white (written only when it changes: a slot taking a new tube, the zone's white moving)
 		var col: Color = tube_color * tint * (f.get("warm", Color.WHITE) as Color)      # (events' tint: every light, not just the tubes' faces)
 		if not l.light_color.is_equal_approx(col):
@@ -494,17 +568,19 @@ func _update_pool(delta: float) -> void:
 		g.visible = l.visible and ceil_reach > 0.0
 		_move(g, Vector3(lp.x, ceil_h - CEIL_GLOW_DROP, lp.z))
 		_energy(g, energy / SPOT_GAIN * (CEIL_GLOW_PANEL if panels_mm else CEIL_GLOW) * ceil_reach)
-		if panels_mm:                        # square panels: one point light, no tube ends
+		if panels_mm or _area_lamps:         # square panels, or the lamp as its own rectangle: one light, no tube ends
 			lb.visible = false
 			_move(l, lp)
-			_energy(l, energy)
+			if _area_lamps: _turn(l, f.rot)
+			_energy(l, energy * (AREA_GAIN if _area_lamps else 1.0))
 			continue
 		# One light at each end of the tube, so the floor is lit along its whole length, not from a point. Only
 		# the first end can cast a shadow, and a shadowless twin next to it leaks through every wall round it,
 		# so a shadowed slot eases both ends into one centred light instead. Far away the tube reads as a
 		# point anyway: no twin, and the single light carries all of the energy (it used to keep only half,
 		# so every tube doubled in brightness as you came within TWIN_RANGE).
-		slot_single[i] = _ease_to(slot_single[i], 1.0 if slot_shadow[i] else 0.0, k)
+		# (split again only once its shadow has faded right out: the twin casts none)
+		slot_single[i] = _ease_to(slot_single[i], 1.0 if slot_shade[i] > 0.0 else 0.0, k)
 		var twin := (1.0 - slot_single[i]) if f.dsq < TWIN_RANGE * TWIN_RANGE else 0.0
 		lb.visible = l.visible and twin > 0.01
 		var axis := Vector3(cos(f.rot), 0.0, -sin(f.rot)) * TUBE_HALF * twin
@@ -525,6 +601,7 @@ func prime_pool() -> void:
 		if slot_fixture[i] == null: continue
 		slot_weight[i] = slot_target[i]
 		slot_on[i] = 1.0 if slot_want[i] else 0.0
+		slot_shade[i] = 1.0 if slot_shadow[i] else 0.0
 	for i in FAR_MAX:
 		var f = far_fixture[i]
 		if f != null: far_weight[i] = 1.0 if f.far_wanted else 0.0

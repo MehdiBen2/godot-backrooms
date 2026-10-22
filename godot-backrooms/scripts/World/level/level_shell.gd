@@ -197,6 +197,7 @@ static func _light(color: Color, energy: float, reach: float, mask: int) -> Omni
 static func _setup(l: Light3D, color: Color, energy: float, mask: int) -> void:
 	l.light_color = color
 	l.light_energy = energy
+	l.light_size = 0.6                        # a panel's size, as the near lamps (level_light_pool.gd PANEL_LIGHT_SIZE)
 	l.shadow_enabled = false
 	l.light_cull_mask = mask
 	l.light_volumetric_fog_energy = 0.0

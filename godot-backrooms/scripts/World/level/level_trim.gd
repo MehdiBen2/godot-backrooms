@@ -201,10 +201,17 @@ func _build_skirting() -> void:
 		var pts: Array = Array(loop.pts)
 		if pts.size() < 2: continue
 		var at: Vector2 = pts[0]
-		if loop.closed:
-			if pts.size() >= 3: _skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward)
-		else:
-			_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts)
+		var runs := _skirted_runs(pts, loop.closed)
+		if runs.is_empty(): continue
+		if runs[0].is_empty():                   # (no bare wall on it: the whole loop, as it was)
+			if loop.closed:
+				if pts.size() >= 3: _skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward)
+			else:
+				_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts)
+			continue
+		for run: Array in runs:
+			at = run[0]
+			_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), run)
 	if sts.is_empty(): return
 	var mat := _skirt_material()
 	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
@@ -274,6 +281,41 @@ func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool, y :
 		face_in.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(before.x, 0.0, before.y))
 		face_out.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(after.x, 0.0, after.y))
 	_skirt_run(st, at, miter, face_in, face_out, true, prof, nrms)
+
+## Walls painted with one of BARE_WALLS (the T.S.R.A. outpost's) have no skirting: their paint runs down to the
+## floor. Loop `pts` (world metres) as the runs of it that are skirted: [[]] when all of it is (skirt it as it
+## is), [] when none of it is, else the open runs between the bare stretches.
+const BARE_WALLS := ["Outpost_Wall"]
+func _skirted_runs(pts: Array, closed: bool) -> Array:
+	var n := pts.size()
+	var segs := n if closed else n - 1
+	var bare: Array[bool] = []
+	var any := false
+	for i in segs:
+		var mid: Vector2 = ((pts[i] as Vector2) + (pts[(i + 1) % n] as Vector2)) * 0.5 / CELL
+		var hit: Dictionary = wall_graph.edge_near(mid, 0.4 / CELL)
+		var b := false
+		if not hit.is_empty():
+			var ed: Dictionary = wall_graph.edges[hit.e]
+			b = str(ed.get("mat_l", "")) in BARE_WALLS or str(ed.get("mat_r", "")) in BARE_WALLS
+		bare.append(b)
+		any = any or b
+	if not any: return [[]]
+	var start := 0
+	if closed:
+		while not bare[start]: start += 1        # (begin at a bare stretch, so no run wraps round the loop's start)
+	var out: Array = []
+	var run: Array = []
+	for k in segs:
+		var i := (start + k) % segs
+		if bare[i]:
+			if run.size() >= 2: out.append(run)
+			run = []
+			continue
+		if run.is_empty(): run.append(pts[i])
+		run.append(pts[(i + 1) % n])
+	if run.size() >= 2: out.append(run)
+	return out
 
 ## Skirting along a run of the wall graph's feet that stops at a doorway each end (wall_mesh.gd breaks the chain
 ## there): out from the faces the way they face (the right of the way the run goes), butting up to the door's

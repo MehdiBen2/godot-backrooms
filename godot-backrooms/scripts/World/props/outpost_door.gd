@@ -5,7 +5,8 @@ extends Node3D
 ## "Outpost wall + door"), built by level_geometry.gd _build_openings in the opening's frame (wall_openings.gd
 ## frame_of: +x across the wall, +z along it, y up from the floor). Only the player works it: the opening is no
 ## way through for the monsters' paths (a door is not "walk"), and nothing else trips its sensor. Its own steel
-## frame, the operator housing over it on both faces with a status lamp (red shut, green open).
+## frame, the operator housing over it on both faces with a status lamp (red shut, green open). Charcoal powder-
+## coated steel frame, grey powder-coated leaves (outpost_glazing.gd _mat).
 
 const BulletGlass := preload("res://scripts/World/props/bullet_glass.gd")
 const OutpostGlazing := preload("res://scripts/World/props/outpost_glazing.gd")
@@ -75,7 +76,7 @@ func _build() -> void:
 				[Vector3(0, (gy1 + hh - FRAME) * 0.5, 0), Vector3(LEAF_T, hh - FRAME - gy1, lw)],
 				[Vector3(0, (gy0 + gy1) * 0.5, (lw - rail) * 0.5), Vector3(LEAF_T, gy1 - gy0, rail)],
 				[Vector3(0, (gy0 + gy1) * 0.5, -(lw - rail) * 0.5), Vector3(LEAF_T, gy1 - gy0, rail)]]:
-			_box(b[0], b[1], steel, body)
+			_box(b[0], b[1], OutpostGlazing._mat("leaf"), body)
 		_box(Vector3(0, (gy0 + gy1) * 0.5, 0), Vector3(0.02, gy1 - gy0, lw - rail * 2.0), BulletGlass.material(), body)
 		for side: float in [-1.0, 1.0]:
 			_box(Vector3(side * (LEAF_T * 0.5 + 0.002), 0.15, 0), Vector3(0.004, 0.3, lw - 0.04), OutpostGlazing._mat("bolt"), body)

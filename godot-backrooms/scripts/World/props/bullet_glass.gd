@@ -9,7 +9,7 @@ static func material() -> ShaderMaterial:
 	if _mat == null:
 		_mat = ShaderMaterial.new()
 		_mat.shader = load("res://shaders/glass.gdshader")
-		_mat.set_shader_parameter("smudge", load("res://textures/glass_smudge.png"))
+		_mat.set_shader_parameter("smudge", load("res://textures/glass_smudges.jpg"))
 	return _mat
 
 ## Puts the glass material on every surface of `mi` whose own material is one of `names`

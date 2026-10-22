@@ -1498,6 +1498,7 @@ func _build_floor_reflections() -> void:
 		l.light_cull_mask &= ~(CEIL_LAYER | SHELL_LAYERS)
 		l.omni_attenuation = 1.3
 		l.light_energy = LIGHT_ENERGY * 1.5
+		l.light_size = 1.5                    # a broad fill: no glint of its own on glass or steel
 		l.shadow_enabled = false              # two shadowed 24 m omnis over the whole level were a big fps cost
 		l.shadow_bias = 0.03
 		l.position = Vector3(cx, WALL_H - 0.6, cz + o * CELL)

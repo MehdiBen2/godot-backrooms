@@ -156,7 +156,7 @@ void fragment() {
 	float keep = 1.0 - smoothstep(0.08, 0.25, tpp);
 	float px_m = length(fwidth(world));                         // metres a pixel (taken here: not inside a branch)
 	float pd = panel_dist(p, tsz * 0.5);
-	float lens_k = clamp(-pd / max(tsz * 0.5, 0.001), 0.0, 1.0);   // 0 at the lens frame, 1 at its middle
+	float lens_k = clamp(-pd / max(min(tsz.x, tsz.y) * 0.5, 0.001), 0.0, 1.0);   // 0 at the lens frame, 1 at its middle (across its short side)
 
 	vec3 alb;
 	vec3 nm;

@@ -5,7 +5,8 @@ extends Node
 ## What draws the picture, cheapest first, and what the presets turn up:
 ##   - the tube lights round you (level_light_pool.gd keeps a pool of them following you): `lights` lit at once,
 ##     the nearest `light_shadows` of them casting a shadow (a spot shadow: one shadow render each), and cheap
-##     shadowless `far_lights` further out so distant halls still have their light
+##     shadowless `far_lights` further out so distant halls still have their light; with `area_lights` (Medium and
+##     up) the lit ones are AreaLight3D rectangles, so glossy things show a tube's glare as a bar, not a disc
 ##   - `bounce`: the level's bounce light (grid_gi.gd), solved on the CPU over the level's own grid and laid over
 ##     floors and walls as a light second pass. It is the only global illumination: VoxelGI, SDFGI and SSIL were
 ##     taken out. Their per-frame compute passes (VoxelGI re-lighting a 512 subdivision grid from every moving
@@ -14,6 +15,8 @@ extends Node
 ##   - `shadows`: the quality of those shadows (map size, softness; High is contact-hardening PCSS)
 ##   - `aa`: 0 off, 1 FXAA, 2 TAA (TAA also calms the carpet and ceiling grid shimmer)
 ##   - `glow` (bloom round the HDR tubes), `post` (the camera shader's tier), `scale` (3D render size, FSR below 100)
+##   - `reflections`: how many room captures follow you (render/reflection_pool.gd: ReflectionProbes rendered once
+##     each, raster only), what glass, steel and glazed tile reflect; 0 = the ambient only
 ## Also out for good: volumetric fog (a froxel compute pass fed by the GI; the depth fog and the horizon fog in
 ## level_lighting.gd carry the haze), screen-space reflections (carpet and wallpaper reflect nothing you can see)
 ## and MSAA (it does nothing for shader aliasing, which is all this game has; TAA does).
@@ -40,13 +43,13 @@ const PHYS_WINDOW := 2.0
 ## the carpet and the ceiling grid sharp down a long hall; only Low (built for integrated GPUs) keeps it at 4x.
 const PRESETS := {
 	"low": {"scale": 70, "aa": 1, "shadows": 0, "ssao": 0, "bounce": false, "glow": false, "post": 0, "aniso": 4,
-		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "hidden_shadows": 0, "far_lights": 12, "smooth": true, "banding": true},
+		"vsync": false, "fps": 60, "lights": 6, "light_shadows": 0, "hidden_shadows": 0, "far_lights": 12, "smooth": true, "banding": true, "reflections": 0, "area_lights": false},
 	"medium": {"scale": 67, "aa": 3, "shadows": 1, "ssao": 1, "bounce": true, "glow": true, "post": 1, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "hidden_shadows": 2, "far_lights": 24, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 8, "light_shadows": 1, "hidden_shadows": 2, "far_lights": 24, "smooth": true, "banding": true, "reflections": 2, "area_lights": true},
 	"high": {"scale": 77, "aa": 3, "shadows": 2, "ssao": 2, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "hidden_shadows": 4, "far_lights": 40, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 10, "light_shadows": 2, "hidden_shadows": 4, "far_lights": 40, "smooth": true, "banding": true, "reflections": 4, "area_lights": true},
 	"ultra": {"scale": 87, "aa": 3, "shadows": 3, "ssao": 3, "bounce": true, "glow": true, "post": 2, "aniso": 16,
-		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "hidden_shadows": 6, "far_lights": 56, "smooth": true, "banding": true},
+		"vsync": false, "fps": 0, "lights": 12, "light_shadows": 3, "hidden_shadows": 6, "far_lights": 56, "smooth": true, "banding": true, "reflections": 6, "area_lights": true},
 }
 ## Per shadow tier (0 off .. 3 high): the positional shadow atlas, its filter, and whether the tubes are area
 ## lights (PCSS: sharp where a thing meets the floor, softer further out, like a real 60 cm diffuser)

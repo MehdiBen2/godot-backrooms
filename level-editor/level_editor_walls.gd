@@ -94,6 +94,7 @@ static func _map_dir(deg: float) -> Vector2:
 
 # ---------------------------------------------------------------- the plan
 func _walls_changed() -> void:
+	wall_graph.refit_fills()                       # (a wall's windows / door go with it: stretched, split, joined)
 	_wplan = {}
 	for e in wsel_edges.duplicate():
 		if not wall_graph.edges.has(e): wsel_edges.erase(e)
@@ -386,25 +387,10 @@ func _wall_props(t: String) -> Dictionary:
 	if _info(t).has("wall_mat"):                   # a wall that comes painted (the outpost's walls): both faces
 		p["mat_l"] = str(_info(t).wall_mat)
 		p["mat_r"] = str(_info(t).wall_mat)
+	# and what it lays along itself (object_types.json "wall_fill": the outpost's windows, its door), laid out from
+	# its length every time the walls change (wall_graph.gd refit_fill)
+	p["fill"] = str(_info(t).get("wall_fill", ""))
 	return p
-
-## What a wall tool puts in each wall it lays (object_types.json "wall_fill"): "glazing" the outpost's glass the
-## length of the wall, "door" its sliding door in the middle. A wall it landed on that has openings already keeps them
-func _wall_fill(made: Array, t: String) -> void:
-	var fill := str(_info(t).get("wall_fill", ""))
-	if fill == "": return
-	for e in made:
-		if not wall_graph.edges.has(e) or not wall_graph.ops_of(e).is_empty(): continue
-		var len_m: float = wall_graph.length_of(e) * CELL_M
-		var op := {}
-		if fill == "glazing":
-			var w: float = len_m - (WallGraph.OP_GAP + 0.25) * 2.0
-			if w >= 0.6: op = WallGraph.new_opening("glazing", 0.5, {"w": w})
-		elif fill == "door" and len_m >= 1.8 + 0.4:
-			op = WallGraph.new_opening("door", 0.5, {"w": 1.8, "h": 2.45, "style": "outpost", "leaves": 1})
-		if not op.is_empty():
-			if not wall_graph.edges[e].has("ops"): wall_graph.edges[e]["ops"] = []
-			wall_graph.edges[e].ops.append(op)
 
 func _snap_opts(extra := {}) -> Dictionary:
 	var o := {"radius": wall_snap_px / zoom, "grid": SNAP_STEP if snap else 0.0, "angle_step": wall_angle_step,
@@ -586,7 +572,6 @@ func _wall_end_at(p: Vector2) -> void:
 func _wall_lay(a: Vector2, b: Vector2, bulge: float) -> void:
 	_push_undo()
 	var made: Array = wall_graph.add_wall(a, b, bulge, _wall_props(_wall_type()), WALL_TOL)
-	_wall_fill(made, _wall_type())
 	wtyped = ""
 	_walls_changed()
 	_mark_dirty()
@@ -1307,6 +1292,7 @@ func _op_drag_to(cur: Vector2, free: bool) -> void:
 		if not is_nan(fit):
 			op.u = fit
 			wdrag.moved = absf(fit - float(o0.u)) > 1e-6
+			if wdrag.moved and bool(op.get("fill", false)): wall_graph.unfill(e)
 		return
 	# a jamb: the other one stays where it is
 	var half := float(o0.w) * 0.5 / l
@@ -1322,6 +1308,7 @@ func _op_drag_to(cur: Vector2, free: bool) -> void:
 		var mh: float = WallGraph.model_window_h(str(op.get("style", "")), w) if str(op.kind) == "window" else -1.0
 		if mh > 0.0: op.h = mh                  # (a model window keeps its proportions)
 		wdrag.moved = true
+	if wdrag.moved and bool(op.get("fill", false)): wall_graph.unfill(e)     # (placed by hand now: the wall lays no more)
 
 ## How far the picked opening's middle is from its wall's a end, metres
 func _op_from_a(o: Dictionary) -> float:
@@ -1346,6 +1333,7 @@ func _op_measure(kind: String, v: float, undo := true) -> void:
 	if model and kind == "op_h":
 		kind = "op_w"
 		v = maxf(v, 0.3) / WallGraph.model_window_h(str(op.style), 1.0)
+	if kind in ["op_w", "op_at"] and bool(op.get("fill", false)): wall_graph.unfill(e)    # (sized / placed by hand)
 	match kind:
 		"op_w":
 			var w := maxf(v, WallGraph.OP_MIN_W)
@@ -1355,8 +1343,12 @@ func _op_measure(kind: String, v: float, undo := true) -> void:
 				op.w = w
 				op.u = fit
 				if model: op.h = WallGraph.model_window_h(str(op.style), w)
-		"op_h": op.h = maxf(v, 0.3)
-		"op_sill": op.sill = maxf(v, 0.0)
+		"op_h":
+			op.h = maxf(v, 0.3)
+			if bool(op.get("fill", false)): wall_graph.fill_set(e, "h", op.h)       # (every window the wall lays)
+		"op_sill":
+			op.sill = maxf(v, 0.0)
+			if bool(op.get("fill", false)): wall_graph.fill_set(e, "sill", op.sill)
 		"op_at":
 			var fit: float = wall_graph.fit_opening(e, v / maxf(l, 1e-6), float(op.w), WallGraph.OP_GAP, wsel_op.i, WallGraph.op_reach(op))
 			if not is_nan(fit): op.u = fit
@@ -1366,6 +1358,7 @@ func _op_measure(kind: String, v: float, undo := true) -> void:
 func _op_delete(o: Dictionary) -> void:
 	if not _op_valid(o): return
 	_push_undo()
+	if bool(_op_of(o).get("fill", false)): wall_graph.unfill(o.e)     # (the others stay as they are; the wall lays no more)
 	(wall_graph.edges[o.e].ops as Array).remove_at(o.i)
 	wsel_op = {}
 	whover_op = {}
@@ -1386,6 +1379,7 @@ func _op_set(key: String, v) -> void:
 	var op: Dictionary = wall_graph.edges[wsel_op.e].ops[wsel_op.i]
 	var was := op.duplicate()
 	op[key] = v
+	if bool(op.get("fill", false)): wall_graph.fill_set(wsel_op.e, key, v)       # (every window the wall lays)
 	if key == "style" and str(op.kind) == "window" and WallGraph.MODEL_WINDOWS.has(str(v)):
 		# a model window: its own size to start with (unless it was one already), fitted clear of the corners,
 		# the walls joining there and the other openings with its shutters open
@@ -1530,7 +1524,7 @@ func _draw_op(e: int, op: Dictionary, mark: Color, ghost := false) -> void:
 			for k in n:
 				canvas.draw_line(cs[k], cs[k + 1], Color(col, 0.95), 2.0)
 			var bays := int(op.get("panes", 0))
-			if bays <= 0: bays = maxi(1, roundi((float(op.w) - 0.14) / 1.5))
+			if bays <= 0: bays = maxi(1, roundi(float(op.w) / 4.0))
 			for k in range(1, bays):
 				var t := lerpf(t0, t1, float(k) / bays)
 				canvas.draw_line(_cells_px(WallGeom.point(lf, t)), _cells_px(WallGeom.point(rf, t)), Color(CREAM, 0.7), 1.0)

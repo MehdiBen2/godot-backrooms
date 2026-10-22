@@ -7,7 +7,9 @@ extends RefCounted
 ## An edge is one wall between two nodes, straight or an arc through both (wall_geom.gd): {a, b (node ids),
 ## bulge (the arc's sagitta in cells, + bends left of a->b), tl / tr (metres of wall left / right of the centre
 ## line), h (metres tall, 0 = up to the ceiling of the room it stands in), base (metres off the floor), mat_l /
-## mat_r (a textures/pbr material per face, "" = the level's), segs (arc pieces, 0 = as many as it needs),
+## mat_r (a textures/pbr material per face, "" = the level's), segs (arc pieces, 0 = as many as it needs), fill
+## (what the wall lays along itself: "glazing" windows with piers between, "door" one in its middle, "" nothing;
+## refit_fill),
 ## cells (the grid cells it takes over the way a thin wall square on a cell does: level_data.gd), lock_len /
 ## lock_ang (its length / its direction stay as they are while other things move: drag_targets, translate)}.
 ## Every edge ends on shared nodes, so moving a node moves every wall on it, straight or curved, and nothing
@@ -30,9 +32,10 @@ const OPENINGS := {
 	"arch": {"w": 1.8, "h": 3.0, "sill": 0.0, "walk": true, "see": true},
 	"window": {"w": 1.6, "h": 1.5, "sill": 0.9, "style": "pane", "glass": "sky", "panes": 3, "sky": "noon", "sun": 8.0,
 		"sun_angle": 35.0, "walk": false, "see": false},
-	# the T.S.R.A. outpost's bulletproof glass (props/outpost_glazing.gd): a long band of steel-framed panes over a
-	# solid dado, the wall cut through both faces; "panes" bays (0: one every 1.5 m), style "plain" / "service"
-	"glazing": {"w": 4.0, "h": 2.1, "sill": 1.05, "panes": 0, "style": "plain", "walk": false, "see": true},
+	# the T.S.R.A. outpost's bulletproof window (props/outpost_glazing.gd): one big smoked pane in a thick black
+	# rubber surround with round corners and a perforated strip along its head, the wall cut through both faces;
+	# its sill at desk height. "panes" bays (0: one every 4 m), style "plain" / "service"
+	"glazing": {"w": 3.6, "h": 1.65, "sill": 1.08, "panes": 0, "style": "plain", "walk": false, "see": true},
 }
 const OP_MIN_W := 0.3                # metres: the narrowest opening
 const OP_GAP := 0.1                  # metres of wall kept between two openings, and between one and a corner
@@ -47,9 +50,9 @@ const MODEL_WINDOWS := {
 
 const DEFAULT_THICK := 0.3           # metres: the thin wall's thickness (object_types.json)
 const SEE_OVER_H := 1.8              # level_data.gd SEE_OVER_H: a wall lower than this does not take a cell over
-const EDGE_KEYS := ["tl", "tr", "h", "base", "mat_l", "mat_r", "segs", "lock_len", "lock_ang"]
+const EDGE_KEYS := ["tl", "tr", "h", "base", "mat_l", "mat_r", "segs", "lock_len", "lock_ang", "fill"]
 const DEFAULTS := {"tl": DEFAULT_THICK * 0.5, "tr": DEFAULT_THICK * 0.5, "h": 0.0, "base": 0.0, "mat_l": "", "mat_r": "", "segs": 0,
-	"lock_len": false, "lock_ang": false}
+	"lock_len": false, "lock_ang": false, "fill": ""}
 const STRAIGHT_ON := 0.9999          # cos of the angle under which two straight walls through a node are one line
 
 var nodes := {}                      # int -> {"p": Vector2, "h": float}
@@ -805,6 +808,7 @@ func to_dict() -> Dictionary:
 		if not (ed.get("cells", []) as Array).is_empty(): o["cells"] = ed.cells
 		if bool(ed.get("lock_len", false)): o["lock_len"] = true
 		if bool(ed.get("lock_ang", false)): o["lock_ang"] = true
+		if str(ed.get("fill", "")) != "": o["fill"] = ed.fill
 		if not (ed.get("ops", []) as Array).is_empty():
 			o["ops"] = (ed.ops as Array).map(func(op: Dictionary) -> Dictionary:
 				var k := {}
@@ -848,6 +852,86 @@ func load_dict(d) -> void:
 	# a node no wall ends on is nothing
 	for n in nodes.keys():
 		if edges_at(n).is_empty(): nodes.erase(n)
+	_adopt_fills()
+	refit_fills()
+
+# ---------------------------------------------------------------- what a wall lays along itself
+## The openings of a wall's "fill" (the outpost walls: "glazing" windows with FILL_PIER of wall between them and at
+## each end, or a "door" in its middle) are laid out from its length, so they go with it: drawn, stretched, split
+## (both halves keep the fill: it is an edge key) or joined. They are the ones marked "fill"; what is theirs to set
+## (sill, height, style, bays, the side a door opens to) is kept from the first of them. Taking one over by hand
+## (moving or sizing it, taking it out: unfill) leaves them as they stand, plain openings.
+const FILL_WIN_W := 3.6              # metres: the width a window aims at
+const FILL_PIER := 0.9               # metres of wall between two windows, and at each end
+const FILL_DOOR := {"w": 1.8, "h": 2.45, "style": "outpost", "leaves": 1}
+
+func refit_fill(e: int) -> void:
+	var ed: Dictionary = edges[e]
+	var kind := str(ed.get("fill", ""))
+	var op_kind := "door" if kind == "door" else "glazing"
+	var keep: Array = []
+	var tpl := {}
+	for op: Dictionary in ed.get("ops", []):
+		if not bool(op.get("fill", false)): keep.append(op)
+		elif tpl.is_empty() and str(op.kind) == op_kind: tpl = op
+	ed["ops"] = keep
+	if kind == "": return
+	var settings := {}
+	if kind == "door": settings = FILL_DOOR.duplicate()
+	for k in tpl:
+		if not (k in ["kind", "u", "w", "fill"]): settings[k] = tpl[k]
+	settings["fill"] = true
+	var l := length_of(e) * CELL_M
+	var spans: Array = []                # [u, w] of what to lay
+	if kind == "door":
+		if l >= float(settings.w) + OP_GAP * 2.0: spans.append([0.5, float(settings.w)])
+	else:
+		var n := maxi(1, roundi((l - FILL_PIER) / (FILL_WIN_W + FILL_PIER)))
+		var w := (l - FILL_PIER * (n + 1)) / n
+		if w >= 0.6:
+			for i in n: spans.append([(FILL_PIER * (i + 1) + w * (i + 0.5)) / l, w])
+	for sp: Array in spans:
+		var o := new_opening(op_kind, sp[0], settings)
+		o.w = sp[1]
+		# (clear of the openings put in by hand)
+		var mine := op_span(e, o)
+		var clear := true
+		for other: Dictionary in keep:
+			var s2 := op_span(e, other)
+			if mine.x < s2.y + OP_GAP / l and s2.x < mine.y + OP_GAP / l: clear = false
+		if clear: keep.append(o)
+
+func refit_fills() -> void:
+	for e in edges:
+		if str(edges[e].get("fill", "")) != "" or (edges[e].get("ops", []) as Array).any(func(op): return bool(op.get("fill", false))):
+			refit_fill(e)
+
+## The wall's fill openings become plain ones where they stand, and it lays nothing more
+func unfill(e: int) -> void:
+	edges[e].fill = ""
+	for op: Dictionary in edges[e].get("ops", []): op.erase("fill")
+
+## Sets `key` on every one of the wall's fill openings (one edited: all of them, as the next refit would)
+func fill_set(e: int, key: String, v) -> void:
+	for op: Dictionary in edges[e].get("ops", []):
+		if bool(op.get("fill", false)): op[key] = v
+
+## Walls saved before "fill" was: an outpost wall's glass run the length of it, or its powered door in the middle,
+## laid by the editor's Outpost wall tools, is that wall's fill
+func _adopt_fills() -> void:
+	for e in edges:
+		var ed: Dictionary = edges[e]
+		if str(ed.get("fill", "")) != "": continue
+		var l := length_of(e) * CELL_M
+		for op: Dictionary in ed.get("ops", []):
+			if str(op.kind) == "glazing" and float(op.w) >= l * 0.85:
+				ed.fill = "glazing"
+				op.fill = true
+				for k in ["w", "h", "sill", "panes"]: op.erase(k)      # (the old run's size: the new windows' own)
+				for k in ["h", "sill", "panes"]: op[k] = OPENINGS.glazing[k]
+			elif str(op.kind) == "door" and str(op.get("style", "")) == "outpost" and absf(float(op.u) - 0.5) < 0.01:
+				ed.fill = "door"
+				op.fill = true
 
 func duplicate_graph() -> RefCounted:
 	var g = get_script().new()

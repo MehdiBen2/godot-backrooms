@@ -450,6 +450,7 @@ const WallOpenings := preload("res://scripts/World/level/walls/wall_openings.gd"
 const OpeningTrim := preload("res://scripts/World/props/opening_trim.gd")
 const OutpostGlazing := preload("res://scripts/World/props/outpost_glazing.gd")
 const OutpostDoor := preload("res://scripts/World/props/outpost_door.gd")
+const AgedPaint := preload("res://shaders/aged_paint.gdshader")
 const WALL_CHUNK := 8                # cells a side: the wall graph's meshes are cut into chunks this big
 ## What wall_mesh.gd built of the floor's wall graph (not its meshes): the outlines of the walls' feet ("loops",
 ## for the skirting), their plans ("solids", for the trim to keep clear of) and their faces ("pieces", for the
@@ -473,8 +474,11 @@ func _build_wall_graph() -> void:
 		# the wallpaper is drawn to the height of the room the wall stands in (a low wall: the plain room's)
 		var hk := full if top >= full - 0.01 else WALL_H
 		var ch := Vector2i(floori(mid.x / WALL_CHUNK), floori(mid.y / WALL_CHUNK))
+		# its ends and the linings of its openings: the faces' paint when both faces wear the same (an outpost wall's
+		# reveal in its own paint, not the level's wallpaper), else the level's
+		var cap_mat: String = ed.mat_l if ed.mat_l == ed.mat_r else ""
 		keys[e] = {"l": "%s|%s|%d,%d" % [ed.mat_l, hk, ch.x, ch.y], "r": "%s|%s|%d,%d" % [ed.mat_r, hk, ch.x, ch.y],
-			"cap": "|%s|%d,%d" % [hk, ch.x, ch.y]}
+			"cap": "%s|%s|%d,%d" % [cap_mat, hk, ch.x, ch.y]}
 	var sol := WallJoints.solve(wall_graph, CELL)
 	var res := WallMesh.build(sol, spans, keys, _wall_repeat(), true, WallOpenings.holes_of(wall_graph, spans))
 	wall_plan = {"loops": res.loops, "solids": res.solids, "holes": res.holes, "pieces": res.pieces}
@@ -647,9 +651,27 @@ func _build_wall_window(op: Dictionary, h: Dictionary, cv: Dictionary, xf: Trans
 
 ## The material of a wall-graph face: `id` a textures/pbr material ("" the level's walls), unrolled along the wall
 ## in metres (its UVs, not a world projection, so it runs on round a curve); `h` the room height it's drawn for
+## A paint whose .tres says "metadata/aged" (Outpost_Wall) wears its years (shaders/aged_paint.gdshader), drawn for
+## the room's height `h` (its water runs hang from that ceiling).
 var _graph_mats := {}
-func _graph_wall_mat(id: String, h: float) -> StandardMaterial3D:
+func _graph_wall_mat(id: String, h: float) -> Material:
 	if id == "" or not ResourceLoader.exists("res://textures/pbr/%s/%s.tres" % [id, id]): return _wall_uv_mat(h)
+	var src := load("res://textures/pbr/%s/%s.tres" % [id, id]) as StandardMaterial3D
+	if src != null and bool(src.get_meta("aged", false)):
+		var key := "%s|%s" % [id, h]
+		if not _graph_mats.has(key):
+			var sm := ShaderMaterial.new()
+			sm.shader = AgedPaint
+			sm.set_shader_parameter("albedo_tex", src.albedo_texture)
+			sm.set_shader_parameter("normal_tex", src.normal_texture)
+			sm.set_shader_parameter("rough_tex", src.roughness_texture)
+			sm.set_shader_parameter("per_m", PBR_PER_M)
+			sm.set_shader_parameter("top", h)
+			sm.set_shader_parameter("film_tex", load("res://textures/grime/film_1.png"))
+			sm.set_shader_parameter("foot_tex", load("res://textures/grime/floor_damp_1.png"))
+			sm.set_shader_parameter("leak_tex", load("res://textures/grime/ceiling_leak_1.png"))
+			_graph_mats[key] = sm
+		return _graph_mats[key]
 	if not _graph_mats.has(id):
 		var m := _pbr_by_id(id)
 		m.uv1_triplanar = false

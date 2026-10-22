@@ -86,8 +86,20 @@ void vertex() {
 	v_uv = (length(UV) > 0.0001 ? UV : v_world_pos.xz) * uv_scale;
 }
 
+// The pile repeats every 2 m, and a big room shows it: the same lumps in rows down the floor. Two copies of it are
+// laid, each shifted by an offset picked from a slow noise over the floor, and blended where the noise moves from
+// one offset to the next (Inigo Quilez, "texture repetition", technique 3): no two stretches of carpet the same,
+// at two fetches a map instead of one. The blend leans to whichever copy is darker there, so it keeps the pile's
+// contrast instead of averaging it to mush.
+vec2 tile_off(float i) { return sin(vec2(3.0, 7.0) * i); }
+
 void fragment() {
 	vec2 uv = v_uv;
+	float vary = vnoise(v_world_pos.xz * 0.12 + 41.0) * 8.0;
+	float vi = floor(vary);
+	float vf = fract(vary);
+	vec2 off_a = tile_off(vi);
+	vec2 off_b = tile_off(vi + 1.0);
 	// Gradients taken once, up front: inside the (per-pixel, variable-length) march below implicit derivatives
 	// are undefined and the GPU falls back to slow paths, and every fetch here reuses them via textureGrad.
 	float dist = -VERTEX.z;
@@ -114,7 +126,8 @@ void fragment() {
 		vec2 max_offset = -(v_ts.xy / max(v_ts.z, 0.20)) * (height_scale * pom_weight);
 		vec2 delta_uv = max_offset * layer_step;
 
-		vec2 curr_uv = uv;
+		vec2 lead = vf < 0.5 ? off_a : off_b;      // (the march follows the copy that shows most here)
+		vec2 curr_uv = uv + lead;
 		float curr_layer_depth = 0.0;
 		float curr_map_depth = 1.0 - textureGrad(height_tex, curr_uv, uv_dx, uv_dy).r;
 		float prev_map_depth = curr_map_depth;
@@ -138,7 +151,7 @@ void fragment() {
 		float before_depth = prev_map_depth - prev_layer_depth;
 		float weight = clamp(after_depth / max(after_depth + before_depth, 0.0001), 0.0, 1.0);
 
-		uv = mix(curr_uv, prev_uv, weight);
+		uv = mix(curr_uv, prev_uv, weight) - lead;
 		final_depth = mix(curr_layer_depth, prev_layer_depth, weight) * pom_weight;
 	}
 
@@ -147,9 +160,12 @@ void fragment() {
 	float far_fade = clamp((dist - far_start) / mix(mid_fade_range, 9.0, soft), 0.0, 1.0);
 	float active_normal_depth = mix(normal_scale * mix(1.0, 0.55, soft), 0.0, far_fade);
 
-	vec4 alb = textureGrad(albedo_tex, uv, uv_dx, uv_dy) * albedo_tint;
-	float rough = textureGrad(roughness_tex, uv, uv_dx, uv_dy).r * roughness_mult;
-	float base_ao = textureGrad(ao_tex, uv, uv_dx, uv_dy).r;
+	vec4 alb_a = textureGrad(albedo_tex, uv + off_a, uv_dx, uv_dy);
+	vec4 alb_b = textureGrad(albedo_tex, uv + off_b, uv_dx, uv_dy);
+	float vb = smoothstep(0.2, 0.8, vf - 0.1 * dot(alb_a.rgb - alb_b.rgb, vec3(1.0)));
+	vec4 alb = mix(alb_a, alb_b, vb) * albedo_tint;
+	float rough = mix(textureGrad(roughness_tex, uv + off_a, uv_dx, uv_dy).r, textureGrad(roughness_tex, uv + off_b, uv_dx, uv_dy).r, vb) * roughness_mult;
+	float base_ao = mix(textureGrad(ao_tex, uv + off_a, uv_dx, uv_dy).r, textureGrad(ao_tex, uv + off_b, uv_dx, uv_dy).r, vb);
 
 	float crevice_occ = 1.0 - pow(final_depth, 1.4) * crevice_ao_strength;
 	float final_ao = clamp(base_ao * crevice_occ, 0.0, 1.0);
@@ -182,7 +198,7 @@ void fragment() {
 	}
 
 	ALBEDO = alb.rgb * mix(vec3(0.92), vec3(1.0), 1.0 - final_depth * 0.2);
-	NORMAL_MAP = textureGrad(normal_tex, uv, uv_dx, uv_dy).rgb;
+	NORMAL_MAP = mix(textureGrad(normal_tex, uv + off_a, uv_dx, uv_dy).rgb, textureGrad(normal_tex, uv + off_b, uv_dx, uv_dy).rgb, vb);
 	NORMAL_MAP_DEPTH = active_normal_depth;
 	ROUGHNESS = rough;
 	SPECULAR = metallic_specular;

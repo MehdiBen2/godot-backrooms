@@ -9,6 +9,7 @@ extends Node3D
 ## whatever unhelpful pivot the source file used - these packs don't agree on where "the ground" is.
 
 const BulletGlass := preload("res://scripts/World/props/bullet_glass.gd")
+const Surfaces := preload("res://scripts/Render/surfaces.gd")
 
 static var _floodlight_cookie: Texture2D
 
@@ -102,6 +103,8 @@ func build_info(info: Dictionary, with_light := true) -> void:
 			_set_glow(mi, glow)
 		if info.has("glass_mats"):                 # its glass panes: the outpost's real glass (props/bullet_glass.gd)
 			BulletGlass.swap(mi, info.glass_mats)
+		if info.has("pbr_mats"):                   # its flat parts in real scanned surfaces (render/surfaces.gd)
+			Surfaces.swap_named(mi, info.pbr_mats)
 		mi.visibility_range_end = 120.0           # well inside the horizon fog (170 m): clutter does not pop out down a corridor
 		mi.visibility_range_end_margin = 15.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
@@ -279,6 +282,7 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		s.spot_range = base_range
 		s.spot_angle = base_angle
 		s.spot_attenuation = atten
+		s.light_size = 0.25                     # the lamp head: its glare on a shiny surface is that big, not a pin-point
 		s.shadow_enabled = true
 		if cookie != null:
 			s.light_projector = cookie
@@ -294,6 +298,7 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		glow.light_color = col
 		glow.light_energy = float(cfg.get("glow_energy", 0.35))
 		glow.omni_range = float(cfg.get("glow_range", 1.2))
+		glow.light_size = 0.25
 		glow.distance_fade_enabled = true
 		glow.distance_fade_begin = 55.0
 		glow.distance_fade_length = 12.0

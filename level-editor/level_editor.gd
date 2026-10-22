@@ -1698,7 +1698,7 @@ func _op_insp_sync() -> void:
 	(_oi.at as SpinBox).set_value_no_signal(_op_from_a(wsel_op))
 	(_oi.leaves as SpinBox).set_value_no_signal(float(op.get("leaves", 1)))
 	var panes := int(op.get("panes", 3))
-	if kind == "glazing" and panes <= 0: panes = maxi(1, roundi((float(op.w) - 0.14) / 1.5))   # (0: a bay every 1.5 m)
+	if kind == "glazing" and panes <= 0: panes = maxi(1, roundi(float(op.w) / 4.0))   # (0: a bay every 4 m)
 	(_oi.panes as SpinBox).set_value_no_signal(float(panes))
 	(_oi.sun as SpinBox).set_value_no_signal(float(op.get("sun", 8.0)))
 	(_oi.sun_angle as SpinBox).set_value_no_signal(float(op.get("sun_angle", 35.0)))

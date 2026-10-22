@@ -6,7 +6,6 @@
 
 [resource]
 resource_name = "Outpost_Floor"
-uv1_triplanar = false
 albedo_texture = ExtResource("1")
 roughness_texture = ExtResource("3")
 roughness_texture_channel = 4
