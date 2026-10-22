@@ -6042,14 +6042,6 @@
       "type": "prop_work_light2"
     },
     {
-      "elev": 0.0,
-      "pos_x": 4.0,
-      "pos_y": 35.5,
-      "rotation": 45.0,
-      "scale": 1.0,
-      "type": "prop_work_light2"
-    },
-    {
       "behavior": "roam",
       "kind": "bacteria",
       "pos_x": 51.0,
@@ -6149,6 +6141,150 @@
       "rotation": 90.0,
       "scale": 1.0,
       "type": "prop_exit_sign_medium"
+    },
+    {
+      "chain": "",
+      "chance": 100.0,
+      "cooldown": 5.0,
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "direction": "any",
+      "duration": 20.0,
+      "dwell": 3.0,
+      "event": "alert",
+      "event_mode": "all",
+      "events_list": [
+        {
+          "at": 0.0,
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "fire_on": "enter",
+      "lighting": "any",
+      "max_fires": 0,
+      "nth": 1,
+      "once": true,
+      "pos_x": 11.0,
+      "pos_y": 25.0,
+      "rotation": 0.0,
+      "sanity_below": 100.0,
+      "scale": 3.0,
+      "speed": "any",
+      "tag": "",
+      "text": "Document anomalies across the threshold stratum and secure a viable transit point.",
+      "text_style": "alert",
+      "torch": "any",
+      "type": "trigger"
+    },
+    {
+      "chain": "",
+      "chance": 100.0,
+      "cooldown": 5.0,
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "direction": "any",
+      "duration": 20.0,
+      "dwell": 3.0,
+      "event": "alert",
+      "event_mode": "all",
+      "events_list": [
+        {
+          "at": 0.0,
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "fire_on": "enter",
+      "lighting": "any",
+      "max_fires": 0,
+      "nth": 1,
+      "once": true,
+      "pos_x": 12.0,
+      "pos_y": 29.0,
+      "rotation": 0.0,
+      "sanity_below": 100.0,
+      "scale": 3.0,
+      "speed": "any",
+      "tag": "",
+      "text": "Document anomalies across the threshold stratum and secure a viable transit point.",
+      "text_style": "alert",
+      "torch": "any",
+      "type": "trigger"
+    },
+    {
+      "chain": "",
+      "chance": 100.0,
+      "cooldown": 5.0,
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "direction": "any",
+      "duration": 20.0,
+      "dwell": 3.0,
+      "event": "alert",
+      "event_mode": "all",
+      "events_list": [
+        {
+          "at": 0.0,
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "fire_on": "enter",
+      "lighting": "any",
+      "max_fires": 0,
+      "nth": 1,
+      "once": true,
+      "pos_x": 12.5,
+      "pos_y": 33.0,
+      "rotation": 0.0,
+      "sanity_below": 100.0,
+      "scale": 3.0,
+      "speed": "any",
+      "tag": "",
+      "text": "Document anomalies across the threshold stratum and secure a viable transit point.",
+      "text_style": "alert",
+      "torch": "any",
+      "type": "trigger"
+    },
+    {
+      "chain": "",
+      "chance": 100.0,
+      "cooldown": 5.0,
+      "custom_event": "",
+      "delay": 0.0,
+      "depth": 2.0,
+      "direction": "any",
+      "duration": 20.0,
+      "dwell": 3.0,
+      "event": "alert",
+      "event_mode": "all",
+      "events_list": [
+        {
+          "at": 0.0,
+          "custom_event": "",
+          "event": "alert"
+        }
+      ],
+      "fire_on": "enter",
+      "lighting": "any",
+      "max_fires": 0,
+      "nth": 1,
+      "once": true,
+      "pos_x": 12.0,
+      "pos_y": 38.0,
+      "rotation": 0.0,
+      "sanity_below": 100.0,
+      "scale": 3.0,
+      "speed": "any",
+      "tag": "",
+      "text": "Document anomalies across the threshold stratum and secure a viable transit point.",
+      "text_style": "alert",
+      "torch": "any",
+      "type": "trigger"
     }
   ],
   "sdfgi": true,
@@ -7434,126 +7570,6 @@
         ],
         "tl": 0.15,
         "tr": 0.15
-      },
-      {
-        "a": 329,
-        "b": 330,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 331,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.1,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 1.05,
-            "style": "plain",
-            "u": 0.5,
-            "w": 12.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 330,
-        "b": 332,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 333,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.1,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 1.05,
-            "style": "plain",
-            "u": 0.5,
-            "w": 8.3
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 334,
-        "b": 335,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 336,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.1,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 1.05,
-            "style": "plain",
-            "u": 0.5,
-            "w": 12.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 335,
-        "b": 337,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 338,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.1,
-            "hinge": "a",
-            "kind": "glazing",
-            "panes": 0.0,
-            "side": "l",
-            "sill": 1.05,
-            "style": "plain",
-            "u": 0.5,
-            "w": 12.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
-      },
-      {
-        "a": 332,
-        "b": 334,
-        "bulge": 0.0,
-        "h": 0.0,
-        "id": 339,
-        "mat_l": "Outpost_Wall",
-        "mat_r": "Outpost_Wall",
-        "ops": [
-          {
-            "h": 2.45,
-            "hinge": "a",
-            "kind": "door",
-            "leaves": 1.0,
-            "side": "l",
-            "sill": 0.0,
-            "style": "outpost",
-            "u": 0.5,
-            "w": 1.8
-          }
-        ],
-        "tl": 0.15,
-        "tr": 0.15
       }
     ],
     "nodes": [
@@ -8396,36 +8412,6 @@
         "id": 287,
         "x": 93.5,
         "y": 17.75
-      },
-      {
-        "id": 329,
-        "x": 1.5,
-        "y": 30.5
-      },
-      {
-        "id": 330,
-        "x": 4.5,
-        "y": 30.5
-      },
-      {
-        "id": 332,
-        "x": 4.5,
-        "y": 32.5
-      },
-      {
-        "id": 334,
-        "x": 4.5,
-        "y": 33.5
-      },
-      {
-        "id": 335,
-        "x": 4.5,
-        "y": 36.5
-      },
-      {
-        "id": 337,
-        "x": 1.5,
-        "y": 36.5
       }
     ]
   },

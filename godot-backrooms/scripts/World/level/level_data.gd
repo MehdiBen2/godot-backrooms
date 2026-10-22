@@ -829,6 +829,14 @@ func _nearest_open(c: Vector2i) -> Vector2i:
 					return n
 	return c
 
+## Could someone stand at world point `p` on this floor: an open cell of the map (no wall, no pit, as _nearest_open
+## takes them) and between this floor and the next up. For a save tape's spot (save_game.gd): the level may have
+## changed since it was written.
+func can_stand_at(p: Vector3) -> bool:
+	var c := cell_of(p)
+	return c.x > 0 and c.y > 0 and c.x < size - 1 and c.y < size - 1 and not walls.has(c) and not pits.has(c) \
+		and p.y > -0.5 and p.y < STOREY_H - 1.0
+
 func _first_open() -> Array:
 	var c := _nearest_open(Vector2i(size / 2, size / 2))
 	return [c.x, c.y]

@@ -129,6 +129,7 @@ func _build_trim() -> void:
 	_gather_obstacles()
 	_wall_grime_field()
 	await _build_skirting()
+	_build_outpost_base()
 	await _slice()
 	_build_wall_angle()
 	await _slice()
@@ -282,11 +283,15 @@ func _skirt_loop(st: SurfaceTool, pts: Array, xf: Transform3D, inward: bool, y :
 		face_out.append(xf.basis * Vector3(m.x, 0.0, m.y) if smooth else xf.basis * Vector3(after.x, 0.0, after.y))
 	_skirt_run(st, at, miter, face_in, face_out, true, prof, nrms)
 
-## Walls painted with one of BARE_WALLS (the T.S.R.A. outpost's) have no skirting: their paint runs down to the
-## floor. Loop `pts` (world metres) as the runs of it that are skirted: [[]] when all of it is (skirt it as it
+## Walls painted with one of BARE_WALLS (the T.S.R.A. outpost's) have no vinyl cove base but their own: a taller
+## dusty rose-tan painted board (OUTPOST_BASE, _build_outpost_base), as along the offices in the reference photos.
+## Loop `pts` (world metres) as the runs of it that are skirted: [[]] when all of it is (skirt it as it
 ## is), [] when none of it is, else the open runs between the bare stretches.
 const BARE_WALLS := ["Outpost_Wall"]
-func _skirted_runs(pts: Array, closed: bool) -> Array:
+const OUTPOST_BASE := [Vector2(0.0, 0.2), Vector2(0.004, 0.1996), Vector2(0.0085, 0.197), Vector2(0.0115, 0.192),
+	Vector2(0.0125, 0.186), Vector2(0.0125, 0.0)]
+var _outpost_base_mat: StandardMaterial3D
+func _skirted_runs(pts: Array, closed: bool, bare_ones := false) -> Array:
 	var n := pts.size()
 	var segs := n if closed else n - 1
 	var bare: Array[bool] = []
@@ -298,12 +303,14 @@ func _skirted_runs(pts: Array, closed: bool) -> Array:
 		if not hit.is_empty():
 			var ed: Dictionary = wall_graph.edges[hit.e]
 			b = str(ed.get("mat_l", "")) in BARE_WALLS or str(ed.get("mat_r", "")) in BARE_WALLS
-		bare.append(b)
-		any = any or b
+		b = b == bare_ones                          # (selected: the stretches this call wants)
+		bare.append(not b)
+		any = any or not b
 	if not any: return [[]]
+	if bare.all(func(x: bool) -> bool: return x): return []
 	var start := 0
 	if closed:
-		while not bare[start]: start += 1        # (begin at a bare stretch, so no run wraps round the loop's start)
+		while not bare[start]: start += 1        # (begin at an unselected stretch, so no run wraps round the loop's start)
 	var out: Array = []
 	var run: Array = []
 	for k in segs:
@@ -316,6 +323,35 @@ func _skirted_runs(pts: Array, closed: bool) -> Array:
 		run.append(pts[(i + 1) % n])
 	if run.size() >= 2: out.append(run)
 	return out
+
+## A painted board 20 cm high along every stretch of the graph's outpost walls, wrapping round their corners
+func _build_outpost_base() -> void:
+	var nrms := _profile_normals(OUTPOST_BASE)
+	var sts := {}
+	for loop: Dictionary in wall_plan.get("loops", []):
+		var pts: Array = Array(loop.pts)
+		if pts.size() < 2: continue
+		var at: Vector2 = pts[0]
+		var runs := _skirted_runs(pts, loop.closed, true)
+		if runs.is_empty(): continue
+		if runs[0].is_empty():
+			if loop.closed:
+				if pts.size() >= 3: _skirt_loop(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, Transform3D.IDENTITY, loop.inward, 0.0, OUTPOST_BASE, nrms)
+			else:
+				_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), pts, 0.0, OUTPOST_BASE, nrms)
+			continue
+		for run: Array in runs:
+			at = run[0]
+			_skirt_open(_chunk_st(sts, Vector3(at.x, 0.0, at.y)), run, 0.0, OUTPOST_BASE, nrms)
+	if sts.is_empty(): return
+	if _outpost_base_mat == null:
+		_outpost_base_mat = StandardMaterial3D.new()
+		_outpost_base_mat.albedo_color = Color(0.66, 0.48, 0.4)      # dusty rose-tan, flat-painted
+		_outpost_base_mat.roughness = 0.62
+	var mat := _outpost_base_mat
+	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 
 ## Skirting along a run of the wall graph's feet that stops at a doorway each end (wall_mesh.gd breaks the chain
 ## there): out from the faces the way they face (the right of the way the run goes), butting up to the door's

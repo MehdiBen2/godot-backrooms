@@ -37,7 +37,8 @@ func _ready() -> void:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
 	var lm = get_tree().root.get_node_or_null("LoadingMusicPlayer")
-	if lm and is_instance_valid(lm) and not lm.has_meta("fading"):
+	# (with the loading screen still up over the level, it fades when that asks for a key: wake_gate.gd)
+	if lm and is_instance_valid(lm) and not lm.has_meta("fading") and not get_tree().root.has_node("WakeGate"):
 		lm.set_meta("fading", true)
 		var tw := lm.create_tween()
 		tw.tween_property(lm, "volume_db", -80.0, 1.5)

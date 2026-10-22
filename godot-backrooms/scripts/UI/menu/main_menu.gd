@@ -28,6 +28,7 @@ const MENU_FISHEYE := 0.03              # subtle on purpose: it only bends the p
 										# (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
 const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
+const WakeGate := preload("res://scripts/UI/wake_gate.gd")
 const LobbyScreen := preload("res://scripts/UI/menu/lobby_screen.gd")
 const LOBBY_PUSH := 1.3                 # PLAY: seconds the still pushes in before the corridor has taken over
 const LOBBY_ZOOM := 1.4
@@ -97,6 +98,7 @@ const TIP_EVERY := 7.0           # s between field notes
 const AMBER := Color("f5a623")   # the emblem's own colour
 const EMBLEM_PX := 176.0
 const LOAD_FADE := 2.5           # s: the loading music fades out over the end of its own track
+const LOAD_SHARE := 0.8          # of the emblem's fill: the files; the rest is the level built and settled (wake_gate.gd)
 const DIM := Color(0.9, 0.882, 0.804, 0.6)
 const SLIDE := 30.0               # how far a menu entry steps right when it is selected
 const ROW_H := 50.0
@@ -146,7 +148,6 @@ var load_status: Label                  # under the emblem: LOADING, then PRESS 
 var load_name: Label
 var load_sub: Label
 var load_tip: Label                     # bottom right: a field note, changed every TIP_EVERY seconds
-var load_ready := false                 # everything is in memory: waiting for a key (the gate) before the run starts
 var load_gate := true                   # false when launched straight from the level editor: no key press needed
 var tip_clock := 0.0
 var loading := false
@@ -1032,7 +1033,6 @@ func _start_briefing() -> void:
 ## `fade`: coming out of the push (fully black by now), the loading text comes up out of the dark instead of cutting in
 func _start_loading(fade := false) -> void:
 	loading = true
-	load_ready = false
 	set_process(true)
 	loading_root.visible = true
 	loading_root.modulate.a = 1.0
@@ -1192,7 +1192,6 @@ func _level_name() -> String:
 
 func _finish_loading() -> void:
 	loading = false                    # once only: _process_loading must not hand over again next frame
-	load_ready = false
 	set_process(false)
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
 	_main_asked = false
@@ -1200,53 +1199,19 @@ func _finish_loading() -> void:
 	Game.respawned = true              # straight into the run: the title screen is this scene
 	Engine.max_fps = int(Gfx.s.get("fps", 0))
 	var tree := get_tree()
-	var cover := _cover_from_screen()
 	LoadManifest.record(Game.level_index)      # (main.gd stops it once the run is up)
-	_fade_loading_music(LOAD_FADE)
+	if packed != null:
+		# the loading screen goes on over the level until it is built and has settled, then asks for a key
+		var gate := WakeGate.new()
+		gate.setup(loading_root, load_status, load_emblem, load_glow, shown_progress, load_gate)
+		tree.root.add_child(gate)
+		loading_root.reparent(gate)
 	tree.change_scene_to_packed(packed)
 	Stability.trace("play: change_scene_to_packed returned")
-	_fade_cover(tree, cover)
-
-## The loading screen's last frame, pinned over the root window: it outlives this scene, so the level does
-## not pop in under a hard cut.
-func _cover_from_screen() -> CanvasLayer:
-	var img := get_viewport().get_texture().get_image()
-	if img == null or img.is_empty():
-		return null
-	var layer := CanvasLayer.new()
-	layer.layer = 128
-	layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	var pic := TextureRect.new()
-	pic.texture = ImageTexture.create_from_image(img)
-	pic.set_anchors_preset(Control.PRESET_FULL_RECT)
-	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	pic.stretch_mode = TextureRect.STRETCH_SCALE
-	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(pic)
-	get_tree().root.add_child(layer)
-	return layer
-
-## Static: this scene is freed by the time it runs. Waits out the frames the level takes to build and draw its
-## first picture (a long frame must not eat the fade), then dissolves the cover.
-static func _fade_cover(tree: SceneTree, layer: CanvasLayer) -> void:
-	if layer == null:
-		return
-	for i in 2:
-		await tree.process_frame
-	if not is_instance_valid(layer):
-		return
-	var tw := layer.create_tween()
-	tw.tween_property(layer.get_child(0), "modulate:a", 0.0, 0.35).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_callback(layer.queue_free)
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:
 	if not is_inside_tree():
-		return
-	if load_ready and e.is_pressed() and not e.is_echo() and (e is InputEventKey or e is InputEventMouseButton):
-		get_viewport().set_input_as_handled()
-		load_ready = false
-		_finish_loading()
 		return
 	if e is InputEventKey or e is InputEventMouseButton or (e is InputEventMouseMotion and e.relative.length() > 1.0):
 		idle_time = 0.0
@@ -1299,9 +1264,6 @@ func _process(dt: float) -> void:
 func _process_loading(dt: float) -> void:
 	load_elapsed += dt
 	_loading_motion(dt)
-	if load_ready:
-		load_status.modulate.a = 0.4 + 0.6 * (0.5 + 0.5 * sin(t * 3.2))
-		return
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
@@ -1335,32 +1297,18 @@ func _process_loading(dt: float) -> void:
 
 	# creep: the fill keeps moving a little while a loader reports nothing, but never far past the real figure
 	creep_progress = minf(creep_progress + dt * CREEP_RATE, real_progress + CREEP_AHEAD)
-	var target := 1.0 if done else minf(maxf(real_progress, creep_progress), 0.95)
+	var target := LOAD_SHARE * (1.0 if done else minf(maxf(real_progress, creep_progress), 0.95))
 	shown_progress = maxf(shown_progress, move_toward(shown_progress, target, dt * (1.6 if done else 0.9)))
 	load_emblem.material.set_shader_parameter("progress", shown_progress)
 
-	if done and shown_progress >= 0.999:
-		load_emblem.material.set_shader_parameter("progress", 1.0)
-		if load_gate:
-			_loading_ready()
-		else:
-			_finish_loading()
-
-## The emblem is full: it flashes once, the halo swells, and the status line asks for a key
-func _loading_ready() -> void:
-	load_ready = true
-	var tw := create_tween().set_parallel(true)
-	tw.tween_method(func(v: float) -> void: load_emblem.material.set_shader_parameter("flash", v), 1.0, 0.0, 0.9).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tw.tween_property(load_glow, "scale", Vector2(1.25, 1.25), 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.chain().tween_property(load_glow, "scale", Vector2.ONE, 1.2).set_trans(Tween.TRANS_SINE)
-	load_status.text = "PRESS ANY KEY TO CONTINUE"
-	_fade_loading_music(LOAD_FADE)
+	if done and shown_progress >= LOAD_SHARE - 0.001:
+		_finish_loading()                # (the key is asked for once the level stands: wake_gate.gd)
 
 ## Slow life on an otherwise still screen: the halo breathes, LOADING's dots tick, the field note changes
 func _loading_motion(dt: float) -> void:
 	var breath := 0.5 + 0.5 * sin(t * 1.3)
 	load_glow.modulate.a = 0.65 + 0.35 * breath
-	if not load_ready and load_status.text.contains("LOADING"):
+	if load_status.text.contains("LOADING"):
 		var n := int(t * 2.0) % 4                # the dots tick; padded both sides so the word never shifts
 		load_status.text = "   LOADING" + ".".repeat(n) + " ".repeat(3 - n)
 	tip_clock += dt

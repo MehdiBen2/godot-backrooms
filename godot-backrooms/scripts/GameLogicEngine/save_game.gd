@@ -73,6 +73,15 @@ func begin(i: int) -> void:
 	Game.level_index = int(cf.get_value("run", "level_index", 0))
 	Game.level_floor = int(cf.get_value("run", "level_floor", 0))
 	Game.floor_link = cf.get_value("run", "floor_link", {})
+	# the level may have been changed since the tape was written: a floor it no longer has starts at its spawn
+	var LevelData := load("res://scripts/World/level/level_data.gd")
+	var levels: Array = LevelData.read_index()
+	if not levels.is_empty() and not LevelData.in_stack(LevelData.read_level(levels[clampi(Game.level_index, 0, levels.size() - 1)]), Game.level_floor):
+		Stability.trace("saves: tape %d is on floor %d, which the level no longer has: starting on its ground floor" % [i, Game.level_floor])
+		Game.level_floor = 0
+		Game.floor_link = {}
+		_floor_seen = Vector2i(Game.level_index, 0)
+		return
 	_floor_seen = Vector2i(Game.level_index, Game.level_floor)
 	if cf.has_section_key("player", "pos"):
 		_pending = {"pos": cf.get_value("player", "pos"), "yaw": cf.get_value("player", "yaw", 0.0),
@@ -88,6 +97,11 @@ func apply(main: Node) -> void:
 	if _pending.is_empty():
 		return
 	var p: Node3D = main.player
+	if not main.level.can_stand_at(_pending.pos):
+		# a wall, a pit or the void there now (the level changed since): the floor's spawn, where main.gd put them
+		Stability.trace("saves: the tape's spot %s is not open on this floor any more: starting at its spawn" % [_pending.pos])
+		_pending = {}
+		return
 	p.global_position = _pending.pos
 	p.rotation.y = float(_pending.yaw)
 	var cam: Camera3D = p.get_node_or_null("Camera3D")
@@ -102,8 +116,15 @@ func can_save() -> bool:
 	if slot < 0 or Game.dead or Game.editor_test or (Net.is_online() and not Net.hosting):
 		return false
 	var p: Node = Game.player
-	return p != null and is_instance_valid(p) and p.is_inside_tree() and not p.get("dead") \
-		and Game.main != null and is_instance_valid(Game.main) and _pending.is_empty()
+	if not (p != null and is_instance_valid(p) and p.is_inside_tree() and not p.get("dead") \
+		and Game.main != null and is_instance_valid(Game.main) and _pending.is_empty()):
+		return false
+	# never mid-way: a floor still being built, a fall or a jump, a flight (a tape put you back there, in the air)
+	if Game.freefall or Game.noclip or Game.draw_mode:
+		return false
+	if Game.level != null and is_instance_valid(Game.level) and Game.level.has_method("settled") and not Game.level.settled():
+		return false
+	return not (p is CharacterBody3D) or (p as CharacterBody3D).is_on_floor()
 
 func save_now() -> bool:
 	if not can_save():

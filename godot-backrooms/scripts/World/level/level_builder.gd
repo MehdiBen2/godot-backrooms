@@ -84,6 +84,7 @@ func _process_timed(delta: float) -> void:
 		return
 	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
 	update_lighting(delta)
+	_show_shells()
 
 ## Through a hole in the floor into the one below: that floor takes over half way down the slab between them,
 ## with the player where they are, still falling (rebuild_floor_seamless, kind "fall")
@@ -97,6 +98,7 @@ func _physics_process_timed(_delta: float) -> void:
 		return
 	if edge_wrap: _wrap_player()          # (noclip too: flying off the edge of an endless level comes back round)
 	if Game.noclip: return
+	if _catch_lost(_delta): return
 	if not _loops.is_empty(): _walk_loops()
 	var p := player.global_position
 	if _stub:
@@ -128,6 +130,36 @@ func _physics_process_timed(_delta: float) -> void:
 const FALL_LIMIT := 24
 const CLIMB_SWAP := 1.2            # m under the floor above at which, climbing stairs up to it, it takes over
 var _fallen := 0                   # storeys fallen through since the player last stood on a floor
+
+## Somewhere no floor of the level can hold you: under this floor where it has no hole, pit or pool to be down in
+## (a slip past the slab, a spot from an older layout, anything not foreseen), or off its map. FALL_LIMIT only
+## counts falls down the holes; out here you fell for ever under the floors. After LOST_GRACE s of it you are put
+## back on the nearest open cell.
+const LOST_BELOW := 1.5            # m under the floor line (its collision is 0.4 m thick)
+const LOST_GRACE := 0.3            # s
+var _lost_t := 0.0
+
+func _out_of_world(p: Vector3) -> bool:
+	var c := cell_of(p)
+	if not edge_wrap and (c.x < 0 or c.y < 0 or c.x >= size or c.y >= size): return true
+	if p.y > -LOST_BELOW: return false
+	if through.has(c) or pits.has(c) or pool_cells.has(c) or noclip_floor.has(c) or noclip_death.has(c): return false
+	for s in stairwells:
+		if is_instance_valid(s) and s.holds(p): return false
+	return true
+
+## True when the player was out of the world (_out_of_world) long enough and has been put back
+func _catch_lost(dt: float) -> bool:
+	var p := player.global_position
+	_lost_t = _lost_t + dt if _out_of_world(p) else 0.0
+	if _lost_t < LOST_GRACE: return false
+	_lost_t = 0.0
+	var c := cell_of(p).clamp(Vector2i.ONE, Vector2i(size - 2, size - 2))
+	c = _nearest_open(c)
+	Stability.trace("level: player out of the world at %s on floor %d, put back on cell %s" % [p, built_floor, c])
+	player.global_position = Vector3(c.x * CELL, 0.1, c.y * CELL)
+	if player is CharacterBody3D: (player as CharacterBody3D).velocity = Vector3.ZERO
+	return true
 
 # ---------------------------------------------------------------- corridors that never end
 ## A Loop zone (level_data.gd `loop`) painted along a corridor: walk on down it and, a cell short of its far
@@ -489,6 +521,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	if cover != null and not falling:
 		cover.free()
 		cover = null
+	if cover != null: cover.visible = true          # (_show_shells may have had it out of view)
 	_tear_down(was, well, cover, not fresh and f != was and was in _wanted_shells(f))
 	# the same level: its file is already in memory, so the swap frame doesn't re-read and re-parse it off the disk
 	load_floor(f, {} if fresh else level_raw)
@@ -809,6 +842,34 @@ func _place_shells() -> void:
 	for k: int in shells:
 		Shell.set_height(shells[k], (k - built_floor) * STOREY_H)
 		Shell.show_lights(shells[k], absi(k - built_floor))
+	_shell_key = SHELL_RECHECK
+
+## The look-only floors are only ever seen through this floor's holes, so they are drawn only while one of those is
+## in sight: down through `through`, up through `open_above` (the light pool's eyes and sight lines, level_light_pool.gd
+## _look_from). Behind the ceiling they cost as much as a floor: level 0's floor -6 drew twice the draw calls for
+## them (153 lights, 537 meshes), ~0.6 ms of GPU. Worked out again only when you cross into another half cell.
+const SHELL_SIGHT := 60.0              # m: a hole further off is lost in the fog
+const SHELL_RECHECK := Vector2i(1 << 30, 1 << 30)
+var _shell_key := SHELL_RECHECK
+
+func _show_shells() -> void:
+	if shells.is_empty() or _shell_key == _seen_key: return
+	_shell_key = _seen_key
+	var p := player.global_position
+	var down := _hole_in_sight(through, p)
+	var up := _hole_in_sight(open_above, p)
+	for k: int in shells:
+		(shells[k] as Node3D).visible = up if k > built_floor else down
+
+func _hole_in_sight(cells: Dictionary, p: Vector3) -> bool:
+	if cells.is_empty(): return false
+	if _look_eyes.is_empty(): return true          # (in a stairwell, or no sight lines yet: left in view)
+	for c: Vector2i in cells:
+		var at := wrap_near(Vector3(c.x * CELL, p.y, c.y * CELL), p)
+		if Vector2(at.x - p.x, at.z - p.z).length_squared() > SHELL_SIGHT * SHELL_SIGHT: continue
+		for e in _look_eyes:
+			if _line_clear(e, at, true) and not sight_blocked(_flat(e), _flat(at)): return true
+	return false
 
 func _drop_shell(k: int) -> void:
 	var s: Node = shells[k]
@@ -830,7 +891,8 @@ func _sync_shells() -> void:
 	for k in want:
 		if shells.has(k): continue
 		var s := Shell.new()
-		s.slice_usec = int(SHELL_SLICE_MS * 1000.0)     # (out of sight till whole: no hurry, a few ms a frame)
+		# (out of sight till whole: no hurry, a few ms a frame; more behind the loading screen, where nothing is played yet)
+		s.slice_usec = int(SHELL_SLICE_MS * (1.0 if Game.playing else 4.0) * 1000.0)
 		for stage: Callable in s.build_stages(level_meta, level_raw, k):
 			await get_tree().process_frame
 			if run != _shell_run:
@@ -845,6 +907,13 @@ func _sync_shells() -> void:
 		add_child(s)
 		shells[k] = s
 		_place_shells()
+	_shells_done = run
+
+var _shells_done := -1             # the _shell_run whose look-only floors all stand
+
+## Is this floor all there: built, and the look-only floors round it too (the loading screen waits on it, wake_gate.gd)
+func settled() -> bool:
+	return not rebuilding and not _stub and _shells_done == _shell_run
 
 ## The other floors of the level, built whole out of sight one after another as soon as this one stands, then
 ## freed with their materials, textures, meshes and sounds held (_hold): the first trip up the stairs or down a pit

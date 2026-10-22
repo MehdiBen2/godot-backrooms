@@ -24,14 +24,26 @@ var _open := OPEN
 var _from := 0.0                 # how shut the lids were when this blink started (a double blink)
 var _again := false
 
+## Waking up (the way into a run from the loading screen, UI/wake_gate.gd): the lids start shut, come open a crack,
+## sag shut again, then lift slowly and stay up, the picture swimming (fx_blur) until they do. [s, lids] keys.
+const WAKE := [[0.0, 1.0], [0.6, 1.0], [1.4, 0.45], [1.65, 0.42], [1.95, 0.88], [2.15, 0.88], [3.6, 0.0]]
+const WAKE_BLUR := 1.4
+var _wake_t := -1.0
+
+func wake() -> void:
+	_t = -1.0
+	_wake_t = -1.0
+	Game.fx_blink = 0.0
+	Game.fx_blur = 0.0
+
 func blink(slow := 1.0, single := false) -> void:
-	if _t >= 0.0:
+	if _t >= 0.0 or _wake_t >= 0.0:
 		return
 	_start(maxf(0.2, slow), 0.0)
 	_again = not single and _slow > 1.3 and randf() < DOUBLE_CHANCE
 
 func blinking() -> bool:
-	return _t >= 0.0
+	return _t >= 0.0 or _wake_t >= 0.0
 
 func _start(slow: float, from: float) -> void:
 	_t = 0.0
@@ -42,6 +54,24 @@ func _start(slow: float, from: float) -> void:
 	_open = OPEN * slow
 
 func _process(dt: float) -> void:
+	if _wake_t >= 0.0:
+		_wake_t += dt
+		var end: float = WAKE[-1][0]
+		var lids := 0.0
+		for i in WAKE.size() - 1:
+			var a: Array = WAKE[i]
+			var b: Array = WAKE[i + 1]
+			if _wake_t < b[0]:
+				var u := (_wake_t - float(a[0])) / (float(b[0]) - float(a[0]))
+				lids = lerpf(a[1], b[1], u * u * (3.0 - 2.0 * u))
+				break
+		Game.fx_blink = lids
+		Game.fx_blur = WAKE_BLUR * (1.0 - clampf(_wake_t / end, 0.0, 1.0))
+		if _wake_t >= end:
+			_wake_t = -1.0
+			Game.fx_blink = 0.0
+			Game.fx_blur = 0.0
+		return
 	if _t < 0.0:
 		return
 	var was := _t

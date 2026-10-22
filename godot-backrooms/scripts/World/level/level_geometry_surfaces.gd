@@ -494,7 +494,11 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			collar_tris.append_array(_flat_polys(cut_polys[c], 0.0, m, false))
 		collar_tris.append_array(_collar_side(col, func(c: Vector2i) -> float: return float(hole_floor.get(c, WALL_H)) - STOREY_H, 0.0, null))
 
-	if shell: return
+	if shell:
+		# only the holes' sides: a floor passed on a fall down a chain of holes stands as this copy (level_builder.gd
+		# _stub), and without them you could steer out of the shaft under its floor line and fall clear of every floor
+		_build_hole_collision()
+		return
 	await _slice()
 	await _build_floor_collision(solid_cells)
 	_build_hole_collision()
@@ -744,6 +748,7 @@ func _build_hole_collision() -> void:
 				tris.append_array([mid - along + lo, mid + along + lo, mid + along + hi, mid - along + lo, mid + along + hi, mid - along + hi])
 	if tris.is_empty(): return
 	var body := StaticBody3D.new()
+	body.disable_mode = CollisionObject3D.DISABLE_MODE_KEEP_ACTIVE     # (a look-only floor doesn't process: still solid)
 	var cs := CollisionShape3D.new()
 	var shape := ConcavePolygonShape3D.new()
 	shape.set_faces(tris)
