@@ -866,7 +866,7 @@
         {"offset": [0.08, 1.675, 0.0], "yaw": 0.0}
       ],
       "halos": [[0.08, 1.67, -0.28], [0.08, 1.68, 0.28]],
-      "halo_size": 1.1
+      "halo_size": 0.9
     },
     "thickness": 0.6,
     "scatter": true,

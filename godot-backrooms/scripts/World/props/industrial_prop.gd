@@ -315,7 +315,7 @@ const HALO_SHADER := """
 shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 uniform vec3 color : source_color = vec3(1.0, 0.89, 0.66);
-uniform float energy = 1.6;
+uniform float energy = 1.1;
 uniform vec3 facing = vec3(1.0, 0.0, 0.0);   // the way the lamp shines, in the prop's own space
 varying float front;
 void vertex() {
