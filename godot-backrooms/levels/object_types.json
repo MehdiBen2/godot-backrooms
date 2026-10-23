@@ -856,15 +856,17 @@
     "model_yaw": -152.6,
     "light": {
       "color": "ffe2a8",
-      "energy": 4.5,
+      "energy": 8.0,
       "range": 14.0,
-      "angle": 52.0,
+      "angle": 32.0,
       "tilt": 25.0,
       "projector": true,
+      "glow_energy": 0.0,
       "spots": [
-        {"offset": [0.06, 1.67, -0.28], "yaw": 5.0},
-        {"offset": [0.06, 1.68, 0.28], "yaw": -5.0}
-      ]
+        {"offset": [0.08, 1.675, 0.0], "yaw": 0.0}
+      ],
+      "halos": [[0.08, 1.67, -0.28], [0.08, 1.68, 0.28]],
+      "halo_size": 1.1
     },
     "thickness": 0.6,
     "scatter": true,
@@ -875,7 +877,8 @@
       "normal": "res://models/props/industrial/Worklight02/WorkLight02_Normal_DirectX.png",
       "roughness": "res://models/props/industrial/Worklight02/WorkLight02_Roughness.png",
       "metallic": "res://models/props/industrial/Worklight02/WorkLight02_Metallic.png",
-      "emissive": "res://models/props/industrial/Worklight02/WorkLight02_Emissive.png"
+      "emissive": "res://models/props/industrial/Worklight02/WorkLight02_Emissive.png",
+      "emission_energy": 40.0
     },
     "params": {
       "elev": 0.0

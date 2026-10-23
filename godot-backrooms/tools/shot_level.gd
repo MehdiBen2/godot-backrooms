@@ -13,6 +13,10 @@ func _initialize() -> void:
 	root.add_child(main)
 	await process_frame
 	root.get_node("Gfx").set_preset(env_or.call("PRESET", "high"))
+	# GFX="sdfgi=true,ssil=false": single settings on top of the preset
+	for kv in String(env_or.call("GFX", "")).split(",", false):
+		var p := kv.split("=")
+		root.get_node("Gfx").set_value(p[0], p[1] == "true" if p[1] in ["true", "false"] else int(p[1]))
 	await create_timer(2.0).timeout
 	game.playing = true
 	var level: Node = main.get_node("Level")

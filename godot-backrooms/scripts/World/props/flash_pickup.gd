@@ -42,7 +42,7 @@ func _ready() -> void:
 
 func _apply_vis_range(n: Node) -> void:
 	if n is GeometryInstance3D:
-		n.visibility_range_end = 90.0
+		n.visibility_range_end = 150.0
 		n.visibility_range_end_margin = 12.0
 		n.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 	for c in n.get_children():

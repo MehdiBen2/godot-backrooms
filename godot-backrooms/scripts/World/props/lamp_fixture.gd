@@ -22,7 +22,9 @@ extends Node3D
 const CELL := 4.5
 const MAX_LIT := 10                # real lights on at once, all lamps together
 const RANK_EVERY := 0.2            # seconds between rankings
-const REACH := 34.0                # metres: past this a lamp is just its bulb
+const REACH := 75.0                # metres: past this a lamp is just its bulb (well inside the horizon fog)
+const FADE_FROM := 0.55            # of REACH: from here out a ranked lamp's light thins to nothing at REACH
+const FADE_SPEED := 2.5            # 1/s: a light ranked in or out fades over ~0.4 s, it never pops
 const SHADOWED := 2
 
 const TONES := {
@@ -64,6 +66,8 @@ var _bulb_glow := 3.0
 var _seed := 0.0
 var _shell := false
 var _want := false                 # ranked in
+var _reach_k := 0.0                # how much of its light reaches you at this distance (_rank)
+var _lit := 0.0                    # eased toward _reach_k (0 when ranked out)
 var _level := 1.0                  # 0..1: power cut ease, flicker output
 var _target := 1.0
 
@@ -335,11 +339,12 @@ func _process(delta: float) -> void:
 	_level = lerpf(_level, _target, clampf(delta * (14.0 if kind != "emergency_strip" else 5.0), 0.0, 1.0))
 	for m in _bulbs:
 		m.emission_energy_multiplier = _bulb_glow * float(m.get_meta("glow_mul", 1.0)) * _level
+	_lit = move_toward(_lit, _reach_k if _want else 0.0, delta * FADE_SPEED)
 	for l: Array in _lights:
 		var li: Light3D = l[0]
-		if _want and _level > 0.01:
+		if _lit * _level > 0.01:
 			li.visible = true
-			li.light_energy = l[1] * _level
+			li.light_energy = l[1] * _level * _lit
 		else:
 			li.visible = false
 
@@ -384,6 +389,7 @@ static func _rank() -> void:
 		var n: int = l._lights.size()
 		if used + n > cap and used > 0: continue
 		l._want = true
+		l._reach_k = 1.0 - smoothstep(REACH * FADE_FROM, REACH, e[0])
 		used += n
 		var allow: bool = shadows < shadow_cap and e[0] < 14.0 and l.kind in ["chandelier", "streetlamp", "lamp_floor", "wall_sconce"]
 		for li: Array in l._lights:

@@ -105,7 +105,7 @@ func build_info(info: Dictionary, with_light := true) -> void:
 			BulletGlass.swap(mi, info.glass_mats)
 		if info.has("pbr_mats"):                   # its flat parts in real scanned surfaces (render/surfaces.gd)
 			Surfaces.swap_named(mi, info.pbr_mats)
-		mi.visibility_range_end = 120.0           # well inside the horizon fog (170 m): clutter does not pop out down a corridor
+		mi.visibility_range_end = 150.0           # inside the horizon fog (170 m): clutter does not pop out down a corridor
 		mi.visibility_range_end_margin = 15.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 		# the mesh in the model's own space, through every node between the two (a .glb often nests its mesh
@@ -287,23 +287,70 @@ func _add_light(cfg: Dictionary, aabb: AABB) -> void:
 		if cookie != null:
 			s.light_projector = cookie
 		s.distance_fade_enabled = true
-		s.distance_fade_begin = 75.0
-		s.distance_fade_length = 20.0
+		s.distance_fade_begin = 120.0          # inside the horizon fog (170 m): a work lamp's pool stays while you can see it
+		s.distance_fade_length = 30.0
 		s.distance_fade_shadow = 40.0           # its shadow drops first: the light's pool stays, the cost goes
 		s.position = spot_pos
 		s.rotation = Vector3(-deg_to_rad(spot_tilt), -PI * 0.5 + deg_to_rad(spot_yaw), 0.0)
 		add_child(s)
 		
+		if cfg.has("halos") and s_entry == spots[0]:
+			_add_halos(cfg, col, -s.basis.z)
+		if float(cfg.get("glow_energy", 0.35)) <= 0.0:
+			continue                             # the lens emission is the glow: no extra light
 		var glow := OmniLight3D.new()
 		glow.light_color = col
 		glow.light_energy = float(cfg.get("glow_energy", 0.35))
 		glow.omni_range = float(cfg.get("glow_range", 1.2))
 		glow.light_size = 0.25
 		glow.distance_fade_enabled = true
-		glow.distance_fade_begin = 55.0
-		glow.distance_fade_length = 12.0
+		glow.distance_fade_begin = 100.0
+		glow.distance_fade_length = 20.0
 		glow.position = spot_pos + Vector3(0.04, 0.0, 0.0)
 		add_child(glow)
+
+# Lens glare: a soft additive disc on each lamp face, brightest head-on and gone from behind (light "halos").
+# The scene's bloom alone only rings the thin lit strip of the lens texture; a real floodlight blooms wide.
+const HALO_SHADER := """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
+uniform vec3 color : source_color = vec3(1.0, 0.89, 0.66);
+uniform float energy = 1.6;
+uniform vec3 facing = vec3(1.0, 0.0, 0.0);   // the way the lamp shines, in the prop's own space
+varying float front;
+void vertex() {
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
+	vec3 to_cam = normalize(CAMERA_POSITION_WORLD - MODEL_MATRIX[3].xyz);
+	front = smoothstep(0.05, 0.6, dot(to_cam, normalize((MODEL_MATRIX * vec4(facing, 0.0)).xyz)));
+}
+void fragment() {
+	float r = length(UV - 0.5) * 2.0;
+	float core = exp(-r * r * 18.0);
+	float wide = pow(max(1.0 - r, 0.0), 3.0) * 0.35;
+	ALBEDO = color * (core + wide) * energy * front;
+}
+"""
+static var _halo_shader: Shader
+
+func _add_halos(cfg: Dictionary, col: Color, fwd: Vector3) -> void:
+	if _halo_shader == null:
+		_halo_shader = Shader.new()
+		_halo_shader.code = HALO_SHADER
+	var quad := QuadMesh.new()
+	quad.size = Vector2.ONE * float(cfg.get("halo_size", 1.0))
+	for off in cfg.halos:
+		var mat := ShaderMaterial.new()
+		mat.shader = _halo_shader
+		mat.set_shader_parameter("color", col)
+		mat.set_shader_parameter("facing", fwd)
+		var mi := MeshInstance3D.new()
+		mi.mesh = quad
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.extra_cull_margin = 1.0
+		mi.visibility_range_end = 150.0
+		mi.position = Vector3(float(off[0]), float(off[1]), float(off[2])) + Vector3(0.06, 0.0, 0.0)
+		add_child(mi)
 
 ## Every emissive material of the mesh, glowing at `glow` times its emission texture
 func _set_glow(mi: MeshInstance3D, glow: float) -> void:

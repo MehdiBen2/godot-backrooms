@@ -21,6 +21,7 @@ var sections := {}                      # name -> Control
 var nav_buttons := {}                   # name -> Button
 var t := 0.0
 var blur_mat: ShaderMaterial
+const BLUR_PX := 4.0              # the live view's blur behind the pause menu, in px (menu_blur.gdshader radius)
 var shown := false
 var fade: Tween
 var reveal: Tween
@@ -81,7 +82,9 @@ func _build() -> void:
 	gt.fill_from = Vector2(0, 0)
 	gt.fill_to = Vector2(1, 0)
 	var blur := ColorRect.new()
-	blur.visible = false
+	blur_mat = ShaderMaterial.new()
+	blur_mat.shader = load("res://shaders/menu_blur.gdshader")
+	blur.material = blur_mat
 	blur.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(blur)
 	blur.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -201,7 +204,7 @@ func _build() -> void:
 	var nav := HBoxContainer.new()
 	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_theme_constant_override("separation", 28)
-	for n in ["multiplayer", "voice", "settings", "controls"]:
+	for n in ["multiplayer", "voice", "settings", "graphics", "controls"]:
 		var b := _link_button(n)
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
@@ -252,10 +255,12 @@ func _build() -> void:
 	sections["multiplayer"] = _build_multiplayer()
 	sections["voice"] = _build_voice()
 	sections["settings"] = _build_settings()
+	sections["graphics"] = _build_graphics()
 	sections["controls"] = _build_controls()
 	pv.add_child(sections["multiplayer"])
 	pv.add_child(sections["voice"])
 	pv.add_child(sections["settings"])
+	pv.add_child(sections["graphics"])
 	pv.add_child(sections["controls"])
 
 # ---- panel navigation ------------------------------------------------------------------
@@ -330,7 +335,7 @@ func show_menu(on: bool, intro := false) -> void:
 		visible = true
 		modulate.a = 0.0
 		fade.tween_property(self, "modulate:a", 1.0, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		fade.tween_method(_set_blur, 0.0, 2.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		fade.tween_method(_set_blur, 0.0, BLUR_PX, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		_reveal(intro)
 		if panel.visible:
 			_finish(panel_tween)
@@ -338,7 +343,7 @@ func show_menu(on: bool, intro := false) -> void:
 	else:
 		release_focus_all()
 		fade.tween_property(self, "modulate:a", 0.0, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		fade.tween_method(_set_blur, 2.0, 0.0, 0.25)
+		fade.tween_method(_set_blur, BLUR_PX, 0.0, 0.25)
 		fade.chain().tween_callback(func(): visible = false)
 
 func _set_blur(r: float) -> void:

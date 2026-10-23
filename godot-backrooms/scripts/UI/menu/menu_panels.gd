@@ -159,8 +159,33 @@ func _choice_row(title: String, get_v: Callable, opts: Array, set_v: Callable, l
 	gfx_refresh.append(func(): b.text = str(labels.get(get_v.call(), get_v.call())).to_upper())
 	return _gfx_row(title, b)
 
+const ON_OFF := [[false, "off"], [true, "on"]]
+const AA_OPTS := [[0, "off"], [1, "fxaa"], [2, "taa"]]
+const SHADOW_OPTS := [[0, "off"], [1, "low"], [2, "high"], [3, "ultra"]]
+const SSAO_OPTS := [[0, "off"], [1, "low"], [2, "medium"], [3, "high"]]
+
 func _build_graphics() -> Control:
-	return Control.new()
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	v.add_child(_section_title("QUALITY", true))
+	v.add_child(_choice_row("Preset", func(): return Gfx.preset, Gfx.ORDER, func(p): Gfx.set_preset(p), {"custom": "custom"}))
+	v.add_child(_choice_row("Fullscreen", func(): return Gfx.fullscreen, [false, true], func(on): Gfx.set_fullscreen(on), {false: "off", true: "on"}))
+	v.add_child(_cycle_row("Anti-aliasing", "aa", AA_OPTS))
+	v.add_child(_cycle_row("Shadows", "shadows", SHADOW_OPTS))
+	v.add_child(_section_title("LIGHTING"))
+	v.add_child(_cycle_row("Bloom", "glow", ON_OFF))
+	v.add_child(_cycle_row("Bounce light", "bounce", ON_OFF))
+	v.add_child(_cycle_row("Ambient occlusion", "ssao", SSAO_OPTS))
+	v.add_child(_cycle_row("SSIL", "ssil", ON_OFF))
+	v.add_child(_cycle_row("SDFGI", "sdfgi", ON_OFF))
+	v.add_child(_hint("SSIL and SDFGI are heavy and Forward+ only. Switch them off if the picture shows dark bands or the game stutters."))
+	Gfx.changed.connect(_gfx_sync)
+	_gfx_sync()
+	return v
+
+func _gfx_sync() -> void:
+	for c in gfx_refresh:
+		c.call()
 
 # ---- voice section (scripts/Voice/voice.gd) ----------------------------------------------------------
 var voice_refresh: Array[Callable] = []

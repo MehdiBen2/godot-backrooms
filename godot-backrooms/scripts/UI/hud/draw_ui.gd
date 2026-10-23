@@ -974,10 +974,10 @@ func _header_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
 		_dragging = e.pressed
 		if e.pressed:
-			_drag_off = get_viewport().get_mouse_position() - _panel.position
+			_drag_off = Gfx.mouse_position() - _panel.position
 	elif e is InputEventMouseMotion and _dragging:
 		var vp := get_viewport().get_visible_rect().size
-		var p: Vector2 = get_viewport().get_mouse_position() - _drag_off
+		var p: Vector2 = Gfx.mouse_position() - _drag_off
 		p.x = clampf(p.x, 0.0, maxf(0.0, vp.x - _panel.size.x))
 		p.y = clampf(p.y, 0.0, maxf(0.0, vp.y - _panel.size.y))
 		_panel.position = p
@@ -994,7 +994,7 @@ func _clamp_panel() -> void:
 	_panel.position = p
 
 func over_panel() -> bool:
-	var m := get_viewport().get_mouse_position()
+	var m := Gfx.mouse_position()
 	if _panel.visible and _panel.get_global_rect().has_point(m):
 		return true
 	if _pill.visible and _pill.get_global_rect().has_point(m):

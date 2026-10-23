@@ -1,0 +1,16 @@
+[gd_resource type="StandardMaterial3D" load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://textures/pbr/Plastic_Mold_Dry_Blast/Plastic_Mold_Dry_Blast_Color.jpg" id="1"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Plastic_Mold_Dry_Blast/Plastic_Mold_Dry_Blast_NormalGL.jpg" id="2"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Plastic_Mold_Dry_Blast/Plastic_Mold_Dry_Blast_Roughness.jpg" id="3"]
+[ext_resource type="Texture2D" path="res://textures/pbr/Plastic_Mold_Dry_Blast/Plastic_Mold_Dry_Blast_AmbientOcclusion.jpg" id="4"]
+
+[resource]
+uv1_triplanar = false
+albedo_texture = ExtResource("1")
+normal_texture = ExtResource("2")
+normal_enabled = true
+roughness_texture = ExtResource("3")
+roughness_texture_channel = 4
+ao_texture = ExtResource("4")
+ao_enabled = true

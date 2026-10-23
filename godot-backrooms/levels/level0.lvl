@@ -6019,14 +6019,6 @@
     },
     {
       "elev": 0.0,
-      "pos_x": 12.0,
-      "pos_y": 30.0,
-      "rotation": 240.0,
-      "scale": 1.0,
-      "type": "prop_work_light2"
-    },
-    {
-      "elev": 0.0,
       "pos_x": 10.5,
       "pos_y": 24.5,
       "rotation": 15.0,
@@ -6307,8 +6299,8 @@
       ],
       "fire_on": "enter",
       "lighting": "any",
-      "max_fires": 0,
-      "nth": 1,
+      "max_fires": 0.0,
+      "nth": 1.0,
       "once": true,
       "pos_x": 42.0,
       "pos_y": 13.0,

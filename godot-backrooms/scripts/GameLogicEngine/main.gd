@@ -101,7 +101,13 @@ func _notification(what: int) -> void:
 		if Game.playing and not Game.dead and not ui.menu.shown:
 			set_paused(true)
 	elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
-		Engine.max_fps = PAUSED_FPS if ui.menu.shown else int(Gfx.s.get("fps", 0))
+		Engine.max_fps = _paused_fps() if ui.menu.shown else int(Gfx.s.get("fps", 0))
+
+# The pause menu's cap: the monitor's refresh rate, so frames land on every refresh (vsync is off in the
+# presets, and a flat 60 on a 144 Hz screen made the menu and its hover effects judder under the mouse)
+func _paused_fps() -> int:
+	var hz := roundi(DisplayServer.screen_get_refresh_rate())
+	return hz if hz > 0 else PAUSED_FPS
 
 func set_paused(on: bool, start := false) -> void:
 	Game.playing = not on
@@ -109,7 +115,7 @@ func set_paused(on: bool, start := false) -> void:
 		get_tree().paused = on
 	else:
 		get_tree().paused = false
-	Engine.max_fps = PAUSED_FPS if on else int(Gfx.s.get("fps", 0))      # reduces GPU usage when paused
+	Engine.max_fps = _paused_fps() if on else int(Gfx.s.get("fps", 0))      # reduces GPU usage when paused
 	if on: set_inventory(false)
 	ui.set_paused(on, start)
 	audio.set_paused(on)

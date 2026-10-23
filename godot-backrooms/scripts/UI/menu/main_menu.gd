@@ -360,6 +360,7 @@ func _build() -> void:
 	group_filler = _spacer(0)
 	col.add_child(group_filler)
 	_menu_item(col, "GENERAL", "AUDIO / MOUSE / CAMERA", "settings", _open_panel.bind("settings"), "sub")
+	_menu_item(col, "GRAPHICS", "QUALITY / LIGHTING", "graphics", _open_panel.bind("graphics"), "sub")
 	_menu_item(col, "CONTROLS", "KEYBINDS / LAYOUT", "controls", _open_panel.bind("controls"), "sub")
 	_menu_item(col, "VOICE", "MICROPHONE / PROXIMITY", "voice", _open_panel.bind("voice"), "sub")
 	_menu_item(col, "GO BACK", "MAIN MENU", "", _set_group.bind("main"), "sub")
@@ -407,14 +408,6 @@ func _build() -> void:
 	fx.visible = false
 	add_child(fx)
 	_full(fx)
-
-	var vhs_copy := BackBufferCopy.new()
-	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	add_child(vhs_copy)
-	var vhs := ColorRect.new()
-	vhs.material = Gfx.vhs_material()
-	add_child(vhs)
-	_full(vhs)
 
 	click = AudioStreamPlayer.new()
 	click.stream = load("res://audio/ui/ui_click.wav")
@@ -522,7 +515,7 @@ func _check_mouse_leave(i: int) -> void:
 	if sel == i:
 		for it in items:
 			var btn: Button = it["button"]
-			if btn.visible and btn.get_global_rect().has_point(btn.get_global_mouse_position()):
+			if btn.visible and btn.get_global_rect().has_point(Gfx.mouse_position()):
 				return
 		if active_panel == "":
 			_select(-1)
@@ -750,15 +743,7 @@ func _build_loading() -> void:
 	load_tip.custom_minimum_size = Vector2(440, 0)
 	note.add_child(load_tip)
 
-	# VHS smear over all of it (wiggle, tracking band, chroma bleed): reads the screen under it, so it goes last.
-	# The title's lens already took this frame's screen copy (the menu): a fresh copy, so it smears the loading screen
-	var fresh := BackBufferCopy.new()
-	fresh.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	loading_root.add_child(fresh)
-	var vhs := ColorRect.new()
-	vhs.material = Gfx.vhs_material()
-	loading_root.add_child(vhs)
-	_full(vhs)
+	# (the tape smear over it is Gfx's top layer, graphics.gd _build_vhs)
 
 ## The emblem as a progress meter: the part below `progress` (from the bottom) is lit in its own amber, the rest
 ## is a dim grey ghost of it, and a thin bright line rides the boundary. `flash` whitens it for the READY beat.

@@ -43,7 +43,7 @@ func _build_mesh() -> void:
 			var mi := MeshInstance3D.new()
 			mi.mesh = part[0]
 			mi.material_override = part[1]
-			mi.visibility_range_end = 90.0
+			mi.visibility_range_end = 150.0
 			mi.visibility_range_end_margin = 12.0
 			mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 			model.add_child(mi)

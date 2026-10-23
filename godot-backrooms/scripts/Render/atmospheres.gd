@@ -32,7 +32,7 @@ const LOOKS := {
 		"glow_threshold": 1.0,                                             # only the HDR panels bloom (a lit wall, or a torch on one, does not)
 		"glow_intensity": 1.6, "glow_bloom": 0.1, "glow_wide": 0.8,        # each panel bleeds over its frame, a soft halo wider out
 		"ssao_intensity": 1.2,                                             # contact darkening where walls meet the ceiling and in corners
-		"haze": Color(0.3, 0.28, 0.2),                                     # the far halls fade into dim room air
+		"haze": Color(0.13, 0.12, 0.08),                                     # the far halls fade into dim room air
 	},
 	# It sits under "classic": the base look blends toward it first (liminal_mix), and a Classic / Bright zone
 	# takes over from there.
@@ -42,7 +42,7 @@ const LOOKS := {
 		"glow_threshold": 1.0, "glow_intensity": 1.5,
 		"glow_bloom": 0.06, "glow_wide": 0.65,        # a dreamy halo round the tubes
 		"ssao_intensity": 1.8,                        # flat fluorescent light: little contact shadow
-		"haze": Color(0.3, 0.29, 0.23),               # the distance fades to this
+		"haze": Color(0.13, 0.125, 0.1),               # the distance fades to this
 		"fog": 0.2,                                   # share of the fog left: you see a long way, but not the end
 		"gi": 0.38, "gi_tint": Color(0.96, 0.93, 0.8),   # paler bounce: the liminal halls are less yellow
 		"light": Color(0.95, 0.98, 0.9),              # cool fluorescent white with a hint of green

@@ -248,16 +248,6 @@ func _build_crt() -> void:
 	crt_mat.shader = CRT_SHADER
 	crt.material = crt_mat
 
-	# Tape smear over the tube (shaders/vhs_smear.gdshader, as on the title and loading screens): wiggle, tracking band,
-	# chroma bleed. Gentle, the small lines must stay readable; no lens, the tube has its own curve.
-	var vhs_copy := BackBufferCopy.new()
-	vhs_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
-	add_child(vhs_copy)
-	var vhs := ColorRect.new()
-	vhs.material = Gfx.vhs_material()
-	add_child(vhs)
-	_full(vhs)
-
 func _build_audio() -> void:
 	var bed_path := str(data.get("ambience", BED_DEFAULT))
 	if not ResourceLoader.exists(bed_path):

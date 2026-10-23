@@ -76,8 +76,8 @@ const LINE := Kit.LINE
 const WINDOW_SCALE := 0.86       # the terminal is laid out for the full canvas, then shown this size
 const VHS := 1.0                 # ui_vhs_overlay tape smear (vhs_amt); the HUD's vitals and item strip use it too
 const VHS_SMEAR := 0.7           # how far it trails: short enough that the text stays readable
-const BLOOM := 1.15              # phosphor glow strength (ui_vhs_overlay bloom_amt)
-const BLOOM_WIDE := 0.42         # the neon halo's strength (a broad blur added over the tight glow)
+const BLOOM := 0.5               # phosphor glow strength, kept subtle (ui_vhs_overlay bloom_amt)
+const BLOOM_WIDE := 0.18         # the neon halo's strength (a broad blur added over the tight glow)
 const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 1080p
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
 # scripts/UI/crt/crt_flicker.gd)
