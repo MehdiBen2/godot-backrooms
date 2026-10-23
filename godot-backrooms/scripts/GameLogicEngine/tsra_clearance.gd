@@ -78,6 +78,7 @@ var pending_route := {}          # the last ROUTE DOCUMENTED report, until the n
 var stats := {}                  # filings_<kind>, ry_<source key>, best_total/best_id, closest_dist/closest_id, best_momentum
 var entity_yield := {}           # entity_id -> RY filed on it in all
 var filing_log: Array = []       # newest first: {t (unix s), id, kind, total, level, dist}
+var declassified := {}           # "<file key>/<section>" -> true: sealed file sections opened in the terminal (terminal_page.gd)
 var survey_open := {}            # level id -> its open cell count, as the tape last reported it ([F5] coverage)
 
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
@@ -338,6 +339,7 @@ func reset() -> void:
 	total = 0
 	sites.clear()
 	supplementals.clear()
+	declassified.clear()
 	surveyed.clear()
 	routes.clear()
 	pending_route = {}
@@ -415,6 +417,18 @@ func next_supplemental(entity_id: String) -> int:
 	var core := roundi(base_yield(entity_id) * SUPPLEMENTAL / pow(2.0, int(supplementals.get(entity_id, 0))))
 	return core if core >= SUPPLEMENTAL_FLOOR else 0
 
+## Readings filed on this entity, ever: one per site confirmed plus its supplementals. Sealed sections
+## of its archive entry open at so many (page_entries.gd)
+func readings(entity_id: String) -> int:
+	return (sites.get(entity_id, []) as Array).size() + int(supplementals.get(entity_id, 0))
+
+func is_declassified(key: String) -> bool:
+	return declassified.has(key)
+
+func declassify(key: String) -> void:
+	declassified[key] = true
+	_save()
+
 ## Seconds until this entity takes a supplemental filing again (0 = now)
 func reread_ready_in(entity_id: String) -> float:
 	return maxf(0.0, REREAD_COOLDOWN - (Time.get_ticks_msec() / 1000.0 - float(_reread_at.get(entity_id, -1.0e9))))
@@ -465,6 +479,8 @@ func _load() -> bool:
 		entity_yield = cf.get_value("record", "entity_yield", {})
 		filing_log = cf.get_value("record", "log", [])
 		survey_open = cf.get_value("record", "survey_open", {})
+		for k in cf.get_value("record", "declassified", []):
+			declassified[str(k)] = true
 	else:
 		_backfill_stats()
 	if cf.has_section("survey"):
@@ -489,6 +505,7 @@ func _save() -> void:
 	cf.set_value("record", "entity_yield", entity_yield)
 	cf.set_value("record", "log", filing_log)
 	cf.set_value("record", "survey_open", survey_open)
+	cf.set_value("record", "declassified", declassified.keys())
 	for id in surveyed:
 		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
 	for id in routes:

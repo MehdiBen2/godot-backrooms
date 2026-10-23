@@ -53,8 +53,10 @@ func refresh() -> void:
 
 	var cl: Dictionary = d.get("classified", {})
 	if not cl.is_empty():
-		annex(out, designation, [["SITE HISTORY", cl.get("history", "")], ["SURVIVAL GUIDANCE", cl.get("survival", [])],
-			["SURVEY NOTE", cl.get("survey_note", "")], ["INCIDENT REPORT", cl.get("incident", "")]], 17)
+		annex(out, designation, [{"title": "SITE HISTORY", "body": cl.get("history", "")},
+			{"title": "SURVIVAL GUIDANCE", "body": cl.get("survival", [])},
+			{"title": "SURVEY NOTE", "body": cl.get("survey_note", "")},
+			{"title": "INCIDENT REPORT", "body": cl.get("incident", "")}], 0)
 
 	var ids := Archive.level_entities(Archive.current_level_id())
 	var found := 0

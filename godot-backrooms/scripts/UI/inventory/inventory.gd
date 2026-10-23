@@ -292,7 +292,7 @@ func _forward_mouse(e: InputEvent) -> void:
 		var hand := false
 		var hover: Array = clickables + row_nodes
 		for tab in pages:
-			hover += pages[tab].hoverables()
+			hover += pages[tab].hoverables() + pages[tab].annex_clicks
 		for c in hover:
 			if is_instance_valid(c) and c.is_visible_in_tree() and c.get_global_rect().has_point(p):
 				hand = true

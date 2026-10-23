@@ -17,13 +17,17 @@ const MODEL_HEIGHT := 2.0       # metres: visor level matches the 1.7 m standing
 const SHADOW_LAYER := 1 << 19
 
 const LEGS_MODEL := "res://models/player/survivor_legs.glb"
-## The torso above the waist is folded away (Pinch scales the Waist bone to nothing, the classic
-## first-person trick), so no cut chest can swing into view: the body closes at the belt. And the clips
+## The chest is folded away (Pinch scales a spine bone to nothing, the classic first-person trick,
+## LEGS_FOLD_BONES), so no cut chest can swing into view. And the clips
 ## carry the hips around (the run throws them ~0.3 m forward), so each frame the body slides to keep the
 ## waist joint, where the animation really put it, LEGS_WAIST_BEHIND behind the eye: the hips stay under
 ## and behind you and the legs stride out ahead.
 const LEGS_PINCH_BONE := "Waist"
-const LEGS_WAIST_BEHIND := 0.38 # metres, horizontally, along the look
+## Folding at the waist left no stomach: looking down you saw legs hanging off nothing. The fold now
+## starts at the first of these spine bones the rig has, so the belly stays and the body closes under
+## the chest instead (falls back to the waist).
+const LEGS_FOLD_BONES := ["Spine01", "Spine02", LEGS_PINCH_BONE]
+const LEGS_WAIST_BEHIND := 0.16 # metres, horizontally, along the look: close enough the belly is under you
 const LEGS_TURN_START := 20.0   # degrees the view swings, standing, before the feet step round (the shadow waits for 70)
 const LEGS_PUSH_MAX := 0.8      # metres the body may slide back (never forward of its own origin)
 ## Crouched, the knees come up to the height of the hands in view (torch_model.gd's arms), and looking down
@@ -132,10 +136,13 @@ func _build_legs(fit: Transform3D) -> void:
 	if not sks.is_empty():
 		_legs_sk = sks[0]
 		_legs_waist = _legs_sk.find_bone(LEGS_PINCH_BONE)
-		if _legs_waist >= 0:
-			var pinch := Pinch.new()
-			pinch.bone = _legs_waist
-			_legs_sk.add_child(pinch)
+		for b in LEGS_FOLD_BONES:
+			var fold := _legs_sk.find_bone(b)
+			if fold >= 0:
+				var pinch := Pinch.new()
+				pinch.bone = fold
+				_legs_sk.add_child(pinch)
+				break
 
 ## How much further back (m, 0 if none) the legs must slide so no knee is in a hand's way (LEGS_KNEE_CLEAR).
 func _knees_clearance(cam: Camera3D, fwd: Vector3) -> float:

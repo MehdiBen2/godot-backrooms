@@ -1,11 +1,16 @@
 extends "res://scripts/UI/inventory/terminal_page.gd"
 ## ARCHIVE: every catalogued entity. A list on the left, one line each (its code and name, ???? until it
 ## is scanned, a * until its entry has been opened), the selected one lit; its entry on
-## the right: designation, threat, overview, behaviour, protocol, where it has been seen and when it
-## was logged, then the classified annex. Arrows / clicks pick one; the SITE page's phenomena open
+## the right: designation, threat, when it was logged, its overview, then the rest of its file sealed:
+## each section opens with a click once the entity has been read enough times (Clearance.readings,
+## SEALS), the classified annex's only at the rank that releases it too. A ! on a row: something there
+## is ready to declassify. Arrows / clicks pick one; the SITE page's phenomena open
 ## theirs here (open_entry).
 
 const LIST_W := 300.0
+## Readings of the entity each sealed section takes: the first scan, then re-scans and new sites
+const SEALS := {"BEHAVIOUR": 1, "KNOWN SITES": 1, "FIELD PROTOCOL": 2, "ORIGIN": 2,
+	"SURVIVAL PROTOCOL": 3, "FIELD NOTES": 3, "INCIDENT REPORT": 4}
 
 var _head: VBoxContainer             # the page's heading, rebuilt with the count in it
 var entries_list: VBoxContainer
@@ -13,6 +18,7 @@ var entry_detail: VBoxContainer
 var entry_ids: Array = []            # every catalogued entity, in code order
 var entry_rows: Array = []           # one PanelContainer per entry
 var entry_sel := 0
+var _progress: Label                 # the entry's "n / m DECLASSIFIED"
 
 func build() -> Control:
 	var v := VBoxContainer.new()
@@ -100,7 +106,7 @@ func _entry_row(i: int, id: String) -> Control:
 	h.add_child(nm)
 	var badge := label("*", 17, AMBER, 1)
 	badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	badge.visible = Archive.is_unread(id)
+	_badge(badge, id)
 	h.add_child(badge)
 	p.add_child(h)
 	p.set_meta("labels", [code, nm, badge])
@@ -152,7 +158,7 @@ func _mark_seen() -> void:
 	var id := str(entry_ids[entry_sel])
 	if Archive.is_discovered(id) and Archive.is_unread(id):
 		Archive.mark_read(id)
-		(entry_rows[entry_sel].get_meta("badge") as Label).visible = false
+		_badge(entry_rows[entry_sel].get_meta("badge"), id)
 		term.readout.queue_redraw()
 
 ## Arriving on ARCHIVE with something new logged: that one first
@@ -192,20 +198,81 @@ func _show_entry() -> void:
 	var when := Archive.logged_info(id)
 	if when.has("t"):
 		entry_detail.add_child(leader("LOGGED", local_time(int(when.t)), TEXT, 17))
+	var scans := Clearance.readings(id)
+	entry_detail.add_child(leader("READINGS", str(scans), TEXT, 17))
+	var prog := leader("DECLASSIFIED", "", AMBER, 17)
+	_progress = prog.get_meta("value")
+	entry_detail.add_child(prog)
+	_show_progress(id)
 	if info.has("description"):
 		section(entry_detail, "OVERVIEW")
 		para(entry_detail, str(info.description))
-	if str(info.get("behavior_vector", "")) != "":
-		section(entry_detail, "BEHAVIOUR")
-		para(entry_detail, str(info.behavior_vector))
-	if str(info.get("directive", "")) != "":
-		section(entry_detail, "FIELD PROTOCOL")
-		para(entry_detail, str(info.directive), AMBER)
-	if not sites.is_empty():
-		section(entry_detail, "KNOWN SITES")
-		for s in sites:
-			para(entry_detail, str(s), TEXT_DIM, 16)
+	var specs := _specs(id)
+	for spec in specs.main:
+		sealed(entry_detail, id, spec, scans)
+	if not specs.annex.is_empty():
+		annex(entry_detail, id, specs.annex, scans)
+	_scan_hint(id, scans)
+
+## The entry's sealed sections: {main: [...], annex: [...]}, as sealed() takes them
+func _specs(id: String) -> Dictionary:
+	var info := Archive.entity_info(id)
 	var cl: Dictionary = info.get("classified", {})
-	if not cl.is_empty():
-		annex(entry_detail, id, [["ORIGIN", cl.get("origin", "")], ["SURVIVAL PROTOCOL", cl.get("survival", [])],
-			["FIELD NOTES", cl.get("field_notes", [])], ["INCIDENT REPORT", cl.get("incident", "")]], 16)
+	var main := [{"title": "BEHAVIOUR", "body": str(info.get("behavior_vector", ""))},
+		{"title": "FIELD PROTOCOL", "body": str(info.get("directive", "")), "col": AMBER},
+		{"title": "KNOWN SITES", "body": Archive.sites_of(id), "col": TEXT_DIM, "px": 16}]
+	var annexed := [{"title": "ORIGIN", "body": cl.get("origin", "")},
+		{"title": "SURVIVAL PROTOCOL", "body": cl.get("survival", [])},
+		{"title": "FIELD NOTES", "body": cl.get("field_notes", [])},
+		{"title": "INCIDENT REPORT", "body": cl.get("incident", "")}]
+	for spec in main:
+		spec["scans"] = SEALS.get(spec.title, 1)
+		spec["px"] = spec.get("px", 17)
+	for spec in annexed:
+		spec["scans"] = SEALS.get(spec.title, 1)
+		spec["px"] = 16
+		spec["rank"] = true
+	var keep := func(spec): return not ((spec.body is String and spec.body == "") or (spec.body is Array and spec.body.is_empty()))
+	return {"main": main.filter(keep), "annex": annexed.filter(keep) if not cl.is_empty() else []}
+
+## [opened, ready to open, all] over the entity's sealed sections
+func _seal_counts(id: String) -> Array:
+	var specs := _specs(id)
+	var scans := Clearance.readings(id)
+	var n := [0, 0, 0]
+	for spec in specs.main + specs.annex:
+		var st := seal_state(id, spec, scans)
+		n[0] += 1 if st == "open" else 0
+		n[1] += 1 if st == "ready" else 0
+		n[2] += 1
+	return n
+
+func _show_progress(id: String) -> void:
+	var n := _seal_counts(id)
+	_progress.text = vcr("%d / %d%s" % [n[0], n[2], "  [%d READY]" % n[1] if n[1] > 0 else ""])
+
+## A row's mark: * while the entry is new, ! while something in it is ready to declassify
+func _badge(badge: Label, id: String) -> void:
+	var ready: bool = Archive.is_discovered(id) and _seal_counts(id)[1] > 0
+	badge.text = "*" if Archive.is_unread(id) else "!"
+	badge.visible = Archive.is_unread(id) or ready
+
+func declassified(key: String) -> void:
+	_show_progress(key)
+	_badge(entry_rows[entry_sel].get_meta("badge"), key)
+
+## Under a file with sections still waiting on readings: how to get the next one
+func _scan_hint(id: String, scans: int) -> void:
+	var waiting := false
+	for spec in _specs(id).main + _specs(id).annex:
+		waiting = waiting or scans < int(spec.scans)
+	if not waiting:
+		return
+	entry_detail.add_child(spacer(14))
+	var wait := Clearance.reread_ready_in(id)
+	var hint := "RE-SCAN [Q] THIS ANOMALY TO RECOVER MORE OF ITS FILE."
+	if Clearance.next_supplemental(id) == 0:
+		hint = "NOTHING MORE TO READ OFF IT HERE. CONFIRM IT AT ANOTHER SITE TO RECOVER MORE OF ITS FILE."
+	elif wait > 0.0:
+		hint += " SCANNER RECALIBRATING: %ds." % ceili(wait)
+	para(entry_detail, hint, MUTED, 15)

@@ -10,6 +10,7 @@ extends "res://scripts/UI/inventory/terminal_kit.gd"
 var term: Control                    # inventory.gd: selection, tabs, sounds, the sheet's outline
 var root: Control                    # what build() returned, shown while this page is active
 var scroll_box: ScrollContainer      # scrolled by PgUp / PgDn and the scroll track
+var annex_clicks: Array = []         # the annex's [CLICK TO DECLASSIFY] bars (hand cursor, inventory.gd)
 
 func _init(terminal: Control) -> void:
 	term = terminal
@@ -87,29 +88,148 @@ func empty_state(into: VBoxContainer, what: String, hint: String) -> void:
 		into.add_child(spacer(4))
 		para(into, hint, TEXT_DIM, 16, 26.0)
 
-## The CLASSIFIED ANNEX of a dossier or an entry: its sections in full once the player's clearance
-## unlocks "classified" (tsra_clearance.gd); until then a red rule and one line saying what clearance
-## releases it. sections: [[title, text or Array of paragraphs]]; an Array under a title with
-## "PROTOCOL" / "GUIDANCE" in it is numbered. Empty sections are left out.
-func annex(into: VBoxContainer, _key: String, sections: Array, px: int) -> void:
+## The CLASSIFIED ANNEX of a dossier or an entry: a red rule until the player's clearance unlocks
+## "classified" (tsra_clearance.gd), then its sections, each sealed() with "rank" set. Sections with
+## nothing in them are left out.
+func annex(into: VBoxContainer, key: String, specs: Array, scans: int) -> void:
 	var open := Clearance.has_unlock("classified")
 	var code := Clearance.unlock_code("classified")
-	if not open:
-		section(into, "CLASSIFIED ANNEX", "", RED)
-		into.add_child(leader("ACCESS", "[DENIED // NEEDS %s]" % code, RED, 16))
+	section(into, "CLASSIFIED ANNEX", "RELEASED AT %s" % code if open else "LOCKED // %s" % code, AMBER if open else RED)
+	for spec in specs:
+		spec["rank"] = true
+		sealed(into, key, spec, scans, false)
+
+## A section of a file that opens piece by piece. spec: {title, body (text or Array of paragraphs),
+## scans (readings of the entity it takes, Clearance.readings), rank (needs "classified"), col, px}.
+## Until opened it is redacted bars: LOCKED with what it still takes, or, once that is met, a pulsing
+## CLICK TO DECLASSIFY that swaps itself for the text and is remembered (Clearance.declassify).
+## `ruled`: under a full section() rule, else a small title (the annex's sections).
+func sealed(into: VBoxContainer, key: String, spec: Dictionary, scans: int, ruled := true) -> void:
+	var body = spec.get("body", "")
+	if (body is String and body == "") or (body is Array and body.is_empty()):
 		return
-	section(into, "CLASSIFIED ANNEX", "RELEASED AT %s" % code)
-	for sec in sections:
-		var body = sec[1]
-		if (body is String and body == "") or (body is Array and body.is_empty()):
-			continue
+	var title := str(spec.title)
+	var state := seal_state(key, spec, scans)
+	if ruled:
+		section(into, title, "" if state == "open" else "REDACTED")
+	else:
 		into.add_child(spacer(8))
-		into.add_child(label(str(sec[0]), 15, MUTED, 3))
-		if body is Array:
-			if "PROTOCOL" in str(sec[0]) or "GUIDANCE" in str(sec[0]):
-				numbered(into, body, px)
-			else:
-				for line in body:
-					para(into, str(line), TEXT, px)
+		into.add_child(label(title, 15, MUTED, 3))
+	match state:
+		"open":
+			_seal_body(into, spec)
+		"ready":
+			into.add_child(_declassify_bar(into, key, spec))
+		_:
+			into.add_child(_locked_bar(key + "/" + title, _seal_needs(spec, scans)))
+
+## "open" (declassified), "ready" (can be clicked open) or "locked"
+func seal_state(key: String, spec: Dictionary, scans: int) -> String:
+	if Clearance.is_declassified("%s/%s" % [key, spec.title]):
+		return "open"
+	return "locked" if _seal_needs(spec, scans) != "" else "ready"
+
+## What a sealed section still takes: "RANK 3 + SCAN 1/3", or "" when nothing
+func _seal_needs(spec: Dictionary, scans: int) -> String:
+	var why := PackedStringArray()
+	if spec.get("rank", false) and not Clearance.has_unlock("classified"):
+		why.append(Clearance.unlock_code("classified"))
+	var need := int(spec.get("scans", 0))
+	if scans < need:
+		why.append("SCAN %d/%d" % [scans, need])
+	return " + ".join(why)
+
+## Called once a section has been clicked open (page_entries.gd updates its count and badge)
+func declassified(_key: String) -> void:
+	pass
+
+func _seal_body(into: VBoxContainer, spec: Dictionary) -> void:
+	var body = spec.body
+	var col: Color = spec.get("col", TEXT)
+	var px := int(spec.get("px", 17))
+	if body is Array:
+		if "PROTOCOL" in str(spec.title) or "GUIDANCE" in str(spec.title):
+			numbered(into, body, px)
 		else:
-			para(into, str(body), TEXT, px)
+			for line in body:
+				para(into, str(line), col, px)
+	else:
+		para(into, str(body), col, px)
+
+## Three lines of blacked-out text filling the column (the bars stretch, so nothing overflows), the
+## last one short with `end` at its far end
+func _redaction(id: String, bar: Color, end: Control) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 7)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rng := RandomNumberGenerator.new()
+	rng.seed = id.hash()
+	for line in 3:
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 8)
+		h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for i in (rng.randi_range(2, 3) if line < 2 else 1):
+			var r := ColorRect.new()
+			r.color = bar
+			r.custom_minimum_size = Vector2(24, 13)
+			r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			r.size_flags_stretch_ratio = rng.randf_range(0.5, 1.6)
+			r.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			h.add_child(r)
+		if line == 2:
+			h.add_child(end)
+		v.add_child(h)
+	return v
+
+## Still out of reach: dim bars and what it takes
+func _locked_bar(id: String, needs: String) -> Control:
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_left", 10)
+	m.add_theme_constant_override("margin_right", 10)
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	m.add_child(_redaction(id, Color(TEXT, 0.12), tag("LOCKED // " + needs, Color(RED, 0.85))))
+	return m
+
+## Within reach: a pulsing bar that takes a click and types the text in where it was
+func _declassify_bar(into: VBoxContainer, key: String, spec: Dictionary) -> Control:
+	var id := "%s/%s" % [key, spec.title]
+	var p := PanelContainer.new()
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
+	p.add_theme_stylebox_override("panel", row_box(false))
+	var v := _redaction(id, Color(AMBER, 0.32), tag("CLICK TO DECLASSIFY", AMBER))
+	p.add_child(v)
+	var tw := p.create_tween().set_loops()
+	tw.tween_property(v, "modulate:a", 0.5, 0.55).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(v, "modulate:a", 1.0, 0.55).set_trans(Tween.TRANS_SINE)
+	p.mouse_entered.connect(func(): p.add_theme_stylebox_override("panel", row_box(true, true)))
+	p.mouse_exited.connect(func(): p.add_theme_stylebox_override("panel", row_box(false)))
+	p.gui_input.connect(func(e: InputEvent):
+		if not (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT):
+			return
+		Clearance.declassify(id)
+		term.play_sfx("select")
+		var at := p.get_index()
+		var tmp := VBoxContainer.new()
+		_seal_body(tmp, spec)
+		p.queue_free()
+		for c in tmp.get_children():
+			tmp.remove_child(c)
+			into.add_child(c)
+			into.move_child(c, at)
+			at += 1
+			_type_in(c)
+		tmp.free()
+		declassified(key)
+	)
+	annex_clicks = annex_clicks.filter(func(c): return is_instance_valid(c))
+	annex_clicks.append(p)
+	return p
+
+## Every label under `n` types itself in, as the page does when it opens
+func _type_in(n: Node) -> void:
+	if n is Label:
+		(n as Label).visible_ratio = 0.0
+		n.create_tween().tween_property(n, "visible_ratio", 1.0, 0.25 + 0.006 * (n as Label).text.length())
+	for c in n.get_children():
+		_type_in(c)
