@@ -5,7 +5,8 @@ extends Node
 ## A tape holds the whole run: the level, the floor and how they got onto it, where the player stands and looks,
 ## their vitals (health, sanity, stamina, the torch's battery and switch), the pack and the recovered files
 ## (inventory.gd), the archive's entries (tsra_archive.gd), the clocks (the cassette's time, the HUD counter,
-## distance walked, this life's start), the terminal's credits (terminal_os.gd) and the hazard tape the player
+## distance walked, this life's start), the terminal's credits (terminal_os.gd), the field upgrades bought with
+## them (tsra_upgrades.gd) and the hazard tape the player
 ## stuck up on every level (tape_marks.gd). The clearance XP and rank live in their own file beside the tape
 ## (Clearance.slot_path), switched in by begin().
 ##
@@ -24,6 +25,7 @@ const VERSION := 2              # 1: position only (its pack, vitals and archive
 const AUTOSAVE_EVERY := 30.0
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const TerminalOS := preload("res://scripts/UI/terminal_os.gd")
+const Upgrades := preload("res://scripts/GameLogicEngine/tsra_upgrades.gd")
 const START_CREDITS := 150      # terminal_os.gd credit_balance on a blank tape
 
 var slot := -1                  # the tape in the deck: -1 none (a guest, a level editor test launch)
@@ -80,6 +82,7 @@ func begin(i: int) -> void:
 		Game.level_floor = 0
 		Game.floor_link = {}
 		TerminalOS.credit_balance = START_CREDITS
+		Upgrades.reset()
 		TapeMarks.restore([])
 		_floor_seen = Vector2i(0, 0)
 		return
@@ -88,6 +91,7 @@ func begin(i: int) -> void:
 	Game.level_floor = int(cf.get_value("run", "level_floor", 0))
 	Game.floor_link = cf.get_value("run", "floor_link", {})
 	TerminalOS.credit_balance = int(cf.get_value("world", "credits", START_CREDITS))
+	Upgrades.restore(cf.get_value("world", "upgrades", {}))
 	TapeMarks.restore(cf.get_value("world", "tape", []))
 	for sec in ["vitals", "pack", "archive", "clock"]:
 		if cf.has_section(sec):
@@ -211,6 +215,7 @@ func save_now() -> bool:
 	if ui != null and "t" in ui:
 		cf.set_value("clock", "counter", ui.get("t"))
 	cf.set_value("world", "credits", TerminalOS.credit_balance)
+	cf.set_value("world", "upgrades", Upgrades.ranks)
 	cf.set_value("world", "tape", TapeMarks.pack_mine())
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR))
 	# written beside the tape, then swapped in: a crash mid-write never leaves half a tape

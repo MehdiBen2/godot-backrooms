@@ -49,6 +49,8 @@ const HAZARD_BELOW := 40.0
 const MOMENTUM_WINDOW := 300.0   # a filing within this of the last one adds MOMENTUM_STEP ...
 const MOMENTUM_STEP := 0.1
 const MOMENTUM_MAX := 3          # ... up to this many steps
+const ANALYST := 0.2             # FIELD ANALYST: the Field Analyst ability (tsra_upgrades.gd), on every reading
+const Upgrades := preload("res://scripts/GameLogicEngine/tsra_upgrades.gd")
 const SURVEY_PER_CELL := 1       # RY for each grid cell first marked with tape on a level
 const SURVEY_MILESTONES := [[0.25, 25], [0.5, 50], [0.75, 100]]   # [share of the open cells, bonus RY]
 const ROUTE_MIN_STRIPS := 3      # of your own on the level, for the exit to count as a documented route
@@ -66,6 +68,7 @@ const SOURCES := [
 	["first_contact", "FIRST CONTACT"], ["new_site", "NEW SITE CONFIRMED"], ["supplemental", "SUPPLEMENTAL DATA"],
 	["proximity", "PROXIMITY PREMIUM"], ["off_roster", "OFF-ROSTER SIGHTING"], ["hazard", "HAZARD PAY"],
 	["momentum", "FIELD MOMENTUM"], ["survey", "CORRIDOR MAPPED"], ["survey_bonus", "SURVEY MILESTONES"],
+	["analyst", "FIELD ANALYST"],
 ]
 
 var unit := "XP"
@@ -221,6 +224,8 @@ func file(entity_id: String, dist: float, player: Node = null) -> Dictionary:
 		_last_filed = now
 		if _momentum > 0:
 			lines.append(["FIELD MOMENTUM x%d" % (_momentum + 1), MOMENTUM_STEP * _momentum, "momentum"])
+	if Upgrades.has("analyst"):
+		lines.append(["FIELD ANALYST", ANALYST, "analyst"])
 	# the markups as whole RY, off the core amount; the filing is what the lines add up to
 	var gained := core
 	for ln in lines.slice(1):

@@ -232,7 +232,7 @@ func _physics_process_timed(dt: float) -> void:
 	(shape.shape as CapsuleShape3D).height = eye + 0.1
 	shape.position.y = (eye + 0.1) / 2.0
 
-	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT if crouch else 1.0))
+	var speed := SPEED * (SPRINT_MULT if sprint else (CROUCH_MULT * Upgrades.scale("low_profile") if crouch else 1.0))
 	speed *= 1.0 + ADR_BOOST * adrenaline
 	speed *= 1.0 + SWING_BOOST * _swing_boost
 	speed *= 1.0 + CORNER_BOOST * _corner_boost
@@ -433,7 +433,7 @@ func _step_up(dt: float) -> void:
 
 ## How far your footsteps carry right now (the entity's hearing multiplies by this)
 func step_noise() -> float:
-	return footsteps.noise() if footsteps else 1.0
+	return (footsteps.noise() if footsteps else 1.0) * Upgrades.scale("soles") * (0.25 if is_crouching and Upgrades.has("ghost_step") else 1.0)
 
 # Something heavy landed nearby (the bacteria's footfalls in a chase): the view dips with the floor
 func jolt(amount: float) -> void:
@@ -478,7 +478,7 @@ func _tick_adrenaline(dt: float, hunted: bool) -> void:
 	if adr_active:
 		adr_time += dt
 		adr_glow = ADR_AFTERGLOW if hunted else adr_glow - dt
-		if adr_time > ADR_MAX_TIME or adr_glow <= 0.0 or dead:
+		if adr_time > ADR_MAX_TIME * Upgrades.scale("adrenal") or adr_glow <= 0.0 or dead:
 			adr_active = false
 			adr_cooldown = ADR_COOLDOWN
 			if not dead:

@@ -19,6 +19,7 @@ extends Node
 signal reading_filed(report: Dictionary)   # each XP filing a completed reading made (xp_popup.gd shows it)
 
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
+const Upgrades := preload("res://scripts/GameLogicEngine/tsra_upgrades.gd")
 
 const RANGE := 32.0
 const CONE_COS := 0.9877         # cos 9 deg: the target has to be close to the crosshair
@@ -108,7 +109,7 @@ func _process(dt: float) -> void:
 		target_node = hit.node
 		target_dist = hit.dist
 		target_pos = hit.pos
-		progress = minf(1.0, progress + dt / (SCAN_TIME * Clearance.scan_time_scale()))
+		progress = minf(1.0, progress + dt / (SCAN_TIME * Clearance.scan_time_scale() * Upgrades.scale("amplifier")))
 		if progress >= 1.0:
 			_complete()
 			return
@@ -201,21 +202,23 @@ func _best_target() -> Dictionary:
 	var found: Array = []            # [dot, id, pos, dist, node] inside the cone
 	var flat_fwd := Vector2(fwd.x, fwd.z).normalized()
 	raw_signal = 0.0
+	var reach := RANGE * Upgrades.scale("long_range")
 	for n in get_tree().get_nodes_in_group(Archive.SCANNABLE):
 		if not n.has_method("scan_points"):
 			continue
 		var id := str(n.get_meta("tsra_id", ""))
 		if id == "":
 			continue
-		# entities read from anywhere in RANGE; a prop that has scan_range() only from up close
-		var lock_range: float = minf(RANGE, n.scan_range()) if n.has_method("scan_range") else RANGE
+		# entities read from anywhere in RANGE (stretched by the Long-Range Pickup upgrade); a prop that has
+		# scan_range() only from up close
+		var lock_range: float = minf(reach, n.scan_range()) if n.has_method("scan_range") else reach
 		for p in n.scan_points():
 			var d: Vector3 = p - from
 			var dist := d.length()
-			if dist < 0.5 or dist > RANGE:
+			if dist < 0.5 or dist > reach:
 				continue
 			var dot := fwd.dot(d / dist)
-			var s: float = smoothstep(SIGNAL_COS, CONE_COS, dot) * (1.0 - 0.6 * dist / RANGE)
+			var s: float = smoothstep(SIGNAL_COS, CONE_COS, dot) * (1.0 - 0.6 * dist / reach)
 			if s > raw_signal:
 				raw_signal = s
 				raw_dist = dist

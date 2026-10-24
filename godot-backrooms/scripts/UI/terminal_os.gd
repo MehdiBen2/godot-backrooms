@@ -4,7 +4,8 @@ extends Control
 ## (shaders/terminal_crt.gdshader, a ColorRect drawn last so it reads everything under it).
 ##
 ## standby (what you walk up to) -> boot (BIOS checks, the OS loading) -> the T.S.R.A. emblem and the
-## operative's authentication -> the main menu: ANOMALY ARCHIVE, MISSIONS, SUPPLY EXCHANGE, RECOVERED FILES.
+## operative's authentication -> the main menu: ANOMALY ARCHIVE, MISSIONS, SUPPLY EXCHANGE, RECOVERED FILES,
+## FIELD UPGRADES (tsra_upgrades.gd).
 ## Every page is one list on the left and the selected entry's sheet on the right.
 ##
 ## Input comes from the prop: key() for the keyboard, and mouse events it pushes into the viewport (already in
@@ -14,12 +15,17 @@ signal logged_off              # ESC on the main menu: the prop powers the tube 
 signal sfx(id: String)         # a terminal_machine.gd SFX key: on / off / select / tab / scan / logged
 
 const Kit = preload("res://scripts/UI/inventory/terminal_kit.gd")
+const Upgrades := preload("res://scripts/GameLogicEngine/tsra_upgrades.gd")
 const LOGO_PATH := "res://textures/ui/tsra_logo.png"     # tools/gen_tsra_logo.py
 const CRT_SHADER := preload("res://shaders/terminal_crt.gdshader")
 
 const SIZE := Vector2i(1024, 768)             # the PVM's glass is 4:3
 const PAD := 50.0                              # clear of the tube's rounded corners
 const LIST_W := 400.0
+const TREE_TOP := 28.0                         # FIELD UPGRADES: the branch names over the tree
+const TREE_ROW := 92.0                         # from one row of nodes to the next
+const NODE_W := 136.0
+const NODE_H := 50.0
 
 const AMBER := Kit.AMBER
 const TEXT := Kit.TEXT
@@ -40,6 +46,8 @@ const MENU := [
 		"desc": "Requisition field equipment against your research credits. Dispensed items go straight into your pack."},
 	{"id": "files", "name": "RECOVERED FILES",
 		"desc": "Memos, survey notes and transcripts recovered in the field, decrypted as your clearance allows."},
+	{"id": "upgrades", "name": "FIELD UPGRADES",
+		"desc": "Permanent improvements to your kit and conditioning, paid in research credits. Higher ranks are only issued at higher clearance."},
 ]
 
 const CATALOG := [
@@ -99,6 +107,7 @@ var credits_lbl: Label
 var detail: VBoxContainer
 var detail_scroll: ScrollContainer
 var status_lbl: Label
+var wires: Control                   # the upgrade tree's prerequisite lines (_draw_wires)
 var caret: ColorRect
 var blink: Array = []                # labels that blink while their screen is up
 var pointer_at := Vector2(-1, -1)
@@ -159,6 +168,7 @@ func _clear() -> void:
 	detail = null
 	detail_scroll = null
 	status_lbl = null
+	wires = null
 	caret = null
 
 ## The screen you walk up to: the emblem breathing, waiting for someone to press E
@@ -352,7 +362,7 @@ func open_menu(at := -1) -> void:
 	detail.add_theme_constant_override("separation", 6)
 	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	body.add_child(detail)
-	_footer(["▲▼ SELECT", "ENTER OPEN", "1-4 JUMP", "ESC LOG OFF"])
+	_footer(["▲▼ SELECT", "ENTER OPEN", "1-5 JUMP", "ESC LOG OFF"])
 	sel = -1
 	_select(clampi(at, 0, MENU.size() - 1) if at >= 0 else 0, true)
 
@@ -372,6 +382,13 @@ func _menu_info(id: String) -> String:
 			for f in _files():
 				if f.open: n += 1
 			return "%d FILES" % n
+		"upgrades":
+			var have := 0
+			var most := 0
+			for u in Upgrades.TREE:
+				have += Upgrades.rank(u.id)
+				most += Upgrades.max_rank(u.id)
+			return "%d/%d RANKS" % [have, most]
 	return ""
 
 # ---------------------------------------------------------------- pages
@@ -383,8 +400,12 @@ func open_page(id: String) -> void:
 	var titles := {"archive": ["ANOMALY ARCHIVE", "ENTITY REGISTRY // %d OF %d LOGGED" % [_logged_count(), _entity_ids().size()]],
 		"missions": ["MISSIONS", "SURFACE COMMAND DIRECTIVES // SECTOR %s" % _sector()],
 		"supply": ["SUPPLY EXCHANGE", "FIELD REQUISITION // HOPPER ONLINE"],
-		"files": ["RECOVERED FILES", "FIELD DRIVE /TSRA/RECOVERED"]}
+		"files": ["RECOVERED FILES", "FIELD DRIVE /TSRA/RECOVERED"],
+		"upgrades": ["FIELD UPGRADES", "KIT BENCH // OPERATIVE CONDITIONING"]}
 	var body := _chrome(titles[id][0], titles[id][1])
+	if id == "upgrades":
+		_tree_page(body)
+		return
 	var deck := HBoxContainer.new()
 	deck.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	deck.add_theme_constant_override("separation", 18)
@@ -401,7 +422,7 @@ func open_page(id: String) -> void:
 		code_w = maxf(code_w, 14.0 * str(e.code).length() + 6.0)
 	for i in entries.size():
 		var e: Dictionary = entries[i]
-		list.add_child(_row(i, e.code, e.name, "", 18, 0, e.get("col", TEXT), code_w))
+		list.add_child(_row(i, e.code, e.name, e.get("info", ""), 18, 0, e.get("col", TEXT), code_w))
 	var sheet := PanelContainer.new()
 	sheet.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var sb := Kit.box(Color(AMBER, 0.035), Color(AMBER, 0.5), 2, 2)
@@ -426,6 +447,121 @@ func open_page(id: String) -> void:
 	sel = -1
 	_select(0, true)
 
+## FIELD UPGRADES: the tree across the top (a box per node on wires from the nodes it hangs off, the three
+## branches side by side, two sub-columns each) and the selected node's sheet under it
+func _tree_page(body: VBoxContainer) -> void:
+	var cw := (SIZE.x - PAD * 2.0) / 6.0
+	var graph := Control.new()
+	graph.custom_minimum_size.y = TREE_TOP + 2 * TREE_ROW + NODE_H
+	graph.mouse_filter = Control.MOUSE_FILTER_PASS
+	body.add_child(graph)
+	for b in Upgrades.BRANCHES.size():
+		var h := Kit.label(Upgrades.BRANCHES[b], 16, MUTED, 4)
+		h.position = Vector2(b * cw * 2.0, 0)
+		h.size = Vector2(cw * 2.0, 20)
+		h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		graph.add_child(h)
+	wires = Control.new()
+	wires.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wires.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wires.draw.connect(_draw_wires.bind(cw))
+	graph.add_child(wires)
+	var entries := _page_rows("upgrades")
+	for i in entries.size():
+		var box := _node_box(i, entries[i])
+		box.position = _node_at(i, cw)
+		graph.add_child(box)
+	body.add_child(Kit.spacer(10))
+	var sheet := PanelContainer.new()
+	sheet.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var sb := Kit.box(Color(AMBER, 0.035), Color(AMBER, 0.5), 2, 2)
+	sb.set_content_margin_all(14)
+	sheet.add_theme_stylebox_override("panel", sb)
+	sheet.mouse_filter = Control.MOUSE_FILTER_PASS
+	body.add_child(sheet)
+	detail_scroll = ScrollContainer.new()
+	detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	detail_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	detail_scroll.mouse_filter = Control.MOUSE_FILTER_PASS
+	sheet.add_child(detail_scroll)
+	detail = VBoxContainer.new()
+	detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_scroll.add_child(detail)
+	_footer(["ARROWS MOVE", "ENTER INSTALL", "PGUP/PGDN SCROLL", "ESC BACK"])
+	sel = -1
+	_select(0, true)
+
+## Top-left of node `i`'s box on the tree, `cw` the width of a sub-column
+func _node_at(i: int, cw: float) -> Vector2:
+	var at: Vector2 = Upgrades.TREE[i].pos
+	return Vector2((at.x + 0.5) * cw - NODE_W * 0.5, TREE_TOP + at.y * TREE_ROW)
+
+func _node_box(i: int, e: Dictionary) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.custom_minimum_size = Vector2(NODE_W, NODE_H)
+	p.size = p.custom_minimum_size
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 4)
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mark := Kit.label(" ", 14, AMBER, 1)
+	var n := Kit.label(e.name, 14, e.col, 1)
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	n.clip_text = true
+	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	top.add_child(mark)
+	top.add_child(n)
+	var bottom := HBoxContainer.new()
+	bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pips := Kit.label(e.info, 12, MUTED, 1)
+	pips.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var price := Kit.label(e.code, 12, MUTED, 1)
+	bottom.add_child(pips)
+	bottom.add_child(price)
+	v.add_child(top)
+	v.add_child(bottom)
+	p.add_child(v)
+	p.set_meta("labels", [mark, price, n, pips])
+	p.set_meta("col", e.col)
+	p.set_meta("edge", e.edge)
+	_hook_row(p, i)
+	return p
+
+## The prerequisite wires: from the bottom of each node a node hangs off to its top, square-elbowed. Lit green
+## when both ends are bought, amber when the parent is (the child is open), dim while the path is still shut.
+func _draw_wires(cw: float) -> void:
+	var ids := Upgrades.TREE.map(func(x): return x.id)
+	for i in Upgrades.TREE.size():
+		var u: Dictionary = Upgrades.TREE[i]
+		var to := _node_at(i, cw) + Vector2(NODE_W * 0.5, 0)
+		for r in u.req:
+			var from := _node_at(ids.find(r), cw) + Vector2(NODE_W * 0.5, NODE_H)
+			var mid := (from.y + to.y) * 0.5
+			var col := Color(MUTED, 0.4)
+			if Upgrades.has(r):
+				col = GREEN if Upgrades.has(u.id) else Color(AMBER, 0.8)
+			wires.draw_polyline(PackedVector2Array([from, Vector2(from.x, mid), Vector2(to.x, mid), to]), col, 2.0)
+
+## Arrows on the tree: the nearest node that way, straight lines first
+func _tree_move(d: Vector2) -> void:
+	var at: Vector2 = Upgrades.TREE[sel].pos
+	var best := -1
+	var best_s := INF
+	for j in Upgrades.TREE.size():
+		var off: Vector2 = Upgrades.TREE[j].pos - at
+		var along := off.dot(d)
+		if j == sel or along <= 0.0:
+			continue
+		var s := along * along + 4.0 * pow(off.dot(Vector2(d.y, d.x)), 2.0)
+		if s < best_s:
+			best_s = s
+			best = j
+	if best >= 0:
+		_select(best)
+
 func _page_rows(id: String) -> Array:
 	var out: Array = []
 	match id:
@@ -446,6 +582,27 @@ func _page_rows(id: String) -> Array:
 		"files":
 			for f in _files():
 				out.append({"code": f.code, "name": str(f.title).to_upper() if f.open else "[ENCRYPTED]", "col": TEXT if f.open else TEXT_DIM})
+		"upgrades":
+			# a node box: name, rank pips (ABILITY for a capstone), its next price, and an edge by state:
+			# green bought, amber open and affordable, dim open but not yet, grey locked
+			for u in Upgrades.TREE:
+				var r := Upgrades.rank(u.id)
+				var nx := Upgrades.next(u.id)
+				var e := {"name": str(u.short), "info": _pips(u.id), "code": "", "col": TEXT, "edge": GREEN}
+				if nx.is_empty():
+					e.code = "MAXED"
+					e.col = GREEN
+				elif not Upgrades.is_open(u.id):
+					e.code = "LOCKED"
+					e.col = TEXT_DIM
+					e.edge = Color(MUTED, 0.35)
+				else:
+					e.code = "%dCR" % int(nx.price)
+					var can := credit_balance >= int(nx.price) and Clearance.tier_index() >= int(nx.tier)
+					e.col = TEXT if can else TEXT_DIM
+					if r == 0:
+						e.edge = AMBER if can else Color(AMBER, 0.4)
+				out.append(e)
 	return out
 
 ## The selected entry's sheet
@@ -466,6 +623,7 @@ func _fill_detail() -> void:
 		"missions": _detail_mission(_missions()[sel])
 		"supply": _detail_supply(CATALOG[sel])
 		"files": _detail_file(_files()[sel])
+		"upgrades": _detail_upgrade(Upgrades.TREE[sel])
 	_type_in()
 
 func _detail_archive(eid: String) -> void:
@@ -552,6 +710,67 @@ func _detail_file(f: Dictionary) -> void:
 	_d(str(f.title).to_upper(), 24, AMBER, 2)
 	_rule()
 	_d(str(f.text), 17, TEXT, 1, true)
+
+## A node's sheet, in two columns to fit under the tree: what it does and costs on the left, the flavour,
+## the effect in plain words and the bench's status on the right
+func _detail_upgrade(u: Dictionary) -> void:
+	var r := Upgrades.rank(u.id)
+	var nx := Upgrades.next(u.id)
+	var ability := Upgrades.is_ability(u.id)
+	var sheet := detail
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 26)
+	cols.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sheet.add_child(cols)
+	var left := VBoxContainer.new()
+	var right := VBoxContainer.new()
+	for c in [left, right]:
+		c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		c.add_theme_constant_override("separation", 5)
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cols.add_child(c)
+	detail = left
+	_d("%s // %s" % [u.code, "ABILITY" if ability else "RANK %d / %d" % [r, Upgrades.max_rank(u.id)]], 14, MUTED, 3)
+	_d(str(u.name).to_upper(), 22, AMBER, 2)
+	if ability:
+		_d("STATUS: " + ("ACTIVE" if r > 0 else "NOT ACQUIRED"), 16, GREEN if r > 0 else TEXT, 2)
+	else:
+		_d("INSTALLED: %s %s" % [u.unit, _pct(Upgrades.scale(u.id))] if r > 0 else "INSTALLED: NONE", 16, TEXT, 2)
+		if not nx.is_empty():
+			_d("NEXT RANK: %s %s" % [u.unit, _pct(Upgrades.scale(u.id, r + 1))], 16, AMBER, 2)
+	if nx.is_empty():
+		_d("FULLY UPGRADED", 16, GREEN, 2)
+	else:
+		_d("COST: %d CR // BALANCE: %d CR" % [int(nx.price), credit_balance], 16, GREEN if credit_balance >= int(nx.price) else RED, 2)
+		var cleared := Clearance.tier_index() >= int(nx.tier)
+		_d("CLEARANCE: %s %s" % [_tier_name(int(nx.tier)), "OK" if cleared else "REQUIRED"], 16, GREEN if cleared else RED, 2)
+		if not Upgrades.is_open(u.id):
+			_d("REQUIRES: " + _req_names(u), 16, RED, 2, true)
+	detail = right
+	_d(str(u.desc), 15, TEXT, 1, true)
+	_d(str(u.line), 15, AMBER if ability else TEXT_DIM, 1, true)
+	status_lbl = _d("", 16, GREEN, 2, true)
+	_status()
+	detail = sheet
+
+## "[##.]" for a ranked node, ABILITY for a capstone
+func _pips(id: String) -> String:
+	if Upgrades.is_ability(id):
+		return "ABILITY"
+	var r := Upgrades.rank(id)
+	return "[%s%s]" % ["#".repeat(r), ".".repeat(Upgrades.max_rank(id) - r)]
+
+## "BREATHWORK + PSYCH": the nodes `u` hangs off
+func _req_names(u: Dictionary) -> String:
+	return " + ".join(u.req.map(func(id): return str(Upgrades.entry(id).short)))
+
+func _tier_name(i: int) -> String:
+	return str(Clearance.tier(i).get("code", "RANK %d" % i))
+
+## "-15%" / "+40%" for an upgrade scale
+func _pct(k: float) -> String:
+	var n := roundi((k - 1.0) * 100.0)
+	return ("+%d%%" if n > 0 else "%d%%") % n
 
 # ---------------------------------------------------------------- the data behind the pages
 func _entity_ids() -> Array:
@@ -668,11 +887,67 @@ func _dispense() -> void:
 			credits_lbl.text = "%d CR" % credit_balance
 	)
 
+## Buy the selected node's next rank: path, clearance and credits checked, then a short install and the tree
+## redrawn with the new rank
+func _install() -> void:
+	if dispensing:
+		return
+	var u: Dictionary = Upgrades.TREE[sel]
+	var nx := Upgrades.next(u.id)
+	var fail := ""
+	if nx.is_empty():
+		fail = "HALTED // ALREADY AT MAXIMUM RANK"
+	elif not Upgrades.is_open(u.id):
+		fail = "LOCKED // ACQUIRE %s FIRST" % _req_names(u)
+	elif Clearance.tier_index() < int(nx.tier):
+		fail = "REJECTED // CLEARANCE %s REQUIRED" % _tier_name(int(nx.tier))
+	elif credit_balance < int(nx.price):
+		fail = "REJECTED // INSUFFICIENT CREDITS"
+	if fail != "":
+		_status(fail, RED if not nx.is_empty() else ORANGE)
+		sfx.emit("tab")
+		return
+	dispensing = true
+	_status("CALIBRATING // INSTALLING %s RANK %d ..." % [str(u.code), Upgrades.rank(u.id) + 1], AMBER)
+	sfx.emit("scan")
+	var at := sel
+	var tw := create_tween()
+	tw.tween_interval(0.8)
+	tw.tween_callback(func():
+		dispensing = false
+		credit_balance -= int(nx.price)
+		Upgrades.buy(u.id)
+		sfx.emit("logged")
+		if credits_lbl:
+			credits_lbl.text = "%d CR" % credit_balance
+		if state == "page" and page == "upgrades":
+			_refresh_rows()
+			if sel == at:
+				_fill_detail()
+				_status("INSTALLED // %s RANK %d ACTIVE" % [str(u.code), Upgrades.rank(u.id)], GREEN)
+	)
+
+## Re-letter the current page's rows in place (an install changes every node's price colour, one's rank, and
+## which paths are open)
+func _refresh_rows() -> void:
+	var entries := _page_rows(page)
+	for j in mini(entries.size(), rows.size()):
+		var ls: Array = rows[j].get_meta("labels")
+		ls[1].text = str(entries[j].code)
+		ls[2].text = str(entries[j].name)
+		ls[3].text = str(entries[j].get("info", ""))
+		rows[j].set_meta("col", entries[j].get("col", TEXT))
+		if entries[j].has("edge"):
+			rows[j].set_meta("edge", entries[j].edge)
+		_style_row(j)
+	if is_instance_valid(wires):
+		wires.queue_redraw()
+
 func _status(text := "", col := GREEN) -> void:
 	if status_lbl == null:
 		return
 	if text == "":
-		text = "DISPENSER: STANDBY // HOPPER READY"
+		text = "KIT BENCH: STANDBY // SELECT AN UPGRADE" if page == "upgrades" else "DISPENSER: STANDBY // HOPPER READY"
 	status_lbl.text = text
 	status_lbl.add_theme_color_override("font_color", col)
 	status_lbl.visible_ratio = 1.0
@@ -694,11 +969,17 @@ func key(k: Key) -> bool:
 				KEY_UP, KEY_W: _select(wrapi(sel - 1, 0, MENU.size()))
 				KEY_DOWN, KEY_S: _select(wrapi(sel + 1, 0, MENU.size()))
 				KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, KEY_D, KEY_RIGHT: _activate(sel)
-				KEY_1, KEY_2, KEY_3, KEY_4: _activate(k - KEY_1)
+				KEY_1, KEY_2, KEY_3, KEY_4, KEY_5: _activate(k - KEY_1)
 				KEY_ESCAPE, KEY_E, KEY_TAB, KEY_BACKSPACE: logged_off.emit()
 				_: return false
 			return true
 		"page":
+			if page == "upgrades":
+				var d := {KEY_UP: Vector2.UP, KEY_W: Vector2.UP, KEY_DOWN: Vector2.DOWN, KEY_S: Vector2.DOWN,
+					KEY_LEFT: Vector2.LEFT, KEY_A: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT, KEY_D: Vector2.RIGHT}
+				if d.has(k):
+					_tree_move(d[k])
+					return true
 			match k:
 				KEY_UP, KEY_W: _select(wrapi(sel - 1, 0, rows.size()))
 				KEY_DOWN, KEY_S: _select(wrapi(sel + 1, 0, rows.size()))
@@ -729,6 +1010,10 @@ func _activate(i: int) -> void:
 		if i != sel:
 			_select(i)
 		_dispense()
+	elif state == "page" and page == "upgrades":
+		if i != sel:
+			_select(i)
+		_install()
 
 func _scroll(px: int) -> void:
 	if detail_scroll:
@@ -842,6 +1127,12 @@ func _row(i: int, code: String, title: String, info: String, px: int, h: float, 
 	p.add_child(line)
 	p.set_meta("labels", [mark, c, n, r])
 	p.set_meta("col", col)
+	_hook_row(p, i)
+	return p
+
+## Make `p` row `i` of the current screen: hover selects it, a click opens / uses it
+func _hook_row(p: PanelContainer, i: int) -> void:
+	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	p.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseMotion and sel != i:
 			_select(i)
@@ -851,12 +1142,13 @@ func _row(i: int, code: String, title: String, info: String, px: int, h: float, 
 	)
 	rows.append(p)
 	_style_row(rows.size() - 1)
-	return p
 
+## Inverse video when selected; a row with an "edge" (a tree node) is a box outlined in that colour
 func _style_row(j: int) -> void:
 	var p: PanelContainer = rows[j]
 	var on := j == sel
-	var sb := Kit.box(AMBER if on else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0, 2)
+	var edge: Color = p.get_meta("edge", Color(0, 0, 0, 0))
+	var sb := Kit.box(AMBER if on else Color(edge, edge.a * 0.08), edge, 2 if edge.a > 0.0 else 0, 2)
 	sb.content_margin_left = 8
 	sb.content_margin_right = 12
 	sb.content_margin_top = 3
@@ -899,8 +1191,9 @@ func _rule() -> void:
 func _type_in() -> void:
 	if anim: anim.kill()
 	anim = create_tween()
-	for c in detail.get_children():
-		if c is Label and c != status_lbl:
+	anim.tween_interval(0.0)               # a sheet with no text still gives the tween something to run
+	for c in detail.find_children("*", "Label", true, false):
+		if c != status_lbl:
 			var l := c as Label
 			l.visible_ratio = 0.0
 			anim.tween_property(l, "visible_ratio", 1.0, clampf(l.text.length() / 900.0, 0.04, 0.3))

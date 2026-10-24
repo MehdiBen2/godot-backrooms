@@ -3,6 +3,7 @@ extends "res://scripts/Player/player_state.gd"
 ## and tight spaces: the squeeze gap, crawling, both hands on a slit, corner grab and swing.
 
 func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
+	second_wind_cd = maxf(0.0, second_wind_cd - dt)
 	if Game.infinite_stamina:
 		exhausted = false
 		stamina = 100.0
@@ -13,12 +14,18 @@ func _update_stamina(dt: float, sprint: bool, rush: bool) -> void:
 		stamina = maxf(stamina, 60.0)
 		rest_timer = 0.6
 	elif sprint:
-		stamina = maxf(0.0, stamina - dt * 100.0 / SPRINT_SECONDS)
+		stamina = maxf(0.0, stamina - dt * 100.0 / (SPRINT_SECONDS * Upgrades.scale("lungs")))
 		rest_timer = 0.6
-		if stamina <= 0.0: exhausted = true
+		if stamina <= 0.0:
+			if Upgrades.has("second_wind") and second_wind_cd <= 0.0:
+				stamina = SECOND_WIND
+				second_wind_cd = SECOND_WIND_COOLDOWN
+				Game.fx_shock = maxf(Game.fx_shock, 0.35)     # the catch: a small punch-in as the reserve kicks in
+			else:
+				exhausted = true
 	else:
 		rest_timer = maxf(0.0, rest_timer - dt)
-		if rest_timer == 0.0: stamina = minf(100.0, stamina + STAMINA_REGEN * dt)
+		if rest_timer == 0.0: stamina = minf(100.0, stamina + STAMINA_REGEN * Upgrades.scale("breath") * dt)
 		if exhausted and stamina >= 15.0: exhausted = false
 
 # Head bob + footfalls (web updateHeadBob): a step lands at the bottom of each bob. The bob, the lean
@@ -218,7 +225,7 @@ func _update_flashlight(dt: float) -> void:
 		if Game.infinite_battery:
 			battery = 100.0
 		else:
-			battery = maxf(0.0, battery - BATTERY_DRAIN * (0.25 if grid_down else 1.0) * dt)
+			battery = maxf(0.0, battery - BATTERY_DRAIN * Upgrades.scale("filament") * (0.25 if grid_down else 1.0) * dt)
 		if battery <= 0.0:
 			flash_on = false
 			battery_died.emit()
@@ -921,14 +928,14 @@ func _update_sanity(dt: float) -> void:
 		var dark_ratio := 1.0 - light_level / 0.3
 		dark_time += dt
 		var creep := 1.0 + minf(dark_time / 20.0, 1.0)         # doubles over the first 20 s of it
-		sanity = maxf(0.0, sanity - (1.0 + dark_ratio * 4.5) * creep * (1.4 if grid_down else 1.0) * dt)
+		sanity = maxf(0.0, sanity - (1.0 + dark_ratio * 4.5) * creep * (1.4 if grid_down else 1.0) * Upgrades.scale("psych") * dt)
 	else:
 		dark_time = maxf(0.0, dark_time - dt)                  # dim but not black: neither gain nor loss
 	# a Drain zone (painted in the level editor): the place itself wears you down, lit or not, torch or not
 	if sanity_lock < 0.0 and level != null:
 		var zone = level.get("drain")
 		if zone is Dictionary and zone.has(Vector2i(roundi(global_position.x / 4.5), roundi(global_position.z / 4.5))):
-			sanity = maxf(0.0, sanity - DRAIN_ZONE_RATE * dt)
+			sanity = maxf(0.0, sanity - DRAIN_ZONE_RATE * Upgrades.scale("psych") * dt)
 	_update_mind(dt)
 # A slipping mind hurts. Below HURT_SANITY the body starts to fail (faster the lower it goes), the
 # picture smears and doubles (insanity, read by the post shader) and the heart runs. Recovering

@@ -12,6 +12,7 @@ const Peek := preload("res://scripts/Player/peek.gd")
 const CameraGait := preload("res://scripts/Player/camera_gait.gd")
 const CornerGrab := preload("res://scripts/Player/corner_grab.gd")
 const WallHand := preload("res://scripts/Player/wall_hand.gd")
+const Upgrades := preload("res://scripts/GameLogicEngine/tsra_upgrades.gd")
 
 const SPEED := 2.6
 const SPRINT_MULT := 1.75
@@ -38,6 +39,8 @@ const COYOTE_TIME := 0.10         # can still jump this long after walking off a
 const JUMP_BUFFER := 0.12         # a press this soon before landing still jumps
 const SPRINT_SECONDS := 30.0
 const STAMINA_REGEN := 18.0
+const SECOND_WIND := 50.0          # stamina the Second Wind ability (tsra_upgrades.gd) gives back when you run dry
+const SECOND_WIND_COOLDOWN := 90.0
 # Adrenaline (ADRENALINE in js/config.js): hunted by the bacteria up close, you get a burst of speed
 # and endless sprint to break away, then a crash
 const ADR_RANGE := 22.0          # metres: it must be chasing you from at least this close
@@ -140,6 +143,7 @@ var _event_flinched := false
 var stamina := 100.0
 var exhausted := false
 var rest_timer := 0.0
+var second_wind_cd := 0.0        # s until Second Wind can catch you again
 var adrenaline := 0.0          # 0..1 strength of the burst, eased in and out
 var adr_active := false
 var adr_time := 0.0
