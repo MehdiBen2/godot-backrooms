@@ -4,7 +4,7 @@
  "name": "Level 37: The Poolrooms",
  "size": 32,
  "atmosphere": "liminal",
- "lights": "none",
+ "lights": "panels",
  "materials": {
   "wall": "Tile_White_Grid",
   "floor": "Tile_White_Grid",

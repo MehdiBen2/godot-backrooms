@@ -2,6 +2,7 @@ extends SceneTree
 ## Screenshots of a level from set places (needs a window, not --headless: run it with tools/run_bg.ps1 -Offscreen).
 ## Env: LEVEL (index in levels.json, default 0), PRESET (low..ultra, default high), SHOT (output prefix, default
 ## res://shot), FLOOR (floor to start on, default 0), TORCH (1: keep the torch on), HUD (1: keep the HUD),
+## GFX (single graphics settings over the preset, "bounce=false,ssil=true"),
 ## VIEWS: "x,z,look,pitch[,y]" separated by ";": stand on cell (x, z) (fractions allowed), look `look` degrees
 ## clockwise on the map (0 east, 90 south: the level editor's arrows), `pitch` degrees up, eyes raised `y` m
 ## (default 0: on the floor there). One PNG per view: <SHOT>_<i>.png.
@@ -17,6 +18,10 @@ func _initialize() -> void:
 	root.add_child(main)
 	await process_frame
 	root.get_node("Gfx").set_preset(env_or.call("PRESET", "high"))
+	# GFX="bounce=false,ssil=true": single settings on top of the preset
+	for kv in String(env_or.call("GFX", "")).split(",", false):
+		var s := kv.split("=")
+		root.get_node("Gfx").set_value(s[0], s[1] == "true" if s[1] in ["true", "false"] else int(s[1]))
 	await create_timer(2.0).timeout
 	game.playing = true
 	var level: Node = main.get_node("Level")
