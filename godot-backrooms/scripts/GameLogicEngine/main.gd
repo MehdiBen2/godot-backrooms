@@ -15,7 +15,7 @@ func _ready() -> void:
 	if level.has_spawn_yaw: player.rotation.y = level.spawn_yaw
 	level.player = player
 	Game.bind(player, level, self)
-	Archive.forget_all()          # tapes only keep where you stand for now: every level start logs entities from scratch
+	Archive.forget_all()          # every level start logs entities from scratch (a loaded tape puts its own back: Saves.apply)
 	Game.run_unix = int(Time.get_unix_time_from_system())
 	Game.run_yield = Clearance.total
 	Game.dead = false

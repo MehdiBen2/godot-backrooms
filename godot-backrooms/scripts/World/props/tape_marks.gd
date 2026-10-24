@@ -205,6 +205,17 @@ static func pack_mine() -> Array:
 				out.append(pack(level, s))
 	return out
 
+## A save tape's strips (pack_mine() when it was written), in place of everything kept this session: the
+## levels' own saved strips are read again as each one is built
+static func restore(packed: Array) -> void:
+	placed = {}
+	mine = {}
+	_loaded = {}
+	for p in packed:
+		var s := {"id": str(p[4]), "a": p[1], "b": p[2], "n": p[3], "t": float(p[5]), "by": str(p[6])}
+		_store(int(p[0]), s)
+		mine[s.id] = int(p[0])
+
 ## A strip from another survivor (Net._tape_rpc): kept for its level, drawn if that's this one
 static func receive(level: int, s: Dictionary) -> void:
 	if not _find(level, s.id).is_empty():

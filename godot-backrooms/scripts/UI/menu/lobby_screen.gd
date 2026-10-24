@@ -266,7 +266,7 @@ func _build() -> void:
 	column.add_child(footer)
 
 	click = AudioStreamPlayer.new()
-	click.stream = load("res://audio/ui/ui_click.wav")
+	click.stream = load("res://audio/ui/ui_click.tres")
 	click.volume_db = -6.0
 	add_child(click)
 	tick = AudioStreamPlayer.new()
@@ -401,7 +401,6 @@ func _activate(i: int) -> void:
 	if not shown:
 		return
 	W._finish(anim)
-	click.pitch_scale = randf_range(0.96, 1.04)
 	click.play()
 	var l: Label = entries[i].label
 	var tw := create_tween()
@@ -518,7 +517,7 @@ func _refresh_tapes() -> void:
 	var written: bool = not inf.is_empty() and not inf.get("broken", false)
 	if written:
 		card_lines[0].text = str(inf.get("level_name", "")).to_upper()
-		card_lines[1].text = "RESUMES WHERE YOU LEFT OFF"
+		card_lines[1].text = str(inf.get("rank", "RESUMES WHERE YOU LEFT OFF"))
 		card_lines[2].text = "RUNTIME %s" % _runtime(float(inf.get("play_time", 0.0)))
 		card_lines[3].text = "LAST RECORDED  " + _date(int(inf.get("saved_unix", 0)))
 	else:

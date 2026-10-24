@@ -65,15 +65,36 @@ const TRACKS := [
 	{"file": "ambient-drone.wav", "tension": 0.1, "gain": 1.0, "tag": ""},                      # plain drone, short
 	{"file": "creepy-ambience_C_minor.wav", "tension": 0.15, "gain": 1.0, "tag": ""},           # low, slowly shifting
 	{"file": "creepy-ambience-long-hollow-loop_130bpm.wav", "tension": 0.25, "gain": 1.0, "tag": "Entity"},   # deep hollow pulse
+	{"file": "leberch-horror-ambient-609124.mp3", "tension": 0.1, "gain": 1.0, "tag": ""},   # very quiet, flat
+	{"file": "jorisvermeer-creepy-game-background-397275.mp3", "tension": 0.15, "gain": 1.0, "tag": ""},   # flat, steady
+	{"file": "delosound-scary-horror-music-horror-483782.mp3", "tension": 0.2, "gain": 1.0, "tag": ""},   # flat, quiet, long
 	# uneasy (a few events, brighter)
 	{"file": "mleckert82-spooky-ambience-212885.mp3", "tension": 0.35, "gain": 1.0, "tag": ""},
+	{"file": "MysteriousSuspensefulMusic2018-11-03_-_Dark_Fog_-_David_Fesliyan.mp3", "tension": 0.35, "gain": 1.0, "tag": ""},   # dark, near-silent gaps
+	{"file": "2019-06-18_-_Creepy_Vibes_-_David_Fesliyan.mp3", "tension": 0.35, "gain": 1.0, "tag": ""},   # sparse, bright
 	{"file": "universfield-horror-background-atmosphere-026-30-352879.mp3", "tension": 0.5, "gain": 1.0, "tag": ""},
+	{"file": "2020-06-25_-_Dark_Shadows_-_www.FesliyanStudios.com_David_Fesliyan.mp3", "tension": 0.4, "gain": 1.0, "tag": ""},
+	{"file": "logicallism-renovation-407795.mp3", "tension": 0.4, "gain": 1.0, "tag": "Entity"},   # a hit every ~11 s
+	{"file": "2016-05-08_-_Journey_of_Demise_-_David_Fesliyan.mp3", "tension": 0.45, "gain": 1.0, "tag": ""},   # quiet intro, slow build
+	{"file": "atlasaudio-horror-thriller-519592.mp3", "tension": 0.45, "gain": 1.0, "tag": ""},   # steady, dark, slow build
+	{"file": "kond1-reckoning-dark-and-creepy-vibe-520614.mp3", "tension": 0.5, "gain": 1.0, "tag": ""},   # dark, fades to nothing
 	# tense (range 15-28 dB, booms and hits)
 	{"file": "haunted-ambience_A#_major.wav", "tension": 0.6, "gain": 1.0, "tag": "Mannequin"},
 	{"file": "universfield-creepy-tension-background-30-352872.mp3", "tension": 0.7, "gain": 1.0, "tag": "Mimic"},
 	{"file": "dragon-studio-dark-horror-ambient-05-425468.mp3", "tension": 0.75, "gain": 1.0, "tag": ""},   # sub-bass booms, widest range
 	{"file": "universfield-dark-horror-soundscape-345814.mp3", "tension": 0.8, "gain": 1.0, "tag": ""},
+	{"file": "jorisvermeer-creepy-dark-tension-atmosphere-532083.mp3", "tension": 0.85, "gain": 1.0, "tag": "Statue"},
 	{"file": "universfield-horror-background-atmosphere-09-219111.mp3", "tension": 0.9, "gain": 1.0, "tag": "Statue"},
+	{"file": "2018-04-22_-_Dark_Winds_Chapter_1_-_David_Fesliyan.mp3", "tension": 0.65, "gain": 1.0, "tag": "Entity"},   # near-silent start, builds, many hits
+	{"file": "u_5x0jre2i0w-creepy-horror-ambience-381940.mp3", "tension": 0.65, "gain": 1.0, "tag": "Statue"},   # very dark, wide swings
+	{"file": "dragon-studio-creepy-music-584724.mp3", "tension": 0.7, "gain": 1.0, "tag": "Mimic"},   # short, wide swings
+	{"file": "2022-10-10_-_Right_Behind_You_-_www.FesliyanStudios.com.mp3", "tension": 0.7, "gain": 1.0, "tag": "Mimic"},   # bright, steady
+	{"file": "2016-12-28_-_Scarey_Atmospheres_Chapter_2_-_David_Fesliyan.mp3", "tension": 0.75, "gain": 1.0, "tag": "Mannequin"},   # dense, loud master
+	{"file": "2016-12-28_-_Scarey_Atmospheres_Chapter_3_-_David_Fesliyan.mp3", "tension": 0.75, "gain": 1.0, "tag": "Burnt"},   # dense, loud master
+	{"file": "2016-12-28_-_Scarey_Atmospheres_Chapter_1_-_David_Fesliyan.mp3", "tension": 0.8, "gain": 1.0, "tag": "Statue"},   # dense, loud master
+	{"file": "2022-09-19_-_Torture_Chamber_-_www.FesliyanStudios.com.mp3", "tension": 0.8, "gain": 1.0, "tag": ""},   # loud middle, ends in silence
+	{"file": "2020-07-08_-_Behind_You_-_www.FesliyanStudios.com_Steve_Oxen.mp3", "tension": 0.85, "gain": 1.0, "tag": "Entity"},   # swells and hits
+	{"file": "2025-02-11_-_Panic_Attack_-_www.FesliyanStudios.com.mp3", "tension": 0.95, "gain": 1.0, "tag": "Entity"},   # most hits of all: the top of a hunt
 ]
 # While tension is under this, every bed at or under it counts as an equally good fit (the calm pool), so a
 # quiet walk rotates through all of them instead of the one nearest in tension winning every time.
@@ -310,11 +331,19 @@ func _start(i: int, fade_in := FADE_IN) -> void:
 	_since_played[i] = 0.0
 	phase = Phase.BED
 
-func _statue_track() -> int:
+# A "Statue" bed for a close mannequin / burnt: the one already up if it is one, else a random loaded one
+# (the last played left out when there is a choice)
+func _statue_track(current) -> int:
+	if current != null and TRACKS[current.idx].tag == "Statue":
+		return current.idx
+	var pool: Array[int] = []
 	for i in TRACKS.size():
-		if TRACKS[i].tag == "Statue":
-			return i
-	return -1
+		if TRACKS[i].tag == "Statue" and _stream(i) != null:
+			pool.append(i)
+	var fresh := pool.filter(func(i): return not recent.has(i))
+	if not fresh.is_empty():
+		return fresh[rng.randi() % fresh.size()]
+	return pool[rng.randi() % pool.size()] if not pool.is_empty() else -1
 
 # The bed that is playing on: not crossfading out, not into its closing fade (null = nothing is)
 func _current():
@@ -363,8 +392,8 @@ func _schedule(dt: float) -> void:
 	# a mannequin or the burnt is close: its bed comes on now, whatever was playing or however quiet it was
 	var statue_near := STATUES.has(near_key) and near > STATUE_FORCE
 	if statue_near:
-		var statue := _statue_track()
-		if statue >= 0 and (current == null or current.idx != statue) and _stream(statue) != null:
+		var statue := _statue_track(current)
+		if statue >= 0 and (current == null or current.idx != statue):
 			_start(statue, KILL_FADE if current != null else FADE_IN_URGENT)
 			current = _current()
 	if current != null:

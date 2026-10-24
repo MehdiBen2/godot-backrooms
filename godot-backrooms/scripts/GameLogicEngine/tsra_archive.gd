@@ -127,6 +127,12 @@ func discover(entity_id: String) -> void:
 	unread[entity_id] = true
 	entity_discovered.emit(entity_id)
 
+## A save tape's entries (save_game.gd), put back after the level start emptied the archive
+func restore(logged: Dictionary, new: Dictionary) -> void:
+	discovered = logged.duplicate(true)
+	unread = new.duplicate(true)
+	entity_discovered.emit("")
+
 ## Every entity back to unlogged: each level start (main.gd) and the debug console's `archive reset`
 func forget_all() -> void:
 	discovered.clear()

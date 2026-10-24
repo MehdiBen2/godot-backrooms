@@ -64,6 +64,13 @@ const FLUOR_MODEL := "res://models/props/asset_pack/weathered_fluorescent_lightl
 const LAMP_GLOW := 3.0                # the tube's own brightness (HDR, so it blooms like the level's troffers)
 const CEIL_LAYER := 1 << 18            # level_geometry.gd: the level's ceiling, lit by its own glow lights only
 const SHELL_LAYERS := (1 << 10) | (1 << 11)   # level_geometry.gd: the floors above and below, lit by their own lights
+# The level's bounce light (grid_gi.gd) shuts the well out, and its lamps hug the ceiling: alone they lit the walls
+# and ceiling and left every landing and tread black. So each lamp also throws a wide, soft, shadowless cone
+# straight down, as a tube does (the level's lamps are spots down too), on the well's own surfaces only
+# (WELL_LAYER): through its walls it would light the room
+const WELL_LAYER := 1 << 13
+const DOWN := 1.0                      # its energy, of the lamp's
+const DOWN_ANGLE := 72.0
 
 var up := false                        # a floor above with its end of this well: the up lane is open
 var down := false
@@ -80,7 +87,7 @@ static var _fluor_xf := Transform3D.IDENTITY
 static var _fluor_tex: Texture2D
 static var _fluor_sh: Shader
 static var _wood_mat: Material
-var _lamps: Array = []                # [light, tube material, flickers, which lamp of the well]
+var _lamps: Array = []                # [light, tube material, flickers, which lamp of the well, its cone down]
 var _taken := false
 var _surface := "carpet"               # what the solids being built are made of (footsteps.gd reads it off each shape)
 
@@ -134,6 +141,7 @@ func _commit() -> void:
 		mi.material_override = mat
 		# seen from inside only, so its faces are one-sided: a tube out in the room would shine in through their backs
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+		mi.layers |= WELL_LAYER
 		add_child(mi)
 	_st.clear()
 
@@ -354,10 +362,25 @@ func _lamp(o: Dictionary, at: Vector3, id: int) -> void:
 	l.set_meta("gfx_managed", true)              # Gfx.apply_scene leaves it alone
 	l.position = at - Vector3(0, 0.45, 0)
 	add_child(l)
+	var b := SpotLight3D.new()
+	b.light_color = LAMP_COLOR
+	b.light_energy = LAMP_ENERGY * DOWN
+	b.light_specular = 0.2
+	b.spot_range = LAMP_RANGE
+	b.spot_angle = DOWN_ANGLE
+	b.spot_attenuation = 0.6
+	b.spot_angle_attenuation = 0.5
+	b.shadow_enabled = false
+	b.light_cull_mask = WELL_LAYER
+	b.light_bake_mode = Light3D.BAKE_DISABLED
+	b.set_meta("gfx_managed", true)
+	b.position = l.position
+	b.rotation.x = -PI * 0.5                      # (a spot shines along its -z)
+	add_child(b)
 	var key := id + roundi(_from.x) * 7 + roundi(_from.y) * 13
 	# an "on" lamp is one of the few that ever stutters (by its place in the well, so every floor agrees), and then rarely
 	var kind := 1 if mode == "flicker" else (2 if _hash(key * 3.7) < 0.35 else 0)
-	_lamps.append([l, tube, kind, key])
+	_lamps.append([l, tube, kind, key, b])
 
 static func _fluor_shader() -> Shader:
 	if _fluor_sh == null:
@@ -451,7 +474,7 @@ func _look(o: Dictionary) -> Dictionary:
 	else:
 		look.wall = _per_storey(_mats.wall)
 		look.floor = _per_storey(_mats.floor)
-		look.floor_top = _per_storey(_mats.get("room_floor", _mats.floor))
+		look.floor_top = _per_storey(_mats.floor)
 		look.ceil = _per_storey(_mats.plaster)
 		var skirt: Material = _mats.get("skirt") if _mats != null else null
 		if skirt == null:
@@ -582,6 +605,7 @@ func _process(delta: float) -> void:
 		if lamp[2] == 0: continue
 		var level := _flicker(t, lamp[3], 0.4 if lamp[2] == 1 else 0.96)
 		(lamp[0] as OmniLight3D).light_energy = LAMP_ENERGY * level
+		(lamp[4] as SpotLight3D).light_energy = LAMP_ENERGY * DOWN * level
 		(lamp[1] as ShaderMaterial).set_shader_parameter("glow", LAMP_GLOW * level)
 	var player: Node3D = _level.player
 	if player == null:
@@ -616,6 +640,7 @@ func _rank_lamps(p: Vector3) -> void:
 		var l: OmniLight3D = lamp[0]
 		var d := l.global_position.distance_to(p)
 		l.visible = d < 45.0
+		(lamp[4] as SpotLight3D).visible = l.visible
 		order.append([d, l])
 	order.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
 	var cap := LAMP_SHADOWS if int(Gfx.s.get("shadows", 1)) > 0 else 0

@@ -25,12 +25,15 @@ extends Node
 ## It also keeps the service record the terminal's [F5] CLEARANCE page shows: lifetime stats
 ## (filings by kind, yield by source, per entity, best filing, closest reading, tape survey per
 ## level) and a filing log. The archive starts empty every run; this record doesn't.
+## The record belongs to the save tape (save_game.gd): Saves.begin() calls use_slot(), which loads the
+## tape's own record (slot_path). No tape (a guest, a level editor test launch) keeps the old global one.
 
 signal yield_filed(report: Dictionary)
 
 const DATA_PATH := "res://levels/tsra_clearance.json"
 const SAVE_PATH := "user://tsra_clearance.cfg"
 const OLD_SAVE_PATH := "user://asra_clearance.cfg"   # from when the agency was A.S.R.A.; read once, then saved under the new name
+const SLOT_FILE := "clearance_%d.cfg"                # a tape's own record, beside it in Saves.DIR
 
 const BASE := 60                 # + PER_CLASS x threat class: Class 1 = 100 RY .. Class 5 = 260 RY
 const PER_CLASS := 40
@@ -81,13 +84,14 @@ var filing_log: Array = []       # newest first: {t (unix s), id, kind, total, l
 var declassified := {}           # "<file key>/<section>" -> true: sealed file sections opened in the terminal (terminal_page.gd)
 var survey_open := {}            # level id -> its open cell count, as the tape last reported it ([F5] coverage)
 
+var _path := SAVE_PATH          # where the record in use is saved (use_slot)
 var _reread_at := {}             # entity_id -> Time ticks (s) of its last supplemental; not saved
 var _last_filed := -1.0e9
 var _momentum := 0
 
 func _ready() -> void:
 	_read_tiers()
-	if not _load():
+	if not _load([SAVE_PATH, OLD_SAVE_PATH]):
 		_backfill()
 
 func _read_tiers() -> void:
@@ -336,6 +340,26 @@ func grant(amount: int, title := "ADMINISTRATIVE ADJUSTMENT") -> Dictionary:
 ## Debug console `clearance reset` / `archive reset`
 func reset() -> void:
 	var from := tier_index()
+	_clear()
+	_save()
+	yield_filed.emit({"id": "", "kind": "reset", "title": "", "lines": [], "total": 0, "tier_from": from, "tier_to": 0})
+
+## Tape `i`'s record file (Saves.path(i)'s neighbour)
+func slot_path(i: int) -> String:
+	return Saves.DIR + SLOT_FILE % (i + 1)
+
+## Saves.begin / eject: switch to tape `i`'s record (-1: no tape, the global one). A blank tape starts at
+## the first rank; a tape written before records were per tape takes a copy of the global record once.
+func use_slot(i: int) -> void:
+	_path = SAVE_PATH if i < 0 else slot_path(i)
+	_clear()
+	var paths := [_path]
+	if i < 0 or Saves.exists(i):
+		paths += [SAVE_PATH, OLD_SAVE_PATH]
+	if _load(paths) and i >= 0 and not FileAccess.file_exists(_path):
+		_save()
+
+func _clear() -> void:
 	total = 0
 	sites.clear()
 	supplementals.clear()
@@ -348,10 +372,9 @@ func reset() -> void:
 	filing_log.clear()
 	survey_open.clear()
 	_reread_at.clear()
+	_last_filed = -1.0e9
 	_momentum = 0
 	last_report = {}
-	_save()
-	yield_filed.emit({"id": "", "kind": "reset", "title": "", "lines": [], "total": 0, "tier_from": from, "tier_to": 0})
 
 # ---- service record ([F5] CLEARANCE page) ----------------------------------------
 func _record(entity_id: String, kind: String, lines: Array, gained: int, level: String, dist: float) -> void:
@@ -462,9 +485,15 @@ func _backfill_stats() -> void:
 			y += sup
 		entity_yield[id] = y
 
-func _load() -> bool:
+## Reads the first of `paths` that loads
+func _load(paths: Array) -> bool:
 	var cf := ConfigFile.new()
-	if cf.load(SAVE_PATH) != OK and cf.load(OLD_SAVE_PATH) != OK:
+	var ok := false
+	for p in paths:
+		if cf.load(p) == OK:
+			ok = true
+			break
+	if not ok:
 		return false
 	total = int(cf.get_value("clearance", "total", 0))
 	if cf.has_section("sites"):
@@ -510,4 +539,7 @@ func _save() -> void:
 		cf.set_value("survey", id, (surveyed[id] as Dictionary).keys())
 	for id in routes:
 		cf.set_value("routes", id, true)
-	cf.save(SAVE_PATH)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_path.get_base_dir()))
+	# written beside the record, then swapped in: a crash mid-write never costs a rank
+	if cf.save(_path + ".tmp") == OK:
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(_path + ".tmp"), ProjectSettings.globalize_path(_path))

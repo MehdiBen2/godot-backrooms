@@ -634,6 +634,31 @@
   "rms": -19.16,
   "length": 1.698
  },
+ "res://audio/entity/burnt/breath_charge.wav": {
+  "peak": -3.8,
+  "rms": -19.91,
+  "length": 0.75
+ },
+ "res://audio/entity/burnt/breath_in.wav": {
+  "peak": -3.03,
+  "rms": -16.88,
+  "length": 1.45
+ },
+ "res://audio/entity/burnt/breath_neck.wav": {
+  "peak": -4.51,
+  "rms": -17.84,
+  "length": 2.2
+ },
+ "res://audio/entity/burnt/breath_rasp1.wav": {
+  "peak": -3.85,
+  "rms": -18.12,
+  "length": 1.05
+ },
+ "res://audio/entity/burnt/breath_rasp2.wav": {
+  "peak": -2.06,
+  "rms": -16.89,
+  "length": 1.1
+ },
  "res://audio/entity/entity_1.wav": {
   "peak": -4.98,
   "rms": -15.72,
@@ -794,6 +819,11 @@
   "rms": -8.29,
   "length": 8.49
  },
+ "res://audio/entity/tall_scream.mp3": {
+  "peak": 0.03,
+  "rms": -8.18,
+  "length": 5.376
+ },
  "res://audio/events/doorbell.wav": {
   "peak": -1.93,
   "rms": -14.32,
@@ -829,6 +859,61 @@
   "rms": -27.89,
   "length": 6.452
  },
+ "res://audio/ambients/2016-05-08_-_Journey_of_Demise_-_David_Fesliyan.mp3": {
+  "peak": -0.87,
+  "rms": -18.97,
+  "length": 174.864
+ },
+ "res://audio/ambients/2016-12-28_-_Scarey_Atmospheres_Chapter_1_-_David_Fesliyan.mp3": {
+  "peak": -0.34,
+  "rms": -11.14,
+  "length": 143.83
+ },
+ "res://audio/ambients/2016-12-28_-_Scarey_Atmospheres_Chapter_2_-_David_Fesliyan.mp3": {
+  "peak": -0.33,
+  "rms": -10.28,
+  "length": 128.235
+ },
+ "res://audio/ambients/2016-12-28_-_Scarey_Atmospheres_Chapter_3_-_David_Fesliyan.mp3": {
+  "peak": -0.32,
+  "rms": -10.13,
+  "length": 114.129
+ },
+ "res://audio/ambients/2018-04-22_-_Dark_Winds_Chapter_1_-_David_Fesliyan.mp3": {
+  "peak": -2.96,
+  "rms": -18.97,
+  "length": 151.56
+ },
+ "res://audio/ambients/2019-06-18_-_Creepy_Vibes_-_David_Fesliyan.mp3": {
+  "peak": -0.77,
+  "rms": -20.73,
+  "length": 96.768
+ },
+ "res://audio/ambients/2020-06-25_-_Dark_Shadows_-_www.FesliyanStudios.com_David_Fesliyan.mp3": {
+  "peak": -0.44,
+  "rms": -17.33,
+  "length": 176.688
+ },
+ "res://audio/ambients/2020-07-08_-_Behind_You_-_www.FesliyanStudios.com_Steve_Oxen.mp3": {
+  "peak": -0.19,
+  "rms": -14.46,
+  "length": 165.825
+ },
+ "res://audio/ambients/2022-09-19_-_Torture_Chamber_-_www.FesliyanStudios.com.mp3": {
+  "peak": -0.27,
+  "rms": -16.74,
+  "length": 173.113
+ },
+ "res://audio/ambients/2022-10-10_-_Right_Behind_You_-_www.FesliyanStudios.com.mp3": {
+  "peak": -0.3,
+  "rms": -16.51,
+  "length": 193.071
+ },
+ "res://audio/ambients/2025-02-11_-_Panic_Attack_-_www.FesliyanStudios.com.mp3": {
+  "peak": -0.19,
+  "rms": -15.67,
+  "length": 206.305
+ },
  "res://audio/ambients/ambient-drone.wav": {
   "peak": -3.18,
   "rms": -15.22,
@@ -839,6 +924,11 @@
   "rms": -17.56,
   "length": 128.064
  },
+ "res://audio/ambients/atlasaudio-horror-thriller-519592.mp3": {
+  "peak": -4.79,
+  "rms": -18.87,
+  "length": 164.049
+ },
  "res://audio/ambients/creepy-ambience-long-hollow-loop_130bpm.wav": {
   "peak": -0.66,
   "rms": -17.49,
@@ -848,6 +938,16 @@
   "peak": -3.56,
   "rms": -16.86,
   "length": 33.415
+ },
+ "res://audio/ambients/delosound-scary-horror-music-horror-483782.mp3": {
+  "peak": -14.62,
+  "rms": -28.82,
+  "length": 220.029
+ },
+ "res://audio/ambients/dragon-studio-creepy-music-584724.mp3": {
+  "peak": -1.11,
+  "rms": -14.55,
+  "length": 64.836
  },
  "res://audio/ambients/dragon-studio-dark-horror-ambient-05-425468.mp3": {
   "peak": -0.87,
@@ -869,15 +969,50 @@
   "rms": -14.63,
   "length": 4.056
  },
+ "res://audio/ambients/jorisvermeer-creepy-dark-tension-atmosphere-532083.mp3": {
+  "peak": -12.41,
+  "rms": -26.2,
+  "length": 89.6
+ },
+ "res://audio/ambients/jorisvermeer-creepy-game-background-397275.mp3": {
+  "peak": -10.51,
+  "rms": -23.9,
+  "length": 81.998
+ },
+ "res://audio/ambients/kond1-reckoning-dark-and-creepy-vibe-520614.mp3": {
+  "peak": -10.63,
+  "rms": -25.08,
+  "length": 109.14
+ },
+ "res://audio/ambients/leberch-horror-ambient-609124.mp3": {
+  "peak": -18.85,
+  "rms": -33.49,
+  "length": 146.051
+ },
+ "res://audio/ambients/logicallism-renovation-407795.mp3": {
+  "peak": -5.64,
+  "rms": -22.0,
+  "length": 89.652
+ },
  "res://audio/ambients/menu_intro.mp3": {
   "peak": -0.17,
   "rms": -13.72,
   "length": 21.72
  },
+ "res://audio/ambients/menu_skin_of_your_teeth.mp3": {
+  "peak": -0.33,
+  "rms": -15.05,
+  "length": 272.929
+ },
  "res://audio/ambients/mleckert82-spooky-ambience-212885.mp3": {
   "peak": -1.85,
   "rms": -19.17,
   "length": 28.186
+ },
+ "res://audio/ambients/MysteriousSuspensefulMusic2018-11-03_-_Dark_Fog_-_David_Fesliyan.mp3": {
+  "peak": -3.79,
+  "rms": -20.6,
+  "length": 148.056
  },
  "res://audio/ambients/outdoor/crickets_night.mp3": {
   "peak": -20.45,
@@ -893,6 +1028,11 @@
   "peak": -2.74,
   "rms": -18.15,
   "length": 24.0
+ },
+ "res://audio/ambients/u_5x0jre2i0w-creepy-horror-ambience-381940.mp3": {
+  "peak": 0.0,
+  "rms": -18.17,
+  "length": 238.55
  },
  "res://audio/ambients/universfield-creepy-tension-background-30-352872.mp3": {
   "peak": -9.2,

@@ -11,15 +11,14 @@ const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
 const RED := Color("c4271f")
 const BG_PATH := "res://textures/menu/bg_%d.png"
-const BG_SET := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]     # hand-picked screenshots, bg_0..bg_9
+const BG_SET := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]     # staged mannequin stills, bg_0..bg_11 (bg_1 -> bg_2: it comes closer)
 const ZOOM := 1.14                      # slow push-in over each frame's lifetime
 const BG_HOLD := 7.0                    # seconds each still stays up
 const BG_FADE := 1.8                    # crossfade
 const LOAD_MUSIC_DB := -32.0           # the loading-screen bed, well under the menu's
 const MUSIC_DB := -20.0                # quiet bed, not a soundtrack
-const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # plays once, then fades into the bed
-const BED_PATH := "res://audio/ambients/ambient1.mp3"          # the usual menu loop
-const XFADE := 3.0                      # seconds the intro takes to hand over to the bed
+const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # the loading-screen track
+const BED_PATH := "res://audio/ambients/menu_skin_of_your_teeth.mp3"   # the menu loop (title and tape select)
 const PUSH_TIME := 2.2                  # BEGIN: the lobby's push on into the dark before the briefing (black at 0.9 of it)
 const MAIN_SCENE := "res://scenes/main.tscn"
 const MENU_SMEAR := 0.3                 # title screen VHS layer: a quarter-ish of the loading screen's bleed
@@ -158,10 +157,8 @@ var load_elapsed := 0.0
 var t := 0.0
 var click: AudioStreamPlayer
 var tick: AudioStreamPlayer
-var music: AudioStreamPlayer             # the looping bed (ambient1), created once the intro hands over
-var intro_music: AudioStreamPlayer      # the one-shot intro track
+var music: AudioStreamPlayer             # the looping menu track
 var music_fade: Tween                   # the live volume tween on whichever track(s) are audible
-var handover: Tween                     # the scheduled intro -> bed crossfade
 static var _load_music_player: AudioStreamPlayer
 static var _load_music_tween: Tween
 static var _load_music_fading := false
@@ -408,9 +405,10 @@ func _build() -> void:
 	fx.visible = false
 	add_child(fx)
 	_full(fx)
+	W.add_tape_fx(self)                     # over the title, lobby and settings panel; under the loading screen
 
 	click = AudioStreamPlayer.new()
-	click.stream = load("res://audio/ui/ui_click.wav")
+	click.stream = load("res://audio/ui/ui_click.tres")
 	click.volume_db = -6.0
 	add_child(click)
 	tick = AudioStreamPlayer.new()          # much quieter, higher tick when the selection moves
@@ -799,7 +797,7 @@ void fragment() {
 	return s
 
 func _start_music() -> void:
-	if not ResourceLoader.exists(INTRO_PATH) or not ResourceLoader.exists(BED_PATH):
+	if not ResourceLoader.exists(BED_PATH):
 		return
 	_stop_loading_music()
 	# Coming back from a run leaves the game's Master bus effects (compressor, low-pass, death muffle)
@@ -807,14 +805,14 @@ func _start_music() -> void:
 	while AudioServer.get_bus_effect_count(0) > 0:
 		AudioServer.remove_bus_effect(0, 0)
 	AudioServer.set_bus_volume_linear(0, 1.0)
-	# the intro plays through once; the bed is only started when the intro hands over to it
-	intro_music = _music_player(load(INTRO_PATH), -60.0)
-	intro_music.play()
+	var stream: AudioStream = load(BED_PATH)
+	if stream is AudioStreamMP3:
+		stream.loop = true
+	music = _music_player(stream, -60.0)
+	music.finished.connect(music.play)   # belt and braces: restart if the stream's own loop flag did not take
+	music.play()
 	music_fade = create_tween()
-	music_fade.tween_property(intro_music, "volume_db", MUSIC_DB, 4.0)
-	handover = create_tween()
-	handover.tween_interval(maxf(intro_music.stream.get_length() - XFADE, 0.0))
-	handover.tween_callback(_crossfade_to_bed)
+	music_fade.tween_property(music, "volume_db", MUSIC_DB, 4.0)
 
 func _music_player(stream: AudioStream, db: float) -> AudioStreamPlayer:
 	var p := AudioStreamPlayer.new()
@@ -824,27 +822,12 @@ func _music_player(stream: AudioStream, db: float) -> AudioStreamPlayer:
 	add_child(p)
 	return p
 
-## The intro is nearly over: start the menu bed and swap the two tracks over XFADE seconds.
-func _crossfade_to_bed() -> void:
-	if busy or music:
-		return
-	var stream: AudioStream = load(BED_PATH)
-	if stream is AudioStreamMP3:
-		stream.loop = true
-	music = _music_player(stream, -80.0)
-	music.play()
-	if music_fade:
-		music_fade.kill()
-	music_fade = create_tween().set_parallel(true)
-	music_fade.tween_property(music, "volume_db", MUSIC_DB, XFADE)
-	music_fade.tween_property(intro_music, "volume_db", -80.0, XFADE)
-
 ## Move every audible menu track to `db` over `secs`. Replaces any fade still running.
 func _fade_music(db: float, secs: float) -> void:
 	if music_fade:
 		music_fade.kill()
 	music_fade = create_tween().set_parallel(true)
-	for p in [intro_music, music]:
+	for p in [music]:
 		if p and is_instance_valid(p) and p.playing:
 			music_fade.tween_property(p, "volume_db", db, secs)
 
@@ -856,7 +839,6 @@ func _notification(what: int) -> void:
 			_fade_music(MUSIC_DB, 0.25)
 
 func _click() -> void:
-	click.pitch_scale = randf_range(0.96, 1.04)
 	click.play()
 
 # ---- play / loading ----------------------------------------------------------------

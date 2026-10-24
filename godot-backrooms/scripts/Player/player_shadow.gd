@@ -17,17 +17,15 @@ const MODEL_HEIGHT := 2.0       # metres: visor level matches the 1.7 m standing
 const SHADOW_LAYER := 1 << 19
 
 const LEGS_MODEL := "res://models/player/survivor_legs.glb"
-## The chest is folded away (Pinch scales a spine bone to nothing, the classic first-person trick,
-## LEGS_FOLD_BONES), so no cut chest can swing into view. And the clips
-## carry the hips around (the run throws them ~0.3 m forward), so each frame the body slides to keep the
-## waist joint, where the animation really put it, LEGS_WAIST_BEHIND behind the eye: the hips stay under
-## and behind you and the legs stride out ahead.
-const LEGS_PINCH_BONE := "Waist"
-## Folding at the waist left no stomach: looking down you saw legs hanging off nothing. The fold now
-## starts at the first of these spine bones the rig has, so the belly stays and the body closes under
-## the chest instead (falls back to the waist).
-const LEGS_FOLD_BONES := ["Spine01", "Spine02", LEGS_PINCH_BONE]
-const LEGS_WAIST_BEHIND := 0.16 # metres, horizontally, along the look: close enough the belly is under you
+## The model is cut at mid-chest, the suit's own fabric drawn in over the cut into a rounded top. The clips
+## lean the torso far forward (the run ~38°), which under an upright eye swings that top out in front of
+## you: Upright stands the torso back up over the hips, the legs keeping their stride. And the clips carry
+## the hips around (the run throws them ~0.3 m forward), so each frame the body slides to keep the Waist
+## joint, where the animation really put it (Upright doesn't move it, and stands the chest straight over
+## it; outside the modifier the pose read is still the clip's, leaning), LEGS_CHEST_BEHIND behind the eye:
+## the eye just ahead of the chest, so looking down it curves away at the bottom of the view, the legs out ahead.
+const LEGS_UPRIGHT := ["Waist", "Spine01", "Spine02", "NeckTwist01"]   # the torso, hips to neck, stood up straight
+const LEGS_CHEST_BEHIND := 0.24 # metres, horizontally, along the look
 const LEGS_TURN_START := 20.0   # degrees the view swings, standing, before the feet step round (the shadow waits for 70)
 const LEGS_PUSH_MAX := 0.8      # metres the body may slide back (never forward of its own origin)
 ## Crouched, the knees come up to the height of the hands in view (torch_model.gd's arms), and looking down
@@ -38,13 +36,22 @@ const LEGS_KNEE_BAND := Vector2(0.22, 0.24)     # a knee this close to a hand (h
 const LEGS_KNEE_RELEASE := 0.25 # m/s the hold lets the body come forward again once the knees are clear
 const LEGS_KNEES := [["L_Calf", "LeftHand"], ["R_Calf", "RightHand"]]   # the knee joint, the hand on its side
 
-## Folds every bone from `bone` up to nothing at its joint. Runs after the AnimationTree and HeadLook.
-class Pinch extends SkeletonModifier3D:
-	var bone := -1
+## Turns each bone of `chain` (hips up to the neck) so the next stands straight above it: the lean and the
+## hunch taken out, the twist kept. Runs after the AnimationTree.
+class Upright extends SkeletonModifier3D:
+	var chain: Array[int] = []
 	func _process_modification_with_delta(_delta: float) -> void:
 		var sk := get_skeleton()
-		if sk != null and bone >= 0:
-			sk.set_bone_pose_scale(bone, Vector3(0.001, 0.001, 0.001))
+		if sk == null:
+			return
+		var up := (sk.global_basis.inverse() * Vector3.UP).normalized()
+		for i in chain.size() - 1:
+			var b := sk.get_bone_global_pose(chain[i])
+			var lean := sk.get_bone_global_pose(chain[i + 1]).origin - b.origin
+			if lean.length_squared() < 1e-8:
+				continue
+			b.basis = Basis(Quaternion(lean.normalized(), up)) * b.basis
+			sk.set_bone_global_pose(chain[i], b)
 
 var anim: AnimationPlayer
 var _floor: SurvivorAnim.FloorGuard
@@ -103,8 +110,7 @@ func build() -> bool:
 			legs_loco.face(parent.global_rotation.y)
 	return true
 
-## The visible half: survivor_legs.glb (the same rig cut below the shoulders, capped, the rest folded by
-## Pinch) so looking down you see your own hips and legs. Same fit as the full rig, its own
+## The visible half: survivor_legs.glb (the same rig cut below the shoulders, capped) so looking down you see your own hips and legs. Same fit as the full rig, its own
 ## animation tree driven in step with it. Casts no shadow (the full rig already does); optional, a
 ## missing file just leaves the shadow body alone.
 func _build_legs(fit: Transform3D) -> void:
@@ -135,14 +141,12 @@ func _build_legs(fit: Transform3D) -> void:
 	var sks := legs_root.find_children("*", "Skeleton3D", true, false)
 	if not sks.is_empty():
 		_legs_sk = sks[0]
-		_legs_waist = _legs_sk.find_bone(LEGS_PINCH_BONE)
-		for b in LEGS_FOLD_BONES:
-			var fold := _legs_sk.find_bone(b)
-			if fold >= 0:
-				var pinch := Pinch.new()
-				pinch.bone = fold
-				_legs_sk.add_child(pinch)
-				break
+		_legs_waist = _legs_sk.find_bone(LEGS_UPRIGHT[0])
+		var upright := Upright.new()
+		for b in LEGS_UPRIGHT:
+			if _legs_sk.find_bone(b) >= 0:
+				upright.chain.append(_legs_sk.find_bone(b))
+		_legs_sk.add_child(upright)
 
 ## How much further back (m, 0 if none) the legs must slide so no knee is in a hand's way (LEGS_KNEE_CLEAR).
 func _knees_clearance(cam: Camera3D, fwd: Vector3) -> float:
@@ -176,13 +180,13 @@ func _knees_clearance(cam: Camera3D, fwd: Vector3) -> float:
 		need = maxf(need, (knee - c).dot(fwd) - ((hand - c).dot(fwd) - LEGS_KNEE_CLEAR))
 	return need
 
-## How much further back (m, may be negative) the legs must slide to put the posed waist joint
-## LEGS_WAIST_BEHIND behind the camera along `fwd`. 0 when it can't tell.
+## How much further back (m, may be negative) the legs must slide to put the posed waist joint (the chest stood
+## straight over it) LEGS_CHEST_BEHIND behind the camera along `fwd`. 0 when it can't tell.
 func _legs_clearance(cam: Camera3D, fwd: Vector3) -> float:
 	if _legs_waist < 0 or cam == null:
 		return 0.0
 	var waist := _legs_sk.global_transform * _legs_sk.get_bone_global_pose(_legs_waist).origin
-	return (waist - cam.global_position).dot(fwd) + LEGS_WAIST_BEHIND
+	return (waist - cam.global_position).dot(fwd) + LEGS_CHEST_BEHIND
 
 ## `speed`: horizontal ground speed (m/s), so the stride matches the real movement; `velocity` (world)
 ## for its direction; `pitch` the camera's, for the head. The body hangs off the player, which turns with

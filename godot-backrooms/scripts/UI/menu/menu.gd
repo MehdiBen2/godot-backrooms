@@ -57,8 +57,7 @@ func _ready() -> void:
 		_embed_setup()
 
 func _add_vhs() -> void:
-	# VHS smear disabled for clean vanilla visuals
-	pass
+	add_tape_fx(self)
 
 ## Title-screen mode: keep only the side panel. _build() adds blur, veil, then a margin whose HBox holds
 ## the main column and the panel, so hide the first three and push the panel to the right edge.

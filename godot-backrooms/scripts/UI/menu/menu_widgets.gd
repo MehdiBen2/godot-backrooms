@@ -108,14 +108,13 @@ func _tint(c: Color, b: Button) -> void:
 	for n in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
 		b.add_theme_color_override(n, c)
 
-## Soft, dry UI tick: quiet with a touch of pitch variation so repeats don't sound mechanical
+## Soft, dry UI click: ui_click.tres picks one of six takes of the old click (no repeats) with a touch of pitch spread
 func _click() -> void:
 	if click_player == null:
 		click_player = AudioStreamPlayer.new()
-		click_player.stream = load("res://audio/ui/ui_click.wav")
+		click_player.stream = load("res://audio/ui/ui_click.tres")
 		click_player.volume_db = -6.0
 		add_child(click_player)
-	click_player.pitch_scale = randf_range(0.96, 1.04)
 	click_player.play()
 
 func _spacer(h: float) -> Control:
@@ -280,6 +279,22 @@ func _kbd(text: String) -> Control:
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	p.add_child(l)
 	return p
+
+## The menus' tape look, as the top layers of `parent`: VHS wiggle / smear / colour bleed, then grain, scanlines
+## and vignette. Each reads the screen as drawn so far, so each gets a fresh back-buffer copy first (without one
+## it would see the copy the menu blur took, from before the menu was drawn).
+static func add_tape_fx(parent: Control) -> void:
+	for path in ["res://shaders/menu_vhs_wiggle.gdshader", "res://shaders/menu_crt_noise.gdshader"]:
+		var copy := BackBufferCopy.new()
+		copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+		parent.add_child(copy)
+		var fx := ColorRect.new()
+		var mat := ShaderMaterial.new()
+		mat.shader = load(path)
+		fx.material = mat
+		fx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(fx)
+		fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 ## Alpha curve for the power-on: dim, blink out, flash, settle
 static func _flicker(x: float) -> float:

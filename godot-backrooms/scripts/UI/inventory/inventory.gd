@@ -81,7 +81,7 @@ const BLOOM_WIDE := 0.18         # the neon halo's strength (a broad blur added 
 const BLOOM_RADIUS := 10.0      # how far the glow reaches, in screen pixels at 1080p
 # (BLOOM / BLOOM_RADIUS also drive the HUD's glowing scanner and toast; the flicker's timing is in
 # scripts/UI/crt/crt_flicker.gd)
-# terminal_<name>.wav -> volume_db (ui_click.wav plays at -6 dB in the menus)
+# terminal_<name>.wav -> volume_db (ui_click.tres plays at -6 dB in the menus)
 const SFX := {"on": -14.0, "off": -15.0, "tab": -14.0, "select": -16.0}
 
 const SLOT_COUNT := 8            # item kinds carried at once
@@ -1139,6 +1139,14 @@ func item_count(id: String) -> int:
 	for it in items:
 		if it.id == id: return it.count
 	return 0
+
+## A save tape's pack and recovered files (save_game.gd), in place of the starting kit
+func restore(pack: Array, lore: Array, sel: int) -> void:
+	items = pack.slice(0, SLOT_COUNT)
+	selected = clampi(sel, -1, items.size() - 1) if not items.is_empty() else -1
+	lore_entries = lore.duplicate(true)
+	_refresh_items()
+	_refresh_page("PAPERS")
 
 func add_lore(id: String, title: String, text: String) -> void:
 	for e in lore_entries:
