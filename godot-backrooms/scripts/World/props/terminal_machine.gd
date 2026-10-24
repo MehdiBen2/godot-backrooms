@@ -389,7 +389,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		if busy:
 			return
-		var at := _glass_px(Gfx.through_game_lens(get_viewport().get_mouse_position()))
+		var at := _glass_px(get_viewport().get_mouse_position())
 		os.pointer(at)
 		if at.x < 0.0:
 			return

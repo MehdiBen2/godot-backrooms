@@ -201,9 +201,10 @@ func _build_light_pool() -> void:
 		add_child(l)
 		pool.append(l)
 		var lb := _lamp_light() as SpotLight3D           # the tube's other end; unshadowed (only the first casts)
-		# Both ends of a pool lamp feed SDFGI (Gfx `sdfgi`). The far lights stay out (below): fed in, their bounce lit
-		# the distant ceiling pale past a darker stretch of it, so the far ceiling now stays as dim as the lamps'
-		# reach leaves it. The ceiling glows stay out too: SDFGI ignores their cull mask and would light the room twice.
+		# Bounce light (VoxelGI) re-lights its voxels from every dynamic light, every frame. Only the slot's main light
+		# feeds it: the twin end sits 1.3 m from it, and the ceiling glows and far lights add nothing you can see in
+		# the bounce. That keeps ~10 lights in the GI update instead of ~50.
+		if not Perf.skip("gi_trim"): lb.light_bake_mode = Light3D.BAKE_DISABLED
 		add_child(lb)
 		pool_b.append(lb)
 		slot_fixture.append(null)
@@ -228,7 +229,7 @@ func _build_light_pool() -> void:
 		ceil_glow.append(g)
 	for i in FAR_MAX:
 		var fl := _lamp_light() as SpotLight3D
-		fl.light_bake_mode = Light3D.BAKE_DISABLED
+		if not Perf.skip("gi_trim"): fl.light_bake_mode = Light3D.BAKE_DISABLED
 		add_child(fl)
 		far_pool.append(fl)
 		far_fixture.append(null)

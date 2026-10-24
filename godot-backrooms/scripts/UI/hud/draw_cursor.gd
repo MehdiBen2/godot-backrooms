@@ -47,7 +47,7 @@ func _draw() -> void:
 	var r: float = cam.unproject_position(p).distance_to(cam.unproject_position(p + right * reach))
 	if r < 1.0:
 		r = 1.0
-	var c := Gfx.mouse_position()
+	var c := get_viewport().get_mouse_position()
 	var ink: Color = sketch.color
 	var col := Color(ink.r, ink.g, ink.b, 0.75)
 	if ui.tool == "eraser":

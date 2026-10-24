@@ -1,4 +1,6 @@
 shader_type canvas_item;
+// VHS smear over the loading screen (main_menu.gd _build_loading): tape wiggle, a rolling tracking band and
+// YIQ chroma bleed, read off the screen under it.
 
 group_uniforms Wiggle;
 uniform float wiggle : hint_range(0.0, 1.5, 0.01) = 0.03;
@@ -12,9 +14,8 @@ group_uniforms Blur;
 uniform int blur_samples : hint_range(3, 15, 1) = 15;
 group_uniforms Lens;
 // barrel bend: the centre is magnified by 1 / (1 - fisheye / 2), the corners stay exactly where they are
-// (so it never samples off screen). Negative inverts it: the centre shrinks, the edge middles stretch a little.
-// Keep it small on screens with buttons: they must stay where they look.
-uniform float fisheye : hint_range(-0.3, 0.3, 0.005) = 0.0;
+// (so it never samples off screen). Keep it small on screens with buttons: they must stay where they look.
+uniform float fisheye : hint_range(0.0, 0.3, 0.005) = 0.0;
 
 float onOff(float a, float b, float c, float framecount) {
     return step(c, sin((framecount * 0.001) + a * cos((framecount * 0.001) * b)));
@@ -70,21 +71,18 @@ vec3 Blur(vec2 uv, float d, int samples) {
 
 void fragment() {
     vec2 lc = UV - 0.5;
-    // inverted (negative), the edge middles would sample past the screen and the picture wrap round (jumpy's
-    // mod): scaled back so they land on the edge, and nothing is read from off screen
-    float k = (1.0 - fisheye * 0.5 + fisheye * dot(lc, lc)) / (fisheye < 0.0 ? 1.0 - fisheye * 0.25 : 1.0);
-    vec2 uv = 0.5 + lc * k;
+    vec2 uv = 0.5 + lc * (1.0 - fisheye * 0.5 + fisheye * dot(lc, lc));
 
-    float d=0.1-round(mod(TIME/3.0,1.0))*.1;;
+    float d = 0.1 - round(mod(TIME / 3.0, 1.0)) * .1;
     uv = jumpy(uv, mod(TIME * wiggle_speed, 7.0));
 
-    float s = 0.0001 * -d + 0.0001 * wiggle *(sin(TIME * wiggle_speed));
-    float e = min(.30,pow(max(0.0,cos(uv.y*4.0+.3)-.75)*(s+0.5)*1.0,3.0))*25.0;
-    float r = (250.0*(2.0*s));
-    uv.x += abs(r*pow(min(.003,(-uv.y+(.01*mod(TIME, 5.0))))*3.0,2.0)) * wiggle;
+    float s = 0.0001 * -d + 0.0001 * wiggle * (sin(TIME * wiggle_speed));
+    float e = min(.30, pow(max(0.0, cos(uv.y * 4.0 + .3) - .75) * (s + 0.5) * 1.0, 3.0)) * 25.0;
+    float r = (250.0 * (2.0 * s));
+    uv.x += abs(r * pow(min(.003, (-uv.y + (.01 * mod(TIME, 5.0)))) * 3.0, 2.0)) * wiggle;
 
-    d = 0.051+abs(sin(s/4.0));
-    float c = max(0.0001,.002*d) * smear;
+    d = 0.051 + abs(sin(s / 4.0));
+    float c = max(0.0001, .002 * d) * smear;
     vec4 final;
 
     final.rgb = Blur(uv, c + c * uv.x, blur_samples);

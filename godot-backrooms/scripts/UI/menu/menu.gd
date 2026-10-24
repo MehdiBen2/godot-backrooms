@@ -56,8 +56,23 @@ func _ready() -> void:
 	if embedded:
 		_embed_setup()
 
+## Pause-menu mode: the title screen's VHS smear (shaders/vhs_smear.gdshader) over the whole menu. It reads the
+## screen under it, so it is added last; the fresh copy is for the camera / grade passes that already took theirs.
 func _add_vhs() -> void:
-	add_tape_fx(self)
+	var copy := BackBufferCopy.new()
+	copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+	add_child(copy)
+	var vhs := ColorRect.new()
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/vhs_smear.gdshader")
+	m.set_shader_parameter("smear", 0.3)
+	m.set_shader_parameter("wiggle", 0.012)
+	m.set_shader_parameter("blur_samples", 9)
+	m.set_shader_parameter("fisheye", 0.03)       # subtle: the buttons keep their flat hit boxes
+	vhs.material = m
+	vhs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vhs)
+	vhs.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 ## Title-screen mode: keep only the side panel. _build() adds blur, veil, then a margin whose HBox holds
 ## the main column and the panel, so hide the first three and push the panel to the right edge.
@@ -203,7 +218,7 @@ func _build() -> void:
 	var nav := HBoxContainer.new()
 	nav.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	nav.add_theme_constant_override("separation", 28)
-	for n in ["multiplayer", "voice", "settings", "graphics", "controls"]:
+	for n in ["multiplayer", "voice", "graphics", "settings", "controls"]:
 		var b := _link_button(n)
 		b.pressed.connect(_on_nav.bind(n))
 		nav.add_child(b)
@@ -253,11 +268,13 @@ func _build() -> void:
 	pv.add_child(_spacer(20))
 	sections["multiplayer"] = _build_multiplayer()
 	sections["voice"] = _build_voice()
+	sections["graphics"] = _build_graphics()
 	sections["settings"] = _build_settings()
 	sections["graphics"] = _build_graphics()
 	sections["controls"] = _build_controls()
 	pv.add_child(sections["multiplayer"])
 	pv.add_child(sections["voice"])
+	pv.add_child(sections["graphics"])
 	pv.add_child(sections["settings"])
 	pv.add_child(sections["graphics"])
 	pv.add_child(sections["controls"])

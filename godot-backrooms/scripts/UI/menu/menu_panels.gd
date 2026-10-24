@@ -167,18 +167,59 @@ const SSAO_OPTS := [[0, "off"], [1, "low"], [2, "medium"], [3, "high"]]
 func _build_graphics() -> Control:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 0)
-	v.add_child(_section_title("QUALITY", true))
-	v.add_child(_choice_row("Preset", func(): return Gfx.preset, Gfx.ORDER, func(p): Gfx.set_preset(p), {"custom": "custom"}))
-	v.add_child(_choice_row("Fullscreen", func(): return Gfx.fullscreen, [false, true], func(on): Gfx.set_fullscreen(on), {false: "off", true: "on"}))
-	v.add_child(_cycle_row("Anti-aliasing", "aa", AA_OPTS))
-	v.add_child(_cycle_row("Shadows", "shadows", SHADOW_OPTS))
+	v.add_child(_section_title("QUALITY PRESET", true))
+	var presets := HBoxContainer.new()
+	presets.add_theme_constant_override("separation", 20)
+	for n in Gfx.ORDER:
+		var b := _link_button(n)
+		b.pressed.connect(func(): Gfx.set_preset(n))
+		presets.add_child(b)
+		gfx_preset_buttons[n] = b
+	v.add_child(_padded(presets, 8))
+	gfx_note = _label("", 11, Color(0.9, 0.882, 0.804, 0.45))
+	gfx_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	gfx_note.custom_minimum_size = Vector2(300, 0)
+	v.add_child(gfx_note)
+
+	v.add_child(_section_title("DISPLAY"))
+	var sl := _slider_row("Render scale", 50, 100, int(Gfx.s.scale), func(x: int): Gfx.set_value("scale", x))
+	gfx_scale_slider = sl.find_children("*", "HSlider", true, false)[0]
+	v.add_child(sl)
+	var fs := _link_button("")
+	fs.custom_minimum_size = Vector2(96, 0)
+	fs.pressed.connect(func(): Gfx.set_fullscreen(DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN))
+	gfx_refresh.append(func(): fs.text = "ON" if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN else "OFF")
+	v.add_child(_gfx_row("Fullscreen", fs))
+	var off_on := [[false, "Off"], [true, "On"]]
+	v.add_child(_cycle_row("VSync", "vsync", off_on))
+	v.add_child(_cycle_row("FPS limit", "fps", [[30, "30"], [60, "60"], [80, "80"], [100, "100"], [120, "120"], [0, "Unlimited"]]))
+	v.add_child(_cycle_row("Smooth motion", "smooth", off_on))
+
+	v.add_child(_section_title("CAMERA"))
+	v.add_child(_choice_row("Camera", func(): return Gfx.camera, Gfx.CAMERAS, func(x: String): Gfx.set_camera(x),
+		{"auto": "Auto", "bodycam": "Bodycam", "camcorder": "Camcorder"}))
+	v.add_child(_cycle_row("Camera effects", "post", [[0, "Low"], [1, "Medium"], [2, "Full"]]))
+	v.add_child(_cycle_row("Fluorescent banding", "banding", off_on))
+	v.add_child(_choice_row("CCTV filter", func(): return Gfx.cctv, [false, true], func(x: bool): Gfx.set_cctv(x),
+		{false: "Off", true: "On"}))
+	v.add_child(_choice_row("VHS filter", func(): return Gfx.vhs, [false, true], func(x: bool): Gfx.set_vhs(x),
+		{false: "Off", true: "On"}))
+
+	v.add_child(_section_title("IMAGE"))
+	v.add_child(_cycle_row("Anti-aliasing", "aa", [[0, "Off"], [1, "FXAA"], [2, "TAA"], [3, "FSR 2"]]))
+	v.add_child(_cycle_row("Bloom", "glow", off_on))
+	v.add_child(_choice_row("Carpet", func(): return Gfx.carpet_soft, [true, false], func(x: bool): Gfx.set_carpet_soft(x),
+		{true: "Soft", false: "Original"}))
+	v.add_child(_choice_row("Dark atmosphere", func(): return Gfx.mood, [true, false], func(x: bool): Gfx.set_mood(x),
+		{true: "On", false: "Off"}))
+
 	v.add_child(_section_title("LIGHTING"))
-	v.add_child(_cycle_row("Bloom", "glow", ON_OFF))
-	v.add_child(_cycle_row("Bounce light", "bounce", ON_OFF))
-	v.add_child(_cycle_row("Ambient occlusion", "ssao", SSAO_OPTS))
-	v.add_child(_cycle_row("SSIL", "ssil", ON_OFF))
-	v.add_child(_cycle_row("SDFGI", "sdfgi", ON_OFF))
-	v.add_child(_hint("SSIL and SDFGI are heavy and Forward+ only. Switch them off if the picture shows dark bands or the game stutters."))
+	var quality := [[0, "Off"], [1, "Low"], [2, "Medium"], [3, "High"]]
+	v.add_child(_cycle_row("Tube lights", "lights", [[6, "6"], [8, "8"], [10, "10"], [12, "12"]]))
+	v.add_child(_cycle_row("Shadows", "shadows", quality))
+	v.add_child(_cycle_row("Tube light shadows", "light_shadows", [[0, "Off"], [1, "1"], [2, "2"], [3, "3"]]))
+	v.add_child(_cycle_row("Ambient occlusion", "ssao", quality))
+	v.add_child(_cycle_row("Bounce light", "bounce", off_on))
 	Gfx.changed.connect(_gfx_sync)
 	_gfx_sync()
 	return v
@@ -186,6 +227,14 @@ func _build_graphics() -> Control:
 func _gfx_sync() -> void:
 	for c in gfx_refresh:
 		c.call()
+	for n in gfx_preset_buttons:
+		_set_link_active(gfx_preset_buttons[n], Gfx.preset == n)
+	if gfx_scale_slider and int(gfx_scale_slider.value) != int(Gfx.s.scale):
+		gfx_scale_slider.value = Gfx.s.scale
+	var note := "CUSTOM SETTINGS. Pick a preset to reset them." if Gfx.preset == "custom" else "Low is for laptops and integrated graphics. Tube lights and their shadows cost the most, then ambient occlusion. Bounce light is the light the walls and carpet throw back. Smooth motion runs the camera at your screen's refresh rate."
+	if Gfx.compat:
+		note = "Compatibility renderer: ambient occlusion, bounce light and temporal anti-aliasing are unavailable on this PC."
+	gfx_note.text = note
 
 # ---- voice section (scripts/Voice/voice.gd) ----------------------------------------------------------
 var voice_refresh: Array[Callable] = []

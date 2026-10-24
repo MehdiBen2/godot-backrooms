@@ -15,43 +15,45 @@ extends Node
 
 const PROFILES := {
 	"bodycam": {
-		"fov_boost": 0.0,
-		"chroma_amt": 0.0,
-		"shutter": 0.0,
-		"sharpen": 0.0,
-		"codec": 0.0,
-		"noise_luma": 0.0,
-		"noise_chroma": 0.0,
-		"vignette_amt": 1.0,
-		"vhs": 0.0,
-		"tape": 0.0,
-		"grade": Color(1.0, 1.0, 1.0),
+		"fov_boost": 0.0,            # (the lens is the original barrel fish eye: it needs no wider render)
+		"chroma_amt": 0.0032,        # colour fringing toward the edges, a little stronger than a clean lens: old-tape feel
+		"shutter": 1.0 / 100.0,      # a fast shutter: turning the head blurs a little, never smears (see blur_max_px)
+		"sharpen": 0.45,
+		"codec": 0.55,
+		"noise_luma": 0.024,
+		"noise_chroma": 0.018,
+		"vignette_amt": 0.55,
+		"vhs": 0.2,                  # a subtle touch of tape: soft colour bleed, faint line wobble
+		"tape": 0.6,                 # and its grain, under the digital noise
+		# the tubes light everything warm yellow; a digital camera's white balance takes part of that back out,
+		# so the halls stay yellow but not soaked in it (cooler red / blue balance than the tape grade)
+		"grade": Color(0.96, 1.0, 1.1),
 	},
 	"clean": {
 		"fov_boost": 0.0,
-		"chroma_amt": 0.0,
-		"shutter": 0.0,
-		"sharpen": 0.0,
+		"chroma_amt": 0.0024,        # a little fringing toward the edges: a real lens, not a broken one
+		"shutter": 1.0 / 120.0,
+		"sharpen": 0.4,              # a digital camera's in-camera sharpening: the wallpaper's grain and the tile edges read
 		"codec": 0.0,
-		"noise_luma": 0.0,
-		"noise_chroma": 0.0,
-		"vignette_amt": 1.0,
+		"noise_luma": 0.016,         # a fine sensor grain over the walls
+		"noise_chroma": 0.005,
+		"vignette_amt": 0.72,
 		"vhs": 0.0,
-		"tape": 0.0,
-		"grade": Color(1.0, 1.0, 1.0),
+		"tape": 0.12,
+		"grade": Color(0.98, 1.0, 1.04),   # a lighter white-balance pull: the walls keep their yellow
 	},
 	"camcorder": {
 		"fov_boost": 0.0,
-		"chroma_amt": 0.0,
-		"shutter": 0.0,
+		"chroma_amt": 0.0028,
+		"shutter": 1.0 / 60.0,
 		"sharpen": 0.0,
 		"codec": 0.0,
 		"noise_luma": 0.0,
 		"noise_chroma": 0.0,
-		"vignette_amt": 1.0,
-		"vhs": 0.0,
-		"tape": 0.0,
-		"grade": Color(1.0, 1.0, 1.0),
+		"vignette_amt": 0.62,
+		"vhs": 1.0,
+		"tape": 1.0,
+		"grade": Color(0.96, 1.0, 1.1),     # (unused: the camcorder keeps the shader's own warm tape grade)
 	},
 }
 const MODE_SPEED := 0.6              # 1/s: how fast one camera hands over to the other (a zone change)
