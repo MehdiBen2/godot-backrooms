@@ -37,7 +37,8 @@ const PANEL := UI_PANEL
 const LINE := UI_LINE
 ## Zone names for their buttons (the rest: their key, capitalised)
 const ZONE_NAMES := {"open_ceiling": "Open ceiling", "endless_ceiling": "Endless ceiling", "noclip_floor": "Noclip floor",
-	"noclip_death": "Pain area (Noclip death)", "hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor"}
+	"noclip_death": "Pain area (Noclip death)", "hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor",
+	"area_bacteria": "Bacteria area", "area_mimic": "Mimic area", "area_mannequin": "Mannequin area", "area_grabber": "Grabber area", "area_burnt": "Burnt area", "area_tallone": "Tall One area"}
 const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hall: a 16.2 m ceiling, three storeys of open air over you.\nThe tubes hang down on long chains; the walls round it rise to meet it",
 	"hall_reverb": "Hall reverb: every sound rings on in a long, bright, wet tail (a tiled rotunda, a pool hall), whatever the room's shape.\nAUTO ACOUSTICS paints it where the architecture calls for it",
 	"muffled": "Muffled: a dead, tight space. Short, dark and dull, the highs gone (a crawlway, a padded corridor).\nAUTO ACOUSTICS paints it in tight, low places", "low": "Crouch-height ceiling", "hotel": "Hotel corridor: a 4.5 m ceiling, red hotel carpet, and side walls that stand 0.9 m into the cells, so the hall is 2.7 m wide to walk. Paint it on one-cell halls", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
@@ -48,6 +49,15 @@ const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hal
 	"classic": "Classic: the Kane Pixels found-footage look. Every tube steady and glowing, flat overexposed mono-yellow,\nclear air, milky blacks. Filmed on the camcorder (VHS tape) while you stand in it, with the Camera setting on Auto",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away. Filmed on the bodycam",
 	"mannequin": "Where the mannequins stand: paint as many areas as you like",
+	"area_bacteria": "Territory: the Bacteria spawns, waits and roams only inside this area (with no Entity mark it starts in the middle of it).
+Cells outside are solid to it. Paint nothing and it goes anywhere",
+	"area_mannequin": "Territory: the Mannequin room forms and the Mannequin moves only inside this area (with no Mannequin mark, the room forms in the middle of it)",
+	"area_mimic": "Territory: the Mimic stays inside this area. Paint nothing and it goes anywhere",
+	"area_grabber": "Territory: the Grabber hangs, drops and chases only inside this area (it no longer picks spots near you).
+With no Entity mark it starts in the middle of the area",
+	"area_burnt": "Territory: the Burnt stays inside this area. Paint nothing and it goes anywhere",
+	"area_tallone": "Territory: the Tall One spawns, roams, warps and hunts only inside this area.
+With no Entity mark it starts in the middle of the area",
 	"safe": "Safe: no entity sets foot here. They path round it and are pushed out of it, though they still see in\n(and can reach in from its edge: keep away from the rim)",
 	"drain": "Drain: sanity runs out while you stand here, lit or not, torch or not",
 	"loot": "Loot: battery packs, tape and camera flashes turn up here far more often",
@@ -930,6 +940,7 @@ func _build_right_dock() -> Control:
 		["Pits & falls", ["abyss", "noclip", "noclip_floor", "noclip_death"]],
 		["Space & sound", ["hall_reverb", "muffled", "echo", "loop"]],
 		["Gameplay", ["safe", "drain", "loot", "mannequin"]],
+		["Entity territory", ["area_bacteria", "area_mimic", "area_mannequin", "area_grabber", "area_burnt", "area_tallone"]],
 	]
 	var placed := {}
 	for gr in zone_groups:

@@ -125,6 +125,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
+	nav.area_kind = "grabber"
 	flow.resize(nav.n * nav.n)
 	reach.resize(nav.n * nav.n)
 	body = GrabberBody.new()
@@ -301,6 +302,8 @@ func _pick_hunch() -> bool:
 	for k in _cells_within(HUNCH_CELLS.x, HUNCH_CELLS.y).slice(0, 40):
 		var x: int = k / n
 		var z: int = k % n
+		if nav.outside(x, z):
+			continue
 		var at := Vector3(x * CELL, sp.y, z * CELL)
 		at.y = _floor_y(at, sp.y)
 		var h := _ceiling_over(at)

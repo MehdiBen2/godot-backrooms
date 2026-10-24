@@ -154,6 +154,7 @@ var _kill_light: OmniLight3D            # your torch guttering on its face, from
 
 func _ready() -> void:
 	super._ready()
+	nav.area_kind = "tallone"
 	process_priority = 100              # after the player: its camera is ours to hold during the kill
 	scares = get_parent().get_node_or_null("Scares")
 	_pl = player

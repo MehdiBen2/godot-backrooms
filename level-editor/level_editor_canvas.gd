@@ -21,7 +21,8 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
 	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0"), "noclip_death": Color("e82548"),
 	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e"), "hotel": Color("b8443a"),
-	"clean": Color("e9f7ff"), "dirty": Color("5e4a2c"), "moist": Color("3f8f86")}
+	"clean": Color("e9f7ff"), "dirty": Color("5e4a2c"), "moist": Color("3f8f86"),
+	"area_bacteria": Color("ff5a4d"), "area_mimic": Color("ffa06b"), "area_mannequin": Color("e8e0d0"), "area_grabber": Color("b35cff"), "area_burnt": Color("ff7a1a"), "area_tallone": Color("4dd0ff")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "fake_exit": Color("8fb8bd"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 # Entity marks are objects (object_types.json "entity"): any number per floor, each with its own kind and behavior

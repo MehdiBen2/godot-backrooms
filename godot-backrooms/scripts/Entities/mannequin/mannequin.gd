@@ -151,6 +151,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
+	nav.area_kind = "mannequin"
 	n = nav.n
 	_find_room()
 	flow.resize(n * n)
@@ -206,7 +207,7 @@ func _find_room() -> void:
 func room_slots(count: int) -> Array:
 	var cells: Array = []
 	for c in room_cells:
-		if not nav.blocked(c.x, c.y):
+		if not nav.blocked(c.x, c.y) and not nav.outside(c.x, c.y):
 			cells.append(c)
 	var slots: Array = []
 	if cells.is_empty():

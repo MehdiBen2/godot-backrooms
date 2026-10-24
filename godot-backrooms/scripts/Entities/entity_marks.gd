@@ -5,7 +5,14 @@ extends RefCounted
 
 const CELL := 4.5
 
-## Every mark of `kind` on the floor `level` has built, in the order they were placed
+## The cells a monster kind is confined to (painted "area_<kind>" zone), {} when it has none
+static func area(level: Node, kind: String) -> Dictionary:
+	if level == null or not ("entity_areas" in level):
+		return {}
+	return level.entity_areas.get(kind, {})
+
+## Every mark of `kind` on the floor `level` has built, in the order they were placed. A territory with no mark
+## still places one: a roaming mark on the open cell in the middle of the territory
 static func of_kind(level: Node, kind: String) -> Array:
 	var out: Array = []
 	if level == null:
@@ -15,6 +22,12 @@ static func of_kind(level: Node, kind: String) -> Array:
 		for o in objs:
 			if o is Dictionary and o.get("type", "") == "entity" and str(o.get("kind", "bacteria")) == kind:
 				out.append(o)
+	if out.is_empty():
+		var cells: Array = area(level, kind).keys().filter(func(c: Vector2i): return not level.walls.has(c) and not level.pits.has(c) and not level.safe.has(c))
+		if not cells.is_empty():
+			cells.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
+			var c: Vector2i = cells[cells.size() / 2]
+			out.append({"type": "entity", "kind": kind, "behavior": "roam", "pos_x": float(c.x), "pos_y": float(c.y)})
 	return out
 
 static func cell(mark: Dictionary) -> Vector2i:

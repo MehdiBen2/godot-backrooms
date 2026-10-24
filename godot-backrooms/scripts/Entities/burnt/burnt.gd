@@ -174,6 +174,7 @@ var _tw_next := 2.0
 
 func _ready() -> void:
 	super._ready()
+	nav.area_kind = "burnt"
 	process_priority = 100              # after the player: its camera is ours to hold during the sequence
 	scares = get_parent().get_node_or_null("Scares")
 	net = BurntNet.new(self)

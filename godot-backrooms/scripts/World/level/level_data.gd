@@ -137,6 +137,10 @@ var loot := {}        # battery packs, tape and flashes turn up here far more of
 ## no stains), "dirty" (grime films, foot grime and scuffs far more often) and "moist" (water down from the ceiling,
 ## damp coming up from the floor). Zone name -> {Vector2i: true}
 var grime_zones := {"clean": {}, "dirty": {}, "moist": {}}
+## Territories painted in the level editor ("area_<kind>" zones): monster kind -> {Vector2i: true}. A kind with a
+## territory spawns, waits and roams only inside it (grid_nav.gd `area_kind`, entity_marks.gd `area`)
+const AREA_KINDS := ["bacteria", "mimic", "mannequin", "grabber", "burnt", "tallone"]
+var entity_areas := {}
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 ## Reverb zones painted in the level editor, over the sound the room's shape gives on its own (acoustics.gd):
 var hall_reverb := {} # a vast hard hall: a long, bright tail that rings on (a tiled rotunda, a pool hall)
@@ -758,6 +762,13 @@ func _parse(d: Dictionary) -> void:
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])
 			if not walls.has(v): target[v] = true
+	entity_areas = {}
+	for kind: String in AREA_KINDS:
+		var cells := {}
+		for c in zones.get("area_" + kind, []):
+			var v := Vector2i(c[0], c[1])
+			if not walls.has(v): cells[v] = true
+		if not cells.is_empty(): entity_areas[kind] = cells
 	for zone: String in grime_zones:
 		for c in zones.get(zone, []):
 			var v := Vector2i(c[0], c[1])

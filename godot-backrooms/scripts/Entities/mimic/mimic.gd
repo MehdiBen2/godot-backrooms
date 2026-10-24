@@ -172,6 +172,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
+	nav.area_kind = "mimic"
 	_build_body()
 	sounds = MimicSounds.new()                  # your own sounds, from the next corridor (every machine, its own player)
 	sounds.mimic = self
@@ -399,6 +400,7 @@ func on_floor_changed() -> void:
 	if level == null or body == null:
 		return                                    # not set up yet: _ready builds it on the floor as it is
 	nav = GridNav.new(level)
+	nav.area_kind = "mimic"
 	_mark_pending = not EntityMarks.of_kind(level, "mimic").is_empty()
 	echo.tracks.clear()
 	lure_path = []

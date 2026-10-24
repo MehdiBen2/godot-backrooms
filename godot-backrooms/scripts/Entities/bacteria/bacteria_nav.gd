@@ -17,6 +17,7 @@ var interest := {"x": 0.0, "z": 0.0, "at": -1e9}
 
 func _setup_nav() -> void:
 	nav = GridNav.new(level)
+	nav.area_kind = "bacteria"
 	n = nav.n
 	flow.resize(n * n)
 	reach.resize(n * n)

@@ -8,6 +8,7 @@ const CELL := 4.5
 const NEIGHBOURS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
 var level: Node
+var area_kind := ""                   # the monster kind this grid is for: its painted territory (level.entity_areas) is the only floor it has
 var n: int:                           # always the level's current size (a floor change can resize it under a cached nav)
 	get: return level.size
 var _queue := PackedInt32Array()     # reused by bfs(): no n*n allocation per call
@@ -27,16 +28,23 @@ func blocked(cx: int, cz: int) -> bool:
 	var c := Vector2i(cx, cz)
 	return level.walls.has(c) or level.pits.has(c) or level.safe.has(c)
 
+## Outside this monster's territory (never, when its kind has none painted)
+func outside(cx: int, cz: int) -> bool:
+	if area_kind == "":
+		return false
+	var a: Dictionary = level.entity_areas.get(area_kind, {})
+	return not a.is_empty() and not a.has(Vector2i(cx, cz))
+
 func open_at(x: float, z: float) -> bool:
 	var cx := cell(x)
 	var cz := cell(z)
 	if cx < 0 or cz < 0 or cx >= n or cz >= n:
 		return false                  # off the map is not open floor (nothing there to wall it in)
-	return not blocked(cx, cz)
+	return not blocked(cx, cz) and not outside(cx, cz)
 
 ## One step from a cell to a neighbouring one: the target is open and no off-centre wall is in between
 func can_step(ax: int, az: int, bx: int, bz: int) -> bool:
-	return not blocked(bx, bz) and not level.edge_blocked(Vector2i(ax, az), Vector2i(bx, bz))
+	return not blocked(bx, bz) and not outside(bx, bz) and not level.edge_blocked(Vector2i(ax, az), Vector2i(bx, bz))
 
 # Line of sight across the grid (walls block, pits don't)
 func clear_line(ax: float, az: float, bx: float, bz: float, step := 0.25) -> bool:
@@ -100,7 +108,7 @@ func resolve(p: Vector3, radius: float) -> Vector3:
 	for ox in range(-1, 2):
 		for oz in range(-1, 2):
 			var c := Vector2i(cx + ox, cz + oz)
-			if not (level.walls.has(c) or level.safe.has(c)):
+			if not (level.walls.has(c) or level.safe.has(c) or outside(c.x, c.y)):
 				continue
 			var minx := c.x * CELL - half
 			var maxx := c.x * CELL + half
