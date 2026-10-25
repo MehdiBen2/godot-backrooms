@@ -1,6 +1,6 @@
 extends Control
-## Title screen + level loading. Slow-drifting stills of the level (textures/menu/bg_N.png, rendered by
-## tools/capture_menu_bg.gd) that crossfade into each other behind the same VCR / found-footage styling as the in-game start screen.
+## Title screen + level loading. Live 3D sets of the level with flickering troffers and a mannequin standing in each
+## (title_set.gd), cut between one after another behind the same VCR / found-footage styling as the in-game start screen.
 ## PLAY fades to a loading screen, streams scenes/main.tscn on a thread, then drops straight into the run.
 ## The column builds itself on launch (skippable), entries slide and caption themselves on hover or with
 ## the arrow keys, and QUIT switches the set off like an old CRT.
@@ -10,11 +10,7 @@ extends Control
 const CREAM := Color("e6e1cd")
 const TITLE := Color("d8d3bd")
 const RED := Color("c4271f")
-const BG_PATH := "res://textures/menu/bg_%d.png"
-const BG_SET := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]     # staged mannequin stills, bg_0..bg_11 (bg_1 -> bg_2: it comes closer)
-const ZOOM := 1.14                      # slow push-in over each frame's lifetime
-const BG_HOLD := 7.0                    # seconds each still stays up
-const BG_FADE := 1.8                    # crossfade
+const TitleSet := preload("res://scripts/UI/menu/title_set.gd")     # the backdrop: live 3D sets, one after another
 const LOAD_MUSIC_DB := -32.0           # the loading-screen bed, well under the menu's
 const MUSIC_DB := -20.0                # quiet bed, not a soundtrack
 const INTRO_PATH := "res://audio/ambients/menu_intro.mp3"      # the loading-screen track
@@ -29,8 +25,7 @@ const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
 const WakeGate := preload("res://scripts/UI/wake_gate.gd")
 const LobbyScreen := preload("res://scripts/UI/menu/lobby_screen.gd")
-const LOBBY_PUSH := 1.3                 # PLAY: seconds the still pushes in before the corridor has taken over
-const LOBBY_ZOOM := 1.4
+const LOBBY_PUSH := 1.3                 # PLAY: seconds the camera pushes on down the title's hall before the corridor has taken over
 const Kit := preload("res://scripts/UI/inventory/terminal_kit.gd")      # Kit.logo(): the T.S.R.A. emblem
 const TIPS := [
 	"The hum is not always the lights.",
@@ -104,13 +99,9 @@ const ROW_H := 50.0
 const W := preload("res://scripts/UI/menu/menu_widgets.gd")   # shared motion helpers
 
 var font: FontFile = load("res://fonts/vcr.ttf")
-var bg_root: Control
-var bg_a: TextureRect
-var bg_b: TextureRect
-var bg_tex: Array[Texture2D] = []
-var bg_i := 0
-var bg_timer := 0.0
-var bg_fading := false
+var title_view: SubViewportContainer      # the title's 3D sets (title_set.gd), on a world of their own
+var title_sub: SubViewport
+var title: Node3D
 var title_label: Label
 var fringes: Array
 var glitch_left := 0.0
@@ -256,26 +247,20 @@ func _build() -> void:
 	add_child(back)
 	_full(back)
 
-	# The stills, slightly oversized so the slow drift never shows an edge; two layers crossfade
-	for i in BG_SET:
-		if ResourceLoader.exists(BG_PATH % i):
-			bg_tex.append(load(BG_PATH % i))
-	if bg_tex.is_empty():
-		bg_tex.append(_gradient(PackedColorArray([Color(0.16, 0.13, 0.06), Color(0.05, 0.04, 0.02)]), PackedFloat32Array([0.0, 1.0]), true))
-	bg_root = Control.new()
-	add_child(bg_root)
-	_full(bg_root)
-	bg_root.pivot_offset = Vector2(960, 540)
-	bg_root.scale = Vector2(1.08, 1.08)
-	bg_a = _bg_layer(bg_tex[0])
-	bg_b = _bg_layer(bg_tex[0])
-	bg_b.modulate.a = 0.0
-	bg_i = randi() % bg_tex.size()          # start on a different frame each launch
-	bg_a.texture = bg_tex[bg_i]
-	_zoom(bg_a)
-	var drift := create_tween().set_loops()
-	drift.tween_property(bg_root, "position", Vector2(-26, -12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	drift.tween_property(bg_root, "position", Vector2(26, 12), 14.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# The backdrop: the title's 3D sets on a world of their own (title_set.gd), under the veil and vignette below
+	title_view = SubViewportContainer.new()
+	title_view.stretch = true
+	add_child(title_view)
+	_full(title_view)
+	title_sub = SubViewport.new()
+	title_sub.own_world_3d = true
+	title_sub.msaa_3d = Viewport.MSAA_2X
+	title_sub.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	title_sub.use_debanding = true
+	title_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	title_view.add_child(title_sub)
+	title = TitleSet.new()
+	title_sub.add_child(title)
 
 	# Left-to-right veil so the text stays readable, then a vignette
 	var veil := TextureRect.new()
@@ -438,41 +423,6 @@ func _build() -> void:
 	_build_briefing()
 	_build_loading()
 	_build_crt()
-
-func _bg_layer(tex: Texture2D) -> TextureRect:
-	var r := TextureRect.new()
-	r.texture = tex
-	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg_root.add_child(r)
-	_full(r)
-	r.pivot_offset = Vector2(960, 470)       # push in toward the far end of the hall, not the centre
-	return r
-
-## Slow push-in, like the camera creeping forward. Lasts as long as the frame is on screen.
-func _zoom(r: TextureRect) -> void:
-	r.scale = Vector2.ONE
-	var tw := create_tween()
-	tw.tween_property(r, "scale", Vector2(ZOOM, ZOOM), BG_HOLD + BG_FADE * 2.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	r.set_meta("zoom", tw)
-
-func _next_bg() -> void:
-	bg_fading = true
-	var nxt := (bg_i + 1) % bg_tex.size()
-	bg_b.texture = bg_tex[nxt]
-	bg_root.move_child(bg_b, -1)             # the incoming frame fades in on top
-	_zoom(bg_b)
-	var tw := create_tween()
-	tw.tween_property(bg_b, "modulate:a", 1.0, BG_FADE).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(func():
-		if bg_a.has_meta("zoom"): bg_a.get_meta("zoom").kill()
-		var done := bg_a                     # swap roles; the old frame becomes the hidden spare
-		bg_a = bg_b
-		bg_b = done
-		bg_b.modulate.a = 0.0
-		bg_i = nxt
-		bg_timer = 0.0
-		bg_fading = false)
 
 # ---- menu entries ---------------------------------------------------------------------
 ## One entry: a red ► cursor and the word, which steps right when selected, plus a short caption
@@ -970,29 +920,36 @@ func _open_lobby(guest: bool) -> void:
 	busy = true
 	settings_menu.close_panel()
 	if corner_tw: corner_tw.kill()           # closing the panel would bring the corners back
-	bg_timer = -1.0e9                        # no frame swap behind the lobby
-	bg_root.pivot_offset = Vector2(960, 470) # in toward the far end of the hall
+	title.push_in(LOBBY_PUSH)                # the camera pushes on down the title's hall for the corridor to come up through
 	_fade_music(MUSIC_DB - 7.0, 1.5)         # under the tubes' hum
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(menu_box, "modulate:a", 0.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	for c in [counter, credits]:
 		tw.tween_property(c, "modulate:a", 0.0, 0.45)
-	tw.tween_property(bg_root, "scale", Vector2(LOBBY_ZOOM, LOBBY_ZOOM), LOBBY_PUSH).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	var hide_title := tw.tween_callback(func() -> void:
+		if lobby.shown:                      # the corridor covers the title from here: stop drawing it
+			_title_on(false))
+	hide_title.set_delay(LOBBY_PUSH)
 	lobby.open(guest)
 
-## BACK: the corridor backs away and fades, the still eases back out and the column returns
+## BACK: the corridor backs away and fades, the camera pulls back up the title's hall and the column returns
 func _back_from_lobby() -> void:
 	lobby.close()
 	_select(-1)
 	_fade_music(MUSIC_DB, 1.2)
+	_title_on(true)
+	title.pull_back(1.4)
 	var tw := create_tween().set_parallel(true)
-	tw.tween_property(bg_root, "scale", Vector2(1.08, 1.08), 1.4).set_delay(0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(menu_box, "modulate:a", 1.0, 0.5).set_delay(0.7)
 	for c in [counter, credits]:
 		tw.tween_property(c, "modulate:a", 1.0, 0.5).set_delay(0.8)
 	tw.chain().tween_callback(func() -> void:
-		bg_timer = 0.0
 		busy = false)
+
+## The title's 3D sets are only drawn while they are on screen (the lobby's corridor takes over the picture)
+func _title_on(on: bool) -> void:
+	title_view.visible = on
+	title_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS if on else SubViewport.UPDATE_DISABLED
 
 ## BEGIN (ours, or the host's on a guest): the camera pushes on past the group into the dark down the hall,
 ## everything sinks into the black, and the mission briefing comes up out of it
@@ -1236,9 +1193,6 @@ func _process(dt: float) -> void:
 			if idle_time >= IDLE_AFTER:
 				_enter_idle()
 		_update_glitch(dt)
-		bg_timer += dt
-		if bg_timer >= BG_HOLD and not bg_fading and bg_tex.size() > 1:
-			_next_bg()
 		rec_dot.color.a = 1.0 if fmod(t, 1.1) < 0.55 else 0.0
 		counter.text = "► PLAY  %d:%02d:%02d" % [int(t / 3600.0), int(t / 60.0) % 60, int(t) % 60]
 

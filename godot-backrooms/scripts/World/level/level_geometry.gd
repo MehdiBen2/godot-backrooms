@@ -942,7 +942,7 @@ func _build_arches(list: Array) -> void:
 		add_child(umi)
 	var mi := MeshInstance3D.new()
 	mi.mesh = crown.commit()
-	mi.material_override = wall_mat
+	mi.material_override = wall_sh
 	add_child(mi)
 	var cs := CollisionShape3D.new()
 	var shape := ConcavePolygonShape3D.new()

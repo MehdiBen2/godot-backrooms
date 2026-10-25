@@ -66,6 +66,7 @@ uniform float insanity = 0.0;
 uniform float fx_blur = 0.0;
 uniform float fx_contrast = 1.0;
 uniform float fx_sat = 1.0;
+uniform float world_sat : hint_range(0.5, 1.5) = 1.12;   // a slight, luminance-preserving saturation lift on the finished picture (1 = off)
 uniform float fx_hue = 0.0;
 uniform float fx_zoom = 1.0;
 uniform float fx_skew = 0.0;
@@ -502,6 +503,11 @@ void fragment() {
 		vec3 cn = vec3(hash12(cfc + fract(TIME * 9.1) * 401.0), hash12(cfc + 17.3 + fract(TIME * 9.1) * 401.0),
 			hash12(cfc + 41.9 + fract(TIME * 9.1) * 401.0)) - 0.5;
 		col += (ln * noise_luma + (cn - dot(cn, LUMA)) * noise_chroma) * shadow_w * gain * digital;
+	}
+	{
+		// slight saturation lift about Rec.709 luma (luminance unchanged); eased off toward white so bright panels do not clip
+		float ly = dot(col, vec3(0.2126, 0.7152, 0.0722));
+		col = max(mix(vec3(ly), col, mix(world_sat, 1.0, smoothstep(0.8, 1.0, ly))), 0.0);
 	}
 	col = mix(col, vec3(0.0), max(blink_lids, fall_fade));
 	COLOR = vec4(clamp(col, 0.0, 1.0), 1.0);

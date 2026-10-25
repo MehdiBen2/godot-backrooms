@@ -28,6 +28,11 @@ const COLLIDER_CHUNK := 8      # merged collision boxes never cross an 8x8-cell 
 var wall_mat: StandardMaterial3D
 var tall_wall_mat: StandardMaterial3D
 var grand_wall_mat: StandardMaterial3D
+## What the walls are drawn with: the wallpaper shader on Level 0 (wall_wallpaper.gdshader), else the same as wall_mat
+## and friends above (which stay StandardMaterial3Ds: the glow, pit and shaft code read their textures).
+var wall_sh: Material
+var tall_wall_sh: Material
+var grand_wall_sh: Material
 var door_leaf_mat: StandardMaterial3D
 var door_hw_mat: StandardMaterial3D
 var door_frame_mat: StandardMaterial3D
@@ -49,6 +54,9 @@ func _make_materials() -> void:
 	tall_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", TALL_H, true)
 	# (the tall wallpaper, its baked skirting and ceiling shadow stretched on up to a grand hall's ceiling)
 	grand_wall_mat = _pbr_or("wall", true) if _has_pbr("wall") else _wall_material("wall_tall", GRAND_H, true)
+	wall_sh = wall_mat if _has_pbr("wall") else _wall_shader_mat("wall", WALL_H)
+	tall_wall_sh = tall_wall_mat if _has_pbr("wall") else _wall_shader_mat("wall_tall", TALL_H)
+	grand_wall_sh = grand_wall_mat if _has_pbr("wall") else _wall_shader_mat("wall_tall", GRAND_H)
 	if ResourceLoader.exists("res://textures/props/door/door_leaf.tres"):
 		door_leaf_mat = (load("res://textures/props/door/door_leaf.tres") as StandardMaterial3D).duplicate()
 	else:
@@ -196,6 +204,22 @@ func _wall_material(prefix: String, height: float, world: bool) -> StandardMater
 	m.texture_repeat = true
 	return m
 
+const WallWallpaperShader := preload("res://shaders/wall_wallpaper.gdshader")
+var _wall_shader_mats := {}
+## _wall_material's world-projected wallpaper as a shader (the shader's defaults are that material's numbers).
+func _wall_shader_mat(prefix: String, height: float) -> ShaderMaterial:
+	var key := "%s|%s" % [prefix, height]
+	if _wall_shader_mats.has(key): return _wall_shader_mats[key]
+	var m := ShaderMaterial.new()
+	m.shader = WallWallpaperShader
+	m.set_shader_parameter("albedo_tex", load("res://textures/%s_color.png" % prefix))
+	m.set_shader_parameter("normal_tex", load("res://textures/%s_normal.png" % prefix))
+	m.set_shader_parameter("rough_tex", load("res://textures/%s_rough.png" % prefix))
+	m.set_shader_parameter("ao_tex", load("res://textures/%s_ao.png" % prefix))
+	m.set_shader_parameter("wall_h", height)
+	_wall_shader_mats[key] = m
+	return m
+
 ## How much the baked AO maps darken *direct* light. AO is occlusion of light arriving from all round, so it
 ## belongs on the ambient / bounce light; at 0.85 the wallpaper's baked ceiling band and baseboard stayed dark
 ## right under a lamp and in the torch beam, a painted-on shadow that never moved. The real contact
@@ -238,9 +262,9 @@ func _tile_uv_mat() -> StandardMaterial3D:
 	return _tile_uv
 
 ## The world-projected wall material for a wall `h` metres tall (the wallpaper is drawn to its room's height)
-func _wall_mat_for(h: float) -> StandardMaterial3D:
-	if h > TALL_H + 0.01: return grand_wall_mat
-	return tall_wall_mat if h > WALL_H else wall_mat
+func _wall_mat_for(h: float) -> Material:
+	if h > TALL_H + 0.01: return grand_wall_sh
+	return tall_wall_sh if h > WALL_H else wall_sh
 
 ## How far along a wall one repeat of its material runs, metres (a closed loop is fitted to a whole number of them)
 func _wall_repeat() -> float:
@@ -859,7 +883,7 @@ func _build_hotel_insets() -> void:
 		var bm := BoxMesh.new()
 		bm.size = sz
 		mi.mesh = bm
-		mi.material_override = wall_mat
+		mi.material_override = wall_sh
 		mi.position = ctr
 		add_child(mi)
 		if not shell:
@@ -903,7 +927,7 @@ func _build_walls() -> void:
 				if pw.has(c): groups.get_or_add("%s|%s" % [height, pw[c]], []).append(c)
 				else: keep.append(c)
 			groups[height] = keep
-	var mats := {WALL_H: wall_mat, UNDER_SLAB_H: tall_wall_mat, TALL_H: tall_wall_mat, GRAND_H: grand_wall_mat}
+	var mats := {WALL_H: wall_sh, UNDER_SLAB_H: tall_wall_sh, TALL_H: tall_wall_sh, GRAND_H: grand_wall_sh}
 	for key in groups.keys():
 		var list: Array = groups[key]
 		if list.is_empty(): continue

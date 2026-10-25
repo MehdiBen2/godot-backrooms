@@ -197,6 +197,12 @@ void fragment() {
 		}
 	}
 
+	// fibre detail: individual tufts catch the light differently (fine speckle, faded out with distance so it
+	// does not shimmer), (multiplicative and zero-mean, no extra texture reads, no added sheen)
+	float fibre_near = 1.0 - smoothstep(6.0, 16.0, dist);
+	float tuft = vnoise(fp * 90.0) - 0.5;
+	alb.rgb *= 1.0 + tuft * 0.2 * fibre_near;
+
 	ALBEDO = alb.rgb * mix(vec3(0.92), vec3(1.0), 1.0 - final_depth * 0.2);
 	NORMAL_MAP = mix(textureGrad(normal_tex, uv + off_a, uv_dx, uv_dy).rgb, textureGrad(normal_tex, uv + off_b, uv_dx, uv_dy).rgb, vb);
 	NORMAL_MAP_DEPTH = active_normal_depth;

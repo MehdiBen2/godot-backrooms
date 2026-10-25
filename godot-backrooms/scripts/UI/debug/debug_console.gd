@@ -372,4 +372,3 @@ func _submit(line: String) -> void:
 			log_label.clear()
 		_:
 			_print("[color=#e8702c]unknown command: " + cmd + "[/color]")
-
