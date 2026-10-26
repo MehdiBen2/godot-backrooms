@@ -270,13 +270,11 @@ func _build() -> void:
 	sections["voice"] = _build_voice()
 	sections["graphics"] = _build_graphics()
 	sections["settings"] = _build_settings()
-	sections["graphics"] = _build_graphics()
 	sections["controls"] = _build_controls()
 	pv.add_child(sections["multiplayer"])
 	pv.add_child(sections["voice"])
 	pv.add_child(sections["graphics"])
 	pv.add_child(sections["settings"])
-	pv.add_child(sections["graphics"])
 	pv.add_child(sections["controls"])
 
 # ---- panel navigation ------------------------------------------------------------------

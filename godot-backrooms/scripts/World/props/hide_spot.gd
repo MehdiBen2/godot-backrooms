@@ -10,6 +10,9 @@ extends Node3D
 ##   "smart_door": {"node": the model's door node, its origin on the hinge (tools/blender/edit_metal_cabinet.py)}
 ##   "smart_eye": [x, y, z]: where your eyes are inside, as fractions of the prop's box (x from its back, y of its
 ##                height, z across, - the arrow's right): the cabinet puts you behind the door that opens
+## A broken weak spot (props/weak_spot.gd) does not use this: you walk into its cavity and are hidden there with no
+## button, but it sets the same `player.hidden` / `player.hiding_in` (with `prop`, `bounds` and get_handle_global_pos()
+## that tall_one.gd reads off it).
 
 const Tooltip := preload("res://scripts/World/props/interact_tooltip.gd")
 const FONT := preload("res://fonts/vcr.ttf")
@@ -59,12 +62,13 @@ func setup(p: Node3D, p_info: Dictionary) -> void:
 		_door = p.get_child(0).find_child(str(d.get("node", "")), true, false) as Node3D
 		if _door != null: _door_rest = _door.transform
 	var tip := Tooltip.new()
+	tip.name = "InteractTooltip"  # (hud.gd draws no prompt of its own for a prop with one: it showed twice)
 	tip.height = 0.3
 	add_child(tip)
 
 # ---------------------------------------------------------------- interaction (player.gd)
 func can_interact(from_pos: Vector3) -> bool:
-	if _state != "idle" or Game.dead or not Game.playing: return false
+	if _state != "idle" or Game.dead or not Game.playing or not can_process(): return false   # (a demoted floor's are disabled)
 	var local := prop.to_local(from_pos)
 	if local.x < _bounds.end.x * 0.3: return false            # not from behind it
 	return Vector2(local.x - _bounds.end.x, local.z).length() < REACH

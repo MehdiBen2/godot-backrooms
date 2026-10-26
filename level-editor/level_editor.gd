@@ -38,7 +38,8 @@ const LINE := UI_LINE
 ## Zone names for their buttons (the rest: their key, capitalised)
 const ZONE_NAMES := {"open_ceiling": "Open ceiling", "endless_ceiling": "Endless ceiling", "noclip_floor": "Noclip floor",
 	"noclip_death": "Pain area (Noclip death)", "hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor",
-	"area_bacteria": "Bacteria area", "area_mimic": "Mimic area", "area_mannequin": "Mannequin area", "area_grabber": "Grabber area", "area_burnt": "Burnt area", "area_tallone": "Tall One area"}
+	"area_bacteria": "Bacteria area", "area_mimic": "Mimic area", "area_mannequin": "Mannequin area", "area_grabber": "Grabber area", "area_burnt": "Burnt area", "area_tallone": "Tall One area",
+	"weak_spot": "Weak spots"}
 const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hall: a 16.2 m ceiling, three storeys of open air over you.\nThe tubes hang down on long chains; the walls round it rise to meet it",
 	"hall_reverb": "Hall reverb: every sound rings on in a long, bright, wet tail (a tiled rotunda, a pool hall), whatever the room's shape.\nAUTO ACOUSTICS paints it where the architecture calls for it",
 	"muffled": "Muffled: a dead, tight space. Short, dark and dull, the highs gone (a crawlway, a padded corridor).\nAUTO ACOUSTICS paints it in tight, low places", "low": "Crouch-height ceiling", "hotel": "Hotel corridor: a 4.5 m ceiling, red hotel carpet, and side walls that stand 0.9 m into the cells, so the hall is 2.7 m wide to walk. Paint it on one-cell halls", "crawl": "Crawl space: a very low ceiling (about 1.2 m). You have to get right down and crawl through it, hands on the floor, the torch a dim glow", "tiles": "Tile floor instead of carpet",
@@ -49,6 +50,9 @@ const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hal
 	"classic": "Classic: the Kane Pixels found-footage look. Every tube steady and glowing, flat overexposed mono-yellow,\nclear air, milky blacks. Filmed on the camcorder (VHS tape) while you stand in it, with the Camera setting on Auto",
 	"liminal": "Liminal: every tube on and steady, flat pale light, halls fading into haze far away. Filmed on the bodycam",
 	"mannequin": "Where the mannequins stand: paint as many areas as you like",
+	"weak_spot": "Weak spots: paint on walls (full wall blocks, not thin walls). Some faces of these walls become breakable weak spots:
+a damp, bulging patch of wallpaper the player holds E on to break open, then hides in the hollow inside, like the metal cabinet:
+THE TALL ONE cannot see them in there. How many: Weak spot chance in the level settings",
 	"area_bacteria": "Territory: the Bacteria spawns, waits and roams only inside this area (with no Entity mark it starts in the middle of it).
 Cells outside are solid to it. Paint nothing and it goes anywhere",
 	"area_mannequin": "Territory: the Mannequin room forms and the Mannequin moves only inside this area (with no Mannequin mark, the room forms in the middle of it)",
@@ -727,6 +731,19 @@ func _build_level_settings(lvl: VBoxContainer) -> void:
 	wrap_check.tooltip_text = "Walk off one edge and you are on the opposite side, seamlessly; the halls are drawn repeating out to the horizon.\nLeave openings on the edges. Monsters stay inside the map"
 	wrap_check.toggled.connect(func(_on): _mark_dirty())
 	lvl.add_child(wrap_check)
+	var weak_row := HBoxContainer.new()
+	lvl.add_child(weak_row)
+	weak_row.add_child(_label("Weak spot chance", 13, UI_DIM))
+	weak_spin = SpinBox.new()
+	weak_spin.min_value = 0.0
+	weak_spin.max_value = 1.0
+	weak_spin.step = 0.05
+	weak_spin.value = 0.35
+	weak_spin.tooltip_text = "How many faces of the Weak spots zone's walls (0..1) become breakable patches the player holds E on to
+break open and hide inside. 0: none, 1: every face that looks onto open floor. Default 0.35"
+	weak_spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	weak_spin.value_changed.connect(func(_v): _mark_dirty())
+	weak_row.add_child(weak_spin)
 	lvl.add_child(HSeparator.new())
 	lvl.add_child(_heading("Materials"))
 	lvl.add_child(_note("What every cell you have not painted is made of. The ceiling's default is Ceiling_Office_Lit."))
@@ -939,7 +956,7 @@ func _build_right_dock() -> Control:
 		["Walls: wear & water", ["clean", "dirty", "moist"]],
 		["Pits & falls", ["abyss", "noclip", "noclip_floor", "noclip_death"]],
 		["Space & sound", ["hall_reverb", "muffled", "echo", "loop"]],
-		["Gameplay", ["safe", "drain", "loot", "mannequin"]],
+		["Gameplay", ["safe", "drain", "loot", "mannequin", "weak_spot"]],
 		["Entity territory", ["area_bacteria", "area_mimic", "area_mannequin", "area_grabber", "area_burnt", "area_tallone"]],
 	]
 	var placed := {}

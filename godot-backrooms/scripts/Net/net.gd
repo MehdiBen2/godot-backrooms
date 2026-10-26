@@ -33,11 +33,14 @@ const MAX_PLAYERS := 5          # the host and four more: the lobby corridor has
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 11
+const PROTOCOL := 12
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
 const TAPE_CHUNK := 150          # a newcomer gets the tape already up in chunks this size (one huge message stalls the socket)
+const WEAK_BATCH_MAX := 2000     # weak-spot keys one _weak_rpc may carry
+const WEAK_CHUNK := 500          # a newcomer gets the weak spots already broken in chunks this size
+const WEAK_KEY_MAX := 64
 ## WebSocket buffers. Godot's default is 64 KB each way: one big reliable message (a newcomer's tape) or a
 ## hitch with voice + snapshots queued behind it overflowed that, and the peer dropped the data or the link.
 const WS_BUFFER := 4 * 1024 * 1024
@@ -108,6 +111,7 @@ var _tunnel_url := ""           # host: cloudflared's link, once known (it is pu
 var _egg_last := -INF
 var ready_peers := {}          # peer id -> true: guests who pressed READY in the lobby (the host keeps it, everyone gets it)
 var lobby_open := false         # host: on its lobby screen, so guests wait there with it / guest: what the host said
+var weak_broken := {}           # weak-spot key -> true: wall patches anyone has broken open this session
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -227,6 +231,7 @@ func leave() -> void:
 	lobby_open = false
 	ready_peers.clear()
 	ready_changed.emit()
+	weak_broken.clear()
 
 ## Leave with a message, from inside a network callback (a signal the peer emits while it is being polled,
 ## or an RPC being dispatched): pulling the peer out from under SceneMultiplayer mid-poll can crash, so it
@@ -473,6 +478,10 @@ func _on_peer_connected(id: int) -> void:
 		if mq_level >= 0:
 			_mq_seed_rpc.rpc_id(id, mq_level, mq_seed)      # the same mannequin room for the newcomer
 		_sent.clear()                                        # every monster goes out in full next frame, for the newcomer
+		if not weak_broken.is_empty():
+			var weak: Array = weak_broken.keys().slice(-WEAK_BATCH_MAX)    # the walls already broken open, for the newcomer
+			for i in range(0, weak.size(), WEAK_CHUNK):
+				_weak_rpc.rpc_id(id, weak.slice(i, i + WEAK_CHUNK))
 	var tape := TapeMarks.pack_mine()
 	if not tape.is_empty():
 		tape = tape.slice(-TAPE_BATCH_MAX)                  # the tape we already stuck up, for the newcomer
@@ -1127,6 +1136,36 @@ func _flash_rpc(origin: Vector3, look: Vector3) -> void:
 	FlashTool.burst(origin)
 	if hosting:
 		FlashTool.hit(origin, look)
+
+# ---- weak spots: a wall patch anyone breaks open is broken for everyone (the host keeps the list,
+# and hands it to a newcomer) ------------------------------------------------------------------
+func send_weak_spot(key: String) -> void:
+	if key.is_empty() or key.length() > WEAK_KEY_MAX:
+		return
+	weak_broken[key] = true
+	if is_online() and not multiplayer.get_peers().is_empty():
+		_weak_rpc.rpc([key])
+
+@rpc("any_peer", "call_remote", "reliable")
+func _weak_rpc(keys: Array) -> void:
+	if not _is_peer(multiplayer.get_remote_sender_id()) or keys.size() > WEAK_BATCH_MAX:
+		return
+	var fresh := {}
+	for k in keys:
+		if typeof(k) != TYPE_STRING:
+			continue
+		var key: String = k
+		if key.is_empty() or key.length() > WEAK_KEY_MAX:
+			continue
+		weak_broken[key] = true
+		fresh[key] = true
+	if fresh.is_empty():
+		return
+	for node in get_tree().get_nodes_in_group("weak_spots"):
+		if not is_instance_valid(node) or node.is_queued_for_deletion() or not node.has_method("break_open"):
+			continue
+		if fresh.has(str(node.get("key"))) and node.get("broken") != true:
+			node.break_open(false)
 
 # ---- remote survivors ----------------------------------------------------------------------
 func _ensure_remote(id: int) -> Node:

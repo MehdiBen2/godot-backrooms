@@ -24,6 +24,7 @@ var door_pick: OptionButton
 var endless_check: CheckBox          # the .lvl's "endless": the lowest and highest floors repeat for ever (level_data.gd endless())
 var wrap_check: CheckBox             # the .lvl's "wrap": opposite map edges joined, the halls never end (level_data.gd wrap)
 var lights_pick: OptionButton        # the .lvl's "lights" (LIGHTS)
+var weak_spin: SpinBox               # the .lvl's "weak_spot_chance": how many faces of the Weak spots zone's walls break open (0..1)
 var slot_picks := {}
 var slot_previews := {}
 var name_dialog: ConfirmationDialog
@@ -90,6 +91,7 @@ func _open(i: int) -> void:
 	door_pick.select(maxi(0, LEVEL_DOORS.find(str(data.get("doors", "wood")))))
 	endless_check.set_pressed_no_signal(bool(data.get("endless", false)))
 	wrap_check.set_pressed_no_signal(bool(data.get("wrap", false)))
+	weak_spin.value = float(data.get("weak_spot_chance", 0.35))
 	var lm := str(data.get("lights", "panels"))
 	lights_pick.select(0)
 	for j in LIGHTS.size():
@@ -172,7 +174,9 @@ func _serialize_floor(fd: Dictionary) -> Dictionary:
 	for z in ZONES:
 		var list := []
 		for c: Vector2i in fd.zones[z]:
-			if fd.grid[c.y][c.x] not in [WALL, THIN, DOOR]: list.append([c.x, c.y])
+			if z in WALL_ZONES:                                  # wall zones (weak spots) live on full wall blocks only
+				if fd.grid[c.y][c.x] == WALL: list.append([c.x, c.y])
+			elif fd.grid[c.y][c.x] not in [WALL, THIN, DOOR]: list.append([c.x, c.y])
 		list.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[0] < b[0]))
 		zd[z] = list
 	out["zones"] = zd
@@ -413,6 +417,8 @@ func _current_payload() -> Dictionary:
 	else: out.erase("endless")
 	if wrap_check.button_pressed: out["wrap"] = true
 	else: out.erase("wrap")
+	if is_equal_approx(weak_spin.value, 0.35): out.erase("weak_spot_chance")
+	else: out["weak_spot_chance"] = snappedf(weak_spin.value, 0.01)
 	if lights_pick.selected <= 0: out.erase("lights")
 	else: out["lights"] = LIGHTS[lights_pick.selected][0]
 	var mats := {}

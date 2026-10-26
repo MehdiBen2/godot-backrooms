@@ -5,7 +5,8 @@ extends "res://scripts/Entities/model_entity.gd"
 ##   flee     ...and it runs from you, out of sight
 ##   away     it stands where it stopped, out of sight, for a few seconds
 ##   scream   out of nowhere you hear it scream. You have WINDOW seconds from the first note
-##   (hide)   player.hidden: you climbed into a hiding place (props/hide_spot.gd: the metal cabinet, the locker). It cannot
+##   (hide)   player.hidden: you climbed into a hiding place (props/hide_spot.gd: the metal cabinet, the locker, the
+##            cavity behind a weak spot you broke open in a wall, props/weak_spot.gd, whose "door" is the hole). It cannot
 ##            see you in there. If it watched you get in, it comes for the door:
 ##   stalk    it carries its run in and slows to a creep as it nears the door you went through (if it did not see you go
 ##            in: to where it last had you, where it stands and looks about, then roams)

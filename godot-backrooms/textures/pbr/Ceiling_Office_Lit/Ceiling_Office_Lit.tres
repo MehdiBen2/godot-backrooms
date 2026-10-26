@@ -20,6 +20,7 @@ emission_enabled = true
 emission = Color(1, 0.96, 0.9, 1)
 emission_energy_multiplier = 4.0
 emission_texture = ExtResource("4")
+metadata/tile_layout = "edge7"
 metadata/shader_params = {
 "ao_light_affect": 0.3,
 "dead_lens": 1.0,

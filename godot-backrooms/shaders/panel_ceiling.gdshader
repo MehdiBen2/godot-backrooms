@@ -22,7 +22,14 @@ uniform sampler2D orm_tex : hint_default_white, filter_linear_mipmap_anisotropic
 // distance the dead-panel test below failed too, so the switched-off panels lit up as well.
 uniform sampler2D emission_tex : source_color, hint_default_black, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 albedo_tint : source_color = vec3(0.96, 0.9, 0.7);   // the reference ceilings are cream-yellow, not grey
-uniform float tile_size = 0.75;         // metres: Ceiling_Light_Panels has 6 x 6 tiles per 4.5 m cell
+uniform float tile_size = 0.75;         // metres: Ceiling_Light_Panels has 6 x 6 tiles per 4.5 m cell (edge_grid 7: 7 x 7, 0.643 m)
+// The texture's tile layout (a .tres's "metadata/tile_layout", level_fixtures.gd _build_panel_ceiling):
+// 0 = Ceiling_Light_Panels's: 6 x 6 tiles a cell, tile k centred at UV k / 6, panels on tiles (1,1) (5,1) (1,5) (5,5) (3,3);
+// n > 0 ("edge7" is 7) = an edge-grid texture of n x n tiles a cell, odd n: tile k covering UV k / n .. (k + 1) / n, so the grid
+// lines sit on the texture's edges, i.e. on the cell borders where the walls stand. The middle tile is the cell's middle;
+// one-tile panels on it and two tiles out each way diagonally: (3,3) and (1,1) (5,1) (1,5) (5,5) for 7. The panels are
+// 2 tiles from the middle in either layout (1.5 m with 0.75 m tiles), so panel_dist needs only tile_size.
+uniform float edge_grid = 0.0;
 uniform float tile_vary = 0.05;         // how much one tile's shade differs from the next
 uniform float stained = 0.08;           // share of tiles yellowed with age
 uniform float water_stains = 0.55;      // the wide stains across many tiles (0 = none)
@@ -112,15 +119,20 @@ vec2 leak(vec2 w, float aa) {
 // Metres outside the nearest of a cell's panels (< 0 inside it), `p` from the cell's middle (drop_ceiling.gdshader)
 float panel_dist(vec2 p, vec2 half_sz) {
 	vec2 q0 = abs(p) - half_sz;
-	vec2 q1 = abs(p - sign(p) * 1.5) - half_sz;
+	vec2 q1 = abs(p - sign(p) * tile_size * 2.0) - half_sz;           // the diagonal panels: 2 tiles out each way
 	float d0 = length(max(q0, 0.0)) + min(max(q0.x, q0.y), 0.0);
 	float d1 = length(max(q1, 0.0)) + min(max(q1.x, q1.y), 0.0);
 	return min(d0, d1);
 }
 
 // In Ceiling_Light_Panels's layout (6 x 6 tiles a cell, tile k centred at UV k / 6) the panels are tiles (1,1) (5,1) (1,5)
-// (5,5) and (3,3): the middle and the four diagonals (level_fixtures.gd PANEL_OFFSETS)
-bool is_panel_tile(ivec2 k) {
+// (5,5) and (3,3): the middle and the four diagonals (level_fixtures.gd PANEL_OFFSETS). In an edge_grid layout (n x n tiles)
+// they are the middle tile and the ones two tiles out diagonally, at the same offsets (level_fixtures.gd _panel_offsets).
+bool is_panel_tile(ivec2 k, bool edge, int n) {
+	if (edge) {
+		int m = (n - 1) / 2;
+		return (k == ivec2(m)) || ((k.x == m - 2 || k.x == m + 2) && (k.y == m - 2 || k.y == m + 2));
+	}
 	return (k == ivec2(3)) || ((k.x == 1 || k.x == 5) && (k.y == 1 || k.y == 5));
 }
 
@@ -132,8 +144,11 @@ void fragment() {
 	vec2 world = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xz + world_shift.xz;
 	vec2 tile = floor((world + tile_size * 0.5) / tile_size);
 	// this tile in the cell's texture, and where in the tile this point is (-0.5 .. 0.5)
-	vec2 kf = floor(UV * 6.0 + 0.5);
-	vec2 local = UV * 6.0 - kf;
+	bool edge_layout = edge_grid > 0.5;
+	float tiles = edge_layout ? edge_grid : 6.0;
+	int tiles_i = int(tiles + 0.5);
+	vec2 kf = edge_layout ? floor(UV * tiles) : floor(UV * tiles + 0.5);
+	vec2 local = edge_layout ? UV * tiles - kf - 0.5 : UV * tiles - kf;
 	ivec2 k = ivec2(kf);
 	vec2 tuv = UV;
 	vec2 flip = vec2(1.0);
@@ -144,7 +159,7 @@ void fragment() {
 	// lit fixture whatever its glow, 0 on a burnt one and on the cells between). A burnt fixture keeps plain tiles,
 	// as before; a working one keeps its lenses through flicker and power cuts, where its glow drops to nothing
 	// (testing the glow itself swapped every lens for a plain tile once a blackout's afterglow had died away).
-	bool own = is_panel_tile(k) && (glow > 0.5 || (dead_lens > 0.5 && COLOR.a > 0.5));
+	bool own = is_panel_tile(k, edge_layout, tiles_i) && (glow > 0.5 || (dead_lens > 0.5 && COLOR.a > 0.5));
 	// this panel's own state (1 / white on everything but a lens)
 	float pm = 1.0;
 	vec3 pt = vec3(1.0);
@@ -163,10 +178,13 @@ void fragment() {
 	}
 	float pglow = glow * pm;
 	if (!own) {
-		vec2 src = vec2(1.0) + floor(vec2(hash12(tile + 41.7), hash12(tile + 93.1)) * 4.999);
-		if (is_panel_tile(ivec2(src))) src.x = 2.0;
+		vec2 rnd = vec2(hash12(tile + 41.7), hash12(tile + 93.1));
+		// edge_grid layout: any of the tiles but a panel (a panel's columns all share one parity: one column left is never one)
+		vec2 src = edge_layout ? floor(rnd * (tiles - 0.001)) : vec2(1.0) + floor(rnd * 4.999);
+		if (is_panel_tile(ivec2(src), edge_layout, tiles_i)) src.x = edge_layout ? src.x - 1.0 : 2.0;
 		flip = step(vec2(0.5), vec2(hash12(tile + 7.7), hash12(tile + 63.2))) * 2.0 - 1.0;
-		tuv = (src + local * flip) / 6.0;
+		// (an edge_grid tile k is centred at UV (k + 0.5) / n; a centred one at k / 6)
+		tuv = (src + (edge_layout ? 0.5 : 0.0) + local * flip) / tiles;
 	}
 	// sampled with the cell's own UV slopes: the jump from one borrowed tile to the next is not a slope, and
 	// read as one it dropped the grid lines to the tiniest mip (a bright seam along every T-bar)
@@ -213,8 +231,8 @@ void fragment() {
 	// in HDR, before the tonemapper clips anything: a panel glowing at 3.6x white smeared over its whole tile
 	// made the far ceiling glow white. Up close the camera clips each panel to white anyway, so as a panel
 	// shrinks under a few pixels its glow is brought down to 1x: the average then matches what a camera sees.
-	// (UV runs 0..1 across one cell; a panel is about 1/6 of that.)
-	float footprint = max(length(dFdx(UV)), length(dFdy(UV)));
+	// (UV runs 0..1 across one cell; a panel is about 1/6 of that, 1/n in the edge_grid layout: scaled to match.)
+	float footprint = max(length(dFdx(UV)), length(dFdy(UV))) * tiles / 6.0;
 	float far_k = smoothstep(0.025, 0.1, footprint);
 	float peak = max(max(max(COLOR.r, COLOR.g), COLOR.b), 1.0);
 	// offset from the nearest lit cell's centre (they sit every 2 cells each way, at the world origin's parity)

@@ -24,39 +24,86 @@ const LEAVE_SECS := 2.6
 const CUT_SECS := 1.1                   # s of dark between two sets
 const AMBIENT := 0.22                   # the environment's ambient energy with the lights up
 const CAM_FOV := 52.0
+const TUBE_STATES := {"o": "on", "f": "flicker", "d": "dying", "x": "dead"}
 
-## The sets, in the order they come up. cells: the open cells (x, z) with walls round them. tubes: [x, z, state]
-## (on / flicker / dying / dead). figs: one figure each, standing on its `spots` in turn (one step further on every
-## time the set comes round again, then it stays on the last), turned to `face`. cam: the track, [from, to, look],
-## in metres: the camera creeps from `from` to `to` while it aims at `look`.
+## The sets, in the order they come up. map: one string per row (z), one character per cell (x); '#' is solid,
+## '.' open floor, and an open cell with a troffer overhead is 'o' on / 'f' flicker / 'd' dying / 'x' dead. origin:
+## the (column, row) that is cell (0, 0). figs: one figure each, standing on its `spots` (cells) in turn (one step
+## further on every time the set comes round again, then it stays on the last), turned to `face` (metres).
+## cam: the track, [from, to, look], x and z in cells, y in metres: the camera creeps from `from` to `to` while it
+## aims at `look`.
 const SETS := [
-	{   # the hall: one figure down it, coming nearer
-		"cells": [Vector2i(0, 3), Vector2i(0, 2), Vector2i(0, 1), Vector2i(0, 0), Vector2i(0, -1), Vector2i(0, -2),
-			Vector2i(0, -3), Vector2i(0, -4), Vector2i(0, -5), Vector2i(0, -6), Vector2i(1, 0), Vector2i(1, -1)],
-		"tubes": [[0, 2, "on"], [0, 0, "flicker"], [0, -3, "flicker"], [0, -5, "dead"], [1, -1, "flicker"]],
-		"figs": [{"spots": [Vector2i(0, -3), Vector2i(0, -2), Vector2i(0, -1)], "face": Vector3(0, 0, 9)}],
-		"cam": [Vector3(-0.6, 1.6, 9.0), Vector3(-0.6, 1.6, 3.0), Vector3(-1.2, 1.4, -13.5)],
+	{   # the long hall: crossing passages every few cells, tubes failing down its length, one figure coming nearer
+		"map": [
+			"####.####",
+			"####x####",
+			"####.####",
+			"####f####",
+			"####.####",
+			"o.f.o.f.o",
+			"####.####",
+			"####o####",
+			"####.####",
+			"####f####",
+			"####.####",
+			"####o.o.#",
+			"####.#d##",
+			"####x####",
+			"####o####",
+			"##o.o.o##",
+			"####.####",
+			"####o####",
+			"####o####",
+		],
+		"origin": Vector2i(4, 18),
+		"figs": [{"spots": [Vector2i(0, -11), Vector2i(0, -8), Vector2i(0, -5)], "face": Vector3(0, 0, 9)}],
+		"cam": [Vector3(0.0, 1.6, 0.4), Vector3(0.0, 1.6, -3.5), Vector3(0.0, 1.4, -17.0)],
 	},
-	{   # the room: a figure in the back corner that walks up to the camera, a light dying over the door
-		"cells": [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0), Vector2i(0, 0), Vector2i(1, 0),
-			Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)],
-		"tubes": [[-1, 1, "dying"], [1, 1, "flicker"], [0, 0, "on"], [-1, -1, "dead"], [1, -1, "on"]],
-		"figs": [],
-		"cam": [Vector3(0.8, 1.6, 5.6), Vector3(-0.6, 1.6, 5.9), Vector3(0, 1.4, -4.5)],
+	{   # the pillar hall: an open floor of columns, a pool of light under every other tube, a figure far down the aisle
+		"map": [
+			"f.o.....x.o.d",
+			".#.#.#.#.#.#.",
+			"o...o...f...o",
+			".#.#.#.#.#.#.",
+			"..o...o...d..",
+			".#.#.#.#.#.#.",
+			"o...f...o...x",
+			".#.#.#.#.#.#.",
+			"..d...o...o..",
+			".#.#.#.#.#.#.",
+			"o...o...f...o",
+		],
+		"origin": Vector2i(6, 10),
+		"figs": [{"spots": [Vector2i(0, -8), Vector2i(0, -6), Vector2i(0, -4)], "face": Vector3(0, 0, 10)}],
+		"cam": [Vector3(0.0, 1.6, 0.3), Vector3(0.0, 1.6, -3.5), Vector3(0.0, 1.4, -10.0)],
 	},
-	{   # the bays: a long lit hall, the camera tracking along it toward a figure at the far end
-		"cells": [Vector2i(-2, 0), Vector2i(-1, 0), Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(1, 1),
-			Vector2i(-1, -1)],
-		"tubes": [[-2, 0, "flicker"], [0, 0, "on"], [2, 0, "dying"], [1, 1, "dead"], [-1, -1, "dead"]],
+	{   # the dog-leg: a narrow passage that turns twice, the camera tracking round toward the first bend
+		"map": [
+			"###.#########",
+			"###f#########",
+			"###.#########",
+			"###o#########",
+			"###.#########",
+			"###o.f.o.d.##",
+			"##########.##",
+			"##########o##",
+			"##########.##",
+			"##########f##",
+			"##o.f.o.x.o##",
+		],
+		"origin": Vector2i(2, 10),
 		"figs": [],
-		"cam": [Vector3(-9.2, 1.6, -0.5), Vector3(-3.5, 1.6, -0.5), Vector3(9.0, 1.4, 0.0)],
+		"cam": [Vector3(-0.3, 1.6, 0.3), Vector3(3.0, 1.6, 0.0), Vector3(8.0, 1.4, 0.0)],
 	},
-	{   # the crowd: three figures standing in an open room, the camera panning across them
-		"cells": [Vector2i(-2, -1), Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-2, 0), Vector2i(-1, 0),
-			Vector2i(0, 0), Vector2i(1, 0), Vector2i(-2, 1), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)],
-		"tubes": [[-2, 1, "on"], [0, 1, "flicker"], [1, -1, "dying"], [-1, -1, "dead"], [1, 1, "on"], [-2, -1, "flicker"]],
-		"figs": [],
-		"cam": [Vector3(-3.0, 1.6, 6.0), Vector3(1.0, 1.6, 6.0), Vector3(-0.5, 1.3, 0.0)],
+	{   # the bays: a wide hall broken by columns, the camera tracking along it toward a figure at the far end
+		"map": [
+			"..o...f...o...x",
+			"....#...#...#..",
+			".o...o...d...o.",
+		],
+		"origin": Vector2i(0, 1),
+		"figs": [{"spots": [Vector2i(13, 0), Vector2i(12, 0), Vector2i(11, 0)], "face": Vector3(-4.5, 0, 4.5)}],
+		"cam": [Vector3(-1.0, 1.6, 1.0), Vector3(5.0, 1.6, 1.0), Vector3(14.0, 1.4, 0.6)],
 	},
 ]
 
@@ -249,6 +296,10 @@ func _build_env() -> void:
 	we.environment = env
 	add_child(we)
 
+## A camera point as set in SETS (x, z in cells, y in metres), in metres
+func _cam_pt(p: Vector3) -> Vector3:
+	return Vector3(p.x * CELL, p.y, p.z * CELL)
+
 func _build_shot(d: Dictionary, i: int) -> Shot:
 	var s := Shot.new()
 	s.root = Node3D.new()
@@ -256,11 +307,24 @@ func _build_shot(d: Dictionary, i: int) -> Shot:
 	s.root.visible = false
 	add_child(s.root)
 	var off := s.root.position
-	s.cam_from = d.cam[0] + off
-	s.cam_to = d.cam[1] + off
-	s.look = d.cam[2] + off
-	_build_hall(s.root, d.cells)
-	for t in d.tubes:
+	var cells: Array = []
+	var tubes: Array = []
+	var origin: Vector2i = d.origin
+	for row in d.map.size():
+		var line: String = d.map[row]
+		for col in line.length():
+			var ch := line[col]
+			if ch == "#":
+				continue
+			var c := Vector2i(col, row) - origin
+			cells.append(c)
+			if TUBE_STATES.has(ch):
+				tubes.append([c.x, c.y, TUBE_STATES[ch]])
+	s.cam_from = _cam_pt(d.cam[0]) + off
+	s.cam_to = _cam_pt(d.cam[1]) + off
+	s.look = _cam_pt(d.cam[2]) + off
+	_build_hall(s.root, cells)
+	for t in tubes:
 		s.tubes.append(_tube(s.root, Vector3(t[0] * CELL, WALL_H, t[1] * CELL), t[2]))
 	for f in d.figs:
 		var holder := _figure(s.root)

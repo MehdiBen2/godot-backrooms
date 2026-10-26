@@ -959,6 +959,9 @@ func _begin_from_lobby() -> void:
 	lobby.play_out()
 	var tw := create_tween()
 	tw.tween_property(push_black, "modulate:a", 1.0, PUSH_TIME * 0.7).set_delay(PUSH_TIME * 0.2).set_trans(Tween.TRANS_SINE)
+	# the run's loader threads start mid-fade, the main-thread part of the request (level JSON, file checks) under
+	# the dark: the briefing then opens on a run already loading, with no hitch of its own
+	tw.parallel().tween_callback(_preload_game).set_delay(PUSH_TIME * 0.55)
 	tw.tween_callback(func() -> void:
 		lobby.hide_now()
 		_start_briefing())

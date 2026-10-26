@@ -17,13 +17,15 @@ const ARCH := "A"
 const DOOR := "D"
 const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color("c4281c"), "tiles": Color("f2f2f2"), "bright": Color("fff04a"),
 	"dark": Color("7a2cff"), "dim": Color("8a6a3a"), "flicker": Color("ff3f9a"), "grime": Color("8a6a30"), "classic": Color("ffe86a"),
-	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"),
+	"liminal": Color("9fe0c8"), "mannequin": Color("e8e0d0"), "weak_spot": Color("b8682e"),
 	"safe": Color("39d98a"), "drain": Color("d1345b"), "loot": Color("ff9f1c"), "open_ceiling": Color("a8dcff"),
 	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0"), "noclip_death": Color("e82548"),
 	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e"), "hotel": Color("b8443a"),
 	"clean": Color("e9f7ff"), "dirty": Color("5e4a2c"), "moist": Color("3f8f86"),
 	"area_bacteria": Color("ff5a4d"), "area_mimic": Color("ffa06b"), "area_mannequin": Color("e8e0d0"), "area_grabber": Color("b35cff"), "area_burnt": Color("ff7a1a"), "area_tallone": Color("4dd0ff")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
+## Zones painted ON wall cells (full wall blocks) instead of open floor: the game reads these from the walls
+const WALL_ZONES := ["weak_spot"]
 const MARKERS := {"spawn": Color("2fd968"), "exit": Color("2fd9ee"), "fake_exit": Color("8fb8bd"), "tv": Color("5c8dff"), "drop_hole": Color("ff7722")}
 # Entity marks are objects (object_types.json "entity"): any number per floor, each with its own kind and behavior
 const BASE_COLORS := {WALL: Color("3f3a30"), FLOOR: Color("cdb86a"), PIT: Color("050505"),
@@ -1186,7 +1188,7 @@ func _draw_zones() -> void:
 		var cells: Dictionary = zones[zn]
 		if cells.is_empty(): continue
 		var col: Color = ZONES[zn]
-		var col_wash := Color(col, 0.16)
+		var col_wash := Color(col, 0.4 if zn in WALL_ZONES else 0.16)      # a wall zone sits on the dark wall tops
 		for c: Vector2i in cells:
 			if c.x < min_x or c.x > max_x or c.y < min_y or c.y > max_y: continue
 			canvas.draw_rect(_cell_rect(c), col_wash)
@@ -1846,7 +1848,7 @@ func _paste(in_place := false) -> void:
 			if not zones.has(z): continue
 			for d: Vector2i in clip.zones[z]:
 				var c := at + d
-				if c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1 and grid[c.y][c.x] != WALL: zones[z][c] = true
+				if c.x >= 1 and c.y >= 1 and c.x < grid_size - 1 and c.y < grid_size - 1 and (grid[c.y][c.x] == WALL) == (z in WALL_ZONES): zones[z][c] = true
 		for slot in clip.paint:
 			if not paint.has(slot): continue
 			for d: Vector2i in clip.paint[slot]:
@@ -1951,7 +1953,7 @@ func _flood_cells(start: Vector2i) -> Array:
 		if room_walls: return "open" if not wall else "stop"
 		match kind:
 			"base": return grid[c.y][c.x]
-			"zone": return "stop" if wall else str(zones[what].has(c))
+			"zone": return "stop" if wall != (what in WALL_ZONES) else str(zones[what].has(c))      # wall zones: walls only
 			"paint":
 				if (what == "wall") != wall: return "stop"
 				return _surface_key(what, c)
@@ -2009,8 +2011,9 @@ func _apply_cells(cells: Array) -> void:
 		elif p.x < 1 or p.y < 1 or p.x >= grid_size - 1 or p.y >= grid_size - 1: continue
 		if kind == "base":
 			grid[p.y][p.x] = (FLOOR if what == WALL else WALL) if erasing else what
-			if grid[p.y][p.x] == WALL:      # solid cells: the game drops any zone tag on load
-				for z in zones: zones[z].erase(p)
+			var solid: bool = grid[p.y][p.x] == WALL
+			for z in zones:      # solid cells: the game drops any zone tag on load (except WALL_ZONES, which only walls keep)
+				if (z in WALL_ZONES) != solid: zones[z].erase(p)
 		elif kind == "paint":
 			if what != "wall" and grid[p.y][p.x] == WALL: continue
 			if erasing: paint[what].erase(p)
@@ -2019,7 +2022,7 @@ func _apply_cells(cells: Array) -> void:
 				if scatter < 100 and hv % 100 >= scatter: continue
 				var mix: Array = [paint_mat] + paint_mix
 				paint[what][p] = mix[(hv / 100) % mix.size()]
-		elif kind == "zone" and grid[p.y][p.x] != WALL:
+		elif kind == "zone" and (grid[p.y][p.x] == WALL) == (what in WALL_ZONES):      # wall zones on walls, the rest on open cells
 			if erasing: zones[what].erase(p)
 			else: zones[what][p] = true
 	_mark_dirty()
@@ -2043,8 +2046,8 @@ func _apply_rect(a: Vector2i, b: Vector2i) -> void:
 		if p.x < 1 or p.y < 1 or p.x >= grid_size - 1 or p.y >= grid_size - 1: continue
 		var ring := p.x == lo.x or p.y == lo.y or p.x == hi.x or p.y == hi.y
 		grid[p.y][p.x] = WALL if ring else FLOOR
-		if ring:
-			for z in zones: zones[z].erase(p)
+		for z in zones:      # the ring keeps only wall zones, the open room inside loses them
+			if (z in WALL_ZONES) != ring: zones[z].erase(p)
 	_mark_dirty()
 	_status("Room %d x %d with walls round it (auto walls). Carve doorways with the Floor brush" % [hi.x - lo.x - 1, hi.y - lo.y - 1])
 

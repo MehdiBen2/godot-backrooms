@@ -469,7 +469,12 @@ func _rebuild() -> void:
 	# zones: a translucent tint on the floor, a little above it
 	for zn in ed.ZONES:
 		var xfs: Array = []
+		var on_walls: bool = zn in ed.WALL_ZONES       # a wall zone (weak spots): the tint lies on the block's top instead
 		for c: Vector2i in ed.zones[zn]:
+			if on_walls:
+				if ed.grid[c.y][c.x] != ed.WALL: continue    # a stale tag on a cell opened since (the game ignores it too)
+				xfs.append(_box_xf(Vector3(c.x, _wall_height(c) + 0.012, c.y), Vector3(0.96, 1, 0.96)))
+				continue
 			xfs.append(_box_xf(Vector3(c.x, 0.012 + 0.002 * ed.ZONES.keys().find(zn), c.y), Vector3(0.96, 1, 0.96)))
 		var col: Color = ed.ZONES[zn]
 		col.a = 0.55

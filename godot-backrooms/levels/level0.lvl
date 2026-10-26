@@ -133,6 +133,12 @@
       "tv": null,
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -161,7 +167,8 @@
         "open_ceiling": [],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-2": {
@@ -280,6 +287,12 @@
       "tv": null,
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -308,7 +321,8 @@
         "open_ceiling": [],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-3": {
@@ -427,6 +441,12 @@
       "tv": null,
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -455,7 +475,8 @@
         "open_ceiling": [],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-4": {
@@ -574,6 +595,12 @@
       "tv": null,
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -602,7 +629,8 @@
         "open_ceiling": [],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-5": {
@@ -718,6 +746,12 @@
       "tv": null,
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -746,7 +780,8 @@
         "open_ceiling": [],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-6": {
@@ -4984,6 +5019,12 @@
       },
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -5689,7 +5730,8 @@
             37
           ]
         ],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     },
     "-7": {
@@ -9208,6 +9250,12 @@
       },
       "zones": {
         "abyss": [],
+        "area_bacteria": [],
+        "area_burnt": [],
+        "area_grabber": [],
+        "area_mannequin": [],
+        "area_mimic": [],
+        "area_tallone": [],
         "bright": [],
         "classic": [],
         "clean": [],
@@ -9967,7 +10015,8 @@
         ],
         "safe": [],
         "tall": [],
-        "tiles": []
+        "tiles": [],
+        "weak_spot": []
       }
     }
   },
@@ -14235,6 +14284,12 @@
         57
       ]
     ],
+    "area_bacteria": [],
+    "area_burnt": [],
+    "area_grabber": [],
+    "area_mannequin": [],
+    "area_mimic": [],
+    "area_tallone": [],
     "bright": [],
     "classic": [
       [
@@ -28494,6 +28549,24 @@
       ]
     ],
     "tall": [],
-    "tiles": []
+    "tiles": [],
+    "weak_spot": [
+      [
+        5,
+        29
+      ],
+      [
+        6,
+        29
+      ],
+      [
+        5,
+        30
+      ],
+      [
+        6,
+        30
+      ]
+    ]
   }
 }

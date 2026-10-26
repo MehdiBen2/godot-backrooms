@@ -19,6 +19,8 @@ const PitFall := preload("res://scripts/World/level/pit_fall.gd")
 const NoclipSlip := preload("res://scripts/World/level/noclip_slip.gd")
 const NoclipDeath := preload("res://scripts/World/level/noclip_death.gd")
 const EndlessShaft := preload("res://scripts/World/level/endless_shaft.gd")
+const WeakSpots := preload("res://scripts/World/level/weak_spots.gd")
+const WeakSpotProp := preload("res://scripts/World/props/weak_spot.gd")
 const ARCH_SPRING := 2.4       # height where the straight sides turn into the semicircular crown
 const ARCH_SEGS := 16
 const SQUEEZE_OPEN_H := 2.3   # height of the slit through a squeeze gap's wall, floor to lintel
@@ -42,6 +44,10 @@ var door_frame_mat: StandardMaterial3D
 var panel_ceiling: StandardMaterial3D
 var stairwells: Array = []     # this floor's stairwells (props/stairs.gd), for the light they give where they stand
 var pit_fall: Node3D           # this floor's bottomless pits and the fall down them (pit_fall.gd), if it has any
+## This floor's weak spots (weak_spots.gd pick: holes in the walls behind a skin of wall, props/weak_spot.gd),
+## and the same filed by face: Vector4i(wall cell x, y, out of the wall x, y) -> the spot
+var weak_spots: Array = []
+var weak_faces := {}
 
 func _make_materials() -> void:
 	_floor_map_tex = null                # (this floor's plan: built with its first carpet)
@@ -817,26 +823,27 @@ func _build_occluder(groups: Dictionary) -> void:
 			var t2 := Vector3(x + h, wall_height, z + h)
 			var t3 := Vector3(x - h, wall_height, z + h)
 
+			# (a weak spot's face is left out: the hole in it is seen into)
 			# North face (facing z - 1)
-			if not _block_at(c + Vector2i(0, -1)):
+			if not _block_at(c + Vector2i(0, -1)) and not weak_faces.has(Vector4i(c.x, c.y, 0, -1)):
 				var b := verts.size()
 				verts.append_array([p0, t0, t1, p1])
 				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
 
 			# South face (facing z + 1)
-			if not _block_at(c + Vector2i(0, 1)):
+			if not _block_at(c + Vector2i(0, 1)) and not weak_faces.has(Vector4i(c.x, c.y, 0, 1)):
 				var b := verts.size()
 				verts.append_array([p3, p2, t2, t3])
 				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
 
 			# East face (facing x + 1)
-			if not _block_at(c + Vector2i(1, 0)):
+			if not _block_at(c + Vector2i(1, 0)) and not weak_faces.has(Vector4i(c.x, c.y, 1, 0)):
 				var b := verts.size()
 				verts.append_array([p1, t1, t2, p2])
 				idx.append_array([b, b + 1, b + 3, b + 3, b + 1, b + 2])
 
 			# West face (facing x - 1)
-			if not _block_at(c + Vector2i(-1, 0)):
+			if not _block_at(c + Vector2i(-1, 0)) and not weak_faces.has(Vector4i(c.x, c.y, -1, 0)):
 				var b := verts.size()
 				verts.append_array([p0, p3, t3, t0])
 				idx.append_array([b, b + 1, b + 3, b + 1, b + 2, b + 3])
@@ -896,6 +903,12 @@ func _build_hotel_insets() -> void:
 
 func _build_walls() -> void:
 	_build_hotel_insets()
+	weak_spots = WeakSpots.pick(self)
+	weak_faces.clear()
+	for spot: Dictionary in weak_spots:
+		var wc: Vector2i = spot.cell
+		var wn: Vector2i = spot.n
+		weak_faces[Vector4i(wc.x, wc.y, wn.x, wn.y)] = spot
 	var groups := {WALL_H: [], UNDER_SLAB_H: [], TALL_H: [], GRAND_H: []}
 	var n_done := 0
 	for c: Vector2i in walls.keys():
@@ -912,7 +925,19 @@ func _build_walls() -> void:
 			elif under_slab.has(c + n): reach = maxf(reach, UNDER_SLAB_H)
 		if exposed:
 			groups[reach].append(c)
-	if not shell: await _build_wall_collision(groups)
+	if not shell:
+		# a weak spot's block gets collision of its own (_build_weak_collision): hollow, with a plug in the hole
+		var holed := {}
+		for spot: Dictionary in weak_spots:
+			for h: float in groups.keys():
+				if (groups[h] as Array).has(spot.cell): holed[spot.cell] = h
+		var solid := groups
+		if not holed.is_empty():
+			solid = {}
+			for h: float in groups.keys():
+				solid[h] = (groups[h] as Array).filter(func(c: Vector2i) -> bool: return not holed.has(c))
+		await _build_wall_collision(solid, holed)
+		_build_weak_collision(holed)
 	# endless halls: the border's blocks only stop you (the copy of the level beyond the seam draws them)
 	if edge_wrap:
 		for height in groups.keys():
@@ -928,6 +953,7 @@ func _build_walls() -> void:
 				else: keep.append(c)
 			groups[height] = keep
 	var mats := {WALL_H: wall_sh, UNDER_SLAB_H: tall_wall_sh, TALL_H: tall_wall_sh, GRAND_H: grand_wall_sh}
+	if not weak_spots.is_empty(): _build_weak_blocks(groups, mats)
 	for key in groups.keys():
 		var list: Array = groups[key]
 		if list.is_empty(): continue
@@ -963,6 +989,94 @@ func _build_walls() -> void:
 				# long corridor dithered out. Unseen chunks are already dropped by frustum + occlusion culling.
 				add_child(mmi)
 
+## The collision of each weak spot's block (`holed`: cell -> wall height): the block minus the cavity behind the hole
+## (weak_spots.gd CAV_*), as boxes in the spot's frame (X out of the wall, Z along the face; the block is x -4.5..0,
+## z -2.25-u..2.25-u). Beside the cavity, over it, behind it, the face beside and over the hole, a floor in it, and a
+## plug in the hole (spot["plug"], disabled by props/weak_spot.gd when it breaks).
+func _build_weak_collision(holed: Dictionary) -> void:
+	for spot: Dictionary in weak_spots:
+		if not holed.has(spot.cell): continue
+		var h: float = holed[spot.cell]
+		var u: float = spot.u
+		var body := StaticBody3D.new()
+		body.name = "WeakSpotBody"
+		add_child(body)
+		body.global_transform = spot.xf
+		var zl := -CELL * 0.5 - u
+		var zr := CELL * 0.5 - u
+		var hz := WeakSpots.CAV_HZ
+		var hw := WeakSpots.HOLE_W * 0.5
+		var x0 := WeakSpots.CAV_X0
+		var x1 := WeakSpots.CAV_X1
+		var ch := WeakSpots.CAV_H
+		_weak_box(body, -CELL, 0.0, 0.0, h, zl, -hz)                 # beside the cavity
+		_weak_box(body, -CELL, 0.0, 0.0, h, hz, zr)
+		_weak_box(body, -CELL, 0.0, ch, h, -hz, hz)                  # over it
+		_weak_box(body, -CELL, x0, 0.0, ch, -hz, hz)                 # behind it
+		_weak_box(body, x1, 0.0, WeakSpots.HOLE_H, ch, -hz, hz)      # the face over the hole
+		_weak_box(body, x1, 0.0, 0.0, ch, -hz, -hw)                  # ...and beside it
+		_weak_box(body, x1, 0.0, 0.0, ch, hw, hz)
+		_weak_box(body, x0, x1, -0.4, 0.0, -hz, hz)                  # the cavity's floor
+		spot["plug"] = _weak_box(body, x1 - 0.03, 0.0, 0.0, WeakSpots.HOLE_H, -hw, hw)
+
+func _weak_box(body: StaticBody3D, x0: float, x1: float, y0: float, y1: float, z0: float, z1: float) -> CollisionShape3D:
+	if x1 - x0 <= 0.001 or y1 - y0 <= 0.001 or z1 - z0 <= 0.001: return null
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(x1 - x0, y1 - y0, z1 - z0)
+	cs.shape = bs
+	cs.position = Vector3(x0 + x1, y0 + y1, z0 + z1) * 0.5
+	body.add_child(cs)
+	return cs
+
+## The blocks with a weak spot's hole in them: taken out of their group (`groups`, as _build_walls has split it)
+## and built one by one, each a plain MeshInstance3D of the level's own (the endless halls' copies take it, as they
+## do the MultiMeshes), with a skin of the same wall over each hole, so it looks whole until it is broken. The
+## skin is handed to the spot's prop (props/weak_spot.gd), which takes it away; the copies keep theirs.
+func _build_weak_blocks(groups: Dictionary, mats: Dictionary) -> void:
+	var holes := {}                       # wall cell -> its spots
+	for spot: Dictionary in weak_spots:
+		holes.get_or_add(spot.cell, []).append(spot)
+	for c: Vector2i in holes:
+		var key = null
+		for k in groups.keys():
+			if (groups[k] as Array).has(c):
+				key = k
+				break
+		if key == null: continue          # (not drawn here: never so for a spot, weak_spots.gd picks drawn blocks)
+		(groups[key] as Array).erase(c)
+		var height: float = float(str(key).get_slice("|", 0))
+		var mat: Material = _painted_mat(str(key).get_slice("|", 1)) if key is String else mats[key]
+		var cut: Array = []
+		for spot: Dictionary in holes[c]:
+			var sn: Vector2i = spot.n
+			var u: float = spot.u
+			cut.append({"n": Vector3(sn.x, 0.0, sn.y), "from": u - WeakSpots.HOLE_W * 0.5, "to": u + WeakSpots.HOLE_W * 0.5,
+				"top": WeakSpots.HOLE_H})
+		var mi := MeshInstance3D.new()
+		mi.mesh = _wall_block(height, _outer_corners(c), cut)
+		mi.material_override = mat
+		mi.position = Vector3(c.x * CELL, height / 2.0, c.y * CELL)
+		add_child(mi)
+		for spot: Dictionary in holes[c]:
+			var xf: Transform3D = spot.xf
+			var out := xf.basis.x
+			# the skin: the hole and a centimetre round it (not below: it stands on the floor), a hair proud of the
+			# face so it never fights the block's own wall round the hole. A QuadMesh faces its +Z: out of the wall.
+			var skin := MeshInstance3D.new()
+			var q := QuadMesh.new()
+			q.size = Vector2(WeakSpots.HOLE_W + 0.02, WeakSpots.HOLE_H + 0.01)
+			skin.mesh = q
+			skin.material_override = mat
+			skin.transform = Transform3D(Basis(-xf.basis.z, Vector3.UP, out),
+				xf.origin + out * 0.002 + Vector3.UP * (WeakSpots.HOLE_H + 0.01) * 0.5)
+			add_child(skin)
+			if not shell:
+				var ws: Node3D = WeakSpotProp.new()
+				add_child(ws)
+				ws.global_transform = xf
+				ws.setup(spot, skin)
+
 ## Real outside corners are never knife sharp: the drywall's corner bead rounds them, and the rounded edge
 ## catches the light in a soft line down the corner. The four vertical edges of wall block `c` that are outside
 ## corners (both sides and the cell across the corner open), as bits in _wall_block's order: +x+z, -x+z,
@@ -990,12 +1104,15 @@ var _squeeze_cells := {}
 
 ## A wall block CELL square and `height` tall (centred, like the BoxMesh it replaces) with the vertical edges in
 ## `round_mask` rounded. No bottom (it stands on the floor) and no UVs (the wall materials are world triplanar).
+## `holes`: weak spots' holes through its sides (_build_weak_blocks), each {n: the face, out of the block, from, to:
+## m along it (along n x up, from the face's middle), top: m up from the block's foot}. A block with holes is its
+## own mesh, never shared.
 var _blocks := {}
-func _wall_block(height: float, round_mask: int) -> Mesh:
+func _wall_block(height: float, round_mask: int, holes := []) -> Mesh:
 	var key := "%s|%d" % [height, round_mask]
-	if _blocks.has(key): return _blocks[key]
+	if holes.is_empty() and _blocks.has(key): return _blocks[key]
 	var mesh: Mesh
-	if round_mask == 0:
+	if round_mask == 0 and holes.is_empty():
 		var box := BoxMesh.new()
 		box.size = Vector3(CELL, height, CELL)
 		mesh = box
@@ -1030,17 +1147,46 @@ func _wall_block(height: float, round_mask: int) -> Mesh:
 			var na := Vector3(a[2].x, 0.0, a[2].y)
 			var nb := Vector3(b[1].x, 0.0, b[1].y)
 			if pa.distance_to(pb) > 0.0001:
-				_quad(st, [pa + Vector3(0, lo, 0), pb + Vector3(0, lo, 0), pb + Vector3(0, hi, 0), pa + Vector3(0, hi, 0)],
-					[na, nb, nb, na], (na + nb).normalized())
+				# the holes in this side (a flat one, facing the way theirs do): as fractions pa .. pb, in order
+				var cuts: Array = []
+				for hole: Dictionary in holes:
+					var hn: Vector3 = hole.n
+					if not (na.is_equal_approx(hn) and nb.is_equal_approx(hn)): continue
+					var along := hn.cross(Vector3.UP)
+					var sa := pa.dot(along)
+					var sb := pb.dot(along)
+					var f0 := clampf(inverse_lerp(sa, sb, float(hole.from)), 0.0, 1.0)
+					var f1 := clampf(inverse_lerp(sa, sb, float(hole.to)), 0.0, 1.0)
+					if absf(f1 - f0) > 0.0001: cuts.append([minf(f0, f1), maxf(f0, f1), lo + float(hole.top)])
+				cuts.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0])
+				# full height up to each hole, the lintel over it, and full height on past the last
+				var f := 0.0
+				for cut: Array in cuts:
+					if cut[0] > f:
+						var qa := pa.lerp(pb, f)
+						var qb := pa.lerp(pb, cut[0])
+						_quad(st, [qa + Vector3(0, lo, 0), qb + Vector3(0, lo, 0), qb + Vector3(0, hi, 0), qa + Vector3(0, hi, 0)],
+							[na, nb, nb, na], (na + nb).normalized())
+					var la := pa.lerp(pb, maxf(f, cut[0]))
+					var lb := pa.lerp(pb, cut[1])
+					var y0: float = minf(cut[2], hi)
+					if y0 < hi and cut[1] > f:
+						_quad(st, [la + Vector3(0, y0, 0), lb + Vector3(0, y0, 0), lb + Vector3(0, hi, 0), la + Vector3(0, hi, 0)],
+							[na, nb, nb, na], (na + nb).normalized())
+					f = maxf(f, cut[1])
+				if f < 1.0:
+					var qa := pa.lerp(pb, f)
+					_quad(st, [qa + Vector3(0, lo, 0), pb + Vector3(0, lo, 0), pb + Vector3(0, hi, 0), qa + Vector3(0, hi, 0)],
+						[na, nb, nb, na], (na + nb).normalized())
 				_quad(st, [top, pa + Vector3(0, hi, 0), pb + Vector3(0, hi, 0), top], [Vector3.UP, Vector3.UP, Vector3.UP, Vector3.UP], Vector3.UP)
 		mesh = st.commit()
-	_blocks[key] = mesh
+	if holes.is_empty(): _blocks[key] = mesh
 	return mesh
 
 ## Wall collision: the exposed blocks of each height merged into large boxes per chunk (see _merge_rects)
 ## instead of one box per block. Buried blocks (walled in on every side, never drawn) are filler: they
 ## let a thick wall become one box instead of a ring of them.
-func _build_wall_collision(groups: Dictionary) -> void:
+func _build_wall_collision(groups: Dictionary, holed := {}) -> void:
 	var buried := {}
 	var n_done := 0
 	for c: Vector2i in walls.keys():
@@ -1049,6 +1195,7 @@ func _build_wall_collision(groups: Dictionary) -> void:
 		if _block_at(c): buried[c] = true
 	for height in groups.keys():
 		for c in groups[height]: buried.erase(c)
+	for c: Vector2i in holed: buried.erase(c)     # (hollow: a rectangle must not fill it in)
 	var body := StaticBody3D.new()
 	add_child(body)
 	for height: float in groups.keys():

@@ -56,6 +56,18 @@ func _wall_faces() -> Array:
 					var d0 := (xf * Vector3(-CELL * 0.5, 0.0, 1.3) - mid).dot(along)
 					var d1 := (xf * Vector3(-CELL * 0.5, 0.0, 3.5) - mid).dot(along)
 					face["door"] = [minf(d0, d1), maxf(d0, d1)]
+				var weak = weak_faces.get(Vector4i(c.x + n.x, c.y + n.y, -n.x, -n.y))
+				if weak != null:
+					# a weak spot's hole (weak_spots.gd: its frame's +Z runs along the face, the other way to t):
+					# its edges and a hair past, so nothing is fitted over it and the skirting stops short
+					var wxf: Transform3D = weak.xf
+					var mid := Vector3((c.x + n.x * 0.5) * CELL, 0.0, (c.y + n.y * 0.5) * CELL)
+					var along := Vector3(t.x, 0.0, t.y)
+					var w := WeakSpots.HOLE_W * 0.5 + 0.1
+					var d0 := (wxf * Vector3(0.0, 0.0, -w) - mid).dot(along)
+					var d1 := (wxf * Vector3(0.0, 0.0, w) - mid).dot(along)
+					face["door"] = [minf(d0, d1), maxf(d0, d1)]
+					face["weak"] = weak
 				out.append(face)
 	return out
 
@@ -189,6 +201,7 @@ func _build_skirting() -> void:
 			var hi: float = f.door[1] + SKIRT_STOP
 			if lo > -CELL * 0.5 + 0.05: _skirt_run(_chunk_st(sts, mid), [a, mid + along * lo], [out - along * sa, out], [out, out], [out, out], false)
 			if hi < CELL * 0.5 - 0.05: _skirt_run(_chunk_st(sts, mid), [mid + along * hi, b], [out, out + along * sb], [out, out], [out, out], false)
+			if f.has("weak"): _weak_skirt(f.weak, mid + along * lo, mid + along * hi, out)
 			continue
 		_skirt_run(_chunk_st(sts, mid), [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
 	# placed walls, pillars and columns: round the outline of each
@@ -218,6 +231,20 @@ func _build_skirting() -> void:
 	_commit_chunks(sts, func(mi: MeshInstance3D) -> void:
 		mi.material_override = mat
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)      # (a centimetre proud of the wall)
+
+## The length of skirting across an unbroken weak spot (weak_spot.gd hides it when the wall gives): its own mesh,
+## square at both ends, butting up to the runs either side of it
+func _weak_skirt(spot: Dictionary, a: Vector3, b: Vector3, out: Vector3) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_skirt_run(st, [a, b], [out, out], [out, out], [out, out], false)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _skirt_material()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.visible = not bool(spot.get("broken", false))    # (broken before the trim was built: a co-op catch-up)
+	add_child(mi)
+	spot["skirt"] = mi
 
 ## One strip of skirting along `pts` (world, on the floor at the wall's face). `miter[i]`: where a vertex at
 ## depth d sits, as pts[i] + miter[i] * d. `face_in[i]` / `face_out[i]`: the wall's outward normal at pts[i] for

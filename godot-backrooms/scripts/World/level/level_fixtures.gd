@@ -36,6 +36,21 @@ const PANEL_FLICKER_CHANCE := 0.05
 const PANEL_DYING_CHANCE := 0.12
 const PANEL_AGE := 0.45             # how far an old panel's output can fall (a troffer tube: 0.15)
 const PANEL_OFFSETS := [Vector2(0, 0), Vector2(-1.5, -1.5), Vector2(1.5, -1.5), Vector2(-1.5, 1.5), Vector2(1.5, 1.5)]
+
+## The panel spots of the active ceiling, from the cell's middle (the same order as PANEL_OFFSETS: _cut_panels' bits).
+## An edge-grid ceiling ("metadata/tile_layout" = "edge7", panel_ceiling.gdshader) has its panels two tiles out from the
+## middle tile, CELL * 2 / 7 = 1.2857 m; every other ceiling keeps PANEL_OFFSETS.
+func _panel_offsets() -> Array:
+	var n := _edge_tiles()
+	if n == 0: return PANEL_OFFSETS
+	var d := CELL * 2.0 / float(n)
+	return [Vector2(0, 0), Vector2(-d, -d), Vector2(d, -d), Vector2(-d, d), Vector2(d, d)]
+
+## Tiles a cell side of an edge-grid panel ceiling (tile_layout "edge7" = 7), 0 for any other ceiling
+func _edge_tiles() -> int:
+	if panel_ceiling == null: return 0
+	var layout := str(panel_ceiling.get_meta("tile_layout", ""))
+	return int(layout.substr(4)) if layout.begins_with("edge") and layout.substr(4).is_valid_int() else 0
 # The light a fixture throws. A troffer or a panel shines down through its diffuser, not all round: the pool's
 # real lights are spots (level_light_pool.gd) whose cone falls off close to a diffuser's cosine (full straight
 # down, about half at 60 degrees, nothing past 80). So the top of a wall beside a lamp sits on its dark side and
@@ -364,7 +379,7 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 			var c := Vector2i(x, z)
 			if not _wants_light(c): continue
 			var centre := Vector2(c) * CELL
-			for o: Vector2 in PANEL_OFFSETS:
+			for o: Vector2 in _panel_offsets():
 				var spot: Vector2 = centre + o
 				var gap := wall_gap(spot)
 				if gap < SPOT_CLEAR or _lit_near(lights, spot, GAP_REACH_WALLED if gap < GAP_NEAR_WALL else GAP_REACH): continue
@@ -427,14 +442,14 @@ func _fill_dark_gaps(real: Callable, make: Callable) -> void:
 ## The panel spots of fixture f's cell (metres, x / z): its centre and its four diagonal panels
 func _spots(f: Dictionary) -> Array:
 	var c := Vector2(roundf(f.pos.x / CELL), roundf(f.pos.z / CELL)) * CELL
-	return PANEL_OFFSETS.map(func(o: Vector2) -> Vector2: return c + o)
+	return _panel_offsets().map(func(o: Vector2) -> Vector2: return c + o)
 
 ## Where cell c's light goes to light floor spot `spot`: the clear panel spot of the cell nearest it that can see
 ## it, else the spot itself
 func _light_spot(c: Vector2i, spot: Vector2) -> Vector2:
 	var best := spot
 	var bd := INF
-	for o: Vector2 in PANEL_OFFSETS:
+	for o: Vector2 in _panel_offsets():
 		var q: Vector2 = Vector2(c) * CELL + o
 		if wall_gap(q) < LIGHT_CLEAR or sight_blocked(q / CELL, spot / CELL): continue
 		if q.distance_to(spot) < bd:
@@ -591,6 +606,12 @@ func _build_panel_ceiling() -> void:
 		# the material's own look (dead lenses, tube bands, ...: see panel_ceiling.gdshader)
 		var params: Dictionary = panel_ceiling.get_meta("shader_params", {})
 		for p in params: mat.set_shader_parameter(p, params[p])
+		# the texture's tile layout ("metadata/tile_layout"): "edge7" = 7 x 7 tiles of CELL / 7 = 0.643 m, grid lines on the
+		# cell borders (Ceiling_Office_Lit); anything else = Ceiling_Light_Panels's 6 x 6 tiles of 0.75 m, centred on k / 6
+		var edge_n := _edge_tiles()
+		if edge_n > 0:
+			mat.set_shader_parameter("edge_grid", float(edge_n))
+			mat.set_shader_parameter("tile_size", CELL / float(edge_n))
 	mat.set_shader_parameter("cell", CELL)
 	var quad := PlaneMesh.new()
 	quad.size = Vector2(CELL, CELL)
@@ -679,8 +700,9 @@ func _tile_cut(p: Vector2) -> bool:
 ## draws plain tile there instead)
 func _cut_panels(pos: Vector3) -> int:
 	var mask := 0
-	for i in PANEL_OFFSETS.size():
-		if _tile_cut(Vector2(pos.x, pos.z) + (PANEL_OFFSETS[i] as Vector2)): mask |= 1 << i
+	var offs := _panel_offsets()
+	for i in offs.size():
+		if _tile_cut(Vector2(pos.x, pos.z) + (offs[i] as Vector2)): mask |= 1 << i
 	return mask
 
 ## 1 + kind * 1024 + (ix + 16) + (iz + 16) * 32 (kind 0 diffuser, 1 grille; ix / iz in 0.375 m steps), see drop_ceiling.gdshader
@@ -1468,8 +1490,9 @@ func _build_floor_reflections() -> void:
 	var box := BoxMesh.new()
 	box.size = (Vector3(1.4, 0.02, 0.7) if _long_tiles() else Vector3(0.7, 0.02, 0.7)) if panels_mm else Vector3(1.95, 0.02, 0.82)
 	if _tile_panels(): box.size = Vector3(_tile_panel_size(), 0.02, _tile_panel_size())
+	if panels_mm and _edge_tiles() > 0 and not _tile_panels(): box.size = Vector3.ONE * (CELL / float(_edge_tiles()) * 0.93)   # a lens, as the 0.7 m of a 0.75 m tile
 	mm.mesh = box
-	var offs: Array = PANEL_OFFSETS if panels_mm and not _tile_panels() else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
+	var offs: Array = _panel_offsets() if panels_mm and not _tile_panels() else [Vector2.ZERO]   # a panel cell mirrors all five of its panels
 	mm.instance_count = items.size() * offs.size()
 	var cx := 0.0
 	var cz := 0.0
