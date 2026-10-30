@@ -15,12 +15,13 @@ const CELL := 4.5                 # (level_data.gd CELL: no preload of it here, 
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 const HOLE_W := 0.9               # m
 const HOLE_H := 2.1               # m, from the floor
-const CAV_X0 := -2.4              # m: the cavity behind the hole, in the spot's frame (X out of the wall): its back
+const CAV_X0 := -1.3              # m: the cavity behind the hole, in the spot's frame (X out of the wall): its back
 const CAV_X1 := -0.03             # m: its front plane (the hole's face is x 0)
-const CAV_HZ := 1.2               # m: half its width along the face (inside the 4.5 m block even with SLIDE: 0.45 m to the edge)
+const CAV_HZ := 1.5               # m: half its width along the face: pockets either side of the hole to hide in, out of its line
+                                  # (inside the 4.5 m block even with SLIDE: 0.3 m to the edge)
 const CAV_H := 2.9                # m: its height
-const HIDE_X := -0.9              # m: further in than this you are hidden (not in the doorway)
-const SLIDE := 0.6                # m: the most a hole sits off its face's middle
+const HIDE_X := -0.45             # m: further in than this you are hidden (not in the doorway)
+const SLIDE := 0.45               # m: the most a hole sits off its face's middle
 const AVOID := 1.6                # m: clear of every placed object and wall of the graph
 const MIN_SPACING := 6.0          # m between two spots
 const MIN_CEIL := 2.6             # m: the room the hole opens into is at least this high

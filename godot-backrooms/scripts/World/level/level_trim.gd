@@ -68,6 +68,9 @@ func _wall_faces() -> Array:
 					var d1 := (wxf * Vector3(0.0, 0.0, w) - mid).dot(along)
 					face["door"] = [minf(d0, d1), maxf(d0, d1)]
 					face["weak"] = weak
+					var e0 := (wxf * Vector3(0.0, 0.0, -WeakSpots.HOLE_W * 0.5) - mid).dot(along)
+					var e1 := (wxf * Vector3(0.0, 0.0, WeakSpots.HOLE_W * 0.5) - mid).dot(along)
+					face["weak_cut"] = [minf(e0, e1), maxf(e0, e1)]    # the hole's own edges: the skirting runs up to them
 				out.append(face)
 	return out
 
@@ -201,7 +204,12 @@ func _build_skirting() -> void:
 			var hi: float = f.door[1] + SKIRT_STOP
 			if lo > -CELL * 0.5 + 0.05: _skirt_run(_chunk_st(sts, mid), [a, mid + along * lo], [out - along * sa, out], [out, out], [out, out], false)
 			if hi < CELL * 0.5 - 0.05: _skirt_run(_chunk_st(sts, mid), [mid + along * hi, b], [out, out + along * sb], [out, out], [out, out], false)
-			if f.has("weak"): _weak_skirt(f.weak, mid + along * lo, mid + along * hi, out)
+			if f.has("weak"):
+				# up to the hole's edges for good; the length across it goes when the wall gives
+				var cut: Array = f.weak_cut
+				_skirt_run(_chunk_st(sts, mid), [mid + along * lo, mid + along * float(cut[0])], [out, out], [out, out], [out, out], false)
+				_skirt_run(_chunk_st(sts, mid), [mid + along * float(cut[1]), mid + along * hi], [out, out], [out, out], [out, out], false)
+				_weak_skirt(f.weak, mid + along * float(cut[0]), mid + along * float(cut[1]), out)
 			continue
 		_skirt_run(_chunk_st(sts, mid), [a, b], [out - along * sa, out + along * sb], [out, out], [out, out], false)
 	# placed walls, pillars and columns: round the outline of each

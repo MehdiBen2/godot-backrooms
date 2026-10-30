@@ -208,7 +208,7 @@ func _tight_spot() -> bool:
 func _update_head_lamp(dt: float) -> void:
 	if head_lamp == null:
 		return
-	var goal := 1.0 if _tight_spot() and not dead else 0.0
+	var goal := 1.0 if _tight_spot() and not dead and not torch_blocked else 0.0
 	_head_k = move_toward(_head_k, goal, dt * (4.0 if goal > _head_k else 2.5))
 	head_lamp.light_energy = HEAD_LAMP_ENERGY * _head_k
 	head_lamp.visible = _head_k > 0.01
@@ -218,7 +218,7 @@ func _update_flashlight(dt: float) -> void:
 	# both hands on a wall, or crouched / crawling / squeezed through a slit: the torch is put away, so the beam
 	# fades out (and the battery rests); in a tight spot the head lamp takes over
 	var hugging: bool = torch != null and torch.hugging()
-	var beam_goal := 0.0 if hugging or _tight_spot() else 1.0
+	var beam_goal := 0.0 if hugging or _tight_spot() or torch_blocked else 1.0
 	_update_head_lamp(dt)
 	_hug_dim = move_toward(_hug_dim, beam_goal, dt * (8.0 if beam_goal < _hug_dim else 5.0))
 	if flash_on and not swap_dark and _hug_dim > 0.5:

@@ -170,6 +170,7 @@ var click_off: AudioStream = load("res://audio/items/torch/off.mp3")
 var focused_door: Node = null
 var hidden := false              # climbed into a hiding place (props/hide_spot.gd): THE TALL ONE cannot see you (tall_one.gd _player_hidden)
 var hiding_in: Node3D = null     # ...which one (its hide_spot.gd), so it can come to the door if it saw you get in
+var torch_blocked := false       # no room to raise the torch (inside a broken weak spot, props/weak_spot.gd): beam and head lamp stay dark
 var _door_anim_active := false   # in the scripted scene through a door (_door_scene): it has the body, the eyes and the left hand
 var _ds: Node3D = null            # the door
 var _ds_t := 0.0                  # s into the scene

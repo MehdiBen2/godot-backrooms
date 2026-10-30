@@ -23,7 +23,6 @@ const TELL_NORMAL := "res://textures/weak_spot/tell_normal.png"
 const CRACKS := ["res://textures/weak_spot/crack_1.png", "res://textures/weak_spot/crack_2.png",
 	"res://textures/weak_spot/crack_3.png"]
 const RIM_MODEL := "res://models/props/weak_spot/weak_spot_rim.glb"            # node Rim, x -0.06..0.03
-const CAVITY_MODEL := "res://models/props/weak_spot/weak_spot_cavity.glb"      # node Cavity, x -2.4..-0.03, open front
 const DEBRIS_MODEL := "res://models/props/weak_spot/weak_spot_debris.glb"      # nodes Debris_0..N, on the floor in front
 const HOLD_T := 2.0           # s of holding E to break it
 const GRACE := 0.5            # s after you let go before the push fades
@@ -35,7 +34,7 @@ const DECAL_SIZE := Vector3(1.2, 0.3, 2.4)     # wide, deep (along the wall's no
 const DECAL_Y := 1.2
 const FOV_IN := 6.0           # degrees narrower, all the way in
 const EDGES := 0.3            # Game.fx_fade all the way in: the dark closing in round the view
-const DEEP := 0.9             # m further in than HIDE_X the effects are full
+const DEEP := 0.6             # m further in than HIDE_X the effects are full
 const NEAR_RANGE := 26.0      # m: THE TALL ONE closer than this and your heart starts to go
 const BAR := 10               # cells of the hold bar in the prompt
 const PAPER := Color(0.72, 0.66, 0.46)          # placeholder colours (no models yet)
@@ -54,9 +53,12 @@ var _idle := 0.0              # s since you last held E
 var _tell: Decal
 var _crack: Decal
 var _tip: Node3D
+var _rim: Node3D              # the torn edge, hidden till it gives
+var _debris: Node3D           # what falls out, hidden till then
 var _zone: Area3D             # the deep part of the cavity: the player's body in it is hidden
 var _in_zone := false
 var _hid := false             # we set player.hidden
+var _blocking := false        # we set player.torch_blocked
 var _depth := 0.0             # 0..1 eased: how far in you are
 var _fear := 0.0              # 0..1 eased: how near THE TALL ONE is
 var _beat_t := 0.0
@@ -76,7 +78,12 @@ func setup(spot: Dictionary, p_skin: MeshInstance3D) -> void:
 	skin = p_skin
 	add_to_group("weak_spots")    # net.gd _weak_rpc finds us here by key
 	_build_decals()
-	for m in [RIM_MODEL, CAVITY_MODEL, DEBRIS_MODEL]: _template(m)    # read now, at the build, not on the frame it breaks
+	# everything the break shows is built now, at the level's build: on the frame it gave, the materials loading
+	# and the meshes being made froze the game. The inside stays drawn behind the skin (so its shaders are ready).
+	add_child(_wall_interior())
+	_rim = _add_model(RIM_MODEL, "rim")
+	_debris = _add_model(DEBRIS_MODEL, "debris")
+	_debris.add_child(_dust_patch())     # (shown with the debris, when it gives)
 	if _net_broken():             # someone broke it before we got here
 		_break(false)
 		return
@@ -170,9 +177,8 @@ func _break(fx: bool) -> void:
 	# the stain and the cracks would land on the torn rim and the cavity too: the rim model has its own torn edge
 	if _tell != null: _tell.visible = false
 	if _crack != null: _crack.visible = false
-	_add_model(RIM_MODEL, "rim")
-	_add_model(CAVITY_MODEL, "cavity")
-	_add_model(DEBRIS_MODEL, "debris")
+	if _rim != null: _rim.visible = true
+	if _debris != null: _debris.visible = true
 	if fx:
 		_dust()
 		_shake(0.3)
@@ -180,7 +186,8 @@ func _break(fx: bool) -> void:
 	_build_zone()
 
 # ---------------------------------------------------------------- hiding in the cavity
-## The trigger over the deep part of the cavity (x < HIDE_X): the player's body in it is hidden
+## The trigger over the whole cavity: in it your torch stays down (no room to raise it, and nothing in there is
+## meant to be seen); further in than HIDE_X you are hidden
 func _build_zone() -> void:
 	_zone = Area3D.new()
 	_zone.name = "HideZone"
@@ -190,7 +197,7 @@ func _build_zone() -> void:
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
 	var x0 := WeakSpots.CAV_X0
-	var x1 := WeakSpots.HIDE_X
+	var x1 := 0.05                         # (from just outside the hole: the beam goes down as you step in)
 	bs.size = Vector3(x1 - x0, WeakSpots.CAV_H, WeakSpots.CAV_HZ * 2.0)
 	cs.shape = bs
 	cs.position = Vector3((x0 + x1) * 0.5, WeakSpots.CAV_H * 0.5, 0.0)
@@ -213,20 +220,24 @@ func _hide_tick(delta: float) -> void:
 	if pl == null or not is_instance_valid(pl) or not (pl is Node3D) or Game.dead or bool(pl.get("dead")) or not can_process():
 		_release()
 		return
-	if _in_zone and not _hid:
+	var at := to_local((pl as Node3D).global_position)
+	var deep := _in_zone and at.x < WeakSpots.HIDE_X
+	if _in_zone != _blocking:
+		_blocking = _in_zone
+		pl.set("torch_blocked", _in_zone)
+	if deep and not _hid:
 		var other = pl.get("hiding_in")
 		if other == null or not is_instance_valid(other):
 			_hid = true
 			pl.set("hidden", true)
 			pl.set("hiding_in", self)
 			_set_muffled(true)
-	elif _hid and not _in_zone:
+	elif _hid and not deep:
 		_unhide()
 	var target := 0.0
 	if _hid:
-		var at := to_local((pl as Node3D).global_position)
 		target = smoothstep(WeakSpots.HIDE_X, WeakSpots.HIDE_X - DEEP, at.x)
-		if absf(at.z) > WeakSpots.CAV_HZ - 0.5: target = minf(1.0, target + 0.25)   # the corner
+		if absf(at.z) > WeakSpots.HOLE_W * 0.5 + 0.3: target = minf(1.0, target + 0.35)   # in a pocket beside the hole, out of its line
 	_depth = lerpf(_depth, target, 1.0 - exp(-delta * 2.0))
 	if _hid or _depth > 0.01:
 		Game.fx_fade = EDGES * _depth
@@ -266,6 +277,10 @@ func _unhide() -> void:
 
 func _release() -> void:
 	_unhide()
+	if _blocking:
+		_blocking = false
+		var pl: Node = Game.player
+		if pl != null and is_instance_valid(pl): pl.set("torch_blocked", false)
 	_in_zone = false
 	_depth = 0.0
 	_fear = 0.0
@@ -276,19 +291,21 @@ func _set_muffled(on: bool) -> void:
 	if au != null and au.has_method("set_muffled"): au.set_muffled(on)
 
 func _exit_tree() -> void:
-	if _hid: _unhide()
+	if _hid or _blocking: _release()     # (a rebuild while you are in it: the torch and the flags are given back)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DISABLED and broken: _release()
 
-func _add_model(path: String, kind: String) -> void:
+## The model (or its placeholder) added hidden, for the break to show
+func _add_model(path: String, kind: String) -> Node3D:
 	var m := _instance(path)
 	if m == null:
 		match kind:
 			"rim": m = _placeholder_rim()
-			"cavity": m = _placeholder_cavity()
 			_: m = _placeholder_debris()
+	m.visible = false
 	add_child(m)
+	return m
 
 ## The view shakes for anyone near enough, a little less the further off
 func _shake(amount: float) -> void:
@@ -469,6 +486,22 @@ static func _line(img: Image, a: Vector2, b: Vector2, c: Color) -> void:
 			if q.x >= 0 and q.y >= 0 and q.x < img.get_width() and q.y < img.get_height(): img.set_pixelv(q, c)
 
 ## The soft round dust mote
+## Plaster dust spilled out over the floor in front of the hole and in through it, soft-edged: the carpet does not
+## stop dead at the wall line
+func _dust_patch() -> Decal:
+	var d := Decal.new()
+	d.name = "Dust"
+	d.size = Vector3(1.5, 0.4, 1.9)                  # out from the wall, the projection's depth, along the wall
+	d.position = Vector3(0.25, 0.1, 0.0)             # (projects down: straddles the wall line, mostly out in the room)
+	d.texture_albedo = _dot_tex()
+	d.modulate = Color(0.78, 0.74, 0.66, 0.85)
+	d.albedo_mix = 0.8
+	d.upper_fade = 0.3
+	d.lower_fade = 0.3
+	d.normal_fade = 0.6                              # (the floor only, not the wall face and skirting it also reaches)
+	d.cull_mask = 1                                 # (the floor and what lies on it, not the player)
+	return d
+
 static func _dot_tex() -> Texture2D:
 	if _fb_dot != null: return _fb_dot
 	var g := Gradient.new()
@@ -509,31 +542,177 @@ func _placeholder_rim() -> Node3D:
 	r.add_child(_box(Vector3(0.09, 0.03, 1.0), Vector3(-0.015, 0.015, 0.0), PAPER))
 	return r
 
-## A dark wooden box seen from inside, open at the front (x -2.4..-0.03, z +-1.2, y 0..2.9), the face round the hole closed
-func _placeholder_cavity() -> Node3D:
+## The hollow behind the hole: not a room but a rough void gouged out of the wall's mass. Its sides, back and top are
+## pushed out unevenly (noise, never in past the collision's box, so nothing you see stands where you can walk), its
+## floor flat; it meets the wall face square at the front. What is left of the framing stands in it: a few studs at
+## uneven spacing, some snapped off with the broken lengths lying on the floor, a noggin or two hanging askew.
+## Real scans (Poly Haven): OSB for the void, sawn softwood for the timber.
+func _wall_interior() -> Node3D:
 	var x0 := WeakSpots.CAV_X0
 	var x1 := WeakSpots.CAV_X1
 	var z := WeakSpots.CAV_HZ
 	var y1 := WeakSpots.CAV_H
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	_quad(st, Vector3(x0, 0, -z), Vector3(x0, 0, z), Vector3(x0, y1, z), Vector3(x0, y1, -z), Vector3.RIGHT)  # back
-	_quad(st, Vector3(x0, 0, -z), Vector3(x1, 0, -z), Vector3(x1, y1, -z), Vector3(x0, y1, -z), Vector3.BACK)  # side
-	_quad(st, Vector3(x0, 0, z), Vector3(x1, 0, z), Vector3(x1, y1, z), Vector3(x0, y1, z), Vector3.FORWARD)  # side
-	_quad(st, Vector3(x0, 0, -z), Vector3(x1, 0, -z), Vector3(x1, 0, z), Vector3(x0, 0, z), Vector3.UP)        # floor
-	_quad(st, Vector3(x0, y1, -z), Vector3(x1, y1, -z), Vector3(x1, y1, z), Vector3(x0, y1, z), Vector3.DOWN)  # top
 	var hw := WeakSpots.HOLE_W * 0.5
 	var hh := WeakSpots.HOLE_H
-	_quad(st, Vector3(x1, 0, -z), Vector3(x1, 0, -hw), Vector3(x1, y1, -hw), Vector3(x1, y1, -z), Vector3.LEFT)   # the face, seen from in
-	_quad(st, Vector3(x1, 0, hw), Vector3(x1, 0, z), Vector3(x1, y1, z), Vector3(x1, y1, hw), Vector3.LEFT)
-	_quad(st, Vector3(x1, hh, -hw), Vector3(x1, hh, hw), Vector3(x1, y1, hw), Vector3(x1, y1, -hw), Vector3.LEFT)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(key)                # the same on every machine
+	var noise := FastNoiseLite.new()
+	noise.seed = rng.randi()
+	noise.frequency = 0.55
+	noise.fractal_octaves = 3
+	var root := Node3D.new()
+	root.name = "Cavity"
+	# the void: a box of grids, every vertex pushed out along the faces it lies on (shared edges move together)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var push := func(q: Vector3) -> Vector3:
+		var k := smoothstep(0.0, 0.45, x1 - q.x)                       # none at the front: it meets the face
+		var amt := (0.06 + 0.4 * absf(noise.get_noise_3dv(q))) * k
+		var o := Vector3.ZERO
+		if absf(q.z - z) < 0.001: o.z += minf(amt, SIDE_PUSH)        # (the sides stop short of the block's edge)
+		if absf(q.z + z) < 0.001: o.z -= minf(amt, SIDE_PUSH)
+		if absf(q.x - x0) < 0.001: o.x -= amt
+		if absf(q.y - y1) < 0.001: o.y += amt * 0.7
+		return q + o
+	_grid(st, push, Vector3(x0, 0, -z), Vector3(0, 0, 2.0 * z), Vector3(0, y1, 0), 12, 12)       # back
+	_grid(st, push, Vector3(x0, 0, -z), Vector3(x1 - x0, 0, 0), Vector3(0, y1, 0), 12, 12, true)  # sides
+	_grid(st, push, Vector3(x0, 0, z), Vector3(x1 - x0, 0, 0), Vector3(0, y1, 0), 12, 12)
+	_grid(st, push, Vector3(x0, y1, -z), Vector3(x1 - x0, 0, 0), Vector3(0, 0, 2.0 * z), 12, 12, true)  # top
+	_grid(st, push, Vector3(x0, FLOOR_Y, -z), Vector3(x1 - x0, 0, 0), Vector3(0, 0, 2.0 * z), 12, 12)  # floor (only its rim moves, sideways)
+	st.index()
+	st.generate_normals()
+	st.generate_tangents()
+	var void_mi := MeshInstance3D.new()
+	void_mi.mesh = st.commit()
+	var osb := _pbr("PH_OSB", Color(0.55, 0.51, 0.45), 1.0 / 2.51)
+	(osb as BaseMaterial3D).cull_mode = BaseMaterial3D.CULL_DISABLED       # (seen from inside, whichever way a pushed face turned)
+	void_mi.material_override = osb
+	root.add_child(void_mi)
+	# the wall face round the hole, seen from inside
+	var fc := SurfaceTool.new()
+	fc.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_quad(fc, Vector3(x1, 0, -z), Vector3(x1, 0, -hw), Vector3(x1, y1, -hw), Vector3(x1, y1, -z), Vector3.LEFT)
+	_quad(fc, Vector3(x1, 0, hw), Vector3(x1, 0, z), Vector3(x1, y1, z), Vector3(x1, y1, hw), Vector3.LEFT)
+	_quad(fc, Vector3(x1, hh, -hw), Vector3(x1, hh, hw), Vector3(x1, y1, hw), Vector3(x1, y1, -hw), Vector3.LEFT)
+	root.add_child(_merged(fc, osb))
+	# what is left of the framing
+	var fr := SurfaceTool.new()
+	fr.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lean := func(axis: Vector3, a: float) -> Basis: return Basis(axis, a)
+	# a few studs across the back, unevenly spaced, some snapped
+	var t := -z + rng.randf_range(0.15, 0.45)
+	while t < z - 0.2:
+		var bx := x0 + STUD_D * 0.5 + rng.randf_range(0.0, 0.25)
+		var full := rng.randf() < 0.45
+		var h := y1 - 0.05 if full else rng.randf_range(0.6, 1.9)
+		var tilt: Basis = lean.call(Vector3.RIGHT, rng.randf_range(-0.05, 0.05))
+		_add_box(fr, Vector3(STUD_D, h, STUD_W), Vector3(bx, h * 0.5, t), tilt)
+		if not full:            # its broken length, on the floor in front of it
+			# (laid along the wall, across the shallow void, short enough to stay inside it)
+			var lh := rng.randf_range(0.4, 0.9)
+			var lie: Basis = lean.call(Vector3.UP, rng.randf_range(-0.3, 0.3)) * lean.call(Vector3.RIGHT, PI * 0.5 + rng.randf_range(-0.1, 0.1))
+			var lz := clampf(t + rng.randf_range(-0.2, 0.2), -z + lh * 0.5 + 0.1, z - lh * 0.5 - 0.1)
+			_add_box(fr, Vector3(STUD_D, lh, STUD_W), Vector3(bx + 0.2 + rng.randf_range(0.0, 0.25), FLOOR_Y + STUD_W * 0.5 + 0.005, lz), lie)
+		elif rng.randf() < 0.6:  # a noggin off it, hanging from one nail
+			var nl_len := rng.randf_range(0.35, 0.6)
+			var hang: Basis = lean.call(Vector3.RIGHT, rng.randf_range(0.35, 0.9) * (1.0 if rng.randf() < 0.5 else -1.0))
+			_add_box(fr, Vector3(STUD_D, STUD_W, nl_len), Vector3(bx, rng.randf_range(1.0, 1.6), t + nl_len * 0.5), hang)
+		t += rng.randf_range(0.45, 0.8)
+	# one or two along each side, standing a little off it
+	for sd: float in [-1.0, 1.0]:
+		for i in rng.randi_range(1, 2):
+			var sx := rng.randf_range(x0 + 0.4, x1 - 0.5)
+			var h := rng.randf_range(1.2, y1 - 0.05)
+			var tilt: Basis = lean.call(Vector3.BACK, rng.randf_range(-0.06, 0.06))
+			_add_box(fr, Vector3(STUD_W, h, STUD_D), Vector3(sx, h * 0.5, sd * (z - STUD_D * 0.5 - rng.randf_range(0.0, 0.15))), tilt)
+	# the wall's sole plate, lying flat along its foot right across the hole: the step you come over (and what the
+	# void's floor, a little above the level's, butts up to: no thin sheet floating over the carpet)
+	_add_box(fr, Vector3(STUD_D + 0.03, PLATE_H, z * 2.0), Vector3(x1 - (STUD_D + 0.03) * 0.5, PLATE_H * 0.5, 0))
+	# the opening's own framing, from inside: a king stud each side and a header over it (the hole was cut between them)
+	for side: float in [-1.0, 1.0]:
+		_add_box(fr, Vector3(STUD_D, y1 - 0.05, STUD_W), Vector3(x1 - STUD_D * 0.5, (y1 - 0.05) * 0.5, side * (hw + STUD_W * 0.5)))
+	_add_box(fr, Vector3(STUD_D, STUD_W * 1.8, hw * 2.0 + STUD_W * 2.0), Vector3(x1 - STUD_D * 0.5, hh + STUD_W * 0.9, 0))
+	# splinters and offcuts on the floor
+	for i in 7:
+		var sz := Vector3(rng.randf_range(0.08, 0.4), rng.randf_range(0.015, 0.04), rng.randf_range(0.03, 0.09))
+		var at := Vector3(rng.randf_range(x0 + 0.2, x1 - 0.3), FLOOR_Y + sz.y * 0.5 + 0.003, rng.randf_range(-z + 0.2, z - 0.2))
+		_add_box(fr, sz, at, lean.call(Vector3.UP, rng.randf_range(0.0, TAU)))
+	fr.generate_tangents()
+	root.add_child(_merged(fr, _pbr("PH_Plywood", Color(0.85, 0.8, 0.72), 1.0 / 0.5, false)))   # sawn softwood grain (Poly Haven scan), along each piece
+	return root
+
+## A grid of `nu` x `nv` quads from `o` across `u` and `v`, every vertex through `warp`, facing -(u x v) (`flip`: u x v)
+static func _grid(st: SurfaceTool, warp: Callable, o: Vector3, u: Vector3, v: Vector3, nu: int, nv: int, flip := false) -> void:
+	for i in nu:
+		for j in nv:
+			var a: Vector3 = warp.call(o + u * (float(i) / nu) + v * (float(j) / nv))
+			var b: Vector3 = warp.call(o + u * (float(i + 1) / nu) + v * (float(j) / nv))
+			var c: Vector3 = warp.call(o + u * (float(i + 1) / nu) + v * (float(j + 1) / nv))
+			var d: Vector3 = warp.call(o + u * (float(i) / nu) + v * (float(j + 1) / nv))
+			for q: Vector3 in ([a, d, c, a, c, b] if flip else [a, b, c, a, c, d]):
+				st.add_vertex(q)
+
+const SIDE_PUSH := 0.22      # m: the most the void's sides go out (the block's edge is 0.3 m off)
+const FLOOR_Y := 0.025       # m: the void's floor over the level's (its carpet runs on under the wall: they flickered)
+const STUD_W := 0.045         # m: a stud's narrow face, toward you (2x4 on edge)
+const STUD_D := 0.09          # m: its depth, out from the board behind it
+const PLATE_H := 0.045        # m: a plate's / a block's height
+const STUD_STEP := 0.6        # m between stud centres
+const BLOCK_Y := 1.25         # m: the row of blocking
+
+## A box `length` along a wall, `h` tall, `d` deep out of it; `across`: the wall runs along z
+static func _run(length: float, h: float, d: float, across: bool) -> Vector3:
+	return Vector3(d, h, length) if across else Vector3(length, h, d)
+
+## A box into `st`: six faces, `size` about `at`, turned by `b`. UVs in metres, with the texture's grain (its u)
+## along the piece's longest side on every face, as sawn timber's runs; each box starts at its own random place in it
+static func _add_box(st: SurfaceTool, size: Vector3, at: Vector3, b := Basis.IDENTITY) -> void:
+	var h := size * 0.5
+	var long := 0 if size.x >= size.y and size.x >= size.z else (1 if size.y >= size.z else 2)
+	var off := Vector2(fposmod(at.x * 7.13 + at.z * 3.71, 1.0), fposmod(at.y * 5.37 + at.z * 1.93, 1.0)) * 2.0
+	for ax in 3:
+		for sgn: float in [-1.0, 1.0]:
+			var n := Vector3.ZERO
+			n[ax] = sgn
+			# the face's two in-plane axes: the grain first when it lies in this face
+			var ia := (ax + 1) % 3
+			var ib := (ax + 2) % 3
+			if ib == long:
+				ia = long
+				ib = (ax + 1) % 3
+			var u := Vector3.ZERO
+			u[ia] = h[ia]
+			var v := Vector3.ZERO
+			v[ib] = h[ib]
+			var c := n * h[ax]
+			var pts := [c - u - v, c + u - v, c + u + v, c - u + v]
+			var uvs := [Vector2(-h[ia], -h[ib]), Vector2(h[ia], -h[ib]), Vector2(h[ia], h[ib]), Vector2(-h[ia], h[ib])]
+			if (pts[1] - pts[0]).cross(pts[2] - pts[0]).dot(n) > 0.0:      # wound the way Godot draws front faces
+				pts = [pts[0], pts[3], pts[2], pts[1]]
+				uvs = [uvs[0], uvs[3], uvs[2], uvs[1]]
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(b * n)
+				st.set_uv((uvs[k] as Vector2) + off)
+				st.add_vertex(at + b * (pts[k] as Vector3))
+
+## One mesh from `st`, with its material
+static func _merged(st: SurfaceTool, m: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.name = "Cavity"
 	mi.mesh = st.commit()
-	var m := _mat(BOARD)
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mi.material_override = m
 	return mi
+
+## A textures/pbr material, tinted, at `scale` repeats a metre: laid on by its own triplanar, or (`triplanar`
+## false) by the mesh's UVs, which are in metres
+static func _pbr(id: String, tint: Color, scale: float, triplanar := true) -> Material:
+	var path := "res://textures/pbr/%s/%s.tres" % [id, id]
+	if not ResourceLoader.exists(path): return _mat(tint)
+	var m := (load(path) as StandardMaterial3D).duplicate() as StandardMaterial3D
+	m.albedo_color = tint
+	m.uv1_triplanar = triplanar
+	m.uv1_scale = Vector3.ONE * scale
+	m.emission_enabled = false
+	return m
 
 ## A quad facing `n`, wound the way Godot draws front faces (clockwise seen from in front)
 static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, n: Vector3) -> void:
