@@ -9,7 +9,7 @@ extends CanvasLayer
 const SETTLE_FRAMES := 20       # frames in a row under SETTLE_MS once the level stands
 const SETTLE_MS := 40.0
 const MIN_SETTLE := 0.6         # s at least between the level standing and the prompt (the lamps fade in, the eyes adapt)
-const GIVE_UP := 15.0           # s: past this it goes on anyway, whatever is still settling
+const MAX_SETTLE := 2.0         # s after the level stands, even on a machine below the target frame rate
 const LIFT := 0.35              # s the screen takes to fade off the shut lids (blink.gd WAKE holds them shut 0.6 s)
 const MUSIC_FADE := 2.5         # s (main_menu.gd LOAD_FADE)
 
@@ -54,19 +54,19 @@ func _process(dt: float) -> void:
 	var main: Node = Game.main
 	if lv == null or not is_instance_valid(lv) or main == null or not is_instance_valid(main) or not main.is_inside_tree():
 		_fill(0.85, dt)                         # the run's scene is still coming
-		if _t > GIVE_UP * 2.0: queue_free()     # (it never came: nothing to hold)
 		return
 	if not _held:
 		_held = true
 		Game.playing = false
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 	var stands: bool = lv.settled()
-	if stands and _stood < 0.0: _stood = 0.0
+	if stands and _stood < 0.0:
+		_stood = 0.0
+		lv._prewarm_floors()
 	if _stood >= 0.0: _stood += dt
 	_steady = _steady + 1 if (stands and frame_ms < SETTLE_MS) else 0
 	_fill(0.97 if stands else 0.9, dt)
-	if (stands and _steady >= SETTLE_FRAMES and _stood >= MIN_SETTLE) or _t > GIVE_UP:
-		if _t > GIVE_UP and not stands: Stability.trace("wake gate: still settling after %d s, going on" % int(GIVE_UP))
+	if stands and ((_steady >= SETTLE_FRAMES and _stood >= MIN_SETTLE) or _stood >= MAX_SETTLE):
 		if ask: _ask()
 		else: _continue()
 	else:

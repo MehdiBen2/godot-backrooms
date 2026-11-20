@@ -11,9 +11,8 @@ static func area(level: Node, kind: String) -> Dictionary:
 		return {}
 	return level.entity_areas.get(kind, {})
 
-## Every mark of `kind` on the floor `level` has built, in the order they were placed. A territory with no mark
-## still places one: a roaming mark on the open cell in the middle of the territory
-static func of_kind(level: Node, kind: String) -> Array:
+## Every hand-placed mark of this kind on the current floor, in placement order.
+static func placed(level: Node, kind: String) -> Array:
 	var out: Array = []
 	if level == null:
 		return out
@@ -22,6 +21,11 @@ static func of_kind(level: Node, kind: String) -> Array:
 		for o in objs:
 			if o is Dictionary and o.get("type", "") == "entity" and str(o.get("kind", "bacteria")) == kind:
 				out.append(o)
+	return out
+
+## Monsters that can start from territory use its middle open cell when there is no placed mark.
+static func of_kind(level: Node, kind: String) -> Array:
+	var out := placed(level, kind)
 	if out.is_empty():
 		var cells: Array = area(level, kind).keys().filter(func(c: Vector2i): return not level.walls.has(c) and not level.pits.has(c) and not level.safe.has(c))
 		if not cells.is_empty():

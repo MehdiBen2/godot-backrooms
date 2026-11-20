@@ -140,9 +140,10 @@ Stage "export"
 $exportLog = Join-Path $build "export.log"
 # The editor exe is a windowed program: PowerShell doesn't wait for one on its own, so the export is started
 # as a process and waited on (its output goes to the log, and its exit code is the process's)
+# Shader Baker needs a rendering device, so leave the renderer available during export.
 $exportErr = Join-Path $build "export.err.log"
-$godotArgs = "--headless --path `"$(Join-Path $root "godot-backrooms")`" --export-release `"Windows Desktop`" `"$(Join-Path $game "backrooms.exe")`""
-$exportProc = Start-Process -FilePath $godot -ArgumentList $godotArgs -Wait -PassThru -NoNewWindow `
+$godotArgs = "--disable-render-loop --audio-driver Dummy --path `"$(Join-Path $root "godot-backrooms")`" --export-release `"Windows Desktop`" `"$(Join-Path $game "backrooms.exe")`""
+$exportProc = Start-Process -FilePath $godot -ArgumentList $godotArgs -WindowStyle Hidden -Wait -PassThru `
     -RedirectStandardOutput $exportLog -RedirectStandardError $exportErr
 $exportCode = $exportProc.ExitCode
 Get-Content $exportErr -ErrorAction SilentlyContinue | Add-Content $exportLog

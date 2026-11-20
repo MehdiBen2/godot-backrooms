@@ -166,8 +166,7 @@ func _ready() -> void:
 	_carpet = _carpet_material()
 	_ceiling = _ceiling_material()
 	_paper = _wallpaper_material()
-	for i in SETS.size():
-		shots.append(_build_shot(SETS[i], i))
+	shots.append(_build_shot(SETS[0], 0))
 	cam = Camera3D.new()
 	cam.fov = CAM_FOV
 	cam.near = 0.05
@@ -176,6 +175,9 @@ func _ready() -> void:
 	cam.current = true
 	_show(0)
 	_enter("hold", HOLD)
+	for i in range(1, SETS.size()):
+		await get_tree().process_frame
+		shots.append(_build_shot(SETS[i], i))
 
 func _process(dt: float) -> void:
 	_t += dt

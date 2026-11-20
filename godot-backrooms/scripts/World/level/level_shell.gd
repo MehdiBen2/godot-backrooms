@@ -19,10 +19,6 @@ const LIMINAL_COLOR := Color(0.95, 0.98, 0.9)   # Render/atmospheres.gd LOOKS.li
 const PANEL_LIGHT := 2.3                        # level_light_pool.gd PANEL_ENERGY
 const CLASSIC_BOOST := 1.6
 
-## A floor built only to load what it uses (level_builder.gd _prewarm_floors): the whole floor, not cut down to
-## the holes, and freed again once its textures, meshes and materials are held
-var warm := false
-
 ## Neighbouring floors take the two shell render layers turn about (level_geometry.gd SHELL_LAYERS), so a
 ## floor's lights never reach the one above or below it
 static func layer_of(f: int) -> int:
@@ -40,7 +36,8 @@ func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 			level_meta = meta
 			rng.seed = 1971 + f * 7919
 			load_floor(f, raw)
-			if not warm: holes.append_array(through.keys() + open_above.keys())
+			_open_geometry_cache()
+			holes.append_array(through.keys() + open_above.keys())
 			_make_materials()
 			# the tubes are dealt out over the whole floor, as on the floor you walk on, and only then is it cut down
 			if panel_ceiling != null: await _place_panel_fixtures()
@@ -51,11 +48,12 @@ func build_stages(meta: Dictionary, raw: Dictionary, f: int) -> Array[Callable]:
 		func() -> void:
 			await _build_objects()
 			await _build_trim()
-			_build_ceiling_steps()
+			await _build_ceiling_steps()
 			_build_pit_shafts(),
 		func() -> void:
-			if panel_ceiling != null: _build_panel_ceiling()
+			if panel_ceiling != null: await _build_panel_ceiling()
 			else: _build_fixture_meshes()
+			_save_geometry_cache()
 			dress(self, layer_of(f))
 			add_lights(self, lit, holes, layer_of(f), PANEL_LIGHT if panel_ceiling != null else LIGHT_ENERGY, liminal),
 	]

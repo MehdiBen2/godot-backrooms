@@ -144,20 +144,21 @@ var _horizon_mat: ShaderMaterial
 func build_lighting() -> void:
 	_tube_col = Color(-1, -1, -1)       # fresh lights: their colour must be written again
 	if panel_ceiling != null:
-		_place_panel_fixtures()
-		_build_panel_ceiling()
+		await _place_panel_fixtures()
+		await _build_panel_ceiling()
 	else:
-		_place_fixtures()
+		await _place_fixtures()
 		_build_fixture_meshes()
+	await _slice()
 	_build_light_pool()
 	_build_floor_reflections()
-	_build_floor_glow()
+	await _build_floor_glow()
 	var we := get_parent().get_node_or_null("WorldEnvironment") as WorldEnvironment
 	env = we.environment if we else null
 	_build_horizon_fog()
 	_read_quality()
 	Gfx.changed.connect(_read_quality)
-	_apply_gi()
+	await _apply_gi()
 	Gfx.changed.connect(_apply_gi)
 
 ## Bounce light: the level's grid GI (grid_gi.gd), solved for the fixtures just placed and laid over its floors,

@@ -77,6 +77,7 @@ func _ready() -> void:
 	# a frame of the corridor while the title is up, hidden: its shaders compile then, not in the PLAY push
 	get_tree().create_timer(1.5).timeout.connect(func() -> void:
 		if not shown:
+			_ensure_corridor()
 			sub.render_target_update_mode = SubViewport.UPDATE_ONCE)
 
 # ---- helpers (the title's own look, main_menu.gd) ----------------------------------------------
@@ -119,8 +120,6 @@ func _build() -> void:
 	sub.use_debanding = true
 	sub.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	view.add_child(sub)
-	corridor = Corridor.new()
-	sub.add_child(corridor)
 
 	panel = Control.new()
 	add_child(panel)
@@ -409,9 +408,15 @@ func _activate(i: int) -> void:
 	entries[i].action.call()
 
 # ---- open / close ---------------------------------------------------------------------------
+func _ensure_corridor() -> void:
+	if corridor == null:
+		corridor = Corridor.new()
+		sub.add_child(corridor)
+
 ## Up out of the title's push: the corridor fades in under it while its camera carries the move on down
 ## the hall, then the column builds itself like the title's
 func open(as_guest: bool) -> void:
+	_ensure_corridor()
 	shown = true
 	visible = true
 	guest = as_guest

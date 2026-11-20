@@ -401,6 +401,8 @@ func _process(dt: float) -> void:
 	Perf.add("Audio", _pt)
 
 func _process_timed(dt: float) -> void:
+	if level.slice_initial_build:
+		return
 	# the window switch stalls the main thread for a moment; the mix is already silent when it does
 	var goal := 1.0 if _focused else 0.0
 	if focus_gain != goal:

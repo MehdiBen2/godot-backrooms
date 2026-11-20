@@ -10923,15 +10923,6 @@
       "type": "entity"
     },
     {
-      "behavior": "roam",
-      "kind": "grabber",
-      "pos_x": 95.0,
-      "pos_y": 8.0,
-      "rotation": 94.0,
-      "scale": 1.0,
-      "type": "entity"
-    },
-    {
       "chain": "",
       "chance": 100.0,
       "cooldown": 5.0,

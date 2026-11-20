@@ -1214,7 +1214,7 @@ func _send_state(dt: float) -> void:
 	if _send_t < -SEND_INTERVAL:
 		_send_t = 0.0                  # fell far behind (hitch): don't burst
 	var p: Node = Game.player
-	if p == null or not is_instance_valid(p):
+	if not is_instance_valid(p) or not p.is_inside_tree():
 		return
 	var cam: Camera3D = p.get_node_or_null("Camera3D")
 	var v: Vector3 = p.velocity if p is CharacterBody3D else Vector3.ZERO

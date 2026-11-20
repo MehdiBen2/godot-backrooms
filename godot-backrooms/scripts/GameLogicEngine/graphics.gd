@@ -155,7 +155,7 @@ func _log_hitch(dt: float) -> void:
 	f.close()
 
 func _guard_physics(dt: float) -> void:
-	if phys_capped or Engine.physics_ticks_per_second <= 60 or dt > 0.25:
+	if not Game.playing or phys_capped or Engine.physics_ticks_per_second <= 60 or dt > 0.25:
 		return                          # (a single long frame is a load or a hitch, not a slow PC)
 	_phys_acc += dt
 	_phys_n += 1

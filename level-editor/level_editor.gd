@@ -57,8 +57,7 @@ THE TALL ONE cannot see them in there. How many: Weak spot chance in the level s
 Cells outside are solid to it. Paint nothing and it goes anywhere",
 	"area_mannequin": "Territory: the Mannequin room forms and the Mannequin moves only inside this area (with no Mannequin mark, the room forms in the middle of it)",
 	"area_mimic": "Territory: the Mimic stays inside this area. Paint nothing and it goes anywhere",
-	"area_grabber": "Territory: the Grabber hangs, drops and chases only inside this area (it no longer picks spots near you).
-With no Entity mark it starts in the middle of the area",
+	"area_grabber": "The Grabber needs a Grabber Entity mark on this floor to spawn. Paint territory to limit where it can hang, drop and chase.",
 	"area_burnt": "Territory: the Burnt stays inside this area. Paint nothing and it goes anywhere",
 	"area_tallone": "Territory: the Tall One spawns, roams, warps and hunts only inside this area.
 With no Entity mark it starts in the middle of the area",

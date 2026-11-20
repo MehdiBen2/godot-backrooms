@@ -9,13 +9,21 @@ extends "res://scripts/World/level/level_geometry_surfaces.gd"
 ## into a thin wall, see props/door.gd) and invisible event triggers (props/event_trigger.gd). Each has its
 ## own position, rotation and width, and the walls their own thickness and height.
 func build_geometry() -> void:
+	_open_geometry_cache()
 	_make_materials()
+	if geometry_cache != null and geometry_cache.entries.has("grid/complete"):
+		Stability.trace("level: reusing cached static geometry for floor %d" % floor_no)
 	await _build_surfaces()
 	await _build_walls()
+	_finish_static_grid()
 	await _build_objects()
 	await call("_build_trim")            # (level_trim.gd, the layer over this one: skirting, fittings, wear)
-	_build_ceiling_steps()
+	await _slice()
+	await _build_ceiling_steps()
+	_finish_geometry_preparation()
+	await _slice()
 	_build_pit_shafts()
+	await _slice()
 	_build_dirt()
 
 ## The level's shared materials, before anything is built with them
@@ -67,12 +75,12 @@ func _build_objects() -> void:
 					"zone":
 						if not shell: _build_trigger(o)
 	await _slice()
-	_build_shaped_walls(shaped)
+	await _build_shaped_walls(shaped)
 	await _slice()
-	_build_wall_graph()
+	await _build_wall_graph()
 	await _slice()
 	_build_arches(arch)
-	_build_props(props)
+	await _build_props(props)
 	await _slice()
 	_build_pipes(pipes, risers, props)
 	_build_cables(cables)
@@ -279,6 +287,7 @@ func wall_faces_near(inside: Callable, box: Rect2) -> Array:
 # effect on the grid, nav or walls. See props/industrial_prop.gd for how the material is put together.
 func _build_props(list: Array) -> void:
 	for o: Dictionary in list:
+		await _slice()
 		var info := object_info(o.type)
 		var variants: Array = info.get("variants", [])
 		if not variants.is_empty():                      # one type, several pieces of a pack: the object's "variant" picks
@@ -400,20 +409,39 @@ func _add_box_collider(body: StaticBody3D, xf: Transform3D, size: Vector3, pos: 
 # wallpaper as the maze so it reads as part of it. One mesh each (mitred joints, so a curve is smooth and a
 # corner closed), a box collider per straight run under one StaticBody3D, and occluders when full height.
 func _build_shaped_walls(list: Array) -> void:
-	if list.is_empty(): return
-	var body := StaticBody3D.new()           # filled before it joins the tree: each shape added to a live body rebuilds it
+	var data = _cached_geometry("wall/shaped")
+	if data == null:
+		data = await _make_shaped_walls(list)
+		_cache_geometry("wall/shaped", data)
+	if prepare_static_only: return
+	for entry: Array in data.meshes:
+		await _slice()
+		var mi := MeshInstance3D.new()
+		mi.mesh = entry[0]
+		mi.transform = entry[1]
+		mi.material_override = _wall_uv_mat(entry[2])
+		add_child(mi)
+	for entry: Array in data.occluders:
+		await _slice()
+		var oi := OccluderInstance3D.new()
+		oi.occluder = entry[0]
+		oi.transform = entry[1]
+		add_child(oi)
+	await _mount_shapes(data.colliders)
+
+func _make_shaped_walls(list: Array) -> Dictionary:
+	var meshes: Array = []
+	var colliders: Array = []
+	var occluders: Array = []
 	for o: Dictionary in list:
+		await _slice()
 		var full := _object_wall_h(o)
 		var h := minf(o.height, full) if float(o.get("height", 0.0)) > 0.0 else full
 		var t := object_thick(o)
 		var xf := object_transform(o)
 		var path := shape_path(o)
 		if path.size() < 2: continue
-		var mi := MeshInstance3D.new()
-		mi.mesh = _sweep_wall(path, t, h)
-		mi.transform = xf
-		mi.material_override = _wall_uv_mat(full if h >= full - 0.01 else WALL_H)
-		add_child(mi)
+		meshes.append([_sweep_wall(path, t, h), xf, full if h >= full - 0.01 else WALL_H])
 		var n := path.size()
 		var closed := n > 2 and path[0].distance_to(path[n - 1]) < 0.001
 		for i in n - 1:
@@ -427,16 +455,15 @@ func _build_shaped_walls(list: Array) -> void:
 			var dir := run.normalized()
 			var mid := (a + b) * 0.5 + dir * (grow_b - grow_a) * 0.5
 			var seg := xf * Transform3D(Basis(Vector3.UP, atan2(-dir.z, dir.x)), mid)
-			var size := Vector3(run.length() + grow_a + grow_b, h, t)
-			_add_box_collider(body, seg, size, Vector3(0, h * 0.5, 0))
+			var at := seg * Transform3D(Basis.IDENTITY, Vector3(0, h * 0.5, 0))
+			var shape := BoxShape3D.new()
+			shape.size = Vector3(run.length() + grow_a + grow_b, h, t)
+			colliders.append([shape, at])
 			if h >= full - 0.01:
-				var oi := OccluderInstance3D.new()
 				var bo := BoxOccluder3D.new()
 				bo.size = Vector3(run.length(), h, t)
-				oi.occluder = bo
-				oi.transform = seg * Transform3D(Basis(), Vector3(0, h * 0.5, 0))
-				add_child(oi)
-	add_child(body)
+				occluders.append([bo, at])
+	return {"meshes": meshes, "colliders": colliders, "occluders": occluders}
 
 # The floor's wall graph (level_data.gd wall_graph): every wall's plan cut against the walls it meets
 # (walls/wall_joints.gd: mitred corners, a bevel where a corner would spike, a hub where three or more meet), stood up
@@ -460,6 +487,27 @@ var wall_plan := {}
 func _build_wall_graph() -> void:
 	wall_plan = {}
 	if wall_graph == null or wall_graph.edges.is_empty(): return
+	var data = _cached_geometry("wall/graph")
+	if data == null:
+		data = await _make_wall_graph()
+		_cache_geometry("wall/graph", data)
+	if prepare_static_only: return
+	wall_plan = data.plan
+	_build_openings(data.solution, wall_plan.holes)
+	for key: String in data.meshes:
+		await _slice()
+		var mi := MeshInstance3D.new()
+		mi.mesh = data.meshes[key]
+		mi.material_override = _graph_wall_mat(key.get_slice("|", 0), float(key.get_slice("|", 1)))
+		add_child(mi)
+	if not shell:
+		await _mount_shapes(data.colliders)
+	if data.occluder != null:
+		var oi := OccluderInstance3D.new()
+		oi.occluder = data.occluder
+		add_child(oi)
+
+func _make_wall_graph() -> Dictionary:
 	var spans := {}
 	var keys := {}
 	var full_of := {}
@@ -481,16 +529,11 @@ func _build_wall_graph() -> void:
 			"cap": "%s|%s|%d,%d" % [cap_mat, hk, ch.x, ch.y]}
 	var sol := WallJoints.solve(wall_graph, CELL)
 	var res := WallMesh.build(sol, spans, keys, _wall_repeat(), true, WallOpenings.holes_of(wall_graph, spans))
-	wall_plan = {"loops": res.loops, "solids": res.solids, "holes": res.holes, "pieces": res.pieces}
-	_build_openings(sol, res.holes)
-	for key: String in res.meshes:
-		var mi := MeshInstance3D.new()
-		mi.mesh = res.meshes[key]
-		mi.material_override = _graph_wall_mat(key.get_slice("|", 0), float(key.get_slice("|", 1)))
-		add_child(mi)
+	var plan := {"loops": res.loops, "solids": res.solids, "holes": res.holes, "pieces": res.pieces}
+	var colliders: Array = []
 	if not shell:
-		var body := StaticBody3D.new()             # filled before it joins the tree, as _build_shaped_walls
 		for s: Dictionary in res.solids:
+			await _slice()
 			var parts: Array = Geometry2D.decompose_polygon_in_convex(s.poly)
 			if parts.is_empty():                   # (a plan the decomposition can't take: its triangles)
 				var idx := Geometry2D.triangulate_polygon(s.poly)
@@ -503,10 +546,7 @@ func _build_wall_graph() -> void:
 					pts.append(Vector3(p.x, s.top, p.y))
 				var shape := ConvexPolygonShape3D.new()
 				shape.points = pts
-				var cs := CollisionShape3D.new()
-				cs.shape = shape
-				body.add_child(cs)
-		add_child(body)
+				colliders.append([shape, Transform3D.IDENTITY])
 	# occluders: the faces of the walls that go right up to the ceiling
 	var verts := PackedVector3Array()
 	var idx := PackedInt32Array()
@@ -517,12 +557,11 @@ func _build_wall_graph() -> void:
 		var k := verts.size()
 		verts.append_array([Vector3(p.x, 0.0, p.y), Vector3(q.x, 0.0, q.y), Vector3(q.x, pc.y1, q.y), Vector3(p.x, pc.y1, p.y)])
 		idx.append_array([k, k + 1, k + 2, k, k + 2, k + 3])
+	var occ: ArrayOccluder3D
 	if not verts.is_empty():
-		var occ := ArrayOccluder3D.new()
+		occ = ArrayOccluder3D.new()
 		occ.set_arrays(verts, idx)
-		var oi := OccluderInstance3D.new()
-		oi.occluder = occ
-		add_child(oi)
+	return {"solution": sol, "plan": plan, "meshes": res.meshes, "colliders": colliders, "occluder": occ}
 
 ## What stands in the openings of the wall graph's walls (wall_openings.gd): a door's leaf (props/door.gd; two
 ## for a pair, each hung on its own jamb), a window (props/window.gd) set back in its hole, and the joinery round
@@ -1115,6 +1154,47 @@ const STEP_TRIM_RUN := CELL          # a strip's length: exactly a cell (longer,
 const STEP_TRIM_D := 0.004          # ...and how far it stands out from the step's face
 const STEP_TRIM_TOP := 0.06         # the strip along the face's top edge, under the tall ceiling
 func _build_ceiling_steps() -> void:
+	var data = _cached_geometry("ceiling/steps")
+	if data == null:
+		data = await _make_ceiling_steps()
+		_cache_geometry("ceiling/steps", data)
+	if prepare_static_only: return
+	for step: Array in data.meshes:
+		var mi := MeshInstance3D.new()
+		mi.mesh = step[1]
+		var m: StandardMaterial3D
+		if _has_pbr("wall"):
+			m = _pbr_or("wall")
+			m.uv1_triplanar = false        # explicit UVs on the drops
+			m.uv1_scale = Vector3.ONE
+		else:
+			m = _wall_material("wall" if step[0] == WALL_H else "wall_tall", step[0], false)
+		mi.material_override = m
+		add_child(mi)
+	if data.collider != null:
+		await _mount_shapes([[data.collider, Transform3D.IDENTITY]])
+	if data.trims.is_empty(): return
+	# the same dark vinyl as the skirting (level_trim.gd), so it is lit like it
+	var tm: Material = _skirt_material()
+	var box := BoxMesh.new()
+	_chunked(data.trims, func(t: Dictionary) -> Vector3: return Vector3(t.x, t.y, t.z), "", func(list: Array) -> MultiMeshInstance3D:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = box
+		mm.instance_count = list.size()
+		var buf := MMBuffer.alloc(mm)
+		var st := MMBuffer.stride(mm)
+		for i in list.size():
+			var t: Dictionary = list[i]
+			var sc := Vector3(STEP_TRIM_RUN if t.along_x else STEP_TRIM_D, t.h, STEP_TRIM_D if t.along_x else STEP_TRIM_RUN)
+			MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
+		mm.buffer = buf
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = tm
+		return mmi)
+
+func _make_ceiling_steps() -> Dictionary:
 	var batches := [
 		{"height": WALL_H, "st": SurfaceTool.new(), "n": 0},
 		{"height": TALL_H, "st": SurfaceTool.new(), "n": 0},
@@ -1125,6 +1205,7 @@ func _build_ceiling_steps() -> void:
 	var collider_tris := PackedVector3Array()
 	var half := CELL / 2.0
 	for x in range(1, size - 1):
+		if x % 8 == 0: await _slice()
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			# a solid wall cell has no ceiling to step from, but a carved one (a door / thin wall
@@ -1171,51 +1252,18 @@ func _build_ceiling_steps() -> void:
 				# and a strip along the top where the face meets the tall ceiling, as the walls have at theirs
 				for strip: Array in [[lo + STEP_TRIM_H * 0.5, STEP_TRIM_H], [hi - STEP_TRIM_TOP * 0.5, STEP_TRIM_TOP]]:
 					trims.append({"x": bx + dv.x * side * STEP_TRIM_D * 0.5, "z": bz + dv.y * side * STEP_TRIM_D * 0.5, "y": strip[0], "h": strip[1], "along_x": dv.x == 0})
-	for i in batches.size():
-		var b: Dictionary = batches[i]
+	var meshes: Array = []
+	for b: Dictionary in batches:
 		if b.n == 0: continue
 		var st: SurfaceTool = b.st
 		st.generate_tangents()
-		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
-		var m: StandardMaterial3D
-		if _has_pbr("wall"):
-			m = _pbr_or("wall")
-			m.uv1_triplanar = false        # explicit UVs on the drops
-			m.uv1_scale = Vector3.ONE
-		else:
-			m = _wall_material("wall" if i == 0 else "wall_tall", b.height, false)
-		mi.material_override = m          # (both sides are in the mesh, each facing its own way: lit like any wall)
-		add_child(mi)
+		meshes.append([b.height, st.commit()])
+	var shape: ConcavePolygonShape3D
 	if not collider_tris.is_empty():
-		var body := StaticBody3D.new()
-		add_child(body)
-		var cs := CollisionShape3D.new()
-		var shape := ConcavePolygonShape3D.new()
+		shape = ConcavePolygonShape3D.new()
 		shape.set_faces(collider_tris)
 		shape.backface_collision = true
-		cs.shape = shape
-		body.add_child(cs)
-	if trims.is_empty(): return
-	# the same dark vinyl as the skirting (level_trim.gd), so it is lit like it: a cream one read as a glowing white bar
-	var tm: Material = _skirt_material()
-	var box := BoxMesh.new()
-	_chunked(trims, func(t: Dictionary) -> Vector3: return Vector3(t.x, t.y, t.z), "", func(list: Array) -> MultiMeshInstance3D:
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = box
-		mm.instance_count = list.size()
-		var buf := MMBuffer.alloc(mm)
-		var st := MMBuffer.stride(mm)
-		for i in list.size():
-			var t: Dictionary = list[i]
-			var sc := Vector3(STEP_TRIM_RUN if t.along_x else STEP_TRIM_D, t.h, STEP_TRIM_D if t.along_x else STEP_TRIM_RUN)
-			MMBuffer.put(buf, i * st, Transform3D(Basis.from_scale(sc), Vector3(t.x, t.y, t.z)))
-		mm.buffer = buf
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = tm
-		return mmi)
+	return {"meshes": meshes, "collider": shape, "trims": trims}
 
 # Pit shafts: the cut edge of the floor slab, then raw concrete walls falling away into
 # blackness (vertex colours darken with depth), and a black bottom. A pit that opens into the floor below

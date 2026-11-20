@@ -36,6 +36,10 @@ const LOOT_WEIGHT := 6               # how many ordinary cells a Loot zone cell 
 const CLIPBOARD_PER_CELLS := 90
 
 var exit_door: Node3D
+signal initial_build_finished
+signal floor_loaded
+var slice_initial_build := false
+const INITIAL_SLICE_USEC := 24000
 
 func _ready() -> void:
 	Stability.trace("level: building")
@@ -44,16 +48,27 @@ func _ready() -> void:
 	load_current()
 	Stability.trace("level: level data loaded")
 	step_mask()                        # the nav table, now while loading, not on a monster's first flood fill
-	build_geometry()
+	# The grid and its spawn markers are available to sibling nodes during their _ready calls.
+	# Spread mesh creation over frames on the loading-screen path.
+	if slice_initial_build:
+		rebuilding = true
+		await get_tree().process_frame
+		slice_usec = INITIAL_SLICE_USEC
+		_slice_from = Time.get_ticks_usec()
+	await build_geometry()
 	Stability.trace("level: geometry built")
-	build_lighting()
+	await _slice()
+	await build_lighting()
+	_save_geometry_cache()
 	Stability.trace("level: lighting built")
+	await _slice()
 	_build_exit()
 	_spawn_batteries()
 	_spawn_tape()
 	_spawn_flashes()
 	_spawn_survey_props()
 	Stability.trace("level: props spawned")
+	await _slice()
 	var marks := TapeMarks.new()
 	marks.name = "TapeMarks"
 	add_child(marks)
@@ -70,8 +85,10 @@ func _ready() -> void:
 	_sync_shells()
 	_build_wrap_copies()
 	_render_ready()
+	slice_usec = 0
+	rebuilding = false
 	Stability.trace("level: level fully built")
-	_prewarm_floors()
+	initial_build_finished.emit()
 
 func _process(delta: float) -> void:
 	var _pt := Time.get_ticks_usec()
@@ -80,7 +97,7 @@ func _process(delta: float) -> void:
 
 func _process_timed(delta: float) -> void:
 	if rebuilding or _stub:            # no fixtures to light with until the floor is built
-		_pace_build(delta)
+		if not slice_initial_build: _pace_build(delta)
 		return
 	if Game.freefall: return           # down a bottomless pit: pit_fall.gd has the fog, and the level is out of sight
 	update_lighting(delta)
@@ -525,6 +542,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	_tear_down(was, well, cover, not fresh and f != was and was in _wanted_shells(f))
 	# the same level: its file is already in memory, so the swap frame doesn't re-read and re-parse it off the disk
 	load_floor(f, {} if fresh else level_raw)
+	floor_loaded.emit()
 	_place_shells()
 	if cover != null: Shell.set_height(cover, 0.0)
 	var lift := Vector3(0, float(link.get("lift", 0.0)), 0)
@@ -535,7 +553,6 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 		_stub = true
 		_stub_cover = cover
 		return
-	_step_mask = PackedByteArray()      # the nav table: cached by grid size, and every floor has the same size
 	step_mask()
 	if well != null or cover != null:
 		# the same well, or the same shaft, stands on this floor a storey higher or lower: the player goes there with it
@@ -557,6 +574,7 @@ func rebuild_floor_seamless(f: int, link: Dictionary = {}, fresh := false) -> vo
 	_floor_ready()
 	if falling: prime_pool()
 	_sync_shells()
+	_prewarm_floors()
 
 var _stub := false                 # the floor that stands is only its look-only copy, passed on a fall through a chain of holes
 var _stub_cover: Node3D = null
@@ -566,11 +584,12 @@ func _realize_stub() -> void:
 	_stub = false
 	if is_instance_valid(_stub_cover): _stub_cover.free()
 	_stub_cover = null
-	_step_mask = PackedByteArray()
+	_reset_navigation()
 	step_mask()
 	for stage: Callable in _build_stages(null): stage.call()
 	_floor_ready()
 	prime_pool()
+	_prewarm_floors()
 	_sync_shells()
 
 ## Everything of the old floor (floor `was`) goes, bar the marks, the light pool, the baked GI node and the
@@ -719,22 +738,26 @@ func _hold(n: Node, mats: Array) -> void:
 func _build_stages(old_well: Node) -> Array[Callable]:
 	return [
 		func() -> void:
+			_open_geometry_cache()
 			_make_materials()
 			await _build_surfaces(true, false),
 		func() -> void: await _build_surfaces(false, true),
-		_build_walls,
+		func() -> void:
+			await _build_walls()
+			_finish_static_grid(),
 		func() -> void:
 			well_to_replace = old_well         # (goes when its replacement stands: _swap_wells)
 			await _build_objects()
 			await _build_trim(),
 		func() -> void:
-			_build_ceiling_steps()
+			await _build_ceiling_steps()
+			_finish_geometry_preparation()
 			_build_pit_shafts(),
 		_build_dirt,
 		func() -> void:
 			if panel_ceiling != null:
 				await _place_panel_fixtures()
-				_build_panel_ceiling()
+				await _build_panel_ceiling()
 			else:
 				await _place_fixtures()
 				_build_fixture_meshes()
@@ -748,20 +771,18 @@ func _build_stages(old_well: Node) -> Array[Callable]:
 			_spawn_batteries()
 			_spawn_tape()
 			_spawn_flashes()
-			_spawn_survey_props(),
+			_spawn_survey_props()
+			_save_geometry_cache(),
 	]
 
 ## `cover`: the look-only copy of this floor, in view down the hole the player is falling through. What is
 ## built is kept out of sight until all of it stands, then the copy goes and the real floor shows, lit.
 ##
-## The build takes a few milliseconds of each frame (BUILD_SLICE_MS, growing by BUILD_RAMP_MS a second it has
-## gone on) rather than a whole stage a frame: a big floor's stages ran to a few hundred milliseconds each, every
-## one a dropped frame. Whatever is left is built at once (_pace_build) when the floor is about to be seen or
-## stood on: you come down to the stairwell's front landing, from which its doorway shows the floor; the floor
-## you are falling to is close under you; or BUILD_DEADLINE has passed.
+## Build a few milliseconds at a time. Finish immediately when the player reaches the point where the new
+## floor must supply visibility or collision: the doorway at the stair landing or the end of a fall.
 const BUILD_SLICE_MS := 4.0
-const BUILD_RAMP_MS := 6.0
-const BUILD_DEADLINE := 4.0
+const BUILD_RAMP_MS := 2.0
+const BUILD_MAX_SLICE_MS := 9.0
 const FALL_LANDING_Y := 3.5            # m over the new floor: falling to it, it is all there by then
 var _build_t := 0.0                    # s the build has been going
 var _build_cover: Node = null
@@ -793,14 +814,15 @@ func _build_in_stages(old_well: Node, cover: Node = null) -> void:
 	_floor_ready()
 	if cover != null: prime_pool()
 	_sync_shells()
+	_prewarm_floors()
 
 ## While a floor is built a slice a frame: the next frames' share of time, or the rest of it at once when it is
 ## wanted now (_build_in_stages)
 func _pace_build(delta: float) -> void:
 	if slice_usec <= 0: return
 	_build_t += delta
-	slice_usec = int((BUILD_SLICE_MS + BUILD_RAMP_MS * _build_t) * 1000.0)
-	if _build_t > BUILD_DEADLINE or _floor_wanted_now(): slice_usec = 0
+	slice_usec = int(minf(BUILD_MAX_SLICE_MS, BUILD_SLICE_MS + BUILD_RAMP_MS * _build_t) * 1000.0)
+	if _floor_wanted_now(): slice_usec = 0
 
 func _floor_wanted_now() -> bool:
 	var p: Node3D = player if player != null else Game.player
@@ -915,37 +937,80 @@ var _shells_done := -1             # the _shell_run whose look-only floors all s
 func settled() -> bool:
 	return not rebuilding and not _stub and _shells_done == _shell_run
 
-## The other floors of the level, built whole out of sight one after another as soon as this one stands, then
-## freed with their materials, textures, meshes and sounds held (_hold): the first trip up the stairs or down a pit
-## finds all of it in memory, as a floor you have been on before does. Stops if the level or the floor changes.
-const PREWARM_FLOORS := 6
-const PREWARM_SLICE_MS := 3.0
+## Prepare the next floors reachable by stairs or a hole. Their live nodes are built at the actual transition.
+const StaticGeometry := preload("res://scripts/World/level/level_geometry.gd")
+const PREWARM_SLICE_USEC := 3000
+var _preparing_floors := false
 
 func _prewarm_floors() -> void:
-	var ask := _level_ask
-	var floors: Array[int] = []
-	for k in level_raw.get("floors", {}):
-		var f := int(k)
-		if f != built_floor and has_floor(level_raw, f): floors.append(f)
-	if has_floor(level_raw, 0) and built_floor != 0: floors.append(0)
-	floors.sort_custom(func(a: int, b: int) -> bool: return absi(a - built_floor) < absi(b - built_floor))
-	for f in floors.slice(0, PREWARM_FLOORS):
-		if _held.has(f): continue
-		var s := Shell.new()
-		s.warm = true
-		s.slice_usec = int(PREWARM_SLICE_MS * 1000.0)
-		for stage: Callable in s.build_stages(level_meta, level_raw, f):
-			await get_tree().process_frame
-			while rebuilding: await get_tree().process_frame     # (never while a real floor is being built)
-			if ask != _level_ask or not is_inside_tree() or Game.level_floor != built_floor:
-				s.free()
-				return
-			s._slice_from = Time.get_ticks_usec()
-			await stage.call()
-		var mats: Array = []
-		_hold(s, mats)
-		_held[f] = mats
-		s.free()
+	if _preparing_floors:
+		return
+	_preparing_floors = true
+	var tree := get_tree()
+	# Let the new floor present its first frames before starting optional work.
+	await tree.create_timer(0.25).timeout
+	while is_inside_tree():
+		while _geometry_prep_waiting():
+			await tree.process_frame
+		var from := built_floor
+		var ask := _level_ask
+		for target: int in _nearby_floor_candidates():
+			if ask != _level_ask or from != built_floor:
+				break
+			await _prepare_floor(target, from, ask)
+		if ask == _level_ask and from == built_floor:
+			break
+	_preparing_floors = false
+
+func _geometry_prep_waiting() -> bool:
+	var tree := get_tree()
+	return rebuilding or (tree.paused and not tree.root.has_node("WakeGate"))
+
+func _nearby_floor_candidates() -> Array:
+	var distances := {}
+	var at := player.global_position if is_instance_valid(player) else spawn_pos
+	for well in stairwells:
+		if not is_instance_valid(well): continue
+		var sq := at.distance_squared_to(well.global_position)
+		if well.up:
+			distances[built_floor + 1] = minf(sq, distances.get(built_floor + 1, INF))
+		if well.down:
+			distances[built_floor - 1] = minf(sq, distances.get(built_floor - 1, INF))
+	for entry in [[through, built_floor - 1], [climb_up, built_floor + 1]]:
+		for cell: Vector2i in entry[0]:
+			var sq := Vector2(at.x, at.z).distance_squared_to(Vector2(cell) * CELL)
+			distances[entry[1]] = minf(sq, distances.get(entry[1], INF))
+	var floors := distances.keys().filter(func(f: int) -> bool: return in_stack(level_raw, f))
+	floors.sort_custom(func(a: int, b: int) -> bool: return distances[a] < distances[b])
+	return floors
+
+func _prepare_floor(target: int, from: int, ask: int) -> void:
+	var cache := _geometry_for(target, level_raw)
+	if cache.entries.has("preparation/complete"):
+		return
+	var prep := StaticGeometry.new()
+	add_child(prep, false, Node.INTERNAL_MODE_BACK)
+	prep.prepare_static_only = true
+	prep.preparation_owner = self
+	prep.level_meta = level_meta
+	prep.load_floor(target, level_raw)
+	prep.geometry_cache = cache
+	prep._make_materials()
+	prep.slice_usec = PREWARM_SLICE_USEC
+	prep._slice_from = Time.get_ticks_usec()
+	if not cache.entries.has("grid/complete"):
+		await prep._build_surfaces()
+		if ask == _level_ask and from == built_floor:
+			await prep._build_walls()
+			prep._finish_static_grid()
+	if ask == _level_ask and from == built_floor:
+		await prep._build_wall_graph()
+	if ask == _level_ask and from == built_floor:
+		await prep._build_ceiling_steps()
+		if ask == _level_ask and from == built_floor:
+			prep._finish_geometry_preparation()
+	prep._save_geometry_cache()
+	prep.free()
 
 ## The render engine's share of a built floor: every material held to its class's gloss (render/surfaces.gd), and
 ## the room captures that follow the player (render/reflection_pool.gd; a floor torn down took the old ones with it)

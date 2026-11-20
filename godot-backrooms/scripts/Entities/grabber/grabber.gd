@@ -29,7 +29,6 @@ const CELL := 4.5
 const RADIUS := 0.45
 const STATES := ["away", "hunch", "drop", "land", "chase", "peek", "grab", "drag", "recoil", "flee"]
 
-const FIRST_DELAY := Vector2(60.0, 120.0)     # s after the level starts before it first comes
 const AWAY_ESCAPED := 90.0                    # s gone after you tore loose
 const AWAY_TAKEN := Vector2(180.0, 300.0)     # s gone after it took someone
 const AWAY_FLASHED := 40.0
@@ -126,18 +125,29 @@ func _ready() -> void:
 	scares = get_parent().get_node("Scares")
 	nav = GridNav.new(level)
 	nav.area_kind = "grabber"
-	flow.resize(nav.n * nav.n)
-	reach.resize(nav.n * nav.n)
 	body = GrabberBody.new()
 	if not body.build(self):
 		body = null
 	drag = GrabberDrag.new(self)
 	net = GrabberNet.new(self)
-	away_left = rng.randf_range(FIRST_DELAY.x, FIRST_DELAY.y)
-	_marks = EntityMarks.of_kind(level, "grabber")
-	if not _marks.is_empty():                     # a Grabber mark in the level editor: it is in this level, and waits there
-		enabled = true
-		away_left = 1.0
+	level.floor_loaded.connect(_on_floor_loaded)
+	_on_floor_loaded()
+
+func _on_floor_loaded() -> void:
+	if drag.active():
+		drag._release()
+	net.buf.snaps.clear()
+	flow.resize(nav.n * nav.n)
+	reach.resize(nav.n * nav.n)
+	_flow_key = -1
+	target_id = -1
+	victim_id = -1
+	_marks = EntityMarks.placed(level, "grabber")
+	_marks_used = false
+	_lurk_mark = false
+	hunch_grace = 0.0
+	enabled = not _marks.is_empty()
+	away_left = 1.0 if enabled else INF
 	_set_state("away")
 
 func _set_state(s: String) -> void:
@@ -251,7 +261,7 @@ func _ceiling_over(at: Vector3) -> float:
 
 # ================================================================= away, and choosing where to wait
 func _think_away(delta: float) -> void:
-	if not enabled or Game.outdoors:
+	if not enabled or Game.outdoors or level.rebuilding or level._stub:
 		return
 	away_left -= delta
 	if away_left > 0.0:

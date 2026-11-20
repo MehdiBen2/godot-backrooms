@@ -1,0 +1,9 @@
+[configuration]
+
+entry_symbol = "windows_shader_locale_init"
+compatibility_minimum = "4.7"
+reloadable = false
+
+[libraries]
+
+windows.x86_64 = "res://native/windows_shader_locale/windows_shader_locale.dll"

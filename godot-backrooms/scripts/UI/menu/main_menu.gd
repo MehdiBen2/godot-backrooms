@@ -21,7 +21,6 @@ const MENU_SMEAR := 0.3                 # title screen VHS layer: a quarter-ish 
 const MENU_WIGGLE := 0.012
 const MENU_FISHEYE := 0.03              # subtle on purpose: it only bends the picture, the buttons keep their flat hit boxes
 										# (at 0.03 a control at the screen edge is ~6 px from where it is drawn; 0.1 was 20+)
-const LoadManifest := preload("res://scripts/GameLogicEngine/load_manifest.gd")
 const Briefing := preload("res://scripts/UI/menu/mission_briefing.gd")
 const WakeGate := preload("res://scripts/UI/wake_gate.gd")
 const LobbyScreen := preload("res://scripts/UI/menu/lobby_screen.gd")
@@ -86,6 +85,7 @@ const TIPS := [
 	"Await further instructions.",
 ]
 const MIN_LOAD_TIME := 1.6       # s: the screen stays up at least this long, so a fast load does not flash
+const LOADING_FPS := 60          # leave CPU and GPU time for the level when VSync is off
 const CREEP_RATE := 0.04         # emblem fill creep per second while the loaders report nothing new
 const CREEP_AHEAD := 0.15        # ...never further than this past what is really loaded
 const TIP_EVERY := 7.0           # s between field notes
@@ -141,6 +141,7 @@ var load_tip: Label                     # bottom right: a field note, changed ev
 var load_gate := true                   # false when launched straight from the level editor: no key press needed
 var tip_clock := 0.0
 var loading := false
+var load_failed := false
 var busy := false                       # PLAY / QUIT transition running: ignore further input
 var shown_progress := 0.0
 var creep_progress := 0.0
@@ -161,35 +162,39 @@ var crt_bottom: ColorRect
 var crt_line: ColorRect
 
 func _ready() -> void:
-	LoadManifest.install(get_tree())         # before the first threaded load (_preload_game), see load_manifest.gd
 	_menu_fps()
 	Gfx.changed.connect(_menu_fps)           # Gfx.apply() writes the in-game FPS cap on every settings change
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	multiplayer.connected_to_server.connect(_on_multiplayer_connected)
-	_build()
-	if Game.test_level == "":
-		_preload_game()                  # (a level editor launch picks its level first: _on_play does it then)
-	if Game.test_level == "" and not Game.boot_played:   # first time up this launch: warnings, logo, CRT on
-		Game.boot_played = true
-		modulate.a = 0.0
-		var boot: CanvasLayer = load("res://scripts/UI/menu/boot_sequence.gd").new()
-		boot.reveal.connect(func() -> void:
-			_start_music()
-			_intro()
-			modulate.a = 1.0)                    # the picture is there at once: the tube does the fade-up
-		add_child(boot)
-		return
-	_start_music()
-	if Game.test_level != "":            # launched from the level editor: skip the title, open that level
+	if Game.test_level != "":            # the level editor only needs the loading screen
 		var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
 		for i in levels.size():
 			if str(levels[i].get("id", "")) == Game.test_level or str(levels[i].get("file", "")) == Game.test_level:
 				Game.level_index = i
 		Game.test_level = ""
-		modulate.a = 1.0
+		_build_loading()
 		_on_play(true)
 		return
+	if not Game.boot_played:
+		Game.boot_played = true
+		modulate.a = 0.0
+		set_process(false)
+		var boot: CanvasLayer = load("res://scripts/UI/menu/boot_sequence.gd").new()
+		add_child(boot)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		_build()
+		_title_on(false)
+		set_process(true)
+		boot.reveal.connect(func() -> void:
+			_title_on(true)
+			_start_music()
+			_intro()
+			modulate.a = 1.0)
+		return
+	_build()
+	_start_music()
 	_intro()
 
 ## The title screen runs uncapped: vsync (on in every preset) paces it to the monitor's refresh rate, so the
@@ -474,7 +479,7 @@ func _menu_item(col: Control, text: String, hint: String, panel: String, action:
 	b.pressed.connect(_activate.bind(i))
 
 func _check_mouse_leave(i: int) -> void:
-	if sel == i:
+	if is_inside_tree() and sel == i:
 		for it in items:
 			var btn: Button = it["button"]
 			if btn.visible and btn.get_global_rect().has_point(btn.get_global_mouse_position()):
@@ -841,10 +846,9 @@ func _music_player(stream: AudioStream, db: float) -> AudioStreamPlayer:
 func _fade_music(db: float, secs: float) -> void:
 	if music_fade:
 		music_fade.kill()
-	music_fade = create_tween().set_parallel(true)
-	for p in [music]:
-		if p and is_instance_valid(p) and p.playing:
-			music_fade.tween_property(p, "volume_db", db, secs)
+	if is_instance_valid(music) and music.playing:
+		music_fade = create_tween()
+		music_fade.tween_property(music, "volume_db", db, secs)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
@@ -974,6 +978,8 @@ func _start_briefing() -> void:
 ## `fade`: coming out of the push (fully black by now), the loading text comes up out of the dark instead of cutting in
 func _start_loading(fade := false) -> void:
 	loading = true
+	load_failed = false
+	Engine.max_fps = LOADING_FPS
 	set_process(true)
 	loading_root.visible = true
 	loading_root.modulate.a = 1.0
@@ -997,8 +1003,8 @@ func _start_loading(fade := false) -> void:
 	creep_progress = 0.0
 	load_elapsed = 0.0
 	tip_clock = 0.0
-	_preload_game()
 	_play_loading_music()
+	_preload_game()
 
 ## The menu's start track again, under the loading screen: it fades in while loading, and fades out over LOAD_FADE
 ## seconds once the level finishes loading (or on entering the level).
@@ -1062,66 +1068,17 @@ static func _stop_loading_music() -> void:
 		_load_music_player.queue_free()
 	_load_music_player = null
 
-## The run, loading on loader threads from the moment the title screen is up (and again here, for a level other
-## than the one asked for then). Loading main.tscn compiles every script the run uses, ~57,000 lines of GDScript:
-## nearly all of the 3.5 s it takes, which used to start only when PLAY was pressed.
-static var _main_asked := false
-var _warm_for := -1                     # the level whose files _warm_level_resources asked for
+## Stream the selected run after the player confirms it in the lobby.
+var _main_asked := false
+var _run_assets: RefCounted
 
 func _preload_game() -> void:
 	if not _main_asked:
-		_main_asked = ResourceLoader.load_threaded_request(MAIN_SCENE) == OK
-	if _warm_for != Game.level_index:
-		_warm_for = Game.level_index
-		_warm_level_resources()
-
-## Things the level builder load()s one after another (a stall with no loading screen once the scene has
-## switched): requested here on loader threads, so those load() calls find them already in the cache. These are
-## the ones known by hand; everything else the level read the last time it was built comes from load_manifest.gd.
-const WARM_SETS := [
-	["l0_carpet_", ["color", "normal", "rough", "ao"], ".webp"], ["l0_ceiling_", ["color", "normal", "rough", "ao"], ".webp"],
-	["l0_wallpaper_", ["color", "normal", "rough", "ao"], ".webp"], ["tiles_", ["color", "normal", "rough", "ao"], ".png"],
-	["grime_dry_", ["0", "1", "2", "3", "4"], ".png"], ["grime_wet_", ["0", "1", "2", "3", "4"], ".png"],
-]
-const WARM_FILES := [
-	"res://textures/l0_carpet_height.png", "res://textures/concrete_color.jpg", "res://textures/concrete_normal.jpg",
-	"res://shaders/drop_ceiling.gdshader", "res://shaders/panel_ceiling.gdshader",
-	"res://models/lights/office_lighting_troffer_light_1x4.glb", "res://models/ceiling/backrooms_blender_kit.glb",
-]
-var _warm: Array[String] = []
-
-func _warm_level_resources() -> void:
-	_warm.clear()
-	var paths: Array[String] = []
-	for set in WARM_SETS:
-		for part in set[1]:
-			paths.append("res://textures/%s%s%s" % [set[0], part, set[2]])
-	paths.append_array(WARM_FILES)
-	for id in ["Wood_Dark_Knot", "Metal_Grey_Plate"]:      # the door's fallback materials (level_geometry.gd _make_materials)
-		paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
-	paths.append("res://textures/props/door/door_leaf.tres")
-	var levels: Array = load("res://scripts/World/level/level_data.gd").read_index()
-	if not levels.is_empty():
-		var meta: Dictionary = levels[clampi(Game.level_index, 0, levels.size() - 1)]
-		# the level's own material picks: its "materials" slots and every pbr name used by the "paint" brush
-		var d = JSON.parse_string(FileAccess.get_file_as_string("res://levels/" + str(meta.get("file", ""))))
-		if d is Dictionary:
-			var ids := {}
-			for slot in d.get("materials", {}):
-				ids[str(d["materials"][slot])] = true
-			for slot in d.get("paint", {}):
-				for id in d["paint"][slot]:
-					ids[str(id)] = true
-			for id in ids:
-				if not str(id).is_empty():
-					paths.append("res://textures/pbr/%s/%s.tres" % [id, id])
-	_warm = LoadManifest.warm(PackedStringArray(paths) + LoadManifest.paths(Game.level_index))
-
-func _warm_pending() -> bool:
-	for p in _warm:
-		if ResourceLoader.load_threaded_get_status(p) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			return true
-	return false
+		if _run_assets == null:
+			_run_assets = load("res://scripts/GameLogicEngine/run_assets.gd").new(Game.level_index, Game.level_floor)
+		_main_asked = ResourceLoader.load_threaded_request(MAIN_SCENE, "PackedScene") == OK
+		if _main_asked:
+			Stability.trace("play: loading the run scene")
 
 ## The playlist entry the run starts on, so the loading screen names the level actually being built
 func _level_name() -> String:
@@ -1132,27 +1089,50 @@ func _level_name() -> String:
 	return str(meta.get("name", "LEVEL 0"))
 
 func _finish_loading() -> void:
-	loading = false                    # once only: _process_loading must not hand over again next frame
-	set_process(false)
 	var packed := ResourceLoader.load_threaded_get(MAIN_SCENE) as PackedScene
 	_main_asked = false
-	Stability.trace("play: main scene loaded (%s), switching to it" % ("OK" if packed != null else "FAILED: null"))
+	if packed == null:
+		_loading_failed()
+		return
+	Stability.trace("play: run resources loaded")
+	var run := packed.instantiate() as Node3D
+	if run == null:
+		_loading_failed()
+		return
+	run.get_node("Level").slice_initial_build = true
+	run.loading_assets = _run_assets.assets
+	run.hide()
+	loading = false
+	set_process(false)
+	Stability.trace("play: switching to the run scene")
 	Game.respawned = true              # straight into the run: the title screen is this scene
-	Engine.max_fps = int(Gfx.s.get("fps", 0))
+	Game.playing = false
 	var tree := get_tree()
-	LoadManifest.record(Game.level_index)      # (main.gd stops it once the run is up)
-	if packed != null:
-		# the loading screen goes on over the level until it is built and has settled, then asks for a key
-		var gate := WakeGate.new()
-		gate.setup(loading_root, load_status, load_emblem, load_glow, shown_progress, load_gate)
-		tree.root.add_child(gate)
-		loading_root.reparent(gate)
-	tree.change_scene_to_packed(packed)
-	Stability.trace("play: change_scene_to_packed returned")
+	# The loading screen stays over the level while it is built and settles.
+	var gate := WakeGate.new()
+	gate.setup(loading_root, load_status, load_emblem, load_glow, shown_progress, load_gate)
+	tree.root.add_child(gate)
+	loading_root.reparent(gate)
+	if tree.change_scene_to_node(run) != OK:
+		run.free()
+		loading_root.reparent(self)
+		gate.queue_free()
+		Game.respawned = false
+		_loading_failed()
+
+func _loading_failed() -> void:
+	loading = false
+	load_failed = true
+	load_status.text = "SIGNAL LOST  //  ENTER TO RETRY"
+	load_status.modulate = Color(1.0, 0.32, 0.26)
 
 ## Any key or click during the intro jumps it to the end (the press still does what it normally does)
 func _input(e: InputEvent) -> void:
 	if not is_inside_tree():
+		return
+	if load_failed and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		get_viewport().set_input_as_handled()
+		_start_loading()
 		return
 	if e is InputEventKey or e is InputEventMouseButton or (e is InputEventMouseMotion and e.relative.length() > 1.0):
 		idle_time = 0.0
@@ -1165,14 +1145,12 @@ func _input(e: InputEvent) -> void:
 		W._finish(intro)
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not (e is InputEventKey and e.pressed) or lobby.shown:
+	if busy or lobby == null or lobby.shown or not (e is InputEventKey and e.pressed):
 		return
 	var k: Key = e.physical_keycode
 	if k == KEY_ESCAPE and not e.echo:
 		if not settings_menu.close_panel() and group == "sub":     # panel first, then the list
 			_set_group("main")
-		return
-	if busy:
 		return
 	match k:
 		KEY_UP, KEY_W, KEY_Z:
@@ -1186,8 +1164,12 @@ func _unhandled_input(e: InputEvent) -> void:
 # ---- per-frame -----------------------------------------------------------------------
 func _process(dt: float) -> void:
 	t += dt
+	if _run_assets != null:
+		_run_assets.poll()
 	if loading:
 		_process_loading(dt)
+	elif load_failed:
+		return
 	else:
 		if idle:
 			idle_prompt.modulate.a = 0.45 + 0.55 * (0.5 + 0.5 * sin(t * 2.4))
@@ -1205,33 +1187,17 @@ func _process_loading(dt: float) -> void:
 	var prog := []
 	var status := ResourceLoader.load_threaded_get_status(MAIN_SCENE, prog)
 	if status == ResourceLoader.THREAD_LOAD_FAILED or status == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
-		load_status.text = "SIGNAL LOST  //  ENTER TO RETRY"
-		load_status.modulate = Color(1.0, 0.32, 0.26)
-		loading = false
-		busy = false                  # Enter tries again
+		if status == ResourceLoader.THREAD_LOAD_FAILED:
+			ResourceLoader.load_threaded_get(MAIN_SCENE)
+		_main_asked = false
+		_loading_failed()
 		return
 
-	var scene_progress: float = 0.0
-	if status == ResourceLoader.THREAD_LOAD_LOADED:
-		scene_progress = 1.0
-	elif status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		scene_progress = prog[0] if not prog.is_empty() else 0.05
-
-	# the pre-warmed level files (textures, meshes, shaders, sounds)
-	var warm_total: float = 0.0
-	var warm_pending := false
-	for p in _warm:
-		var wp := []
-		var ws := ResourceLoader.load_threaded_get_status(p, wp)
-		if ws == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			warm_pending = true
-			warm_total += wp[0] if not wp.is_empty() else 0.0
-		else:
-			warm_total += 1.0
-	var warm_progress: float = (warm_total / float(_warm.size())) if not _warm.is_empty() else 1.0
-	var loaded := status == ResourceLoader.THREAD_LOAD_LOADED and not warm_pending
+	var asset_progress: float = _run_assets.progress()
+	var loaded := status == ResourceLoader.THREAD_LOAD_LOADED and asset_progress == 1.0
 	var done := loaded and load_elapsed >= MIN_LOAD_TIME
-	var real_progress: float = 1.0 if loaded else (scene_progress * 0.4 + warm_progress * 0.6)
+	var scene_progress: float = 1.0 if status == ResourceLoader.THREAD_LOAD_LOADED else (prog[0] if not prog.is_empty() else 0.0)
+	var real_progress := (scene_progress + asset_progress) * 0.5
 
 	# creep: the fill keeps moving a little while a loader reports nothing, but never far past the real figure
 	creep_progress = minf(creep_progress + dt * CREEP_RATE, real_progress + CREEP_AHEAD)

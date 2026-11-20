@@ -2,6 +2,7 @@ extends Node3D
 ## Wires up the player, UI and audio. Esc is native here: no browser cooldown.
 
 const PAUSED_FPS := 60
+var loading_assets: Array[Resource] = []
 
 @onready var level := $Level
 @onready var player := $Player
@@ -9,6 +10,11 @@ const PAUSED_FPS := 60
 @onready var audio := $Audio
 
 func _ready() -> void:
+	var staged: bool = level.slice_initial_build
+	if staged:
+		get_tree().paused = true
+		await level.initial_build_finished
+		level.slice_initial_build = false
 	Stability.trace("main: level, player, UI and audio are built; wiring them up")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	player.global_position = level.spawn_pos
@@ -23,6 +29,8 @@ func _ready() -> void:
 	ui.apply_settings()
 	Stability.trace("main: UI settings applied, applying graphics (preset=%s)" % Gfx.preset)
 	Gfx.apply_scene(self)
+	if staged:
+		show()
 	Stability.trace("main: graphics applied")
 	$Entity.mannequin = $Mannequin
 	$Events.mimic = $Mimic
@@ -36,14 +44,17 @@ func _ready() -> void:
 	else:
 		set_paused(true, true)      # start screen, like the web game's #start-screen
 	Stability.trace("main: ready, the run has started")
+	var wake_gate := get_tree().root.has_node("WakeGate")
 	var lm = get_tree().root.get_node_or_null("LoadingMusicPlayer")
 	# (with the loading screen still up over the level, it fades when that asks for a key: wake_gate.gd)
-	if lm and is_instance_valid(lm) and not lm.has_meta("fading") and not get_tree().root.has_node("WakeGate"):
+	if lm and is_instance_valid(lm) and not lm.has_meta("fading") and not wake_gate:
 		lm.set_meta("fading", true)
 		var tw := lm.create_tween()
 		tw.tween_property(lm, "volume_db", -80.0, 1.5)
 		tw.tween_callback(lm.queue_free)
-	preload("res://scripts/GameLogicEngine/load_manifest.gd").finish(get_tree())    # what this build read, kept for next time
+	if not wake_gate:
+		level._prewarm_floors()
+	loading_assets.clear()
 
 ## Co-op: a player who died comes back beside the nearest living teammate instead of at the level's start
 func _respawn_beside_survivor() -> void:
@@ -95,6 +106,7 @@ func _unhandled_input(e: InputEvent) -> void:
 # Alt-tab or a click on another window mid-run: pause, rather than leave you unable to move while
 # it keeps hunting
 func _notification(what: int) -> void:
+	if ui == null or (is_instance_valid(level) and level.slice_initial_build): return
 	if Gfx.background != "": return      # a background test run (graphics.gd) never has the focus
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		Engine.max_fps = PAUSED_FPS      # nobody is looking: stop rendering the full scene flat out

@@ -48,6 +48,35 @@ var pit_fall: Node3D           # this floor's bottomless pits and the fall down 
 ## and the same filed by face: Vector4i(wall cell x, y, out of the wall x, y) -> the spot
 var weak_spots: Array = []
 var weak_faces := {}
+const GeometryCache := preload("res://scripts/World/level/floor_geometry_cache.gd")
+static var _recent_geometry := {}
+var geometry_cache: GeometryCache
+var prepare_static_only := false
+
+func _open_geometry_cache() -> void:
+	geometry_cache = _geometry_for(floor_no, level_raw)
+
+func _geometry_for(floor_number: int, raw: Dictionary) -> GeometryCache:
+	return GeometryCache.for_floor(level_meta, raw, floor_number, FileAccess.get_sha256(OBJECT_TYPES_PATH), shell, _recent_geometry)
+
+func _cached_geometry(key: String) -> Variant:
+	return geometry_cache.entries.get(key) if geometry_cache != null else null
+
+func _cache_geometry(key: String, value: Variant) -> void:
+	if geometry_cache != null:
+		geometry_cache.store(key, value)
+
+func _save_geometry_cache() -> void:
+	if geometry_cache != null:
+		geometry_cache.save()
+
+func _finish_static_grid() -> void:
+	if geometry_cache != null and not geometry_cache.entries.has("grid/complete"):
+		geometry_cache.store("grid/complete", true)
+
+func _finish_geometry_preparation() -> void:
+	if not geometry_cache.entries.has("preparation/complete"):
+		geometry_cache.store("preparation/complete", true)
 
 func _make_materials() -> void:
 	_floor_map_tex = null                # (this floor's plan: built with its first carpet)
@@ -301,6 +330,9 @@ const SHELL_LAYERS := (1 << 10) | (1 << 11)
 func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> Node3D:
 	if cells.is_empty():
 		return null
+	return _mount_cell_surface(_cell_mesh(cells, height_fn, flip), mat, priority, layers)
+
+func _cell_mesh(cells: Array, height_fn: Callable, flip: bool) -> ArrayMesh:
 	var h := CELL / 2.0
 	var n := Vector3.DOWN if flip else Vector3.UP
 	var st := SurfaceTool.new()
@@ -319,8 +351,11 @@ func _cell_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool,
 			st.set_uv(Vector2(v.x, v.z))
 			st.add_vertex(v)
 	st.generate_tangents()
+	return st.commit()
+
+func _mount_cell_surface(mesh: Mesh, mat: Material, priority: int, layers: int) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
+	mi.mesh = mesh
 	mi.material_override = mat
 	if priority != 0:
 		mi.material_override = mat.duplicate()
@@ -407,13 +442,22 @@ func _commit_chunks(sts: Dictionary, setup: Callable) -> void:
 		add_child(mi)
 
 ## _cell_surface, cut into chunks that each carry a visibility range
-func _ranged_surface(cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> void:
-	var chunks := {}
-	for c: Vector2i in cells: chunks.get_or_add(Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK), []).append(c)
+func _ranged_surface(key: String, cells: Array, height_fn: Callable, mat: Material, flip: bool, priority := 0, layers := 1) -> void:
+	var meshes = _cached_geometry(key)
+	if meshes == null:
+		meshes = []
+		var chunks := {}
+		for c: Vector2i in cells: chunks.get_or_add(Vector2i(c.x / SURF_CHUNK, c.y / SURF_CHUNK), []).append(c)
+		for ch in chunks:
+			await _slice()
+			meshes.append(_cell_mesh(chunks[ch], height_fn, flip))
+		_cache_geometry(key, meshes)
+	if prepare_static_only:
+		return
 	var reach := _chunk_reach()
-	for ch in chunks:
+	for mesh: Mesh in meshes:
 		await _slice()
-		var mi := _cell_surface(chunks[ch], height_fn, mat, flip, priority, layers) as MeshInstance3D
+		var mi := _mount_cell_surface(mesh, mat, priority, layers)
 		mi.visibility_range_end = reach
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 
@@ -437,6 +481,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 	var cut_keys := {}                       # what a cut cell's floor is made of -> those cells
 	var cut_all: Array = []
 	for x in range(1, size - 1):
+		if x % 8 == 0: await _slice()
 		for z in range(1, size - 1):
 			var c := Vector2i(x, z)
 			if stair_cells.has(c): continue         # a stairwell: props/stairs.gd builds its own floors and ceilings
@@ -469,39 +514,41 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			if not walls.has(c): solid_cells.append(c)
 	if ceilings:
 		var ceil_m: Material = _fillable_ceiling(_pbr_or("ceiling")) if _has_pbr("ceiling") else _acoustic_ceiling(Color(0.89, 0.85, 0.74))
-		await _ranged_surface(ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
+		await _ranged_surface("ceiling", ceil_cells, func(c): return ceiling_height(c), ceil_m, true, 0, CEIL_LAYER)
 		for id in paint_ceil:
-			await _ranged_surface(paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
+			await _ranged_surface("ceiling/paint/" + str(id), paint_ceil[id], func(c): return ceiling_height(c), _fillable_ceiling(_painted_mat(id).duplicate()), true, 0, CEIL_LAYER)
 		# Classic zone: bright drop-ceiling tiles (the reference backrooms look)
 		if not classic_ceil.is_empty():
-			await _ranged_surface(classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
-		_build_collar_ceilings(ceil_m)
+			await _ranged_surface("ceiling/classic", classic_ceil, func(c): return ceiling_height(c), _acoustic_ceiling(Color(0.95, 0.9, 0.72)), true, 0, CEIL_LAYER)
+		if not prepare_static_only: _build_collar_ceilings(ceil_m)
 		if not shell: await _build_ceiling_collision(solid_cells + cut_all)
 	if not floors: return
 	# The floor is a one-sided surface: seen from below, through a hole in the ceiling under it, it isn't there,
 	# and the walls and pillars standing on it hang in mid-air. The slab gets an underside of plaster.
 	if not (through.is_empty() and open_above.is_empty() and holes_below.is_empty()):
-		await _ranged_surface(floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
+		await _ranged_surface("floor/underside", floor_cells.filter(func(c: Vector2i) -> bool: return not shaft_pass.has(c)), func(_c): return -0.4, _plaster_mat(), true)
 	# the carpet's floor plan, a slice at a time, before the first carpet asks for it (and would build it all at once)
 	if _floor_map_tex == null and not (_has_pbr("floor") and classic_floor.is_empty() and hotel_floor.is_empty()): await _make_floor_map()
 	var carpet: Material = _pbr_or("floor") if _has_pbr("floor") else _carpet_material(Color(1.0, 0.94, 0.75))
-	await _ranged_surface(carpet_cells, func(_c): return 0.0, carpet, false)
+	await _ranged_surface("floor/carpet", carpet_cells, func(_c): return 0.0, carpet, false)
 	for id in paint_floor:
-		await _ranged_surface(paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
+		await _ranged_surface("floor/paint/" + str(id), paint_floor[id], func(_c): return 0.0, _painted_mat(id), false)
 	# Classic zone: a clean beige office carpet (the walls carry the yellow)
 	if not classic_floor.is_empty():
-		await _ranged_surface(classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
+		await _ranged_surface("floor/classic", classic_floor, func(_c): return 0.0, _carpet_material(Color(1.02, 0.93, 0.7)), false)
 	# Hotel corridors: the deep red carpet of a hotel hall
 	if not hotel_floor.is_empty():
-		await _ranged_surface(hotel_floor, func(_c): return 0.0, _carpet_material(HOTEL_CARPET), false)
+		await _ranged_surface("floor/hotel", hotel_floor, func(_c): return 0.0, _carpet_material(HOTEL_CARPET), false)
 
 	# Polished commercial tile rooms: high-res PBR vinyl composite tiles with wax sheen and normal-mapped bevels
 	if not tile_cells.is_empty():
 		var tm: StandardMaterial3D = _pbr_or("tiles")
 		if tm == null:
 			tm = _default_tile_material()
-		await _ranged_surface(tile_cells, func(_c): return 0.0, tm, false, 0)
-
+		await _ranged_surface("floor/tiles", tile_cells, func(_c): return 0.0, tm, false, 0)
+	if not shell:
+		await _slice()
+		await _build_floor_collision(solid_cells)
 	if not cut_keys.is_empty():
 		var groups := {}
 		for k: String in cut_keys:
@@ -511,7 +558,10 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			elif k == "hotel": m = _carpet_material(HOTEL_CARPET)
 			elif k == "tiles": m = _pbr_or("tiles") if _has_pbr("tiles") else _default_tile_material()
 			groups.get_or_add(m, []).append_array(cut_keys[k])
-		_build_cut_floors(groups, polys)
+		await _build_cut_floors(groups, polys)
+	_build_hole_collision()
+	if prepare_static_only:
+		return
 
 	# round a spiral stair coming up from the floor below: these cells' floor, cut round to its hole
 	var collar_tris := PackedVector3Array()
@@ -524,15 +574,7 @@ func _build_surfaces(floors := true, ceilings := true) -> void:
 			collar_tris.append_array(_flat_polys(cut_polys[c], 0.0, m, false))
 		collar_tris.append_array(_collar_side(col, func(c: Vector2i) -> float: return float(hole_floor.get(c, WALL_H)) - STOREY_H, 0.0, null))
 
-	if shell:
-		# only the holes' sides: a floor passed on a fall down a chain of holes stands as this copy (level_builder.gd
-		# _stub), and without them you could steer out of the shaft under its floor line and fall clear of every floor
-		_build_hole_collision()
-		return
-	await _slice()
-	await _build_floor_collision(solid_cells)
-	_build_hole_collision()
-	_collar_solid(collar_tris)
+	if not shell: _collar_solid(collar_tris)
 
 const CarpetPOMShader := preload("res://shaders/carpet_pom.gdshader")
 
@@ -576,6 +618,9 @@ func _carpet_material(tint := Color(1.0, 0.94, 0.75)) -> ShaderMaterial:
 ## is tens of thousands of cells.
 var _floor_map_tex: ImageTexture
 func _make_floor_map() -> void:
+	_floor_map_tex = _cached_geometry("floor/traffic") as ImageTexture
+	if _floor_map_tex != null:
+		return
 	var n := size
 	var w := n + 1
 	# per cell: 1 solid (a wall block or a stairwell's box), 2 floor that is walked on, 0 neither (a pit)
@@ -626,6 +671,7 @@ func _make_floor_map() -> void:
 			img.set_pixel(x, z, Color(1.0 if k == 1 else 0.0, g, b, 1.0))
 		if z % 16 == 15: await _slice()
 	_floor_map_tex = ImageTexture.create_from_image(img)
+	_cache_geometry("floor/traffic", _floor_map_tex)
 
 const AcousticCeilingShader := preload("res://shaders/acoustic_ceiling.gdshader")
 
@@ -720,17 +766,32 @@ func _merge_rects(must: Dictionary, may := {}) -> Array[Rect2i]:
 	return out
 
 ## One box per merged rectangle of cells, `thick` tall and centred at height `y`
-func _add_merged_boxes(body: StaticBody3D, rects: Array[Rect2i], thick: float, y: float) -> void:
+func _merged_boxes(rects: Array[Rect2i], thick: float, y: float) -> Array:
+	var boxes: Array = []
 	var n_done := 0
 	for r in rects:
 		n_done += 1
 		if n_done % 64 == 0: await _slice()
-		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = Vector3(r.size.x * CELL, thick, r.size.y * CELL)
-		cs.shape = bs
-		cs.position = Vector3((r.position.x + (r.size.x - 1) / 2.0) * CELL, y, (r.position.y + (r.size.y - 1) / 2.0) * CELL)
+		var at := Vector3((r.position.x + (r.size.x - 1) / 2.0) * CELL, y, (r.position.y + (r.size.y - 1) / 2.0) * CELL)
+		boxes.append([bs, Transform3D(Basis.IDENTITY, at)])
+	return boxes
+
+func _mount_shapes(shapes: Array) -> void:
+	if prepare_static_only or shapes.is_empty():
+		return
+	var body := StaticBody3D.new()
+	var n_done := 0
+	for entry: Array in shapes:
+		n_done += 1
+		if n_done % 64 == 0: await _slice()
+		var cs := CollisionShape3D.new()
+		cs.shape = entry[0]
+		cs.transform = entry[1]
 		body.add_child(cs)
+	# Register the compound once after all its shapes are attached.
+	add_child(body)
 
 func _cell_set(cells: Array) -> Dictionary:
 	var d := {}
@@ -739,29 +800,48 @@ func _cell_set(cells: Array) -> Dictionary:
 
 func _build_floor_collision(floor_cells: Array) -> void:
 	# Floor collision: thin slabs merged over runs of floor cells (pits stay open)
-	var body := StaticBody3D.new()
-	add_child(body)
-	await _add_merged_boxes(body, await _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
+	var boxes = _cached_geometry("collision/floor")
+	if boxes == null:
+		boxes = await _merged_boxes(await _merge_rects(_cell_set(floor_cells)), 0.4, -0.2)
+		_cache_geometry("collision/floor", boxes)
+	await _mount_shapes(boxes)
 
 ## Ceiling collision: one thin box per cell at that cell's own ceiling_height(). Neither ceiling style
 ## (the plain quad above, or level_fixtures.gd's panel ceiling) has ever carried a collider, so nothing
 ## has ever stopped a jump, a shove or a tall entity from poking straight through into the unlit plenum
 ## above it - only ever noticed at a low ceiling because that's the one height anything can actually reach.
 func _build_ceiling_collision(floor_cells: Array) -> void:
-	var body := StaticBody3D.new()
-	add_child(body)
-	var by_height := {}                  # merged per ceiling height, so a slab never spans a step
-	for c in floor_cells:
-		if open_above.has(c): continue   # a hole in the floor above: you come down through here
-		by_height.get_or_add(ceiling_height(c), {})[c] = true
-	for ch: float in by_height:
-		await _add_merged_boxes(body, await _merge_rects(by_height[ch]), 0.4, ch + 0.2)
+	var boxes = _cached_geometry("collision/ceiling")
+	if boxes == null:
+		boxes = []
+		var by_height := {}                  # merged per ceiling height, so a slab never spans a step
+		for c in floor_cells:
+			if open_above.has(c): continue   # a hole in the floor above: you come down through here
+			by_height.get_or_add(ceiling_height(c), {})[c] = true
+		for ch: float in by_height:
+			boxes.append_array(await _merged_boxes(await _merge_rects(by_height[ch]), 0.4, ch + 0.2))
+		_cache_geometry("collision/ceiling", boxes)
+	await _mount_shapes(boxes)
 
 ## The sides of the holes through the slabs: under this floor's own through-pits down to the ceiling of the
 ## floor below, and over this floor's ceiling up to the hole in the floor above. Someone falling through is
 ## handed from one floor to the next half way down the slab (level_builder.gd), so each floor walls its own
 ## half and the other's: without them you could steer sideways into the slab and come down on a ceiling.
 func _build_hole_collision() -> void:
+	var shape = _cached_geometry("collision/holes")
+	if shape == null:
+		var made := _make_hole_collision()
+		shape = made if made != null else false
+		_cache_geometry("collision/holes", shape)
+	if prepare_static_only or not (shape is ConcavePolygonShape3D): return
+	var body := StaticBody3D.new()
+	body.disable_mode = CollisionObject3D.DISABLE_MODE_KEEP_ACTIVE     # (a look-only floor doesn't process: still solid)
+	var cs := CollisionShape3D.new()
+	cs.shape = shape
+	body.add_child(cs)
+	add_child(body)
+
+func _make_hole_collision() -> ConcavePolygonShape3D:
 	var tris := PackedVector3Array()
 	var half := CELL / 2.0
 	for part: Array in [[through, true], [open_above, false]]:
@@ -776,23 +856,32 @@ func _build_hole_collision() -> void:
 				var mid := Vector3(c.x * CELL + n.x * half, 0.0, c.y * CELL + n.y * half)
 				var along := Vector3(n.y, 0.0, n.x) * half
 				tris.append_array([mid - along + lo, mid + along + lo, mid + along + hi, mid - along + lo, mid + along + hi, mid - along + hi])
-	if tris.is_empty(): return
-	var body := StaticBody3D.new()
-	body.disable_mode = CollisionObject3D.DISABLE_MODE_KEEP_ACTIVE     # (a look-only floor doesn't process: still solid)
-	var cs := CollisionShape3D.new()
+	if tris.is_empty(): return null
 	var shape := ConcavePolygonShape3D.new()
 	shape.set_faces(tris)
 	shape.backface_collision = true
-	cs.shape = shape
-	body.add_child(cs)
-	add_child(body)
+	return shape
 
 ## Occlusion culling with baked portals:
 ## Partitions solid wall blocks into spatial 8x8 cell grid chunks with boundary occlusion quads,
 ## leaving doorway openings as natural portals. Omission of interior faces and localized AABBs
 ## allow fast frustum culling and prevent GPU rasterization of closed corridors.
 func _build_occluder(groups: Dictionary) -> void:
+	var occluders = _cached_geometry("wall/occlusion")
+	if occluders == null:
+		occluders = await _make_occluders(groups)
+		_cache_geometry("wall/occlusion", occluders)
+	if prepare_static_only:
+		return
+	for occ: Occluder3D in occluders:
+		await _slice()
+		var oi := OccluderInstance3D.new()
+		oi.occluder = occ
+		add_child(oi)
+
+func _make_occluders(groups: Dictionary) -> Array:
 	var h := CELL / 2.0
+	var occluders: Array = []
 	# Collect cells per height into 8x8 spatial chunks: ch -> Array of [Vector2i, height]
 	var chunks := {}
 	for height in groups.keys():
@@ -858,9 +947,8 @@ func _build_occluder(groups: Dictionary) -> void:
 
 		var occ := ArrayOccluder3D.new()
 		occ.set_arrays(verts, idx)
-		var oi := OccluderInstance3D.new()
-		oi.occluder = occ
-		add_child(oi)
+		occluders.append(occ)
+	return occluders
 
 const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 
@@ -902,7 +990,7 @@ func _build_hotel_insets() -> void:
 			body.add_child(cs)
 
 func _build_walls() -> void:
-	_build_hotel_insets()
+	if not prepare_static_only: _build_hotel_insets()
 	weak_spots = WeakSpots.pick(self)
 	weak_faces.clear()
 	for spot: Dictionary in weak_spots:
@@ -937,7 +1025,7 @@ func _build_walls() -> void:
 			for h: float in groups.keys():
 				solid[h] = (groups[h] as Array).filter(func(c: Vector2i) -> bool: return not holed.has(c))
 		await _build_wall_collision(solid, holed)
-		_build_weak_collision(holed)
+		if not prepare_static_only: _build_weak_collision(holed)
 	# endless halls: the border's blocks only stop you (the copy of the level beyond the seam draws them)
 	if edge_wrap:
 		for height in groups.keys():
@@ -959,35 +1047,45 @@ func _build_walls() -> void:
 		if list.is_empty(): continue
 		var height: float = float(str(key).get_slice("|", 0))
 		var mat: Material = _painted_mat(str(key).get_slice("|", 1)) if key is String else mats[key]
-		var chunks := {}
-		for c: Vector2i in list:
-			var ch := Vector2i(c.x / 8, c.y / 8)
-			chunks.get_or_add(ch, []).append(c)
-		for ch in chunks:
+		var cache_key := "wall/blocks/" + str(key)
+		var meshes = _cached_geometry(cache_key)
+		if meshes == null:
+			meshes = await _wall_chunks(list, height)
+			_cache_geometry(cache_key, meshes)
+		if prepare_static_only: continue
+		for mm: MultiMesh in meshes:
 			await _slice()
-			# a block standing out into the room gets its outside corners rounded (_wall_block), so they are
-			# grouped by which of its edges those are
-			var by_shape := {}
-			for c: Vector2i in chunks[ch]:
-				by_shape.get_or_add(_outer_corners(c), []).append(c)
-			for shape: int in by_shape:
-				var ch_list: Array = by_shape[shape]
-				var mm := MultiMesh.new()
-				mm.transform_format = MultiMesh.TRANSFORM_3D
-				mm.mesh = _wall_block(height, shape)
-				mm.instance_count = ch_list.size()
-				var buf := MMBuffer.alloc(mm)
-				var st := MMBuffer.stride(mm)
-				for i in ch_list.size():
-					var c: Vector2i = ch_list[i]
-					MMBuffer.put_at(buf, i * st, Vector3(c.x * CELL, height / 2.0, c.y * CELL))
-				mm.buffer = buf
-				var mmi := MultiMeshInstance3D.new()
-				mmi.multimesh = mm
-				mmi.material_override = mat
-				# No visibility_range: it measures to the chunk's AABB centre, so walls in plain view down a
-				# long corridor dithered out. Unseen chunks are already dropped by frustum + occlusion culling.
-				add_child(mmi)
+			var mmi := MultiMeshInstance3D.new()
+			mmi.multimesh = mm
+			mmi.material_override = mat
+			# Frustum and occlusion culling keep distant walls out of view.
+			add_child(mmi)
+
+func _wall_chunks(cells: Array, height: float) -> Array:
+	var chunks := {}
+	var meshes: Array = []
+	for c: Vector2i in cells:
+		var ch := Vector2i(c.x / 8, c.y / 8)
+		chunks.get_or_add(ch, []).append(c)
+	for ch in chunks:
+		await _slice()
+		var by_shape := {}
+		for c: Vector2i in chunks[ch]:
+			by_shape.get_or_add(_outer_corners(c), []).append(c)
+		for shape: int in by_shape:
+			var ch_list: Array = by_shape[shape]
+			var mm := MultiMesh.new()
+			mm.transform_format = MultiMesh.TRANSFORM_3D
+			mm.mesh = _wall_block(height, shape)
+			mm.instance_count = ch_list.size()
+			var buf := MMBuffer.alloc(mm)
+			var st := MMBuffer.stride(mm)
+			for i in ch_list.size():
+				var c: Vector2i = ch_list[i]
+				MMBuffer.put_at(buf, i * st, Vector3(c.x * CELL, height / 2.0, c.y * CELL))
+			mm.buffer = buf
+			meshes.append(mm)
+	return meshes
 
 ## The collision of each weak spot's block (`holed`: cell -> wall height): the block minus the cavity behind the hole
 ## (weak_spots.gd CAV_*), as boxes in the spot's frame (X out of the wall, Z along the face; the block is x -4.5..0,
@@ -1045,6 +1143,7 @@ func _build_weak_blocks(groups: Dictionary, mats: Dictionary) -> void:
 				break
 		if key == null: continue          # (not drawn here: never so for a spot, weak_spots.gd picks drawn blocks)
 		(groups[key] as Array).erase(c)
+		if prepare_static_only: continue
 		var height: float = float(str(key).get_slice("|", 0))
 		var mat: Material = _painted_mat(str(key).get_slice("|", 1)) if key is String else mats[key]
 		var cut: Array = []
@@ -1187,6 +1286,13 @@ func _wall_block(height: float, round_mask: int, holes := []) -> Mesh:
 ## instead of one box per block. Buried blocks (walled in on every side, never drawn) are filler: they
 ## let a thick wall become one box instead of a ring of them.
 func _build_wall_collision(groups: Dictionary, holed := {}) -> void:
+	var boxes = _cached_geometry("collision/wall")
+	if boxes == null:
+		boxes = await _make_wall_collision(groups, holed)
+		_cache_geometry("collision/wall", boxes)
+	await _mount_shapes(boxes)
+
+func _make_wall_collision(groups: Dictionary, holed: Dictionary) -> Array:
 	var buried := {}
 	var n_done := 0
 	for c: Vector2i in walls.keys():
@@ -1196,11 +1302,11 @@ func _build_wall_collision(groups: Dictionary, holed := {}) -> void:
 	for height in groups.keys():
 		for c in groups[height]: buried.erase(c)
 	for c: Vector2i in holed: buried.erase(c)     # (hollow: a rectangle must not fill it in)
-	var body := StaticBody3D.new()
-	add_child(body)
+	var boxes: Array = []
 	for height: float in groups.keys():
 		if groups[height].is_empty(): continue
-		await _add_merged_boxes(body, await _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0)
+		boxes.append_array(await _merged_boxes(await _merge_rects(_cell_set(groups[height]), buried), height, height / 2.0))
+	return boxes
 
 # The editor's free-placed objects (level_data.gd `objects`). Each one is built in its own local frame,
 # facing +X (the way you walk through it) and spanning `scale` cells along Z, then placed with
@@ -1418,36 +1524,51 @@ func _cut_cell_tris(c: Vector2i, polys: Array) -> PackedVector2Array:
 ## solid of their own (they are left out of the merged floor boxes)
 func _build_cut_floors(groups: Dictionary, polys: Array) -> void:
 	var faces := PackedVector3Array()
+	var index := 0
 	for m: Material in groups:
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for c: Vector2i in groups[m]:
-			var tris := _cut_cell_tris(c, polys)
-			for t in range(0, tris.size(), 3):
-				var a := Vector3(tris[t].x, 0.0, tris[t].y)
-				var b := Vector3(tris[t + 1].x, 0.0, tris[t + 1].y)
-				var d := Vector3(tris[t + 2].x, 0.0, tris[t + 2].y)
-				var order := [a, b, d] if (b - a).cross(d - a).y < 0.0 else [a, d, b]
-				for v: Vector3 in order:
-					st.set_normal(Vector3.UP)
-					st.set_uv(Vector2(v.x, v.z))
-					st.add_vertex(v)
-					faces.append(v)
-		st.generate_tangents()
+		var key := "floor/pool/%d" % index
+		index += 1
+		var part = _cached_geometry(key)
+		if part == null:
+			part = await _cut_floor_mesh(groups[m], polys)
+			_cache_geometry(key, part)
+		if part[0] == null: continue
+		faces.append_array(part[1])
+		if prepare_static_only: continue
 		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
+		mi.mesh = part[0]
 		mi.material_override = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
 	if shell or faces.is_empty(): return
-	var body := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var shape := ConcavePolygonShape3D.new()
-	shape.set_faces(faces)
-	shape.backface_collision = true
-	cs.shape = shape
-	body.add_child(cs)
-	add_child(body)
+	var shape := _cached_geometry("collision/pool_edges") as ConcavePolygonShape3D
+	if shape == null:
+		shape = ConcavePolygonShape3D.new()
+		shape.set_faces(faces)
+		shape.backface_collision = true
+		_cache_geometry("collision/pool_edges", shape)
+	await _mount_shapes([[shape, Transform3D.IDENTITY]])
+
+func _cut_floor_mesh(cells: Array, polys: Array) -> Array:
+	var faces := PackedVector3Array()
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for c: Vector2i in cells:
+		await _slice()
+		var tris := _cut_cell_tris(c, polys)
+		for t in range(0, tris.size(), 3):
+			var a := Vector3(tris[t].x, 0.0, tris[t].y)
+			var b := Vector3(tris[t + 1].x, 0.0, tris[t + 1].y)
+			var d := Vector3(tris[t + 2].x, 0.0, tris[t + 2].y)
+			var order := [a, b, d] if (b - a).cross(d - a).y < 0.0 else [a, d, b]
+			for v: Vector3 in order:
+				st.set_normal(Vector3.UP)
+				st.set_uv(Vector2(v.x, v.z))
+				st.add_vertex(v)
+				faces.append(v)
+	if faces.is_empty(): return [null, faces]
+	st.generate_tangents()
+	return [st.commit(), faces]
 
 ## The wall faces that stand round and in a water body, for the ripples of light it throws on them: the grid's
 ## Two triangles a-b-c, a-c-d, wound so they face `facing` (Godot's front faces are clockwise)

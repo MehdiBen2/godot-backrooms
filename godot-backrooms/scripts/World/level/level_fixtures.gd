@@ -613,8 +613,14 @@ func _build_panel_ceiling() -> void:
 			mat.set_shader_parameter("edge_grid", float(edge_n))
 			mat.set_shader_parameter("tile_size", CELL / float(edge_n))
 	mat.set_shader_parameter("cell", CELL)
-	var quad := PlaneMesh.new()
-	quad.size = Vector2(CELL, CELL)
+	var quad := _cached_geometry("ceiling/panel_mesh") as PlaneMesh
+	if quad == null:
+		quad = PlaneMesh.new()
+		quad.size = Vector2(CELL, CELL)
+		_cache_geometry("ceiling/panel_mesh", quad)
+	var stored = _cached_geometry("ceiling/panel_cuts")
+	var cuts: Dictionary = stored if stored != null else {}
+	var cuts_changed := false
 	var down := Basis(Vector3.RIGHT, PI)              # PlaneMesh faces up; flip it to face the floor
 	# one MultiMesh per SURF_CHUNK x SURF_CHUNK cells, each with its own visibility range (as the floors are): a
 	# chunk out of reach or out of view costs nothing. panels_mm is kept only as the "there are panels" flag.
@@ -623,6 +629,7 @@ func _build_panel_ceiling() -> void:
 		if not f.get("nopanel", false): chunks.get_or_add(_chunk_at(f.pos), []).append(f)
 	var reach := _chunk_reach()
 	for key in chunks:
+		await _slice()
 		var list: Array = chunks[key]
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -645,7 +652,11 @@ func _build_panel_ceiling() -> void:
 				buf[o + 16] = float(v[0]) if v.size() > 0 else 0.0
 				buf[o + 17] = float(v[1]) if v.size() > 1 else 0.0
 				buf[o + 18] = 1.0 if f.get("casts", false) else 0.0
-				buf[o + 19] = float(_cut_panels(f.pos))
+				var pos: Vector3 = f.pos
+				if not cuts.has(pos):
+					cuts[pos] = _cut_panels(pos)
+					cuts_changed = true
+				buf[o + 19] = float(cuts[pos])
 		mm.buffer = buf
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
@@ -657,6 +668,7 @@ func _build_panel_ceiling() -> void:
 		add_child(mmi)
 		if panels_mm == null: panels_mm = mm
 	ceil_mats.append(mat)          # its ceiling_fill is driven by level_lighting.gd
+	if cuts_changed: _cache_geometry("ceiling/panel_cuts", cuts)
 	if drop: _build_vents()
 
 # ---- air vents (drop ceilings): the Backrooms Blender Kit's models (Huuxloc, CC BY 4.0), set into random tiles

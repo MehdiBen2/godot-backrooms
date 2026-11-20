@@ -184,6 +184,8 @@ service record: tier ladder, privileges, yield by source and by entity, and the 
 
 Needs Godot 4.7 with Windows export templates (`$env:GODOT`, `godot` on PATH, or a `Godot_v4*.exe` on the
 Desktop) and, for publishing, the GitHub CLI signed in (`gh auth login`).
+The Windows Desktop export uses Shader Baker to include precompiled Vulkan shaders in the game pack.
+Run the release scripts from a Windows session with Vulkan available so Godot can bake the shaders during export.
 
 ```powershell
 .\tools\pack.ps1                                   # build\backrooms-windows.zip, to send to a friend

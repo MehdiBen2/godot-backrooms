@@ -581,7 +581,6 @@ func _wall_interior() -> Node3D:
 	_grid(st, push, Vector3(x0, FLOOR_Y, -z), Vector3(x1 - x0, 0, 0), Vector3(0, 0, 2.0 * z), 12, 12)  # floor (only its rim moves, sideways)
 	st.index()
 	st.generate_normals()
-	st.generate_tangents()
 	var void_mi := MeshInstance3D.new()
 	void_mi.mesh = st.commit()
 	var osb := _pbr("PH_OSB", Color(0.55, 0.51, 0.45), 1.0 / 2.51)

@@ -147,7 +147,7 @@ func bind(p: Node, l: Node, m: Node) -> void:
 	_have_pos = false
 
 func _track_distance() -> void:
-	if player == null or not is_instance_valid(player):
+	if not is_instance_valid(player) or not player.is_inside_tree():
 		return
 	var p: Vector3 = player.global_position
 	if _have_pos:

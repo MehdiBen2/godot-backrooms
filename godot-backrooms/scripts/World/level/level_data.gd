@@ -64,10 +64,14 @@ var shell := false        # a look-only copy of a floor: nothing to walk on, bum
 ## loading screen; a look-only floor; a floor wanted at once), and _slice() costs no frame.
 var slice_usec := 0
 var _slice_from := 0
+var preparation_owner: Node
 
 func _slice() -> void:
 	if slice_usec <= 0 or Time.get_ticks_usec() - _slice_from < slice_usec: return
-	await (Engine.get_main_loop() as SceneTree).process_frame      # (a look-only floor is built out of the tree)
+	var tree := Engine.get_main_loop() as SceneTree
+	await tree.process_frame      # a look-only floor can be built out of the tree
+	while is_instance_valid(preparation_owner) and preparation_owner._geometry_prep_waiting():
+		await tree.process_frame
 	_slice_from = Time.get_ticks_usec()
 var through := {}         # Vector2i -> true: this floor's pits that open into the floor below
 var open_above := {}      # Vector2i -> true: the floor above has such a pit here, so no ceiling
@@ -384,18 +388,18 @@ static func read_level(meta: Dictionary) -> Dictionary:
 	if meta.has("data"):                              # old baked format
 		return meta["data"]
 	var path := "res://levels/" + str(meta.get("file", ""))
-	if _level_cache.has(path):
-		return _level_cache[path]
-	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var source := FileAccess.get_file_as_string(path)
+	if _level_cache.has(path) and _level_cache[path].source == source:
+		return _level_cache[path].data
+	var parsed = JSON.parse_string(source)
 	if not (parsed is Dictionary) or not parsed.has("grid"):
 		push_error("cannot read level file " + path)
 		return {"size": 8, "spawn": [2, 2], "grid": ["########", "#......#", "#......#", "#......#", "#......#", "#......#", "#......#", "########"]}
-	_level_cache[path] = parsed
+	_level_cache[path] = {"source": source, "data": parsed}
 	return parsed
 
 ## Load the playlist entry Game.level_index points at
 func load_current() -> void:
-	_step_mask = PackedByteArray()      # walls / pits / edges are about to change
 	var levels := read_index()
 	Game.level_count = levels.size()
 	level_index = clampi(Game.level_index, 0, levels.size() - 1)
@@ -552,6 +556,7 @@ static func shaft_rise(d: Dictionary, f: int) -> int:
 ## Read floor `f` of the current level into the grid (which must be empty): off the disk, or out of `raw`,
 ## the whole .lvl already read
 func load_floor(f: int, raw := {}) -> void:
+	_reset_navigation()
 	level_raw = raw if not raw.is_empty() else read_level(level_meta)
 	level_data = floor_data(level_raw, floor_src(level_raw, f))
 	floor_no = f
@@ -908,6 +913,11 @@ static func _edge_key(a: Vector2i, b: Vector2i) -> Vector4i:
 ## neither wall nor pit, not cut by an off-centre wall. Bits 1/2/4/8 = +x/-x/+z/-z (GridNav.NEIGHBOURS).
 ## Saves the flood fill two dictionary lookups and a call per neighbour of every cell it visits.
 var _step_mask := PackedByteArray()
+var nav_fields := {}
+
+func _reset_navigation() -> void:
+	_step_mask = PackedByteArray()
+	nav_fields.clear()
 
 func step_mask() -> PackedByteArray:
 	if _step_mask.size() == size * size:

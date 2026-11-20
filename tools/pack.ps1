@@ -15,10 +15,14 @@ $zip = Join-Path $build "backrooms-windows.zip"
 if (Test-Path $build) { Remove-Item $build -Recurse -Force }
 New-Item -ItemType Directory $game | Out-Null
 
-$ErrorActionPreference = "Continue"   # PS 5.1 turns Godot's stderr into errors
-& $godot --headless --path (Join-Path $root "godot-backrooms") --export-release "Windows Desktop" (Join-Path $game "backrooms.exe") 2>&1 | Out-Null
-$ErrorActionPreference = "Stop"
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) { throw "Godot export failed (are the export templates installed?)" }
+# Keep the rendering device available for Shader Baker while the editor runs in the background.
+$exportLog = Join-Path $build "export.log"
+$exportErr = Join-Path $build "export.err.log"
+$godotArgs = "--disable-render-loop --audio-driver Dummy --path `"$(Join-Path $root "godot-backrooms")`" --export-release `"Windows Desktop`" `"$(Join-Path $game "backrooms.exe")`""
+$exportProc = Start-Process -FilePath $godot -ArgumentList $godotArgs -WindowStyle Hidden -Wait -PassThru `
+    -RedirectStandardOutput $exportLog -RedirectStandardError $exportErr
+Get-Content $exportErr -ErrorAction SilentlyContinue | Add-Content $exportLog
+if ($exportProc.ExitCode -ne 0 -or -not (Test-Path (Join-Path $game "backrooms.exe"))) { throw "Godot export failed (full log: $exportLog)" }
 
 Compress-Archive -Path (Join-Path $game "*") -DestinationPath $zip
 "{0:N0} MB -> {1}" -f ((Get-Item $zip).Length / 1MB), $zip

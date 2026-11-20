@@ -6,6 +6,7 @@ extends RefCounted
 
 const CELL := 4.5
 const NEIGHBOURS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+const FLOW_CACHE_LIMIT := 16
 
 var level: Node
 var area_kind := ""                   # the monster kind this grid is for: its painted territory (level.entity_areas) is the only floor it has
@@ -59,11 +60,24 @@ func clear_line(ax: float, az: float, bx: float, bz: float, step := 0.25) -> boo
 
 # Path distance from (sx, sz) to every cell; -1 = unreachable. `out` is n*n, index x * n + z.
 func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
+	var started := Time.get_ticks_usec()
 	if out.size() != n * n:
 		out.resize(n * n)          # sized for another floor (a level change resizes the grid under a monster's arrays)
-	out.fill(-1)
 	if sx < 0 or sz < 0 or sx >= n or sz >= n or blocked(sx, sz):
+		out.fill(-1)
 		return false
+	var territory := area_kind if level.entity_areas.has(area_kind) else ""
+	var key := "%s:%d" % [territory, sx * n + sz]
+	var fields: Dictionary = level.nav_fields
+	if fields.has(key):
+		var cached: PackedInt32Array = fields[key]
+		fields.erase(key)
+		fields[key] = cached
+		out.clear()
+		out.append_array(cached)
+		Perf.add("Navigation cache reads", started)
+		return true
+	out.fill(-1)
 	# the level's precomputed step mask (level_data.gd step_mask()) stands in for can_step(): bits
 	# 1/2/4/8 = +x/-x/+z/-z, so each neighbour is one byte test and an index offset
 	var mask: PackedByteArray = level.step_mask()
@@ -98,6 +112,10 @@ func bfs(sx: int, sz: int, out: PackedInt32Array) -> bool:
 			out[idx - 1] = d
 			queue[tail] = idx - 1
 			tail += 1
+	fields[key] = out.duplicate()
+	if fields.size() > FLOW_CACHE_LIMIT:
+		fields.erase(fields.keys()[0])
+	Perf.add("Navigation flood fills", started)
 	return true
 
 # Push a circle (x/z of `p`) out of every wall cell it overlaps
