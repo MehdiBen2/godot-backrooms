@@ -287,14 +287,16 @@ $details.Location = New-Object Drawing.Point(40, ($H - 62)); $details.Font = Vcr
 $details.BackColor = [Drawing.Color]::Transparent; $details.UseCompatibleTextRendering = $true
 $details.Add_MouseEnter({ $details.ForeColor = [Drawing.Color]::White })
 $details.Add_MouseLeave({ $details.ForeColor = (Ink 170) })
-$details.Add_Click({
+# Shows or hides the log in place of the notes (DETAILS is a label: it has no PerformClick, so code calls this)
+function Toggle-Details {
     $show = -not $out.Visible
     $out.Visible = $show
     $notes.Visible = -not $show
     $ver.Visible = -not $show
     $details.Text = if ($show) { "HIDE DETAILS" } else { "DETAILS" }
     $form.Invalidate()
-})
+}
+$details.Add_Click({ Toggle-Details })
 $form.Controls.Add($details)
 
 $btn = New-Object Windows.Forms.Label
@@ -455,7 +457,7 @@ function Finish {
         $script:detail = "FAILED: " + $(if ($why) { $why.Trim().ToUpper() } else { "EXIT CODE $code" })
         if ($script:detail.Length -gt 78) { $script:detail = $script:detail.Substring(0, 75) + "..." }
         Say "`r`nFAILED (exit code $code)."
-        if (-not $out.Visible) { $details.PerformClick() }      # show what went wrong
+        if (-not $out.Visible) { Toggle-Details }      # show what went wrong
     }
     Remove-Item $notesFile, $statusFile -ErrorAction SilentlyContinue
     $script:proc = $null
