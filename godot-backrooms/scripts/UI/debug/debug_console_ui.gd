@@ -868,6 +868,17 @@ func _build_entities_tab() -> Control:
 	tal_box.add_child(_action_btn("SCREAM", func(): _tallone("debug_scream")))
 	tal_box.add_child(_action_btn("HUNT", func(): _tallone("debug_hunt")))
 
+	# The Shroud (shroud.gd): spawn it dormant ahead, open its eye on you, the stare nearly full, or its death scene
+	var shr_box := HBoxContainer.new()
+	shr_box.add_theme_constant_override("separation", 8)
+	v.add_child(shr_box)
+	shr_box.add_child(_label("THE SHROUD:", 12, Color(0.9, 0.8, 0.6), 160))
+	shr_box.add_child(_action_btn("SPAWN", func(): _apply("shroud", true)))
+	shr_box.add_child(_action_btn("DESPAWN", func(): _apply("shroud", false)))
+	shr_box.add_child(_action_btn("WAKE", func(): _shroud("wake")))
+	shr_box.add_child(_action_btn("STARE", func(): _shroud("stare")))
+	shr_box.add_child(_action_btn("DEATH SCENE", func(): _shroud("kill")))
+
 	# All Monsters Action
 	var all_box := HBoxContainer.new()
 	all_box.add_theme_constant_override("separation", 8)
@@ -1109,6 +1120,7 @@ const COMMANDS := {
 	"grabber": ["<hunch|peek|chase|drag>", "the grabber, into a state"],
 	"burnt": ["<peek|retreat|hide|charge|flank|commit|grab|status>", "the burnt, into a move (status: why it isn't)"],
 	"tallone": ["<scream|hunt>", "the tall one, into a state"],
+	"shroud": ["<wake|stare|kill|status>", "the shroud: eye on you, stare nearly full, its death scene"],
 	"events": ["", "list the scare events"],
 	"event": ["<name|stop>", "fire a scare event, or end them all"],
 	"lightout": ["", "blackout"],
@@ -1143,7 +1155,7 @@ const COMMANDS := {
 const HELP_GROUPS := [
 	["CONSOLE", ["help", "clear", "copy", "echo"]],
 	["PLAYER", ["noclip", "god", "invisible", "fullbright", "stamina", "sanity", "health", "heal", "battery", "speed", "suicide"]],
-	["ENTITIES", ["spawn", "despawn", "kill", "list", "entities", "freeze", "stalk", "eyes", "grabber", "burnt", "tallone"]],
+	["ENTITIES", ["spawn", "despawn", "kill", "list", "entities", "freeze", "stalk", "eyes", "grabber", "burnt", "tallone", "shroud"]],
 	["EVENTS & WORLD", ["events", "event", "lightout", "lighton"]],
 	["MOVEMENT", ["tp", "pos", "mark", "goto", "back", "marks"]],
 	["LEVEL & GAME", ["levels", "level", "reload", "timescale", "gfx", "overlay"]],

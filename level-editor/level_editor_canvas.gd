@@ -22,7 +22,7 @@ const ZONES := {"tall": Color("5a9bff"), "low": Color("ff8a3d"), "crawl": Color(
 	"echo": Color("2ec4b6"), "loop": Color("b388ff"), "abyss": Color("6b5d2e"), "endless_ceiling": Color("c9b8ff"), "noclip": Color("8a2be2"), "noclip_floor": Color("d14df0"), "noclip_death": Color("e82548"),
 	"grand": Color("2f5fd0"), "hall_reverb": Color("5fe0ff"), "muffled": Color("6e5a7e"), "hotel": Color("b8443a"),
 	"clean": Color("e9f7ff"), "dirty": Color("5e4a2c"), "moist": Color("3f8f86"),
-	"area_bacteria": Color("ff5a4d"), "area_mimic": Color("ffa06b"), "area_mannequin": Color("e8e0d0"), "area_grabber": Color("b35cff"), "area_burnt": Color("ff7a1a"), "area_tallone": Color("4dd0ff")}
+	"area_bacteria": Color("ff5a4d"), "area_mimic": Color("ffa06b"), "area_mannequin": Color("e8e0d0"), "area_grabber": Color("b35cff"), "area_burnt": Color("ff7a1a"), "area_tallone": Color("4dd0ff"), "area_shroud": Color("8a6a9e")}
 const PAINT_SLOTS := ["wall", "floor", "ceiling"]
 ## Zones painted ON wall cells (full wall blocks) instead of open floor: the game reads these from the walls
 const WALL_ZONES := ["weak_spot"]

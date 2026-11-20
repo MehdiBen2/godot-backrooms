@@ -38,7 +38,7 @@ const LINE := UI_LINE
 ## Zone names for their buttons (the rest: their key, capitalised)
 const ZONE_NAMES := {"open_ceiling": "Open ceiling", "endless_ceiling": "Endless ceiling", "noclip_floor": "Noclip floor",
 	"noclip_death": "Pain area (Noclip death)", "hall_reverb": "Hall reverb", "grand": "Grand hall", "hotel": "Hotel corridor",
-	"area_bacteria": "Bacteria area", "area_mimic": "Mimic area", "area_mannequin": "Mannequin area", "area_grabber": "Grabber area", "area_burnt": "Burnt area", "area_tallone": "Tall One area",
+	"area_bacteria": "Bacteria area", "area_mimic": "Mimic area", "area_mannequin": "Mannequin area", "area_grabber": "Grabber area", "area_burnt": "Burnt area", "area_tallone": "Tall One area", "area_shroud": "Shroud area",
 	"weak_spot": "Weak spots"}
 const ZONE_HELP := {"tall": "Tall: a 10.8 m atrium ceiling", "grand": "Grand hall: a 16.2 m ceiling, three storeys of open air over you.\nThe tubes hang down on long chains; the walls round it rise to meet it",
 	"hall_reverb": "Hall reverb: every sound rings on in a long, bright, wet tail (a tiled rotunda, a pool hall), whatever the room's shape.\nAUTO ACOUSTICS paints it where the architecture calls for it",
@@ -60,6 +60,8 @@ Cells outside are solid to it. Paint nothing and it goes anywhere",
 	"area_grabber": "The Grabber needs a Grabber Entity mark on this floor to spawn. Paint territory to limit where it can hang, drop and chase.",
 	"area_burnt": "Territory: the Burnt stays inside this area. Paint nothing and it goes anywhere",
 	"area_tallone": "Territory: the Tall One spawns, roams, warps and hunts only inside this area.
+With no Entity mark it starts in the middle of the area",
+	"area_shroud": "Territory: the Shroud stands, wakes and crawls only inside this area.
 With no Entity mark it starts in the middle of the area",
 	"safe": "Safe: no entity sets foot here. They path round it and are pushed out of it, though they still see in\n(and can reach in from its edge: keep away from the rim)",
 	"drain": "Drain: sanity runs out while you stand here, lit or not, torch or not",
@@ -956,7 +958,7 @@ func _build_right_dock() -> Control:
 		["Pits & falls", ["abyss", "noclip", "noclip_floor", "noclip_death"]],
 		["Space & sound", ["hall_reverb", "muffled", "echo", "loop"]],
 		["Gameplay", ["safe", "drain", "loot", "mannequin", "weak_spot"]],
-		["Entity territory", ["area_bacteria", "area_mimic", "area_mannequin", "area_grabber", "area_burnt", "area_tallone"]],
+		["Entity territory", ["area_bacteria", "area_mimic", "area_mannequin", "area_grabber", "area_burnt", "area_tallone", "area_shroud"]],
 	]
 	var placed := {}
 	for gr in zone_groups:

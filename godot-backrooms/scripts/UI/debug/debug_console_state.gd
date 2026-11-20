@@ -20,6 +20,7 @@ const ENTITIES := {
 	"skinstealer": "SkinStealer",
 	"burnt": "Burnt",
 	"tallone": "TallOne",
+	"shroud": "Shroud",
 }
 ## Scare events the console can fire (`event <id>`, or the buttons on WORLD & EVENTS): id -> what it does
 const EVENTS := {
@@ -49,9 +50,11 @@ const EVENTS := {
 	"soundstoavoid": ["soundsToAvoid", "a card lists three sounds to avoid; a little later you hear the third"],
 	"countdown": ["countdown", "a timer counts down from 60; at zero nothing happens; then it counts up"],
 }
-const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt", "tallone"]
+const ORDER := ["bacteria", "mannequin", "mimic", "killer", "grabber", "skinstealer", "burnt", "tallone", "shroud"]
 # other things you might type for a name
-const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt", "tall": "tallone", "tallone": "tallone"}
+const ALIASES := {"entity": "bacteria", "skin": "skinstealer", "stealer": "skinstealer", "theburnt": "burnt", "tall": "tallone", "tallone": "tallone",
+	"theshroud": "shroud", "ocellus": "shroud"}
+const SHROUD_ACTIONS := ["wake", "stare", "kill", "status"]
 const GRABBER_STATES := ["hunch", "peek", "chase", "drag"]
 const BURNT_ACTIONS := ["peek", "retreat", "hide", "charge", "flank", "commit", "grab", "status"]
 # the first-person arms' one-shots (torch_model.gd): console name -> clip. "swap" goes the way R does,

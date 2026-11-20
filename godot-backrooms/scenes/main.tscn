@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://scripts/Entities/model_entity.gd" id="18_model_entity"]
 [ext_resource type="Script" path="res://scripts/Entities/burnt/burnt.gd" id="19_burnt"]
 [ext_resource type="Script" path="res://scripts/Entities/tall/tall_one.gd" id="20_tallone"]
+[ext_resource type="Script" path="res://scripts/Entities/shroud/shroud.gd" id="21_shroud"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -156,3 +157,9 @@ script = ExtResource("20_tallone")
 model = "res://models/entities/tall/tall_one.glb"
 height = 4.45
 source_height = 4.45
+
+[node name="Shroud" type="Node3D" parent="."]
+script = ExtResource("21_shroud")
+model = "res://models/entities/shroud/shroud.glb"
+height = 1.75
+source_height = 1.0

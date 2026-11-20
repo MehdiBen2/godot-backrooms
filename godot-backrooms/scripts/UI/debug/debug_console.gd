@@ -221,6 +221,8 @@ func _submit(line: String) -> void:
 		"tallone", "tall":
 			if arg in ["scream", "hunt"]: _tallone("debug_" + arg)
 			else: _print("tallone what? scream, hunt (or spawn tallone / despawn tallone)")
+		"shroud", "theshroud":
+			_shroud(arg)
 		"events":
 			for k in EVENTS:
 				_print("  %-16s %s" % [EVENTS[k][0], EVENTS[k][1]])

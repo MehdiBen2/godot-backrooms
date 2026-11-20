@@ -89,7 +89,7 @@ static func hit(origin: Vector3, look: Vector3) -> bool:
 	if Game.main == null or not is_instance_valid(Game.main):
 		return false
 	var took := false
-	for name in ["Entity", "Grabber"]:            # the Bacteria, and THE GRABBER (grabber.gd flashed())
+	for name in ["Entity", "Grabber", "Shroud"]:  # the Bacteria, THE GRABBER (grabber.gd flashed()), THE SHROUD (shroud.gd)
 		var ent: Node = Game.main.get_node_or_null(name)
 		if ent != null and ent.has_method("flashed") and ent.flashed(origin, look):
 			took = true

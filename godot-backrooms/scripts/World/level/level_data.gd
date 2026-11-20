@@ -144,7 +144,7 @@ var weak_cells := {}  # Vector2i -> true: wall cells painted Weak spot, where a 
 var grime_zones := {"clean": {}, "dirty": {}, "moist": {}}
 ## Territories painted in the level editor ("area_<kind>" zones): monster kind -> {Vector2i: true}. A kind with a
 ## territory spawns, waits and roams only inside it (grid_nav.gd `area_kind`, entity_marks.gd `area`)
-const AREA_KINDS := ["bacteria", "mimic", "mannequin", "grabber", "burnt", "tallone"]
+const AREA_KINDS := ["bacteria", "mimic", "mannequin", "grabber", "burnt", "tallone", "shroud"]
 var entity_areas := {}
 var echo := {}        # a long, wet echo on footsteps and everything heard (audio.gd)
 ## Reverb zones painted in the level editor, over the sound the room's shape gives on its own (acoustics.gd):

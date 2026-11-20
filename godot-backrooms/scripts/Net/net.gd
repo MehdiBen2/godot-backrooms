@@ -49,8 +49,8 @@ const WS_MAX_QUEUED := 8192
 ## a Grabber that is off, a still Mannequin), only this often so a guest that just joined still gets them
 const KEEPALIVE := 0.5
 const MQ_VIEW_KEEPALIVE := 0.25  # a guest repeats "I'm (not) looking at the mannequin" this often (the host forgets after 0.6 s)
-enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC, BURNT, TALL }
-const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic", "Burnt", "TallOne"]
+enum Ent { BACTERIA, GRABBER, MANNEQUIN, MIMIC, BURNT, TALL, SHROUD }
+const ENT_NODES := ["Entity", "Grabber", "Mannequin", "Mimic", "Burnt", "TallOne", "Shroud"]
 const MAX_COORD := 100000.0      # snapshots further out than this are garbage, not a position
 const TUNNEL_DOMAIN := "trycloudflare.com"
 const ROOM_SERVICE := "https://ntfy.sh/"      # free public relay that stores "code -> link" for a while; swap for your own Worker any time
@@ -949,6 +949,35 @@ func _tall_result_rpc() -> void:
 	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
 		return
 	var b := _scene_node("TallOne")
+	if b != null and b.has_method("net_result"):
+		b.net_result(multiplayer.get_remote_sender_id())
+
+# ---- THE SHROUD: as the Tall One: the host runs it (every survivor's stare rides its snapshot); whoever it takes
+# plays the pull and the death scene on their own machine ------------------------------------------------------------
+func send_shroud(m: Array) -> void:
+	_queue_ent(Ent.SHROUD, m)
+
+## Host: it has `peer_id`'s survivor (`pull`: their stare is full and they walk to it; else it grabbed them)
+func send_shroud_take(peer_id: int, pull: bool) -> void:
+	if _has_peers() and _is_peer(peer_id):
+		_shroud_take_rpc.rpc_id(peer_id, pull)
+
+@rpc("authority", "call_remote", "reliable")
+func _shroud_take_rpc(pull: bool) -> void:
+	var b := _scene_node("Shroud")
+	if b != null and b.has_method("net_taken"):
+		b.net_taken(pull)
+
+## Guest: the death scene is over (they died, or something else ended it)
+func send_shroud_result() -> void:
+	if _to_host_ready():
+		_shroud_result_rpc.rpc_id(1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _shroud_result_rpc() -> void:
+	if not hosting or not _is_peer(multiplayer.get_remote_sender_id()):
+		return
+	var b := _scene_node("Shroud")
 	if b != null and b.has_method("net_result"):
 		b.net_result(multiplayer.get_remote_sender_id())
 

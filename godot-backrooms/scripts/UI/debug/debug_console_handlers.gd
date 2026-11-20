@@ -163,6 +163,26 @@ func _tallone(method: String) -> void:
 	else:
 		_print("[color=#e8702c]tallone: %s[/color]" % n.get("last_error"))
 
+## THE SHROUD: its eye on you (wake), the stare most of the way there (stare), straight into the death scene (kill),
+## or what it is doing (status). Console: shroud <action>
+func _shroud(act: String) -> void:
+	var n := _node("shroud")
+	if n == null:
+		_print("[color=#e8702c]shroud is not in the scene[/color]")
+		return
+	if act == "status":
+		_print(n.debug_status() if n.present else "shroud: not spawned")
+		return
+	if not SHROUD_ACTIONS.has(act):
+		_print("[color=#e8702c]shroud what? %s[/color]" % ", ".join(SHROUD_ACTIONS))
+		return
+	if act == "kill" and menu_window.visible:
+		_toggle(false)                          # (the death scene is to be watched, not hidden behind the menu)
+	if n.call("debug_" + act):
+		_print("shroud: " + act)
+	else:
+		_print("[color=#e8702c]shroud: %s[/color]" % n.get("last_error"))
+
 ## THE BURNT into one of its moves, or its status (console: burnt <action>)
 func _burnt(act: String) -> void:
 	var n := _node("burnt")

@@ -178,6 +178,27 @@
       "incident": "INCIDENT 5-031: A survey team's lamps were found out along a 300 m corridor, each one cold. The team's torches were still lit, lying on the floor in a row."
     }
   },
+  "shroud": {
+    "code": "TSRA-EN-10",
+    "common_name": "The Shroud",
+    "threat_class": "Class 5",
+    "description": "A figure roughly 2.8 m tall under a heavy black cloth that reaches the floor. Its head is a single large eye set in a crater of exposed muscle, ringed with smaller eyes. Under the cloth it moves on five human limbs, both arms and legs.",
+    "behavior_vector": "Dormant with the eye rolled back. Once the eye is on the subject, it does not move while observed, but sustained eye contact induces a gaze lock: the subject's view is drawn to the eye and their light source fails. When unobserved it closes the distance faster than a walk. A completed gaze lock or physical contact ends in a taking.",
+    "directive": "Do not hold eye contact. Glance to fix its position, then look away. Hold your torch on the eye to break the lock, early, before your light fails. A camera flash drives it back.",
+    "classified": {
+      "origin": "The limbs do not match one another. Tissue recovered from a corridor floor after a taking was typed to four different surveyors, three of them listed as missing on separate expeditions.",
+      "survival": [
+        "Look at it and it stops. Keep looking and it has you. Count to two, then look away.",
+        "Every second you are not looking, it is coming. Walk backwards, glance, look away again.",
+        "Put your torch straight in the eye. Do it while your torch still works.",
+        "If you feel your view drifting toward it on its own, the lock is already past half. Use the light now."
+      ],
+      "field_notes": [
+        "\"I didn't decide to walk to it. I remember thinking how far away it was, and then it wasn't.\" - recovered surveyor, debrief transcript 5-044"
+      ],
+      "incident": "INCIDENT 5-044: A surveyor's helmet camera recorded 41 seconds of a corridor floor at ground level, moving steadily, lit red from above. Five hands are visible at the edges of the frame. Partway through, a sixth hand appears among them. It wears a T.S.R.A. issue glove."
+    }
+  },
   "survey_clipboard": {
     "code": "TSRA-IT-01",
     "common_name": "Field Survey Clipboard",
