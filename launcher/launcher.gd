@@ -42,6 +42,17 @@ var pct_label: Label
 var dl_total := 0          # bytes of the whole new install, from the manifest
 var dl_done := 0           # bytes of it fetched or reused from the installed copy so far
 var _req_in_flight := false  # an HTTP request is running, so its byte count is live
+# Chunk downloads: several at once, in the order they are written. One at a time, a first install spent most of
+# its time on each request's round trip (GitHub answers every one with a redirect) rather than on the bytes.
+const PARALLEL := 6          # chunks on their way at once
+const AHEAD := 16            # ...and fetched but not yet written, at most (a chunk is 16 MB at the very most)
+signal _chunk_arrived
+var _run := 0                # bumped per install: a fetch from an earlier, abandoned one is ignored
+var _fetch_queue: Array = [] # chunks still to fetch, in write order
+var _fetching := {}          # hash -> true: on its way
+var _fetched := {}           # hash -> bytes (empty: it failed)
+var _written := {}           # hash -> true: written at least once (a chunk used twice is kept for its second use)
+var _uses := {}              # hash -> writes still to come that need it
 var _t := 0.0
 var _check_timer := 0.0
 var _silent_check := false   # true while a background poll is in flight (no UI disruption)
@@ -201,6 +212,22 @@ func _install_update() -> void:
 	var have := _local_chunks(installed)
 	for f in files:
 		dl_total += int(f["size"])
+	# every chunk the installed copy doesn't have, fetched ahead of the writing, PARALLEL at a time
+	_run += 1
+	_fetch_queue.clear()
+	_fetching.clear()
+	_fetched.clear()
+	_written.clear()
+	_uses.clear()
+	for f in files:
+		for c in f["chunks"]:
+			var h: String = c["h"]
+			if have.has(h):
+				continue
+			if not _uses.has(h):
+				_fetch_queue.append(c)
+			_uses[h] = int(_uses.get(h, 0)) + 1
+	_pump_fetches()
 	var ok := true
 	for f in files:
 		var staged: bool = await _stage_file(f, have)
@@ -251,7 +278,7 @@ func _stage_file(f: Dictionary, have: Dictionary) -> bool:
 	for c in f["chunks"]:
 		var data: PackedByteArray = _read_local_chunk(have, c)
 		if data.is_empty():
-			data = await _fetch_chunk(c["h"], int(c["n"]))
+			data = await _take_chunk(c)
 			if data.is_empty():
 				out.close()
 				return false
@@ -263,9 +290,80 @@ func _stage_file(f: Dictionary, have: Dictionary) -> bool:
 	return whole.finish().hex_encode() == f["sha256"]
 
 
-func _fetch_chunk(h: String, n: int) -> PackedByteArray:
-	var data: PackedByteArray = await _http_get("https://github.com/%s/releases/download/%s/%s" % [REPO, STORE_TAG, h])
-	return data if data.size() == n and _sha(data) == h else PackedByteArray()
+## Chunk `c` for writing: the one fetched ahead for it (waiting for it if it is still on its way)
+func _take_chunk(c: Dictionary) -> PackedByteArray:
+	var h: String = c["h"]
+	if not _uses.has(h):
+		# not planned: an installed chunk that turned out damaged. Fetch it now, on its own.
+		return await _fetch_chunk(h, int(c["n"]), int(c.get("z", 0)) == 1)
+	while not _fetched.has(h):
+		await _chunk_arrived
+	var data: PackedByteArray = _fetched[h]
+	_written[h] = true
+	_uses[h] = int(_uses[h]) - 1
+	if int(_uses[h]) <= 0:
+		_fetched.erase(h)
+		_uses.erase(h)
+	_pump_fetches()
+	return data
+
+
+## Start fetches until PARALLEL are on their way or AHEAD are waiting to be written
+func _pump_fetches() -> void:
+	while not _fetch_queue.is_empty() and _fetching.size() < PARALLEL and _fetching.size() + _held() < AHEAD:
+		_fetch_into(_fetch_queue.pop_front(), _run)
+
+
+func _held() -> int:
+	var k := 0
+	for h in _fetched:
+		if not _written.has(h):
+			k += 1
+	return k
+
+
+func _fetch_into(c: Dictionary, run: int) -> void:
+	var h: String = c["h"]
+	_fetching[h] = true
+	var data := await _fetch_chunk(h, int(c["n"]), int(c.get("z", 0)) == 1)
+	if run != _run:
+		return                           # that install was given up on
+	_fetching.erase(h)
+	_fetched[h] = data
+	_chunk_arrived.emit()
+	_pump_fetches()
+
+
+## One chunk, checked against its hash. `gz`: the store has it gzipped too (<hash>.gz, tools/publish.ps1), which is
+## fetched instead; the plain one is the fallback. A couple of tries each before giving up.
+func _fetch_chunk(h: String, n: int, gz: bool) -> PackedByteArray:
+	var base := "https://github.com/%s/releases/download/%s/%s" % [REPO, STORE_TAG, h]
+	for attempt in 3:
+		if gz:
+			var packed := await _get_bytes(base + ".gz")
+			if not packed.is_empty():
+				var data := packed.decompress(n, FileAccess.COMPRESSION_GZIP)
+				if data.size() == n and _sha(data) == h:
+					return data
+		var raw := await _get_bytes(base)
+		if raw.size() == n and _sha(raw) == h:
+			return raw
+	return PackedByteArray()
+
+
+## A GET on a request of its own (several run at once). The body, or an empty array on failure.
+func _get_bytes(url: String) -> PackedByteArray:
+	var r := HTTPRequest.new()
+	r.max_redirects = 8                  # GitHub's download links redirect to the file store
+	r.use_threads = true
+	add_child(r)
+	var body := PackedByteArray()
+	if r.request(url, PackedStringArray(["User-Agent: backrooms-launcher"])) == OK:
+		var res: Array = await r.request_completed
+		if res[0] == HTTPRequest.RESULT_SUCCESS and res[1] == 200:
+			body = res[3]
+	r.queue_free()
+	return body
 
 
 # One GET through the shared download request. Returns the body, or an empty array on failure.
@@ -421,7 +519,7 @@ func _process(dt: float) -> void:
 	rec_dot.modulate.a = 1.0 if fmod(_t, 1.1) < 0.55 else 0.0      # REC light blinks like the game's
 	if state == State.DOWNLOADING:
 		var total := dl_total
-		var got := dl_done + (http_dl.get_downloaded_bytes() if _req_in_flight else 0)
+		var got := dl_done + (http_dl.get_downloaded_bytes() if _req_in_flight else 0)    # written (monotonic)
 		var frac := clampf(float(got) / total, 0.0, 1.0) if total > 0 else 0.0
 		bar.value = frac * 100.0
 		pct_label.text = "%d%%" % int(frac * 100.0) if total > 0 else "..."
