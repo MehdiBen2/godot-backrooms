@@ -5,11 +5,6 @@
     "name": "Level 0: Floor Zero"
   },
   {
-    "file": "level_37_poolrooms.lvl",
-    "id": "level_37_poolrooms",
-    "name": "Level 37: The Poolrooms"
-  },
-  {
     "file": "debug.lvl",
     "id": "debug",
     "name": "debug"

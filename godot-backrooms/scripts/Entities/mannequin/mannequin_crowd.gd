@@ -13,6 +13,7 @@ const SHUFFLE_RANGE := 16.0
 const STALK_STEP := 0.9
 const STALK_MIN_DIST := 2.2                  # it never crowds closer than this by itself
 const VARIANT_CHANCE := 0.32                 # of the standing decoys, how many wear a plain sculpt (any one of them)
+const MAX_RIGGED := 48                       # rigged variants are each a posed copy of their own: past this many, the rest wear the base sculpt
 # Walking decoys: still figures that start stepping toward you (the real one's own stride, the same footsteps)
 # when you catch it on the move, and sometimes on their own. They never kill, and they stop a few metres off.
 const MAX_WALKERS := 2
@@ -64,12 +65,14 @@ func build(dealt: Array) -> void:
 		var vmmi := MultiMeshInstance3D.new()
 		vmmi.multimesh = variant_mm
 		m.add_child(vmmi)
+	var rigged := 0
 	for i in count:
 		var d: Dictionary = decoys[i]
 		var g := Transform3D(Basis(Vector3.UP, d.yaw), Vector3(d.x, 0.0, d.z))
 		var mode: String = d.pose.get("mode", "stand")
 		# the variant sculpt stands (it is one piece: no lying / sitting base poses), but in the decoy's own pose
 		var is_variant: bool = model.variant_ok and mode == "stand" and m.rng.randf() < VARIANT_CHANCE
+		if is_variant and model.variant_rigged and rigged >= MAX_RIGGED: is_variant = false
 		d["variant"] = is_variant
 		if is_variant:
 			var vidx: int = m.rng.randi() % model.variant_count()   # which sculpt this decoy wears
@@ -80,6 +83,7 @@ func build(dealt: Array) -> void:
 				vn.transform = g * model.variant_root_xf_at(vidx)
 				m.add_child(vn)
 				d["vnode"] = vn
+				rigged += 1
 			else:                            # no rig: the shared mesh at rest
 				MMBuffer.put(vbuf, i * 12, g * model.variant_xf_at(vidx))
 		else:

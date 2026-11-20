@@ -56,6 +56,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	cam = player.get_node("Camera3D")
 	_mark_pending = not EntityMarks.of_kind(level, "eyes").is_empty()
+	level.floor_loaded.connect(_on_floor_loaded)
 	quad = QuadMesh.new()
 	quad.size = Vector2.ONE
 	mat = ShaderMaterial.new()
@@ -64,6 +65,15 @@ func _ready() -> void:
 	mat.set_shader_parameter("halo_size", HALO)
 	mat.set_shader_parameter("brightness", 2.0)
 	mat.set_shader_parameter("glint_amt", 1.6)
+
+## Another floor was built: every pair on the old one (a mark's included) is gone, and this floor's own Eyes
+## mark, if it has one, opens next frame
+func _on_floor_loaded() -> void:
+	for w in watchers:
+		for n in w.nodes:
+			n.queue_free()
+	watchers.clear()
+	_mark_pending = not EntityMarks.of_kind(level, "eyes").is_empty()
 
 # Straight from the file if the editor has not imported it yet
 func _load_tex() -> Texture2D:

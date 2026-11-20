@@ -180,11 +180,26 @@ func _ready() -> void:
 	net = BurntNet.new(self)
 	_pl = player
 	_lv = level
+	_read_marks()
+	level.floor_loaded.connect(_on_floor_loaded)
+
+## This floor's burnt mark (level editor Entity, kind "burnt"): EntityLOD stands it there when its time comes
+func _read_marks() -> void:
 	var marks := EntityMarks.of_kind(level, "burnt")
 	_mark_pending = not marks.is_empty()
 	# placed with a mark: EntityLOD stands it there when you come within MARK_SPAWN_DIST of it, or after MARK_ARRIVE_AFTER s
 	# (it stalks you from wherever it is, slowly: it does not need to start close)
 	EntityLOD.register(self, {} if marks.is_empty() else {"mark": EntityMarks.world_pos(marks[0]), "spawn_dist": MARK_SPAWN_DIST, "arrive_after": MARK_ARRIVE_AFTER})
+
+## Another floor was built (stairs, a fall, the next level): it leaves the old one and waits on this
+## floor's own mark, if it has one (none: it stays away)
+func _on_floor_loaded() -> void:
+	if present or state != "off": debug_despawn()
+	_lod_go = false
+	_lurk = false
+	nav = GridNav.new(level)
+	nav.area_kind = "burnt"
+	_read_marks()
 
 const MARK_SPAWN_DIST := 60.0
 const MARK_ARRIVE_AFTER := 240.0

@@ -160,9 +160,24 @@ func _ready() -> void:
 	scares = get_parent().get_node_or_null("Scares")
 	_pl = player
 	net = TallNet.new(self)
+	_read_marks()
+	level.floor_loaded.connect(_on_floor_loaded)
+
+## This floor's tallone mark (level editor Entity, kind "tallone"): EntityLOD stands it there when its time comes
+func _read_marks() -> void:
 	var marks := EntityMarks.of_kind(level, "tallone")
 	_mark_pending = not marks.is_empty()
 	EntityLOD.register(self, {} if marks.is_empty() else {"mark": EntityMarks.world_pos(marks[0]), "spawn_dist": MARK_SPAWN_DIST, "arrive_after": MARK_ARRIVE_AFTER})
+
+## Another floor was built (stairs, a fall, the next level): it leaves the old one and waits on this
+## floor's own mark, if it has one (none: it stays away)
+func _on_floor_loaded() -> void:
+	if present or state != "off": debug_despawn()
+	_lod_go = false
+	_lurk = false
+	nav = GridNav.new(level)
+	nav.area_kind = "tallone"
+	_read_marks()
 
 func lod_spawned() -> bool:
 	return present or _lod_go

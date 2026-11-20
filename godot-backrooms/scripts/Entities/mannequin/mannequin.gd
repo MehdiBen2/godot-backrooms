@@ -24,7 +24,9 @@ const HEIGHT := MannequinModel.HEIGHT
 const POSE_KEYS := MannequinModel.POSE_KEYS
 
 # MANNEQUIN config (js/config.js)
-const COUNT := 60
+const COUNT := 60                            # the fewest a room gets (a small one: its floor packed full)
+const PER_CELL := 2.4                        # how many to a cell of the room's open floor, so a bigger area gets more of them
+const MAX_COUNT := 360                       # however big the area (they are drawn as one MultiMesh per part, but each is solid)
 const ROOM := Rect2i(33, 19, 8, 3)           # fallback when the level paints no Mannequin zone: cell rectangle x0,z0 and size
 const SPACING := 1.5
 const RADIUS := 0.34
@@ -164,6 +166,18 @@ func _ready() -> void:
 	ready_ok = true
 	reset()
 	EntityLOD.register(self)
+	level.floor_loaded.connect(_on_floor_loaded)
+
+## Another floor was built: its room is round this floor's Mannequin mark (or its painted zone), dealt anew;
+## none on this floor, no mannequins
+func _on_floor_loaded() -> void:
+	nav = GridNav.new(level)
+	nav.area_kind = "mannequin"
+	n = nav.n
+	flow.resize(n * n)
+	summoned = false
+	_find_room()
+	reset()
 
 ## EntityLOD measures it from the real one, not the node (which stays at the room's origin)
 func lod_position() -> Vector3:
@@ -213,20 +227,37 @@ func room_slots(count: int) -> Array:
 	if cells.is_empty():
 		return slots
 	var jitter := CELL / 2.0 - RADIUS - 0.15
+	var near := {}                       # Vector2i bucket (SPACING wide) -> the slots in it: a spot is checked only against its neighbours
 	var tries := 0
 	while tries < count * 60 and slots.size() < count:
 		tries += 1
 		var c: Vector2i = cells[rng.randi() % cells.size()]
 		var x := c.x * CELL + rng.randf_range(-jitter, jitter)
 		var z := c.y * CELL + rng.randf_range(-jitter, jitter)
+		var b := Vector2i(floori(x / SPACING), floori(z / SPACING))
 		var ok := true
-		for s in slots:
-			if Vector2(s.x - x, s.z - z).length() < SPACING:
-				ok = false
-				break
+		for dx in range(-1, 2):
+			for dz in range(-1, 2):
+				for s in near.get(b + Vector2i(dx, dz), []):
+					if Vector2(s.x - x, s.z - z).length() < SPACING:
+						ok = false
+						break
+				if not ok: break
+			if not ok: break
 		if ok:
-			slots.append({"x": x, "z": z})
+			var slot := {"x": x, "z": z}
+			slots.append(slot)
+			if not near.has(b): near[b] = []
+			near[b].append(slot)
 	return slots
+
+## How many the room gets: in step with its open floor, so a big area is as crowded as a small one
+func room_count() -> int:
+	var open := 0
+	for c in room_cells:
+		if not nav.blocked(c.x, c.y) and not nav.outside(c.x, c.y):
+			open += 1
+	return clampi(roundi(open * PER_CELL), COUNT, MAX_COUNT)
 
 func room_centre() -> Vector3:
 	var sum := Vector2.ZERO
@@ -273,7 +304,7 @@ func reset() -> void:
 	if level.mannequin.is_empty() and not summoned and EntityMarks.of_kind(level, "mannequin").is_empty():
 		real_node = null                # no zone painted in this level: no mannequins
 		return
-	var slots := room_slots(COUNT)
+	var slots := room_slots(room_count())
 	if slots.size() < 3:
 		push_warning("mannequin room has no floor")
 		return
