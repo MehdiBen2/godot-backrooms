@@ -75,8 +75,8 @@ func gather_target() -> void:
 		tgt.torch = best.torch_on
 		tgt.lit = 0.6 if best.torch_on else 0.3
 		tgt.noise = 1.0
-		var cp := cos(best.target_pitch)
-		tgt.look = Vector3(-sin(best.rotation.y) * cp, sin(best.target_pitch), -cos(best.rotation.y) * cp)
+		var cp := cos(best.look_pitch)          # their newest look (their body turns after it)
+		tgt.look = Vector3(-sin(best.look_yaw) * cp, sin(best.look_pitch), -cos(best.look_yaw) * cp)
 
 # Returns the loudest thing it heard this think, or null
 func perceive(dt: float):

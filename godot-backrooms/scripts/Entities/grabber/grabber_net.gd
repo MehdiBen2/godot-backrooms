@@ -1,27 +1,23 @@
 extends RefCounted
-## THE GRABBER in co-op (as bacteria_net.gd). The host's copy runs the brain and broadcasts itself 20 times a
+## THE GRABBER in co-op (as bacteria_net.gd). The host's copy runs the brain and broadcasts itself SEND_RATE times a
 ## second (Net.send_grabber); everywhere else it is a puppet that glides after those snapshots and plays the
 ## same clip at the same point. Whoever it takes plays the drag on their own machine (grabber_drag.gd), told by
 ## Net.send_grabber_grab; how it ended comes back to the host through Net.send_grabber_result.
 
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const SEND_INTERVAL := 0.05
 const RESYNC := 0.3                    # s: the clip drifted this far from the host's, jump to it
 
 var e: Node3D                          # grabber.gd
 var buf = SnapBuffer.new()
-var _t := 0.0
 
 func _init(entity: Node3D) -> void:
 	e = entity
-	buf.send_interval = SEND_INTERVAL
+	buf.send_interval = Net.SEND_INTERVAL
 
 ## Host: what it is doing, for everyone else
 func send(delta: float) -> void:
-	_t -= delta
-	if _t > 0.0:
-		return
-	_t = SEND_INTERVAL
+	if not Net.send_tick:
+		return                              # all snapshots go out together, on Net's send step
 	var p: Vector3 = e.global_position
 	var b = e.body
 	var clip_i: int = b.CLIPS.find(b.clip) if b != null else -1

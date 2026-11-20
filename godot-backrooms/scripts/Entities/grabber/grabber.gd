@@ -204,8 +204,8 @@ func _viewer(s: Dictionary) -> Dictionary:
 		torch = player.flash_on and player.battery > 0.0
 	else:
 		var r: Node3D = s.node
-		var cp := cos(r.target_pitch)
-		look = Vector3(-sin(r.rotation.y) * cp, sin(r.target_pitch), -cos(r.rotation.y) * cp)
+		var cp := cos(r.look_pitch)             # their newest look (their body turns after it)
+		look = Vector3(-sin(r.look_yaw) * cp, sin(r.look_pitch), -cos(r.look_yaw) * cp)
 		torch = r.torch_on
 	return {"pos": s.pos, "eye": eye, "look": look, "torch": torch, "local": s.local, "id": s.id, "node": s.node}
 

@@ -26,7 +26,7 @@ const POSE_KEYS := MannequinModel.POSE_KEYS
 # MANNEQUIN config (js/config.js)
 const COUNT := 60                            # the fewest a room gets (a small one: its floor packed full)
 const PER_CELL := 2.4                        # how many to a cell of the room's open floor, so a bigger area gets more of them
-const MAX_COUNT := 360                       # however big the area (they are drawn as one MultiMesh per part, but each is solid)
+const MAX_COUNT := 900                       # however big the area (they are drawn as one MultiMesh per part, but each is solid)
 const ROOM := Rect2i(33, 19, 8, 3)           # fallback when the level paints no Mannequin zone: cell rectangle x0,z0 and size
 const SPACING := 1.5
 const RADIUS := 0.34
@@ -133,7 +133,6 @@ var net_step_idx := -1
 var t_id := -1
 var t_pos := Vector3.ZERO
 var t_fwd := Vector3.FORWARD
-var _net_t := 0.0
 var _view_t := 0.0
 var _snap_cd := {}
 var _watch := {}                  # {id, t, pos, at, blinked, cut} while another survivor is being killed (net_watch_kill)
@@ -192,8 +191,12 @@ func _find_room() -> void:
 	room_cells.clear()
 	room_near.clear()
 	var marks := EntityMarks.of_kind(level, "mannequin")
-	if not marks.is_empty():
-		# a Mannequin mark in the level editor: the room is the stretch of floor round the first one
+	if not marks.is_empty() and not level.mannequin.is_empty():
+		# a Mannequin mark and a painted Mannequin zone: the crowd fills the whole zone
+		for c: Vector2i in level.mannequin:
+			room_cells.append(c)
+	elif not marks.is_empty():
+		# a Mannequin mark alone: the room is the stretch of floor round the first one
 		var mc := EntityMarks.cell(marks[0])
 		for dx in range(-MARK_RADIUS, MARK_RADIUS + 1):
 			for dz in range(-MARK_RADIUS, MARK_RADIUS + 1):
@@ -301,8 +304,9 @@ func reset() -> void:
 	moving = false
 	lurking = false
 	snap.finish()
-	if level.mannequin.is_empty() and not summoned and EntityMarks.of_kind(level, "mannequin").is_empty():
-		real_node = null                # no zone painted in this level: no mannequins
+	if not summoned and EntityMarks.of_kind(level, "mannequin").is_empty():
+		real_node = null                # no Mannequin mark on this floor: no mannequins (a painted zone alone brings none)
+		crowd.clear()
 		return
 	var slots := room_slots(room_count())
 	if slots.size() < 3:
@@ -807,10 +811,8 @@ func start_snap() -> void:
 
 # ================================================================= co-op
 func _net_send(delta: float) -> void:
-	_net_t -= delta
-	if _net_t > 0.0:
-		return
-	_net_t = 0.05
+	if not Net.send_tick:
+		return                              # on Net's send step, with everything else
 	var pose: Array = []
 	for k in POSE_KEYS:
 		pose.append(float(real_pose.get(k, 0.0)))
@@ -819,7 +821,7 @@ func _net_send(delta: float) -> void:
 func net_apply(t: float, m: Array) -> void:
 	if m.size() < 7 or not (m[6] is Array) or (m[6] as Array).size() < POSE_KEYS.size():
 		return
-	net_buf.send_interval = 0.05
+	net_buf.send_interval = Net.SEND_INTERVAL
 	net_buf.push(t, {"pos": Vector3(m[0], 0.0, m[1]), "yaw": float(m[2]), "m": m})
 
 # The host's seed arrived after our room was built (or before we had one): build it now

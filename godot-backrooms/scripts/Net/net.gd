@@ -3,7 +3,7 @@ extends Node
 ## publicly and the game shows only a short ROOM CODE: the host posts "code -> tunnel link" to a tiny public
 ## relay (ROOM_SERVICE), friends type the code into JOIN and the game looks the link up. The link is never shown. Tunnels only carry
 ## HTTP/WebSocket (no UDP), which is why this is WebSocketMultiplayerPeer and not ENet.
-## Every survivor sends a timestamped snapshot (position, look, speed, torch...) 20 times a second;
+## Every survivor sends a timestamped snapshot (position, look, speed, torch...) SEND_RATE times a second;
 ## the others draw it with snapshot interpolation (snap_buffer.gd). The host runs THE BACTERIA and the
 ## event director for everyone and sets which level everyone is on.
 
@@ -26,14 +26,18 @@ const SIGNAL_FULL := 14.0
 const SIGNAL_LOST := 42.0
 
 const DEFAULT_PORT := 8910
-const SEND_INTERVAL := 1.0 / 20.0
+## Snapshots a second, for survivors and the host's monsters alike. Everything goes out on the same physics step
+## (send_tick), so a guest gets the whole world in one message at an even rate, and the interpolation delay
+## (snap_buffer.gd) can be one send interval shorter than at 20.
+const SEND_RATE := 30.0
+const SEND_INTERVAL := 1.0 / SEND_RATE
 const HELLO_TIMEOUT := 6.0       # no hello from the host by then: we are on different game versions
 const NAME_MAX := 16
 const MAX_PLAYERS := 5          # the host and four more: the lobby corridor has a place for each (lobby_corridor.gd)
 ## Bump whenever an RPC signature or snapshot layout changes: peers with a different number are refused
 ## with a clear message instead of silently desyncing. (A changed _hello signature itself still falls
 ## back to the HELLO_TIMEOUT check, since Godot drops RPCs whose arguments don't match.)
-const PROTOCOL := 12
+const PROTOCOL := 13
 const TapeMarks := preload("res://scripts/World/props/tape_marks.gd")
 const FlashTool := preload("res://scripts/Player/flash_tool.gd")
 const TAPE_BATCH_MAX := 1000     # strips one _tape_rpc may carry
@@ -89,6 +93,7 @@ var build_tag := ""             # release tag from the launcher's version.txt ("
 var remotes := {}               # peer id -> RemotePlayer
 
 var _send_t := 0.0
+var send_tick := false           # this physics step is a snapshot step: the player and every monster send on it
 var _sim_t := 0.0               # clock(): physics time this machine has simulated (see clock())
 var _out := {}                  # Ent -> [t, bytes]: monster snapshots waiting for this frame's _flush_world
 var _sent := {}                 # Ent -> [t, bytes, sent_at]: the last one that went out
@@ -649,7 +654,7 @@ func _scene_node(node_name: String) -> Node:
 	return null
 
 ## Host: the monsters' snapshots (bacteria_net.gd, grabber_net.gd, mannequin.gd, mimic.gd each hand one
-## over 20 times a second). They used to go out as four messages of Variant arrays (a float 12 bytes, a
+## over SEND_RATE times a second, all on the same step: send_tick). They used to go out as four messages of Variant arrays (a float 12 bytes, a
 ## bool 8); now whatever was handed over this frame goes out once at the end of it, as one message of
 ## packed bytes, and a snapshot identical to the last one sent is held back (KEEPALIVE).
 func send_entity(m: Array) -> void:
@@ -847,7 +852,7 @@ func _build_survivors() -> Array:
 	for id in remotes:
 		var r: Node3D = remotes[id]
 		if is_instance_valid(r) and r.seen and r.visible and r.playing and not r.dead:
-			out.append({"node": r, "id": id, "pos": r.target_pos, "fwd": Vector3(-sin(r.rotation.y), 0.0, -cos(r.rotation.y)),
+			out.append({"node": r, "id": id, "pos": r.target_pos, "fwd": Vector3(-sin(r.look_yaw), 0.0, -cos(r.look_yaw)),
 				"local": false})
 	return out
 
@@ -1242,6 +1247,7 @@ func _send_state(dt: float) -> void:
 	_send_t += SEND_INTERVAL
 	if _send_t < -SEND_INTERVAL:
 		_send_t = 0.0                  # fell far behind (hitch): don't burst
+	send_tick = true                   # (Net steps before the scene: the monsters see it this same step)
 	var p: Node = Game.player
 	if not is_instance_valid(p) or not p.is_inside_tree():
 		return
@@ -1335,6 +1341,7 @@ func _set_status(text: String) -> void:
 # Snapshots are sent from the physics step, on a fixed grid
 func _physics_process(dt: float) -> void:
 	_sim_t += dt                       # first thing each step (an autoload steps before the scene): the whole step reads one clock
+	send_tick = false
 	if not is_online():
 		return
 	_send_state(dt)

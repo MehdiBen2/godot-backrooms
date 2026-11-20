@@ -1,28 +1,24 @@
 extends RefCounted
-## THE BACTERIA in co-op. The host's copy runs the entity logic and broadcasts itself 20 times a second
+## THE BACTERIA in co-op. The host's copy runs the entity logic and broadcasts itself SEND_RATE times a second
 ## (Net.send_entity); on every other machine the entity is a puppet that glides after those snapshots.
 ## Its fear, sounds and the grab still play on each machine, against that machine's own player.
 
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const SEND_INTERVAL := 0.05
 
 var e: Node3D                          # bacteria.gd
 var buf = SnapBuffer.new()
 var have := false
 var speed := 0.0
 var state := "roam"
-var _t := 0.0
 
 func _init(entity: Node3D) -> void:
 	e = entity
-	buf.send_interval = SEND_INTERVAL
+	buf.send_interval = Net.SEND_INTERVAL
 
 ## Host: what it is doing, for everyone else
 func send(delta: float) -> void:
-	_t -= delta
-	if _t > 0.0:
-		return
-	_t = SEND_INTERVAL
+	if not Net.send_tick:
+		return                              # all snapshots go out together, on Net's send step
 	var fid := 0
 	if e.focus != null and is_instance_valid(e.focus):
 		fid = e.multiplayer.get_unique_id() if e.focus == e.player else Net.id_of(e.focus)

@@ -1,5 +1,5 @@
 extends RefCounted
-## THE SHROUD in co-op (as tall_net.gd). The host's copy runs the brain and broadcasts itself 20 times a second
+## THE SHROUD in co-op (as tall_net.gd). The host's copy runs the brain and broadcasts itself SEND_RATE times a second
 ## (Net.send_shroud), every survivor's stare with it; everywhere else it is a puppet that glides after those
 ## snapshots and plays the same clip for the same state. Each guest reads its own stare out of the snapshot, so the
 ## tunnelling, the heartbeat, the failing torch and the drag on the view happen on their own screen. Whoever it takes
@@ -7,22 +7,18 @@ extends RefCounted
 ## the world for everyone else and waits for Net.send_shroud_result.
 
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const SEND_INTERVAL := 0.05
 
 var e: Node3D                          # shroud.gd
 var buf = SnapBuffer.new()
-var _t := 0.0
 
 func _init(entity: Node3D) -> void:
 	e = entity
-	buf.send_interval = SEND_INTERVAL
+	buf.send_interval = Net.SEND_INTERVAL
 
 ## Host: what it is doing, and every survivor's stare (id, stare, id, stare, ...)
 func send(delta: float) -> void:
-	_t -= delta
-	if _t > 0.0:
-		return
-	_t = SEND_INTERVAL
+	if not Net.send_tick:
+		return                              # all snapshots go out together, on Net's send step
 	var p: Vector3 = e.global_position
 	var locks: Array = []
 	for id in e._locks:

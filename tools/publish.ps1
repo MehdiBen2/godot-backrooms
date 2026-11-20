@@ -31,10 +31,11 @@ function Stage([string]$name) {
 $chunkerSource = @'
 using System;
 using System.IO;
+using System.IO.Compression;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-public class ChunkInfo { public string Hash; public long Size; }
+public class ChunkInfo { public string Hash; public long Size; public bool Gz; }
 
 public class SplitInfo {
     public string Sha256;
@@ -95,15 +96,37 @@ public static class Chunker {
         return info;
     }
 
+    static readonly HashSet<string> Tried = new HashSet<string>();   // compressed once per run, kept or not
+
+    static byte[] Gzip(byte[] data) {
+        using (var ms = new MemoryStream()) {
+            using (var z = new GZipStream(ms, CompressionLevel.Optimal, true)) { z.Write(data, 0, data.Length); }
+            return ms.ToArray();
+        }
+    }
+
     static void Emit(MemoryStream cur, string outDir, HashSet<string> known, List<string> newChunks, SplitInfo info) {
         byte[] data = cur.ToArray();
         string hash = Hex(SHA256.Create().ComputeHash(data));
         if (!known.Contains(hash)) {
-            File.WriteAllBytes(Path.Combine(outDir, hash), data);
+            File.WriteAllBytes(Path.Combine(outDir, hash), data);      // raw: what older launchers fetch
             known.Add(hash);
             newChunks.Add(hash);
         }
-        info.Chunks.Add(new ChunkInfo { Hash = hash, Size = data.Length });
+        // <hash>.gz: the same bytes gzipped, which the launcher fetches instead when the manifest says it is there
+        // (about a third smaller for the pck, two thirds for the exe). Only kept when it saves at least 10%:
+        // audio and already-packed data barely shrink.
+        bool gz = known.Contains(hash + ".gz");
+        if (!gz && Tried.Add(hash)) {
+            byte[] packed = Gzip(data);
+            if (packed.Length < data.Length * 0.9) {
+                File.WriteAllBytes(Path.Combine(outDir, hash + ".gz"), packed);
+                known.Add(hash + ".gz");
+                newChunks.Add(hash + ".gz");
+                gz = true;
+            }
+        }
+        info.Chunks.Add(new ChunkInfo { Hash = hash, Size = data.Length, Gz = gz });
         info.Size += data.Length;
         cur.SetLength(0);
     }
@@ -177,7 +200,8 @@ foreach ($file in (Get-ChildItem $game -File | Sort-Object Name)) {
         path = $file.Name
         size = $info.Size
         sha256 = $info.Sha256
-        chunks = @($info.Chunks | ForEach-Object { [ordered]@{ h = $_.Hash; n = $_.Size } })
+        # z: a gzipped copy (<h>.gz) is in the store too
+        chunks = @($info.Chunks | ForEach-Object { $c = [ordered]@{ h = $_.Hash; n = $_.Size }; if ($_.Gz) { $c.z = 1 }; $c })
     }
 }
 $manifest = [ordered]@{ version = $Version; store = $storeTag; files = $entries }

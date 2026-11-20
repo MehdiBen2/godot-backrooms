@@ -92,6 +92,7 @@ var session := false
 var spawned := false
 var summoned := false                  # the console started a session; without it only a trigger spawns it
 var _mark_pending := false             # the level has a Mimic mark it has yet to stand at
+var _has_mark := false                 # this floor has a Mimic mark: without one it only comes when a trigger brings it
 var wait := 0.0
 var mode := "echo"
 var speed := 0.0
@@ -108,7 +109,6 @@ var net_buf = SnapBuffer.new()
 var t_id := -1
 var t_pos := Vector3.ZERO
 var t_fwd := Vector3.FORWARD
-var _net_t := 0.0
 var anim: AnimationPlayer
 var body_yaw := 0.0
 
@@ -178,6 +178,7 @@ func _ready() -> void:
 	sounds.mimic = self
 	add_child(sounds)
 	_mark_pending = not EntityMarks.of_kind(level, "mimic").is_empty()
+	_has_mark = _mark_pending
 
 ## A Mimic mark in the level editor: it stands there from the start of the level, as a survivor would. Placed
 ## to roam, it walks off and is gone once nobody sees it; placed to lurk, it stays put until you come close
@@ -402,6 +403,7 @@ func on_floor_changed() -> void:
 	nav = GridNav.new(level)
 	nav.area_kind = "mimic"
 	_mark_pending = not EntityMarks.of_kind(level, "mimic").is_empty()
+	_has_mark = _mark_pending
 	echo.tracks.clear()
 	lure_path = []
 	lure_i = 0
@@ -476,7 +478,7 @@ func update_peer(delta: float) -> void:
 	t_pos = tg.pos
 	t_fwd = tg.fwd
 	if not spawned:
-		if not summoned and not _coop():
+		if not summoned and not (_coop() and _has_mark):
 			return                                  # alone it never starts on its own: a trigger (appear) or the console brings it in
 		wait -= delta
 		if wait > 0.0:
@@ -1315,17 +1317,15 @@ func _physics_process_timed(delta: float) -> void:
 
 # ================================================================= co-op
 func _net_send(delta: float) -> void:
-	_net_t -= delta
-	if _net_t > 0.0:
-		return
-	_net_t = 0.05
+	if not Net.send_tick:
+		return                              # on Net's send step, with everything else
 	var p := body.global_position
 	Net.send_mm([p.x, p.y, p.z, body_yaw, speed, spawned, maxi(0, MODES.find(mode)), disguise_id, voice_n, crouch, torch_on, pitch])
 
 func net_apply(t: float, m: Array) -> void:
 	if m.size() < 12:
 		return
-	net_buf.send_interval = 0.05
+	net_buf.send_interval = Net.SEND_INTERVAL
 	net_buf.push(t, {"pos": Vector3(m[0], m[1], m[2]), "yaw": float(m[3]), "speed": float(m[4]), "m": m})
 
 # Guest: the host's Mimic, drawn smoothly, with its own footfalls and the heartbeat for THIS player

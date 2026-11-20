@@ -1,26 +1,22 @@
 extends RefCounted
-## THE BURNT in co-op (as grabber_net.gd). The host's copy runs the brain and broadcasts itself 20 times a second
+## THE BURNT in co-op (as grabber_net.gd). The host's copy runs the brain and broadcasts itself SEND_RATE times a second
 ## (Net.send_burnt); everywhere else it is a puppet that glides after those snapshots and poses itself from the
 ## same state. Whoever it takes plays the whole sequence (hug, lift, stare, corrupt) on their own machine, told
 ## by Net.send_burnt_take; the host holds it still meanwhile, and the end comes back through Net.send_burnt_result.
 
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const SEND_INTERVAL := 0.05
 
 var e: Node3D                          # burnt.gd
 var buf = SnapBuffer.new()
-var _t := 0.0
 
 func _init(entity: Node3D) -> void:
 	e = entity
-	buf.send_interval = SEND_INTERVAL
+	buf.send_interval = Net.SEND_INTERVAL
 
 ## Host: what it is doing, for everyone else
 func send(delta: float) -> void:
-	_t -= delta
-	if _t > 0.0:
-		return
-	_t = SEND_INTERVAL
+	if not Net.send_tick:
+		return                              # all snapshots go out together, on Net's send step
 	var p: Vector3 = e.global_position
 	Net.send_burnt([p.x, p.y, p.z, e.yaw, maxi(0, e.STATES.find(e.state)), e.t, e._walk, e.present,
 			e._peek_side, maxi(0, e.PEEK_PHASES.find(e._peek_phase)), e._is_seen])

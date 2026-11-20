@@ -1,27 +1,23 @@
 extends RefCounted
-## THE TALL ONE in co-op (as burnt_net.gd). The host's copy runs the brain and broadcasts itself 20 times a second
+## THE TALL ONE in co-op (as burnt_net.gd). The host's copy runs the brain and broadcasts itself SEND_RATE times a second
 ## (Net.send_tall); everywhere else it is a puppet that glides after those snapshots and plays the same clip for
 ## the same state, so everyone sees it roam, flee, scream, hunt and leap. Whoever it kills plays the camera
 ## sequence on their own machine, told by Net.send_tall_take; the host plays the kill clip in the world for
 ## everyone else, and waits for Net.send_tall_result.
 
 const SnapBuffer := preload("res://scripts/Net/snap_buffer.gd")
-const SEND_INTERVAL := 0.05
 
 var e: Node3D                          # tall_one.gd
 var buf = SnapBuffer.new()
-var _t := 0.0
 
 func _init(entity: Node3D) -> void:
 	e = entity
-	buf.send_interval = SEND_INTERVAL
+	buf.send_interval = Net.SEND_INTERVAL
 
 ## Host: what it is doing, for everyone else
 func send(delta: float) -> void:
-	_t -= delta
-	if _t > 0.0:
-		return
-	_t = SEND_INTERVAL
+	if not Net.send_tick:
+		return                              # all snapshots go out together, on Net's send step
 	var p: Vector3 = e.global_position
 	Net.send_tall([p.x, p.y, p.z, e.yaw, maxi(0, e.STATES.find(e.state)), e.t, e._walk, e._sp, e.present])
 

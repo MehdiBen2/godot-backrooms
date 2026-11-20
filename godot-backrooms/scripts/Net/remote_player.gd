@@ -20,6 +20,8 @@ var color := Color("c9a44a")
 var target_pos := Vector3.ZERO
 var target_yaw := 0.0
 var target_pitch := 0.0
+var look_yaw := 0.0               # where they look in their NEWEST snapshot (target_*: as drawn, a little in the past):
+var look_pitch := 0.0             # what the host's monsters read, so a guest who turns to face one is seen facing it at once
 var crouching := false
 var torch_on := true
 var dead := false
@@ -60,6 +62,8 @@ var _kill_dead := false          # ...and they have died since
 var buf = preload("res://scripts/Net/snap_buffer.gd").new()
 
 func _ready() -> void:
+	buf.send_interval = Net.SEND_INTERVAL
+	buf.continuous = true                   # they send every step: a late packet is only late, so walk on a moment instead of freezing
 	body = Node3D.new()
 	add_child(body)
 	figure = Node3D.new()
@@ -236,7 +240,10 @@ func _process(dt: float) -> void:
 		light.rotation.y = wrapf(st.yaw - rotation.y, -PI, PI)
 	else:
 		rotation.y = st.yaw
-	target_pos = buf.latest().pos
+	var newest: Dictionary = buf.latest()
+	target_pos = newest.pos
+	look_yaw = newest.yaw
+	look_pitch = newest.pitch
 	target_yaw = st.yaw
 	target_pitch = st.pitch
 	if not seen:

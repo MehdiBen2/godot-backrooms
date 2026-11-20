@@ -23,16 +23,10 @@ static func placed(level: Node, kind: String) -> Array:
 				out.append(o)
 	return out
 
-## Monsters that can start from territory use its middle open cell when there is no placed mark.
+## The marks a monster starts from. Only a placed mark spawns it: a painted "area_<kind>" territory without one
+## only says where it may go, it brings nothing in.
 static func of_kind(level: Node, kind: String) -> Array:
-	var out := placed(level, kind)
-	if out.is_empty():
-		var cells: Array = area(level, kind).keys().filter(func(c: Vector2i): return not level.walls.has(c) and not level.pits.has(c) and not level.safe.has(c))
-		if not cells.is_empty():
-			cells.sort_custom(func(a: Vector2i, b: Vector2i): return a.y < b.y or (a.y == b.y and a.x < b.x))
-			var c: Vector2i = cells[cells.size() / 2]
-			out.append({"type": "entity", "kind": kind, "behavior": "roam", "pos_x": float(c.x), "pos_y": float(c.y)})
-	return out
+	return placed(level, kind)
 
 static func cell(mark: Dictionary) -> Vector2i:
 	return Vector2i(roundi(float(mark.get("pos_x", 0.0))), roundi(float(mark.get("pos_y", 0.0))))

@@ -22,7 +22,7 @@ extends "res://scripts/Entities/model_entity.gd"
 ##   fed      it stands over where it took someone, idle, for FED_TIME, then goes dormant.
 ## Also taken if it reaches you (GRAB_DIST) while nobody is looking. A hiding place (player.hidden) hides you.
 ##
-## Co-op (shroud_net.gd): the host runs it for everyone and sends it out 20 times a second, every survivor's stare
+## Co-op (shroud_net.gd): the host runs it for everyone and sends it out Net.SEND_RATE times a second, every survivor's stare
 ## with it; a guest's copy is a puppet that follows, and shows the guest their own stare. A guest it takes plays the
 ## pull and the death scene on their own machine (Net.send_shroud_take), while the host plays the clip in the world.
 ## Placed with an Entity mark of Kind "shroud" in the level editor (roam / lurk), and kept to an "area_shroud"
@@ -471,8 +471,8 @@ func _eye_of(sv: Dictionary) -> Vector3:
 func _look_of(sv: Dictionary) -> Vector3:
 	if sv.local: return -(_pl.cam as Camera3D).global_transform.basis.z
 	var r: Node = sv.node
-	var yw: float = r.get("target_yaw") if r.get("target_yaw") != null else 0.0
-	var pt: float = r.get("target_pitch") if r.get("target_pitch") != null else 0.0
+	var yw: float = r.get("look_yaw") if r.get("look_yaw") != null else 0.0        # their newest look
+	var pt: float = r.get("look_pitch") if r.get("look_pitch") != null else 0.0
 	return Vector3(-sin(yw) * cos(pt), sin(pt), -cos(yw) * cos(pt))
 
 func _watching(sv: Dictionary) -> bool:

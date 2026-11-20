@@ -48,6 +48,7 @@ var blinking_away := false
 var fails := {}                    # why spawn attempts were rejected (console: `eyes`)
 var spawns := 0
 var _mark_pending := false         # the level has an Eyes mark it has yet to open at
+var _has_mark := false             # this floor has an Eyes mark: without one no eyes open here at all
 
 func _ready() -> void:
 	EntityLOD.register(self)          # (comes to you by design: listed in the F12 overlay only)
@@ -56,6 +57,7 @@ func _ready() -> void:
 	player = get_parent().get_node("Player")
 	cam = player.get_node("Camera3D")
 	_mark_pending = not EntityMarks.of_kind(level, "eyes").is_empty()
+	_has_mark = _mark_pending
 	level.floor_loaded.connect(_on_floor_loaded)
 	quad = QuadMesh.new()
 	quad.size = Vector2.ONE
@@ -74,6 +76,7 @@ func _on_floor_loaded() -> void:
 			n.queue_free()
 	watchers.clear()
 	_mark_pending = not EntityMarks.of_kind(level, "eyes").is_empty()
+	_has_mark = _mark_pending
 
 # Straight from the file if the editor has not imported it yet
 func _load_tex() -> Texture2D:
@@ -171,6 +174,8 @@ func _clear_now(calm: float) -> void:
 
 # ---------------------------------------------------------------- spawning
 func _spawn_logic(dt: float) -> void:
+	if not _has_mark and debug_count < 0:
+		return                            # no Eyes mark on this floor: sanity opens none (the console still can)
 	var want := target_count()
 	var have := alive_count()
 	spawn_timer -= dt

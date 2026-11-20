@@ -38,6 +38,15 @@ var walk_cd := 12.0
 func _init(owner: Node3D) -> void:
 	m = owner
 
+## No crowd (the floor has no Mannequin mark): its nodes are freed with the room's (mannequin.gd reset)
+func clear() -> void:
+	decoys = []
+	mms.clear()
+	variant_mm = null
+	shufflers.clear()
+	walkers.clear()
+	stalker = -1
+
 func build(dealt: Array) -> void:
 	decoys = dealt
 	mms.clear()
@@ -167,7 +176,11 @@ func update(delta: float) -> void:
 			return
 
 	var cam: Camera3D = player.cam
-	var pool := shufflers.duplicate()
+	# only the ones in reach take part: a big room has hundreds, and sorting them all ten times a second costs
+	var reach2 := SHUFFLE_RANGE * SHUFFLE_RANGE
+	var pool := shufflers.filter(func(sh):
+		var dd: Dictionary = decoys[sh.i]
+		return Vector2(dd.x - pp.x, dd.z - pp.z).length_squared() <= reach2)
 	pool.sort_custom(func(a, b):
 		var da: Dictionary = decoys[a.i]
 		var db: Dictionary = decoys[b.i]
